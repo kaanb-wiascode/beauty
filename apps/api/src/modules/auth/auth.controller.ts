@@ -14,9 +14,15 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 
+import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { TenantContext } from '../../common/tenant/tenant-context';
+
 @Controller('auth')
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly tenantContext: TenantContext,
+  ) {}
 
   @Post('register')
   async register(@Body() body: unknown) {
@@ -42,12 +48,15 @@ export class AuthController {
     return this.authService.logout(body.refreshToken);
   }
 
-  @UseGuards(JwtAuthGuard)
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
   @Get('me')
   async me(@CurrentUser() user: JwtPayload) {
     return {
       authenticated: true,
       user,
+      tenantContext: {
+        tenantId: this.tenantContext.getTenantId(),
+      },
     };
   }
 }
