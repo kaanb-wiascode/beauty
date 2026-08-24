@@ -6,6 +6,7 @@ import { HealthModule } from './modules/health/health.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './common/tenant/tenant.module';
+import { CustomersModule } from './modules/customers/customers.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { TenantModule } from './common/tenant/tenant.module';
     AuthModule,
     TenantModule,
     HealthModule,
+    CustomersModule,
   ],
 })
 export class AppModule {}
