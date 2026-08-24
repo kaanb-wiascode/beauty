@@ -3,6 +3,7 @@ import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '@beauty-erp/database';
 import { envSchema } from './config/env.schema';
 import { HealthModule } from './modules/health/health.module';
+import { RedisModule } from './infrastructure/redis/redis.module';
 
 @Module({
   imports: [
@@ -12,6 +13,7 @@ import { HealthModule } from './modules/health/health.module';
       validate: (config) => envSchema.parse(config),
     }),
     DatabaseModule,
+    RedisModule,
     HealthModule,
   ],
 })

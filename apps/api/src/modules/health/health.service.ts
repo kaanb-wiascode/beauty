@@ -1,23 +1,13 @@
 import { Injectable } from '@nestjs/common';
-import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@beauty-erp/database';
-import { createClient, RedisClientType } from 'redis';
+import { RedisService } from '../../infrastructure/redis/redis.service';
 
 @Injectable()
 export class HealthService {
-  private readonly redis: RedisClientType;
-
   constructor(
     private readonly prisma: PrismaService,
-    private readonly configService: ConfigService,
-  ) {
-    this.redis = createClient({
-      url: this.configService.get<string>(
-        'REDIS_URL',
-        'redis://localhost:6379',
-      ),
-    });
-  }
+    private readonly redis: RedisService,
+  ) {}
 
   async check() {
     const database = await this.checkDatabase();
@@ -46,12 +36,7 @@ export class HealthService {
 
   private async checkRedis(): Promise<'up' | 'down'> {
     try {
-      if (!this.redis.isOpen) {
-        await this.redis.connect();
-      }
-
       await this.redis.ping();
-
       return 'up';
     } catch {
       return 'down';
