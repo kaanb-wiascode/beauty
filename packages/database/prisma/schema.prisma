@@ -36,6 +36,7 @@ model Tenant {
 
   memberships Membership[]
   roles       Role[]
+  customers   Customer[]
 
   @@map("tenants")
 }
@@ -100,4 +101,22 @@ model RolePermission {
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
+}
+
+model Customer {
+  id        String   @id @default(uuid())
+  tenantId  String
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, phone])
+  @@index([tenantId, email])
+  @@map("customers")
 }
