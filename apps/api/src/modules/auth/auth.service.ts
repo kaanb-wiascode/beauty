@@ -1,11 +1,25 @@
-import { ConflictException, Injectable } from '@nestjs/common';
+import {
+  ConflictException,
+  Injectable,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { JwtService } from '@nestjs/jwt';
 import * as argon2 from 'argon2';
+import { randomUUID } from 'node:crypto';
+
+import { RedisService } from '../../infrastructure/redis/redis.service';
+
 import { RegisterInput } from './dto/register.dto';
+import { LoginInput } from './dto/login.dto';
 
 @Injectable()
 export class AuthService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly jwtService: JwtService,
+    private readonly redis: RedisService,
+  ) {}
 
   async register(input: RegisterInput) {
     const email = input.email.trim().toLowerCase();
@@ -85,5 +99,202 @@ export class AuthService {
         },
       };
     });
+  }
+
+  async login(input: LoginInput) {
+    const email = input.email.trim().toLowerCase();
+
+    const user = await this.prisma.user.findUnique({
+      where: { email },
+      include: {
+        memberships: {
+          where: {
+            status: 'ACTIVE',
+          },
+          include: {
+            tenant: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    const passwordValid = await argon2.verify(
+      user.passwordHash,
+      input.password,
+    );
+
+    if (!passwordValid) {
+      throw new UnauthorizedException('Invalid email or password');
+    }
+
+    if (user.memberships.length === 0) {
+      throw new UnauthorizedException('No active tenant membership');
+    }
+
+    const membership = user.memberships[0];
+
+    const accessToken = await this.createAccessToken(
+      user.id,
+      membership.tenantId,
+      membership.id,
+      membership.roleId,
+    );
+
+    const refreshToken = await this.createRefreshSession(
+      user.id,
+      membership.tenantId,
+      membership.id,
+      membership.roleId,
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      user: {
+        id: user.id,
+        email: user.email,
+        firstName: user.firstName,
+        lastName: user.lastName,
+      },
+      tenant: {
+        id: membership.tenant.id,
+        name: membership.tenant.name,
+        slug: membership.tenant.slug,
+      },
+      membership: {
+        id: membership.id,
+        role: membership.role.slug,
+        status: membership.status,
+      },
+    };
+  }
+
+  async refresh(refreshToken: string) {
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      throw new UnauthorizedException('Invalid refresh token');
+    }
+
+    const key = `auth:refresh:${refreshToken}`;
+    const sessionData = await this.redis.get(key);
+
+    if (!sessionData) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    let session: {
+      userId: string;
+      tenantId: string;
+      membershipId: string;
+      roleId: string;
+    };
+
+    try {
+      session = JSON.parse(sessionData);
+    } catch {
+      await this.redis.delete(key);
+      throw new UnauthorizedException('Invalid refresh session');
+    }
+
+    const membership = await this.prisma.membership.findUnique({
+      where: {
+        id: session.membershipId,
+      },
+      include: {
+        tenant: true,
+        role: true,
+        user: true,
+      },
+    });
+
+    if (
+      !membership ||
+      membership.status !== 'ACTIVE' ||
+      membership.userId !== session.userId ||
+      membership.tenantId !== session.tenantId ||
+      membership.roleId !== session.roleId
+    ) {
+      await this.redis.delete(key);
+      throw new UnauthorizedException('Invalid or inactive session');
+    }
+
+    const newAccessToken = await this.createAccessToken(
+      membership.user.id,
+      membership.tenantId,
+      membership.id,
+      membership.roleId,
+    );
+
+    const newRefreshToken = await this.createRefreshSession(
+      membership.user.id,
+      membership.tenantId,
+      membership.id,
+      membership.roleId,
+    );
+
+    // Refresh token rotation:
+    // eski session artık geçersiz.
+    await this.redis.delete(key);
+
+    return {
+      accessToken: newAccessToken,
+      refreshToken: newRefreshToken,
+    };
+  }
+
+  async logout(refreshToken: string) {
+    if (!refreshToken || typeof refreshToken !== 'string') {
+      return {
+        success: true,
+      };
+    }
+
+    await this.redis.delete(`auth:refresh:${refreshToken}`);
+
+    return {
+      success: true,
+    };
+  }
+
+  private async createAccessToken(
+    userId: string,
+    tenantId: string,
+    membershipId: string,
+    roleId: string,
+  ): Promise<string> {
+    return this.jwtService.signAsync({
+      sub: userId,
+      tenantId,
+      membershipId,
+      roleId,
+    });
+  }
+
+  private async createRefreshSession(
+    userId: string,
+    tenantId: string,
+    membershipId: string,
+    roleId: string,
+  ): Promise<string> {
+    const sessionId = randomUUID();
+
+    const refreshSession = {
+      userId,
+      tenantId,
+      membershipId,
+      roleId,
+    };
+
+    await this.redis.set(
+      `auth:refresh:${sessionId}`,
+      JSON.stringify(refreshSession),
+      60 * 60 * 24 * 7,
+    );
+
+    return sessionId;
   }
 }
