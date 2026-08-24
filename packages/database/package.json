@@ -2,7 +2,11 @@
     "name": "@beauty-erp/database",
     "version": "0.1.0",
     "private": true,
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "scripts": {
+      "build": "tsc",
+      "dev": "tsc --watch",
       "prisma": "prisma",
       "generate": "prisma generate",
       "migrate:dev": "prisma migrate dev",
@@ -10,9 +14,12 @@
       "studio": "prisma studio"
     },
     "dependencies": {
-      "@prisma/client": "^6.15.0"
+      "@nestjs/common": "^11.1.6",
+      "@prisma/client": "6.19.3"
     },
     "devDependencies": {
-      "prisma": "^6.15.0"
+      "@types/node": "^24.3.0",
+      "prisma": "6.19.3",
+      "typescript": "6.0.3"
     }
   }
