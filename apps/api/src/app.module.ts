@@ -4,6 +4,7 @@ import { DatabaseModule } from '@beauty-erp/database';
 import { envSchema } from './config/env.schema';
 import { HealthModule } from './modules/health/health.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -14,6 +15,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
     }),
     DatabaseModule,
     RedisModule,
+    AuthModule,
     HealthModule,
   ],
 })

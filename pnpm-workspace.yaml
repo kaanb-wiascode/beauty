@@ -4,6 +4,7 @@ packages:
 allowBuilds:
   '@prisma/client': false
   '@prisma/engines': false
+  argon2: true
   prisma: false
   unrs-resolver: false
 minimumReleaseAgeExclude:
