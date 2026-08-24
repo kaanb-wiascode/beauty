@@ -1,7 +1,18 @@
-import { Body, Controller, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
+
 import { AuthService } from './auth.service';
 import { loginSchema, LoginInput } from './dto/login.dto';
 import { registerSchema, RegisterInput } from './dto/register.dto';
+
+import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
+import type { JwtPayload } from '../../common/auth/jwt.strategy';
 
 @Controller('auth')
 export class AuthController {
@@ -29,5 +40,14 @@ export class AuthController {
   @Post('logout')
   async logout(@Body() body: { refreshToken: string }) {
     return this.authService.logout(body.refreshToken);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Get('me')
+  async me(@CurrentUser() user: JwtPayload) {
+    return {
+      authenticated: true,
+      user,
+    };
   }
 }

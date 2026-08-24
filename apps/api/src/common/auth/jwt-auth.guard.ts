@@ -15,8 +15,12 @@ import {
       err: unknown,
       user: TUser,
     ): TUser {
-      if (err || !user) {
-        throw err || new UnauthorizedException('Authentication required');
+      if (err) {
+        throw err;
+      }
+  
+      if (!user) {
+        throw new UnauthorizedException('JWT user not found');
       }
   
       return user;
