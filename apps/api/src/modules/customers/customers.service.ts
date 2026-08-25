@@ -7,6 +7,7 @@ import {
   
   import { TenantContext } from '../../common/tenant/tenant-context';
   import { CreateCustomerInput } from './dto/create-customer.dto';
+  import { ListCustomersInput } from './dto/list-customers.dto';
   import { UpdateCustomerInput } from './dto/update-customer.dto';
   
   @Injectable()
@@ -30,17 +31,69 @@ import {
       });
     }
   
-    async findAll() {
+    async findAll(input: ListCustomersInput) {
       const tenantId = this.tenantContext.getTenantId();
-  
-      return this.prisma.customer.findMany({
-        where: {
-          tenantId,
+    
+      const { page, limit, search } = input;
+      const skip = (page - 1) * limit;
+    
+      const where = {
+        tenantId,
+        ...(search
+          ? {
+              OR: [
+                {
+                  firstName: {
+                    contains: search,
+                    mode: 'insensitive' as const,
+                  },
+                },
+                {
+                  lastName: {
+                    contains: search,
+                    mode: 'insensitive' as const,
+                  },
+                },
+                {
+                  email: {
+                    contains: search,
+                    mode: 'insensitive' as const,
+                  },
+                },
+                {
+                  phone: {
+                    contains: search,
+                  },
+                },
+              ],
+            }
+          : {}),
+      };
+    
+      const [data, total] = await Promise.all([
+        this.prisma.customer.findMany({
+          where,
+          skip,
+          take: limit,
+          orderBy: {
+            createdAt: 'desc',
+          },
+        }),
+    
+        this.prisma.customer.count({
+          where,
+        }),
+      ]);
+    
+      return {
+        data,
+        meta: {
+          page,
+          limit,
+          total,
+          totalPages: Math.ceil(total / limit),
         },
-        orderBy: {
-          createdAt: 'desc',
-        },
-      });
+      };
     }
   
     async findOne(id: string) {
