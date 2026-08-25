@@ -35,8 +35,9 @@ model Tenant {
   updatedAt   DateTime     @updatedAt
 
   memberships Membership[]
-  roles       Role[]
-  customers   Customer[]
+roles       Role[]
+customers   Customer[]
+staff       Staff[]
 
   @@map("tenants")
 }
@@ -120,3 +121,29 @@ model Customer {
   @@index([tenantId, email])
   @@map("customers")
 }
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model Staff {
+  id        String      @id @default(uuid())
+  tenantId  String
+  firstName String
+  lastName  String
+  phone     String?
+  email     String?
+  status    StaffStatus @default(ACTIVE)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, email])
+  @@map("staff")
+}
+
