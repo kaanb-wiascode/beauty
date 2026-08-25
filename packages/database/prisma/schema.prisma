@@ -28,16 +28,17 @@ model User {
 }
 
 model Tenant {
-  id          String       @id @default(uuid())
-  name        String
-  slug        String       @unique
-  createdAt   DateTime     @default(now())
-  updatedAt   DateTime     @updatedAt
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   memberships Membership[]
-roles       Role[]
-customers   Customer[]
-staff       Staff[]
+  roles       Role[]
+  customers   Customer[]
+  staff       Staff[]
+  services    Service[]
 
   @@map("tenants")
 }
@@ -147,3 +148,27 @@ model Staff {
   @@map("staff")
 }
 
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+model Service {
+  id              String        @id @default(uuid())
+  tenantId        String
+  name            String
+  description     String?
+  durationMinutes Int
+  price           Decimal       @db.Decimal(10, 2)
+  status          ServiceStatus @default(ACTIVE)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, status])
+  @@index([tenantId, name])
+  @@map("services")
+}
