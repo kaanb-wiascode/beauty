@@ -57,6 +57,7 @@ export default function ServicesPage() {
   const { showToast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -73,7 +74,7 @@ export default function ServicesPage() {
 
     try {
       const result = await api<Paginated<Service>>(
-        withQuery("/services", { page, limit: 20 }),
+        withQuery("/services", { page, limit: 20, ...(search.trim() ? { search: search.trim() } : {}) }),
       );
       setServices(result.data);
       setTotalPages(result.meta.totalPages || 1);
@@ -84,7 +85,7 @@ export default function ServicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, search]);
 
   useEffect(() => {
     void load();
@@ -171,6 +172,17 @@ export default function ServicesPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <Panel>
+          <div className="mb-5">
+            <TextInput
+              value={search}
+              placeholder="Hizmet ara..."
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
         {loading ? (
           <Spinner label="Hizmetler yükleniyor..." />
         ) : services.length === 0 ? (

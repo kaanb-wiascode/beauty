@@ -49,6 +49,7 @@ export default function StaffPage() {
   const { showToast } = useToast();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [page, setPage] = useState(1);
+  const [search, setSearch] = useState("");
   const [totalPages, setTotalPages] = useState(1);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,7 +66,7 @@ export default function StaffPage() {
 
     try {
       const result = await api<Paginated<Staff>>(
-        withQuery("/staff", { page, limit: 20 }),
+        withQuery("/staff", { page, limit: 20, ...(search.trim() ? { search: search.trim() } : {}) }),
       );
       setStaff(result.data);
       setTotalPages(result.meta.totalPages || 1);
@@ -76,7 +77,7 @@ export default function StaffPage() {
     } finally {
       setLoading(false);
     }
-  }, [page]);
+  }, [page, search]);
 
   useEffect(() => {
     void load();
@@ -163,6 +164,17 @@ export default function StaffPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <Panel>
+          <div className="mb-5">
+            <TextInput
+              value={search}
+              placeholder="Personel ara..."
+              onChange={(event) => {
+                setSearch(event.target.value);
+                setPage(1);
+              }}
+            />
+          </div>
+
         {loading ? (
           <Spinner label="Personel yükleniyor..." />
         ) : staff.length === 0 ? (
