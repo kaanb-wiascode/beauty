@@ -7,12 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum MembershipStatus {
-  ACTIVE
-  SUSPENDED
-  REMOVED
-}
-
 model User {
   id           String       @id @default(uuid())
   email        String       @unique
@@ -21,24 +15,23 @@ model User {
   lastName     String
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
-
-  memberships Membership[]
+  memberships  Membership[]
 
   @@map("users")
 }
 
 model Tenant {
-  id        String   @id @default(uuid())
-  name      String
-  slug      String   @unique
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  memberships Membership[]
-  roles       Role[]
-  customers   Customer[]
-  staff       Staff[]
-  services    Service[]
+  id           String        @id @default(uuid())
+  name         String
+  slug         String        @unique
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  customers    Customer[]
+  memberships  Membership[]
+  roles        Role[]
+  services     Service[]
+  staff        Staff[]
 
   @@map("tenants")
 }
@@ -47,14 +40,13 @@ model Membership {
   id        String           @id @default(uuid())
   userId    String
   tenantId  String
-  roleId    String
   status    MembershipStatus @default(ACTIVE)
   createdAt DateTime         @default(now())
   updatedAt DateTime         @updatedAt
-
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  role   Role   @relation(fields: [roleId], references: [id], onDelete: Restrict)
+  roleId    String
+  role      Role             @relation(fields: [roleId], references: [id])
+  tenant    Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  user      User             @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([userId, tenantId])
   @@index([tenantId])
@@ -64,17 +56,16 @@ model Membership {
 }
 
 model Role {
-  id          String   @id @default(uuid())
-  tenantId    String
-  name        String
-  slug        String
-  description String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  tenant         Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  memberships    Membership[]
+  id              String           @id @default(uuid())
+  tenantId        String
+  name            String
+  slug            String
+  description     String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  memberships     Membership[]
   rolePermissions RolePermission[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -82,12 +73,11 @@ model Role {
 }
 
 model Permission {
-  id          String   @id @default(uuid())
-  resource    String
-  action      String
-  description String?
-  createdAt   DateTime @default(now())
-
+  id              String           @id @default(uuid())
+  resource        String
+  action          String
+  description     String?
+  createdAt       DateTime         @default(now())
   rolePermissions RolePermission[]
 
   @@unique([resource, action])
@@ -97,25 +87,24 @@ model Permission {
 model RolePermission {
   roleId       String
   permissionId String
-
-  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
-  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
 
   @@id([roleId, permissionId])
   @@map("role_permissions")
 }
 
 model Customer {
-  id        String   @id @default(uuid())
-  tenantId  String
-  firstName String
-  lastName  String
-  phone     String?
-  email     String?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String        @id @default(uuid())
+  tenantId     String
+  firstName    String
+  lastName     String
+  phone        String?
+  email        String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([tenantId, phone])
@@ -123,35 +112,23 @@ model Customer {
   @@map("customers")
 }
 
-enum StaffStatus {
-  ACTIVE
-  INACTIVE
-  ARCHIVED
-}
-
 model Staff {
-  id        String      @id @default(uuid())
-  tenantId  String
-  firstName String
-  lastName  String
-  phone     String?
-  email     String?
-  status    StaffStatus @default(ACTIVE)
-  createdAt DateTime    @default(now())
-  updatedAt DateTime    @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  id           String        @id @default(uuid())
+  tenantId     String
+  firstName    String
+  lastName     String
+  phone        String?
+  email        String?
+  status       StaffStatus   @default(ACTIVE)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+  appointments Appointment[]
+  tenant       Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, email])
   @@map("staff")
-}
-
-enum ServiceStatus {
-  ACTIVE
-  INACTIVE
-  ARCHIVED
 }
 
 model Service {
@@ -164,11 +141,62 @@ model Service {
   status          ServiceStatus @default(ACTIVE)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
-
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  appointments    Appointment[]
+  tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
   @@index([tenantId])
   @@index([tenantId, status])
   @@index([tenantId, name])
   @@map("services")
+}
+
+model Appointment {
+  id         String            @id @default(uuid())
+  tenantId   String
+  customerId String
+  staffId    String
+  serviceId  String
+  startAt    DateTime
+  endAt      DateTime
+  status     AppointmentStatus @default(SCHEDULED)
+  notes      String?
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  customer   Customer          @relation(fields: [customerId], references: [id])
+  service    Service           @relation(fields: [serviceId], references: [id])
+  staff      Staff             @relation(fields: [staffId], references: [id])
+  tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, startAt])
+  @@index([tenantId, customerId])
+  @@index([tenantId, staffId])
+  @@index([tenantId, status])
+  @@map("appointments")
+}
+
+enum MembershipStatus {
+  ACTIVE
+  SUSPENDED
+  REMOVED
+}
+
+enum StaffStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum ServiceStatus {
+  ACTIVE
+  INACTIVE
+  ARCHIVED
+}
+
+enum AppointmentStatus {
+  SCHEDULED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
 }

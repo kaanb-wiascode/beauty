@@ -98,19 +98,83 @@ import {
   
     async findOne(id: string) {
       const tenantId = this.tenantContext.getTenantId();
-  
+
       const customer = await this.prisma.customer.findFirst({
         where: {
           id,
           tenantId,
         },
+        include: {
+          appointments: {
+            where: {
+              tenantId,
+            },
+            include: {
+              service: {
+                select: {
+                  id: true,
+                  name: true,
+                  price: true,
+                  durationMinutes: true,
+                },
+              },
+              staff: {
+                select: {
+                  id: true,
+                  firstName: true,
+                  lastName: true,
+                },
+              },
+        },
+            orderBy: {
+              startAt: 'desc',
+            },
+          },
+        },
       });
-  
+
       if (!customer) {
         throw new NotFoundException('Customer not found');
       }
-  
-      return customer;
+
+      const totalAppointments = customer.appointments.length;
+
+      const completedAppointments = customer.appointments.filter(
+        (appointment) => appointment.status === 'COMPLETED',
+      ).length;
+
+      const upcomingAppointments = customer.appointments.filter(
+        (appointment) =>
+          appointment.startAt >= new Date() &&
+          appointment.status !== 'CANCELLED' &&
+          appointment.status !== 'NO_SHOW',
+      ).length;
+
+      const totalSpent = customer.appointments
+        .filter((appointment) => appointment.status === 'COMPLETED')
+        .reduce(
+          (total, appointment) =>
+            total + Number(appointment.service.price),
+          0,
+        );
+
+      return {
+        id: customer.id,
+        tenantId: customer.tenantId,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        phone: customer.phone,
+        email: customer.email,
+        createdAt: customer.createdAt,
+        updatedAt: customer.updatedAt,
+        stats: {
+          totalAppointments,
+          completedAppointments,
+          upcomingAppointments,
+          totalSpent,
+        },
+        appointments: customer.appointments,
+      };
     }
   
     async update(id: string, input: UpdateCustomerInput) {

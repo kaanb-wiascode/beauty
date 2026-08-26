@@ -34,3 +34,8 @@ temp/
 
 # Generated
 *.generated.ts
+
+# Local development backups
+*.backup
+
+*.bak

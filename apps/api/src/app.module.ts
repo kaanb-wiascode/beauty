@@ -8,6 +8,7 @@ import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { StaffModule } from './modules/staff/staff.module';
+import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { ServicesModule } from './modules/services/services.module';
 
 @Module({
@@ -24,6 +25,7 @@ import { ServicesModule } from './modules/services/services.module';
     HealthModule,
     CustomersModule,
     StaffModule,
+    AppointmentsModule,
     ServicesModule,
   ],
 })
