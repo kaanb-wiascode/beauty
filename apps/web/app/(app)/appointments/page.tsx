@@ -182,6 +182,7 @@ export default function AppointmentsPage() {
   >("");
 
   const [staffFilter, setStaffFilter] = useState("");
+  const [customerFilter, setCustomerFilter] = useState("");
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Appointment | null>(null);
@@ -274,12 +275,17 @@ export default function AppointmentsPage() {
           ? appointment.staffId === staffFilter
           : true,
       )
+      .filter((appointment) =>
+        customerFilter
+          ? appointment.customerId === customerFilter
+          : true,
+        )
       .sort(
         (a, b) =>
           new Date(a.startAt).getTime() -
           new Date(b.startAt).getTime(),
       );
-  }, [appointments, staffFilter, statusFilter]);
+  }, [appointments, customerFilter, staffFilter, statusFilter]);
 
   const activeStaff = useMemo(
     () => staff.filter((member) => member.status === "ACTIVE"),
@@ -619,6 +625,24 @@ export default function AppointmentsPage() {
                   </option>
                 ))}
               </Select>
+
+                <Select
+                  aria-label="Müşteri filtresi"
+                  value={customerFilter}
+                  onChange={(event) =>
+                    setCustomerFilter(event.target.value)
+                  }
+                >
+                  <option value="">Tüm müşteriler</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>
+                      {fullName(
+                        customer.firstName,
+                        customer.lastName,
+                      )}
+                    </option>
+                  ))}
+                </Select>
 
               <Select
                 aria-label="Durum filtresi"
