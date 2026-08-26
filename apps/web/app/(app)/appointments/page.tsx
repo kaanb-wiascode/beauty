@@ -202,6 +202,65 @@ export default function AppointmentsPage() {
     [selectedDate],
   );
 
+  const formConflict = useMemo(() => {
+    if (
+      !form.staffId ||
+      !form.startAt ||
+      !form.endAt
+    ) {
+      return null;
+    }
+
+    const start = new Date(form.startAt).getTime();
+    const end = new Date(form.endAt).getTime();
+
+    if (
+      Number.isNaN(start) ||
+      Number.isNaN(end) ||
+      start >= end
+    ) {
+      return null;
+    }
+
+    return (
+      appointments.find((appointment) => {
+        if (appointment.staffId !== form.staffId) {
+          return false;
+        }
+
+        if (editing && appointment.id === editing.id) {
+          return false;
+        }
+
+        if (
+          appointment.status === "CANCELLED" ||
+      appointment.status === "NO_SHOW"
+        ) {
+          return false;
+        }
+
+        const appointmentStart = new Date(
+          appointment.startAt,
+        ).getTime();
+
+        const appointmentEnd = new Date(
+          appointment.endAt,
+        ).getTime();
+
+        return (
+          appointmentStart < end &&
+          appointmentEnd > start
+        );
+      }) ?? null
+    );
+  }, [
+    appointments,
+    editing,
+    form.endAt,
+    form.staffId,
+    form.startAt,
+  ]);
+
   const visibleAppointments = useMemo(() => {
     return appointments
       .filter((appointment) =>
