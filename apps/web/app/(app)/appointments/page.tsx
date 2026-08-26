@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { useSearchParams } from "next/navigation";
 
 import {
   Alert,
@@ -159,6 +160,9 @@ function emptyForm(): FormState {
 }
 
 export default function AppointmentsPage() {
+  const searchParams = useSearchParams();
+  const customerIdFromUrl = searchParams.get("customerId");
+
   const [selectedDate, setSelectedDate] = useState(
     () => startOfDay(new Date()),
   );
@@ -328,6 +332,13 @@ export default function AppointmentsPage() {
 
   function openCreate(initialStart?: string) {
     const next = emptyForm();
+
+    if (
+      customerIdFromUrl &&
+      customers.some((customer) => customer.id === customerIdFromUrl)
+    ) {
+      next.customerId = customerIdFromUrl;
+    }
 
     if (initialStart) {
       next.startAt = initialStart;

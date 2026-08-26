@@ -178,9 +178,15 @@ export default function CustomerDetailPage({
         title={fullName(customer.firstName, customer.lastName)}
         description="Müşteri profili ve randevu geçmişi."
         action={
-          <Link href="/customers">
-            <Button variant="secondary">Müşterilere dön</Button>
-          </Link>
+          <div className="flex items-center gap-2">
+            <Link href={`/appointments?customerId=${customer.id}`}>
+              <Button>Yeni randevu</Button>
+            </Link>
+
+            <Link href="/customers">
+              <Button variant="secondary">Müşterilere dön</Button>
+            </Link>
+          </div>
         }
       />
 
