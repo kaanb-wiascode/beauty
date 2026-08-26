@@ -393,14 +393,22 @@ export default function DashboardPage() {
                         </div>
 
                         <div className="min-w-0 flex-1">
-                          <p className="truncate text-[14px] font-medium text-[var(--ink)]">
-                            {customer
-                              ? fullName(
-                                  customer.firstName,
-                                  customer.lastName,
-                                )
-                              : "Müşteri"}
-                          </p>
+                          {customer ? (
+                            <Link
+                              href={`/customers/${customer.id}`}
+                              className="truncate text-[14px] font-medium text-[var(--ink)] hover:text-[var(--accent)] hover:underline"
+                              onClick={(event) => event.stopPropagation()}
+                            >
+                              {fullName(
+                                customer.firstName,
+                              customer.lastName,
+                              )}
+                            </Link>
+                          ) : (
+                            <p className="truncate text-[14px] font-medium text-[var(--ink)]">
+                              Müşteri
+                            </p>
+                          )}
 
                           <p className="mt-0.5 truncate text-[12px] text-[var(--muted)]">
                             {service?.name ?? "Hizmet"}{" "}
