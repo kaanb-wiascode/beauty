@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "next/navigation";
 
@@ -916,9 +917,14 @@ export default function AppointmentsPage() {
               {visibleAppointments.map((appointment) => (
                 <tr key={appointment.id}>
                   <Td label="Müşteri">
-                    {customerMap.get(
-                      appointment.customerId,
-                    ) ?? "—"}
+                    <Link
+                      href={`/customers/${appointment.customerId}`}
+                      className="font-medium text-[var(--accent)] hover:underline"
+                    >
+                      {customerMap.get(
+                        appointment.customerId,
+                      ) ?? "—"}
+                    </Link>
                   </Td>
 
                   <Td label="Hizmet">
