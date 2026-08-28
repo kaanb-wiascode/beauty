@@ -28,6 +28,8 @@ import {
   ListServicesInput,
 } from './dto/list-services.dto';
 
+import { servicePerformanceSchema } from './dto/service-performance.dto';
+
 import { ServicesService } from './services.service';
 
 @Controller('services')
@@ -51,6 +53,13 @@ export class ServicesController {
       listServicesSchema.parse(query);
 
     return this.servicesService.findAll(input);
+  }
+
+  @Get('performance')
+  async performance(@Query() query: unknown) {
+    const input = servicePerformanceSchema.parse(query);
+
+    return this.servicesService.performance(input);
   }
 
   @Get(':id')

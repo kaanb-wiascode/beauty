@@ -90,6 +90,11 @@ const NAV = [
     label: "Personel Performansı",
     icon: StaffIcon,
   },
+  {
+    href: "/reports/services",
+    label: "Hizmet Performansı",
+    icon: SparkleIcon,
+  },
 
 ] as const;
 

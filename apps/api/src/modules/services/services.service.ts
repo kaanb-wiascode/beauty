@@ -9,6 +9,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateServiceInput } from './dto/create-service.dto';
 import { ListServicesInput } from './dto/list-services.dto';
 import { UpdateServiceInput } from './dto/update-service.dto';
+import { ServicePerformanceInput } from './dto/service-performance.dto';
 
 @Injectable()
 export class ServicesService {
@@ -85,6 +86,86 @@ export class ServicesService {
       },
     };
   }
+
+
+    async performance(input: ServicePerformanceInput) {
+      const tenantId = this.tenantContext.getTenantId();
+
+      const [services, appointments] = await Promise.all([
+        this.prisma.service.findMany({
+          where: {
+            tenantId,
+          },
+          orderBy: {
+            name: 'asc',
+          },
+          select: {
+            id: true,
+            name: true,
+            price: true,
+            status: true,
+          },
+        }),
+
+        this.prisma.appointment.findMany({
+          where: {
+            tenantId,
+            startAt: {
+              gte: input.from,
+              lte: input.to,
+            },
+          },
+          select: {
+            id: true,
+            serviceId: true,
+            status: true,
+            payment: {
+              select: {
+                amount: true,
+                status: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      return services.map((service) => {
+        const serviceAppointments = appointments.filter(
+          (appointment) =>
+            appointment.serviceId === service.id,
+        );
+
+        const completedAppointments =
+          serviceAppointments.filter(
+            (appointment) =>
+              appointment.status === 'COMPLETED',
+          ).length;
+
+        const collected = serviceAppointments.reduce(
+          (total, appointment) => {
+            if (
+              appointment.payment?.status !== 'COMPLETED'
+            ) {
+              return total;
+            }
+
+            return (
+              total +
+              Number(appointment.payment.amount)
+            );
+          },
+          0,
+        );
+
+        return {
+          service,
+          appointmentCount: serviceAppointments.length,
+          completedAppointments,
+          collected,
+        };
+      });
+    }
+
 
   async findOne(id: string) {
     const tenantId = this.tenantContext.getTenantId();
