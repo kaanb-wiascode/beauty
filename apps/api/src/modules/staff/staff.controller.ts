@@ -29,6 +29,7 @@ import {
 } from './dto/list-staff.dto';
 
 import { StaffService } from './staff.service';
+import { staffPerformanceSchema } from './dto/staff-performance.dto';
 
 @Controller('staff')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -51,6 +52,13 @@ export class StaffController {
       listStaffSchema.parse(query);
 
     return this.staffService.findAll(input);
+  }
+
+  @Get('performance')
+  async performance(@Query() query: unknown) {
+    const input = staffPerformanceSchema.parse(query);
+
+    return this.staffService.performance(input);
   }
 
   @Get(':id')

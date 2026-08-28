@@ -80,6 +80,16 @@ const NAV = [
     label: "Ödemeler",
     icon: PaymentIcon,
   },
+  {
+    href: "/reports/payments",
+    label: "Kasa",
+    icon: PaymentIcon,
+  },
+  {
+    href: "/reports/staff",
+    label: "Personel Performansı",
+    icon: StaffIcon,
+  },
 
 ] as const;
 
@@ -111,7 +121,7 @@ function NavLinks({
 
         compact
 
-          ? "grid grid-cols-6 gap-1 px-2 py-1"
+          ? "grid grid-cols-8 gap-1 px-2 py-1"
 
           : "flex flex-1 flex-col gap-1 px-3 py-4",
 

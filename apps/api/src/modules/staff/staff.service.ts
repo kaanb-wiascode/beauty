@@ -9,6 +9,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateStaffInput } from './dto/create-staff.dto';
 import { ListStaffInput } from './dto/list-staff.dto';
 import { UpdateStaffInput } from './dto/update-staff.dto';
+import { StaffPerformanceInput } from './dto/staff-performance.dto';
 
 @Injectable()
 export class StaffService {
@@ -96,6 +97,77 @@ export class StaffService {
       },
     };
   }
+
+
+    async performance(input: StaffPerformanceInput) {
+      const tenantId = this.tenantContext.getTenantId();
+
+      const [staff, appointments] = await Promise.all([
+        this.prisma.staff.findMany({
+          where: {
+            tenantId,
+          },
+          orderBy: {
+            firstName: 'asc',
+          },
+          select: {
+            id: true,
+            firstName: true,
+            lastName: true,
+            status: true,
+          },
+        }),
+
+        this.prisma.appointment.findMany({
+          where: {
+            tenantId,
+            startAt: {
+              gte: input.from,
+              lte: input.to,
+            },
+          },
+          select: {
+            id: true,
+            staffId: true,
+            status: true,
+            payment: {
+              select: {
+                amount: true,
+                status: true,
+              },
+            },
+          },
+        }),
+      ]);
+
+      return staff.map((member) => {
+        const memberAppointments = appointments.filter(
+          (appointment) => appointment.staffId === member.id,
+        );
+
+        const completedAppointments = memberAppointments.filter(
+          (appointment) => appointment.status === 'COMPLETED',
+        ).length;
+
+        const collected = memberAppointments.reduce(
+          (total, appointment) => {
+            if (appointment.payment?.status !== 'COMPLETED') {
+              return total;
+            }
+
+            return total + Number(appointment.payment.amount);
+          },
+          0,
+        );
+
+        return {
+          staff: member,
+          appointmentCount: memberAppointments.length,
+          completedAppointments,
+          collected,
+        };
+      });
+    }
 
   async findOne(id: string) {
     const tenantId = this.tenantContext.getTenantId();
