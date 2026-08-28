@@ -14,6 +14,7 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
 import { listPaymentsSchema } from './dto/list-payments.dto';
+import { refundPaymentSchema } from './dto/refund-payment.dto';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 @Controller('payments')
@@ -34,6 +35,16 @@ export class PaymentsController {
     const input = listPaymentsSchema.parse(query);
 
     return this.paymentsService.findAll(input);
+  }
+
+  @Post(':id/refund')
+  async refund(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = refundPaymentSchema.parse(body);
+
+    return this.paymentsService.refund(id, input);
   }
 
   @Get(':id')

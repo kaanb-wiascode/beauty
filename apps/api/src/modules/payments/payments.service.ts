@@ -10,6 +10,7 @@ import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreatePaymentInput } from './dto/create-payment.dto';
 import { ListPaymentsInput } from './dto/list-payments.dto';
+import { RefundPaymentInput } from './dto/refund-payment.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -134,6 +135,38 @@ export class PaymentsService {
         ),
       },
     };
+  }
+
+  async refund(id: string, input: RefundPaymentInput) {
+    const tenantId = this.getTenantId();
+
+    const payment = await this.prisma.payment.findFirst({
+      where: {
+        id,
+        tenantId,
+      },
+    });
+
+    if (!payment) {
+      throw new NotFoundException('Payment not found');
+    }
+
+    if (payment.status === 'REFUNDED') {
+      throw new ConflictException(
+        'Payment is already refunded',
+      );
+    }
+
+    return this.prisma.payment.update({
+      where: {
+        id: payment.id,
+      },
+      data: {
+        status: 'REFUNDED',
+        refundedAt: new Date(),
+        refundReason: input.reason?.trim() || null,
+      },
+    });
   }
 
   async findOne(id: string) {

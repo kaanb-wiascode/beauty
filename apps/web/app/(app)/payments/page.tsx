@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   Alert,
+  Button,
   EmptyState,
   Field,
   PageHeader,
@@ -22,6 +23,7 @@ type Payment = {
   appointmentId: string;
   amount: string | number;
   method: "CASH" | "CARD" | "TRANSFER";
+  status: "COMPLETED" | "REFUNDED";
   paidAt: string;
   appointment: {
     id: string;
@@ -213,6 +215,42 @@ export default function PaymentsPage() {
     [filteredPayments],
   );
 
+  const [refundSaving, setRefundSaving] = useState(false);
+
+  async function refundPayment(paymentId: string) {
+    const reason = window.prompt(
+      "İade nedeni (isteğe bağlı):",
+    );
+
+    if (reason === null) return;
+
+    setRefundSaving(true);
+    setError("");
+
+    try {
+      await api(`/payments/${paymentId}/refund`, {
+        method: "POST",
+        body: {
+          reason: reason.trim() || undefined,
+        },
+      });
+
+      const result = await api<{ data: Payment[] }>(
+        withQuery("/payments", { page: 1, limit: 100 }),
+      );
+
+      setPayments(result.data);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Ödeme iade edilemedi.",
+      );
+    } finally {
+      setRefundSaving(false);
+    }
+  }
+
   function clearFilters() {
     setMethod("");
     setFromDate("");
@@ -318,7 +356,9 @@ export default function PaymentsPage() {
                 <Th>Hizmet</Th>
                 <Th>Personel</Th>
                 <Th>Yöntem</Th>
+                <Th>Durum</Th>
                 <Th>Tutar</Th>
+                <Th>Aksiyon</Th>
               </tr>
             </thead>
 
@@ -338,8 +378,31 @@ export default function PaymentsPage() {
                   <Td label="Yöntem">
                     {METHOD_LABELS[payment.method]}
                   </Td>
+                  <Td label="Durum">
+                    {payment.status === "REFUNDED"
+                      ? "İade edildi"
+                      : "Tamamlandı"}
+                  </Td>
                   <Td label="Tutar" className="font-medium">
                     {formatMoney(payment.amount)}
+                  </Td>
+                  <Td label="Aksiyon" actions>
+                    {payment.status === "COMPLETED" ? (
+                      <Button
+                        variant="danger"
+                        className="px-3 py-1.5"
+                        disabled={refundSaving}
+                        onClick={() =>
+                          void refundPayment(payment.id)
+                        }
+                      >
+                        İade et
+                      </Button>
+                    ) : (
+                      <span className="text-[12px] text-[var(--muted-soft)]">
+                        İade edildi
+                      </span>
+                    )}
                   </Td>
                 </tr>
               ))}

@@ -209,7 +209,10 @@ model Payment {
   appointmentId String        @unique
   amount        Decimal       @db.Decimal(10, 2)
   method        PaymentMethod
+  status        PaymentStatus @default(COMPLETED)
   paidAt        DateTime      @default(now())
+  refundedAt    DateTime?
+  refundReason  String?
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
 
@@ -219,6 +222,7 @@ model Payment {
   @@index([tenantId])
   @@index([tenantId, paidAt])
   @@index([tenantId, method])
+  @@index([tenantId, status])
   @@map("payments")
 }
 
@@ -226,4 +230,9 @@ enum PaymentMethod {
   CASH
   CARD
   TRANSFER
+}
+
+enum PaymentStatus {
+  COMPLETED
+  REFUNDED
 }

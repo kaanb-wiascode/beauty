@@ -89,17 +89,12 @@ type Appointment = {
 };
 
 type Payment = {
-
   id: string;
-
   appointmentId: string;
-
   amount: string | number;
-
   method: "CASH" | "CARD" | "TRANSFER";
-
+  status: "COMPLETED" | "REFUNDED";
   paidAt: string;
-
 };
 
 type DashboardData = {
@@ -113,7 +108,6 @@ type DashboardData = {
   appointments: Appointment[];
 
   payments: Payment[];
-
 };
 
 const STATUS_LABELS: Record<Appointment["status"], string> = {
@@ -414,7 +408,10 @@ export default function DashboardPage() {
     const totalForMethod = (method: Payment["method"]) =>
       data?.payments
         .filter((payment) => {
+          if (payment.status !== "COMPLETED") return false;
+
           const paidAt = new Date(payment.paidAt);
+
           return (
             payment.method === method &&
             paidAt >= start &&
@@ -619,31 +616,6 @@ export default function DashboardPage() {
 
               format="currency"
 
-            />
-
-          </section>
-
-          <section className="grid gap-4 sm:grid-cols-3">
-
-            <MiniStat
-              label="Nakit"
-              value={todayPaymentBreakdown.CASH}
-              description="Bugünkü tahsilat"
-              format="currency"
-            />
-
-            <MiniStat
-              label="Kart"
-              value={todayPaymentBreakdown.CARD}
-              description="Bugünkü tahsilat"
-              format="currency"
-            />
-
-            <MiniStat
-              label="Havale / EFT"
-              value={todayPaymentBreakdown.TRANSFER}
-              description="Bugünkü tahsilat"
-              format="currency"
             />
 
           </section>
