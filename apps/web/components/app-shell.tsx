@@ -86,6 +86,11 @@ const NAV = [
     icon: PaymentIcon,
   },
   {
+    href: "/settings/roles",
+    label: "Roller & Yetkiler",
+    icon: StaffIcon,
+  },
+  {
     href: "/reports/payments",
     label: "Kasa",
     icon: PaymentIcon,
