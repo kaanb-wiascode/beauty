@@ -89,11 +89,17 @@ type Appointment = {
 };
 
 type Payment = {
+
   id: string;
+
   appointmentId: string;
+
   amount: string | number;
+
   method: "CASH" | "CARD" | "TRANSFER";
+
   paidAt: string;
+
 };
 
 type DashboardData = {
@@ -107,6 +113,7 @@ type DashboardData = {
   appointments: Appointment[];
 
   payments: Payment[];
+
 };
 
 const STATUS_LABELS: Record<Appointment["status"], string> = {
@@ -397,6 +404,35 @@ export default function DashboardPage() {
 
       ) ?? 0;
 
+  const todayPaymentBreakdown = useMemo(() => {
+    const start = new Date();
+    start.setHours(0, 0, 0, 0);
+
+    const end = new Date();
+    end.setHours(23, 59, 59, 999);
+
+    const totalForMethod = (method: Payment["method"]) =>
+      data?.payments
+        .filter((payment) => {
+          const paidAt = new Date(payment.paidAt);
+          return (
+            payment.method === method &&
+            paidAt >= start &&
+            paidAt <= end
+          );
+        })
+        .reduce(
+          (total, payment) => total + Number(payment.amount),
+          0,
+        ) ?? 0;
+
+    return {
+      CASH: totalForMethod("CASH"),
+      CARD: totalForMethod("CARD"),
+      TRANSFER: totalForMethod("TRANSFER"),
+    };
+  }, [data]);
+
   if (loading) {
 
     return (
@@ -583,6 +619,31 @@ export default function DashboardPage() {
 
               format="currency"
 
+            />
+
+          </section>
+
+          <section className="grid gap-4 sm:grid-cols-3">
+
+            <MiniStat
+              label="Nakit"
+              value={todayPaymentBreakdown.CASH}
+              description="Bugünkü tahsilat"
+              format="currency"
+            />
+
+            <MiniStat
+              label="Kart"
+              value={todayPaymentBreakdown.CARD}
+              description="Bugünkü tahsilat"
+              format="currency"
+            />
+
+            <MiniStat
+              label="Havale / EFT"
+              value={todayPaymentBreakdown.TRANSFER}
+              description="Bugünkü tahsilat"
+              format="currency"
             />
 
           </section>
