@@ -12,6 +12,7 @@ import {
   StatusBadge,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { PaymentModal } from "@/components/payment-modal";
 
 type CustomerDetail = {
   id: string;
@@ -71,6 +72,12 @@ type Appointment = {
     firstName: string;
     lastName: string;
   };
+  payment: {
+    id: string;
+    amount: string | number;
+    method: "CASH" | "CARD" | "TRANSFER";
+    paidAt: string;
+  } | null;
 };
 
 const PAYMENT_METHOD_LABELS: Record<Payment["method"], string> = {
@@ -124,6 +131,8 @@ export default function CustomerDetailPage({
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [paymentAppointment, setPaymentAppointment] =
+    useState<Appointment | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -398,6 +407,19 @@ export default function CustomerDetailPage({
                       {formatMoney(appointment.service.price)}
                     </span>
 
+                    {!appointment.payment &&
+                    appointment.status !== "CANCELLED" &&
+                    appointment.status !== "NO_SHOW" ? (
+                      <Button
+                        variant="secondary"
+                        onClick={() =>
+                          setPaymentAppointment(appointment)
+                        }
+                      >
+                        Ödeme al
+                      </Button>
+                    ) : null}
+
                     <StatusBadge
                       status={appointment.status}
                       label={STATUS_LABELS[appointment.status]}
@@ -409,6 +431,34 @@ export default function CustomerDetailPage({
           )}
         </GlassCard>
       </section>
+      <PaymentModal
+        open={paymentAppointment !== null}
+        onClose={() => setPaymentAppointment(null)}
+        appointment={paymentAppointment}
+        customerName={
+          customer
+            ? fullName(
+                customer.firstName,
+                customer.lastName,
+              )
+            : ""
+        }
+        serviceName={
+          paymentAppointment?.service.name ?? "Hizmet"
+        }
+        defaultAmount={
+          paymentAppointment?.service.price ?? ""
+        }
+        onSaved={async () => {
+          setPaymentAppointment(null);
+          const id = await params.then((value) => value.id);
+          const result = await api<CustomerDetail>(
+            `/customers/${id}`,
+          );
+          setCustomer(result);
+        }}
+      />
+
     </div>
   );
 }
