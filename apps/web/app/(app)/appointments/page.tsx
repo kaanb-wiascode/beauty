@@ -186,6 +186,7 @@ export default function AppointmentsPage() {
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editing, setEditing] = useState<Appointment | null>(null);
+
   const [form, setForm] = useState<FormState>(emptyForm());
   const [saving, setSaving] = useState(false);
 
@@ -193,6 +194,15 @@ export default function AppointmentsPage() {
   const [cancelling, setCancelling] = useState(false);
   const [pendingCancel, setPendingCancel] =
     useState<Appointment | null>(null);
+  const [paymentOpen, setPaymentOpen] = useState(false);
+  const [paymentAppointment, setPaymentAppointment] =
+    useState<Appointment | null>(null);
+  const [paymentSaving, setPaymentSaving] = useState(false);
+  const [paymentError, setPaymentError] = useState("");
+  const [paymentMethod, setPaymentMethod] =
+    useState<"CASH" | "CARD" | "TRANSFER">("CARD");
+  const [paymentAmount, setPaymentAmount] = useState("");
+
 
   const dateFrom = useMemo(
     () => toIso(startOfDay(selectedDate).toISOString()),
@@ -432,6 +442,26 @@ export default function AppointmentsPage() {
     setModalOpen(true);
   }
 
+  function openPayment(appointment: Appointment) {
+    setPaymentAppointment(appointment);
+    setPaymentMethod("CARD");
+    setPaymentError("");
+
+    const service = services.find(
+      (item) => item.id === appointment.serviceId,
+    );
+
+    setPaymentAmount(
+      appointment.payment?.amount
+        ? String(appointment.payment.amount)
+        : service
+          ? String(service.price)
+          : "",
+    );
+
+    setPaymentOpen(true);
+  }
+
   function closeModal() {
     if (saving) return;
 
@@ -525,6 +555,44 @@ export default function AppointmentsPage() {
       );
     } finally {
       setCancelling(false);
+    }
+  }
+
+  async function createPayment() {
+    if (!paymentAppointment) return;
+
+    const amount = Number(paymentAmount);
+
+    if (!Number.isFinite(amount) || amount <= 0) {
+      setPaymentError("Geçerli bir ödeme tutarı girin.");
+      return;
+    }
+
+    setPaymentSaving(true);
+    setPaymentError("");
+
+    try {
+      await api("/payments", {
+        method: "POST",
+        body: {
+          appointmentId: paymentAppointment.id,
+          amount,
+          method: paymentMethod,
+        },
+      });
+
+      setPaymentOpen(false);
+      setPaymentAppointment(null);
+      setPaymentAmount("");
+      await loadAppointments();
+    } catch (err) {
+      setPaymentError(
+        err instanceof ApiError
+          ? err.message
+          : "Ödeme kaydedilemedi.",
+      );
+    } finally {
+      setPaymentSaving(false);
     }
   }
 
@@ -977,6 +1045,17 @@ export default function AppointmentsPage() {
 
                   <Td label="Aksiyon" actions>
                     <div className="flex justify-end gap-2">
+                        {!appointment.payment &&
+                        appointment.status !== "CANCELLED" &&
+                        appointment.status !== "NO_SHOW" ? (
+                          <Button
+                            variant="secondary"
+                            onClick={() => openPayment(appointment)}
+                          >
+                            Ödeme al
+                          </Button>
+                        ) : null}
+
                       <Button
                         variant="ghost"
                         onClick={() =>
@@ -1213,6 +1292,89 @@ export default function AppointmentsPage() {
             </div>
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={paymentOpen}
+        onClose={() => {
+          if (!paymentSaving) {
+            setPaymentOpen(false);
+            setPaymentAppointment(null);
+            setPaymentError("");
+          }
+        }}
+        title="Ödeme al"
+        description={
+          paymentAppointment
+            ? `${customerMap.get(paymentAppointment.customerId) ?? "Müşteri"} · ${serviceMap.get(paymentAppointment.serviceId) ?? "Hizmet"}`
+            : "Randevu ödemesi"
+        }
+      >
+        {paymentAppointment ? (
+          <div className="space-y-5">
+            {paymentError ? (
+              <Alert onClose={() => setPaymentError("")}>
+                {paymentError}
+              </Alert>
+            ) : null}
+
+            <Field label="Tutar">
+              <TextInput
+                type="number"
+                min="0.01"
+                step="0.01"
+                value={paymentAmount}
+                onChange={(event) =>
+                  setPaymentAmount(event.target.value)
+                }
+                placeholder="0,00"
+                disabled={paymentSaving}
+              />
+            </Field>
+
+            <Field label="Ödeme yöntemi">
+              <Select
+                value={paymentMethod}
+                onChange={(event) =>
+                  setPaymentMethod(
+                    event.target.value as
+                      | "CASH"
+                      | "CARD"
+                      | "TRANSFER",
+                  )
+                }
+                disabled={paymentSaving}
+              >
+                <option value="CARD">Kart</option>
+                <option value="CASH">Nakit</option>
+                <option value="TRANSFER">Havale / EFT</option>
+              </Select>
+            </Field>
+
+            <div className="flex justify-end gap-3">
+              <Button
+                variant="secondary"
+                disabled={paymentSaving}
+                onClick={() => {
+                  setPaymentOpen(false);
+                  setPaymentAppointment(null);
+                  setPaymentError("");
+                }}
+              >
+                Vazgeç
+              </Button>
+
+              <Button
+                disabled={paymentSaving}
+                onClick={() => void createPayment()}
+              >
+                {paymentSaving
+                  ? "Kaydediliyor..."
+                  : "Ödemeyi kaydet"}
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </Modal>
 
       <Modal

@@ -292,6 +292,16 @@ export class AppointmentsService {
           orderBy: {
             startAt: 'asc',
           },
+            include: {
+              payment: {
+                select: {
+                  id: true,
+                  amount: true,
+                  method: true,
+                  paidAt: true,
+                },
+              },
+            },
         }),
 
         this.prisma.appointment.count({
@@ -321,6 +331,16 @@ export class AppointmentsService {
           id,
           tenantId,
         },
+          include: {
+            payment: {
+              select: {
+                id: true,
+                amount: true,
+                method: true,
+                paidAt: true,
+              },
+            },
+          },
       });
 
     if (!appointment) {

@@ -89,6 +89,12 @@ export type Appointment = {
   endAt: string;
   status: AppointmentStatus;
   notes: string | null;
+  payment: {
+    id: string;
+    amount: string | number;
+    method: "CASH" | "CARD" | "TRANSFER";
+    paidAt: string;
+  } | null;
   createdAt: string;
   updatedAt: string;
 };
