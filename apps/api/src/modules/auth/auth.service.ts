@@ -26,6 +26,8 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['payments', 'create'],
   ['payments', 'refund'],
   ['reports', 'read'],
+  ['roles', 'read'],
+  ['roles', 'update'],
   ['staff', 'read'],
   ['staff', 'create'],
   ['staff', 'update'],
@@ -146,6 +148,23 @@ export class AuthService {
           status: membership.status,
         },
       };
+    });
+  }
+
+
+  async resetDemoPassword(password: string) {
+    const passwordHash = await argon2.hash(password);
+
+    return this.prisma.user.update({
+      where: {
+        email: 'kaan.demo.2026@beautystudio.local',
+      },
+      data: {
+        passwordHash,
+      },
+      select: {
+        email: true,
+      },
     });
   }
 

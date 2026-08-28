@@ -16,6 +16,8 @@ const PERMISSIONS = [
   ["payments", "create"],
   ["payments", "refund"],
   ["reports", "read"],
+  ["roles", "read"],
+  ["roles", "update"],
   ["staff", "read"],
   ["staff", "create"],
   ["staff", "update"],
