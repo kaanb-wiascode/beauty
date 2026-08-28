@@ -11,6 +11,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreatePaymentInput } from './dto/create-payment.dto';
 import { ListPaymentsInput } from './dto/list-payments.dto';
 import { RefundPaymentInput } from './dto/refund-payment.dto';
+import { PaymentSummaryInput } from './dto/payment-summary.dto';
 
 @Injectable()
 export class PaymentsService {
@@ -167,6 +168,83 @@ export class PaymentsService {
         refundReason: input.reason?.trim() || null,
       },
     });
+  }
+
+  async summary(input: PaymentSummaryInput) {
+    const tenantId = this.getTenantId();
+
+    const [completed, refunded] = await Promise.all([
+      this.prisma.payment.aggregate({
+        where: {
+          tenantId,
+          status: 'COMPLETED',
+          paidAt: {
+            gte: input.from,
+            lte: input.to,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+
+      this.prisma.payment.aggregate({
+        where: {
+          tenantId,
+          status: 'REFUNDED',
+          refundedAt: {
+            gte: input.from,
+            lte: input.to,
+          },
+        },
+        _sum: {
+          amount: true,
+        },
+        _count: {
+          _all: true,
+        },
+      }),
+    ]);
+
+    const methods = await this.prisma.payment.groupBy({
+      by: ['method'],
+      where: {
+        tenantId,
+        status: 'COMPLETED',
+        paidAt: {
+          gte: input.from,
+          lte: input.to,
+        },
+      },
+      _sum: {
+        amount: true,
+      },
+    });
+
+    const gross = Number(completed._sum.amount ?? 0);
+    const refunds = Number(refunded._sum.amount ?? 0);
+
+    return {
+      gross,
+      refunds,
+      net: gross - refunds,
+      paymentCount: completed._count._all,
+      refundCount: refunded._count._all,
+      methods: {
+        CASH: Number(
+          methods.find((item) => item.method === 'CASH')?._sum.amount ?? 0,
+        ),
+        CARD: Number(
+          methods.find((item) => item.method === 'CARD')?._sum.amount ?? 0,
+        ),
+        TRANSFER: Number(
+          methods.find((item) => item.method === 'TRANSFER')?._sum.amount ?? 0,
+        ),
+      },
+    };
   }
 
   async findOne(id: string) {

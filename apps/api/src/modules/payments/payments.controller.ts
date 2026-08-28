@@ -15,6 +15,7 @@ import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
 import { listPaymentsSchema } from './dto/list-payments.dto';
 import { refundPaymentSchema } from './dto/refund-payment.dto';
+import { paymentSummarySchema } from './dto/payment-summary.dto';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 @Controller('payments')
@@ -35,6 +36,13 @@ export class PaymentsController {
     const input = listPaymentsSchema.parse(query);
 
     return this.paymentsService.findAll(input);
+  }
+
+  @Get('summary')
+  async summary(@Query() query: unknown) {
+    const input = paymentSummarySchema.parse(query);
+
+    return this.paymentsService.summary(input);
   }
 
   @Post(':id/refund')
