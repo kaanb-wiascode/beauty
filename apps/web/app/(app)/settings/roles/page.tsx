@@ -123,14 +123,23 @@ export default function RolesPage() {
   }, []);
 
   useEffect(() => {
-    if (!selectedRole) return;
+    if (!selectedRoleId) {
+      setSelectedPermissionIds([]);
+      return;
+    }
 
-    setSelectedPermissionIds(
-      selectedRole.rolePermissions.map(
-        (item) => item.permission.id,
-      ),
-    );
-  }, [selectedRole]);
+    void api<Role>(`/roles/${selectedRoleId}`)
+      .then((role) => {
+        setSelectedPermissionIds(
+          role.rolePermissions.map(
+            (item) => item.permission.id,
+          ),
+        );
+      })
+      .catch(() => {
+        setSelectedPermissionIds([]);
+      });
+  }, [selectedRoleId]);
 
   function togglePermission(permissionId: string) {
     setSelectedPermissionIds((current) =>
