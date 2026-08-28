@@ -12,6 +12,8 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import {
   createStaffSchema,
@@ -39,6 +41,8 @@ export class StaffController {
   ) {}
 
   @Post()
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('staff', 'create')
   async create(@Body() body: unknown) {
     const input: CreateStaffInput =
       createStaffSchema.parse(body);
@@ -47,6 +51,8 @@ export class StaffController {
   }
 
   @Get()
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('staff', 'read')
   async findAll(@Query() query: unknown) {
     const input: ListStaffInput =
       listStaffSchema.parse(query);
@@ -55,6 +61,8 @@ export class StaffController {
   }
 
   @Get('performance')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('reports', 'read')
   async performance(@Query() query: unknown) {
     const input = staffPerformanceSchema.parse(query);
 
@@ -62,11 +70,15 @@ export class StaffController {
   }
 
   @Get(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('staff', 'read')
   async findOne(@Param('id') id: string) {
     return this.staffService.findOne(id);
   }
 
   @Patch(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('staff', 'update')
   async update(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -78,6 +90,8 @@ export class StaffController {
   }
 
   @Delete(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('staff', 'delete')
   async archive(@Param('id') id: string) {
     return this.staffService.archive(id);
   }

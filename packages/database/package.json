@@ -11,7 +11,8 @@
         "generate": "prisma generate",
         "migrate:dev": "prisma migrate dev",
         "migrate:deploy": "prisma migrate deploy",
-        "studio": "prisma studio"
+        "studio": "prisma studio",
+        "seed": "ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/demo.ts"
     },
     "dependencies": {
         "@nestjs/common": "^11.1.6",
@@ -20,6 +21,7 @@
     "devDependencies": {
         "@types/node": "^24.13.3",
         "prisma": "6.19.3",
+        "ts-node": "^10.9.2",
         "typescript": "6.0.3"
     }
 }

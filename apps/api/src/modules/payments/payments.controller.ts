@@ -10,6 +10,8 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
@@ -25,6 +27,8 @@ export class PaymentsController {
     private readonly paymentsService: PaymentsService,
   ) {}
 
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('payments', 'create')
   @Post()
   async create(@Body() body: unknown) {
     const input = createPaymentSchema.parse(body);
@@ -32,6 +36,8 @@ export class PaymentsController {
     return this.paymentsService.create(input);
   }
 
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('payments', 'read')
   @Get()
   async findAll(@Query() query: unknown) {
     const input = listPaymentsSchema.parse(query);
@@ -39,6 +45,8 @@ export class PaymentsController {
     return this.paymentsService.findAll(input);
   }
 
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('reports', 'read')
   @Get('dashboard-report')
   async dashboardReport(@Query() query: unknown) {
     const input = dashboardReportSchema.parse(query);
@@ -46,6 +54,8 @@ export class PaymentsController {
     return this.paymentsService.dashboardReport(input);
   }
 
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('reports', 'read')
   @Get('summary')
   async summary(@Query() query: unknown) {
     const input = paymentSummarySchema.parse(query);
@@ -53,6 +63,8 @@ export class PaymentsController {
     return this.paymentsService.summary(input);
   }
 
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('payments', 'refund')
   @Post(':id/refund')
   async refund(
     @Param('id') id: string,
@@ -63,6 +75,8 @@ export class PaymentsController {
     return this.paymentsService.refund(id, input);
   }
 
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('payments', 'read')
   @Get(':id')
   async findOne(@Param('id') id: string) {
     return this.paymentsService.findOne(id);

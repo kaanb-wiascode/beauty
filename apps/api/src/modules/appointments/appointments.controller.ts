@@ -12,6 +12,8 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import { AppointmentsService } from './appointments.service';
 import { createAppointmentSchema } from './dto/create-appointment.dto';
@@ -26,6 +28,8 @@ export class AppointmentsController {
   ) {}
 
   @Post()
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('appointments', 'create')
   async create(@Body() body: unknown) {
     const input = createAppointmentSchema.parse(body);
 
@@ -33,6 +37,8 @@ export class AppointmentsController {
   }
 
   @Get()
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('appointments', 'read')
   async findAll(@Query() query: unknown) {
     const input = listAppointmentsSchema.parse(query);
 
@@ -40,11 +46,15 @@ export class AppointmentsController {
   }
 
   @Get(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('appointments', 'read')
   async findOne(@Param('id') id: string) {
     return this.appointmentsService.findOne(id);
   }
 
   @Patch(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('appointments', 'update')
   async update(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -55,6 +65,8 @@ export class AppointmentsController {
   }
 
   @Delete(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('appointments', 'cancel')
   async remove(@Param('id') id: string) {
     return this.appointmentsService.remove(id);
   }

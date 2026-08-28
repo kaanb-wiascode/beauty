@@ -3,6 +3,30 @@ const prisma = new PrismaClient();
 
 const TENANT_ID = "c189efa4-1e79-4cd7-8a98-2b63b9d16804";
 
+const PERMISSIONS = [
+  ["customers", "read"],
+  ["customers", "create"],
+  ["customers", "update"],
+  ["customers", "delete"],
+  ["appointments", "read"],
+  ["appointments", "create"],
+  ["appointments", "update"],
+  ["appointments", "cancel"],
+  ["payments", "read"],
+  ["payments", "create"],
+  ["payments", "refund"],
+  ["reports", "read"],
+  ["staff", "read"],
+  ["staff", "create"],
+  ["staff", "update"],
+  ["staff", "delete"],
+  ["services", "read"],
+  ["services", "create"],
+  ["services", "update"],
+  ["services", "delete"],
+] as const;
+
+
 const customers = [
   ["Zeynep", "Kaya", "+905551112233", "zeynep.kaya@example.com"],
   ["Ayşe", "Yılmaz", "+905552223344", "ayse.yilmaz@example.com"],
@@ -51,7 +75,51 @@ async function main() {
 
   console.log(`Tenant: ${tenant.name}`);
 
-  const customerRecords = [];
+  const ownerRole = await prisma.role.findFirst({
+      where: {
+        tenantId: TENANT_ID,
+        slug: "owner",
+      },
+    });
+
+    if (!ownerRole) {
+      throw new Error("Owner rolü bulunamadı.");
+    }
+
+    for (const [resource, action] of PERMISSIONS) {
+      const permission = await prisma.permission.upsert({
+        where: {
+          resource_action: {
+            resource,
+            action,
+          },
+        },
+        update: {},
+        create: {
+          resource,
+          action,
+          description: `${resource} ${action} permission`,
+        },
+      });
+
+      await prisma.rolePermission.upsert({
+        where: {
+          roleId_permissionId: {
+            roleId: ownerRole.id,
+            permissionId: permission.id,
+          },
+        },
+        update: {},
+        create: {
+          roleId: ownerRole.id,
+          permissionId: permission.id,
+        },
+      });
+    }
+
+    console.log("✅ Owner permissionları hazır.");
+
+    const customerRecords = [];
 
   for (const [firstName, lastName, phone, email] of customers) {
     let customer = await prisma.customer.findFirst({

@@ -12,6 +12,8 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import {
   createCustomerSchema,
@@ -38,6 +40,8 @@ export class CustomersController {
   ) {}
 
   @Post()
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('customers', 'create')
   async create(@Body() body: unknown) {
     const input: CreateCustomerInput =
       createCustomerSchema.parse(body);
@@ -46,6 +50,8 @@ export class CustomersController {
   }
 
   @Get()
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('customers', 'read')
   async findAll(@Query() query: unknown) {
     const input: ListCustomersInput =
       listCustomersSchema.parse(query);
@@ -54,11 +60,15 @@ export class CustomersController {
   }
 
   @Get(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('customers', 'read')
   async findOne(@Param('id') id: string) {
     return this.customersService.findOne(id);
   }
 
   @Patch(':id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('customers', 'update')
   async update(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -70,6 +80,8 @@ export class CustomersController {
   }
 
   @Delete(':id')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('customers', 'delete')
   async remove(@Param('id') id: string) {
     return this.customersService.remove(id);
   }

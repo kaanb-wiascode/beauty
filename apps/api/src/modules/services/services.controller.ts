@@ -12,6 +12,8 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import {
   createServiceSchema,
@@ -40,6 +42,8 @@ export class ServicesController {
   ) {}
 
   @Post()
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('services', 'create')
   async create(@Body() body: unknown) {
     const input: CreateServiceInput =
       createServiceSchema.parse(body);
@@ -48,6 +52,8 @@ export class ServicesController {
   }
 
   @Get()
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('services', 'read')
   async findAll(@Query() query: unknown) {
     const input: ListServicesInput =
       listServicesSchema.parse(query);
@@ -56,6 +62,8 @@ export class ServicesController {
   }
 
   @Get('performance')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('reports', 'read')
   async performance(@Query() query: unknown) {
     const input = servicePerformanceSchema.parse(query);
 
@@ -63,11 +71,15 @@ export class ServicesController {
   }
 
   @Get(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('services', 'read')
   async findOne(@Param('id') id: string) {
     return this.servicesService.findOne(id);
   }
 
   @Patch(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('services', 'update')
   async update(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -79,6 +91,8 @@ export class ServicesController {
   }
 
   @Delete(':id')
+    @UseGuards(PermissionsGuard)
+    @RequirePermission('services', 'delete')
   async archive(@Param('id') id: string) {
     return this.servicesService.archive(id);
   }
