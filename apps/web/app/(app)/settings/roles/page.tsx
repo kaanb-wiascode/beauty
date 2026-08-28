@@ -7,8 +7,11 @@ import {
   Button,
   GlassCard,
   PageHeader,
+  Select,
   Spinner,
+  StatusBadge,
 } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 
 type Permission = {
@@ -18,16 +21,35 @@ type Permission = {
   description: string | null;
 };
 
+type RolePermission = {
+  permission: Permission;
+};
+
 type Role = {
   id: string;
   name: string;
   slug: string;
   description: string | null;
-  rolePermissions: Array<{
-    permission: Permission;
-  }>;
+  rolePermissions?: RolePermission[];
   _count: {
     memberships: number;
+    rolePermissions?: number;
+  };
+};
+
+type Membership = {
+  id: string;
+  status: string;
+  user: {
+    id: string;
+    email: string;
+    firstName: string;
+    lastName: string;
+  };
+  role: {
+    id: string;
+    name: string;
+    slug: string;
   };
 };
 
@@ -51,14 +73,22 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 export default function RolesPage() {
+  const { showToast } = useToast();
+
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
+  const [memberships, setMemberships] = useState<Membership[]>([]);
+
   const [selectedRoleId, setSelectedRoleId] = useState("");
   const [selectedPermissionIds, setSelectedPermissionIds] = useState<
     string[]
   >([]);
+
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [membershipSavingId, setMembershipSavingId] = useState<string | null>(
+    null,
+  );
   const [error, setError] = useState("");
 
   const selectedRole = useMemo(
@@ -83,35 +113,29 @@ export default function RolesPage() {
     setError("");
 
     try {
-      const [roleData, permissionData] = await Promise.all([
+      const [roleData, permissionData, membershipData] = await Promise.all([
         api<Role[]>("/roles"),
         api<Permission[]>("/roles/permissions"),
+        api<Membership[]>("/memberships"),
       ]);
 
       setRoles(roleData);
       setPermissions(permissionData);
+      setMemberships(membershipData);
 
-      const firstRole = roleData[0] ?? null;
-      setSelectedRoleId((current) =>
-        current && roleData.some((role) => role.id === current)
-          ? current
-          : firstRole?.id ?? "",
-      );
-
-      if (firstRole) {
-        setSelectedPermissionIds(
-          firstRole.rolePermissions.map(
-            (item) => item.permission.id,
-          ),
-        );
-      } else {
-        setSelectedPermissionIds([]);
+      if (!selectedRoleId && roleData.length > 0) {
+        setSelectedRoleId(roleData[0].id);
+      } else if (
+        selectedRoleId &&
+        !roleData.some((role) => role.id === selectedRoleId)
+      ) {
+        setSelectedRoleId(roleData[0]?.id ?? "");
       }
     } catch (err) {
       setError(
         err instanceof ApiError
           ? err.message
-          : "Roller yüklenemedi.",
+          : "Roller ve kullanıcılar yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -131,12 +155,17 @@ export default function RolesPage() {
     void api<Role>(`/roles/${selectedRoleId}`)
       .then((role) => {
         setSelectedPermissionIds(
-          role.rolePermissions.map(
+          (role.rolePermissions ?? []).map(
             (item) => item.permission.id,
           ),
         );
       })
-      .catch(() => {
+      .catch((err) => {
+        setError(
+          err instanceof ApiError
+            ? err.message
+            : "Rol izinleri yüklenemedi.",
+        );
         setSelectedPermissionIds([]);
       });
   }, [selectedRoleId]);
@@ -149,7 +178,7 @@ export default function RolesPage() {
     );
   }
 
-  async function save() {
+  async function savePermissions() {
     if (!selectedRole) return;
 
     setSaving(true);
@@ -173,10 +202,12 @@ export default function RolesPage() {
       );
 
       setSelectedPermissionIds(
-        updated.rolePermissions.map(
+        (updated.rolePermissions ?? []).map(
           (item) => item.permission.id,
         ),
       );
+
+      showToast("Rol yetkileri güncellendi.");
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -185,6 +216,80 @@ export default function RolesPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changeMembershipRole(
+    membershipId: string,
+    roleId: string,
+  ) {
+    setMembershipSavingId(membershipId);
+    setError("");
+
+    try {
+      const updated = await api<Membership>(
+        `/memberships/${membershipId}/role`,
+        {
+          method: "PATCH",
+          body: {
+            roleId,
+          },
+        },
+      );
+
+      setMemberships((current) =>
+        current.map((membership) =>
+          membership.id === updated.id
+            ? updated
+            : membership,
+        ),
+      );
+
+      setRoles((current) =>
+        current.map((role) => {
+          if (role.id === updated.role.id) {
+            return {
+              ...role,
+              _count: {
+                ...role._count,
+                memberships: role._count.memberships + 1,
+              },
+            };
+          }
+
+          const oldMembership = memberships.find(
+            (membership) => membership.id === membershipId,
+          );
+
+          if (
+            oldMembership &&
+            role.id === oldMembership.role.id
+          ) {
+            return {
+              ...role,
+              _count: {
+                ...role._count,
+                memberships: Math.max(
+                  0,
+                  role._count.memberships - 1,
+                ),
+              },
+            };
+          }
+
+          return role;
+        }),
+      );
+
+      showToast("Kullanıcı rolü güncellendi.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Kullanıcı rolü güncellenemedi.",
+      );
+    } finally {
+      setMembershipSavingId(null);
     }
   }
 
@@ -197,10 +302,10 @@ export default function RolesPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="mx-auto max-w-6xl space-y-8">
       <PageHeader
         title="Roller & Yetkiler"
-        description="Hangi rolün hangi işlemlere erişebileceğini yönetin."
+        description="Rollerin erişimlerini ve kullanıcı atamalarını yönetin."
       />
 
       {error ? (
@@ -251,19 +356,17 @@ export default function RolesPage() {
                   <div className="text-lg font-semibold text-[var(--ink)]">
                     {selectedRole.name}
                   </div>
+
                   <div className="mt-1 text-sm text-[var(--muted)]">
-                    {selectedRole.description ??
-                      "Rol izinlerini yönetin."}
+                    {selectedRole.description ?? "Rol izinlerini yönetin."}
                   </div>
                 </div>
 
                 <Button
-                  onClick={() => void save()}
+                  onClick={() => void savePermissions()}
                   disabled={saving}
                 >
-                  {saving
-                    ? "Kaydediliyor..."
-                    : "Değişiklikleri kaydet"}
+                  {saving ? "Kaydediliyor..." : "Değişiklikleri kaydet"}
                 </Button>
               </div>
 
@@ -301,6 +404,7 @@ export default function RolesPage() {
                                   }
                                   className="mt-1"
                                 />
+
                                 <span>
                                   <span className="block text-sm text-[var(--ink)]">
                                     {ACTION_LABELS[
@@ -308,6 +412,7 @@ export default function RolesPage() {
                                     ] ??
                                       permission.action}
                                   </span>
+
                                   <span className="text-xs text-[var(--muted)]">
                                     {permission.resource}.
                                     {permission.action}
@@ -330,6 +435,79 @@ export default function RolesPage() {
           )}
         </GlassCard>
       </div>
+
+      <GlassCard className="p-5">
+        <div className="mb-5">
+          <div className="text-lg font-semibold text-[var(--ink)]">
+            Kullanıcılar
+          </div>
+
+          <div className="mt-1 text-sm text-[var(--muted)]">
+            Kullanıcıların tenant içindeki rollerini değiştirin.
+          </div>
+        </div>
+
+        {memberships.length === 0 ? (
+          <div className="py-10 text-center text-sm text-[var(--muted)]">
+            Henüz kullanıcı bulunamadı.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {memberships.map((membership) => (
+              <div
+                key={membership.id}
+                className="flex flex-col gap-4 rounded-[16px] border border-[var(--line)] bg-white/50 p-4 sm:flex-row sm:items-center sm:justify-between"
+              >
+                <div className="min-w-0">
+                  <div className="truncate font-medium text-[var(--ink)]">
+                    {membership.user.firstName}{" "}
+                    {membership.user.lastName}
+                  </div>
+
+                  <div className="mt-1 truncate text-sm text-[var(--muted)]">
+                    {membership.user.email}
+                  </div>
+
+                  <div className="mt-2">
+                    <StatusBadge
+                      status={membership.status}
+                      label={
+                        membership.status === "ACTIVE"
+                          ? "Aktif"
+                          : membership.status
+                      }
+                    />
+                  </div>
+                </div>
+
+                <div className="w-full sm:max-w-[220px]">
+                  <Select
+                    value={membership.role.id}
+                    disabled={
+                      membershipSavingId === membership.id
+                    }
+                    onChange={(event) =>
+                      void changeMembershipRole(
+                        membership.id,
+                        event.target.value,
+                      )
+                    }
+                  >
+                    {roles.map((role) => (
+                      <option
+                        key={role.id}
+                        value={role.id}
+                      >
+                        {role.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </GlassCard>
     </div>
   );
 }
