@@ -25,8 +25,28 @@ type CustomerDetail = {
     completedAppointments: number;
     upcomingAppointments: number;
     totalSpent: number;
+    totalPaid: number;
+    totalRefunded: number;
+    netSpent: number;
+    lastPaymentAt: string | null;
   };
+  payments: Payment[];
   appointments: Appointment[];
+};
+
+type Payment = {
+  id: string;
+  appointmentId: string;
+  amount: number;
+  method: "CASH" | "CARD" | "TRANSFER";
+  status: "COMPLETED" | "REFUNDED";
+  paidAt: string;
+  refundedAt: string | null;
+  refundReason: string | null;
+  service: {
+    id: string;
+    name: string;
+  };
 };
 
 type Appointment = {
@@ -51,6 +71,12 @@ type Appointment = {
     firstName: string;
     lastName: string;
   };
+};
+
+const PAYMENT_METHOD_LABELS: Record<Payment["method"], string> = {
+  CASH: "Nakit",
+  CARD: "Kart",
+  TRANSFER: "Havale / EFT",
 };
 
 const STATUS_LABELS: Record<Appointment["status"], string> = {
@@ -207,9 +233,93 @@ export default function CustomerDetailPage({
         />
 
         <StatCard
-          label="Toplam harcama"
-          value={formatMoney(customer.stats.totalSpent)}
+          label="Net harcama"
+          value={formatMoney(customer.stats.netSpent)}
         />
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        <StatCard
+          label="Toplam tahsilat"
+          value={formatMoney(customer.stats.totalPaid)}
+        />
+
+        <StatCard
+          label="Toplam iade"
+          value={formatMoney(customer.stats.totalRefunded)}
+        />
+
+        <StatCard
+          label="Net harcama"
+          value={formatMoney(customer.stats.netSpent)}
+        />
+
+        <StatCard
+          label="Son ödeme"
+          value={
+            customer.stats.lastPaymentAt
+              ? formatDateTime(customer.stats.lastPaymentAt)
+              : "—"
+          }
+        />
+      </section>
+
+      <section>
+        <GlassCard className="p-0">
+          <div className="border-b border-[var(--line)] px-6 py-5">
+            <h2 className="text-[18px] font-semibold text-[var(--ink)]">
+              Ödeme geçmişi
+            </h2>
+            <p className="mt-1 text-[13px] text-[var(--muted)]">
+              Bu müşterinin tahsilat ve iade kayıtları
+            </p>
+          </div>
+
+          {customer.payments.length === 0 ? (
+            <div className="px-6 py-10 text-center text-[13px] text-[var(--muted)]">
+              Henüz ödeme kaydı bulunmuyor.
+            </div>
+          ) : (
+            <div className="divide-y divide-[var(--line)]">
+              {customer.payments.map((payment) => (
+                <div
+                  key={payment.id}
+                  className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between"
+                >
+                  <div className="min-w-0">
+                    <p className="text-[14px] font-medium text-[var(--ink)]">
+                      {payment.service.name}
+                    </p>
+                    <p className="mt-1 text-[12px] text-[var(--muted)]">
+                      {formatDateTime(payment.paidAt)}
+                      {" · "}
+                      {PAYMENT_METHOD_LABELS[payment.method]}
+                    </p>
+                    {payment.status === "REFUNDED" && payment.refundReason ? (
+                      <p className="mt-1 text-[12px] text-[var(--muted-soft)]">
+                        İade nedeni: {payment.refundReason}
+                      </p>
+                    ) : null}
+                  </div>
+
+                  <div className="flex shrink-0 items-center gap-3">
+                    <span className="text-[13px] font-semibold text-[var(--ink)]">
+                      {formatMoney(payment.amount)}
+                    </span>
+                    <StatusBadge
+                      status={payment.status}
+                      label={
+                        payment.status === "REFUNDED"
+                          ? "İade edildi"
+                          : "Tamamlandı"
+                      }
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </GlassCard>
       </section>
 
       <section className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">

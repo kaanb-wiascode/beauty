@@ -125,6 +125,17 @@ import {
                   lastName: true,
                 },
               },
+              payment: {
+                select: {
+                  id: true,
+                  amount: true,
+                  method: true,
+                  status: true,
+                  paidAt: true,
+                  refundedAt: true,
+                  refundReason: true,
+                },
+              },
         },
             orderBy: {
               startAt: 'desc',
@@ -150,13 +161,38 @@ import {
           appointment.status !== 'NO_SHOW',
       ).length;
 
-      const totalSpent = customer.appointments
-        .filter((appointment) => appointment.status === 'COMPLETED')
-        .reduce(
-          (total, appointment) =>
-            total + Number(appointment.service.price),
-          0,
+      const customerPayments = customer.appointments
+        .filter((appointment) => appointment.payment)
+        .map((appointment) => ({
+          id: appointment.payment!.id,
+          appointmentId: appointment.id,
+          amount: Number(appointment.payment!.amount),
+          method: appointment.payment!.method,
+          status: appointment.payment!.status,
+          paidAt: appointment.payment!.paidAt,
+          refundedAt: appointment.payment!.refundedAt,
+          refundReason: appointment.payment!.refundReason,
+          service: {
+            id: appointment.service.id,
+            name: appointment.service.name,
+          },
+        }))
+        .sort(
+          (a, b) =>
+            new Date(b.paidAt).getTime() -
+            new Date(a.paidAt).getTime(),
         );
+
+      const totalPaid = customerPayments
+        .filter((payment) => payment.status === 'COMPLETED')
+        .reduce((total, payment) => total + payment.amount, 0);
+
+      const totalRefunded = customerPayments
+        .filter((payment) => payment.status === 'REFUNDED')
+        .reduce((total, payment) => total + payment.amount, 0);
+
+      const totalSpent = totalPaid - totalRefunded;
+      const lastPaymentAt = customerPayments[0]?.paidAt ?? null;
 
       return {
         id: customer.id,
@@ -172,7 +208,12 @@ import {
           completedAppointments,
           upcomingAppointments,
           totalSpent,
+          totalPaid,
+          totalRefunded,
+          netSpent: totalSpent,
+          lastPaymentAt,
         },
+        payments: customerPayments,
         appointments: customer.appointments,
       };
     }
