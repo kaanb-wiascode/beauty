@@ -46,6 +46,9 @@ const ERROR_MESSAGES: Record<string, string> = {
   "Failed to create appointment": "Randevu oluşturulamadı.",
   "Failed to update appointment": "Randevu güncellenemedi.",
   "Failed to cancel appointment": "Randevu iptal edilemedi.",
+  "Appointment already has a payment": "Bu randevunun zaten bir ödeme kaydı var.",
+  "Cancelled or no-show appointment cannot be paid": "İptal edilmiş veya gelinmemiş randevu için ödeme alınamaz.",
+  "Payment not found": "Ödeme bulunamadı.",
 };
 
 function mapErrorMessage(message: string) {

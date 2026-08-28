@@ -32,6 +32,7 @@ model Tenant {
   roles        Role[]
   services     Service[]
   staff        Staff[]
+  payments     Payment[]
 
   @@map("tenants")
 }
@@ -166,6 +167,7 @@ model Appointment {
   service    Service           @relation(fields: [serviceId], references: [id])
   staff      Staff             @relation(fields: [staffId], references: [id])
   tenant     Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  payment    Payment?
 
   @@index([tenantId])
   @@index([tenantId, startAt])
@@ -199,4 +201,29 @@ enum AppointmentStatus {
   COMPLETED
   CANCELLED
   NO_SHOW
+}
+
+model Payment {
+  id            String        @id @default(uuid())
+  tenantId      String
+  appointmentId String        @unique
+  amount        Decimal       @db.Decimal(10, 2)
+  method        PaymentMethod
+  paidAt        DateTime      @default(now())
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  appointment Appointment @relation(fields: [appointmentId], references: [id], onDelete: Restrict)
+  tenant      Tenant      @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@index([tenantId])
+  @@index([tenantId, paidAt])
+  @@index([tenantId, method])
+  @@map("payments")
+}
+
+enum PaymentMethod {
+  CASH
+  CARD
+  TRANSFER
 }
