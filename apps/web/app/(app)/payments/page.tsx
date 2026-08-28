@@ -5,12 +5,15 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   EmptyState,
+  Field,
   PageHeader,
   Panel,
+  Select,
   Spinner,
   TableWrap,
   Td,
   Th,
+  TextInput,
 } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 
@@ -76,13 +79,26 @@ function formatMoney(value: string | number) {
   }).format(Number(value));
 }
 
+function endOfDay(value: string) {
+  if (!value) return null;
+
+  const date = new Date(`${value}T00:00:00`);
+  date.setHours(23, 59, 59, 999);
+  return date;
+}
+
 export default function PaymentsPage() {
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [method, setMethod] = useState<Payment["method"] | "">("");
+  const [fromDate, setFromDate] = useState("");
+  const [toDate, setToDate] = useState("");
 
   useEffect(() => {
     let cancelled = false;
@@ -163,10 +179,45 @@ export default function PaymentsPage() {
     [services],
   );
 
+  const filteredPayments = useMemo(() => {
+    const from = fromDate
+      ? new Date(`${fromDate}T00:00:00`)
+      : null;
+    const to = endOfDay(toDate);
+
+    return payments.filter((payment) => {
+      const paidAt = new Date(payment.paidAt);
+
+      if (method && payment.method !== method) {
+        return false;
+      }
+
+      if (from && paidAt < from) {
+        return false;
+      }
+
+      if (to && paidAt > to) {
+        return false;
+      }
+
+      return true;
+    });
+  }, [payments, method, fromDate, toDate]);
+
   const total = useMemo(
-    () => payments.reduce((sum, payment) => sum + Number(payment.amount), 0),
-    [payments],
+    () =>
+      filteredPayments.reduce(
+        (sum, payment) => sum + Number(payment.amount),
+        0,
+      ),
+    [filteredPayments],
   );
+
+  function clearFilters() {
+    setMethod("");
+    setFromDate("");
+    setToDate("");
+  }
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -180,11 +231,61 @@ export default function PaymentsPage() {
       ) : null}
 
       <Panel>
+        <div className="border-b border-[var(--line)] px-5 py-5">
+          <div className="grid gap-4 md:grid-cols-3">
+            <Field label="Ödeme yöntemi">
+              <Select
+                value={method}
+                onChange={(event) =>
+                  setMethod(
+                    event.target.value as Payment["method"] | "",
+                  )
+                }
+              >
+                <option value="">Tüm yöntemler</option>
+                <option value="CARD">Kart</option>
+                <option value="CASH">Nakit</option>
+                <option value="TRANSFER">Havale / EFT</option>
+              </Select>
+            </Field>
+
+            <Field label="Başlangıç tarihi">
+              <TextInput
+                type="date"
+                value={fromDate}
+                onChange={(event) => setFromDate(event.target.value)}
+              />
+            </Field>
+
+            <Field label="Bitiş tarihi">
+              <TextInput
+                type="date"
+                value={toDate}
+                onChange={(event) => setToDate(event.target.value)}
+              />
+            </Field>
+          </div>
+
+          <div className="mt-4 flex items-center justify-between gap-4">
+            <p className="text-[12px] text-[var(--muted)]">
+              {filteredPayments.length} ödeme gösteriliyor
+            </p>
+
+            <button
+              type="button"
+              onClick={clearFilters}
+              className="text-[13px] font-medium text-[var(--accent)] hover:underline"
+            >
+              Filtreleri temizle
+            </button>
+          </div>
+        </div>
+
         <div className="border-b border-[var(--line)] px-5 py-4">
           <div className="flex items-end justify-between gap-4">
             <div>
               <p className="text-[12px] font-medium text-[var(--muted)]">
-                Toplam tahsilat
+                Filtrelenmiş tahsilat
               </p>
               <p className="mt-1 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
                 {formatMoney(total)}
@@ -192,17 +293,21 @@ export default function PaymentsPage() {
             </div>
 
             <p className="text-[12px] text-[var(--muted-soft)]">
-              {payments.length} ödeme
+              Toplam kayıt: {payments.length}
             </p>
           </div>
         </div>
 
         {loading ? (
           <Spinner label="Ödemeler yükleniyor..." />
-        ) : payments.length === 0 ? (
+        ) : filteredPayments.length === 0 ? (
           <EmptyState
-            title="Henüz ödeme yok"
-            description="Randevulardan ödeme aldığınızda kayıtlar burada görünecek."
+            title="Ödeme bulunamadı"
+            description={
+              payments.length === 0
+                ? "Randevulardan ödeme aldığınızda kayıtlar burada görünecek."
+                : "Seçtiğiniz filtrelere uyan ödeme bulunamadı."
+            }
           />
         ) : (
           <TableWrap>
@@ -218,7 +323,7 @@ export default function PaymentsPage() {
             </thead>
 
             <tbody>
-              {payments.map((payment) => (
+              {filteredPayments.map((payment) => (
                 <tr key={payment.id}>
                   <Td label="Tarih">{formatDate(payment.paidAt)}</Td>
                   <Td label="Müşteri">
