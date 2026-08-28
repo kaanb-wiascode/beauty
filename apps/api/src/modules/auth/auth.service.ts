@@ -13,6 +13,30 @@ import { RedisService } from '../../infrastructure/redis/redis.service';
 import { RegisterInput } from './dto/register.dto';
 import { LoginInput } from './dto/login.dto';
 
+const DEFAULT_OWNER_PERMISSIONS = [
+  ['customers', 'read'],
+  ['customers', 'create'],
+  ['customers', 'update'],
+  ['customers', 'delete'],
+  ['appointments', 'read'],
+  ['appointments', 'create'],
+  ['appointments', 'update'],
+  ['appointments', 'cancel'],
+  ['payments', 'read'],
+  ['payments', 'create'],
+  ['payments', 'refund'],
+  ['reports', 'read'],
+  ['staff', 'read'],
+  ['staff', 'create'],
+  ['staff', 'update'],
+  ['staff', 'delete'],
+  ['services', 'read'],
+  ['services', 'create'],
+  ['services', 'update'],
+  ['services', 'delete'],
+] as const;
+
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -79,6 +103,30 @@ export class AuthService {
           roleId: role.id,
         },
       });
+
+        for (const [resource, action] of DEFAULT_OWNER_PERMISSIONS) {
+          const permission = await tx.permission.upsert({
+            where: {
+              resource_action: {
+                resource,
+                action,
+              },
+            },
+            update: {},
+            create: {
+              resource,
+              action,
+              description: resource + ' ' + action + ' permission',
+            },
+          });
+
+          await tx.rolePermission.create({
+            data: {
+              roleId: role.id,
+              permissionId: permission.id,
+            },
+          });
+        }
 
       return {
         user: {
