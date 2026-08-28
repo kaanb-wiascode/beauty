@@ -8,6 +8,7 @@ import {
   GlassCard,
   PageHeader,
   Select,
+  TextInput,
   Spinner,
   StatusBadge,
 } from "@/components/ui";
@@ -90,6 +91,10 @@ export default function RolesPage() {
     null,
   );
   const [error, setError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [newRoleName, setNewRoleName] = useState("");
+  const [newRoleDescription, setNewRoleDescription] = useState("");
+  const [creatingRole, setCreatingRole] = useState(false);
 
   const selectedRole = useMemo(
     () => roles.find((role) => role.id === selectedRoleId) ?? null,
@@ -219,6 +224,43 @@ export default function RolesPage() {
     }
   }
 
+  async function createRole() {
+    const name = newRoleName.trim();
+
+    if (name.length < 2) {
+      setError("Rol adı en az 2 karakter olmalıdır.");
+      return;
+    }
+
+    setCreatingRole(true);
+    setError("");
+
+    try {
+      const role = await api<Role>("/roles", {
+        method: "POST",
+        body: {
+          name,
+          description:          newRoleDescription.trim() || undefined,
+        },
+      });
+
+      setRoles((current) => [...current, role]);
+      setSelectedRoleId(role.id);
+      setCreateOpen(false);
+      setNewRoleName("");
+      setNewRoleDescription("");
+      showToast("Rol oluşturuldu.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Rol oluşturulamadı.",
+      );
+    } finally {
+      setCreatingRole(false);
+    }
+  }
+
   async function changeMembershipRole(
     membershipId: string,
     roleId: string,
@@ -306,6 +348,11 @@ export default function RolesPage() {
       <PageHeader
         title="Roller & Yetkiler"
         description="Rollerin erişimlerini ve kullanıcı atamalarını yönetin."
+        action={
+          <Button onClick={() => setCreateOpen(true)}>
+            Yeni rol
+          </Button>
+        }
       />
 
       {error ? (
