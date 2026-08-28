@@ -8,6 +8,8 @@ import { PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { UpdateRolePermissionsInput } from './dto/update-role-permissions.dto';
+import { CreateRoleInput } from './dto/create-role.dto';
+import { UpdateRoleInput } from './dto/update-role.dto';
 
 @Injectable()
 export class RolesService {
@@ -18,6 +20,54 @@ export class RolesService {
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
+  }
+
+  async create(input: CreateRoleInput) {
+    const tenantId = this.getTenantId();
+
+    const slug = input.name
+      .trim()
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, '-')
+      .replace(/^-+|-+$/g, '');
+
+    if (!slug) {
+      throw new BadRequestException('Invalid role name');
+    }
+
+    const existing = await this.prisma.role.findFirst({
+      where: {
+        tenantId,
+        OR: [
+          { name: input.name.trim() },
+          { slug },
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existing) {
+      throw new BadRequestException('Role already exists');
+    }
+
+    return this.prisma.role.create({
+      data: {
+        tenantId,
+        name: input.name.trim(),
+        slug,
+        description: input.description?.trim() || null,
+      },
+      include: {
+        _count: {
+          select: {
+            memberships: true,
+            rolePermissions: true,
+          },
+        },
+      },
+    });
   }
 
   async findAll() {
@@ -82,6 +132,116 @@ export class RolesService {
     }
 
     return role;
+  }
+
+  async update(id: string, input: UpdateRoleInput) {
+    const tenantId = this.getTenantId();
+
+    const role = await this.prisma.role.findFirst({
+      where: {
+        id,
+        tenantId,
+      },
+      select: {
+        id: true,
+        slug: true,
+      },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    if (role.slug === 'owner') {
+      throw new BadRequestException(
+        'Owner role cannot be renamed',
+      );
+    }
+
+    const data: {
+      name?: string;
+      description?: string | null;
+    } = {};
+
+    if (input.name !== undefined) {
+      data.name = input.name.trim();
+    }
+
+    if (input.description !== undefined) {
+      data.description =
+        input.description?.trim() || null;
+    }
+
+    if (data.name) {
+      const duplicate = await this.prisma.role.findFirst({
+        where: {
+          tenantId,
+          id: { not: id },
+          name: data.name,
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (duplicate) {
+        throw new BadRequestException(
+          'Role name already exists',
+        );
+      }
+    }
+
+    await this.prisma.role.update({
+      where: { id },
+      data,
+    });
+
+    return this.findOne(id);
+  }
+
+  async remove(id: string) {
+    const tenantId = this.getTenantId();
+
+    const role = await this.prisma.role.findFirst({
+      where: {
+        id,
+        tenantId,
+      },
+      include: {
+        _count: {
+          select: {
+            memberships: true,
+          },
+        },
+      },
+    });
+
+    if (!role) {
+      throw new NotFoundException('Role not found');
+    }
+
+    if (role.slug === 'owner') {
+      throw new BadRequestException(
+        'Owner role cannot be deleted',
+      );
+    }
+
+    if (role._count.memberships > 0) {
+      throw new BadRequestException(
+        'Role is assigned to users',
+      );
+    }
+
+    await this.prisma.role.delete({
+      where: {
+        id: role.id,
+      },
+    });
+
+    return {
+      deleted: true,
+      id: role.id,
+    };
   }
 
   async updatePermissions(
