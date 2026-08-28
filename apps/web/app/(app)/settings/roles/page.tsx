@@ -383,11 +383,21 @@ export default function RolesPage() {
                       : "text-[var(--muted)] hover:bg-black/[0.035] hover:text-[var(--ink)]",
                   ].join(" ")}
                 >
-                  <div className="font-medium">
-                    {role.name}
-                  </div>
-                  <div className="mt-1 text-xs opacity-70">
-                    {role._count.memberships} kullanıcı
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <div className="truncate font-medium">
+                        {role.name}
+                      </div>
+                      <div className="mt-1 text-xs opacity-70">
+                        {role._count.memberships} kullanıcı
+                      </div>
+                    </div>
+
+                    {role.slug === "owner" ? (
+                      <span className="shrink-0 text-[11px] text-[var(--muted)]">
+                        Sistem rolü
+                      </span>
+                    ) : null}
                   </div>
                 </button>
               );
