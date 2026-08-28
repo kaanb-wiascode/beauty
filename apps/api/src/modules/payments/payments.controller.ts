@@ -14,6 +14,7 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
 import { listPaymentsSchema } from './dto/list-payments.dto';
+import { dashboardReportSchema } from './dto/dashboard-report.dto';
 import { refundPaymentSchema } from './dto/refund-payment.dto';
 import { paymentSummarySchema } from './dto/payment-summary.dto';
 
@@ -36,6 +37,13 @@ export class PaymentsController {
     const input = listPaymentsSchema.parse(query);
 
     return this.paymentsService.findAll(input);
+  }
+
+  @Get('dashboard-report')
+  async dashboardReport(@Query() query: unknown) {
+    const input = dashboardReportSchema.parse(query);
+
+    return this.paymentsService.dashboardReport(input);
   }
 
   @Get('summary')

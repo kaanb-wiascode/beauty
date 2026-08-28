@@ -11,6 +11,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreatePaymentInput } from './dto/create-payment.dto';
 import { ListPaymentsInput } from './dto/list-payments.dto';
 import { RefundPaymentInput } from './dto/refund-payment.dto';
+import { DashboardReportInput } from './dto/dashboard-report.dto';
 import { PaymentSummaryInput } from './dto/payment-summary.dto';
 
 @Injectable()
@@ -246,6 +247,174 @@ export class PaymentsService {
       },
     };
   }
+
+
+    async dashboardReport(input: DashboardReportInput) {
+      const tenantId = this.getTenantId();
+
+      const [summary, appointments, services, staff] =
+        await Promise.all([
+          this.summary({
+            from: input.from,
+            to: input.to,
+          }),
+          this.prisma.appointment.findMany({
+            where: {
+              tenantId,
+              startAt: {
+                gte: input.from,
+                lte: input.to,
+              },
+            },
+            select: {
+              id: true,
+              status: true,
+            },
+          }),
+          this.prisma.service.findMany({
+            where: {
+              tenantId,
+            },
+            select: {
+              id: true,
+              name: true,
+            },
+          }),
+          this.prisma.staff.findMany({
+            where: {
+              tenantId,
+            },
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          }),
+        ]);
+
+      const completedAppointments = appointments.filter(
+        (appointment) =>
+          appointment.status === 'COMPLETED',
+      ).length;
+
+      const servicePerformance =
+        await Promise.all(
+          services.map(async (service) => {
+            const rows =
+              await this.prisma.appointment.findMany({
+                where: {
+                  tenantId,
+                  serviceId: service.id,
+                  startAt: {
+                    gte: input.from,
+                    lte: input.to,
+                  },
+                },
+                select: {
+                  payment: {
+                    select: {
+                      amount: true,
+                      status: true,
+                    },
+                  },
+                },
+              });
+
+            const collected = rows.reduce(
+              (total, row) => {
+                if (
+                  row.payment?.status !== 'COMPLETED'
+                ) {
+                  return total;
+                }
+
+                return (
+                  total +
+                  Number(row.payment.amount)
+                );
+              },
+              0,
+            );
+
+            return {
+              id: service.id,
+              name: service.name,
+              collected,
+              appointmentCount: rows.length,
+            };
+          }),
+        );
+
+      const staffPerformance =
+        await Promise.all(
+          staff.map(async (member) => {
+            const rows =
+              await this.prisma.appointment.findMany({
+                where: {
+                  tenantId,
+                  staffId: member.id,
+                  startAt: {
+                    gte: input.from,
+                    lte: input.to,
+                  },
+                },
+                select: {
+                  payment: {
+                    select: {
+                      amount: true,
+                      status: true,
+                    },
+                  },
+                },
+              });
+
+            const collected = rows.reduce(
+              (total, row) => {
+                if (
+                  row.payment?.status !== 'COMPLETED'
+                ) {
+                  return total;
+                }
+
+                return (
+                  total +
+                  Number(row.payment.amount)
+                );
+              },
+              0,
+            );
+
+            return {
+              id: member.id,
+              name:
+                `${member.firstName} ${member.lastName}`.trim(),
+              collected,
+              appointmentCount: rows.length,
+            };
+          }),
+        );
+
+      return {
+        summary: {
+          ...summary,
+          appointmentCount: appointments.length,
+          completedAppointments,
+        },
+        topService:
+          servicePerformance
+            .sort(
+              (a, b) => b.collected - a.collected,
+            )[0] ?? null,
+        topStaff:
+          staffPerformance
+            .sort(
+              (a, b) => b.collected - a.collected,
+            )[0] ?? null,
+        servicePerformance: servicePerformance.slice(0, 5),
+        staffPerformance: staffPerformance.slice(0, 5),
+      };
+    }
+
 
   async findOne(id: string) {
     const tenantId = this.getTenantId();

@@ -81,6 +81,11 @@ const NAV = [
     icon: PaymentIcon,
   },
   {
+    href: "/reports",
+    label: "Raporlar",
+    icon: PaymentIcon,
+  },
+  {
     href: "/reports/payments",
     label: "Kasa",
     icon: PaymentIcon,
