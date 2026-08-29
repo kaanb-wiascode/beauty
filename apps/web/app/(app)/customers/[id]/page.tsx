@@ -25,7 +25,6 @@ type CustomerDetail = {
     totalAppointments: number;
     completedAppointments: number;
     upcomingAppointments: number;
-    totalSpent: number;
     totalPaid: number;
     totalRefunded: number;
     netSpent: number;
@@ -134,40 +133,27 @@ export default function CustomerDetailPage({
   const [paymentAppointment, setPaymentAppointment] =
     useState<Appointment | null>(null);
 
-  useEffect(() => {
-    let cancelled = false;
+  const load = async () => {
+    setLoading(true);
+    setError("");
 
-    async function load() {
-      setLoading(true);
-      setError("");
-
-      try {
-        const { id } = await params;
-        const result = await api<CustomerDetail>(`/customers/${id}`);
-
-        if (!cancelled) {
-          setCustomer(result);
-        }
-      } catch (err) {
-        if (!cancelled) {
-          setError(
-            err instanceof ApiError
-              ? err.message
-              : "Müşteri bilgileri yüklenemedi.",
-          );
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
+    try {
+      const { id } = await params;
+      const result = await api<CustomerDetail>(`/customers/${id}`);
+      setCustomer(result);
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Müşteri bilgileri yüklenemedi.",
+      );
+    } finally {
+      setLoading(false);
     }
+  };
 
+  useEffect(() => {
     void load();
-
-    return () => {
-      cancelled = true;
-    };
   }, [params]);
 
   const initials = useMemo(() => {
@@ -197,9 +183,7 @@ export default function CustomerDetailPage({
           title="Müşteri"
           description="Müşteri detayları."
         />
-
         <Alert>{error || "Müşteri bulunamadı."}</Alert>
-
         <Link href="/customers">
           <Button variant="secondary">Müşterilere dön</Button>
         </Link>
@@ -211,13 +195,12 @@ export default function CustomerDetailPage({
     <div className="mx-auto max-w-6xl space-y-8">
       <PageHeader
         title={fullName(customer.firstName, customer.lastName)}
-        description="Müşteri profili ve randevu geçmişi."
+        description="Müşteri profili, finansal özeti ve randevu geçmişi."
         action={
           <div className="flex items-center gap-2">
             <Link href={`/appointments?customerId=${customer.id}`}>
               <Button>Yeni randevu</Button>
             </Link>
-
             <Link href="/customers">
               <Button variant="secondary">Müşterilere dön</Button>
             </Link>
@@ -230,17 +213,14 @@ export default function CustomerDetailPage({
           label="Toplam randevu"
           value={customer.stats.totalAppointments}
         />
-
         <StatCard
           label="Tamamlanan"
           value={customer.stats.completedAppointments}
         />
-
         <StatCard
           label="Yaklaşan"
           value={customer.stats.upcomingAppointments}
         />
-
         <StatCard
           label="Net harcama"
           value={formatMoney(customer.stats.netSpent)}
@@ -252,17 +232,10 @@ export default function CustomerDetailPage({
           label="Toplam tahsilat"
           value={formatMoney(customer.stats.totalPaid)}
         />
-
         <StatCard
           label="Toplam iade"
           value={formatMoney(customer.stats.totalRefunded)}
         />
-
-        <StatCard
-          label="Net harcama"
-          value={formatMoney(customer.stats.netSpent)}
-        />
-
         <StatCard
           label="Son ödeme"
           value={
@@ -271,16 +244,46 @@ export default function CustomerDetailPage({
               : "—"
           }
         />
+        <StatCard
+          label="Ödeme sayısı"
+          value={customer.payments.length}
+        />
       </section>
 
-      <section>
+      <section className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
+        <GlassCard>
+          <div className="flex items-center gap-4">
+            <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">
+              {initials}
+            </div>
+
+            <div className="min-w-0">
+              <h2 className="truncate text-[18px] font-semibold text-[var(--ink)]">
+                {fullName(customer.firstName, customer.lastName)}
+              </h2>
+              <p className="mt-1 text-[12px] text-[var(--muted)]">
+                Müşteri
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-7 space-y-4 border-t border-[var(--line)] pt-5">
+            <InfoRow label="Telefon" value={customer.phone || "—"} />
+            <InfoRow label="E-posta" value={customer.email || "—"} />
+            <InfoRow
+              label="Kayıt tarihi"
+              value={formatDate(customer.createdAt)}
+            />
+          </div>
+        </GlassCard>
+
         <GlassCard className="p-0">
           <div className="border-b border-[var(--line)] px-6 py-5">
             <h2 className="text-[18px] font-semibold text-[var(--ink)]">
               Ödeme geçmişi
             </h2>
             <p className="mt-1 text-[13px] text-[var(--muted)]">
-              Bu müşterinin tahsilat ve iade kayıtları
+              Tahsilat ve iade kayıtları
             </p>
           </div>
 
@@ -331,40 +334,12 @@ export default function CustomerDetailPage({
         </GlassCard>
       </section>
 
-      <section className="grid gap-5 lg:grid-cols-[320px_minmax(0,1fr)]">
-        <GlassCard>
-          <div className="flex items-center gap-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">
-              {initials}
-            </div>
-
-            <div className="min-w-0">
-              <h2 className="truncate text-[18px] font-semibold text-[var(--ink)]">
-                {fullName(customer.firstName, customer.lastName)}
-              </h2>
-
-              <p className="mt-1 text-[12px] text-[var(--muted)]">
-                Müşteri
-              </p>
-            </div>
-          </div>
-
-          <div className="mt-7 space-y-4 border-t border-[var(--line)] pt-5">
-            <InfoRow label="Telefon" value={customer.phone || "—"} />
-            <InfoRow label="E-posta" value={customer.email || "—"} />
-            <InfoRow
-              label="Kayıt tarihi"
-              value={formatDate(customer.createdAt)}
-            />
-          </div>
-        </GlassCard>
-
+      <section>
         <GlassCard className="p-0">
           <div className="border-b border-[var(--line)] px-6 py-5">
             <h2 className="text-[18px] font-semibold text-[var(--ink)]">
               Randevu geçmişi
             </h2>
-
             <p className="mt-1 text-[13px] text-[var(--muted)]">
               Bu müşterinin tüm randevuları
             </p>
@@ -402,7 +377,7 @@ export default function CustomerDetailPage({
                     ) : null}
                   </div>
 
-                  <div className="flex shrink-0 items-center gap-3">
+                  <div className="flex shrink-0 flex-wrap items-center justify-end gap-3">
                     <span className="text-[13px] font-medium text-[var(--ink)]">
                       {formatMoney(appointment.service.price)}
                     </span>
@@ -418,6 +393,10 @@ export default function CustomerDetailPage({
                       >
                         Ödeme al
                       </Button>
+                    ) : appointment.payment ? (
+                      <span className="text-[12px] text-[var(--muted)]">
+                        {PAYMENT_METHOD_LABELS[appointment.payment.method]}
+                      </span>
                     ) : null}
 
                     <StatusBadge
@@ -431,34 +410,19 @@ export default function CustomerDetailPage({
           )}
         </GlassCard>
       </section>
+
       <PaymentModal
         open={paymentAppointment !== null}
         onClose={() => setPaymentAppointment(null)}
         appointment={paymentAppointment}
-        customerName={
-          customer
-            ? fullName(
-                customer.firstName,
-                customer.lastName,
-              )
-            : ""
-        }
-        serviceName={
-          paymentAppointment?.service.name ?? "Hizmet"
-        }
-        defaultAmount={
-          paymentAppointment?.service.price ?? ""
-        }
+        customerName={fullName(customer.firstName, customer.lastName)}
+        serviceName={paymentAppointment?.service.name ?? "Hizmet"}
+        defaultAmount={paymentAppointment?.service.price ?? ""}
         onSaved={async () => {
           setPaymentAppointment(null);
-          const id = await params.then((value) => value.id);
-          const result = await api<CustomerDetail>(
-            `/customers/${id}`,
-          );
-          setCustomer(result);
+          await load();
         }}
       />
-
     </div>
   );
 }
@@ -475,7 +439,6 @@ function StatCard({
       <p className="text-[12px] font-medium text-[var(--muted)]">
         {label}
       </p>
-
       <p className="mt-3 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
         {value}
       </p>
@@ -495,7 +458,6 @@ function InfoRow({
       <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">
         {label}
       </p>
-
       <p className="mt-1 text-[13px] text-[var(--ink)]">
         {value}
       </p>
