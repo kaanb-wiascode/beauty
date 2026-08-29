@@ -66,7 +66,11 @@ export default function CustomersPage() {
 
     try {
       const result = await api<Paginated<Customer>>(
-        withQuery("/customers", { page, limit: 20, search: search.trim() || undefined }),
+        withQuery("/customers", {
+          page,
+          limit: 20,
+          search: search.trim() || undefined,
+        }),
       );
       setCustomers(result.data);
       setTotalPages(result.meta.totalPages || 1);
@@ -80,7 +84,11 @@ export default function CustomersPage() {
   }, [page, search]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 180);
+
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   function handleSearch(value: string) {
@@ -109,8 +117,18 @@ export default function CustomersPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+
+    if (!firstName || !lastName) {
+      setFormError("Ad ve soyad gerekli.");
+      return;
+    }
+
     setSaving(true);
     setFormError("");
+    setError("");
 
     try {
       const payload = toPayload(form);
@@ -141,7 +159,9 @@ export default function CustomersPage() {
 
   async function onDelete() {
     if (!pendingDelete) return;
+
     setSaving(true);
+    setError("");
 
     try {
       await api(`/customers/${pendingDelete.id}`, { method: "DELETE" });
@@ -159,7 +179,7 @@ export default function CustomersPage() {
   }
 
   return (
-    <div className="mx-auto max-w-5xl space-y-10">
+    <div className="mx-auto max-w-6xl space-y-7">
       <PageHeader
         title="Müşteriler"
         description="Kayıtlı müşterileri yönetin."
@@ -179,19 +199,35 @@ export default function CustomersPage() {
             />
           </div>
 
-          {search ? (
-            <p className="text-[12px] text-[var(--muted)]">
-              “{search}” için sonuçlar gösteriliyor.
-            </p>
-          ) : null}
+          <div className="flex items-center gap-3">
+            <span className="text-[12px] text-[var(--muted)]">
+              {search.trim()
+                ? `"${search.trim()}" sonuçları`
+                : "Tüm müşteriler"}
+            </span>
+
+            {search ? (
+              <Button
+                variant="ghost"
+                className="px-3 py-1.5"
+                onClick={() => handleSearch("")}
+              >
+                Temizle
+              </Button>
+            ) : null}
+          </div>
         </div>
 
         {loading ? (
           <Spinner label="Müşteriler yükleniyor..." />
         ) : customers.length === 0 ? (
           <EmptyState
-            title="Henüz müşteri yok"
-            description="Yeni müşteri ekleyerek başlayın."
+            title={search.trim() ? "Eşleşen müşteri yok" : "Henüz müşteri yok"}
+            description={
+              search.trim()
+                ? "Arama kriterinizi değiştirerek tekrar deneyin."
+                : "Yeni müşteri ekleyerek başlayın."
+            }
           />
         ) : (
           <>
@@ -205,6 +241,7 @@ export default function CustomersPage() {
                   <Th>İşlemler</Th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-stone-100">
                 {customers.map((customer) => (
                   <tr key={customer.id} className="hover:bg-stone-50/60">
@@ -214,8 +251,9 @@ export default function CustomersPage() {
                     <Td label="Soyad">{customer.lastName}</Td>
                     <Td label="Telefon">{customer.phone ?? "—"}</Td>
                     <Td label="E-posta">{customer.email ?? "—"}</Td>
+
                     <Td label="İşlemler" actions>
-                      <div className="flex gap-2">
+                      <div className="flex flex-wrap gap-2">
                         <Link
                           href={`/customers/${customer.id}`}
                           className="inline-flex items-center justify-center rounded-[10px] px-3 py-1.5 text-[13px] font-medium text-[var(--ink)] transition-colors hover:bg-black/[0.05]"
@@ -227,9 +265,10 @@ export default function CustomersPage() {
                           variant="ghost"
                           className="px-3 py-1.5"
                           onClick={() => openEdit(customer)}
-                       >
+                        >
                           Düzenle
                         </Button>
+
                         <Button
                           variant="danger"
                           className="px-3 py-1.5"
@@ -243,6 +282,7 @@ export default function CustomersPage() {
                 ))}
               </tbody>
             </TableWrap>
+
             <Pagination
               page={page}
               totalPages={totalPages}
@@ -254,7 +294,12 @@ export default function CustomersPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          if (!saving) {
+            setModalOpen(false);
+            setFormError("");
+          }
+        }}
         title={editing ? "Müşteriyi düzenle" : "Yeni müşteri"}
         description="Müşteri iletişim bilgilerini girin."
       >
@@ -272,6 +317,7 @@ export default function CustomersPage() {
                 }
               />
             </Field>
+
             <Field label="Soyad">
               <TextInput
                 required
@@ -285,28 +331,43 @@ export default function CustomersPage() {
               />
             </Field>
           </div>
+
           <Field label="Telefon">
             <TextInput
               value={form.phone}
               onChange={(event) =>
-                setForm((current) => ({ ...current, phone: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  phone: event.target.value,
+                }))
               }
             />
           </Field>
+
           <Field label="E-posta">
             <TextInput
               type="email"
               value={form.email}
               onChange={(event) =>
-                setForm((current) => ({ ...current, email: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  email: event.target.value,
+                }))
               }
             />
           </Field>
+
           {formError ? <Alert>{formError}</Alert> : null}
+
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setModalOpen(false)}
+              disabled={saving}
+            >
               Vazgeç
             </Button>
+
             <Button type="submit" disabled={saving}>
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
