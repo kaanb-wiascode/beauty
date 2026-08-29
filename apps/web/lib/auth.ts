@@ -1,9 +1,10 @@
-import type { AuthTenant, AuthUser } from "./types";
+import type { AuthTenant, AuthUser, LoginResponse } from "./types";
 
 const ACCESS_TOKEN_KEY = "beauty_erp_access_token";
 const REFRESH_TOKEN_KEY = "beauty_erp_refresh_token";
 const USER_KEY = "beauty_erp_user";
 const TENANT_KEY = "beauty_erp_tenant";
+const MEMBERSHIP_KEY = "beauty_erp_membership";
 
 function canUseStorage() {
   return typeof window !== "undefined";
@@ -32,6 +33,19 @@ export function getStoredUser(): AuthUser | null {
   }
 }
 
+export function getStoredMembership(): LoginResponse["membership"] | null {
+  if (!canUseStorage()) return null;
+
+  const raw = window.localStorage.getItem(MEMBERSHIP_KEY);
+  if (!raw) return null;
+
+  try {
+    return JSON.parse(raw) as LoginResponse["membership"];
+  } catch {
+    return null;
+  }
+}
+
 export function getStoredTenant(): AuthTenant | null {
   if (!canUseStorage()) return null;
 
@@ -50,6 +64,7 @@ export function persistSession(input: {
   refreshToken?: string;
   user?: AuthUser;
   tenant?: AuthTenant;
+  membership?: LoginResponse["membership"];
 }) {
   if (!canUseStorage()) return;
 
@@ -66,6 +81,13 @@ export function persistSession(input: {
   if (input.tenant) {
     window.localStorage.setItem(TENANT_KEY, JSON.stringify(input.tenant));
   }
+
+  if (input.membership) {
+    window.localStorage.setItem(
+      MEMBERSHIP_KEY,
+      JSON.stringify(input.membership),
+    );
+  }
 }
 
 export function clearSession() {
@@ -75,4 +97,17 @@ export function clearSession() {
   window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   window.localStorage.removeItem(TENANT_KEY);
+  window.localStorage.removeItem(MEMBERSHIP_KEY);
+}
+
+export function hasPermission(
+  resource: string,
+  action: string,
+): boolean {
+  const membership = getStoredMembership();
+  if (!membership) return false;
+
+  return membership.permissions.includes(
+    `${resource}.${action}`,
+  );
 }

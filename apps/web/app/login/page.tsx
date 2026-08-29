@@ -37,6 +37,7 @@ export default function LoginPage() {
         refreshToken: data.refreshToken,
         user: data.user,
         tenant: data.tenant,
+        membership: data.membership,
       });
 
       router.replace("/dashboard");

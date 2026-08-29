@@ -12,6 +12,7 @@ import { RedisService } from '../../infrastructure/redis/redis.service';
 
 import { RegisterInput } from './dto/register.dto';
 import { LoginInput } from './dto/login.dto';
+import { CreateTenantUserInput } from './dto/create-tenant-user.dto';
 
 const DEFAULT_OWNER_PERMISSIONS = [
   ['customers', 'read'],
@@ -37,7 +38,6 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['services', 'update'],
   ['services', 'delete'],
 ] as const;
-
 
 @Injectable()
 export class AuthService {
@@ -106,29 +106,29 @@ export class AuthService {
         },
       });
 
-        for (const [resource, action] of DEFAULT_OWNER_PERMISSIONS) {
-          const permission = await tx.permission.upsert({
-            where: {
-              resource_action: {
-                resource,
-                action,
-              },
-            },
-            update: {},
-            create: {
+      for (const [resource, action] of DEFAULT_OWNER_PERMISSIONS) {
+        const permission = await tx.permission.upsert({
+          where: {
+            resource_action: {
               resource,
               action,
-              description: resource + ' ' + action + ' permission',
             },
-          });
+          },
+          update: {},
+          create: {
+            resource,
+            action,
+            description: resource + ' ' + action + ' permission',
+          },
+        });
 
-          await tx.rolePermission.create({
-            data: {
-              roleId: role.id,
-              permissionId: permission.id,
-            },
-          });
-        }
+        await tx.rolePermission.create({
+          data: {
+            roleId: role.id,
+            permissionId: permission.id,
+          },
+        });
+      }
 
       return {
         user: {
@@ -151,6 +151,70 @@ export class AuthService {
     });
   }
 
+  async createTenantUser(input: CreateTenantUserInput, tenantId: string) {
+    const email = input.email.trim().toLowerCase();
+
+    const existingUser = await this.prisma.user.findUnique({
+      where: { email },
+      select: { id: true },
+    });
+
+    if (existingUser) {
+      throw new ConflictException('Email already registered');
+    }
+
+    const role = await this.prisma.role.findFirst({
+      where: {
+        id: input.roleId,
+        tenantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+      },
+    });
+
+    if (!role) {
+      throw new ConflictException('Role does not belong to this tenant');
+    }
+
+    const passwordHash = await argon2.hash(input.password);
+
+    return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash,
+          firstName: input.firstName.trim(),
+          lastName: input.lastName.trim(),
+        },
+      });
+
+      const membership = await tx.membership.create({
+        data: {
+          userId: user.id,
+          tenantId,
+          roleId: role.id,
+        },
+      });
+
+      return {
+        user: {
+          id: user.id,
+          email: user.email,
+          firstName: user.firstName,
+          lastName: user.lastName,
+        },
+        membership: {
+          id: membership.id,
+          role: role.slug,
+          roleName: role.name,
+          status: membership.status,
+        },
+      };
+    });
+  }
 
   async resetDemoPassword(password: string) {
     const passwordHash = await argon2.hash(password);
@@ -180,7 +244,15 @@ export class AuthService {
           },
           include: {
             tenant: true,
-            role: true,
+            role: {
+              include: {
+                rolePermissions: {
+                  include: {
+                    permission: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -237,6 +309,9 @@ export class AuthService {
         id: membership.id,
         role: membership.role.slug,
         status: membership.status,
+        permissions: membership.role.rolePermissions.map(
+          (item) => `${item.permission.resource}.${item.permission.action}`,
+        ),
       },
     };
   }

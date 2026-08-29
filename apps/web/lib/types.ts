@@ -30,6 +30,7 @@ export type LoginResponse = {
     id: string;
     role: string;
     status: string;
+    permissions: string[];
   };
 };
 

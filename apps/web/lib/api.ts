@@ -29,6 +29,8 @@ type ApiOptions = {
 const ERROR_MESSAGES: Record<string, string> = {
   "Invalid email or password": "E-posta veya şifre hatalı.",
   "No active tenant membership": "Aktif salon üyeliği bulunamadı.",
+  "You do not have permission to perform this action":
+    "Bu işlem için yetkiniz yok.",
   "Staff already has an overlapping appointment":
     "Bu personelin seçilen saatte çakışan bir randevusu var.",
   "Appointment startAt must be before endAt":
@@ -54,6 +56,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 function mapErrorMessage(message: string) {
   return ERROR_MESSAGES[message] ?? message;
 }
+
 
 function readErrorMessage(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") {

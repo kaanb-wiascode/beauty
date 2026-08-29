@@ -9,6 +9,7 @@ import {
 import { AuthService } from './auth.service';
 import { loginSchema, LoginInput } from './dto/login.dto';
 import { registerSchema, RegisterInput } from './dto/register.dto';
+import { createTenantUserSchema } from './dto/create-tenant-user.dto';
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
@@ -29,6 +30,17 @@ export class AuthController {
     const input: RegisterInput = registerSchema.parse(body);
 
     return this.authService.register(input);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Post('users')
+  async createUser(@Body() body: unknown) {
+    const input = createTenantUserSchema.parse(body);
+
+    return this.authService.createTenantUser(
+      input,
+      this.tenantContext.getTenantId(),
+    );
   }
 
   @Post('login')

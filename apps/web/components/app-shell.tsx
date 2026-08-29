@@ -17,6 +17,7 @@ import {
   getStoredTenant,
 
   getStoredUser,
+  hasPermission,
 
 } from "@/lib/auth";
 
@@ -40,6 +41,7 @@ const NAV = [
 
     href: "/customers",
 
+    permission: "customers.read",
     label: "Müşteriler",
 
     icon: PeopleIcon,
@@ -50,6 +52,7 @@ const NAV = [
 
     href: "/staff",
 
+    permission: "staff.read",
     label: "Personel",
 
     icon: StaffIcon,
@@ -60,6 +63,7 @@ const NAV = [
 
     href: "/services",
 
+    permission: "services.read",
     label: "Hizmetler",
 
     icon: SparkleIcon,
@@ -70,6 +74,7 @@ const NAV = [
 
     href: "/appointments",
 
+    permission: "appointments.read",
     label: "Randevular",
 
     icon: CalendarIcon,
@@ -77,31 +82,37 @@ const NAV = [
   },
   {
     href: "/payments",
+    permission: "payments.read",
     label: "Ödemeler",
     icon: PaymentIcon,
   },
   {
     href: "/reports",
+    permission: "reports.read",
     label: "Raporlar",
     icon: PaymentIcon,
   },
   {
     href: "/settings/roles",
+    permission: "roles.read",
     label: "Roller & Yetkiler",
     icon: StaffIcon,
   },
   {
     href: "/reports/payments",
+    permission: "payments.read",
     label: "Kasa",
     icon: PaymentIcon,
   },
   {
     href: "/reports/staff",
+    permission: "reports.read",
     label: "Personel Performansı",
     icon: StaffIcon,
   },
   {
     href: "/reports/services",
+    permission: "reports.read",
     label: "Hizmet Performansı",
     icon: SparkleIcon,
   },
@@ -144,7 +155,11 @@ function NavLinks({
 
     >
 
-      {NAV.map((item) => {
+      {NAV.filter((item) => {
+          if (!("permission" in item)) return true;
+          const [resource, action] = item.permission.split(".");
+          return hasPermission(resource, action);
+        }).map((item) => {
 
         const active =
 

@@ -96,6 +96,14 @@ export default function RolesPage() {
   const [newRoleDescription, setNewRoleDescription] = useState("");
   const [creatingRole, setCreatingRole] = useState(false);
 
+  const [createUserOpen, setCreateUserOpen] = useState(false);
+  const [newUserFirstName, setNewUserFirstName] = useState("");
+  const [newUserLastName, setNewUserLastName] = useState("");
+  const [newUserEmail, setNewUserEmail] = useState("");
+  const [newUserPassword, setNewUserPassword] = useState("");
+  const [newUserRoleId, setNewUserRoleId] = useState("");
+  const [creatingUser, setCreatingUser] = useState(false);
+
   const selectedRole = useMemo(
     () => roles.find((role) => role.id === selectedRoleId) ?? null,
     [roles, selectedRoleId],
@@ -258,6 +266,106 @@ export default function RolesPage() {
       );
     } finally {
       setCreatingRole(false);
+    }
+  }
+
+  async function createUser() {
+    const firstName = newUserFirstName.trim();
+    const lastName = newUserLastName.trim();
+    const email = newUserEmail.trim();
+    const password = newUserPassword.trim();
+
+    if (firstName.length < 1 || lastName.length < 1) {
+      setError("Ad ve soyad zorunludur.");
+      return;
+    }
+
+    if (!email.includes("@")) {
+      setError("Geçerli bir e-posta adresi girin.");
+      return;
+    }
+
+    if (password.length < 8) {
+      setError("Şifre en az 8 karakter olmalıdır.");
+      return;
+    }
+
+    if (!newUserRoleId) {
+      setError("Bir rol seçin.");
+      return;
+    }
+
+    setCreatingUser(true);
+    setError("");
+
+    try {
+      const result = await api<{
+        user: Membership["user"];
+        membership: {
+          id: string;
+          role: string;
+          roleName: string;
+          status: string;
+        };
+      }>("/auth/users", {
+        method: "POST",
+        body: {
+          firstName,
+          lastName,
+          email,
+          password,
+          roleId: newUserRoleId,
+        },
+      });
+
+      const role = roles.find(
+        (item) => item.id === newUserRoleId,
+      );
+
+      setMemberships((current) => [
+        ...current,
+        {
+          id: result.membership.id,
+          status: result.membership.status,
+          user: result.user,
+          role: {
+            id: newUserRoleId,
+            name: role?.name ?? result.membership.roleName,
+            slug: result.membership.role,
+          },
+        },
+      ]);
+
+      setRoles((current) =>
+        current.map((item) =>
+          item.id === newUserRoleId
+            ? {
+                ...item,
+                _count: {
+                  ...item._count,
+                  memberships: item._count.memberships + 1,
+                },
+              }
+            : item,
+        ),
+      );
+
+      setCreateUserOpen(false);
+      setNewUserFirstName("");
+      setNewUserLastName("");
+      setNewUserEmail("");
+      setNewUserPassword("");
+      setNewUserRoleId("");
+
+      showToast("Kullanıcı oluşturuldu.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Kullanıcı oluşturulamadı.",
+      );
+    } finally {
+      setCreatingUser(false);
     }
   }
 
@@ -494,14 +602,20 @@ export default function RolesPage() {
       </div>
 
       <GlassCard className="p-5">
-        <div className="mb-5">
-          <div className="text-lg font-semibold text-[var(--ink)]">
-            Kullanıcılar
+        <div className="mb-5 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="text-lg font-semibold text-[var(--ink)]">
+              Kullanıcılar
+            </div>
+
+            <div className="mt-1 text-sm text-[var(--muted)]">
+              Kullanıcıların tenant içindeki rollerini değiştirin.
+            </div>
           </div>
 
-          <div className="mt-1 text-sm text-[var(--muted)]">
-            Kullanıcıların tenant içindeki rollerini değiştirin.
-          </div>
+          <Button onClick={() => setCreateUserOpen(true)}>
+            Yeni kullanıcı
+          </Button>
         </div>
 
         {memberships.length === 0 ? (
@@ -565,6 +679,104 @@ export default function RolesPage() {
           </div>
         )}
       </GlassCard>
+
+        {createUserOpen ? (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-5">
+            <div className="w-full max-w-lg rounded-[24px] border border-[var(--line)] bg-white p-6 shadow-2xl">
+              <div className="mb-6">
+                <div className="text-xl font-semibold text-[var(--ink)]">
+                  Yeni kullanıcı
+                </div>
+                <div className="mt-1 text-sm text-[var(--muted)]">
+                  Kullanıcıyı mevcut salona ve seçilen role ekleyin.
+                </div>
+              </div>
+
+              <div className="space-y-4">
+                <div className="grid gap-4 sm:grid-cols-2">
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-[var(--ink)]">
+                      Ad
+                    </div>
+                    <TextInput
+                      value={newUserFirstName}
+                      onChange={(event) => setNewUserFirstName(event.target.value)}
+                      placeholder="Örn. Ayşe"
+                    />
+                  </div>
+
+                  <div>
+                    <div className="mb-2 text-sm font-medium text-[var(--ink)]">
+                      Soyad
+                    </div>
+                    <TextInput
+                      value={newUserLastName}
+                      onChange={(event) => setNewUserLastName(event.target.value)}
+                      placeholder="Örn. Yılmaz"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm font-medium text-[var(--ink)]">
+                    E-posta
+                  </div>
+                  <TextInput
+                    type="email"
+                    value={newUserEmail}
+                    onChange={(event) => setNewUserEmail(event.target.value)}
+                    placeholder="kullanici@example.com"
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm font-medium text-[var(--ink)]">
+                    Şifre
+                  </div>
+                  <TextInput
+                    type="password"
+                    value={newUserPassword}
+                    onChange={(event) => setNewUserPassword(event.target.value)}
+                    placeholder="En az 8 karakter"
+                  />
+                </div>
+
+                <div>
+                  <div className="mb-2 text-sm font-medium text-[var(--ink)]">
+                    Rol
+                  </div>
+                  <Select
+                    value={newUserRoleId}
+                    onChange={(event) => setNewUserRoleId(event.target.value)}
+                  >
+                    <option value="">Rol seçin</option>
+                    {roles.map((role) => (
+                      <option key={role.id} value={role.id}>
+                        {role.name}
+                      </option>
+                    ))}
+                  </Select>
+                </div>
+              </div>
+
+              <div className="mt-6 flex justify-end gap-3">
+                <Button
+                  onClick={() => setCreateUserOpen(false)}
+                  disabled={creatingUser}
+                >
+                  İptal
+                </Button>
+
+                <Button
+                  onClick={() => void createUser()}
+                  disabled={creatingUser}
+                >
+                  {creatingUser ? "Oluşturuluyor..." : "Kullanıcı oluştur"}
+                </Button>
+              </div>
+            </div>
+          </div>
+        ) : null}
     </div>
   );
 }
