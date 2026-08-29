@@ -1,12 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import {
   Alert,
   Button,
   EmptyState,
   Field,
+  GlassCard,
   PageHeader,
   Pagination,
   Panel,
@@ -45,9 +46,22 @@ function toPayload(form: FormState): CreateStaffInput {
   };
 }
 
+type Performance = {
+  id: string;
+  name?: string;
+  collected: number;
+  appointmentCount: number;
+  completedAppointments?: number;
+};
+
+type PerformanceResponse = Performance[] | {
+  data?: Performance[];
+};
+
 export default function StaffPage() {
   const { showToast } = useToast();
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [performance, setPerformance] = useState<Record<string, Performance>>({});
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [totalPages, setTotalPages] = useState(1);
@@ -66,13 +80,43 @@ export default function StaffPage() {
 
     try {
       const result = await api<Paginated<Staff>>(
-        withQuery("/staff", { page, limit: 20, ...(search.trim() ? { search: search.trim() } : {}) }),
+        withQuery("/staff", {
+          page,
+          limit: 20,
+          search: search.trim() || undefined,
+        }),
       );
+
+      const from = new Date();
+      from.setHours(0, 0, 0, 0);
+
+      const to = new Date();
+      to.setHours(23, 59, 59, 999);
+
+      const performanceResult = await api<PerformanceResponse>(
+        withQuery("/staff/performance", {
+          from: from.toISOString(),
+          to: to.toISOString(),
+        }),
+      );
+
+      const rows = Array.isArray(performanceResult)
+        ? performanceResult
+        : performanceResult.data ?? [];
+
+      const performanceMap: Record<string, Performance> = {};
+      for (const row of rows) {
+        performanceMap[row.id] = row;
+      }
+
       setStaff(result.data);
+      setPerformance(performanceMap);
       setTotalPages(result.meta.totalPages || 1);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Personel listesi yüklenemedi.",
+        err instanceof ApiError
+          ? err.message
+          : "Personel listesi yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -80,7 +124,11 @@ export default function StaffPage() {
   }, [page, search]);
 
   useEffect(() => {
-    void load();
+    const timer = window.setTimeout(() => {
+      void load();
+    }, 180);
+
+    return () => window.clearTimeout(timer);
   }, [load]);
 
   function openCreate() {
@@ -104,8 +152,18 @@ export default function StaffPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+
+    const firstName = form.firstName.trim();
+    const lastName = form.lastName.trim();
+
+    if (!firstName || !lastName) {
+      setFormError("Ad ve soyad gerekli.");
+      return;
+    }
+
     setSaving(true);
     setFormError("");
+    setError("");
 
     try {
       const payload = toPayload(form);
@@ -136,7 +194,9 @@ export default function StaffPage() {
 
   async function onDelete() {
     if (!pendingDelete) return;
+
     setSaving(true);
+    setError("");
 
     try {
       await api(`/staff/${pendingDelete.id}`, { method: "DELETE" });
@@ -153,8 +213,18 @@ export default function StaffPage() {
     }
   }
 
+  const activeCount = useMemo(
+    () => staff.filter((member) => member.status === "ACTIVE").length,
+    [staff],
+  );
+
+  const archivedCount = useMemo(
+    () => staff.filter((member) => member.status === "ARCHIVED").length,
+    [staff],
+  );
+
   return (
-    <div className="mx-auto max-w-5xl space-y-10">
+    <div className="mx-auto max-w-6xl space-y-7">
       <PageHeader
         title="Personel"
         description="Salon personelini yönetin."
@@ -163,8 +233,15 @@ export default function StaffPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
+      <section className="grid gap-4 sm:grid-cols-3">
+        <SummaryCard label="Toplam personel" value={staff.length} />
+        <SummaryCard label="Aktif" value={activeCount} />
+        <SummaryCard label="Arşivlenen" value={archivedCount} />
+      </section>
+
       <Panel>
-          <div className="mb-5">
+        <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="w-full sm:max-w-md">
             <TextInput
               value={search}
               placeholder="Personel ara..."
@@ -175,12 +252,21 @@ export default function StaffPage() {
             />
           </div>
 
+          <span className="text-[12px] text-[var(--muted)]">
+            {search.trim() ? `"${search.trim()}" sonuçları` : "Tüm personel"}
+          </span>
+        </div>
+
         {loading ? (
           <Spinner label="Personel yükleniyor..." />
         ) : staff.length === 0 ? (
           <EmptyState
-            title="Henüz personel yok"
-            description="Yeni personel ekleyerek başlayın."
+            title={search.trim() ? "Eşleşen personel yok" : "Henüz personel yok"}
+            description={
+              search.trim()
+                ? "Arama kriterinizi değiştirerek tekrar deneyin."
+                : "Yeni personel ekleyerek başlayın."
+            }
           />
         ) : (
           <>
@@ -192,46 +278,69 @@ export default function StaffPage() {
                   <Th>Telefon</Th>
                   <Th>E-posta</Th>
                   <Th>Durum</Th>
+                  <Th>Bugün</Th>
                   <Th>İşlemler</Th>
                 </tr>
               </thead>
+
               <tbody className="divide-y divide-stone-100">
-                {staff.map((member) => (
-                  <tr key={member.id} className="hover:bg-stone-50/60">
-                    <Td label="Ad" className="font-medium">
-                      {member.firstName}
-                    </Td>
-                    <Td label="Soyad">{member.lastName}</Td>
-                    <Td label="Telefon">{member.phone ?? "—"}</Td>
-                    <Td label="E-posta">{member.email ?? "—"}</Td>
-                    <Td label="Durum">
-                      <StatusBadge
-                        status={member.status}
-                        label={staffStatusLabel(member.status)}
-                      />
-                    </Td>
-                    <Td label="İşlemler" actions>
-                      <div className="flex gap-2">
-                        <Button
-                          variant="ghost"
-                          className="px-3 py-1.5"
-                          onClick={() => openEdit(member)}
-                        >
-                          Düzenle
-                        </Button>
-                        <Button
-                          variant="danger"
-                          className="px-3 py-1.5"
-                          onClick={() => setPendingDelete(member)}
-                        >
-                          Sil
-                        </Button>
-                      </div>
-                    </Td>
-                  </tr>
-                ))}
+                {staff.map((member) => {
+                  const stats = performance[member.id];
+
+                  return (
+                    <tr key={member.id} className="hover:bg-stone-50/60">
+                      <Td label="Ad" className="font-medium">
+                        {member.firstName}
+                      </Td>
+                      <Td label="Soyad">{member.lastName}</Td>
+                      <Td label="Telefon">{member.phone ?? "—"}</Td>
+                      <Td label="E-posta">{member.email ?? "—"}</Td>
+                      <Td label="Durum">
+                        <StatusBadge
+                          status={member.status}
+                          label={staffStatusLabel(member.status)}
+                        />
+                      </Td>
+                      <Td label="Bugün">
+                        <div className="text-[12px] text-[var(--muted)]">
+                          <div>
+                            {stats?.appointmentCount ?? 0} randevu
+                          </div>
+                          <div className="mt-1 font-medium text-[var(--ink)]">
+                            {new Intl.NumberFormat("tr-TR", {
+                              style: "currency",
+                              currency: "TRY",
+                              maximumFractionDigits: 0,
+                            }).format(stats?.collected ?? 0)}
+                          </div>
+                        </div>
+                      </Td>
+                      <Td label="İşlemler" actions>
+                        <div className="flex flex-wrap gap-2">
+                          <Button
+                            variant="ghost"
+                            className="px-3 py-1.5"
+                            onClick={() => openEdit(member)}
+                          >
+                            Düzenle
+                          </Button>
+
+                          <Button
+                            variant="danger"
+                            className="px-3 py-1.5"
+                            onClick={() => setPendingDelete(member)}
+                            disabled={member.status === "ARCHIVED"}
+                          >
+                            Arşivle
+                          </Button>
+                        </div>
+                      </Td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </TableWrap>
+
             <Pagination
               page={page}
               totalPages={totalPages}
@@ -243,8 +352,14 @@ export default function StaffPage() {
 
       <Modal
         open={modalOpen}
-        onClose={() => setModalOpen(false)}
+        onClose={() => {
+          if (!saving) {
+            setModalOpen(false);
+            setFormError("");
+          }
+        }}
         title={editing ? "Personeli düzenle" : "Yeni personel"}
+        description="Personel iletişim bilgilerini girin."
       >
         <form onSubmit={onSubmit} className="space-y-4">
           <div className="grid gap-4 sm:grid-cols-2">
@@ -260,6 +375,7 @@ export default function StaffPage() {
                 }
               />
             </Field>
+
             <Field label="Soyad">
               <TextInput
                 required
@@ -273,28 +389,43 @@ export default function StaffPage() {
               />
             </Field>
           </div>
+
           <Field label="Telefon">
             <TextInput
               value={form.phone}
               onChange={(event) =>
-                setForm((current) => ({ ...current, phone: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  phone: event.target.value,
+                }))
               }
             />
           </Field>
+
           <Field label="E-posta">
             <TextInput
               type="email"
               value={form.email}
               onChange={(event) =>
-                setForm((current) => ({ ...current, email: event.target.value }))
+                setForm((current) => ({
+                  ...current,
+                  email: event.target.value,
+                }))
               }
             />
           </Field>
+
           {formError ? <Alert>{formError}</Alert> : null}
+
           <div className="flex justify-end gap-3 pt-2">
-            <Button variant="secondary" onClick={() => setModalOpen(false)}>
+            <Button
+              variant="secondary"
+              onClick={() => setModalOpen(false)}
+              disabled={saving}
+            >
               Vazgeç
             </Button>
+
             <Button type="submit" disabled={saving}>
               {saving ? "Kaydediliyor..." : "Kaydet"}
             </Button>
@@ -304,12 +435,29 @@ export default function StaffPage() {
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title="Personeli sil"
+        title="Personeli arşivle"
         description="Bu personel arşivlenecek. Devam edilsin mi?"
         loading={saving}
         onClose={() => setPendingDelete(null)}
         onConfirm={() => void onDelete()}
       />
     </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <GlassCard>
+      <p className="text-[12px] font-medium text-[var(--muted)]">{label}</p>
+      <p className="mt-3 text-[30px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
+        {value}
+      </p>
+    </GlassCard>
   );
 }
