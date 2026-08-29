@@ -23,6 +23,7 @@ import {
 } from "@/components/ui";
 
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 
 import type {
   Appointment,
@@ -161,6 +162,11 @@ function emptyForm(): FormState {
 }
 
 export default function AppointmentsPage() {
+  const canCreateAppointment = hasPermission("appointments", "create");
+  const canUpdateAppointment = hasPermission("appointments", "update");
+  const canCancelAppointment = hasPermission("appointments", "cancel");
+  const canCreatePayment = hasPermission("payments", "create");
+
   const searchParams = useSearchParams();
   const customerIdFromUrl = searchParams.get("customerId");
 
@@ -427,6 +433,7 @@ export default function AppointmentsPage() {
   }
 
   function openEdit(appointment: Appointment) {
+    if (!canUpdateAppointment) return;
     setEditing(appointment);
 
     setForm({
@@ -593,6 +600,7 @@ export default function AppointmentsPage() {
   }
 
   async function createPayment() {
+    if (!canCreatePayment) return;
     if (!paymentAppointment) return;
 
     const amount = Number(paymentAmount);
@@ -663,7 +671,7 @@ export default function AppointmentsPage() {
         title="Randevular"
         description="Gününüzü sakin ve net bir takvim üzerinden yönetin."
         action={
-          <Button onClick={() => openCreate()}>
+          <Button onClick={() => openCreate()} disabled={!canCreateAppointment}>
             Yeni randevu
           </Button>
         }
@@ -1148,8 +1156,8 @@ export default function AppointmentsPage() {
                       appointment.status !== "NO_SHOW" ? (
                         <Button
                           variant="danger"
+                            disabled={saving || !canCancelAppointment}
                           onClick={() => askCancel(appointment)}
-                          disabled={saving}
                         >
                           İptal
                         </Button>

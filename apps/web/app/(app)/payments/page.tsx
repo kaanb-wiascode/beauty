@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 
 type Payment = {
   id: string;
@@ -92,6 +93,8 @@ function endOfDay(value: string) {
 }
 
 export default function PaymentsPage() {
+  const canRefundPayment = hasPermission("payments", "refund");
+
   const { showToast } = useToast();
 
   const [payments, setPayments] = useState<Payment[]>([]);
@@ -281,6 +284,8 @@ export default function PaymentsPage() {
   }
 
   async function refundPayment(paymentId: string) {
+    if (!canRefundPayment) return;
+
     const reason = window.prompt("İade nedeni (isteğe bağlı):");
 
     if (reason === null) return;
@@ -483,7 +488,7 @@ export default function PaymentsPage() {
                       <Button
                         variant="danger"
                         className="px-3 py-1.5"
-                        disabled={refundSaving}
+                        disabled={refundSaving || !canRefundPayment}
                         onClick={() => void refundPayment(payment.id)}
                       >
                         İade et
