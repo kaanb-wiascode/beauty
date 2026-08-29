@@ -250,171 +250,306 @@ export class PaymentsService {
 
 
     async dashboardReport(input: DashboardReportInput) {
-      const tenantId = this.getTenantId();
+    const tenantId = this.getTenantId();
+    const now = new Date();
 
-      const [summary, appointments, services, staff] =
-        await Promise.all([
-          this.summary({
-            from: input.from,
-            to: input.to,
-          }),
-          this.prisma.appointment.findMany({
-            where: {
-              tenantId,
-              startAt: {
-                gte: input.from,
-                lte: input.to,
-              },
-            },
-            select: {
-              id: true,
-              status: true,
-            },
-          }),
-          this.prisma.service.findMany({
-            where: {
-              tenantId,
-            },
-            select: {
-              id: true,
-              name: true,
-            },
-          }),
-          this.prisma.staff.findMany({
-            where: {
-              tenantId,
-            },
+    const [
+      summary,
+      appointments,
+      customerCount,
+      activeStaff,
+      activeServices,
+      activeStaffList,
+      activeServiceList,
+      upcomingAppointments,
+    ] = await Promise.all([
+      this.summary({
+        from: input.from,
+        to: input.to,
+      }),
+      this.prisma.appointment.findMany({
+        where: {
+          tenantId,
+          startAt: {
+            gte: input.from,
+            lte: input.to,
+          },
+        },
+        orderBy: {
+          startAt: 'asc',
+        },
+        include: {
+          customer: {
             select: {
               id: true,
               firstName: true,
               lastName: true,
             },
-          }),
-        ]);
-
-      const completedAppointments = appointments.filter(
-        (appointment) =>
-          appointment.status === 'COMPLETED',
-      ).length;
-
-      const servicePerformance =
-        await Promise.all(
-          services.map(async (service) => {
-            const rows =
-              await this.prisma.appointment.findMany({
-                where: {
-                  tenantId,
-                  serviceId: service.id,
-                  startAt: {
-                    gte: input.from,
-                    lte: input.to,
-                  },
-                },
-                select: {
-                  payment: {
-                    select: {
-                      amount: true,
-                      status: true,
-                    },
-                  },
-                },
-              });
-
-            const collected = rows.reduce(
-              (total, row) => {
-                if (
-                  row.payment?.status !== 'COMPLETED'
-                ) {
-                  return total;
-                }
-
-                return (
-                  total +
-                  Number(row.payment.amount)
-                );
-              },
-              0,
-            );
-
-            return {
-              id: service.id,
-              name: service.name,
-              collected,
-              appointmentCount: rows.length,
-            };
-          }),
-        );
-
-      const staffPerformance =
-        await Promise.all(
-          staff.map(async (member) => {
-            const rows =
-              await this.prisma.appointment.findMany({
-                where: {
-                  tenantId,
-                  staffId: member.id,
-                  startAt: {
-                    gte: input.from,
-                    lte: input.to,
-                  },
-                },
-                select: {
-                  payment: {
-                    select: {
-                      amount: true,
-                      status: true,
-                    },
-                  },
-                },
-              });
-
-            const collected = rows.reduce(
-              (total, row) => {
-                if (
-                  row.payment?.status !== 'COMPLETED'
-                ) {
-                  return total;
-                }
-
-                return (
-                  total +
-                  Number(row.payment.amount)
-                );
-              },
-              0,
-            );
-
-            return {
-              id: member.id,
-              name:
-                `${member.firstName} ${member.lastName}`.trim(),
-              collected,
-              appointmentCount: rows.length,
-            };
-          }),
-        );
-
-      return {
-        summary: {
-          ...summary,
-          appointmentCount: appointments.length,
-          completedAppointments,
+          },
+          staff: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          service: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          payment: {
+            select: {
+              id: true,
+              amount: true,
+              method: true,
+              status: true,
+              paidAt: true,
+            },
+          },
         },
-        topService:
-          servicePerformance
-            .sort(
-              (a, b) => b.collected - a.collected,
-            )[0] ?? null,
-        topStaff:
-          staffPerformance
-            .sort(
-              (a, b) => b.collected - a.collected,
-            )[0] ?? null,
-        servicePerformance: servicePerformance.slice(0, 5),
-        staffPerformance: staffPerformance.slice(0, 5),
-      };
+      }),
+      this.prisma.customer.count({
+        where: {
+          tenantId,
+        },
+      }),
+      this.prisma.staff.count({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+        },
+      }),
+      this.prisma.service.count({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+        },
+      }),
+      this.prisma.staff.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+        },
+      }),
+      this.prisma.service.findMany({
+        where: {
+          tenantId,
+          status: 'ACTIVE',
+        },
+        select: {
+          id: true,
+          name: true,
+        },
+      }),
+      this.prisma.appointment.findMany({
+        where: {
+          tenantId,
+          startAt: {
+            gt: now,
+          },
+          status: {
+            in: ['SCHEDULED', 'CONFIRMED'],
+          },
+        },
+        orderBy: {
+          startAt: 'asc',
+        },
+        take: 5,
+        include: {
+          customer: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          staff: {
+            select: {
+              id: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          service: {
+            select: {
+              id: true,
+              name: true,
+            },
+          },
+          payment: {
+            select: {
+              id: true,
+              amount: true,
+              method: true,
+              status: true,
+              paidAt: true,
+            },
+          },
+        },
+      }),
+    ]);
+
+    const appointmentCounts = {
+      total: appointments.length,
+      scheduled: appointments.filter(
+        (appointment) => appointment.status === 'SCHEDULED',
+      ).length,
+      confirmed: appointments.filter(
+        (appointment) => appointment.status === 'CONFIRMED',
+      ).length,
+      completed: appointments.filter(
+        (appointment) => appointment.status === 'COMPLETED',
+      ).length,
+      cancelled: appointments.filter(
+        (appointment) => appointment.status === 'CANCELLED',
+      ).length,
+      noShow: appointments.filter(
+        (appointment) => appointment.status === 'NO_SHOW',
+      ).length,
+    };
+
+    const appointmentDetails = appointments.map((appointment) => ({
+      id: appointment.id,
+      customer: appointment.customer,
+      staff: appointment.staff,
+      service: appointment.service,
+      startAt: appointment.startAt,
+      endAt: appointment.endAt,
+      status: appointment.status,
+      notes: appointment.notes,
+      payment: appointment.payment
+        ? {
+            id: appointment.payment.id,
+            amount: Number(appointment.payment.amount),
+            method: appointment.payment.method,
+            status: appointment.payment.status,
+            paidAt: appointment.payment.paidAt,
+          }
+        : null,
+    }));
+
+    const upcomingDetails = upcomingAppointments.map((appointment) => ({
+      id: appointment.id,
+      customer: appointment.customer,
+      staff: appointment.staff,
+      service: appointment.service,
+      startAt: appointment.startAt,
+      endAt: appointment.endAt,
+      status: appointment.status,
+      notes: appointment.notes,
+      payment: appointment.payment
+        ? {
+            id: appointment.payment.id,
+            amount: Number(appointment.payment.amount),
+            method: appointment.payment.method,
+            status: appointment.payment.status,
+            paidAt: appointment.payment.paidAt,
+          }
+        : null,
+    }));
+
+    const serviceMap = new Map<
+      string,
+      { id: string; name: string; collected: number; appointmentCount: number }
+    >(
+      activeServiceList.map((service) => [
+        service.id,
+        {
+          id: service.id,
+          name: service.name,
+          collected: 0,
+          appointmentCount: 0,
+        },
+      ]),
+    );
+
+    const staffMap = new Map<
+      string,
+      { id: string; name: string; collected: number; appointmentCount: number }
+    >(
+      activeStaffList.map((member) => [
+        member.id,
+        {
+          id: member.id,
+          name: `${member.firstName} ${member.lastName}`.trim(),
+          collected: 0,
+          appointmentCount: 0,
+        },
+      ]),
+    );
+
+    for (const appointment of appointments) {
+      const service = serviceMap.get(appointment.serviceId);
+      if (service) {
+        service.appointmentCount += 1;
+
+        if (appointment.payment?.status === 'COMPLETED') {
+          service.collected += Number(appointment.payment.amount);
+        }
+      }
+
+      const staff = staffMap.get(appointment.staffId);
+      if (staff) {
+        staff.appointmentCount += 1;
+
+        if (appointment.payment?.status === 'COMPLETED') {
+          staff.collected += Number(appointment.payment.amount);
+        }
+      }
     }
 
+    const servicePerformance = [...serviceMap.values()]
+      .sort((a, b) => b.collected - a.collected)
+      .slice(0, 5);
+
+    const staffPerformance = [...staffMap.values()]
+      .sort((a, b) => b.collected - a.collected)
+      .slice(0, 5);
+
+    return {
+      summary: {
+        ...summary,
+        appointmentCount: appointmentCounts.total,
+        completedAppointments: appointmentCounts.completed,
+        scheduledAppointments: appointmentCounts.scheduled,
+        confirmedAppointments: appointmentCounts.confirmed,
+        cancelledAppointments: appointmentCounts.cancelled,
+        noShowAppointments: appointmentCounts.noShow,
+      },
+
+      totals: {
+        customers: customerCount,
+        activeStaff,
+        activeServices,
+        appointments: await this.prisma.appointment.count({
+          where: {
+            tenantId,
+          },
+        }),
+      },
+
+      paymentBreakdown: summary.methods,
+
+      todayAppointments: appointmentDetails,
+
+      upcomingAppointments: upcomingDetails,
+
+      topService: servicePerformance[0] ?? null,
+
+      topStaff: staffPerformance[0] ?? null,
+
+      servicePerformance,
+
+      staffPerformance,
+    };
+  }
 
   async findOne(id: string) {
     const tenantId = this.getTenantId();

@@ -2,435 +2,204 @@
 
 import Link from "next/link";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
-import { api, ApiError, withQuery } from "@/lib/api";
-
-import type { Paginated } from "@/lib/types";
+import { api, ApiError } from "@/lib/api";
 
 import {
-
   Alert,
-
   GlassCard,
-
   PageHeader,
-
   Spinner,
-
   StatusBadge,
-
 } from "@/components/ui";
 
-type Customer = {
+type AppointmentStatus =
+  | "SCHEDULED"
+  | "CONFIRMED"
+  | "COMPLETED"
+  | "CANCELLED"
+  | "NO_SHOW";
 
+type DashboardAppointment = {
   id: string;
-
-  firstName: string;
-
-  lastName: string;
-
-};
-
-type Staff = {
-
-  id: string;
-
-  firstName: string;
-
-  lastName: string;
-
-  status: string;
-
-};
-
-type Service = {
-
-  id: string;
-
-  name: string;
-
-  durationMinutes: number;
-
-  price: string;
-
-  status: string;
-
-};
-
-type Appointment = {
-
-  id: string;
-
-  customerId: string;
-
-  staffId: string;
-
-  serviceId: string;
-
   startAt: string;
-
   endAt: string;
-
-  status:
-
-    | "SCHEDULED"
-
-    | "CONFIRMED"
-
-    | "COMPLETED"
-
-    | "CANCELLED"
-
-    | "NO_SHOW";
-
+  status: AppointmentStatus;
   notes: string | null;
-
+  customer: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  staff: {
+    id: string;
+    firstName: string;
+    lastName: string;
+  };
+  service: {
+    id: string;
+    name: string;
+  };
+  payment: {
+    id: string;
+    amount: number;
+    method: "CASH" | "CARD" | "TRANSFER";
+    status: "COMPLETED" | "REFUNDED";
+    paidAt: string;
+  } | null;
 };
 
-type Payment = {
-  id: string;
-  appointmentId: string;
-  amount: string | number;
-  method: "CASH" | "CARD" | "TRANSFER";
-  status: "COMPLETED" | "REFUNDED";
-  paidAt: string;
+type DashboardReport = {
+  summary: {
+    gross: number;
+    refunds: number;
+    net: number;
+    paymentCount: number;
+    refundCount: number;
+    methods: {
+      CASH: number;
+      CARD: number;
+      TRANSFER: number;
+    };
+    appointmentCount: number;
+    completedAppointments: number;
+    scheduledAppointments: number;
+    confirmedAppointments: number;
+    cancelledAppointments: number;
+    noShowAppointments: number;
+  };
+  totals: {
+    customers: number;
+    activeStaff: number;
+    activeServices: number;
+    appointments: number;
+  };
+  paymentBreakdown: {
+    CASH: number;
+    CARD: number;
+    TRANSFER: number;
+  };
+  todayAppointments: DashboardAppointment[];
+  upcomingAppointments: DashboardAppointment[];
+  topService: {
+    id: string;
+    name: string;
+    collected: number;
+    appointmentCount: number;
+  } | null;
+  topStaff: {
+    id: string;
+    name: string;
+    collected: number;
+    appointmentCount: number;
+  } | null;
+  servicePerformance: {
+    id: string;
+    name: string;
+    collected: number;
+    appointmentCount: number;
+  }[];
+  staffPerformance: {
+    id: string;
+    name: string;
+    collected: number;
+    appointmentCount: number;
+  }[];
 };
 
-type DashboardData = {
-
-  customers: Customer[];
-
-  staff: Staff[];
-
-  services: Service[];
-
-  appointments: Appointment[];
-
-  payments: Payment[];
-};
-
-const STATUS_LABELS: Record<Appointment["status"], string> = {
-
+const STATUS_LABELS: Record<AppointmentStatus, string> = {
   SCHEDULED: "Planlandı",
-
   CONFIRMED: "Onaylandı",
-
   COMPLETED: "Tamamlandı",
-
   CANCELLED: "İptal",
-
   NO_SHOW: "Gelmedi",
-
 };
 
 function formatTime(value: string) {
-
   return new Intl.DateTimeFormat("tr-TR", {
-
     hour: "2-digit",
-
     minute: "2-digit",
-
   }).format(new Date(value));
-
 }
 
 function formatDate(value: string) {
-
   return new Intl.DateTimeFormat("tr-TR", {
-
     day: "numeric",
-
     month: "long",
-
   }).format(new Date(value));
-
 }
 
 function fullName(firstName: string, lastName: string) {
-
   return `${firstName} ${lastName}`.trim();
-
 }
 
 function getInitials(firstName: string, lastName: string) {
-
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
-
 }
 
-async function fetchAll<T>(path: string) {
+function startOfToday() {
+  const value = new Date();
+  value.setHours(0, 0, 0, 0);
+  return value;
+}
 
-  const result = await api<Paginated<T>>(
-
-    withQuery(path, {
-
-      page: 1,
-
-      limit: 100,
-
-    }),
-
-  );
-
-  return result.data;
-
+function endOfToday() {
+  const value = new Date();
+  value.setHours(23, 59, 59, 999);
+  return value;
 }
 
 export default function DashboardPage() {
-
-  const [data, setData] = useState<DashboardData | null>(null);
-
+  const [data, setData] = useState<DashboardReport | null>(null);
   const [loading, setLoading] = useState(true);
-
   const [error, setError] = useState("");
 
   useEffect(() => {
-
     let cancelled = false;
 
     async function load() {
-
       setLoading(true);
-
       setError("");
 
       try {
+        const from = startOfToday().toISOString();
+        const to = endOfToday().toISOString();
 
-        const [customers, staff, services, appointments, payments] =
-
-          await Promise.all([
-
-            fetchAll<Customer>("/customers"),
-
-            fetchAll<Staff>("/staff"),
-
-            fetchAll<Service>("/services"),
-
-            fetchAll<Appointment>("/appointments"),
-
-            fetchAll<Payment>("/payments"),
-
-          ]);
+        const report = await api<DashboardReport>(
+          `/payments/dashboard-report?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+        );
 
         if (!cancelled) {
-
-          setData({
-
-            customers,
-
-            staff,
-
-            services,
-
-            appointments,
-
-            payments,
-
-          });
-
+          setData(report);
         }
-
       } catch (err) {
-
         if (!cancelled) {
-
           setError(
-
             err instanceof ApiError
-
               ? err.message
-
               : "Dashboard verileri yüklenemedi.",
-
           );
-
         }
-
       } finally {
-
         if (!cancelled) {
-
           setLoading(false);
-
         }
-
       }
-
     }
 
     void load();
 
     return () => {
-
       cancelled = true;
-
     };
-
   }, []);
 
-  const todayAppointments = useMemo(() => {
-
-    if (!data) return [];
-
-    const now = new Date();
-
-    const start = new Date(now);
-
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date(now);
-
-    end.setHours(23, 59, 59, 999);
-
-    return data.appointments
-
-      .filter((appointment) => {
-
-        const date = new Date(appointment.startAt);
-
-        return (
-
-          date >= start &&
-
-          date <= end &&
-
-          appointment.status !== "CANCELLED"
-
-        );
-
-      })
-
-      .sort(
-
-        (a, b) =>
-
-          new Date(a.startAt).getTime() -
-
-          new Date(b.startAt).getTime(),
-
-      );
-
-  }, [data]);
-
-  const upcomingAppointments = useMemo(() => {
-
-    if (!data) return [];
-
-    const now = new Date();
-
-    return data.appointments
-
-      .filter((appointment) => {
-
-        return (
-
-          new Date(appointment.startAt) >= now &&
-
-          appointment.status !== "CANCELLED" &&
-
-          appointment.status !== "COMPLETED" &&
-
-          appointment.status !== "NO_SHOW"
-
-        );
-
-      })
-
-      .sort(
-
-        (a, b) =>
-
-          new Date(a.startAt).getTime() -
-
-          new Date(b.startAt).getTime(),
-
-      )
-
-      .slice(0, 5);
-
-  }, [data]);
-
-  const todayCompleted = todayAppointments.filter(
-
-    (appointment) => appointment.status === "COMPLETED",
-
-  ).length;
-
-  const todayConfirmed = todayAppointments.filter(
-
-    (appointment) => appointment.status === "CONFIRMED",
-
-  ).length;
-
-  const todayScheduled = todayAppointments.filter(
-
-    (appointment) => appointment.status === "SCHEDULED",
-
-  ).length;
-
-  const todayRevenue =
-
-    data?.payments
-
-      .filter((payment) => {
-
-        const paidAt = new Date(payment.paidAt);
-
-        const start = new Date();
-
-        start.setHours(0, 0, 0, 0);
-
-        const end = new Date();
-
-        end.setHours(23, 59, 59, 999);
-
-        return paidAt >= start && paidAt <= end;
-
-      })
-
-      .reduce(
-
-        (total, payment) => total + Number(payment.amount),
-
-        0,
-
-      ) ?? 0;
-
-  const todayPaymentBreakdown = useMemo(() => {
-    const start = new Date();
-    start.setHours(0, 0, 0, 0);
-
-    const end = new Date();
-    end.setHours(23, 59, 59, 999);
-
-    const totalForMethod = (method: Payment["method"]) =>
-      data?.payments
-        .filter((payment) => {
-          if (payment.status !== "COMPLETED") return false;
-
-          const paidAt = new Date(payment.paidAt);
-
-          return (
-            payment.method === method &&
-            paidAt >= start &&
-            paidAt <= end
-          );
-        })
-        .reduce(
-          (total, payment) => total + Number(payment.amount),
-          0,
-        ) ?? 0;
-
-    return {
-      CASH: totalForMethod("CASH"),
-      CARD: totalForMethod("CARD"),
-      TRANSFER: totalForMethod("TRANSFER"),
-    };
-  }, [data]);
-
-  if (loading) {
+  const todayAppointments = data?.todayAppointments ?? [];
+  const upcomingAppointments = data?.upcomingAppointments ?? [];
+  const todayRevenue = data?.summary.net ?? 0;
+
+if (loading) {
 
     return (
 
@@ -504,7 +273,7 @@ export default function DashboardPage() {
 
               label="Müşteriler"
 
-              value={data.customers.length}
+              value={data.totals.customers}
 
               detail="Toplam müşteri"
 
@@ -518,15 +287,7 @@ export default function DashboardPage() {
 
               label="Personel"
 
-              value={
-
-                data.staff.filter(
-
-                  (member) => member.status === "ACTIVE",
-
-                ).length
-
-              }
+              value={data.totals.activeStaff}
 
               detail="Aktif ekip"
 
@@ -540,15 +301,7 @@ export default function DashboardPage() {
 
               label="Hizmetler"
 
-              value={
-
-                data.services.filter(
-
-                  (service) => service.status === "ACTIVE",
-
-                ).length
-
-              }
+              value={data.totals.activeServices}
 
               detail="Aktif hizmet"
 
@@ -562,7 +315,7 @@ export default function DashboardPage() {
 
               label="Randevular"
 
-              value={data.appointments.length}
+              value={data.totals.appointments}
 
               detail="Toplam randevu"
 
@@ -580,7 +333,7 @@ export default function DashboardPage() {
 
               label="Bugün"
 
-              value={todayAppointments.length}
+              value={data.summary.appointmentCount}
 
               description="Randevu"
 
@@ -590,7 +343,7 @@ export default function DashboardPage() {
 
               label="Onaylandı"
 
-              value={todayConfirmed}
+              value={data.summary.confirmedAppointments}
 
               description="Bugünkü randevu"
 
@@ -600,7 +353,7 @@ export default function DashboardPage() {
 
               label="Planlandı"
 
-              value={todayScheduled}
+              value={data.summary.scheduledAppointments}
 
               description="Bekleyen randevu"
 
@@ -668,24 +421,6 @@ export default function DashboardPage() {
 
                   {todayAppointments.map((appointment) => {
 
-                    const customer = data.customers.find(
-
-                      (item) => item.id === appointment.customerId,
-
-                    );
-
-                    const staff = data.staff.find(
-
-                      (item) => item.id === appointment.staffId,
-
-                    );
-
-                    const service = data.services.find(
-
-                      (item) => item.id === appointment.serviceId,
-
-                    );
-
                     return (
 
                       <Link
@@ -716,13 +451,13 @@ export default function DashboardPage() {
 
                         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[12px] font-semibold text-[var(--accent)]">
 
-                          {customer
+                          {appointment.customer
 
                             ? getInitials(
 
-                                customer.firstName,
+                                appointment.customer.firstName,
 
-                                customer.lastName,
+                                appointment.customer.lastName,
 
                               )
 
@@ -732,27 +467,19 @@ export default function DashboardPage() {
 
                         <div className="min-w-0 flex-1">
 
-                          {customer ? (
+                          {appointment.customer ? (
 
-                            <Link
+                              <p className="truncate text-[14px] font-medium text-[var(--ink)]">
 
-                              href={`/customers/${customer.id}`}
+                                {fullName(
 
-                              className="truncate text-[14px] font-medium text-[var(--ink)] hover:text-[var(--accent)] hover:underline"
+                                  appointment.customer.firstName,
 
-                              onClick={(event) => event.stopPropagation()}
+                                  appointment.customer.lastName,
 
-                            >
+                                )}
 
-                              {fullName(
-
-                                customer.firstName,
-
-                              customer.lastName,
-
-                              )}
-
-                            </Link>
+                              </p>
 
                           ) : (
 
@@ -766,15 +493,15 @@ export default function DashboardPage() {
 
                           <p className="mt-0.5 truncate text-[12px] text-[var(--muted)]">
 
-                            {service?.name ?? "Hizmet"}{" "}
+                            {appointment.service.name ?? "Hizmet"}{" "}
 
-                            {staff
+                            {appointment.staff
 
                               ? `· ${fullName(
 
-                                  staff.firstName,
+                                  appointment.staff.firstName,
 
-                                  staff.lastName,
+                                  appointment.staff.lastName,
 
                                 )}`
 
@@ -876,18 +603,6 @@ export default function DashboardPage() {
 
                   {upcomingAppointments.map((appointment) => {
 
-                    const customer = data.customers.find(
-
-                      (item) => item.id === appointment.customerId,
-
-                    );
-
-                    const service = data.services.find(
-
-                      (item) => item.id === appointment.serviceId,
-
-                    );
-
                     return (
 
                       <div
@@ -902,13 +617,13 @@ export default function DashboardPage() {
 
                           <p className="text-[14px] font-medium text-[var(--ink)]">
 
-                            {customer
+                            {appointment.customer
 
                               ? fullName(
 
-                                  customer.firstName,
+                                  appointment.customer.firstName,
 
-                                  customer.lastName,
+                                  appointment.customer.lastName,
 
                                 )
 
@@ -926,7 +641,7 @@ export default function DashboardPage() {
 
                         <p className="mt-1 text-[12px] text-[var(--muted)]">
 
-                          {service?.name ?? "Hizmet"} ·{" "}
+                          {appointment.service.name ?? "Hizmet"} ·{" "}
 
                           {formatDate(appointment.startAt)}
 
@@ -947,6 +662,89 @@ export default function DashboardPage() {
           </section>
 
           {/* Quick actions */}
+
+          <section className="grid gap-5 xl:grid-cols-2">
+            <GlassCard className="p-0">
+              <div className="border-b border-[var(--line)] px-6 py-5">
+                <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-[var(--ink)]">
+                  Ödeme özeti
+                </h2>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">
+                  Bugünkü tahsilat dağılımı
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-6 sm:grid-cols-3">
+                <MiniStat
+                  label="Nakit"
+                  value={data.paymentBreakdown.CASH}
+                  description="Tahsilat"
+                  format="currency"
+                />
+                <MiniStat
+                  label="Kart"
+                  value={data.paymentBreakdown.CARD}
+                  description="Tahsilat"
+                  format="currency"
+                />
+                <MiniStat
+                  label="Havale"
+                  value={data.paymentBreakdown.TRANSFER}
+                  description="Tahsilat"
+                  format="currency"
+                />
+              </div>
+            </GlassCard>
+
+            <GlassCard className="p-0">
+              <div className="border-b border-[var(--line)] px-6 py-5">
+                <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-[var(--ink)]">
+                  Öne çıkanlar
+                </h2>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">
+                  Bugünün performans görünümü
+                </p>
+              </div>
+
+              <div className="grid gap-4 p-6 sm:grid-cols-2">
+                <div className="surface rounded-[18px] p-4">
+                  <p className="text-[12px] text-[var(--muted)]">
+                    En iyi hizmet
+                  </p>
+                  <p className="mt-2 font-semibold text-[var(--ink)]">
+                    {data.topService?.name ?? "Henüz yok"}
+                  </p>
+                  <p className="mt-1 text-[13px] text-[var(--muted)]">
+                    {data.topService
+                      ? new Intl.NumberFormat("tr-TR", {
+                          style: "currency",
+                          currency: "TRY",
+                          maximumFractionDigits: 0,
+                        }).format(data.topService.collected)
+                      : "₺0"}
+                  </p>
+                </div>
+
+                <div className="surface rounded-[18px] p-4">
+                  <p className="text-[12px] text-[var(--muted)]">
+                    En iyi personel
+                  </p>
+                  <p className="mt-2 font-semibold text-[var(--ink)]">
+                    {data.topStaff?.name ?? "Henüz yok"}
+                  </p>
+                  <p className="mt-1 text-[13px] text-[var(--muted)]">
+                    {data.topStaff
+                      ? new Intl.NumberFormat("tr-TR", {
+                          style: "currency",
+                          currency: "TRY",
+                          maximumFractionDigits: 0,
+                        }).format(data.topStaff.collected)
+                      : "₺0"}
+                  </p>
+                </div>
+              </div>
+            </GlassCard>
+          </section>
 
           <section>
 
