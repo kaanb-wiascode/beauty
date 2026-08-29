@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { UpdateMembershipRoleInput } from './dto/update-membership-role.dto';
+import { UpdateMembershipStatusInput } from './dto/update-membership-status.dto';
 
 @Injectable()
 export class MembershipsService {
@@ -28,6 +29,176 @@ export class MembershipsService {
       },
       orderBy: {
         createdAt: 'asc',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        role: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+  }
+
+  async updateStatus(
+    id: string,
+    input: UpdateMembershipStatusInput,
+  ) {
+    const tenantId = this.getTenantId();
+
+    const membership =
+      await this.prisma.membership.findFirst({
+        where: {
+          id,
+          tenantId,
+        },
+        include: {
+          role: {
+            select: {
+              id: true,
+              slug: true,
+            },
+          },
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+        },
+      });
+
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (
+      membership.status === input.status
+    ) {
+      return membership;
+    }
+
+    if (
+      input.status === 'SUSPENDED' &&
+      membership.role.slug === 'owner'
+    ) {
+      const ownerCount =
+        await this.prisma.membership.count({
+          where: {
+            tenantId,
+            role: {
+              slug: 'owner',
+            },
+            status: 'ACTIVE',
+          },
+        });
+
+      if (ownerCount <= 1) {
+        throw new BadRequestException(
+          'Tenant must have at least one active Owner',
+        );
+      }
+    }
+
+    return this.prisma.membership.update({
+      where: {
+        id: membership.id,
+      },
+      data: {
+        status: input.status,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        role: {
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+          },
+        },
+      },
+    });
+  }
+  async remove(id: string) {
+    const tenantId = this.getTenantId();
+
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id,
+        tenantId,
+      },
+      include: {
+        role: {
+          select: {
+            id: true,
+            slug: true,
+          },
+        },
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (membership.status === 'REMOVED') {
+      return membership;
+    }
+
+    if (
+      membership.status === 'ACTIVE' &&
+      membership.role.slug === 'owner'
+    ) {
+      const ownerCount = await this.prisma.membership.count({
+        where: {
+          tenantId,
+          role: {
+            slug: 'owner',
+          },
+          status: 'ACTIVE',
+        },
+      });
+
+      if (ownerCount <= 1) {
+        throw new BadRequestException(
+          'Tenant must have at least one active Owner',
+        );
+      }
+    }
+
+    return this.prisma.membership.update({
+      where: {
+        id: membership.id,
+      },
+      data: {
+        status: 'REMOVED',
       },
       include: {
         user: {

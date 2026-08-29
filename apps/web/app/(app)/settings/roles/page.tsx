@@ -368,6 +368,123 @@ export default function RolesPage() {
       setCreatingUser(false);
     }
   }
+  async function removeMembership(membershipId: string) {
+    const membership = memberships.find(
+      (item) => item.id === membershipId,
+    );
+
+    if (!membership) return;
+
+    const confirmed = window.confirm(
+      `${membership.user.firstName} ${membership.user.lastName} kullanıcısını bu salondan kaldırmak istediğinize emin misiniz?`,
+    );
+
+    if (!confirmed) return;
+
+    setMembershipSavingId(membershipId);
+    setError("");
+
+    try {
+      await api(`/memberships/${membershipId}`, {
+        method: "DELETE",
+      });
+
+      setMemberships((current) =>
+        current.filter((item) => item.id !== membershipId),
+      );
+
+      setRoles((current) =>
+        current.map((role) =>
+          role.id === membership.role.id
+            ? {
+                ...role,
+                _count: {
+                  ...role._count,
+                  memberships: Math.max(
+                    0,
+                    role._count.memberships -
+                      (membership.status === "ACTIVE" ? 1 : 0),
+                  ),
+                },
+              }
+            : role,
+        ),
+      );
+
+      showToast("Kullanıcı salondan kaldırıldı.");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Kullanıcı kaldırılamadı.",
+      );
+    } finally {
+      setMembershipSavingId(null);
+    }
+  }
+  async function changeMembershipStatus(
+    membershipId: string,
+    status: "ACTIVE" | "SUSPENDED",
+  ) {
+    setMembershipSavingId(membershipId);
+    setError("");
+
+    try {
+      const updated = await api<Membership>(
+        `/memberships/${membershipId}/status`,
+        {
+          method: "PATCH",
+          body: { status },
+        },
+      );
+
+      const oldMembership = memberships.find(
+        (membership) => membership.id === membershipId,
+      );
+
+      setMemberships((current) =>
+        current.map((membership) =>
+          membership.id === updated.id ? updated : membership,
+        ),
+      );
+
+      if (oldMembership && oldMembership.status !== updated.status) {
+        const delta =
+          updated.status === "ACTIVE" ? 1 : -1;
+
+        setRoles((current) =>
+          current.map((role) =>
+            role.id === updated.role.id
+              ? {
+                  ...role,
+                  _count: {
+                    ...role._count,
+                    memberships: Math.max(
+                      0,
+                      role._count.memberships + delta,
+                    ),
+                  },
+                }
+              : role,
+          ),
+        );
+      }
+
+      showToast(
+        updated.status === "ACTIVE"
+          ? "Kullanıcı aktifleştirildi."
+          : "Kullanıcı askıya alındı.",
+        );
+     } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Kullanıcı durumu güncellenemedi.",
+      );
+    } finally {
+      setMembershipSavingId(null);
+    }
+  }
 
   async function changeMembershipRole(
     membershipId: string,
@@ -639,19 +756,41 @@ export default function RolesPage() {
                     {membership.user.email}
                   </div>
 
-                  <div className="mt-2">
-                    <StatusBadge
-                      status={membership.status}
-                      label={
-                        membership.status === "ACTIVE"
-                          ? "Aktif"
-                          : membership.status
-                      }
-                    />
-                  </div>
+                    <div className="mt-2 flex items-center gap-3">
+                      <StatusBadge
+                        status={membership.status}
+                        label={
+                          membership.status === "ACTIVE"
+                            ? "Aktif"
+                            : membership.status === "SUSPENDED"
+                              ? "Askıda"
+                              : membership.status
+                        }
+                      />
+
+                      {membership.status === "REMOVED" ? null : (
+                        <Button
+                          onClick={() =>
+                            void changeMembershipStatus(
+                              membership.id,
+                              membership.status === "ACTIVE"
+                                ? "SUSPENDED"
+                                : "ACTIVE",
+                            )
+                          }
+                          disabled={
+                            membershipSavingId === membership.id
+                          }
+                        >
+                          {membership.status === "ACTIVE"
+                            ? "Askıya al"
+                            : "Aktifleştir"}
+                        </Button>
+                      )}
+                    </div>
                 </div>
 
-                <div className="w-full sm:max-w-[220px]">
+                <div className="flex w-full flex-col gap-2 sm:max-w-[220px]">
                   <Select
                     value={membership.role.id}
                     disabled={
@@ -673,6 +812,20 @@ export default function RolesPage() {
                       </option>
                     ))}
                   </Select>
+
+                  {membership.status !== "REMOVED" ? (
+                    <Button
+                      variant="danger"
+                      disabled={
+                        membershipSavingId === membership.id
+                      }
+                      onClick={() =>
+                        void removeMembership(membership.id)
+                      }
+                    >
+                      Kaldır
+                    </Button>
+                  ) : null}
                 </div>
               </div>
             ))}
