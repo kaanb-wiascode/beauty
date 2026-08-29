@@ -21,6 +21,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import {
   formatDuration,
   formatPrice,
@@ -66,6 +67,9 @@ function toPayload(form: FormState): CreateServiceInput {
 }
 
 export default function ServicesPage() {
+  const canCreateService = hasPermission("services", "create");
+  const canUpdateService = hasPermission("services", "update");
+  const canDeleteService = hasPermission("services", "delete");
   const { showToast } = useToast();
   const [services, setServices] = useState<Service[]>([]);
   const [performance, setPerformance] = useState<Record<string, Performance>>({});
@@ -137,6 +141,7 @@ export default function ServicesPage() {
   }, [load]);
 
   function openCreate() {
+    if (!canCreateService) return;
     setEditing(null);
     setForm(emptyForm);
     setFormError("");
@@ -144,6 +149,7 @@ export default function ServicesPage() {
   }
 
   function openEdit(service: Service) {
+    if (!canUpdateService) return;
     setEditing(service);
     setForm({
       name: service.name,
@@ -209,6 +215,7 @@ export default function ServicesPage() {
   }
 
   async function onDelete() {
+    if (!canDeleteService) return;
     if (!pendingDelete) return;
 
     setSaving(true);
@@ -244,7 +251,7 @@ export default function ServicesPage() {
       <PageHeader
         title="Hizmetler"
         description="Salon hizmetlerini ve fiyatları yönetin."
-        action={<Button onClick={openCreate}>Yeni hizmet</Button>}
+        action={<Button onClick={openCreate} disabled={!canCreateService}>Yeni hizmet</Button>}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}

@@ -19,6 +19,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import { optionalText } from "@/lib/format";
 import type { CreateCustomerInput, Customer, Paginated } from "@/lib/types";
 
@@ -46,6 +47,9 @@ function toPayload(form: FormState): CreateCustomerInput {
 }
 
 export default function CustomersPage() {
+  const canCreateCustomer = hasPermission("customers", "create");
+  const canUpdateCustomer = hasPermission("customers", "update");
+  const canDeleteCustomer = hasPermission("customers", "delete");
   const { showToast } = useToast();
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [search, setSearch] = useState("");
@@ -97,6 +101,7 @@ export default function CustomersPage() {
   }
 
   function openCreate() {
+    if (!canCreateCustomer) return;
     setEditing(null);
     setForm(emptyForm);
     setFormError("");
@@ -104,6 +109,7 @@ export default function CustomersPage() {
   }
 
   function openEdit(customer: Customer) {
+    if (!canUpdateCustomer) return;
     setEditing(customer);
     setForm({
       firstName: customer.firstName,
@@ -158,6 +164,7 @@ export default function CustomersPage() {
   }
 
   async function onDelete() {
+    if (!canDeleteCustomer) return;
     if (!pendingDelete) return;
 
     setSaving(true);
@@ -183,7 +190,7 @@ export default function CustomersPage() {
       <PageHeader
         title="Müşteriler"
         description="Kayıtlı müşterileri yönetin."
-        action={<Button onClick={openCreate}>Yeni müşteri</Button>}
+        action={<Button onClick={openCreate} disabled={!canCreateCustomer}>Yeni müşteri</Button>}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}

@@ -20,6 +20,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import { optionalText, staffStatusLabel } from "@/lib/format";
 import type { CreateStaffInput, Paginated, Staff } from "@/lib/types";
 
@@ -59,6 +60,9 @@ type PerformanceResponse = Performance[] | {
 };
 
 export default function StaffPage() {
+  const canCreateStaff = hasPermission("staff", "create");
+  const canUpdateStaff = hasPermission("staff", "update");
+  const canDeleteStaff = hasPermission("staff", "delete");
   const { showToast } = useToast();
   const [staff, setStaff] = useState<Staff[]>([]);
   const [performance, setPerformance] = useState<Record<string, Performance>>({});
@@ -132,6 +136,7 @@ export default function StaffPage() {
   }, [load]);
 
   function openCreate() {
+    if (!canCreateStaff) return;
     setEditing(null);
     setForm(emptyForm);
     setFormError("");
@@ -139,6 +144,7 @@ export default function StaffPage() {
   }
 
   function openEdit(member: Staff) {
+    if (!canUpdateStaff) return;
     setEditing(member);
     setForm({
       firstName: member.firstName,
@@ -193,6 +199,7 @@ export default function StaffPage() {
   }
 
   async function onDelete() {
+    if (!canDeleteStaff) return;
     if (!pendingDelete) return;
 
     setSaving(true);
@@ -228,7 +235,7 @@ export default function StaffPage() {
       <PageHeader
         title="Personel"
         description="Salon personelini yönetin."
-        action={<Button onClick={openCreate}>Yeni personel</Button>}
+        action={<Button onClick={openCreate} disabled={!canCreateStaff}>Yeni personel</Button>}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
