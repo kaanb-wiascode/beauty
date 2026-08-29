@@ -7,15 +7,17 @@ import {
   Button,
   EmptyState,
   Field,
+  GlassCard,
   PageHeader,
   Panel,
   Select,
   Spinner,
   TableWrap,
   Td,
-  Th,
   TextInput,
+  Th,
 } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 
 type Payment = {
@@ -90,6 +92,8 @@ function endOfDay(value: string) {
 }
 
 export default function PaymentsPage() {
+  const { showToast } = useToast();
+
   const [payments, setPayments] = useState<Payment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
@@ -99,8 +103,11 @@ export default function PaymentsPage() {
   const [error, setError] = useState("");
 
   const [method, setMethod] = useState<Payment["method"] | "">("");
+  const [search, setSearch] = useState("");
   const [fromDate, setFromDate] = useState("");
   const [toDate, setToDate] = useState("");
+
+  const [refundSaving, setRefundSaving] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -182,10 +189,9 @@ export default function PaymentsPage() {
   );
 
   const filteredPayments = useMemo(() => {
-    const from = fromDate
-      ? new Date(`${fromDate}T00:00:00`)
-      : null;
+    const from = fromDate ? new Date(`${fromDate}T00:00:00`) : null;
     const to = endOfDay(toDate);
+    const needle = search.trim().toLocaleLowerCase("tr-TR");
 
     return payments.filter((payment) => {
       const paidAt = new Date(payment.paidAt);
@@ -202,25 +208,80 @@ export default function PaymentsPage() {
         return false;
       }
 
+      if (needle) {
+        const haystack = [
+          customerMap.get(payment.appointment.customerId) ?? "",
+          staffMap.get(payment.appointment.staffId) ?? "",
+          serviceMap.get(payment.appointment.serviceId) ?? "",
+          METHOD_LABELS[payment.method],
+        ]
+          .join(" ")
+          .toLocaleLowerCase("tr-TR");
+
+        if (!haystack.includes(needle)) {
+          return false;
+        }
+      }
+
       return true;
     });
-  }, [payments, method, fromDate, toDate]);
+  }, [
+    payments,
+    method,
+    search,
+    fromDate,
+    toDate,
+    customerMap,
+    staffMap,
+    serviceMap,
+  ]);
 
-  const total = useMemo(
-    () =>
-      filteredPayments.reduce(
-        (sum, payment) => sum + Number(payment.amount),
-        0,
-      ),
-    [filteredPayments],
-  );
+  const totals = useMemo(() => {
+    return filteredPayments.reduce(
+      (summary, payment) => {
+        const amount = Number(payment.amount);
 
-  const [refundSaving, setRefundSaving] = useState(false);
+        if (payment.status === "REFUNDED") {
+          summary.refunded += amount;
+        } else {
+          summary.completed += amount;
+        }
+
+        return summary;
+      },
+      {
+        completed: 0,
+        refunded: 0,
+      },
+    );
+  }, [filteredPayments]);
+
+  const methodTotals = useMemo(() => {
+    return filteredPayments.reduce(
+      (summary, payment) => {
+        if (payment.status === "COMPLETED") {
+          summary[payment.method] += Number(payment.amount);
+        }
+
+        return summary;
+      },
+      {
+        CASH: 0,
+        CARD: 0,
+        TRANSFER: 0,
+      },
+    );
+  }, [filteredPayments]);
+
+  async function refreshPayments() {
+    const result = await api<{ data: Payment[] }>(
+      withQuery("/payments", { page: 1, limit: 100 }),
+    );
+    setPayments(result.data);
+  }
 
   async function refundPayment(paymentId: string) {
-    const reason = window.prompt(
-      "İade nedeni (isteğe bağlı):",
-    );
+    const reason = window.prompt("İade nedeni (isteğe bağlı):");
 
     if (reason === null) return;
 
@@ -235,11 +296,8 @@ export default function PaymentsPage() {
         },
       });
 
-      const result = await api<{ data: Payment[] }>(
-        withQuery("/payments", { page: 1, limit: 100 }),
-      );
-
-      setPayments(result.data);
+      await refreshPayments();
+      showToast("Ödeme iade edildi.");
     } catch (err) {
       setError(
         err instanceof ApiError
@@ -253,24 +311,65 @@ export default function PaymentsPage() {
 
   function clearFilters() {
     setMethod("");
+    setSearch("");
     setFromDate("");
     setToDate("");
   }
+
+  const hasFilters =
+    Boolean(method) ||
+    Boolean(search.trim()) ||
+    Boolean(fromDate) ||
+    Boolean(toDate);
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
       <PageHeader
         title="Ödemeler"
-        description="Alınan ödemeleri ve tahsilatları görüntüleyin."
+        description="Alınan ödemeleri ve tahsilatları yönetin."
       />
 
       {error ? (
         <Alert onClose={() => setError("")}>{error}</Alert>
       ) : null}
 
+      <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <SummaryCard
+          label="Net tahsilat"
+          value={totals.completed - totals.refunded}
+        />
+        <SummaryCard
+          label="Tahsilat"
+          value={totals.completed}
+        />
+        <SummaryCard
+          label="İade"
+          value={totals.refunded}
+        />
+        <SummaryCard
+          label="Kayıt"
+          value={filteredPayments.length}
+          currency={false}
+        />
+      </section>
+
+      <section className="grid gap-4 sm:grid-cols-3">
+        <MethodCard label="Nakit" value={methodTotals.CASH} />
+        <MethodCard label="Kart" value={methodTotals.CARD} />
+        <MethodCard label="Havale / EFT" value={methodTotals.TRANSFER} />
+      </section>
+
       <Panel>
         <div className="border-b border-[var(--line)] px-5 py-5">
-          <div className="grid gap-4 md:grid-cols-3">
+          <div className="grid gap-4 lg:grid-cols-4">
+            <Field label="Ara">
+              <TextInput
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Müşteri, hizmet, personel..."
+              />
+            </Field>
+
             <Field label="Ödeme yöntemi">
               <Select
                 value={method}
@@ -281,8 +380,8 @@ export default function PaymentsPage() {
                 }
               >
                 <option value="">Tüm yöntemler</option>
-                <option value="CARD">Kart</option>
                 <option value="CASH">Nakit</option>
+                <option value="CARD">Kart</option>
                 <option value="TRANSFER">Havale / EFT</option>
               </Select>
             </Field>
@@ -309,30 +408,15 @@ export default function PaymentsPage() {
               {filteredPayments.length} ödeme gösteriliyor
             </p>
 
-            <button
-              type="button"
-              onClick={clearFilters}
-              className="text-[13px] font-medium text-[var(--accent)] hover:underline"
-            >
-              Filtreleri temizle
-            </button>
-          </div>
-        </div>
-
-        <div className="border-b border-[var(--line)] px-5 py-4">
-          <div className="flex items-end justify-between gap-4">
-            <div>
-              <p className="text-[12px] font-medium text-[var(--muted)]">
-                Filtrelenmiş tahsilat
-              </p>
-              <p className="mt-1 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
-                {formatMoney(total)}
-              </p>
-            </div>
-
-            <p className="text-[12px] text-[var(--muted-soft)]">
-              Toplam kayıt: {payments.length}
-            </p>
+            {hasFilters ? (
+              <button
+                type="button"
+                onClick={clearFilters}
+                className="text-[13px] font-medium text-[var(--accent)] hover:underline"
+              >
+                Filtreleri temizle
+              </button>
+            ) : null}
           </div>
         </div>
 
@@ -379,9 +463,17 @@ export default function PaymentsPage() {
                     {METHOD_LABELS[payment.method]}
                   </Td>
                   <Td label="Durum">
-                    {payment.status === "REFUNDED"
-                      ? "İade edildi"
-                      : "Tamamlandı"}
+                    <span
+                      className={
+                        payment.status === "REFUNDED"
+                          ? "text-[var(--muted)]"
+                          : "font-medium text-[var(--ink)]"
+                      }
+                    >
+                      {payment.status === "REFUNDED"
+                        ? "İade edildi"
+                        : "Tamamlandı"}
+                    </span>
                   </Td>
                   <Td label="Tutar" className="font-medium">
                     {formatMoney(payment.amount)}
@@ -392,9 +484,7 @@ export default function PaymentsPage() {
                         variant="danger"
                         className="px-3 py-1.5"
                         disabled={refundSaving}
-                        onClick={() =>
-                          void refundPayment(payment.id)
-                        }
+                        onClick={() => void refundPayment(payment.id)}
                       >
                         İade et
                       </Button>
@@ -411,5 +501,43 @@ export default function PaymentsPage() {
         )}
       </Panel>
     </div>
+  );
+}
+
+function SummaryCard({
+  label,
+  value,
+  currency = true,
+}: {
+  label: string;
+  value: number;
+  currency?: boolean;
+}) {
+  return (
+    <GlassCard>
+      <p className="text-[12px] font-medium text-[var(--muted)]">
+        {label}
+      </p>
+      <p className="mt-3 text-[30px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
+        {currency ? formatMoney(value) : value}
+      </p>
+    </GlassCard>
+  );
+}
+
+function MethodCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: number;
+}) {
+  return (
+    <GlassCard className="py-5">
+      <p className="text-[12px] font-medium text-[var(--muted)]">{label}</p>
+      <p className="mt-2 text-[22px] font-semibold tracking-[-0.03em] text-[var(--ink)]">
+        {formatMoney(value)}
+      </p>
+    </GlassCard>
   );
 }
