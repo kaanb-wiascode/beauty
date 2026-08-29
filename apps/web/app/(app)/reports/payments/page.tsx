@@ -5,12 +5,12 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Field,
+  GlassCard,
   PageHeader,
   Panel,
   Spinner,
   TextInput,
 } from "@/components/ui";
-
 import { api, ApiError, withQuery } from "@/lib/api";
 
 type Summary = {
@@ -42,6 +42,10 @@ function formatMoney(value: number) {
   }).format(value);
 }
 
+function rangeIsInvalid(from: string, to: string) {
+  return Boolean(from && to && from > to);
+}
+
 export default function PaymentReportsPage() {
   const today = useMemo(() => toDateInputValue(new Date()), []);
 
@@ -52,6 +56,13 @@ export default function PaymentReportsPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (rangeIsInvalid(from, to)) {
+      setSummary(null);
+      setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function load() {
@@ -135,38 +146,46 @@ export default function PaymentReportsPage() {
               value={formatMoney(summary.gross)}
               detail={`${summary.paymentCount} ödeme`}
             />
-
             <ReportCard
               label="İadeler"
               value={formatMoney(summary.refunds)}
               detail={`${summary.refundCount} iade`}
             />
-
             <ReportCard
               label="Net ciro"
               value={formatMoney(summary.net)}
               detail="Brüt tahsilat - iadeler"
+              emphasis
             />
           </section>
 
-          <section className="grid gap-4 sm:grid-cols-3">
-            <ReportCard
-              label="Nakit"
-              value={formatMoney(summary.methods.CASH)}
-              detail="Tahsilat"
-            />
+          <section>
+            <div className="mb-4">
+              <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-[var(--ink)]">
+                Ödeme yöntemleri
+              </h2>
+              <p className="mt-1 text-[13px] text-[var(--muted)]">
+                Seçilen tarih aralığındaki tamamlanan tahsilatlar
+              </p>
+            </div>
 
-            <ReportCard
-              label="Kart"
-              value={formatMoney(summary.methods.CARD)}
-              detail="Tahsilat"
-            />
-
-            <ReportCard
-              label="Havale / EFT"
-              value={formatMoney(summary.methods.TRANSFER)}
-              detail="Tahsilat"
-            />
+            <div className="grid gap-4 sm:grid-cols-3">
+              <ReportCard
+                label="Nakit"
+                value={formatMoney(summary.methods.CASH)}
+                detail="Tahsilat"
+              />
+              <ReportCard
+                label="Kart"
+                value={formatMoney(summary.methods.CARD)}
+                detail="Tahsilat"
+              />
+              <ReportCard
+                label="Havale / EFT"
+                value={formatMoney(summary.methods.TRANSFER)}
+                detail="Tahsilat"
+              />
+            </div>
           </section>
         </>
       ) : null}
@@ -178,24 +197,20 @@ function ReportCard({
   label,
   value,
   detail,
+  emphasis = false,
 }: {
   label: string;
   value: string;
   detail: string;
+  emphasis?: boolean;
 }) {
   return (
-    <div className="surface rounded-[22px] px-5 py-5">
-      <p className="text-[12px] font-medium text-[var(--muted)]">
-        {label}
-      </p>
-
+    <GlassCard className={emphasis ? "border-[var(--accent)]/20" : undefined}>
+      <p className="text-[12px] font-medium text-[var(--muted)]">{label}</p>
       <p className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
         {value}
       </p>
-
-      <p className="mt-1 text-[12px] text-[var(--muted-soft)]">
-        {detail}
-      </p>
-    </div>
+      <p className="mt-1 text-[12px] text-[var(--muted-soft)]">{detail}</p>
+    </GlassCard>
   );
 }

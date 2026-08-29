@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import {
   Alert,
   Field,
+  GlassCard,
   PageHeader,
   Panel,
   Spinner,
@@ -59,6 +60,13 @@ export default function StaffReportPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
+    if (from && to && from > to) {
+      setRows([]);
+      setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
 
     async function load() {
@@ -77,7 +85,13 @@ export default function StaffReportPage() {
         );
 
         if (!cancelled) {
-          setRows(result);
+          setRows(
+            [...result].sort(
+              (a, b) =>
+                b.collected - a.collected ||
+                b.completedAppointments - a.completedAppointments,
+            ),
+          );
         }
       } catch (err) {
         if (!cancelled) {
@@ -105,20 +119,16 @@ export default function StaffReportPage() {
     () =>
       rows.reduce(
         (total, row) => ({
-          appointments:
-            total.appointments + row.appointmentCount,
-          completed:
-            total.completed + row.completedAppointments,
+          appointments: total.appointments + row.appointmentCount,
+          completed: total.completed + row.completedAppointments,
           collected: total.collected + row.collected,
         }),
-        {
-          appointments: 0,
-          completed: 0,
-          collected: 0,
-        },
+        { appointments: 0, completed: 0, collected: 0 },
       ),
     [rows],
   );
+
+  const topPerformer = rows[0] ?? null;
 
   return (
     <div className="mx-auto max-w-6xl space-y-8">
@@ -127,9 +137,7 @@ export default function StaffReportPage() {
         description="Personel bazında randevu ve tahsilat performansını görüntüleyin."
       />
 
-      {error ? (
-        <Alert onClose={() => setError("")}>{error}</Alert>
-      ) : null}
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <Panel>
         <div className="grid gap-4 px-5 py-5 sm:grid-cols-2">
@@ -140,7 +148,6 @@ export default function StaffReportPage() {
               onChange={(event) => setFrom(event.target.value)}
             />
           </Field>
-
           <Field label="Bitiş tarihi">
             <TextInput
               type="date"
@@ -155,18 +162,18 @@ export default function StaffReportPage() {
         <Spinner label="Personel raporu hazırlanıyor..." />
       ) : (
         <>
-          <section className="grid gap-4 sm:grid-cols-3">
-            <ReportCard
-              label="Toplam randevu"
-              value={String(totals.appointments)}
-            />
-            <ReportCard
-              label="Tamamlanan"
-              value={String(totals.completed)}
-            />
-            <ReportCard
+          <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+            <SummaryCard label="Toplam randevu" value={totals.appointments} />
+            <SummaryCard label="Tamamlanan" value={totals.completed} />
+            <SummaryCard
               label="Toplam tahsilat"
               value={formatMoney(totals.collected)}
+              currency={false}
+            />
+            <SummaryCard
+              label="En yüksek tahsilat"
+              value={topPerformer ? topPerformer.staff.firstName + " " + topPerformer.staff.lastName : "—"}
+              detail={topPerformer ? formatMoney(topPerformer.collected) : "Henüz tahsilat yok"}
             />
           </section>
 
@@ -185,25 +192,14 @@ export default function StaffReportPage() {
                     <Th>Tahsilat</Th>
                   </tr>
                 </thead>
-
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.staff.id}>
                       <Td label="Personel" className="font-medium">
-                        {fullName(
-                          row.staff.firstName,
-                          row.staff.lastName,
-                        )}
+                        {fullName(row.staff.firstName, row.staff.lastName)}
                       </Td>
-
-                      <Td label="Randevu">
-                        {row.appointmentCount}
-                      </Td>
-
-                      <Td label="Tamamlanan">
-                        {row.completedAppointments}
-                      </Td>
-
+                      <Td label="Randevu">{row.appointmentCount}</Td>
+                      <Td label="Tamamlanan">{row.completedAppointments}</Td>
                       <Td label="Tahsilat" className="font-medium">
                         {formatMoney(row.collected)}
                       </Td>
@@ -219,22 +215,30 @@ export default function StaffReportPage() {
   );
 }
 
-function ReportCard({
+function SummaryCard({
   label,
   value,
+  currency = true,
+  detail,
 }: {
   label: string;
-  value: string;
+  value: number | string;
+  currency?: boolean;
+  detail?: string;
 }) {
   return (
-    <div className="surface rounded-[22px] px-5 py-5">
-      <p className="text-[12px] font-medium text-[var(--muted)]">
-        {label}
+    <GlassCard>
+      <p className="text-[12px] font-medium text-[var(--muted)]">{label}</p>
+      <p className="mt-3 text-[28px] font-semibold leading-tight tracking-[-0.04em] text-[var(--ink)]">
+        {typeof value === "number"
+          ? currency
+            ? formatMoney(value)
+            : value
+          : value}
       </p>
-
-      <p className="mt-2 text-[30px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
-        {value}
-      </p>
-    </div>
+      {detail ? (
+        <p className="mt-1 text-[12px] text-[var(--muted)]">{detail}</p>
+      ) : null}
+    </GlassCard>
   );
 }
