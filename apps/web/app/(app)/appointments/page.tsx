@@ -558,6 +558,40 @@ export default function AppointmentsPage() {
     }
   }
 
+  async function updateAppointmentStatus(
+    appointment: Appointment,
+    status: AppointmentStatus,
+  ) {
+    setError("");
+    setSaving(true);
+
+    try {
+      const updated = await api<Appointment>(
+        `/appointments/${appointment.id}`,
+        {
+          method: "PATCH",
+          body: {
+            status,
+          },
+        },
+      );
+
+      setAppointments((current) =>
+        current.map((item) =>
+          item.id === updated.id ? updated : item,
+        ),
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Randevu durumu güncellenemedi.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function createPayment() {
     if (!paymentAppointment) return;
 
@@ -1044,34 +1078,78 @@ export default function AppointmentsPage() {
                   </Td>
 
                   <Td label="Aksiyon" actions>
-                    <div className="flex justify-end gap-2">
-                        {!appointment.payment &&
-                        appointment.status !== "CANCELLED" &&
-                        appointment.status !== "NO_SHOW" ? (
+                    <div className="flex flex-wrap justify-end gap-2">
+                      {appointment.status === "SCHEDULED" ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() =>
+                            void updateAppointmentStatus(
+                              appointment,
+                              "CONFIRMED",
+                            )
+                          }
+                          disabled={saving}
+                        >
+                          Onayla
+                        </Button>
+                      ) : null}
+
+                      {appointment.status === "CONFIRMED" ? (
+                        <>
                           <Button
                             variant="secondary"
-                            onClick={() => openPayment(appointment)}
+                            onClick={() =>
+                              void updateAppointmentStatus(
+                                appointment,
+                                "COMPLETED",
+                              )
+                            }
+                            disabled={saving}
                           >
-                            Ödeme al
+                            Tamamla
                           </Button>
-                        ) : null}
+                          <Button
+                            variant="ghost"
+                            onClick={() =>
+                              void updateAppointmentStatus(
+                                appointment,
+                                "NO_SHOW",
+                              )
+                            }
+                            disabled={saving}
+                          >
+                            Gelmedi
+                          </Button>
+                        </>
+                      ) : null}
+
+                      {!appointment.payment &&
+                      appointment.status !== "CANCELLED" &&
+                      appointment.status !== "NO_SHOW" ? (
+                        <Button
+                          variant="secondary"
+                          onClick={() => openPayment(appointment)}
+                          disabled={saving}
+                        >
+                          Ödeme al
+                        </Button>
+                      ) : null}
 
                       <Button
                         variant="ghost"
-                        onClick={() =>
-                          openEdit(appointment)
-                        }
+                        onClick={() => openEdit(appointment)}
+                        disabled={saving}
                       >
                         Düzenle
                       </Button>
 
-                      {appointment.status !==
-                      "CANCELLED" ? (
+                      {appointment.status !== "CANCELLED" &&
+                      appointment.status !== "COMPLETED" &&
+                      appointment.status !== "NO_SHOW" ? (
                         <Button
                           variant="danger"
-                          onClick={() =>
-                            askCancel(appointment)
-                          }
+                          onClick={() => askCancel(appointment)}
+                          disabled={saving}
                         >
                           İptal
                         </Button>
@@ -1229,6 +1307,16 @@ export default function AppointmentsPage() {
               </Field>
             </div>
 
+            {formConflict ? (
+              <Alert>
+                {`Bu personelin ${formatTime(
+                  formConflict.startAt,
+                )} – ${formatTime(
+                  formConflict.endAt,
+                )} saatleri arasında çakışan bir randevusu var.`}
+              </Alert>
+            ) : null}
+
             {editing ? (
               <Field label="Durum">
                 <Select
@@ -1281,7 +1369,7 @@ export default function AppointmentsPage() {
 
               <Button
                 onClick={() => void saveAppointment()}
-                disabled={saving}
+                disabled={saving || Boolean(formConflict)}
               >
                 {saving
                   ? "Kaydediliyor..."
