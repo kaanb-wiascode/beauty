@@ -25,6 +25,59 @@ export class PaymentsService {
     return this.tenantContext.getTenantId();
   }
 
+  private async buildPeriodMetrics(
+    from: Date,
+    to: Date,
+  ) {
+    const tenantId = this.getTenantId();
+
+    const [summary, appointments, newCustomers] =
+      await Promise.all([
+        this.summary({
+          from,
+          to,
+        }),
+        this.prisma.appointment.findMany({
+          where: {
+            tenantId,
+            startAt: {
+              gte: from,
+              lte: to,
+            },
+          },
+          select: {
+            status: true,
+          },
+        }),
+        this.prisma.customer.count({
+          where: {
+            tenantId,
+            createdAt: {
+              gte: from,
+              lte: to,
+            },
+          },
+        }),
+      ]);
+
+    return {
+      gross: summary.gross,
+      refunds: summary.refunds,
+      net: summary.net,
+      appointmentCount: appointments.length,
+      completedAppointments: appointments.filter(
+        (appointment) => appointment.status === 'COMPLETED',
+      ).length,
+      cancelledAppointments: appointments.filter(
+        (appointment) => appointment.status === 'CANCELLED',
+      ).length,
+      noShowAppointments: appointments.filter(
+        (appointment) => appointment.status === 'NO_SHOW',
+      ).length,
+      newCustomers,
+    };
+  }
+
   async create(input: CreatePaymentInput) {
     const tenantId = this.getTenantId();
 
@@ -253,6 +306,13 @@ export class PaymentsService {
     const tenantId = this.getTenantId();
     const now = new Date();
 
+    const last7From = new Date(input.from);
+    last7From.setDate(last7From.getDate() - 6);
+
+    const monthFrom = new Date(input.from);
+    monthFrom.setDate(1);
+    monthFrom.setHours(0, 0, 0, 0);
+
     const [
       summary,
       appointments,
@@ -262,6 +322,8 @@ export class PaymentsService {
       activeStaffList,
       activeServiceList,
       upcomingAppointments,
+      last7Metrics,
+      monthMetrics,
     ] = await Promise.all([
       this.summary({
         from: input.from,
@@ -394,6 +456,8 @@ export class PaymentsService {
           },
         },
       }),
+      this.buildPeriodMetrics(last7From, input.to),
+      this.buildPeriodMetrics(monthFrom, input.to),
     ]);
 
     const appointmentCounts = {
@@ -540,6 +604,11 @@ export class PaymentsService {
       todayAppointments: appointmentDetails,
 
       upcomingAppointments: upcomingDetails,
+
+      periods: {
+        last7Days: last7Metrics,
+        month: monthMetrics,
+      },
 
       topService: servicePerformance[0] ?? null,
 

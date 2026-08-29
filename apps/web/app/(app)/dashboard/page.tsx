@@ -50,6 +50,17 @@ type DashboardAppointment = {
   } | null;
 };
 
+type PeriodMetrics = {
+  gross: number;
+  refunds: number;
+  net: number;
+  appointmentCount: number;
+  completedAppointments: number;
+  cancelledAppointments: number;
+  noShowAppointments: number;
+  newCustomers: number;
+};
+
 type DashboardReport = {
   summary: {
     gross: number;
@@ -79,6 +90,10 @@ type DashboardReport = {
     CASH: number;
     CARD: number;
     TRANSFER: number;
+  };
+  periods: {
+    last7Days: PeriodMetrics;
+    month: PeriodMetrics;
   };
   todayAppointments: DashboardAppointment[];
   upcomingAppointments: DashboardAppointment[];
@@ -371,6 +386,79 @@ if (loading) {
 
             />
 
+          </section>
+
+          {/* Trend overview */}
+          <section className="grid gap-5 xl:grid-cols-2">
+            <GlassCard className="p-0">
+              <div className="border-b border-[var(--line)] px-6 py-5">
+                <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-[var(--ink)]">
+                  Son 7 gün
+                </h2>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">
+                  Günlük performans özeti
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-6 sm:grid-cols-2">
+                <MiniStat
+                  label="Net ciro"
+                  value={data.periods.last7Days.net}
+                  description="Son 7 gün"
+                  format="currency"
+                />
+                <MiniStat
+                  label="Randevu"
+                  value={data.periods.last7Days.appointmentCount}
+                  description="Toplam"
+                />
+                <MiniStat
+                  label="Tamamlanan"
+                  value={data.periods.last7Days.completedAppointments}
+                  description="Randevu"
+                />
+                <MiniStat
+                  label="Yeni müşteri"
+                  value={data.periods.last7Days.newCustomers}
+                  description="Kayıt"
+                />
+              </div>
+            </GlassCard>
+
+            <GlassCard className="p-0">
+              <div className="border-b border-[var(--line)] px-6 py-5">
+                <h2 className="text-[18px] font-semibold tracking-[-0.025em] text-[var(--ink)]">
+                  Bu ay
+                </h2>
+                <p className="mt-1 text-[13px] text-[var(--muted)]">
+                  Aylık performans özeti
+                </p>
+              </div>
+
+              <div className="grid gap-3 p-6 sm:grid-cols-2">
+                <MiniStat
+                  label="Net ciro"
+                  value={data.periods.month.net}
+                  description="Bu ay"
+                  format="currency"
+                />
+                <MiniStat
+                  label="Randevu"
+                  value={data.periods.month.appointmentCount}
+                  description="Toplam"
+                />
+                <MiniStat
+                  label="Tamamlanan"
+                  value={data.periods.month.completedAppointments}
+                  description="Randevu"
+                />
+                <MiniStat
+                  label="Yeni müşteri"
+                  value={data.periods.month.newCustomers}
+                  description="Kayıt"
+                />
+              </div>
+            </GlassCard>
           </section>
 
           {/* Main operational area */}
