@@ -6,6 +6,19 @@ export const updateCustomerSchema = z
     lastName: z.string().trim().min(1).max(100).optional(),
     phone: z.string().trim().max(50).nullable().optional(),
     email: z.string().trim().email().max(255).nullable().optional(),
+
+    birthDate: z.string().date().nullable().optional(),
+
+    customerSource: z
+      .enum([
+        'INSTAGRAM',
+        'GOOGLE',
+        'REFERRAL',
+        'WALK_IN',
+        'OTHER',
+      ])
+      .nullable()
+      .optional(),
   })
   .refine(
     (value) => Object.keys(value).length > 0,

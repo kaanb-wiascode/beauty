@@ -74,20 +74,30 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
-      <div className="max-w-xl">
-        <h1 className="text-[32px] font-semibold leading-[1.1] tracking-[-0.035em] text-[var(--ink)] sm:text-[40px]">
+    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
+      <div className="min-w-0 max-w-xl">
+        <h1 className="text-[30px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[40px]">
           {title}
         </h1>
 
         {description ? (
-          <p className="mt-2 text-[15px] leading-7 text-[var(--muted)]">
+          <p className="mt-2 text-[14px] leading-6 text-[var(--muted)] sm:text-[15px] sm:leading-7">
             {description}
           </p>
         ) : null}
+
+        {action ? (
+          <div className="mt-4 flex w-fit max-w-full sm:hidden">
+            {action}
+          </div>
+        ) : null}
       </div>
 
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {action ? (
+        <div className="hidden shrink-0 sm:block">
+          {action}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -106,7 +116,7 @@ export function Button({
 }: ButtonProps) {
   const variants = {
     primary:
-      "bg-[var(--ink)] text-white shadow-[0_1px_2px_rgba(28,25,23,0.12)] hover:bg-[#2a2622] active:bg-black",
+      "border border-[#DED9D3] bg-[#F3F1EE] text-[#514A43] shadow-[0_2px_8px_rgba(81,74,67,0.06)] hover:bg-[#EAE7E3] active:bg-[#E4E0DB]",
     secondary:
       "bg-white/70 text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)] hover:bg-white",
     ghost:

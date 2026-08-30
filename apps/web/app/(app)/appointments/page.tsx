@@ -669,8 +669,7 @@ export default function AppointmentsPage() {
     <div className="mx-auto max-w-[1400px] space-y-7">
       <PageHeader
         title="Randevular"
-        description="Gününüzü sakin ve net bir takvim üzerinden yönetin."
-        action={
+                action={
           <Button onClick={() => openCreate()} disabled={!canCreateAppointment}>
             Yeni randevu
           </Button>

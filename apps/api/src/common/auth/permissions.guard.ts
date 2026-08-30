@@ -28,10 +28,7 @@ export class PermissionsGuard implements CanActivate {
     const required =
       this.reflector.getAllAndOverride<RequiredPermission>(
         REQUIRED_PERMISSION_KEY,
-        [
-          context.getHandler(),
-          context.getClass(),
-        ],
+        [context.getHandler(), context.getClass()],
       );
 
     if (!required) {
@@ -39,16 +36,16 @@ export class PermissionsGuard implements CanActivate {
     }
 
     const request =
-      context
-        .switchToHttp()
-        .getRequest<{ user?: JwtPayload }>();
+      context.switchToHttp().getRequest<{ user?: JwtPayload }>();
 
     const user = request.user;
 
     if (
       !user?.tenantId ||
       !user.membershipId ||
-      !user.roleId
+      !user.roleId ||
+      !user.companyId ||
+      !user.roleScope
     ) {
       throw new UnauthorizedException(
         'Authentication context is missing',
@@ -61,17 +58,88 @@ export class PermissionsGuard implements CanActivate {
           id: user.membershipId,
           userId: user.sub,
           tenantId: user.tenantId,
+          companyId: user.companyId,
           roleId: user.roleId,
           status: 'ACTIVE',
         },
-        select: {
-          id: true,
+        include: {
+          role: {
+            select: {
+              id: true,
+              companyId: true,
+              scope: true,
+            },
+          },
+          branchAccesses: {
+            select: {
+              branchId: true,
+            },
+          },
         },
       });
 
     if (!membership) {
       throw new UnauthorizedException(
         'Membership is missing or inactive',
+      );
+    }
+
+    if (
+      membership.role.companyId &&
+      membership.role.companyId !== membership.companyId
+    ) {
+      throw new UnauthorizedException(
+        'Role organization context is invalid',
+      );
+    }
+
+    if (membership.role.scope !== user.roleScope) {
+      throw new UnauthorizedException(
+        'Role scope is out of date',
+      );
+    }
+
+    if (user.branchId) {
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          id: user.branchId,
+          companyId: user.companyId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+
+      if (!branch) {
+        throw new ForbiddenException(
+          'You do not have access to this branch',
+        );
+      }
+
+      if (user.roleScope === 'BRANCH') {
+        const hasBranchAccess = membership.branchAccesses.some(
+          (access) => access.branchId === user.branchId,
+        );
+
+        if (!hasBranchAccess) {
+          throw new ForbiddenException(
+            'You do not have access to this branch',
+          );
+        }
+      } else if (user.roleScope === 'COMPANY') {
+        const hasBranchAccess = membership.branchAccesses.some(
+          (access) => access.branchId === user.branchId,
+        );
+
+        if (!hasBranchAccess) {
+          throw new ForbiddenException(
+            'You do not have access to this branch',
+          );
+        }
+      }
+      // CENTRAL scope may use any active branch inside its company.
+    } else if (user.roleScope === 'BRANCH') {
+      throw new UnauthorizedException(
+        'Branch context is required',
       );
     }
 
@@ -85,6 +153,10 @@ export class PermissionsGuard implements CanActivate {
           },
           role: {
             tenantId: user.tenantId,
+            OR: [
+              { companyId: null },
+              { companyId: user.companyId },
+            ],
           },
         },
         select: {

@@ -31,6 +31,42 @@ export class AppointmentsService {
     return tenantId;
   }
 
+  private requireBranchId(): string {
+    const branchId = this.tenantContext.getBranchId();
+
+    if (!branchId) {
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
+    }
+
+    return branchId;
+  }
+
+  private getAppointmentScope() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    // CENTRAL + no active branch = company-wide view.
+    if (roleScope === 'CENTRAL' && branchId === null) {
+      return {
+        tenantId,
+        branch: {
+          companyId,
+        },
+      };
+    }
+
+    // COMPANY / BRANCH, or CENTRAL with an active branch,
+    // are restricted to the active branch.
+    return {
+      tenantId,
+      branchId: this.requireBranchId(),
+    };
+  }
+
   private validateDateRange(
     startAt: Date,
     endAt: Date,
@@ -58,6 +94,7 @@ export class AppointmentsService {
       staffId: string;
       serviceId: string;
     },
+    branchId: string,
   ): Promise<void> {
     const [customer, staff, service] =
       await Promise.all([
@@ -65,6 +102,7 @@ export class AppointmentsService {
           where: {
             id: input.customerId,
             tenantId,
+            branchId,
           },
           select: {
             id: true,
@@ -75,6 +113,7 @@ export class AppointmentsService {
           where: {
             id: input.staffId,
             tenantId,
+            branchId,
           },
           select: {
             id: true,
@@ -86,6 +125,7 @@ export class AppointmentsService {
           where: {
             id: input.serviceId,
             tenantId,
+            branchId,
           },
           select: {
             id: true,
@@ -127,6 +167,7 @@ export class AppointmentsService {
 
   private async ensureNoStaffOverlap(
     tenantId: string,
+    branchId: string,
     staffId: string,
     startAt: Date,
     endAt: Date,
@@ -136,6 +177,7 @@ export class AppointmentsService {
       await this.prisma.appointment.findFirst({
         where: {
           tenantId,
+          branchId,
           staffId,
 
           ...(excludeId
@@ -178,6 +220,7 @@ export class AppointmentsService {
 
   async create(input: CreateAppointmentInput) {
     const tenantId = this.getTenantId();
+    const branchId = this.requireBranchId();
 
     this.validateDateRange(
       input.startAt,
@@ -191,10 +234,12 @@ export class AppointmentsService {
         staffId: input.staffId,
         serviceId: input.serviceId,
       },
+      branchId,
     );
 
     await this.ensureNoStaffOverlap(
       tenantId,
+      branchId,
       input.staffId,
       input.startAt,
       input.endAt,
@@ -204,6 +249,7 @@ export class AppointmentsService {
       return await this.prisma.appointment.create({
         data: {
           tenantId,
+          branchId,
           customerId: input.customerId,
           staffId: input.staffId,
           serviceId: input.serviceId,
@@ -247,7 +293,7 @@ export class AppointmentsService {
     const skip = (page - 1) * limit;
 
     const where = {
-      tenantId,
+      ...this.getAppointmentScope(),
 
       ...(status ? { status } : {}),
 
@@ -269,6 +315,7 @@ export class AppointmentsService {
                     },
                   ]
                 : []),
+
               ...(to
                 ? [
                     {
@@ -292,16 +339,16 @@ export class AppointmentsService {
           orderBy: {
             startAt: 'asc',
           },
-            include: {
-              payment: {
-                select: {
-                  id: true,
-                  amount: true,
-                  method: true,
-                  paidAt: true,
-                },
+          include: {
+            payment: {
+              select: {
+                id: true,
+                amount: true,
+                method: true,
+                paidAt: true,
               },
             },
+          },
         }),
 
         this.prisma.appointment.count({
@@ -323,24 +370,22 @@ export class AppointmentsService {
   }
 
   async findOne(id: string) {
-    const tenantId = this.getTenantId();
-
     const appointment =
       await this.prisma.appointment.findFirst({
         where: {
           id,
-          tenantId,
+          ...this.getAppointmentScope(),
         },
-          include: {
-            payment: {
-              select: {
-                id: true,
-                amount: true,
-                method: true,
-                paidAt: true,
-              },
+        include: {
+          payment: {
+            select: {
+              id: true,
+              amount: true,
+              method: true,
+              paidAt: true,
             },
           },
+        },
       });
 
     if (!appointment) {
@@ -362,7 +407,7 @@ export class AppointmentsService {
       await this.prisma.appointment.findFirst({
         where: {
           id,
-          tenantId,
+          ...this.getAppointmentScope(),
         },
       });
 
@@ -418,10 +463,12 @@ export class AppointmentsService {
         staffId,
         serviceId,
       },
+      appointment.branchId,
     );
 
     await this.ensureNoStaffOverlap(
       tenantId,
+      appointment.branchId,
       staffId,
       startAt,
       endAt,
@@ -479,13 +526,11 @@ export class AppointmentsService {
   }
 
   async remove(id: string) {
-    const tenantId = this.getTenantId();
-
     const appointment =
       await this.prisma.appointment.findFirst({
         where: {
           id,
-          tenantId,
+          ...this.getAppointmentScope(),
         },
         select: {
           id: true,

@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Post,
+  Req,
   UseGuards,
 } from '@nestjs/common';
 
@@ -17,6 +18,7 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -40,6 +42,8 @@ export class AuthController {
     return this.authService.createTenantUser(
       input,
       this.tenantContext.getTenantId(),
+      this.tenantContext.getCompanyId(),
+      this.tenantContext.getBranchId(),
     );
   }
 
@@ -48,6 +52,19 @@ export class AuthController {
     const input: LoginInput = loginSchema.parse(body);
 
     return this.authService.login(input);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('context/switch')
+  async switchContext(
+    @CurrentUser() user: JwtPayload,
+    @Body() body: { membershipId: string; branchId: string | null },
+  ) {
+    return this.authService.switchContext(
+      body.membershipId,
+      body.branchId ?? null,
+      user.sub,
+    );
   }
 
   @Post('refresh')
@@ -66,9 +83,7 @@ export class AuthController {
     return {
       authenticated: true,
       user,
-      tenantContext: {
-        tenantId: this.tenantContext.getTenantId(),
-      },
+      tenantContext: this.tenantContext.getContext(),
     };
   }
 }

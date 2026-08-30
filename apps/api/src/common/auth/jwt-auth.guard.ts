@@ -34,17 +34,24 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
       throw new UnauthorizedException('JWT user not found');
     }
 
-    const jwtUser = user as TUser & {
-      tenantId?: string;
-    };
+    const jwtUser = user as TUser & JwtPayload;
 
-    if (!jwtUser.tenantId) {
+    if (
+      !jwtUser.tenantId ||
+      !jwtUser.companyId ||
+      !jwtUser.roleScope
+    ) {
       throw new UnauthorizedException(
-        'Tenant context is missing',
+        'Organization context is missing',
       );
     }
 
-    this.tenantContext.setTenantId(jwtUser.tenantId);
+    this.tenantContext.setContext({
+      tenantId: jwtUser.tenantId,
+      companyId: jwtUser.companyId,
+      branchId: jwtUser.branchId ?? null,
+      roleScope: jwtUser.roleScope,
+    });
 
     return user;
   }

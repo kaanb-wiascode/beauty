@@ -265,6 +265,133 @@ function NavLinks({
 
 }
 
+
+function MobileNav({ pathname }: { pathname: string }) {
+  const [moreOpen, setMoreOpen] = useState(false);
+
+  const visibleItems = NAV.filter((item) => {
+    if (!("permission" in item)) return true;
+
+    const [resource, action] = item.permission.split(".");
+    return hasPermission(resource, action);
+  });
+
+  const primaryHrefs = [
+    "/dashboard",
+    "/customers",
+    "/appointments",
+    "/payments",
+  ];
+
+  const primaryItems = visibleItems.filter((item) =>
+    primaryHrefs.includes(item.href),
+  );
+
+  const moreItems = visibleItems.filter(
+    (item) => !primaryHrefs.includes(item.href),
+  );
+
+  const moreActive = moreItems.some(
+    (item) =>
+      pathname === item.href ||
+      (item.href !== "/dashboard" &&
+        pathname.startsWith(`${item.href}/`)),
+  );
+
+  return (
+    <div className="relative">
+      {moreOpen ? (
+        <div className="absolute bottom-[calc(100%+10px)] left-1/2 z-40 w-[calc(100%-8px)] -translate-x-1/2 rounded-[22px] border border-white/60 bg-[rgba(255,252,249,0.92)] p-2 shadow-[0_18px_50px_rgba(28,25,23,0.16)] backdrop-blur-2xl backdrop-saturate-150">
+          <nav
+            aria-label="Diğer sayfalar"
+            className="grid grid-cols-2 gap-1.5"
+          >
+            {moreItems.map((item) => {
+              const active =
+                pathname === item.href ||
+                (item.href !== "/dashboard" &&
+                  pathname.startsWith(`${item.href}/`));
+
+              const Icon = item.icon;
+
+              return (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMoreOpen(false)}
+                  aria-current={active ? "page" : undefined}
+                  className={cx(
+                    "flex min-w-0 items-center gap-2 rounded-[14px] px-3 py-3 text-[13px] transition-colors",
+                    active
+                      ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                      : "text-[var(--muted)] hover:bg-black/[0.04] hover:text-[var(--ink)]",
+                  )}
+                >
+                  <span className="shrink-0">
+                    <Icon />
+                  </span>
+                  <span className="min-w-0 truncate">{item.label}</span>
+                </Link>
+              );
+            })}
+          </nav>
+        </div>
+      ) : null}
+
+      <nav
+        aria-label="Mobil ana navigasyon"
+        className="grid grid-cols-5 gap-1 px-1 py-1"
+      >
+        {primaryItems.map((item) => {
+          const active =
+            pathname === item.href ||
+            (item.href !== "/dashboard" &&
+              pathname.startsWith(`${item.href}/`));
+
+          const Icon = item.icon;
+
+          return (
+            <Link
+              key={item.href}
+              href={item.href}
+              aria-current={active ? "page" : undefined}
+              className={cx(
+                "flex min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] px-1 py-2.5 text-[11px] transition-colors",
+                active
+                  ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+                  : "text-[var(--muted)] hover:bg-black/[0.04] hover:text-[var(--ink)]",
+              )}
+            >
+              <span className="shrink-0">
+                <Icon />
+              </span>
+              <span className="max-w-full truncate">{item.label}</span>
+            </Link>
+          );
+        })}
+
+        <button
+          type="button"
+          onClick={() => setMoreOpen((current) => !current)}
+          aria-expanded={moreOpen}
+          aria-label="Diğer menü seçenekleri"
+          className={cx(
+            "flex min-w-0 flex-col items-center justify-center gap-1 rounded-[16px] px-1 py-2.5 text-[11px] transition-colors",
+            moreOpen || moreActive
+              ? "bg-[var(--accent-soft)] font-medium text-[var(--accent)]"
+              : "text-[var(--muted)] hover:bg-black/[0.04] hover:text-[var(--ink)]",
+          )}
+        >
+          <span className="text-[15px] leading-none tracking-[0.12em]">
+            •••
+          </span>
+          <span>Daha</span>
+        </button>
+      </nav>
+    </div>
+  );
+}
+
 export function AppShell({
 
   children,
@@ -497,13 +624,7 @@ export function AppShell({
 
         <div className="glass-elevated safe-area-bottom fixed inset-x-3 bottom-3 z-30 rounded-[24px] px-1 pt-1 lg:hidden">
 
-          <NavLinks
-
-            pathname={pathname}
-
-            compact
-
-          />
+          <MobileNav pathname={pathname} />
 
         </div>
 

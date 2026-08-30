@@ -234,8 +234,7 @@ export default function StaffPage() {
     <div className="mx-auto max-w-6xl space-y-7">
       <PageHeader
         title="Personel"
-        description="Salon personelini yönetin."
-        action={<Button onClick={openCreate} disabled={!canCreateStaff}>Yeni personel</Button>}
+                action={<Button onClick={openCreate} disabled={!canCreateStaff}>Yeni personel</Button>}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -260,7 +259,7 @@ export default function StaffPage() {
           </div>
 
           <span className="text-[12px] text-[var(--muted)]">
-            {search.trim() ? `"${search.trim()}" sonuçları` : "Tüm personel"}
+            {""}
           </span>
         </div>
 

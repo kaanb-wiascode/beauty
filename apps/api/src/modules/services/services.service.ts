@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,12 +19,73 @@ export class ServicesService {
     private readonly tenantContext: TenantContext,
   ) {}
 
+  private requireBranchId(): string {
+    const branchId = this.tenantContext.getBranchId();
+
+    if (!branchId) {
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
+    }
+
+    return branchId;
+  }
+
+  private getServiceScope() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    // CENTRAL + no active branch = company-wide view.
+    if (roleScope === 'CENTRAL' && branchId === null) {
+      return {
+        tenantId,
+        branch: {
+          companyId,
+        },
+      };
+    }
+
+    // COMPANY / BRANCH, or CENTRAL with an active branch,
+    // are restricted to the active branch.
+    return {
+      tenantId,
+      branchId: this.requireBranchId(),
+    };
+  }
+
+  private async validateBranchAccess(
+    branchId: string,
+  ): Promise<void> {
+    const companyId = this.tenantContext.getCompanyId();
+
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        companyId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+  }
+
   async create(input: CreateServiceInput) {
     const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+
+    await this.validateBranchAccess(branchId);
 
     return this.prisma.service.create({
       data: {
         tenantId,
+        branchId,
         name: input.name.trim(),
         description: input.description?.trim() || null,
         durationMinutes: input.durationMinutes,
@@ -33,14 +95,16 @@ export class ServicesService {
   }
 
   async findAll(input: ListServicesInput) {
-    const tenantId = this.tenantContext.getTenantId();
-
     const { page, limit, search, status } = input;
     const skip = (page - 1) * limit;
 
+    const scope = this.getServiceScope();
+
     const where = {
-      tenantId,
+      ...scope,
+
       ...(status ? { status } : {}),
+
       ...(search
         ? {
             OR: [
@@ -87,93 +151,90 @@ export class ServicesService {
     };
   }
 
+  async performance(input: ServicePerformanceInput) {
+    const scope = this.getServiceScope();
 
-    async performance(input: ServicePerformanceInput) {
-      const tenantId = this.tenantContext.getTenantId();
+    const [services, appointments] = await Promise.all([
+      this.prisma.service.findMany({
+        where: scope,
+        orderBy: {
+          name: 'asc',
+        },
+        select: {
+          id: true,
+          name: true,
+          price: true,
+          status: true,
+          branchId: true,
+        },
+      }),
 
-      const [services, appointments] = await Promise.all([
-        this.prisma.service.findMany({
-          where: {
-            tenantId,
+      this.prisma.appointment.findMany({
+        where: {
+          ...scope,
+          startAt: {
+            gte: input.from,
+            lte: input.to,
           },
-          orderBy: {
-            name: 'asc',
-          },
-          select: {
-            id: true,
-            name: true,
-            price: true,
-            status: true,
-          },
-        }),
-
-        this.prisma.appointment.findMany({
-          where: {
-            tenantId,
-            startAt: {
-              gte: input.from,
-              lte: input.to,
+        },
+        select: {
+          id: true,
+          serviceId: true,
+          status: true,
+          payment: {
+            select: {
+              amount: true,
+              status: true,
             },
           },
-          select: {
-            id: true,
-            serviceId: true,
-            status: true,
-            payment: {
-              select: {
-                amount: true,
-                status: true,
-              },
-            },
-          },
-        }),
-      ]);
+        },
+      }),
+    ]);
 
-      return services.map((service) => {
-        const serviceAppointments = appointments.filter(
+    return services.map((service) => {
+      const serviceAppointments = appointments.filter(
+        (appointment) =>
+          appointment.serviceId === service.id,
+      );
+
+      const completedAppointments =
+        serviceAppointments.filter(
           (appointment) =>
-            appointment.serviceId === service.id,
-        );
+            appointment.status === 'COMPLETED',
+        ).length;
 
-        const completedAppointments =
-          serviceAppointments.filter(
-            (appointment) =>
-              appointment.status === 'COMPLETED',
-          ).length;
+      const collected = serviceAppointments.reduce(
+        (total, appointment) => {
+          if (
+            appointment.payment?.status !== 'COMPLETED'
+          ) {
+            return total;
+          }
 
-        const collected = serviceAppointments.reduce(
-          (total, appointment) => {
-            if (
-              appointment.payment?.status !== 'COMPLETED'
-            ) {
-              return total;
-            }
+          return (
+            total +
+            Number(appointment.payment.amount)
+          );
+        },
+        0,
+      );
 
-            return (
-              total +
-              Number(appointment.payment.amount)
-            );
-          },
-          0,
-        );
-
-        return {
-          service,
-          appointmentCount: serviceAppointments.length,
-          completedAppointments,
-          collected,
-        };
-      });
-    }
-
+      return {
+        service,
+        appointmentCount: serviceAppointments.length,
+        completedAppointments,
+        collected,
+      };
+    });
+  }
 
   async findOne(id: string) {
-    const tenantId = this.tenantContext.getTenantId();
+    const scope = this.getServiceScope();
 
     const service = await this.prisma.service.findFirst({
       where: {
         id,
-        tenantId,
+        ...scope,
       },
     });
 
@@ -185,12 +246,12 @@ export class ServicesService {
   }
 
   async update(id: string, input: UpdateServiceInput) {
-    const tenantId = this.tenantContext.getTenantId();
+    const scope = this.getServiceScope();
 
     const service = await this.prisma.service.findFirst({
       where: {
         id,
-        tenantId,
+        ...scope,
       },
       select: {
         id: true,
@@ -209,12 +270,16 @@ export class ServicesService {
         ...(input.name !== undefined && {
           name: input.name.trim(),
         }),
+
         ...(input.description !== undefined && {
-          description: input.description?.trim() || null,
+          description:
+            input.description?.trim() || null,
         }),
+
         ...(input.durationMinutes !== undefined && {
           durationMinutes: input.durationMinutes,
         }),
+
         ...(input.price !== undefined && {
           price: input.price,
         }),
@@ -223,12 +288,12 @@ export class ServicesService {
   }
 
   async archive(id: string) {
-    const tenantId = this.tenantContext.getTenantId();
+    const scope = this.getServiceScope();
 
     const service = await this.prisma.service.findFirst({
       where: {
         id,
-        tenantId,
+        ...scope,
       },
       select: {
         id: true,

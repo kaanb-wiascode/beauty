@@ -25,6 +25,94 @@ export class PaymentsService {
     return this.tenantContext.getTenantId();
   }
 
+  private requireBranchId(): string {
+    const branchId = this.tenantContext.getBranchId();
+
+    if (!branchId) {
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
+    }
+
+    return branchId;
+  }
+
+  /**
+   * CENTRAL without an active branch may see the whole company.
+   * Once a branch is selected, all branch-scoped operations are
+   * restricted to that branch.
+   */
+  private getAppointmentScope() {
+    const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    if (roleScope === 'CENTRAL' && branchId === null) {
+      return {
+        tenantId,
+        branch: {
+          companyId,
+        },
+      };
+    }
+
+    return {
+      tenantId,
+      branchId: this.requireBranchId(),
+    };
+  }
+
+  /**
+   * Payments do not have branchId directly; branch isolation is
+   * enforced through the related appointment.
+   */
+  private getPaymentScope() {
+    const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    if (roleScope === 'CENTRAL' && branchId === null) {
+      return {
+        tenantId,
+        appointment: {
+          branch: {
+            companyId,
+          },
+        },
+      };
+    }
+
+    return {
+      tenantId,
+      appointment: {
+        branchId: this.requireBranchId(),
+      },
+    };
+  }
+
+  private getBranchEntityScope() {
+    const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    if (roleScope === 'CENTRAL' && branchId === null) {
+      return {
+        tenantId,
+        branch: {
+          companyId,
+        },
+      };
+    }
+
+    return {
+      tenantId,
+      branchId: this.requireBranchId(),
+    };
+  }
+
   private async buildPeriodMetrics(
     from: Date,
     to: Date,
@@ -39,7 +127,7 @@ export class PaymentsService {
         }),
         this.prisma.appointment.findMany({
           where: {
-            tenantId,
+            ...this.getAppointmentScope(),
             startAt: {
               gte: from,
               lte: to,
@@ -51,7 +139,7 @@ export class PaymentsService {
         }),
         this.prisma.customer.count({
           where: {
-            tenantId,
+            ...this.getBranchEntityScope(),
             createdAt: {
               gte: from,
               lte: to,
@@ -85,7 +173,7 @@ export class PaymentsService {
       await this.prisma.appointment.findFirst({
         where: {
           id: input.appointmentId,
-          tenantId,
+          ...this.getAppointmentScope(),
         },
         include: {
           service: {
@@ -145,7 +233,7 @@ export class PaymentsService {
     const skip = (input.page - 1) * input.limit;
 
     const where = {
-      tenantId,
+      ...this.getPaymentScope(),
       ...(input.method
         ? { method: input.method }
         : {}),
@@ -198,7 +286,7 @@ export class PaymentsService {
     const payment = await this.prisma.payment.findFirst({
       where: {
         id,
-        tenantId,
+        ...this.getPaymentScope(),
       },
     });
 
@@ -230,7 +318,7 @@ export class PaymentsService {
     const [completed, refunded] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
-          tenantId,
+          ...this.getPaymentScope(),
           status: 'COMPLETED',
           paidAt: {
             gte: input.from,
@@ -247,7 +335,7 @@ export class PaymentsService {
 
       this.prisma.payment.aggregate({
         where: {
-          tenantId,
+          ...this.getPaymentScope(),
           status: 'REFUNDED',
           refundedAt: {
             gte: input.from,
@@ -266,7 +354,7 @@ export class PaymentsService {
     const methods = await this.prisma.payment.groupBy({
       by: ['method'],
       where: {
-        tenantId,
+        ...this.getPaymentScope(),
         status: 'COMPLETED',
         paidAt: {
           gte: input.from,
@@ -331,7 +419,7 @@ export class PaymentsService {
       }),
       this.prisma.appointment.findMany({
         where: {
-          tenantId,
+          ...this.getAppointmentScope(),
           startAt: {
             gte: input.from,
             lte: input.to,
@@ -373,25 +461,23 @@ export class PaymentsService {
         },
       }),
       this.prisma.customer.count({
-        where: {
-          tenantId,
-        },
+        where: this.getBranchEntityScope(),
       }),
       this.prisma.staff.count({
         where: {
-          tenantId,
+          ...this.getBranchEntityScope(),
           status: 'ACTIVE',
         },
       }),
       this.prisma.service.count({
         where: {
-          tenantId,
+          ...this.getBranchEntityScope(),
           status: 'ACTIVE',
         },
       }),
       this.prisma.staff.findMany({
         where: {
-          tenantId,
+          ...this.getBranchEntityScope(),
           status: 'ACTIVE',
         },
         select: {
@@ -402,7 +488,7 @@ export class PaymentsService {
       }),
       this.prisma.service.findMany({
         where: {
-          tenantId,
+          ...this.getBranchEntityScope(),
           status: 'ACTIVE',
         },
         select: {
@@ -412,7 +498,7 @@ export class PaymentsService {
       }),
       this.prisma.appointment.findMany({
         where: {
-          tenantId,
+          ...this.getAppointmentScope(),
           startAt: {
             gt: now,
           },
@@ -593,9 +679,7 @@ export class PaymentsService {
         activeStaff,
         activeServices,
         appointments: await this.prisma.appointment.count({
-          where: {
-            tenantId,
-          },
+          where: this.getAppointmentScope(),
         }),
       },
 
@@ -627,7 +711,7 @@ export class PaymentsService {
       await this.prisma.payment.findFirst({
         where: {
           id,
-          tenantId,
+          ...this.getPaymentScope(),
         },
         include: {
           appointment: true,

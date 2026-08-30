@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -18,12 +19,73 @@ export class StaffService {
     private readonly tenantContext: TenantContext,
   ) {}
 
+  private requireBranchId(): string {
+    const branchId = this.tenantContext.getBranchId();
+
+    if (!branchId) {
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
+    }
+
+    return branchId;
+  }
+
+  private getStaffScope() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    // CENTRAL + no active branch = company-wide view.
+    if (roleScope === 'CENTRAL' && branchId === null) {
+      return {
+        tenantId,
+        branch: {
+          companyId,
+        },
+      };
+    }
+
+    // COMPANY / BRANCH, or CENTRAL with an active branch,
+    // are restricted to the active branch.
+    return {
+      tenantId,
+      branchId: this.requireBranchId(),
+    };
+  }
+
+  private async validateBranchAccess(
+    branchId: string,
+  ): Promise<void> {
+    const companyId = this.tenantContext.getCompanyId();
+
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        companyId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+  }
+
   async create(input: CreateStaffInput) {
     const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+
+    await this.validateBranchAccess(branchId);
 
     return this.prisma.staff.create({
       data: {
         tenantId,
+        branchId,
         firstName: input.firstName.trim(),
         lastName: input.lastName.trim(),
         phone: input.phone?.trim() || null,
@@ -33,14 +95,16 @@ export class StaffService {
   }
 
   async findAll(input: ListStaffInput) {
-    const tenantId = this.tenantContext.getTenantId();
-
     const { page, limit, search, status } = input;
     const skip = (page - 1) * limit;
 
+    const scope = this.getStaffScope();
+
     const where = {
-      tenantId,
+      ...scope,
+
       ...(status ? { status } : {}),
+
       ...(search
         ? {
             OR: [
@@ -98,84 +162,83 @@ export class StaffService {
     };
   }
 
+  async performance(input: StaffPerformanceInput) {
+    const scope = this.getStaffScope();
 
-    async performance(input: StaffPerformanceInput) {
-      const tenantId = this.tenantContext.getTenantId();
+    const [staff, appointments] = await Promise.all([
+      this.prisma.staff.findMany({
+        where: scope,
+        orderBy: {
+          firstName: 'asc',
+        },
+        select: {
+          id: true,
+          firstName: true,
+          lastName: true,
+          status: true,
+          branchId: true,
+        },
+      }),
 
-      const [staff, appointments] = await Promise.all([
-        this.prisma.staff.findMany({
-          where: {
-            tenantId,
+      this.prisma.appointment.findMany({
+        where: {
+          ...scope,
+          startAt: {
+            gte: input.from,
+            lte: input.to,
           },
-          orderBy: {
-            firstName: 'asc',
-          },
-          select: {
-            id: true,
-            firstName: true,
-            lastName: true,
-            status: true,
-          },
-        }),
-
-        this.prisma.appointment.findMany({
-          where: {
-            tenantId,
-            startAt: {
-              gte: input.from,
-              lte: input.to,
+        },
+        select: {
+          id: true,
+          staffId: true,
+          status: true,
+          payment: {
+            select: {
+              amount: true,
+              status: true,
             },
           },
-          select: {
-            id: true,
-            staffId: true,
-            status: true,
-            payment: {
-              select: {
-                amount: true,
-                status: true,
-              },
-            },
-          },
-        }),
-      ]);
+        },
+      }),
+    ]);
 
-      return staff.map((member) => {
-        const memberAppointments = appointments.filter(
-          (appointment) => appointment.staffId === member.id,
-        );
+    return staff.map((member) => {
+      const memberAppointments = appointments.filter(
+        (appointment) => appointment.staffId === member.id,
+      );
 
-        const completedAppointments = memberAppointments.filter(
+      const completedAppointments =
+        memberAppointments.filter(
           (appointment) => appointment.status === 'COMPLETED',
         ).length;
 
-        const collected = memberAppointments.reduce(
-          (total, appointment) => {
-            if (appointment.payment?.status !== 'COMPLETED') {
-              return total;
-            }
+      const collected = memberAppointments.reduce(
+        (total, appointment) => {
+          if (appointment.payment?.status !== 'COMPLETED') {
+            return total;
+          }
 
-            return total + Number(appointment.payment.amount);
-          },
-          0,
-        );
+          return total + Number(appointment.payment.amount);
+        },
+        0,
+      );
 
-        return {
-          staff: member,
-          appointmentCount: memberAppointments.length,
-          completedAppointments,
-          collected,
-        };
-      });
-    }
+      return {
+        staff: member,
+        appointmentCount: memberAppointments.length,
+        completedAppointments,
+        collected,
+      };
+    });
+  }
 
   async findOne(id: string) {
-    const tenantId = this.tenantContext.getTenantId();
+    const scope = this.getStaffScope();
 
     const staff = await this.prisma.staff.findFirst({
       where: {
         id,
-        tenantId,
+        ...scope,
       },
     });
 
@@ -187,12 +250,12 @@ export class StaffService {
   }
 
   async update(id: string, input: UpdateStaffInput) {
-    const tenantId = this.tenantContext.getTenantId();
+    const scope = this.getStaffScope();
 
     const staff = await this.prisma.staff.findFirst({
       where: {
         id,
-        tenantId,
+        ...scope,
       },
       select: {
         id: true,
@@ -211,12 +274,15 @@ export class StaffService {
         ...(input.firstName !== undefined && {
           firstName: input.firstName.trim(),
         }),
+
         ...(input.lastName !== undefined && {
           lastName: input.lastName.trim(),
         }),
+
         ...(input.phone !== undefined && {
           phone: input.phone?.trim() || null,
         }),
+
         ...(input.email !== undefined && {
           email: input.email?.trim().toLowerCase() || null,
         }),
@@ -225,12 +291,12 @@ export class StaffService {
   }
 
   async archive(id: string) {
-    const tenantId = this.tenantContext.getTenantId();
+    const scope = this.getStaffScope();
 
     const staff = await this.prisma.staff.findFirst({
       where: {
         id,
-        tenantId,
+        ...scope,
       },
       select: {
         id: true,

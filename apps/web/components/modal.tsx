@@ -151,7 +151,7 @@ export function Modal({
         aria-labelledby={titleId}
         aria-describedby={description ? descriptionId : undefined}
         className={cx(
-          "glass-elevated relative z-10 w-full rounded-t-[28px] p-6 sm:max-w-lg sm:rounded-[28px] sm:p-7",
+          "glass-elevated relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] px-5 pt-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:max-w-lg sm:rounded-[28px] sm:p-7",
           open
             ? "animate-sheet-in sm:animate-rise-in"
             : "animate-sheet-out",
@@ -160,7 +160,7 @@ export function Modal({
         <div className="mb-6">
           <h2
             id={titleId}
-            className="text-[22px] font-semibold tracking-[-0.03em] text-[var(--ink)]"
+            className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]"
           >
             {title}
           </h2>

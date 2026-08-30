@@ -34,6 +34,13 @@ export type LoginResponse = {
   };
 };
 
+export type CustomerSource =
+  | "INSTAGRAM"
+  | "GOOGLE"
+  | "REFERRAL"
+  | "WALK_IN"
+  | "OTHER";
+
 export type Customer = {
   id: string;
   tenantId: string;
@@ -41,8 +48,37 @@ export type Customer = {
   lastName: string;
   phone: string | null;
   email: string | null;
+  birthDate: string | null;
+  customerSource: CustomerSource | null;
   createdAt: string;
   updatedAt: string;
+};
+
+export type CustomerHealthProfile = {
+  allergies: string | null;
+  sensitivities: string | null;
+  medications: string | null;
+  conditions: string | null;
+  notes: string | null;
+};
+
+export type CustomerConsentType =
+  | "KVKK_ACKNOWLEDGEMENT"
+  | "EXPLICIT_CONSENT"
+  | "MEMBERSHIP_AGREEMENT"
+  | "HEALTH_FORM_COMPLETION"
+  | "HEALTH_DATA_CONSENT"
+  | "MARKETING_SMS"
+  | "MARKETING_EMAIL"
+  | "MARKETING_PHONE";
+
+export type CustomerConsent = {
+  id: string;
+  type: CustomerConsentType;
+  status: "ACCEPTED" | "DECLINED";
+  documentVersion: string;
+  acceptedAt: string | null;
+  source: "WEB" | "STAFF" | "KIOSK" | "DIGITAL_SIGNATURE";
 };
 
 export type StaffStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
@@ -105,6 +141,25 @@ export type CreateCustomerInput = {
   lastName: string;
   phone?: string;
   email?: string;
+  birthDate?: string;
+  customerSource?: CustomerSource;
+  healthProfile?: {
+    allergies?: string;
+    sensitivities?: string;
+    medications?: string;
+    conditions?: string;
+    notes?: string;
+  };
+  consents?: {
+    kvkkAcknowledgement?: boolean;
+    explicitConsent?: boolean;
+    membershipAgreement?: boolean;
+    healthFormCompletion?: boolean;
+    healthDataConsent?: boolean;
+    marketingSms?: boolean;
+    marketingEmail?: boolean;
+    marketingPhone?: boolean;
+  };
 };
 
 export type UpdateCustomerInput = {
@@ -112,6 +167,8 @@ export type UpdateCustomerInput = {
   lastName?: string;
   phone?: string | null;
   email?: string | null;
+  birthDate?: string | null;
+  customerSource?: CustomerSource | null;
 };
 
 export type CreateStaffInput = {

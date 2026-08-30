@@ -250,8 +250,7 @@ export default function ServicesPage() {
     <div className="mx-auto max-w-6xl space-y-7">
       <PageHeader
         title="Hizmetler"
-        description="Salon hizmetlerini ve fiyatları yönetin."
-        action={<Button onClick={openCreate} disabled={!canCreateService}>Yeni hizmet</Button>}
+                action={<Button onClick={openCreate} disabled={!canCreateService}>Yeni hizmet</Button>}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -276,7 +275,7 @@ export default function ServicesPage() {
           </div>
 
           <span className="text-[12px] text-[var(--muted)]">
-            {search.trim() ? `"${search.trim()}" sonuçları` : "Tüm hizmetler"}
+            {""}
           </span>
         </div>
 

@@ -80,6 +80,22 @@ export class AuthService {
         },
       });
 
+      const company = await tx.company.create({
+        data: {
+          tenantId: tenant.id,
+          name: input.tenantName.trim(),
+          slug: tenantSlug,
+        },
+      });
+
+      const branch = await tx.branch.create({
+        data: {
+          companyId: company.id,
+          name: 'Merkez',
+          code: 'MERKEZ',
+        },
+      });
+
       const user = await tx.user.create({
         data: {
           email,
@@ -92,9 +108,11 @@ export class AuthService {
       const role = await tx.role.create({
         data: {
           tenantId: tenant.id,
+          companyId: company.id,
           name: 'Owner',
           slug: 'owner',
-          description: 'Full access to the tenant.',
+          description: 'Full access to the company.',
+          scope: 'CENTRAL',
         },
       });
 
@@ -102,7 +120,15 @@ export class AuthService {
         data: {
           userId: user.id,
           tenantId: tenant.id,
+          companyId: company.id,
           roleId: role.id,
+        },
+      });
+
+      await tx.membershipBranchAccess.create({
+        data: {
+          membershipId: membership.id,
+          branchId: branch.id,
         },
       });
 
@@ -142,16 +168,35 @@ export class AuthService {
           name: tenant.name,
           slug: tenant.slug,
         },
+        company: {
+          id: company.id,
+          name: company.name,
+          slug: company.slug,
+        },
+        branch: {
+          id: branch.id,
+          name: branch.name,
+          code: branch.code,
+        },
         membership: {
           id: membership.id,
           role: role.slug,
+          roleScope: role.scope,
           status: membership.status,
+          permissions: DEFAULT_OWNER_PERMISSIONS.map(
+            ([resource, action]) => `${resource}.${action}`,
+          ),
         },
       };
     });
   }
 
-  async createTenantUser(input: CreateTenantUserInput, tenantId: string) {
+  async createTenantUser(
+    input: CreateTenantUserInput,
+    tenantId: string,
+    companyId: string,
+    branchId: string | null,
+  ) {
     const email = input.email.trim().toLowerCase();
 
     const existingUser = await this.prisma.user.findUnique({
@@ -167,16 +212,30 @@ export class AuthService {
       where: {
         id: input.roleId,
         tenantId,
+        OR: [
+          { companyId: null },
+          { companyId },
+        ],
       },
       select: {
         id: true,
         name: true,
         slug: true,
+        scope: true,
+        companyId: true,
       },
     });
 
     if (!role) {
-      throw new ConflictException('Role does not belong to this tenant');
+      throw new ConflictException(
+        'Role does not belong to this company',
+      );
+    }
+
+    if (role.scope === 'BRANCH' && !branchId) {
+      throw new ConflictException(
+        'A branch is required for a branch-scoped role',
+      );
     }
 
     const passwordHash = await argon2.hash(input.password);
@@ -195,9 +254,33 @@ export class AuthService {
         data: {
           userId: user.id,
           tenantId,
+          companyId,
           roleId: role.id,
         },
       });
+
+      const branches = await tx.branch.findMany({
+        where: {
+          companyId,
+          status: 'ACTIVE',
+          ...(role.scope === 'BRANCH' && branchId
+            ? { id: branchId }
+            : {}),
+        },
+        select: {
+          id: true,
+        },
+      });
+
+      if (branches.length > 0) {
+        await tx.membershipBranchAccess.createMany({
+          data: branches.map((branch) => ({
+            membershipId: membership.id,
+            branchId: branch.id,
+          })),
+          skipDuplicates: true,
+        });
+      }
 
       return {
         user: {
@@ -210,6 +293,7 @@ export class AuthService {
           id: membership.id,
           role: role.slug,
           roleName: role.name,
+          roleScope: role.scope,
           status: membership.status,
         },
       };
@@ -244,6 +328,15 @@ export class AuthService {
           },
           include: {
             tenant: true,
+            company: true,
+            branchAccesses: {
+              include: {
+                branch: true,
+              },
+              orderBy: {
+                createdAt: 'asc',
+              },
+            },
             role: {
               include: {
                 rolePermissions: {
@@ -253,6 +346,9 @@ export class AuthService {
                 },
               },
             },
+          },
+          orderBy: {
+            createdAt: 'asc',
           },
         },
       },
@@ -272,23 +368,51 @@ export class AuthService {
     }
 
     if (user.memberships.length === 0) {
-      throw new UnauthorizedException('No active tenant membership');
+      throw new UnauthorizedException(
+        'No active organization membership',
+      );
     }
 
     const membership = user.memberships[0];
 
+    if (!membership.company) {
+      throw new UnauthorizedException(
+        'Membership organization context is missing',
+      );
+    }
+
+    const branchId =
+      membership.role.scope === 'BRANCH'
+        ? membership.branchAccesses[0]?.branchId ?? null
+        : null;
+
+    if (
+      membership.role.scope === 'BRANCH' &&
+      !branchId
+    ) {
+      throw new UnauthorizedException(
+        'No active branch access is assigned',
+      );
+    }
+
     const accessToken = await this.createAccessToken(
       user.id,
       membership.tenantId,
+      membership.company.id,
+      branchId,
       membership.id,
       membership.roleId,
+      membership.role.scope,
     );
 
     const refreshToken = await this.createRefreshSession(
       user.id,
       membership.tenantId,
+      membership.company.id,
+      branchId,
       membership.id,
       membership.roleId,
+      membership.role.scope,
     );
 
     return {
@@ -305,13 +429,131 @@ export class AuthService {
         name: membership.tenant.name,
         slug: membership.tenant.slug,
       },
+      company: {
+        id: membership.company.id,
+        name: membership.company.name,
+        slug: membership.company.slug,
+      },
+      branch: branchId
+        ? membership.branchAccesses.find(
+            (access) => access.branchId === branchId,
+          )?.branch ?? null
+        : null,
       membership: {
         id: membership.id,
         role: membership.role.slug,
+        roleScope: membership.role.scope,
         status: membership.status,
         permissions: membership.role.rolePermissions.map(
-          (item) => `${item.permission.resource}.${item.permission.action}`,
+          (item) =>
+            `${item.permission.resource}.${item.permission.action}`,
         ),
+        branchIds: membership.branchAccesses.map(
+          (access) => access.branchId,
+        ),
+      },
+    };
+  }
+
+  async switchContext(
+    membershipId: string,
+    branchId: string | null,
+    userId: string,
+  ) {
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id: membershipId,
+        userId,
+        status: 'ACTIVE',
+      },
+      include: {
+        tenant: true,
+        company: true,
+        role: true,
+        branchAccesses: {
+          include: { branch: true },
+          orderBy: { createdAt: 'asc' },
+        },
+        user: true,
+      },
+    });
+
+    if (!membership || !membership.company) {
+      throw new UnauthorizedException('Membership is missing or inactive');
+    }
+
+    if (branchId === null) {
+      if (membership.role.scope === 'BRANCH') {
+        throw new UnauthorizedException('A branch is required for this role');
+      }
+    } else {
+      const branch = await this.prisma.branch.findFirst({
+        where: {
+          id: branchId,
+          companyId: membership.companyId ?? membership.company.id,
+          status: 'ACTIVE',
+        },
+        select: { id: true, name: true, code: true },
+      });
+
+      if (!branch) {
+        throw new UnauthorizedException('Branch does not belong to this company');
+      }
+
+      if (membership.role.scope !== 'CENTRAL') {
+        const allowed = membership.branchAccesses.some(
+          (access) => access.branchId === branchId,
+        );
+
+        if (!allowed) {
+          throw new UnauthorizedException('You do not have access to this branch');
+        }
+      }
+    }
+
+    const companyId = membership.companyId ?? membership.company.id;
+
+    const accessToken = await this.createAccessToken(
+      membership.user.id,
+      membership.tenantId,
+      companyId,
+      branchId,
+      membership.id,
+      membership.roleId,
+      membership.role.scope,
+    );
+
+    const refreshToken = await this.createRefreshSession(
+      membership.user.id,
+      membership.tenantId,
+      companyId,
+      branchId,
+      membership.id,
+      membership.roleId,
+      membership.role.scope,
+    );
+
+    return {
+      accessToken,
+      refreshToken,
+      company: {
+        id: membership.company.id,
+        name: membership.company.name,
+        slug: membership.company.slug,
+      },
+      branch: branchId
+        ? membership.branchAccesses.find((access) => access.branchId === branchId)?.branch ??
+          (await this.prisma.branch.findUnique({
+            where: { id: branchId },
+            select: { id: true, name: true, code: true, status: true },
+          }))
+        : null,
+      membership: {
+        id: membership.id,
+        role: membership.role.slug,
+        roleScope: membership.role.scope,
+        status: membership.status,
+        branchIds: membership.branchAccesses.map((access) => access.branchId),
       },
     };
   }
@@ -333,6 +575,9 @@ export class AuthService {
       tenantId: string;
       membershipId: string;
       roleId: string;
+      companyId?: string;
+      branchId?: string | null;
+      roleScope?: 'CENTRAL' | 'COMPANY' | 'BRANCH';
     };
 
     try {
@@ -348,7 +593,16 @@ export class AuthService {
       },
       include: {
         tenant: true,
+        company: true,
         role: true,
+        branchAccesses: {
+          include: {
+            branch: true,
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
         user: true,
       },
     });
@@ -358,28 +612,65 @@ export class AuthService {
       membership.status !== 'ACTIVE' ||
       membership.userId !== session.userId ||
       membership.tenantId !== session.tenantId ||
-      membership.roleId !== session.roleId
+      membership.roleId !== session.roleId ||
+      !membership.company
     ) {
       await this.redis.delete(key);
       throw new UnauthorizedException('Invalid or inactive session');
     }
 
+    const companyId =
+      membership.companyId ?? session.companyId;
+
+    if (!companyId) {
+      await this.redis.delete(key);
+      throw new UnauthorizedException(
+        'Organization context is missing',
+      );
+    }
+
+    const branchId =
+      membership.role.scope === 'BRANCH'
+        ? (
+            session.branchId &&
+            membership.branchAccesses.some(
+              (access) => access.branchId === session.branchId,
+            )
+              ? session.branchId
+              : membership.branchAccesses[0]?.branchId ?? null
+          )
+        : null;
+
+    if (
+      membership.role.scope === 'BRANCH' &&
+      !branchId
+    ) {
+      await this.redis.delete(key);
+      throw new UnauthorizedException(
+        'No active branch access is assigned',
+      );
+    }
+
     const newAccessToken = await this.createAccessToken(
       membership.user.id,
       membership.tenantId,
+      companyId,
+      branchId,
       membership.id,
       membership.roleId,
+      membership.role.scope,
     );
 
     const newRefreshToken = await this.createRefreshSession(
       membership.user.id,
       membership.tenantId,
+      companyId,
+      branchId,
       membership.id,
       membership.roleId,
+      membership.role.scope,
     );
 
-    // Refresh token rotation:
-    // eski session artık geçersiz.
     await this.redis.delete(key);
 
     return {
@@ -405,30 +696,42 @@ export class AuthService {
   private async createAccessToken(
     userId: string,
     tenantId: string,
+    companyId: string,
+    branchId: string | null,
     membershipId: string,
     roleId: string,
+    roleScope: 'CENTRAL' | 'COMPANY' | 'BRANCH',
   ): Promise<string> {
     return this.jwtService.signAsync({
       sub: userId,
       tenantId,
+      companyId,
+      branchId,
       membershipId,
       roleId,
+      roleScope,
     });
   }
 
   private async createRefreshSession(
     userId: string,
     tenantId: string,
+    companyId: string,
+    branchId: string | null,
     membershipId: string,
     roleId: string,
+    roleScope: 'CENTRAL' | 'COMPANY' | 'BRANCH',
   ): Promise<string> {
     const sessionId = randomUUID();
 
     const refreshSession = {
       userId,
       tenantId,
+      companyId,
+      branchId,
       membershipId,
       roleId,
+      roleScope,
     };
 
     await this.redis.set(

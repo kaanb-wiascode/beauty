@@ -26,6 +26,11 @@ import {
 } from './dto/update-customer.dto';
 
 import {
+  updateHealthProfileSchema,
+  UpdateHealthProfileInput,
+} from './dto/update-health-profile.dto';
+
+import {
   listCustomersSchema,
   ListCustomersInput,
 } from './dto/list-customers.dto';
@@ -64,6 +69,22 @@ export class CustomersController {
     @RequirePermission('customers', 'read')
   async findOne(@Param('id') id: string) {
     return this.customersService.findOne(id);
+  }
+
+  @Patch(':id/health-profile')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('customers', 'update')
+  async updateHealthProfile(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input: UpdateHealthProfileInput =
+      updateHealthProfileSchema.parse(body);
+
+    return this.customersService.updateHealthProfile(
+      id,
+      input,
+    );
   }
 
   @Patch(':id')

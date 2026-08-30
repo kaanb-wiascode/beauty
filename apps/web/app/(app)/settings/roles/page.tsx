@@ -572,8 +572,7 @@ export default function RolesPage() {
     <div className="mx-auto max-w-6xl space-y-8">
       <PageHeader
         title="Roller & Yetkiler"
-        description="Rollerin erişimlerini ve kullanıcı atamalarını yönetin."
-        action={
+                action={
           <Button onClick={() => setCreateOpen(true)}>
             Yeni rol
           </Button>

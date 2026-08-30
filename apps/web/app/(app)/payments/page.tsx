@@ -331,8 +331,7 @@ export default function PaymentsPage() {
     <div className="mx-auto max-w-6xl space-y-8">
       <PageHeader
         title="Ödemeler"
-        description="Alınan ödemeleri ve tahsilatları yönetin."
-      />
+              />
 
       {error ? (
         <Alert onClose={() => setError("")}>{error}</Alert>
