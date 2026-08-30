@@ -31,6 +31,30 @@ export class CustomersService {
     return branchId;
   }
 
+  private getAppointmentScope() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+    const roleScope = this.tenantContext.getRoleScope();
+
+    // CENTRAL + no active branch = company-wide view.
+    if (roleScope === "CENTRAL" && branchId === null) {
+      return {
+        tenantId,
+        branch: {
+          companyId,
+        },
+      };
+    }
+
+    // COMPANY / BRANCH, or CENTRAL with an active branch,
+    // are restricted to the active branch.
+    return {
+      tenantId,
+      branchId: this.requireBranchId(),
+    };
+  }
+
   private getCustomerScope() {
     const tenantId = this.tenantContext.getTenantId();
     const companyId = this.tenantContext.getCompanyId();
@@ -325,7 +349,7 @@ export class CustomersService {
 
         appointments: {
           where: {
-            tenantId: this.tenantContext.getTenantId(),
+            ...this.getAppointmentScope(),
           },
           include: {
             service: {
@@ -416,6 +440,7 @@ export class CustomersService {
     return {
       id: customer.id,
       tenantId: customer.tenantId,
+      branchId: customer.branchId,
       firstName: customer.firstName,
       lastName: customer.lastName,
       phone: customer.phone,

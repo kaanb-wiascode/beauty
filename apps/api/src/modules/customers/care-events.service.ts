@@ -74,12 +74,20 @@ export class CareEventsService {
     appointmentId: string,
   ) {
     const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.tenantContext.getBranchId();
+
+    if (!branchId) {
+      throw new BadRequestException(
+        "A branch must be selected for this operation.",
+      );
+    }
 
     const appointment = await this.prisma.appointment.findFirst({
       where: {
         id: appointmentId,
         tenantId,
         customerId,
+        branchId,
       },
       select: {
         id: true,
@@ -95,11 +103,19 @@ export class CareEventsService {
 
   private async ensureStaff(staffId: string) {
     const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.tenantContext.getBranchId();
+
+    if (!branchId) {
+      throw new BadRequestException(
+        "A branch must be selected for this operation.",
+      );
+    }
 
     const staff = await this.prisma.staff.findFirst({
       where: {
         id: staffId,
         tenantId,
+        branchId,
       },
       select: {
         id: true,
