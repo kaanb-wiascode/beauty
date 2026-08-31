@@ -32,7 +32,6 @@
 }
 
 @media (min-width: 1024px) {
-  /* The reference layout is edge-to-edge: compact sidebar, thin divider, wide canvas. */
   :global(.relative.min-h-screen:has(> aside.glass)) {
     grid-template-columns: 236px minmax(0, 1fr) !important;
     gap: 0 !important;
@@ -90,7 +89,7 @@
 
 /* Fine density pass: preserve the layout, remove visual bulk. */
 .quick-actions { padding: 10px; display: grid; gap: 8px; }
-.quick-action { min-height: 58px !important; padding: 8px 12px !important; border-radius: 12px !important; }
+.quick-action { width: 100% !important; justify-self: stretch !important; min-height: 58px !important; padding: 8px 12px !important; border-radius: 12px !important; }
 .quick-action > span { width: 38px !important; height: 38px !important; border-radius: 11px !important; }
 .quick-action > span svg { width: 18px !important; height: 18px !important; }
 .quick-action b { font-size: 12px !important; }
@@ -123,7 +122,6 @@
 .payment-row { min-height: 42px !important; }
 
 @media (min-width: 1280px) {
-  /* The right rail is a true dashboard rail: full viewport height, independently scrollable. */
   :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail) {
     position: sticky !important;
     top: 0 !important;
