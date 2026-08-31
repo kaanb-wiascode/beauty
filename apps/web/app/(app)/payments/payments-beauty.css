@@ -1,0 +1,29 @@
+[data-payments] h1,
+[data-payments] h2,
+[data-payments] h3,
+[data-payments] strong { color: var(--ink) !important; }
+
+[data-payments] .surface,
+[data-payments] section,
+[data-payments] .rounded-\[18px\] { border-color: var(--line) !important; }
+
+[data-payments] input,
+[data-payments] select,
+[data-payments] textarea { border-color: var(--line) !important; border-radius: var(--radius-control) !important; background: #fff !important; color: var(--ink) !important; }
+
+[data-payments] input:focus,
+[data-payments] select:focus,
+[data-payments] textarea:focus { border-color: rgba(116,86,232,.45) !important; box-shadow: 0 0 0 4px var(--accent-soft) !important; outline: none !important; }
+
+[data-payments] table thead th { background:#fcfbfe !important; color:var(--muted) !important; border-bottom-color:var(--line) !important; }
+[data-payments] table tbody tr { border-bottom-color:var(--line) !important; }
+[data-payments] table tbody tr:hover { background:#faf8ff !important; }
+
+[data-payments] .payments-primary { background:linear-gradient(135deg,var(--accent),#8b6af1) !important; border-color:var(--accent) !important; color:#fff !important; box-shadow:0 8px 20px rgba(116,86,232,.16) !important; }
+[data-payments] .payments-primary:hover { background:linear-gradient(135deg,var(--accent-strong),var(--accent)) !important; transform:translateY(-1px); }
+
+[data-payments] .payments-green { color:var(--secondary) !important; background:var(--secondary-soft) !important; }
+[data-payments] .payments-purple { color:var(--accent) !important; background:var(--accent-soft) !important; }
+[data-payments] .payments-danger { color:var(--danger) !important; background:var(--danger-soft) !important; }
+
+@media(max-width:767px){ [data-payments] h1{font-size:28px !important;} [data-payments] table{min-width:760px;} }
