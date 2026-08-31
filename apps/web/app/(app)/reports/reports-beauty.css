@@ -1,0 +1,14 @@
+[data-reports] h1,[data-reports] h2,[data-reports] h3,[data-reports] strong{color:var(--ink)!important}
+[data-reports] .surface,[data-reports] section{border-color:var(--line)!important}
+[data-reports] input,[data-reports] select{border-color:var(--line)!important;border-radius:var(--radius-control)!important;background:#fff!important;color:var(--ink)!important}
+[data-reports] input:focus,[data-reports] select:focus{border-color:rgba(116,86,232,.45)!important;box-shadow:0 0 0 4px var(--accent-soft)!important;outline:none!important}
+[data-reports] button{transition:transform var(--motion-fast) ease,background-color var(--motion-fast) ease,border-color var(--motion-fast) ease}
+[data-reports] .report-primary{background:linear-gradient(135deg,var(--accent),#8b6af1)!important;border-color:var(--accent)!important;color:#fff!important;box-shadow:0 8px 20px rgba(116,86,232,.15)!important}
+[data-reports] .report-primary:hover{transform:translateY(-1px);background:linear-gradient(135deg,var(--accent-strong),var(--accent))!important}
+[data-reports] table thead th{background:#fcfbfe!important;color:var(--muted)!important;border-bottom-color:var(--line)!important}
+[data-reports] table tbody tr{border-bottom-color:var(--line)!important}
+[data-reports] table tbody tr:hover{background:#faf8ff!important}
+[data-reports] .report-positive{color:var(--secondary)!important;background:var(--secondary-soft)!important;border-color:#d6f0e5!important}
+[data-reports] .report-accent{color:var(--accent)!important;background:var(--accent-soft)!important;border-color:#e3dafd!important}
+@media(max-width:767px){[data-reports] h1{font-size:28px!important}}
+@media print{[data-reports] .surface{box-shadow:none!important}}
