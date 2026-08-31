@@ -203,10 +203,13 @@ export class StaffService {
       }, 0);
 
       return {
-        staff: member,
+        id: member.id,
+        name: `${member.firstName} ${member.lastName}`,
+        collected,
         appointmentCount: memberAppointments.length,
         completedAppointments,
-        collected,
+        status: member.status,
+        branchId: member.branchId,
       };
     });
   }
