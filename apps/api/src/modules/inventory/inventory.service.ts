@@ -23,14 +23,24 @@ export class InventoryService {
   async overview() {
     await this.ensureWarehouses(); const companyId = this.companyId(), branchId = this.tenantContext.getBranchId();
     const filter = branchId ? `w.branch_id='${branchId}'::text` : `w.company_id='${companyId}'::text`;
-    const [m,c,w,p,a,l] = await Promise.all([
+    const [m,c,w,p] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(DISTINCT p.id)::int AS "totalProducts", COUNT(DISTINCT CASE WHEN s.quantity<=s.minimum_quantity AND s.minimum_quantity>0 THEN p.id END)::int AS "criticalProducts", COALESCE(SUM(s.quantity*s.cost_per_unit),0)::numeric AS "inventoryValue" FROM inventory_products p LEFT JOIN inventory_stock s ON s.product_id=p.id LEFT JOIN inventory_warehouses w ON w.id=s.warehouse_id AND ${filter} WHERE p.company_id=$1::text AND p.status='ACTIVE'`, companyId),
       this.prisma.$queryRawUnsafe<any[]>(`SELECT p.id,p.name,p.sku,p.unit,w.id AS "warehouseId",w.name AS "warehouseName",w.type AS "warehouseType",s.quantity,s.minimum_quantity AS "minimumQuantity",s.target_quantity AS "targetQuantity" FROM inventory_stock s JOIN inventory_products p ON p.id=s.product_id JOIN inventory_warehouses w ON w.id=s.warehouse_id WHERE p.company_id=$1::text AND p.status='ACTIVE' AND ${filter} AND s.quantity<=s.minimum_quantity AND s.minimum_quantity>0 ORDER BY s.quantity ASC,p.name ASC LIMIT 12`, companyId),
       this.prisma.$queryRawUnsafe<any[]>(`SELECT id,name,type,branch_id AS "branchId" FROM inventory_warehouses WHERE company_id=$1::text AND status='ACTIVE' ORDER BY type,name`, companyId),
-      this.purchaseRequests(), this.assets(),
-      this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS count FROM inventory_product_lots WHERE company_id=$1::text AND expires_at IS NOT NULL AND expires_at <= NOW()+INTERVAL '30 days' AND quantity>0`, companyId),
+      this.purchaseRequests(),
     ]);
-    return { metrics: row(m[0]??{}), critical:c, warehouses:w, purchaseRequests:p, assetCount:a.length, expiringLots:Number(l[0]?.count??0) };
+
+    let assetCount = 0;
+    try { assetCount = (await this.assets()).length; }
+    catch (error) { console.error('[inventory] asset overview query failed', error); }
+
+    let expiringLots = 0;
+    try {
+      const lots = await this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS count FROM inventory_product_lots WHERE company_id=$1::text AND expires_at IS NOT NULL AND expires_at <= NOW()+INTERVAL '30 days' AND quantity>0`, companyId);
+      expiringLots = Number(lots[0]?.count ?? 0);
+    } catch (error) { console.error('[inventory] expiry overview query failed', error); }
+
+    return { metrics: row(m[0]??{}), critical:c, warehouses:w, purchaseRequests:p, assetCount, expiringLots };
   }
 
   async products(search?: string) {
@@ -64,7 +74,15 @@ export class InventoryService {
   async suppliers(){return this.prisma.$queryRawUnsafe<any[]>(`SELECT id,name,contact_name AS "contactName",phone,email,tax_number AS "taxNumber",address,notes,status FROM inventory_suppliers WHERE company_id=$1::text AND status='ACTIVE' ORDER BY name`,this.companyId());}
   async createSupplier(input:any){const t=this.tenantId(),c=this.companyId();if(!input.name?.trim())throw new BadRequestException('Supplier name is required');return (await this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO inventory_suppliers(tenant_id,company_id,name,contact_name,phone,email,tax_number,address,notes) VALUES($1::text,$2::text,$3,$4,$5,$6,$7,$8,$9) RETURNING id,name,contact_name AS "contactName",phone,email,tax_number AS "taxNumber",address,notes,status`,t,c,input.name.trim(),input.contactName||null,input.phone||null,input.email||null,input.taxNumber||null,input.address||null,input.notes||null))[0];}
 
-  async assets(){const c=this.companyId(),b=this.tenantContext.getBranchId();return this.prisma.$queryRawUnsafe<any[]>(`SELECT a.id,a.asset_code AS "assetCode",a.name,a.asset_type AS "assetType",a.brand,a.model,a.serial_number AS "serialNumber",a.status,a.condition,a.branch_id AS "branchId",br.name AS "branchName",a.assigned_to_staff_id AS "assignedToStaffId",CONCAT(st.first_name,' ',st.last_name) AS "assignedTo",a.purchase_date AS "purchaseDate",a.purchase_price AS "purchasePrice",a.currency,a.warranty_end AS "warrantyEnd",a.next_maintenance_at AS "nextMaintenanceAt",a.category_id AS "categoryId",c.name AS "categoryName" FROM inventory_assets a LEFT JOIN branches br ON br.id=a.branch_id LEFT JOIN staff st ON st.id=a.assigned_to_staff_id LEFT JOIN inventory_categories c ON c.id=a.category_id WHERE a.company_id=$1::text ${b?`AND (a.branch_id=$2::text OR a.branch_id IS NULL)`:''} ORDER BY a.name`,c,...(b?[b]:[]));}
+  async assets(){
+    const c=this.companyId(),b=this.tenantContext.getBranchId();
+    try {
+      return await this.prisma.$queryRawUnsafe<any[]>(`SELECT a.id,a.asset_code AS "assetCode",a.name,a.asset_type AS "assetType",a.brand,a.model,a.serial_number AS "serialNumber",a.status,a.condition,a.branch_id AS "branchId",br.name AS "branchName",a.assigned_to_staff_id AS "assignedToStaffId",a.purchase_date AS "purchaseDate",a.purchase_price AS "purchasePrice",a.currency,a.warranty_end AS "warrantyEnd",a.next_maintenance_at AS "nextMaintenanceAt",a.category_id AS "categoryId",c.name AS "categoryName" FROM inventory_assets a LEFT JOIN branches br ON br.id=a.branch_id LEFT JOIN inventory_categories c ON c.id=a.category_id WHERE a.company_id=$1::text ${b?`AND (a.branch_id=$2::text OR a.branch_id IS NULL)`:''} ORDER BY a.name`,c,...(b?[b]:[]));
+    } catch (error) {
+      console.error('[inventory] assets query failed', error);
+      return [];
+    }
+  }
   async createAsset(input:any){const t=this.tenantId(),c=this.companyId();if(!input.name?.trim())throw new BadRequestException('Asset name is required');if(!input.assetCode?.trim())throw new BadRequestException('Asset code is required');const r=await this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO inventory_assets(tenant_id,company_id,category_id,asset_code,name,asset_type,brand,model,serial_number,status,condition,branch_id,warehouse_id,assigned_to_staff_id,purchase_date,supplier_id,invoice_number,purchase_price,currency,warranty_start,warranty_end,maintenance_interval_days,next_maintenance_at,image_url,notes) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11,$12::text,$13::text,$14::text,$15::timestamptz,$16::text,$17,$18,$19,$20::timestamptz,$21::timestamptz,$22,$23::timestamptz,$24,$25) RETURNING id,asset_code AS "assetCode",name,asset_type AS "assetType",status,condition`,t,c,input.categoryId||null,input.assetCode.trim(),input.name.trim(),input.assetType||'EQUIPMENT',input.brand||null,input.model||null,input.serialNumber||null,input.status||'ACTIVE',input.condition||'GOOD',input.branchId||null,input.warehouseId||null,input.assignedToStaffId||null,input.purchaseDate||null,input.supplierId||null,input.invoiceNumber||null,Number(input.purchasePrice||0),input.currency||'TRY',input.warrantyStart||null,input.warrantyEnd||null,input.maintenanceIntervalDays?Number(input.maintenanceIntervalDays):null,input.nextMaintenanceAt||null,input.imageUrl||null,input.notes||null);const asset=r[0];if(input.assignedToStaffId||input.branchId)await this.prisma.$executeRawUnsafe(`INSERT INTO inventory_asset_assignments(asset_id,staff_id,branch_id,note) VALUES($1::text,$2::text,$3::text,$4)`,asset.id,input.assignedToStaffId||null,input.branchId||null,'İlk envanter kaydı');return asset;}
   async assetMaintenance(assetId?:string){const c=this.companyId();return this.prisma.$queryRawUnsafe<any[]>(`SELECT m.id,m.asset_id AS "assetId",a.name AS "assetName",m.type,m.status,m.scheduled_at AS "scheduledAt",m.completed_at AS "completedAt",m.provider,m.cost,m.currency,m.description FROM inventory_asset_maintenance m JOIN inventory_assets a ON a.id=m.asset_id WHERE a.company_id=$1::text ${assetId?`AND m.asset_id=$2::text`:''} ORDER BY COALESCE(m.scheduled_at,m.created_at) DESC`,c,...(assetId?[assetId]:[]));}
   async createAssetMaintenance(input:any){if(!input.assetId)throw new BadRequestException('Asset is required');const c=this.companyId();const asset=await this.prisma.$queryRawUnsafe<any[]>(`SELECT id FROM inventory_assets WHERE id=$1::text AND company_id=$2::text LIMIT 1`,input.assetId,c);if(!asset.length)throw new NotFoundException('Asset not found');return (await this.prisma.$queryRawUnsafe<any[]>(`INSERT INTO inventory_asset_maintenance(asset_id,type,status,scheduled_at,completed_at,provider,cost,currency,description) VALUES($1::text,$2,$3,$4::timestamptz,$5::timestamptz,$6,$7,$8,$9) RETURNING id,asset_id AS "assetId",type,status,scheduled_at AS "scheduledAt",provider,cost,currency,description`,input.assetId,input.type||'PREVENTIVE',input.status||'PLANNED',input.scheduledAt||null,input.completedAt||null,input.provider||null,Number(input.cost||0),input.currency||'TRY',input.description||null))[0];}
