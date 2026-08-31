@@ -1,14 +1,14 @@
 @media (min-width: 1024px) {
-  /* The dashboard page itself was still capped at 1420px.
-     When the sidebar collapses, let it consume the newly available width. */
-  body:has(aside.w-\[76px\]) .dashboard-page-root {
+  /* Dashboard has its own 1420px max-width. When the sidebar collapses,
+     target only the dashboard root and let it use the newly available space. */
+  body:has(aside.w-\[76px\]) main.ambient-root:has(.dashboard-topbar) > div:first-child {
     width: 100% !important;
     max-width: none !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
 
-  body:has(aside.w-\[76px\]) .dashboard-page-root > .grid {
+  body:has(aside.w-\[76px\]) main.ambient-root:has(.dashboard-topbar) > div:first-child > .grid {
     width: 100% !important;
     max-width: none !important;
   }
