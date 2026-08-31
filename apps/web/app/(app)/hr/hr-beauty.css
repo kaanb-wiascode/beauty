@@ -1,0 +1,12 @@
+/* HR route: local presentation layer only. Shared Beauty tokens remain global. */
+.hr-page{--hr-accent:#7657e8;--hr-green:#39a86b;--hr-line:#ebe8f1}
+.hr-page input,.hr-page select,.hr-page textarea{min-height:40px;border-radius:10px}
+.hr-page button{border-radius:10px}
+.hr-page table{border-collapse:separate;border-spacing:0}
+.hr-page thead th{height:44px;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.hr-page .hr-tab{min-height:40px;border-bottom:2px solid transparent;color:#777688;transition:color .16s ease,border-color .16s ease,background-color .16s ease}
+.hr-page .hr-tab:hover{color:#7657e8;background:#faf9fd}
+.hr-page .hr-tab[aria-selected="true"]{border-bottom-color:#7657e8;color:#7657e8}
+.hr-page .hr-stat{border:1px solid var(--hr-line);border-radius:16px;background:#fff;box-shadow:0 8px 24px rgba(43,35,72,.045)}
+.hr-page .hr-stat-value{letter-spacing:-.025em}
+@media(max-width:767px){.hr-page{padding-left:12px;padding-right:12px}.hr-page .hr-tabs{overflow-x:auto}.hr-page .hr-tab{white-space:nowrap}.hr-page table{min-width:760px}}
