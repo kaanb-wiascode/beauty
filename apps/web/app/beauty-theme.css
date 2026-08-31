@@ -1,0 +1,178 @@
+:root {
+  /* Beauty ERP — light, purple + green visual language */
+  --background: #f7f7fb;
+  --foreground: #302b3f;
+  --muted: #756f82;
+  --muted-soft: #a39eaf;
+  --line: #e9e5f0;
+  --line-strong: #dcd6e7;
+  --accent: #7456e8;
+  --accent-strong: #6442d8;
+  --accent-soft: #f0ebff;
+  --secondary: #16a579;
+  --secondary-strong: #0d8c65;
+  --secondary-soft: #e8f8f1;
+  --success: #16a579;
+  --success-soft: #e8f8f1;
+  --warning: #c07a28;
+  --warning-soft: #fff5e8;
+  --info: #6f63b8;
+  --info-soft: #f0edff;
+  --danger: #c45c70;
+  --danger-soft: #fff0f3;
+  --surface: #ffffff;
+  --surface-2: #fbfaff;
+  --glass: rgba(255, 255, 255, 0.90);
+  --glass-elevated: rgba(255, 255, 255, 0.96);
+  --glass-solid: #ffffff;
+  --ink: #302b3f;
+  --shadow-soft: 0 1px 2px rgba(72, 54, 104, 0.025), 0 10px 28px rgba(72, 54, 104, 0.055);
+  --shadow-lift: 0 12px 32px rgba(72, 54, 104, 0.085), 0 2px 8px rgba(72, 54, 104, 0.035);
+  --focus-ring: rgba(116, 86, 232, 0.22);
+}
+
+html,
+body {
+  background: var(--background) !important;
+  color: var(--foreground) !important;
+}
+
+body::before {
+  background:
+    radial-gradient(48% 34% at 92% -4%, rgba(221, 212, 255, 0.70), transparent 70%),
+    radial-gradient(42% 34% at 3% 100%, rgba(205, 244, 230, 0.60), transparent 72%) !important;
+}
+
+:focus-visible {
+  outline-color: var(--focus-ring) !important;
+}
+
+/* Shared text and control language: never pure black. */
+.text-black,
+.text-\[\#111\],
+.text-\[\#171717\],
+.text-\[\#202020\],
+.text-\[\#242424\] {
+  color: var(--ink) !important;
+}
+
+/* Dashboard: replace the old monochrome treatment with Beauty purple/green. */
+.dashboard-primary-action {
+  border-color: var(--accent) !important;
+  background: linear-gradient(135deg, var(--accent), #8b6af1) !important;
+  color: #fff !important;
+  box-shadow: 0 7px 18px rgba(116, 86, 232, 0.20) !important;
+}
+
+.dashboard-primary-action:hover {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
+}
+
+.dashboard-icon-button:hover,
+.panel-link-button:hover,
+.panel-footer-link:hover,
+.panel-action-button:hover {
+  color: var(--accent) !important;
+}
+
+.metric-icon {
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+
+.metric-icon.success,
+.metric-badge.success,
+.trend-mini.success {
+  color: var(--secondary) !important;
+}
+
+.metric-icon.success,
+.metric-badge.success {
+  background: var(--secondary-soft) !important;
+}
+
+.trend-mini.success {
+  background: var(--secondary-soft) !important;
+  border-color: #d5f0e4 !important;
+}
+
+.metric-icon.info,
+.metric-badge.info,
+.trend-mini.info {
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+
+.dashboard-hero h1,
+.metric-card strong,
+.panel-header h2,
+.schedule-time strong,
+.next-time,
+.meta-cell strong,
+.trend-mini strong {
+  color: var(--ink) !important;
+}
+
+.dashboard-eyebrow,
+.metric-card p,
+.metric-card > div > span,
+.panel-header p,
+.schedule-time span,
+.meta-cell small,
+.trend-mini span {
+  color: var(--muted) !important;
+}
+
+/* Existing Tailwind surfaces used by the shell. */
+.bg-\[\#f2edff\] { background: var(--accent-soft) !important; }
+.bg-\[\#ebe5ff\] { background: #e7defe !important; }
+.bg-\[\#eee8ff\] { background: var(--accent-soft) !important; }
+.text-\[\#7657e8\] { color: var(--accent) !important; }
+.text-\[\#242332\],
+.text-\[\#232231\],
+.text-\[\#292837\],
+.text-\[\#2a2937\] { color: var(--ink) !important; }
+
+/* Green is reserved for positive/active business states. */
+.beauty-success {
+  color: var(--secondary) !important;
+  background: var(--secondary-soft) !important;
+}
+
+.beauty-accent {
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+
+/* Keep the mobile/desktop shell airy and light. */
+.glass,
+.glass-elevated,
+.surface,
+.dashboard-panel,
+.metric-card {
+  border-color: var(--line) !important;
+}
+
+.glass,
+.glass-elevated {
+  background: var(--glass) !important;
+}
+
+.surface,
+.dashboard-panel,
+.metric-card {
+  background: var(--surface) !important;
+}
+
+/* Brand mark: purple-to-green signature instead of a monochrome mark. */
+.bg-gradient-to-br.from-\[\#b995ff\] {
+  background-image: linear-gradient(135deg, #9b7af3, var(--accent), var(--secondary)) !important;
+}
+
+@media (max-width: 767px) {
+  body::before {
+    background:
+      radial-gradient(70% 26% at 100% 0%, rgba(221, 212, 255, 0.60), transparent 72%),
+      radial-gradient(70% 28% at 0% 100%, rgba(205, 244, 230, 0.48), transparent 72%) !important;
+  }
+}
