@@ -1,0 +1,12 @@
+[data-roles] h1,[data-roles] h2,[data-roles] h3,[data-roles] strong{color:var(--ink)!important}
+[data-roles] section,[data-roles] .surface{border-color:var(--line)!important}
+[data-roles] input,[data-roles] select,[data-roles] textarea{border-color:var(--line)!important;border-radius:var(--radius-control)!important;background:#fff!important;color:var(--ink)!important}
+[data-roles] input:focus,[data-roles] select:focus,[data-roles] textarea:focus{border-color:rgba(116,86,232,.45)!important;box-shadow:0 0 0 4px var(--accent-soft)!important;outline:none!important}
+[data-roles] .roles-primary{background:linear-gradient(135deg,var(--accent),#8b6af1)!important;border-color:var(--accent)!important;color:#fff!important;box-shadow:0 8px 20px rgba(116,86,232,.15)!important}
+[data-roles] .roles-primary:hover{transform:translateY(-1px);background:linear-gradient(135deg,var(--accent-strong),var(--accent))!important}
+[data-roles] table thead th{background:#fcfbfe!important;color:var(--muted)!important;border-bottom-color:var(--line)!important}
+[data-roles] table tbody tr{border-bottom-color:var(--line)!important}
+[data-roles] table tbody tr:hover{background:#faf8ff!important}
+[data-roles] .role-active{background:var(--accent-soft)!important;color:var(--accent)!important;border-color:#e3dafd!important}
+[data-roles] .role-success{background:var(--secondary-soft)!important;color:var(--secondary)!important;border-color:#d6f0e5!important}
+@media(max-width:767px){[data-roles] h1{font-size:27px!important}}
