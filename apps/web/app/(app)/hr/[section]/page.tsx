@@ -1,80 +1,14 @@
 "use client";
-
-import { useEffect, useMemo, useState } from "react";
-import Link from "next/link";
-import { api, ApiError, withQuery } from "@/lib/api";
-import { GlassCard, Button, Alert, Spinner } from "@/components/ui";
-import type { Paginated, Staff } from "@/lib/types";
-import { useParams } from "next/navigation";
-
-type Section = "employees" | "personnel-files" | "attendance" | "leaves" | "payroll" | "payments" | "sgk";
-
-const meta: Record<Section, { title: string; subtitle: string }> = {
-  employees: { title: "Çalışanlar", subtitle: "Mevcut personel kayıtlarını İK süreçlerine bağlayın." },
-  "personnel-files": { title: "Özlük Dosyaları", subtitle: "Personelin özlük bilgileri ve belge durumunu tek ekranda yönetin." },
-  attendance: { title: "Puantaj & Giriş Çıkış", subtitle: "Çalışma, giriş-çıkış, eksik gün ve fazla mesai kayıtlarını yönetin." },
-  leaves: { title: "İzin Yönetimi", subtitle: "Yıllık izin ve diğer izin kayıtlarını çalışan bazında takip edin." },
-  payroll: { title: "Bordro", subtitle: "Dönem bazlı bordro hesaplama ve bordro çıktılarının merkezi ekranı." },
-  payments: { title: "Maaş Ödemeleri", subtitle: "Hazırlanan bordrolardan banka ödeme listesini ve ödeme durumunu yönetin." },
-  sgk: { title: "SGK İşlemleri", subtitle: "İşe giriş, işten ayrılış ve aylık SGK süreçleri için kontrol merkezi." },
-};
-
-function Card({ title, value, note }: { title: string; value: string | number; note: string }) {
-  return <GlassCard className="!rounded-[16px] !p-4"><p className="text-[11px] text-[var(--muted)]">{title}</p><strong className="mt-1 block text-[25px] font-semibold tracking-[-.04em]">{value}</strong><p className="mt-1 text-[10px] text-[var(--muted)]">{note}</p></GlassCard>;
-}
-
-function money(value: number) {
-  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(value);
-}
-
-export default function HRSectionPage() {
-  const params = useParams<{ section: string }>();
-  const section = params.section as Section;
-  const info = meta[section];
-  const [staff, setStaff] = useState<Staff[]>([]);
-  const [rows, setRows] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-
-  useEffect(() => {
-    if (!info) return;
-    let cancelled = false;
-    async function load() {
-      setLoading(true); setError("");
-      try {
-        const staffResult = await api<Paginated<Staff>>(withQuery("/staff", { page: 1, limit: 100 }));
-        if (cancelled) return;
-        setStaff(staffResult.data ?? []);
-        if (section === "attendance") setRows((await api<any>("/hr/attendance")).data ?? []);
-        else if (section === "leaves") setRows((await api<any>("/hr/leaves")).data ?? []);
-        else if (section === "payroll") setRows((await api<any>("/hr/payroll")).data ?? []);
-      } catch (e) {
-        if (!cancelled) setError(e instanceof ApiError ? e.message : "İK verileri yüklenemedi.");
-      } finally { if (!cancelled) setLoading(false); }
-    }
-    void load();
-    return () => { cancelled = true; };
-  }, [section, info]);
-
-  const active = useMemo(() => staff.filter(s => s.status === "ACTIVE"), [staff]);
-  if (!info) return <GlassCard><h1 className="text-xl font-semibold">İK sayfası bulunamadı</h1><Link className="mt-4 inline-block text-sm underline" href="/hr">İK Dashboard'a dön</Link></GlassCard>;
-
-  return <div className="mx-auto max-w-[1280px] space-y-5 pb-8">
-    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-      <div><Link href="/hr" className="text-[11px] font-medium text-[#7657e8]">← İK Dashboard</Link><h1 className="mt-2 text-[30px] font-semibold tracking-[-.05em]">{info.title}</h1><p className="mt-1 text-[13px] text-[var(--muted)]">{info.subtitle}</p></div>
-      {section === "employees" && <Link href="/staff"><Button>Personel Yönetimine Git</Button></Link>}
-    </div>
-    {error && <Alert onClose={() => setError("")}>{error}</Alert>}
-    {loading ? <GlassCard className="flex min-h-[300px] items-center justify-center"><Spinner /></GlassCard> : <>
-      {(section === "employees" || section === "personnel-files") && <>
-        <div className="grid gap-3 sm:grid-cols-3"><Card title="Toplam çalışan" value={staff.length} note="Mevcut personel kaynağı"/><Card title="Aktif" value={active.length} note="Çalışan hesabı aktif"/><Card title="Özlük dosyası" value={active.length} note="Personel kaydıyla eşleşir"/></div>
-        <GlassCard className="!p-0 !overflow-hidden"><div className="border-b border-[var(--line)] p-5"><h2 className="text-sm font-semibold">Personel listesi</h2></div><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[var(--line)] text-[var(--muted)]"><th className="p-4">Çalışan</th><th className="p-4">Durum</th><th className="p-4">İK kaydı</th></tr></thead><tbody>{staff.map(s => <tr key={s.id} className="border-b border-[var(--line)] last:border-0"><td className="p-4 font-medium">{s.firstName} {s.lastName}</td><td className="p-4">{s.status === "ACTIVE" ? "Aktif" : "Pasif"}</td><td className="p-4">{section === "personnel-files" ? "Özlük dosyası bağlı" : "Personel kaydı bağlı"}</td></tr>)}</tbody></table></div></GlassCard>
-      </>}
-      {section === "attendance" && <><div className="grid gap-3 sm:grid-cols-4"><Card title="Aktif çalışan" value={active.length} note="Personel kaynağı"/><Card title="Bugün" value="—" note="Giriş/çıkış kayıtları"/><Card title="Eksik gün" value="—" note="Puantaj kontrolü"/><Card title="Fazla mesai" value="—" note="Saat bazlı hesap"/></div><GlassCard><h2 className="text-sm font-semibold">Puantaj kayıtları</h2><p className="mt-2 text-xs text-[var(--muted)]">API bağlantısı aktif. Henüz kayıt dönmüyorsa giriş-çıkış verisi oluşturulması gerekir.</p><pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-[#f7f6fa] p-4 text-[11px]">{JSON.stringify(rows, null, 2)}</pre></GlassCard></>}
-      {section === "leaves" && <><div className="grid gap-3 sm:grid-cols-4"><Card title="Çalışan" value={active.length} note="Aktif personel"/><Card title="Yıllık izin" value="—" note="Kullanılan gün"/><Card title="Kalan izin" value="—" note="Hakediş üzerinden"/><Card title="Bekleyen" value={rows.length} note="İzin talepleri"/></div><GlassCard><h2 className="text-sm font-semibold">İzin kayıtları</h2><pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-[#f7f6fa] p-4 text-[11px]">{JSON.stringify(rows, null, 2)}</pre></GlassCard></>}
-      {section === "payroll" && <><div className="grid gap-3 sm:grid-cols-4"><Card title="Bordro dönemi" value="—" note="Dönem seçimi"/><Card title="Çalışan" value={active.length} note="Hesaplanacak personel"/><Card title="Net toplam" value="—" note="Bordro hesaplandığında"/><Card title="İşveren maliyeti" value="—" note="SGK + vergi + ücret"/></div><GlassCard><h2 className="text-sm font-semibold">Bordro hesaplama merkezi</h2><p className="mt-2 text-xs leading-5 text-[var(--muted)]">Bu ekran mevcut HR payroll endpointine bağlıdır. Türkiye mevzuatına göre gerçek bordro hesabı için ücret, çalışma günü, eksik gün, prim, fazla mesai, SGK ve vergi parametrelerinin çalışan sözleşmesiyle tanımlanması gerekir.</p><pre className="mt-4 max-h-72 overflow-auto rounded-xl bg-[#f7f6fa] p-4 text-[11px]">{JSON.stringify(rows, null, 2)}</pre></GlassCard></>}
-      {section === "payments" && <><div className="grid gap-3 sm:grid-cols-4"><Card title="Ödeme listesi" value={active.length} note="Aktif çalışan"/><Card title="Toplam net" value={money(0)} note="Bordrodan üretilecek"/><Card title="Bekleyen" value="—" note="Banka ödeme durumu"/><Card title="Ödenen" value="—" note="Mutabakat"/></div><GlassCard><h2 className="text-sm font-semibold">Maaş ödeme listesi</h2><p className="mt-2 text-xs text-[var(--muted)]">Ödeme listesi bordro döneminden üretilecek; banka dosyası ve ödeme durumu ayrıca tutulmalıdır.</p><div className="mt-4 overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b border-[var(--line)]"><th className="p-3">Çalışan</th><th className="p-3">Banka</th><th className="p-3">IBAN</th><th className="p-3">Net</th><th className="p-3">Durum</th></tr></thead><tbody>{active.map(s => <tr key={s.id} className="border-b border-[var(--line)]"><td className="p-3">{s.firstName} {s.lastName}</td><td className="p-3">—</td><td className="p-3">—</td><td className="p-3">—</td><td className="p-3">Hazırlanacak</td></tr>)}</tbody></table></div></GlassCard></>}
-      {section === "sgk" && <><div className="grid gap-3 sm:grid-cols-4"><Card title="Aktif sigortalı" value={active.length} note="Personel kaydından"/><Card title="İşe giriş" value="—" note="Bildirim bekleyen"/><Card title="İşten ayrılış" value="—" note="Bildirim bekleyen"/><Card title="Aylık dönem" value="—" note="SGK bildirgesi"/></div><GlassCard><h2 className="text-sm font-semibold">SGK işlem merkezi</h2><p className="mt-2 text-xs leading-5 text-[var(--muted)]">İşe giriş/çıkış ve aylık bildirge kayıtları çalışan özlük kaydıyla ilişkilendirilecek. e-SGK gönderimi için ayrıca yetkili kullanıcı ve resmi entegrasyon bilgileri gerekir.</p></GlassCard></>}
-    </>}
-  </div>;
-}
+import {useEffect,useState} from "react";
+import {useParams} from "next/navigation";
+import {api,ApiError} from "@/lib/api";
+import {GlassCard,Button,Alert,Spinner} from "@/components/ui";
+const cfg:any={employees:{title:'Çalışanlar',get:'/hr/employees',post:'/staff',fields:['firstName','lastName','phone','email','personnelNumber','position','department','employmentType','hireDate','salary','iban','bankName']},'personnel-files':{title:'Özlük Dosyaları',get:'/hr/personnel-files',fields:['firstName','lastName','identityNumber','department','position','hireDate','salary','iban','bankName']},attendance:{title:'Puantaj',get:'/hr/attendance',post:'/hr/attendance',fields:['staffId','workDate','checkIn','checkOut','breakMinutes','workedMinutes','overtimeMinutes','status','note']},leaves:{title:'İzinler',get:'/hr/leaves',post:'/hr/leaves',fields:['staffId','type','startDate','endDate','days','status','reason']},payroll:{title:'Bordro',get:'/hr/payroll',post:'/hr/payroll/periods',fields:['year','month']},payments:{title:'Maaş Ödemeleri',get:'/hr/payments',post:'/hr/payments',fields:['staffId','year','month','amount','method','status','paidAt','note']},sgk:{title:'SGK İşlemleri',get:'/hr/sgk',post:'/hr/sgk',fields:['staffId','year','month','status','documentNo','recordDate','note']}};
+const label:any={firstName:'Ad',lastName:'Soyad',phone:'Telefon',email:'E-posta',personnelNumber:'Sicil No',identityNumber:'T.C. Kimlik No',position:'Pozisyon',department:'Departman',employmentType:'Çalışma Tipi',hireDate:'İşe Giriş',salary:'Brüt Maaş',iban:'IBAN',bankName:'Banka',staffId:'Personel',workDate:'Tarih',checkIn:'Giriş',checkOut:'Çıkış',breakMinutes:'Mola dk',workedMinutes:'Çalışma dk',overtimeMinutes:'Fazla mesai dk',status:'Durum',note:'Not',type:'İzin türü',startDate:'Başlangıç',endDate:'Bitiş',days:'Gün',reason:'Açıklama',year:'Yıl',month:'Ay',amount:'Tutar',method:'Yöntem',paidAt:'Ödeme tarihi',documentNo:'Belge no',recordDate:'Kayıt tarihi'};
+const dateFields=new Set(['hireDate','workDate','startDate','endDate','paidAt','recordDate']);const numFields=new Set(['salary','breakMinutes','workedMinutes','overtimeMinutes','days','year','month','amount']);
+function v(x:any){if(x===null||x===undefined||x==='')return'—';if(typeof x==='string'&&x.includes('T'))return new Date(x).toLocaleDateString('tr-TR');return String(x)}
+export default function HRSection(){const p=useParams<{section:string}>(),section=p.section,c=cfg[section];const[rows,setRows]=useState<any[]>([]),[staff,setStaff]=useState<any[]>([]),[form,setForm]=useState<any>({}),[edit,setEdit]=useState<any>(null),[loading,setLoading]=useState(true),[error,setError]=useState('');
+const load=async()=>{if(!c)return;setLoading(true);try{const r=await api<any>(c.get);setRows(Array.isArray(r)?r:r?.data??[]);if(section!=='employees'&&section!=='personnel-files'){const s=await api<any>('/hr/employees');setStaff(Array.isArray(s)?s:s?.data??[])}else setStaff(Array.isArray(r)?r:r?.data??[])}catch(e){setError(e instanceof ApiError?e.message:'Veri yüklenemedi.')}finally{setLoading(false)}};useEffect(()=>{void load()},[section]);
+const save=async()=>{try{let body={...form};if(section==='employees'){const profile:any={};for(const k of ['personnelNumber','identityNumber','position','department','employmentType','hireDate','salary','iban','bankName'])if(body[k]!==undefined&&body[k]!=='')profile[k]=numFields.has(k)?Number(body[k]):body[k];body={firstName:body.firstName,lastName:body.lastName,phone:body.phone||undefined,email:body.email||undefined,profile};}else if(numFields.size)for(const k of Object.keys(body))if(numFields.has(k)&&body[k]!=='')body[k]=Number(body[k]);await api(edit?`${c.get}/${edit.id}`:c.post,{method:edit?'PATCH':'POST',body});setForm({});setEdit(null);await load()}catch(e){setError(e instanceof ApiError?e.message:'Kayıt kaydedilemedi.')}};
+const remove=async(id:string)=>{if(!confirm('Kaydı sil/arşivle?'))return;try{await api(`${c.get}/${id}`,{method:'DELETE'});await load()}catch(e){setError(e instanceof ApiError?e.message:'Silme başarısız.')}};
+if(!c)return <GlassCard>İK sayfası bulunamadı.</GlassCard>;return <div className="mx-auto max-w-[1280px] space-y-5 pb-10"><div><p className="text-[11px] uppercase tracking-[.15em] text-[var(--muted)]">İnsan Kaynakları</p><h1 className="text-[30px] font-semibold">{c.title}</h1><p className="text-xs text-[var(--muted)]">Veritabanına bağlı gerçek kayıt ekranı.</p></div>{error&&<Alert onClose={()=>setError('')}>{error}</Alert>}{c.post&&<GlassCard><div className="grid gap-3 md:grid-cols-4">{c.fields.map((f:string)=><div key={f}><label className="mb-1 block text-[10px] text-[var(--muted)]">{label[f]||f}</label>{f==='staffId'?<select className="w-full rounded-lg border p-2 text-xs" value={form[f]||''} onChange={e=>setForm({...form,[f]:e.target.value})}><option value="">Personel seç</option>{staff.map(s=><option key={s.id} value={s.id}>{s.firstName} {s.lastName}</option>)}</select>:<input className="w-full rounded-lg border p-2 text-xs" type={dateFields.has(f)?'date':numFields.has(f)?'number':'text'} value={form[f]??''} onChange={e=>setForm({...form,[f]:e.target.value})}/>}</div>)}<div className="flex items-end gap-2"><Button onClick={save}>{edit?'Güncelle':'Kaydet'}</Button>{edit&&<Button variant="secondary" onClick={()=>{setEdit(null);setForm({})}}>İptal</Button>}</div></div></GlassCard>}{loading?<GlassCard className="flex h-56 items-center justify-center"><Spinner/></GlassCard>:<GlassCard className="!overflow-hidden !p-0"><div className="overflow-x-auto"><table className="w-full text-left text-xs"><thead><tr className="border-b bg-[#faf9fc]">{(c.fields.slice(0,7)).map((f:string)=><th key={f} className="p-4">{label[f]||f}</th>)}<th className="p-4">İşlem</th></tr></thead><tbody>{rows.map((r:any)=><tr key={r.id||JSON.stringify(r)} className="border-b last:border-0">{c.fields.slice(0,7).map((f:string)=><td key={f} className="p-4">{v(r[f])}</td>)}<td className="p-4"><div className="flex gap-3">{c.post&&(section==='employees'||section==='leaves')&&r.id&&<><button className="text-[#7657e8]" onClick={()=>{setEdit(r);setForm(r)}}>Düzenle</button><button className="text-red-500" onClick={()=>remove(r.id)}>Sil</button></>}</div></td></tr>)}</tbody></table>{rows.length===0&&<div className="p-10 text-center text-xs text-[var(--muted)]">Henüz kayıt yok.</div>}</div></GlassCard>}</div>}
