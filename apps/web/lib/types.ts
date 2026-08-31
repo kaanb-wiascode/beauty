@@ -81,6 +81,33 @@ export type CustomerConsent = {
   source: "WEB" | "STAFF" | "KIOSK" | "DIGITAL_SIGNATURE";
 };
 
+export type StaffProfile = {
+  identityNumber?: string;
+  birthDate?: string;
+  birthPlace?: string;
+  gender?: string;
+  maritalStatus?: string;
+  nationality?: string;
+  address?: string;
+  city?: string;
+  district?: string;
+  postalCode?: string;
+  personnelNumber?: string;
+  position?: string;
+  department?: string;
+  employmentType?: string;
+  hireDate?: string;
+  contractType?: string;
+  salaryType?: string;
+  salary?: number;
+  iban?: string;
+  bankName?: string;
+  emergencyName?: string;
+  emergencyRelation?: string;
+  emergencyPhone?: string;
+  notes?: string;
+};
+
 export type StaffStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 
 export type Staff = {
@@ -90,6 +117,7 @@ export type Staff = {
   lastName: string;
   phone: string | null;
   email: string | null;
+  profile: StaffProfile | null;
   status: StaffStatus;
   createdAt: string;
   updatedAt: string;
@@ -176,6 +204,7 @@ export type CreateStaffInput = {
   lastName: string;
   phone?: string;
   email?: string;
+  profile?: StaffProfile;
 };
 
 export type UpdateStaffInput = {
@@ -183,6 +212,7 @@ export type UpdateStaffInput = {
   lastName?: string;
   phone?: string;
   email?: string;
+  profile?: StaffProfile;
 };
 
 export type CreateServiceInput = {
