@@ -29,6 +29,10 @@
   --shadow-soft: 0 1px 2px rgba(72, 54, 104, 0.025), 0 10px 28px rgba(72, 54, 104, 0.055);
   --shadow-lift: 0 12px 32px rgba(72, 54, 104, 0.085), 0 2px 8px rgba(72, 54, 104, 0.035);
   --focus-ring: rgba(116, 86, 232, 0.22);
+  --radius-control: 13px;
+  --radius-card: 20px;
+  --motion-fast: 150ms;
+  --motion-base: 180ms;
 }
 
 html,
@@ -47,13 +51,87 @@ body::before {
   outline-color: var(--focus-ring) !important;
 }
 
-/* Shared text and control language: never pure black. */
+/* Shared text language: never use pure black for product UI. */
 .text-black,
 .text-\[\#111\],
 .text-\[\#171717\],
 .text-\[\#202020\],
 .text-\[\#242424\] {
   color: var(--ink) !important;
+}
+
+/* Beauty UI primitive overrides. Existing screens can keep their Tailwind classes while the visual system stays centralized. */
+.control {
+  min-height: 42px;
+  border-color: var(--line);
+  border-radius: var(--radius-control);
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 2px rgba(72, 54, 104, 0.025);
+}
+
+.control:hover:not(:disabled) {
+  border-color: var(--line-strong);
+  background: #fff;
+}
+
+.control:focus {
+  border-color: rgba(116, 86, 232, 0.48);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+}
+
+.control::placeholder {
+  color: var(--muted-soft);
+}
+
+/* Primary / secondary / ghost / danger buttons from the shared Button primitive. */
+button[class~="bg-[#F3F1EE]"] {
+  border-color: var(--accent) !important;
+  background: linear-gradient(135deg, var(--accent), #8b6af1) !important;
+  color: #fff !important;
+  box-shadow: 0 7px 18px rgba(116, 86, 232, 0.16) !important;
+}
+
+button[class~="bg-[#F3F1EE]"]:hover:not(:disabled) {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
+  transform: translateY(-1px);
+}
+
+button[class~="bg-white/70"] {
+  border: 1px solid var(--line);
+  color: var(--ink);
+  background: rgba(255, 255, 255, 0.88);
+  box-shadow: 0 1px 3px rgba(72, 54, 104, 0.035);
+}
+
+button[class~="bg-white/70"]:hover:not(:disabled) {
+  border-color: #d7d0e5;
+  background: #fff;
+  color: var(--accent);
+}
+
+button[class~="hover:bg-black/[0.04]"] {
+  color: var(--muted);
+}
+
+button[class~="hover:bg-black/[0.04]"]:hover:not(:disabled) {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+
+/* Keep danger actions visibly distinct without introducing black. */
+button[class~="text-[#8f3d3d]"] {
+  color: var(--danger) !important;
+}
+
+button[class~="text-[#8f3d3d]"]:hover:not(:disabled) {
+  background: var(--danger-soft) !important;
+  color: #a9435c !important;
+}
+
+/* Form labels and validation states. */
+label > span:first-child {
+  color: var(--muted);
 }
 
 /* Dashboard: replace the old monochrome treatment with Beauty purple/green. */
@@ -133,7 +211,7 @@ body::before {
 .text-\[\#292837\],
 .text-\[\#2a2937\] { color: var(--ink) !important; }
 
-/* Green is reserved for positive/active business states. */
+/* Shared component states. */
 .beauty-success {
   color: var(--secondary) !important;
   background: var(--secondary-soft) !important;
@@ -142,6 +220,58 @@ body::before {
 .beauty-accent {
   color: var(--accent) !important;
   background: var(--accent-soft) !important;
+}
+
+/* Status badges stay semantic: green = positive, purple = informational, pink/red = destructive. */
+span[class~="bg-[rgba(47,122,86,0.10)]"] {
+  color: var(--secondary) !important;
+  background: var(--secondary-soft) !important;
+}
+
+/* Remove remaining monochrome utility surfaces from shared UI primitives. */
+.bg-black\/\[0\.04\] { background: var(--accent-soft) !important; }
+.bg-black\/25 { background: rgba(48, 43, 63, 0.24) !important; }
+.text-\[var\(--ink\)\] { color: var(--ink) !important; }
+
+/* Modal / dialog */
+.fixed.inset-0.z-\[100\] {
+  background: rgba(48, 43, 63, 0.24) !important;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+}
+
+.fixed.inset-0.z-\[100\] > div {
+  border-color: var(--line) !important;
+  border-radius: 24px;
+  box-shadow: 0 28px 90px rgba(72, 54, 104, 0.18) !important;
+}
+
+/* Toast / alerts */
+[role="alert"] {
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 24px rgba(72, 54, 104, 0.055);
+}
+
+/* Tables */
+.data-table thead th {
+  color: var(--muted);
+  background: #fcfbfe;
+}
+
+.data-table tbody tr:hover {
+  background: #faf8ff !important;
+}
+
+/* Empty states and loading states */
+[role="status"] span[aria-hidden="true"] {
+  border-color: rgba(116, 86, 232, 0.14) !important;
+  border-top-color: var(--accent) !important;
+}
+
+/* Tooltip should be dark-purple rather than black. */
+[role="tooltip"] {
+  background: var(--ink) !important;
+  box-shadow: 0 8px 22px rgba(72, 54, 104, 0.16) !important;
 }
 
 /* Keep the mobile/desktop shell airy and light. */
@@ -164,7 +294,7 @@ body::before {
   background: var(--surface) !important;
 }
 
-/* Brand mark: purple-to-green signature instead of a monochrome mark. */
+/* Brand mark: purple-to-green signature. */
 .bg-gradient-to-br.from-\[\#b995ff\] {
   background-image: linear-gradient(135deg, #9b7af3, var(--accent), var(--secondary)) !important;
 }
