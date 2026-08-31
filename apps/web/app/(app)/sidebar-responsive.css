@@ -1,0 +1,23 @@
+/* Sidebar collapse: let page content consume the space released by the rail. */
+@media (min-width: 1024px) {
+  /* The sidebar uses Tailwind's w-[76px] class when collapsed. */
+  body:has(aside.w-\\[76px\\]) main > .mx-auto {
+    max-width: none !important;
+    width: 100%;
+  }
+
+  body:has(aside.w-\\[76px\\]) main > .mx-auto > * {
+    min-width: 0;
+  }
+
+  /* Keep the dashboard's own grid fluid after the sidebar is collapsed. */
+  body:has(aside.w-\\[76px\\]) .dashboard-topbar,
+  body:has(aside.w-\\[76px\\]) .dashboard-hero {
+    width: 100%;
+  }
+
+  /* Smoothly use the newly available horizontal space instead of leaving a dead zone. */
+  main > .mx-auto {
+    transition: max-width 180ms cubic-bezier(0.22, 1, 0.36, 1);
+  }
+}
