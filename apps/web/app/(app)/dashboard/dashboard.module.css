@@ -87,3 +87,55 @@
 @media (max-width: 1023px) {
   .profile { display: none; }
 }
+
+/* Fine density pass: preserve the layout, remove visual bulk. */
+.quick-actions { padding: 10px; display: grid; gap: 8px; }
+.quick-action { min-height: 58px !important; padding: 8px 12px !important; border-radius: 12px !important; }
+.quick-action > span { width: 38px !important; height: 38px !important; border-radius: 11px !important; }
+.quick-action > span svg { width: 18px !important; height: 18px !important; }
+.quick-action b { font-size: 12px !important; }
+.quick-action > svg { width: 15px !important; height: 15px !important; color: var(--muted) !important; }
+
+.activity-list { padding: 4px 10px 8px; }
+.activity-item { min-height: 62px !important; padding: 9px 4px !important; gap: 10px !important; }
+.activity-icon { width: 38px !important; height: 38px !important; border-radius: 50%; }
+.activity-icon svg { width: 17px !important; height: 17px !important; }
+.activity-item p { font-size: 11px !important; line-height: 1.2; }
+.activity-item > div > span { margin-top: 3px !important; font-size: 10px !important; }
+.activity-item time { font-size: 9px !important; }
+
+.staff-stack { padding: 14px 16px !important; gap: 10px !important; }
+.staff-avatar-wrap .dashboard-avatar { width: 34px !important; height: 34px !important; }
+
+.trend-mini { padding: 9px 10px !important; min-height: 64px; }
+.trend-mini span { font-size: 8px !important; }
+.trend-mini strong { font-size: 14px !important; margin-top: 5px !important; }
+.metric-bars { padding: 14px 17px 10px !important; }
+.metric-bar-row { min-height: 28px !important; gap: 10px !important; }
+.metric-bar-row > span { font-size: 9px !important; }
+.metric-bar-row > strong { font-size: 10px !important; }
+.metric-bar-track { height: 7px !important; }
+.period-footer { min-height: 42px !important; padding: 0 17px !important; font-size: 9px !important; }
+
+.payment-total { margin: 14px 17px 10px !important; padding: 14px !important; }
+.payment-total strong { font-size: 21px !important; }
+.payment-list { padding: 0 17px 14px !important; }
+.payment-row { min-height: 42px !important; }
+
+@media (min-width: 1280px) {
+  /* The right rail is a true dashboard rail: full viewport height, independently scrollable. */
+  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail) {
+    position: sticky !important;
+    top: 0 !important;
+    height: 100vh !important;
+    max-height: 100vh !important;
+    overflow-y: auto !important;
+    align-self: start !important;
+    padding-right: 2px !important;
+    scrollbar-width: thin;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail .dashboard-panel) {
+    border-radius: 13px !important;
+  }
+}
