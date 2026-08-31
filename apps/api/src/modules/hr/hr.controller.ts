@@ -5,6 +5,7 @@ import { HrService } from './hr.service';
 @Controller('hr') @UseGuards(JwtAuthGuard,TenantAuthGuard)
 export class HrController{constructor(private readonly hrService:HrService){}
 @Get('employees')employees(){return this.hrService.employees();}
+@Post('employees')createEmployee(@Body()body:any){return this.hrService.createEmployee(body);}
 @Patch('employees/:id')updateEmployee(@Param('id')id:string,@Body()body:any){return this.hrService.updateEmployee(id,body);}
 @Delete('employees/:id')deleteEmployee(@Param('id')id:string){return this.hrService.deleteEmployee(id);}
 @Get('personnel-files')personnelFiles(){return this.hrService.personnelFiles();}
