@@ -1,0 +1,10 @@
+/* Appointments route: local visual rules. Keep scheduling logic in page.tsx. */
+.appointments-page{--appointment-accent:#7657e8;--appointment-green:#39a86b;--appointment-line:#ebe8f1}
+.appointments-page input,.appointments-page select,.appointments-page textarea{min-height:40px;border-radius:10px}
+.appointments-page button{border-radius:10px}
+.appointments-page table{border-collapse:separate;border-spacing:0}
+.appointments-page thead th{height:44px;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.appointments-page .appointment-card{border-radius:12px;box-shadow:0 5px 16px rgba(43,35,72,.06)}
+.appointments-page .appointment-card:hover{box-shadow:0 8px 22px rgba(43,35,72,.1);transform:translateY(-1px)}
+.appointments-page .appointment-avatar{display:flex;height:30px;width:30px;align-items:center;justify-content:center;border-radius:50%;background:#f1edff;color:var(--appointment-accent);font-size:10px;font-weight:700}
+@media(max-width:767px){.appointments-page{padding-left:12px;padding-right:12px}.appointments-page .appointment-toolbar{flex-direction:column;align-items:stretch}.appointments-page .appointment-toolbar>*{width:100%}.appointments-page .appointment-scroll{overflow-x:auto;-webkit-overflow-scrolling:touch}.appointments-page .appointment-grid{min-width:820px}}
