@@ -1,0 +1,9 @@
+/* Staff route: local presentation layer only. Shared tokens remain in beauty-final-consistency.css. */
+.staff-page input,.staff-page select,.staff-page textarea{min-height:40px;border-radius:10px}
+.staff-page table{border-collapse:separate;border-spacing:0}
+.staff-page thead th{height:44px;font-size:11px;font-weight:600;letter-spacing:.02em;text-transform:uppercase}
+.staff-page tbody td{height:58px}
+.staff-page .staff-avatar{display:flex;height:36px;width:36px;flex:none;align-items:center;justify-content:center;border-radius:50%;background:#f1edff;color:#7657e8;font-size:11px;font-weight:700}
+.staff-page .staff-action{display:inline-flex;height:36px;min-width:36px;align-items:center;justify-content:center;border-radius:10px;color:#777688}
+.staff-page .staff-action:hover{background:#f7f5fb;color:#7657e8}
+@media(max-width:767px){.staff-page{padding-left:12px;padding-right:12px}.staff-page .staff-toolbar{flex-direction:column;align-items:stretch}.staff-page .staff-toolbar>*{width:100%}.staff-page table{min-width:760px}}
