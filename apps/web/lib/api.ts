@@ -86,36 +86,46 @@ function redirectToLogin() {
   window.location.assign("/login");
 }
 
+let refreshInFlight: Promise<string | null> | null = null;
+
 async function refreshAccessToken(): Promise<string | null> {
-  const refreshToken = getRefreshToken();
-  if (!refreshToken) return null;
+  if (refreshInFlight) return refreshInFlight;
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ refreshToken }),
-      credentials: "include",
-    });
+  refreshInFlight = (async () => {
+    const refreshToken = getRefreshToken();
+    if (!refreshToken) return null;
 
-    if (!response.ok) return null;
+    try {
+      const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ refreshToken }),
+        credentials: "include",
+      });
 
-    const payload = (await response.json()) as {
-      accessToken?: string;
-      refreshToken?: string;
-    };
+      if (!response.ok) return null;
 
-    if (!payload.accessToken) return null;
+      const payload = (await response.json()) as {
+        accessToken?: string;
+        refreshToken?: string;
+      };
 
-    persistSession({
-      accessToken: payload.accessToken,
-      refreshToken: payload.refreshToken ?? refreshToken,
-    });
+      if (!payload.accessToken) return null;
 
-    return payload.accessToken;
-  } catch {
-    return null;
-  }
+      persistSession({
+        accessToken: payload.accessToken,
+        refreshToken: payload.refreshToken ?? refreshToken,
+      });
+
+      return payload.accessToken;
+    } catch {
+      return null;
+    } finally {
+      refreshInFlight = null;
+    }
+  })();
+
+  return refreshInFlight;
 }
 
 export async function api<T>(
@@ -129,10 +139,6 @@ export async function api<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  // If the access token is missing (for example after a browser restart or
-  // storage cleanup), recover the session before making protected requests.
-  // This avoids sending a request with no Authorization header, which the API
-  // correctly rejects as "JWT user not found".
   let accessToken = auth ? getAccessToken() : null;
   if (auth && !accessToken && !path.startsWith("/auth/")) {
     accessToken = await refreshAccessToken();
@@ -161,8 +167,6 @@ export async function api<T>(
     throw new ApiError("Sunucuya bağlanılamadı. Backend çalışıyor mu?", 0);
   }
 
-  // An access token can legitimately expire while the user is working.
-  // Recover transparently with the refresh token before forcing a login.
   if (response.status === 401 && auth && !path.startsWith("/auth/")) {
     const refreshedToken = await refreshAccessToken();
 
