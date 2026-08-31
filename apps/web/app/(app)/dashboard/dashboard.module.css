@@ -60,7 +60,6 @@
 
 @media (max-width: 1023px) { .profile { display: none; } }
 
-/* Compact, stable card internals */
 .quick-actions {
   padding: 12px !important;
   display: grid !important;
@@ -78,53 +77,57 @@
 }
 .quick-action > span svg { width: 17px !important; height: 17px !important; }
 .quick-action b {
-  min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important;
-  white-space: nowrap !important; font-size: 11px !important;
+  min-width: 0 !important; flex: 1 1 auto !important; overflow: hidden !important;
+  text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 15px !important;
+  line-height: 1.2 !important; text-align: left !important;
 }
 .quick-action > svg {
-  width: 14px !important; height: 14px !important; flex: 0 0 auto !important;
+  width: 18px !important; height: 18px !important; flex: 0 0 auto !important;
   color: var(--muted) !important; margin-left: auto !important;
 }
 
 .activity-list { padding: 6px 12px 10px !important; min-width: 0 !important; }
-.activity-item { min-width: 0 !important; min-height: 62px !important; padding: 9px 2px !important; gap: 10px !important; }
+.activity-item { min-width: 0 !important; min-height: 62px !important; padding: 9px 2px !important; gap: 10px !important; align-items: center !important; }
 .activity-item > div:first-child, .activity-icon { flex: 0 0 auto !important; }
-.activity-icon { width: 38px !important; min-width: 38px !important; height: 38px !important; border-radius: 50% !important; }
-.activity-icon svg { width: 17px !important; height: 17px !important; }
-.activity-item > div:not(.activity-icon) { min-width: 0 !important; overflow: hidden !important; }
+.activity-icon {
+  width: 48px !important; min-width: 48px !important; height: 48px !important;
+  border-radius: 50% !important; display: inline-flex !important; align-items: center !important;
+  justify-content: center !important; overflow: hidden !important; position: relative !important;
+}
+.activity-icon svg { width: 20px !important; height: 20px !important; display: block !important; flex: 0 0 auto !important; }
+.activity-item > div:not(.activity-icon) { min-width: 0 !important; overflow: hidden !important; flex: 1 1 auto !important; }
 .activity-item p {
   min-width: 0 !important; max-width: 100% !important; overflow: hidden !important;
-  text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; line-height: 1.2 !important;
+  text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 15px !important; line-height: 1.25 !important;
 }
 .activity-item > div > span {
   display: block !important; min-width: 0 !important; max-width: 100% !important; overflow: hidden !important;
-  text-overflow: ellipsis !important; white-space: nowrap !important; margin-top: 3px !important; font-size: 10px !important;
+  text-overflow: ellipsis !important; white-space: nowrap !important; margin-top: 4px !important; font-size: 13px !important;
 }
-.activity-item time { flex: 0 0 auto !important; font-size: 9px !important; white-space: nowrap !important; }
+.activity-item time { flex: 0 0 auto !important; font-size: 12px !important; white-space: nowrap !important; }
 
 .staff-stack { min-width: 0 !important; padding: 14px 16px !important; gap: 10px !important; overflow: hidden !important; }
 .staff-avatar-wrap { flex: 0 0 auto !important; }
 .staff-avatar-wrap .dashboard-avatar { width: 34px !important; min-width: 34px !important; height: 34px !important; }
 
-/* Son 7 Gün: explicit three-column metrics and fixed bar geometry */
 .trend-mini {
   min-width: 0 !important; min-height: 72px !important; height: 72px !important;
   padding: 12px 14px !important; border: 1px solid var(--line) !important;
   border-radius: 10px !important; overflow: hidden !important;
 }
-.trend-mini span { display: block !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 8px !important; }
-.trend-mini strong { display: block !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 14px !important; margin-top: 5px !important; }
+.trend-mini span { display: block !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; }
+.trend-mini strong { display: block !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 20px !important; margin-top: 5px !important; }
 .metric-bars { padding: 14px 17px 12px !important; }
 .metric-bar-row {
   min-width: 0 !important; min-height: 30px !important; display: grid !important;
   grid-template-columns: 82px minmax(0,1fr) 24px !important; align-items: center !important; gap: 10px !important;
 }
-.metric-bar-row > span { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 9px !important; }
-.metric-bar-row > strong { text-align: right !important; font-size: 10px !important; }
+.metric-bar-row > span { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; }
+.metric-bar-row > strong { text-align: right !important; font-size: 12px !important; }
 .metric-bar-track { min-width: 0 !important; width: 100% !important; height: 7px !important; overflow: hidden !important; }
 .period-footer {
   min-height: 44px !important; padding: 0 17px !important; display: grid !important;
-  grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size: 9px !important; gap: 8px !important;
+  grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size: 10px !important; gap: 8px !important;
 }
 .period-footer > *:nth-child(2) { text-align: center !important; }
 .period-footer > *:last-child { text-align: right !important; }
@@ -134,7 +137,6 @@
 .payment-list { padding: 0 17px 14px !important; }
 .payment-row { min-height: 42px !important; min-width: 0 !important; }
 
-/* Right rail behaves like a fixed desktop column; its contents scroll, not the layout. */
 @media (min-width: 1280px) {
   :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail) {
     position: sticky !important; top: 0 !important; height: 100vh !important;
@@ -144,7 +146,6 @@
   :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail .dashboard-panel) { border-radius: 13px !important; }
 }
 
-/* Medium screens: never squeeze main content and right rail into unusable widths. */
 @media (min-width: 768px) and (max-width: 1279px) {
   :global(.relative.min-h-screen:has(> aside.glass) main.ambient-root) { padding-left: 20px !important; padding-right: 20px !important; }
   :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail) {
@@ -158,64 +159,90 @@
   .quick-actions { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
   .quick-action { min-height: 58px !important; height: 58px !important; padding: 7px 9px !important; }
   .quick-action > span { width: 32px !important; min-width: 32px !important; height: 32px !important; }
+  .quick-action b { font-size: 14px !important; }
+  .activity-icon { width: 42px !important; min-width: 42px !important; height: 42px !important; }
+  .activity-icon svg { width: 18px !important; height: 18px !important; }
   .metric-bar-row { grid-template-columns: 72px minmax(0,1fr) 22px !important; gap: 7px !important; }
 }
 
-/* No dashboard panel or child may force horizontal overflow. */
 :global(.dashboard-panel), :global(.dashboard-panel *) { box-sizing: border-box; }
 :global(.dashboard-panel) { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
 
-/* CSS Module -> literal JSX utility class bridge. */
 :global(.quick-actions) {
-  padding: 12px !important;
+  padding: 14px 16px !important;
   display: grid !important;
   grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
-  gap: 8px !important;
+  gap: 12px !important;
 }
 :global(.quick-action) {
-  width: 100% !important; min-width: 0 !important; min-height: 64px !important;
-  height: 64px !important; padding: 8px 10px !important; border-radius: 12px !important;
-  gap: 8px !important; justify-content: flex-start !important;
+  width: 100% !important; min-width: 0 !important; min-height: 68px !important;
+  height: 68px !important; padding: 10px 12px !important; border-radius: 14px !important;
+  gap: 10px !important; justify-content: flex-start !important;
 }
-:global(.quick-action > span) { width: 34px !important; min-width: 34px !important; height: 34px !important; border-radius: 10px !important; }
-:global(.quick-action > span svg) { width: 17px !important; height: 17px !important; }
-:global(.quick-action b) { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; }
-:global(.quick-action > svg) { width: 14px !important; height: 14px !important; flex: 0 0 auto !important; color: var(--muted) !important; margin-left: auto !important; }
+:global(.quick-action > span) {
+  width: 36px !important; min-width: 36px !important; height: 36px !important;
+  border-radius: 11px !important; display: inline-flex !important; align-items: center !important;
+  justify-content: center !important; overflow: hidden !important; flex: 0 0 auto !important;
+}
+:global(.quick-action > span svg) { width: 18px !important; height: 18px !important; display: block !important; flex: 0 0 auto !important; }
+:global(.quick-action b) {
+  min-width: 0 !important; flex: 1 1 auto !important; overflow: hidden !important;
+  text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 15px !important;
+  line-height: 1.2 !important; text-align: left !important;
+}
+:global(.quick-action > svg) { width: 18px !important; height: 18px !important; flex: 0 0 auto !important; color: var(--muted) !important; margin-left: auto !important; display: block !important; }
 
-:global(.activity-list) { padding: 6px 12px 10px !important; min-width: 0 !important; }
-:global(.activity-item) { min-width: 0 !important; min-height: 62px !important; padding: 9px 2px !important; gap: 10px !important; }
+:global(.activity-list) { padding: 8px 18px 12px !important; min-width: 0 !important; }
+:global(.activity-item) { min-width: 0 !important; min-height: 70px !important; padding: 10px 0 !important; gap: 12px !important; align-items: center !important; }
 :global(.activity-item > div:first-child), :global(.activity-icon) { flex: 0 0 auto !important; }
-:global(.activity-icon) { width: 38px !important; min-width: 38px !important; height: 38px !important; border-radius: 50% !important; }
-:global(.activity-icon svg) { width: 17px !important; height: 17px !important; }
-:global(.activity-item > div:not(.activity-icon)) { min-width: 0 !important; overflow: hidden !important; }
-:global(.activity-item p) { min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; line-height: 1.2 !important; }
-:global(.activity-item > div > span) { display: block !important; min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; margin-top: 3px !important; font-size: 10px !important; }
-:global(.activity-item time) { flex: 0 0 auto !important; font-size: 9px !important; white-space: nowrap !important; }
+:global(.activity-icon) {
+  width: 48px !important; min-width: 48px !important; height: 48px !important; border-radius: 50% !important;
+  display: inline-flex !important; align-items: center !important; justify-content: center !important;
+  overflow: hidden !important; position: relative !important;
+}
+:global(.activity-icon svg) { width: 20px !important; height: 20px !important; display: block !important; flex: 0 0 auto !important; }
+:global(.activity-item > div:not(.activity-icon)) { min-width: 0 !important; overflow: hidden !important; flex: 1 1 auto !important; }
+:global(.activity-item p) { min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 15px !important; line-height: 1.25 !important; }
+:global(.activity-item > div > span) { display: block !important; min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; margin-top: 4px !important; font-size: 13px !important; }
+:global(.activity-item time) { flex: 0 0 auto !important; font-size: 12px !important; white-space: nowrap !important; }
 
-:global(.staff-stack) { min-width: 0 !important; padding: 14px 16px !important; gap: 10px !important; overflow: hidden !important; }
-:global(.staff-avatar-wrap) { flex: 0 0 auto !important; }
-:global(.staff-avatar-wrap .dashboard-avatar) { width: 34px !important; min-width: 34px !important; height: 34px !important; }
-
-:global(.trend-mini) { min-width: 0 !important; min-height: 72px !important; height: 72px !important; padding: 12px 14px !important; border: 1px solid var(--line) !important; border-radius: 10px !important; overflow: hidden !important; }
-:global(.trend-mini span) { display: block !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 8px !important; }
-:global(.trend-mini strong) { display: block !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 14px !important; margin-top: 5px !important; }
-:global(.metric-bars) { padding: 14px 17px 12px !important; }
-:global(.metric-bar-row) { min-width: 0 !important; min-height: 30px !important; display: grid !important; grid-template-columns: 82px minmax(0,1fr) 24px !important; align-items: center !important; gap: 10px !important; }
-:global(.metric-bar-row > span) { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 9px !important; }
-:global(.metric-bar-row > strong) { text-align: right !important; font-size: 10px !important; }
-:global(.metric-bar-track) { min-width: 0 !important; width: 100% !important; height: 7px !important; overflow: hidden !important; }
-:global(.period-footer) { min-height: 44px !important; padding: 0 17px !important; display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size: 9px !important; gap: 8px !important; }
+:global(.trend-mini) {
+  min-width: 0 !important; min-height: 82px !important; height: 82px !important;
+  padding: 14px 16px !important; border: 1px solid var(--line) !important;
+  border-radius: 12px !important; overflow: hidden !important;
+}
+:global(.trend-mini span) { display: block !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 12px !important; }
+:global(.trend-mini strong) { display: block !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 22px !important; margin-top: 6px !important; }
+:global(.panel-body > .grid.grid-cols-3) { padding: 0 16px !important; gap: 12px !important; }
+:global(.metric-bars) { padding: 18px 18px 14px !important; }
+:global(.metric-bar-row) { min-width: 0 !important; min-height: 34px !important; display: grid !important; grid-template-columns: 90px minmax(0,1fr) 28px !important; align-items: center !important; gap: 12px !important; }
+:global(.metric-bar-row > span) { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 12px !important; }
+:global(.metric-bar-row > strong) { text-align: right !important; font-size: 12px !important; }
+:global(.metric-bar-track) { min-width: 0 !important; width: 100% !important; height: 8px !important; overflow: hidden !important; border-radius: 999px !important; }
+:global(.metric-bar-fill) { display: block !important; height: 100% !important; border-radius: inherit !important; }
+:global(.period-footer) { min-height: 48px !important; padding: 0 18px !important; display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size: 11px !important; gap: 12px !important; }
 :global(.period-footer > *:nth-child(2)) { text-align: center !important; }
 :global(.period-footer > *:last-child) { text-align: right !important; }
 
-:global(.payment-total) { margin: 14px 17px 10px !important; padding: 14px !important; min-width: 0 !important; }
-:global(.payment-total strong) { font-size: 21px !important; }
-:global(.payment-list) { padding: 0 17px 14px !important; }
-:global(.payment-row) { min-height: 42px !important; min-width: 0 !important; }
+:global(.payment-total) { margin: 16px 18px 12px !important; padding: 16px !important; min-width: 0 !important; }
+:global(.payment-total strong) { font-size: 22px !important; }
+:global(.payment-list) { padding: 0 18px 16px !important; }
+:global(.payment-row) { min-height: 44px !important; min-width: 0 !important; }
 
 @media (max-width: 767px) {
-  :global(.quick-actions) { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
-  :global(.quick-action) { min-height: 58px !important; height: 58px !important; padding: 7px 9px !important; }
+  :global(.quick-actions) { grid-template-columns: repeat(2, minmax(0,1fr)) !important; gap: 10px !important; padding: 12px !important; }
+  :global(.quick-action) { min-height: 62px !important; height: 62px !important; padding: 8px 9px !important; gap: 8px !important; }
   :global(.quick-action > span) { width: 32px !important; min-width: 32px !important; height: 32px !important; }
-  :global(.metric-bar-row) { grid-template-columns: 72px minmax(0,1fr) 22px !important; gap: 7px !important; }
+  :global(.quick-action b) { font-size: 13px !important; }
+  :global(.activity-list) { padding: 6px 12px 10px !important; }
+  :global(.activity-item) { min-height: 62px !important; padding: 8px 0 !important; gap: 9px !important; }
+  :global(.activity-icon) { width: 42px !important; min-width: 42px !important; height: 42px !important; }
+  :global(.activity-icon svg) { width: 18px !important; height: 18px !important; }
+  :global(.activity-item p) { font-size: 14px !important; }
+  :global(.activity-item > div > span) { font-size: 12px !important; }
+  :global(.activity-item time) { font-size: 11px !important; }
+  :global(.panel-body > .grid.grid-cols-3) { padding: 0 12px !important; gap: 8px !important; }
+  :global(.trend-mini) { min-height: 70px !important; height: 70px !important; padding: 11px 12px !important; }
+  :global(.trend-mini strong) { font-size: 18px !important; }
+  :global(.metric-bar-row) { grid-template-columns: 72px minmax(0,1fr) 22px !important; gap: 8px !important; }
 }
