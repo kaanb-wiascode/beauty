@@ -1,4 +1,9 @@
-import { clearSession, getAccessToken } from "./auth";
+import {
+  clearSession,
+  getAccessToken,
+  getRefreshToken,
+  persistSession,
+} from "./auth";
 
 /**
  * Browser requests use the same-origin `/backend` rewrite in next.config.ts,
@@ -57,7 +62,6 @@ function mapErrorMessage(message: string) {
   return ERROR_MESSAGES[message] ?? message;
 }
 
-
 function readErrorMessage(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") {
     return fallback;
@@ -82,7 +86,42 @@ function redirectToLogin() {
   window.location.assign("/login");
 }
 
-export async function api<T>(path: string, options: ApiOptions = {}): Promise<T> {
+async function refreshAccessToken(): Promise<string | null> {
+  const refreshToken = getRefreshToken();
+  if (!refreshToken) return null;
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      credentials: "include",
+    });
+
+    if (!response.ok) return null;
+
+    const payload = (await response.json()) as {
+      accessToken?: string;
+      refreshToken?: string;
+    };
+
+    if (!payload.accessToken) return null;
+
+    persistSession({
+      accessToken: payload.accessToken,
+      refreshToken: payload.refreshToken ?? refreshToken,
+    });
+
+    return payload.accessToken;
+  } catch {
+    return null;
+  }
+}
+
+export async function api<T>(
+  path: string,
+  options: ApiOptions = {},
+): Promise<T> {
   const { method = "GET", body, auth = true } = options;
   const headers: Record<string, string> = {};
 
@@ -105,9 +144,34 @@ export async function api<T>(path: string, options: ApiOptions = {}): Promise<T>
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
+      credentials: "include",
     });
   } catch {
     throw new ApiError("Sunucuya bağlanılamadı. Backend çalışıyor mu?", 0);
+  }
+
+  // An access token can legitimately expire while the user is working.
+  // Recover transparently with the refresh token before forcing a login.
+  if (response.status === 401 && auth && !path.startsWith("/auth/")) {
+    const refreshedToken = await refreshAccessToken();
+
+    if (refreshedToken) {
+      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshedToken}` };
+
+      try {
+        response = await fetch(`${API_BASE_URL}${path}`, {
+          method,
+          headers: retryHeaders,
+          body: body === undefined ? undefined : JSON.stringify(body),
+          credentials: "include",
+        });
+      } catch {
+        throw new ApiError("Sunucuya bağlanılamadı. Backend çalışıyor mu?", 0);
+      }
+    } else {
+      clearSession();
+      redirectToLogin();
+    }
   }
 
   const text = await response.text();
