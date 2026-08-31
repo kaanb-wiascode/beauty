@@ -13,14 +13,11 @@ import { ServicesModule } from './modules/services/services.module';
 import { PaymentsModule } from './modules/payments/payments.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
+import { InventoryModule } from './modules/inventory/inventory.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
-      validate: (config) => envSchema.parse(config),
-    }),
+    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: (config) => envSchema.parse(config) }),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -31,8 +28,9 @@ import { MembershipsModule } from './modules/memberships/memberships.module';
     AppointmentsModule,
     ServicesModule,
     PaymentsModule,
-      RolesModule,
-      MembershipsModule,
+    RolesModule,
+    MembershipsModule,
+    InventoryModule,
   ],
 })
 export class AppModule {}
