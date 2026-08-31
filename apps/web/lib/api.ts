@@ -129,12 +129,23 @@ export async function api<T>(
     headers["Content-Type"] = "application/json";
   }
 
-  if (auth) {
-    const accessToken = getAccessToken();
+  // If the access token is missing (for example after a browser restart or
+  // storage cleanup), recover the session before making protected requests.
+  // This avoids sending a request with no Authorization header, which the API
+  // correctly rejects as "JWT user not found".
+  let accessToken = auth ? getAccessToken() : null;
+  if (auth && !accessToken && !path.startsWith("/auth/")) {
+    accessToken = await refreshAccessToken();
 
-    if (accessToken) {
-      headers.Authorization = `Bearer ${accessToken}`;
+    if (!accessToken) {
+      clearSession();
+      redirectToLogin();
+      throw new ApiError("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.", 401);
     }
+  }
+
+  if (auth && accessToken) {
+    headers.Authorization = `Bearer ${accessToken}`;
   }
 
   let response: Response;
