@@ -164,3 +164,58 @@
 /* No dashboard panel or child may force horizontal overflow. */
 :global(.dashboard-panel), :global(.dashboard-panel *) { box-sizing: border-box; }
 :global(.dashboard-panel) { min-width: 0 !important; max-width: 100% !important; overflow: hidden; }
+
+/* CSS Module -> literal JSX utility class bridge. */
+:global(.quick-actions) {
+  padding: 12px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 8px !important;
+}
+:global(.quick-action) {
+  width: 100% !important; min-width: 0 !important; min-height: 64px !important;
+  height: 64px !important; padding: 8px 10px !important; border-radius: 12px !important;
+  gap: 8px !important; justify-content: flex-start !important;
+}
+:global(.quick-action > span) { width: 34px !important; min-width: 34px !important; height: 34px !important; border-radius: 10px !important; }
+:global(.quick-action > span svg) { width: 17px !important; height: 17px !important; }
+:global(.quick-action b) { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; }
+:global(.quick-action > svg) { width: 14px !important; height: 14px !important; flex: 0 0 auto !important; color: var(--muted) !important; margin-left: auto !important; }
+
+:global(.activity-list) { padding: 6px 12px 10px !important; min-width: 0 !important; }
+:global(.activity-item) { min-width: 0 !important; min-height: 62px !important; padding: 9px 2px !important; gap: 10px !important; }
+:global(.activity-item > div:first-child), :global(.activity-icon) { flex: 0 0 auto !important; }
+:global(.activity-icon) { width: 38px !important; min-width: 38px !important; height: 38px !important; border-radius: 50% !important; }
+:global(.activity-icon svg) { width: 17px !important; height: 17px !important; }
+:global(.activity-item > div:not(.activity-icon)) { min-width: 0 !important; overflow: hidden !important; }
+:global(.activity-item p) { min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 11px !important; line-height: 1.2 !important; }
+:global(.activity-item > div > span) { display: block !important; min-width: 0 !important; max-width: 100% !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; margin-top: 3px !important; font-size: 10px !important; }
+:global(.activity-item time) { flex: 0 0 auto !important; font-size: 9px !important; white-space: nowrap !important; }
+
+:global(.staff-stack) { min-width: 0 !important; padding: 14px 16px !important; gap: 10px !important; overflow: hidden !important; }
+:global(.staff-avatar-wrap) { flex: 0 0 auto !important; }
+:global(.staff-avatar-wrap .dashboard-avatar) { width: 34px !important; min-width: 34px !important; height: 34px !important; }
+
+:global(.trend-mini) { min-width: 0 !important; min-height: 72px !important; height: 72px !important; padding: 12px 14px !important; border: 1px solid var(--line) !important; border-radius: 10px !important; overflow: hidden !important; }
+:global(.trend-mini span) { display: block !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 8px !important; }
+:global(.trend-mini strong) { display: block !important; min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 14px !important; margin-top: 5px !important; }
+:global(.metric-bars) { padding: 14px 17px 12px !important; }
+:global(.metric-bar-row) { min-width: 0 !important; min-height: 30px !important; display: grid !important; grid-template-columns: 82px minmax(0,1fr) 24px !important; align-items: center !important; gap: 10px !important; }
+:global(.metric-bar-row > span) { min-width: 0 !important; overflow: hidden !important; text-overflow: ellipsis !important; white-space: nowrap !important; font-size: 9px !important; }
+:global(.metric-bar-row > strong) { text-align: right !important; font-size: 10px !important; }
+:global(.metric-bar-track) { min-width: 0 !important; width: 100% !important; height: 7px !important; overflow: hidden !important; }
+:global(.period-footer) { min-height: 44px !important; padding: 0 17px !important; display: grid !important; grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size: 9px !important; gap: 8px !important; }
+:global(.period-footer > *:nth-child(2)) { text-align: center !important; }
+:global(.period-footer > *:last-child) { text-align: right !important; }
+
+:global(.payment-total) { margin: 14px 17px 10px !important; padding: 14px !important; min-width: 0 !important; }
+:global(.payment-total strong) { font-size: 21px !important; }
+:global(.payment-list) { padding: 0 17px 14px !important; }
+:global(.payment-row) { min-height: 42px !important; min-width: 0 !important; }
+
+@media (max-width: 767px) {
+  :global(.quick-actions) { grid-template-columns: repeat(2, minmax(0,1fr)) !important; }
+  :global(.quick-action) { min-height: 58px !important; height: 58px !important; padding: 7px 9px !important; }
+  :global(.quick-action > span) { width: 32px !important; min-width: 32px !important; height: 32px !important; }
+  :global(.metric-bar-row) { grid-template-columns: 72px minmax(0,1fr) 22px !important; gap: 7px !important; }
+}
