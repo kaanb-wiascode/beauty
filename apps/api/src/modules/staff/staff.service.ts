@@ -31,6 +31,40 @@ export class StaffService {
     return branchId;
   }
 
+  private async resolveCreateBranchId(): Promise<string> {
+    const branchId = this.tenantContext.getBranchId();
+
+    if (branchId) {
+      await this.validateBranchAccess(branchId);
+      return branchId;
+    }
+
+    const companyId = this.tenantContext.getCompanyId();
+    const branches = await this.prisma.branch.findMany({
+      where: {
+        companyId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+      orderBy: { createdAt: 'asc' },
+      take: 2,
+    });
+
+    if (branches.length === 1) {
+      return branches[0].id;
+    }
+
+    if (branches.length === 0) {
+      throw new BadRequestException(
+        'Bu şirkette aktif şube bulunamadı. Önce bir şube oluşturun.',
+      );
+    }
+
+    throw new BadRequestException(
+      'Personel eklemek için bir şube seçin.',
+    );
+  }
+
   private getStaffScope() {
     const tenantId = this.tenantContext.getTenantId();
     const companyId = this.tenantContext.getCompanyId();
@@ -71,9 +105,7 @@ export class StaffService {
 
   async create(input: CreateStaffInput) {
     const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.requireBranchId();
-
-    await this.validateBranchAccess(branchId);
+    const branchId = await this.resolveCreateBranchId();
 
     return this.prisma.staff.create({
       data: {
