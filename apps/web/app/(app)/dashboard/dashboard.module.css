@@ -1,0 +1,89 @@
+.page {
+  position: relative;
+}
+
+.profile {
+  width: 34px;
+  height: 34px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  background: #222;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: -.02em;
+}
+
+.status {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 64px;
+  min-height: 25px;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #eef2f5;
+  color: #50667c;
+  font-size: 9px;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+@media (min-width: 1024px) {
+  /* The reference layout is edge-to-edge: compact sidebar, thin divider, wide canvas. */
+  :global(.relative.min-h-screen:has(> aside.glass)) {
+    grid-template-columns: 236px minmax(0, 1fr) !important;
+    gap: 0 !important;
+    padding: 0 !important;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) > aside.glass) {
+    top: 0 !important;
+    height: 100vh !important;
+    border-radius: 0 !important;
+    border-top: 0 !important;
+    border-bottom: 0 !important;
+    border-left: 0 !important;
+    border-right: 1px solid #e8e8e6 !important;
+    box-shadow: none !important;
+    background: rgba(255,255,255,.92) !important;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) > div.relative.flex.min-w-0) {
+    min-width: 0;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) main.ambient-root) {
+    padding-left: 26px !important;
+    padding-right: 26px !important;
+    padding-top: 0 !important;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-topbar) {
+    min-height: 64px;
+    padding: 0 4px 0;
+    margin-bottom: 10px;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-hero) {
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+
+  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-panel) {
+    border-radius: 14px;
+  }
+}
+
+@media (min-width: 1280px) {
+  :global(.relative.min-h-screen:has(> aside.glass) main.ambient-root) {
+    padding-left: 30px !important;
+    padding-right: 30px !important;
+  }
+}
+
+@media (max-width: 1023px) {
+  .profile { display: none; }
+}
