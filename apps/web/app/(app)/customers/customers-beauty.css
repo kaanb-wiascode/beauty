@@ -1,0 +1,7 @@
+.customers-page{--customer-surface:#fff;--customer-line:#e8e4ee;--customer-ink:#302b3f;--customer-muted:#77748a;--customer-accent:#7456e8;--customer-accent-soft:#f1edff}
+.customers-page input,.customers-page select,.customers-page textarea{font-size:13px}
+.customers-page table{border-collapse:separate;border-spacing:0}
+.customers-page table tbody tr{transition:background-color .16s ease}
+.customers-page table tbody tr:hover{background:#fbf9ff}
+.customers-page button:focus-visible,.customers-page a:focus-visible,.customers-page input:focus-visible,.customers-page select:focus-visible,.customers-page textarea:focus-visible{outline:0;box-shadow:0 0 0 4px var(--customer-accent-soft)}
+@media(max-width:767px){.customers-page{padding-inline:4px}.customers-page table{min-width:720px}}
