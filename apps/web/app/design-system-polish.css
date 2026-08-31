@@ -1,0 +1,45 @@
+/* Shared polish layer: keeps legacy page markup visually aligned with the Beauty ERP system. */
+
+/* Legacy solid panels become quieter glass surfaces without changing page structure. */
+[class*="border-[var(--line)]"][class*="bg-white"],
+[class*="border-[var(--line)]"][class*="bg-[var(--surface)]"] {
+  background: rgba(255,255,255,.78) !important;
+  box-shadow: 0 8px 26px rgba(67,52,118,.055), 0 2px 8px rgba(67,52,118,.025);
+  backdrop-filter: blur(16px) saturate(1.06);
+  -webkit-backdrop-filter: blur(16px) saturate(1.06);
+}
+
+/* Make native selects match TextInput controls on pages that still use them directly. */
+select.control,
+select[class~="control"] {
+  min-height: 42px;
+  color: var(--ink);
+}
+
+/* Consistent toolbar density. */
+[class*="border-t"][class*="border-[var(--line)]"] button,
+[class*="border-b"][class*="border-[var(--line)]"] button {
+  transition: background-color var(--duration) var(--ease-out), color var(--duration) var(--ease-out), transform var(--duration) var(--ease-out);
+}
+
+/* Tables feel lighter and more spacious across legacy screens. */
+.data-table tbody td {
+  border-color: var(--line);
+}
+
+/* Soft section dividers rather than hard gray rules. */
+[class*="divide-[var(--line)]"] > :not([hidden]) ~ :not([hidden]) {
+  border-color: var(--line) !important;
+}
+
+/* Keep action affordances visually compact on dense admin pages. */
+button[aria-label*="Düzenle"],
+button[aria-label*="Sil"],
+button[aria-label*="Arşiv"] {
+  border-radius: 10px;
+}
+
+/* Respect reduced motion while retaining the shared interaction language. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="transition"], [class*="duration-"] { transition: none !important; }
+}
