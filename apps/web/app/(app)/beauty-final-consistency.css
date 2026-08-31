@@ -11,10 +11,13 @@ button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,te
 .surface{border-color:var(--beauty-line)!important;background:rgba(255,255,255,.96)!important}
 .control{border-color:var(--beauty-line)!important;background:#fff!important;color:var(--beauty-ink)!important}
 .control:focus-within{border-color:rgba(116,86,232,.42)!important;box-shadow:0 0 0 4px var(--beauty-purple-soft)!important}
+input:not([type="checkbox"]):not([type="radio"]),select,textarea{border-color:var(--beauty-line)}
+input:not([type="checkbox"]):not([type="radio"]):focus,select:focus,textarea:focus{border-color:rgba(116,86,232,.42);box-shadow:0 0 0 4px var(--beauty-purple-soft);outline:none}
 .text-success,.text-green-600,.text-green-700{color:var(--beauty-green)!important}
 .bg-success,.bg-green-50,.bg-green-100{background:var(--beauty-green-soft)!important}
 table thead th{color:#77748a!important;border-bottom-color:var(--beauty-line)!important}
 table tbody tr{border-bottom-color:var(--beauty-line)!important}
 table tbody tr:hover{background:#fbf9ff!important}
 button,a{transition:color .16s ease,background-color .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease}
-@media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:16px!important}}
+button:disabled{cursor:not-allowed;opacity:.55}
+@media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:16px!important}table{min-width:680px}input,select,textarea{max-width:100%}}
