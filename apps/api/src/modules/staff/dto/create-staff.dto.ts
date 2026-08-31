@@ -24,6 +24,7 @@ const staffProfileSchema = z.object({
   emergencyName: z.string().trim().max(150).optional(),
   emergencyRelation: z.string().trim().max(50).optional(),
   emergencyPhone: z.string().trim().max(50).optional(),
+  services: z.array(z.string().trim().max(100)).max(50).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
