@@ -24,6 +24,7 @@ const staffProfileSchema = z.object({
   emergencyName: z.string().trim().max(150).optional(),
   emergencyRelation: z.string().trim().max(50).optional(),
   emergencyPhone: z.string().trim().max(50).optional(),
+  services: z.array(z.string().trim().max(100)).max(50).optional(),
   notes: z.string().trim().max(2000).optional(),
 });
 
@@ -35,8 +36,6 @@ export const updateStaffSchema = z
     email: z.string().trim().email().max(255).optional(),
     profile: staffProfileSchema.optional(),
   })
-  .refine((data) => Object.keys(data).length > 0, {
-    message: 'At least one field must be provided',
-  });
+  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
 
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
