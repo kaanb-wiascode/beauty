@@ -1,28 +1,23 @@
 -- HR core: personnel and contracts.
--- Attendance, leave, payroll, salary payments and SGK tables are created by
--- 20260831120000_hr_operational_tables. Existing Staff records remain the source employee identity.
-
-CREATE TYPE "EmploymentType" AS ENUM ('FULL_TIME','PART_TIME','HOURLY','SEASONAL','INTERN');
-CREATE TYPE "SalaryType" AS ENUM ('MONTHLY','DAILY','HOURLY');
-CREATE TYPE "ContractStatus" AS ENUM ('DRAFT','ACTIVE','ENDED');
-CREATE TYPE "AttendanceStatus" AS ENUM ('PRESENT','ABSENT','LEAVE','SICK','HOLIDAY','OFF','REMOTE');
-CREATE TYPE "LeaveType" AS ENUM ('ANNUAL','EXCUSED','UNPAID','SICK','MATERNITY','PATERNITY','OTHER');
-CREATE TYPE "LeaveStatus" AS ENUM ('PENDING','APPROVED','REJECTED','CANCELLED');
-CREATE TYPE "PayrollStatus" AS ENUM ('DRAFT','CALCULATED','APPROVED','PAID','CANCELLED');
+-- Attendance, leave, payroll, salary payment and SGK tables are created by
+-- 20260831120000_hr_operational_tables and must not be recreated here.
+-- Existing Staff records remain the source employee identity.
 
 DO $$
 BEGIN
-  IF NOT EXISTS (
-    SELECT 1 FROM pg_type WHERE typname = 'PaymentStatus'
-  ) THEN
-    CREATE TYPE "PaymentStatus" AS ENUM ('PENDING','READY','PAID','CANCELLED');
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'EmploymentType') THEN
+    CREATE TYPE "EmploymentType" AS ENUM ('FULL_TIME','PART_TIME','HOURLY','SEASONAL','INTERN');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'SalaryType') THEN
+    CREATE TYPE "SalaryType" AS ENUM ('MONTHLY','DAILY','HOURLY');
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_type WHERE typname = 'ContractStatus') THEN
+    CREATE TYPE "ContractStatus" AS ENUM ('DRAFT','ACTIVE','ENDED');
   END IF;
 END
 $$;
 
-CREATE TYPE "SgkRecordType" AS ENUM ('ENTRY','EXIT','MONTHLY');
-
-CREATE TABLE "employee_profiles" (
+CREATE TABLE IF NOT EXISTS "employee_profiles" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "tenant_id" TEXT NOT NULL REFERENCES "tenants"("id") ON DELETE CASCADE,
   "branch_id" TEXT NOT NULL REFERENCES "branches"("id") ON DELETE RESTRICT,
@@ -53,10 +48,10 @@ CREATE TABLE "employee_profiles" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX "employee_profiles_tenant_branch_idx" ON "employee_profiles"("tenant_id","branch_id");
-CREATE INDEX "employee_profiles_personnel_number_idx" ON "employee_profiles"("tenant_id","personnel_number");
+CREATE INDEX IF NOT EXISTS "employee_profiles_tenant_branch_idx" ON "employee_profiles"("tenant_id","branch_id");
+CREATE INDEX IF NOT EXISTS "employee_profiles_personnel_number_idx" ON "employee_profiles"("tenant_id","personnel_number");
 
-CREATE TABLE "employee_contracts" (
+CREATE TABLE IF NOT EXISTS "employee_contracts" (
   "id" UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   "tenant_id" TEXT NOT NULL REFERENCES "tenants"("id") ON DELETE CASCADE,
   "branch_id" TEXT NOT NULL REFERENCES "branches"("id") ON DELETE RESTRICT,
@@ -73,5 +68,5 @@ CREATE TABLE "employee_contracts" (
   "created_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updated_at" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
-CREATE INDEX "employee_contracts_scope_idx" ON "employee_contracts"("tenant_id","branch_id","staff_id");
-CREATE INDEX "employee_contracts_dates_idx" ON "employee_contracts"("staff_id","start_date","end_date");
+CREATE INDEX IF NOT EXISTS "employee_contracts_scope_idx" ON "employee_contracts"("tenant_id","branch_id","staff_id");
+CREATE INDEX IF NOT EXISTS "employee_contracts_dates_idx" ON "employee_contracts"("staff_id","start_date","end_date");
