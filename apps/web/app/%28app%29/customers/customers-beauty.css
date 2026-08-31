@@ -1,0 +1,114 @@
+/* Customer workspace visual pass. Scoped by the customer search field so other modules stay untouched. */
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] {
+  max-width: 1320px;
+  color: var(--ink);
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(1) {
+  gap: 14px;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(1) > div {
+  min-height: 126px;
+  border: 1px solid var(--line) !important;
+  border-radius: 18px !important;
+  background: linear-gradient(145deg, #fff, #fbfaff) !important;
+  box-shadow: var(--shadow-soft) !important;
+  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(1) > div:hover {
+  transform: translateY(-2px);
+  border-color: #ddd5ee !important;
+  box-shadow: var(--shadow-lift) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(2) {
+  border: 1px solid var(--line) !important;
+  border-radius: 20px !important;
+  background: rgba(255,255,255,.97) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) input[placeholder="Müşteri, telefon veya e-posta ara..."] {
+  border-color: var(--line) !important;
+  background: #fbfaff !important;
+  color: var(--ink) !important;
+  border-radius: 14px !important;
+  box-shadow: none !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) input[placeholder="Müşteri, telefon veya e-posta ara..."]:focus {
+  border-color: rgba(116,86,232,.48) !important;
+  box-shadow: 0 0 0 4px var(--accent-soft) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) input[placeholder="Müşteri, telefon veya e-posta ara..."]::placeholder {
+  color: var(--muted-soft);
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(2) > div:first-child {
+  background: linear-gradient(180deg, #fdfcff, #fff) !important;
+  border-bottom-color: var(--line) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(2) > div:first-child button {
+  border-radius: 11px !important;
+  border-color: var(--line) !important;
+  color: var(--muted) !important;
+  background: #fff !important;
+  transition: .15s ease;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(2) > div:first-child button:hover {
+  border-color: #d9d0ef !important;
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(2) > div:first-child button.bg-\[var\(--ink\)\] {
+  border-color: var(--accent) !important;
+  background: var(--accent) !important;
+  color: #fff !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table thead {
+  background: #fcfbfe !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table thead th {
+  color: var(--muted) !important;
+  font-weight: 600 !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table tbody tr {
+  transition: background 150ms ease;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table tbody tr:hover {
+  background: #fbf9ff !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table tbody a > span:first-child {
+  background: linear-gradient(135deg, #f0ebff, #e8f8f1) !important;
+  border: 1px solid #e4dff0;
+  color: var(--accent) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table tbody a:hover span:nth-child(2) span:first-child {
+  color: var(--accent) !important;
+}
+
+:where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) table tbody td {
+  color: var(--ink);
+}
+
+@media (max-width: 767px) {
+  :where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(1) > div {
+    min-height: 112px;
+    border-radius: 16px !important;
+  }
+  :where(body:has(input[placeholder="Müşteri, telefon veya e-posta ara..."])) .mx-auto.w-full.max-w-\[1320px\] > section:nth-of-type(2) {
+    border-radius: 17px !important;
+  }
+}
