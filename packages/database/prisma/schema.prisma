@@ -13,7 +13,7 @@ model User {
   passwordHash String
   firstName    String
   lastName     String
-  createdAt    DateTime     @default(uuid())
+  createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   memberships  Membership[]
 
@@ -245,7 +245,7 @@ model CustomerHealthProfile {
 
 model CustomerDocument {
   branchId    String               
-  id          String               @id @default(uuid())
+id          String               @id @default(uuid())
   tenantId    String
   customerId  String?
   type        CustomerDocumentType
