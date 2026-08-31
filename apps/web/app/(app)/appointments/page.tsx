@@ -74,10 +74,6 @@ function addDays(date: Date, amount: number) {
   return result;
 }
 
-function dateInputValue(date: Date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function formatDay(date: Date) {
   return new Intl.DateTimeFormat("tr-TR", {
     weekday: "long",
@@ -391,16 +387,25 @@ export default function AppointmentsPage() {
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <section className="surface min-w-0 overflow-hidden rounded-[22px]">
-          <div className="flex flex-col gap-3 border-b border-[var(--line)] p-3 sm:p-4">
-            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div className="flex items-center gap-1 rounded-[13px] bg-[#f5f5f4] p-1">
-                {([["day", "Günlük"], ["week", "Haftalık"], ["month", "Aylık"]] as const).map(([key, label]) => <button key={key} type="button" onClick={() => setView(key)} className={`rounded-[10px] px-3.5 py-2 text-[12px] font-medium transition ${view === key ? "bg-[var(--ink)] text-white shadow-sm" : "text-[var(--muted)] hover:text-[var(--ink)]"}`}>{label}</button>)}
+          <div className="border-b border-[var(--line)] bg-white px-4 py-3 sm:px-5 sm:py-4">
+            <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+              <div className="inline-flex w-fit items-center rounded-[13px] border border-[var(--line)] bg-[#f7f7f6] p-1 shadow-[0_2px_8px_rgba(28,25,23,0.03)]">
+                {([["day", "Günlük", "calendar"], ["week", "Haftalık", "calendar"], ["month", "Aylık", "calendar"]] as const).map(([key, label]) => (
+                  <button key={key} type="button" onClick={() => setView(key)} className={`inline-flex h-9 items-center gap-1.5 rounded-[10px] px-3.5 text-[12px] font-semibold transition ${view === key ? "bg-[#171717] text-white shadow-sm" : "text-[#77736f] hover:bg-white hover:text-[#222]"}`}>
+                    <Icon name="calendar" className="h-3.5 w-3.5" />{label}
+                  </button>
+                ))}
               </div>
-              <div className="flex min-w-0 flex-wrap gap-2">
-                <div className="relative min-w-[180px] flex-1 sm:flex-none"><Icon name="search" className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-[var(--muted)]" /><TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Müşteri, hizmet veya personel ara..." className="h-10 pl-9 text-[12px] sm:w-[245px]" /></div>
-                <Select value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)} className="h-10 w-auto min-w-[135px] text-[12px]"><option value="">Tüm personel</option>{staff.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select>
-                <Select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} className="h-10 w-auto min-w-[130px] text-[12px]"><option value="">Tüm hizmetler</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
-                <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as AppointmentStatus | "")} className="h-10 w-auto min-w-[125px] text-[12px]"><option value="">Tüm durumlar</option><option value="SCHEDULED">Planlandı</option><option value="CONFIRMED">Onaylandı</option><option value="COMPLETED">Tamamlandı</option><option value="CANCELLED">İptal</option><option value="NO_SHOW">Gelmedi</option></Select>
+
+              <div className="grid min-w-0 flex-1 gap-2 xl:ml-4 xl:grid-cols-[minmax(220px,1.35fr)_repeat(3,minmax(130px,1fr))]">
+                <label className="relative block min-w-0">
+                  <span className="sr-only">Randevu ara</span>
+                  <Icon name="search" className="pointer-events-none absolute left-3.5 top-1/2 h-[17px] w-[17px] -translate-y-1/2 text-[#9a9691]" />
+                  <TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Müşteri, hizmet veya personel ara..." className="h-10 w-full rounded-[11px] border-[#e6e3df] bg-white pl-10 text-[12px] shadow-none placeholder:text-[#a4a09b] focus:border-[#b9b3ff] focus:ring-2 focus:ring-[#eeecff]" />
+                </label>
+                <Select value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)} className="h-10 w-full rounded-[11px] border-[#e6e3df] bg-white text-[12px] shadow-none"><option value="">Tüm personel</option>{staff.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select>
+                <Select value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} className="h-10 w-full rounded-[11px] border-[#e6e3df] bg-white text-[12px] shadow-none"><option value="">Tüm hizmetler</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select>
+                <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as AppointmentStatus | "")} className="h-10 w-full rounded-[11px] border-[#e6e3df] bg-white text-[12px] shadow-none"><option value="">Tüm durumlar</option><option value="SCHEDULED">Planlandı</option><option value="CONFIRMED">Onaylandı</option><option value="COMPLETED">Tamamlandı</option><option value="CANCELLED">İptal</option><option value="NO_SHOW">Gelmedi</option></Select>
               </div>
             </div>
           </div>
