@@ -1,0 +1,97 @@
+.inventory-beauty-surface {
+  border-color: var(--line) !important;
+  background: var(--surface) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+/* Inventory module: keep the dense ERP data readable while giving it the Beauty light/purple/green signature. */
+[data-inventory] h1,
+[data-inventory] h2,
+[data-inventory] h3,
+[data-inventory] strong {
+  color: var(--ink) !important;
+}
+
+[data-inventory] input,
+[data-inventory] select,
+[data-inventory] textarea {
+  border-color: var(--line) !important;
+  border-radius: var(--radius-control) !important;
+  background: #fff !important;
+  color: var(--ink) !important;
+}
+
+[data-inventory] input:focus,
+[data-inventory] select:focus,
+[data-inventory] textarea:focus {
+  border-color: rgba(116, 86, 232, .45) !important;
+  box-shadow: 0 0 0 4px var(--accent-soft) !important;
+  outline: none !important;
+}
+
+[data-inventory] input::placeholder,
+[data-inventory] textarea::placeholder {
+  color: var(--muted-soft) !important;
+}
+
+[data-inventory] table thead th {
+  background: #fcfbfe !important;
+  color: var(--muted) !important;
+  border-bottom-color: var(--line) !important;
+}
+
+[data-inventory] table tbody tr {
+  border-bottom-color: var(--line) !important;
+  transition: background-color var(--motion-fast) ease, box-shadow var(--motion-fast) ease;
+}
+
+[data-inventory] table tbody tr:hover {
+  background: #faf8ff !important;
+}
+
+[data-inventory] .inventory-primary {
+  background: linear-gradient(135deg, var(--accent), #8b6af1) !important;
+  border-color: var(--accent) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px rgba(116, 86, 232, .16) !important;
+}
+
+[data-inventory] .inventory-primary:hover {
+  background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
+  transform: translateY(-1px);
+}
+
+[data-inventory] .inventory-secondary {
+  background: linear-gradient(135deg, var(--secondary), #35b98c) !important;
+  border-color: var(--secondary) !important;
+  color: #fff !important;
+  box-shadow: 0 8px 20px rgba(22, 165, 121, .14) !important;
+}
+
+[data-inventory] .inventory-secondary:hover {
+  background: linear-gradient(135deg, var(--secondary-strong), var(--secondary)) !important;
+  transform: translateY(-1px);
+}
+
+[data-inventory] .inventory-positive {
+  color: var(--secondary) !important;
+  background: var(--secondary-soft) !important;
+  border-color: #d6f0e5 !important;
+}
+
+[data-inventory] .inventory-warning {
+  color: #a96a20 !important;
+  background: var(--warning-soft) !important;
+  border-color: #f4dfc2 !important;
+}
+
+[data-inventory] .inventory-accent {
+  color: var(--accent) !important;
+  background: var(--accent-soft) !important;
+  border-color: #e3dafd !important;
+}
+
+@media (max-width: 767px) {
+  [data-inventory] h1 { font-size: 28px !important; }
+  [data-inventory] table { min-width: 720px; }
+}
