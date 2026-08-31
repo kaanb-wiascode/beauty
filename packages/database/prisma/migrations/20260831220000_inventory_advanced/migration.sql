@@ -173,7 +173,7 @@ CREATE TABLE IF NOT EXISTS "inventory_purchase_order_events" (
 );
 
 INSERT INTO "inventory_categories"("tenant_id","company_id","name","code","default_unit")
-SELECT c.tenant_id,c.id,x.name,x.code,x.unit::"InventoryUnit"
+SELECT c."tenantId",c.id,x.name,x.code,x.unit::"InventoryUnit"
 FROM companies c
 CROSS JOIN (VALUES
  ('Cilt Bakımı','SKINCARE','UNIT'),
