@@ -7,15 +7,10 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     rules: {
-      // Existing data-loading effects are intentionally retained until the
-      // affected screens are refactored to a data-fetching abstraction.
       "react-hooks/set-state-in-effect": "warn",
-      // A few legacy API adapters still use dynamic response shapes. Keep
-      // these visible as warnings rather than blocking the whole quality job.
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },
-  // Override default ignores of eslint-config-next.
   globalIgnores([
     ".next/**",
     "out/**",
