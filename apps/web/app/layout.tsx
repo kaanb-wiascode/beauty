@@ -1,10 +1,11 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import localFont from "next/font/local";
 import "./globals.css";
 import "./beauty-theme.css";
 
-const inter = Inter({
-  subsets: ["latin", "latin-ext"],
+const inter = localFont({
+  src: "./fonts/Inter[opsz,wght].ttf",
+  weight: "100 900",
   variable: "--font-inter",
   display: "swap",
 });
