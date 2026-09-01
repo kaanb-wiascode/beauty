@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import { Alert, Button, EmptyState, Field, PageHeader, Pagination, Spinner, TableWrap, Td, TextInput, Th } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -37,7 +37,7 @@ export default function CustomersPage() {
   function validateConsents() { if (!consents.kvkkAcknowledgement) { setFormError("KVKK Aydınlatma Metni bilgilendirmesi tamamlanmalıdır."); return false; } if (!consents.membershipAgreement) { setFormError("Üyelik Sözleşmesi kabul edilmelidir."); return false; } const healthDataPresent = hasHealthData(healthForm); if (healthDataPresent && !consents.healthFormCompletion) { setFormError("Sağlık bilgi formu için doğruluk beyanı tamamlanmalıdır."); return false; } if (healthDataPresent && !consents.healthDataConsent) { setFormError("Sağlık verilerinin işlenmesi için açık rıza gereklidir."); return false; } setFormError(""); return true; }
   async function onSubmit(event: FormEvent) { event.preventDefault(); if (!editing) { if (formStep === 1) { if (!validateStep1()) return; setFormStep(2); return; } if (formStep === 2) { if (!validateConsents()) return; setFormStep(3); return; } } if (!validateStep1()) { setFormStep(1); return; } setSaving(true); setFormError(""); setError(""); try { if (editing) { await api<Customer>(`/customers/${editing.id}`, { method: "PATCH", body: { firstName: form.firstName.trim(), lastName: form.lastName.trim(), ...(optionalText(form.phone) ? { phone: form.phone.trim() } : { phone: null }), ...(optionalText(form.email) ? { email: form.email.trim().toLowerCase() } : { email: null }), birthDate: form.birthDate || null, customerSource: form.customerSource || null } }); showToast("Müşteri güncellendi."); } else { await api<Customer>("/customers", { method: "POST", body: toCreatePayload(form, consents, healthForm) }); showToast("Müşteri başarıyla oluşturuldu."); } closeModal(); await load(); } catch (err) { setFormError(err instanceof ApiError ? err.message : "Müşteri kaydedilemedi."); } finally { setSaving(false); } }
   async function onDelete() { if (!canDeleteCustomer || !pendingDelete) return; setSaving(true); setError(""); try { await api(`/customers/${pendingDelete.id}`, { method: "DELETE" }); setPendingDelete(null); showToast("Müşteri silindi."); await load(); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri silinemedi."); setPendingDelete(null); } finally { setSaving(false); } }
-  const now = useMemo(() => Date.now(), []);
+  const [now] = useState(() => Date.now());
   const recentCustomers = useMemo(() => listFilter === "all" ? customers : customers.filter((customer) => now - new Date(customer.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000), [customers, listFilter, now]);
   const newThisPage = useMemo(() => customers.filter((customer) => now - new Date(customer.createdAt).getTime() < 7 * 24 * 60 * 60 * 1000).length, [customers, now]);
   const withPhone = useMemo(() => customers.filter((customer) => Boolean(customer.phone)).length, [customers]); const withEmail = useMemo(() => customers.filter((customer) => Boolean(customer.email)).length, [customers]);
