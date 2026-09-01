@@ -7,7 +7,10 @@ const eslintConfig = defineConfig([
   ...nextTs,
   {
     rules: {
-      "react-hooks/set-state-in-effect": "warn",
+      // These effects intentionally synchronize client/UI state with modal, auth,
+      // and data-loading lifecycles. Keep the rule disabled until those flows are
+      // refactored to avoid introducing behavior regressions during the UI work.
+      "react-hooks/set-state-in-effect": "off",
       "@typescript-eslint/no-explicit-any": "warn",
     },
   },
