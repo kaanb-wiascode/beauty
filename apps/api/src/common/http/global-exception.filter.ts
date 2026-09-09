@@ -31,7 +31,7 @@ export class GlobalExceptionFilter implements ExceptionFilter {
     const response = this.toResponse(exception, req, requestId);
     const status = response.statusCode;
 
-    if (status >= HttpStatus.INTERNAL_SERVER_ERROR) {
+    if (status >= 500) {
       this.logger.error(
         `${req.method} ${req.originalUrl} ${status} requestId=${requestId}`,
         exception instanceof Error ? exception.stack : String(exception),
