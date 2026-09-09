@@ -78,6 +78,44 @@ export interface InventoryProductInput {
   supplierShippingDays?: number;
 }
 
+export interface InventoryAssetInput {
+  categoryId?: string | null;
+  assetCode: string;
+  name: string;
+  assetType?: string;
+  brand?: string;
+  model?: string;
+  serialNumber?: string;
+  status?: string;
+  condition?: string;
+  branchId?: string | null;
+  warehouseId?: string | null;
+  assignedToStaffId?: string | null;
+  purchaseDate?: string | null;
+  supplierId?: string | null;
+  invoiceNumber?: string | null;
+  purchasePrice?: number;
+  currency?: string;
+  warrantyStart?: string | null;
+  warrantyEnd?: string | null;
+  maintenanceIntervalDays?: number | null;
+  nextMaintenanceAt?: string | null;
+  imageUrl?: string | null;
+  notes?: string | null;
+}
+
+export interface InventoryAssetMaintenanceInput {
+  assetId: string;
+  type?: string;
+  status?: string;
+  scheduledAt?: string | null;
+  completedAt?: string | null;
+  provider?: string | null;
+  cost?: number;
+  currency?: string;
+  description?: string | null;
+}
+
 export interface InventoryTransferItemInput {
   productId: string;
   quantity: number;
