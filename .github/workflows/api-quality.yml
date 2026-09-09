@@ -32,7 +32,8 @@ jobs:
         run: pnpm install --frozen-lockfile
 
       - name: Generate Prisma client
-        run: pnpm exec prisma generate
+        working-directory: .
+        run: pnpm --filter @beauty-erp/database generate
 
       - name: Lint
         run: pnpm lint
