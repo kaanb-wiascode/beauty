@@ -116,6 +116,22 @@ export interface InventoryAssetMaintenanceInput {
   description?: string | null;
 }
 
+export interface InventoryPurchaseOrderItemInput {
+  productId: string;
+  quantity: number;
+  unitCost?: number;
+}
+
+export interface InventoryPurchaseOrderInput {
+  warehouseId: string;
+  supplierId?: string | null;
+  status?: string;
+  totalAmount?: number;
+  note?: string | null;
+  orderedAt?: string | null;
+  items: InventoryPurchaseOrderItemInput[];
+}
+
 export interface InventoryTransferItemInput {
   productId: string;
   quantity: number;
