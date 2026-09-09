@@ -3,7 +3,6 @@ import {
   Controller,
   Get,
   Post,
-  Req,
   UseGuards,
 } from '@nestjs/common';
 
@@ -18,7 +17,6 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
-import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
@@ -79,7 +77,7 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
   @Get('me')
-  async me(@CurrentUser() user: JwtPayload) {
+  me(@CurrentUser() user: JwtPayload) {
     return {
       authenticated: true,
       user,
