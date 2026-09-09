@@ -39,6 +39,37 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['services', 'delete'],
 ] as const;
 
+type RefreshSession = {
+  userId: string;
+  tenantId: string;
+  membershipId: string;
+  roleId: string;
+  companyId?: string;
+  branchId?: string | null;
+  roleScope?: 'CENTRAL' | 'COMPANY' | 'BRANCH';
+};
+
+function isRefreshSession(value: unknown): value is RefreshSession {
+  if (!value || typeof value !== 'object') {
+    return false;
+  }
+
+  const session = value as Record<string, unknown>;
+
+  return (
+    typeof session.userId === 'string' &&
+    typeof session.tenantId === 'string' &&
+    typeof session.membershipId === 'string' &&
+    typeof session.roleId === 'string' &&
+    (session.companyId === undefined || typeof session.companyId === 'string') &&
+    (session.branchId === undefined || session.branchId === null || typeof session.branchId === 'string') &&
+    (session.roleScope === undefined ||
+      session.roleScope === 'CENTRAL' ||
+      session.roleScope === 'COMPANY' ||
+      session.roleScope === 'BRANCH')
+  );
+}
+
 @Injectable()
 export class AuthService {
   constructor(
@@ -570,20 +601,24 @@ export class AuthService {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
-    let session: {
-      userId: string;
-      tenantId: string;
-      membershipId: string;
-      roleId: string;
-      companyId?: string;
-      branchId?: string | null;
-      roleScope?: 'CENTRAL' | 'COMPANY' | 'BRANCH';
-    };
+    let session: RefreshSession;
 
     try {
-      session = JSON.parse(sessionData);
-    } catch {
+      const parsedSession: unknown = JSON.parse(sessionData);
+
+      if (!isRefreshSession(parsedSession)) {
+        await this.redis.delete(key);
+        throw new UnauthorizedException('Invalid refresh session');
+      }
+
+      session = parsedSession;
+    } catch (error) {
       await this.redis.delete(key);
+
+      if (error instanceof UnauthorizedException) {
+        throw error;
+      }
+
       throw new UnauthorizedException('Invalid refresh session');
     }
 
