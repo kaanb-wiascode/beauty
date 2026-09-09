@@ -6,8 +6,60 @@ const USER_KEY = "beauty_erp_user";
 const TENANT_KEY = "beauty_erp_tenant";
 const MEMBERSHIP_KEY = "beauty_erp_membership";
 
+type StoredMembership = LoginResponse["membership"];
+
 function canUseStorage() {
   return typeof window !== "undefined";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isAuthUser(value: unknown): value is AuthUser {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.email === "string" &&
+    typeof value.firstName === "string" &&
+    typeof value.lastName === "string"
+  );
+}
+
+function isAuthTenant(value: unknown): value is AuthTenant {
+  if (!isRecord(value)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.name === "string" &&
+    typeof value.slug === "string"
+  );
+}
+
+function isMembership(value: unknown): value is StoredMembership {
+  if (!isRecord(value) || !Array.isArray(value.permissions)) return false;
+  return (
+    typeof value.id === "string" &&
+    typeof value.role === "string" &&
+    typeof value.status === "string" &&
+    value.permissions.every((permission) => typeof permission === "string")
+  );
+}
+
+function readStored<T>(
+  key: string,
+  guard: (value: unknown) => value is T,
+): T | null {
+  if (!canUseStorage()) return null;
+
+  const raw = window.localStorage.getItem(key);
+  if (!raw) return null;
+
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return guard(parsed) ? parsed : null;
+  } catch {
+    return null;
+  }
 }
 
 export function getAccessToken(): string | null {
@@ -21,42 +73,15 @@ export function getRefreshToken(): string | null {
 }
 
 export function getStoredUser(): AuthUser | null {
-  if (!canUseStorage()) return null;
-
-  const raw = window.localStorage.getItem(USER_KEY);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as AuthUser;
-  } catch {
-    return null;
-  }
+  return readStored(USER_KEY, isAuthUser);
 }
 
-export function getStoredMembership(): LoginResponse["membership"] | null {
-  if (!canUseStorage()) return null;
-
-  const raw = window.localStorage.getItem(MEMBERSHIP_KEY);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as LoginResponse["membership"];
-  } catch {
-    return null;
-  }
+export function getStoredMembership(): StoredMembership | null {
+  return readStored(MEMBERSHIP_KEY, isMembership);
 }
 
 export function getStoredTenant(): AuthTenant | null {
-  if (!canUseStorage()) return null;
-
-  const raw = window.localStorage.getItem(TENANT_KEY);
-  if (!raw) return null;
-
-  try {
-    return JSON.parse(raw) as AuthTenant;
-  } catch {
-    return null;
-  }
+  return readStored(TENANT_KEY, isAuthTenant);
 }
 
 export function persistSession(input: {
@@ -64,7 +89,7 @@ export function persistSession(input: {
   refreshToken?: string;
   user?: AuthUser;
   tenant?: AuthTenant;
-  membership?: LoginResponse["membership"];
+  membership?: StoredMembership;
 }) {
   if (!canUseStorage()) return;
 
