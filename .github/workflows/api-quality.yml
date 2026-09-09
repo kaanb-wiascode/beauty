@@ -37,6 +37,10 @@ jobs:
           DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty?schema=public
         run: pnpm --filter @beauty-erp/database generate
 
+      - name: Build database package
+        working-directory: .
+        run: pnpm --filter @beauty-erp/database build
+
       - name: Lint
         run: pnpm lint
 
