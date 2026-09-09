@@ -8,7 +8,6 @@ type Field = string;
 type HrConfig = { title: string; get: string; post?: string; fields: Field[] };
 type Row = Record<string, unknown>;
 type StaffRow = Row & { id: string; firstName: string; lastName: string };
-type ApiList = Row[] | { data?: Row[] };
 type FormState = Record<string, unknown>;
 
 const cfg: Record<string, HrConfig> = {
