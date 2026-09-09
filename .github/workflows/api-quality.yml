@@ -33,6 +33,8 @@ jobs:
 
       - name: Generate Prisma client
         working-directory: .
+        env:
+          DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty?schema=public
         run: pnpm --filter @beauty-erp/database generate
 
       - name: Lint
