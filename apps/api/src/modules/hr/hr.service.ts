@@ -6,6 +6,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 /* eslint-disable no-useless-escape */
 
 type StaffProfile = Record<string, unknown>;
+type StaffStatus = 'ACTIVE' | 'INACTIVE' | 'ARCHIVED';
 
 type HrBody = {
   branchId?: string;
@@ -13,7 +14,7 @@ type HrBody = {
   lastName?: string;
   phone?: string | null;
   email?: string | null;
-  status?: string;
+  status?: StaffStatus;
   staffId?: string;
   workDate?: string;
   checkIn?: string | null;
