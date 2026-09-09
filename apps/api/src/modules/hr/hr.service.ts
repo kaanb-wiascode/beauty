@@ -4,10 +4,11 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 
 type StaffProfile = Record<string, unknown>;
 
-type JsonInput = string | number | boolean | null | JsonInput[] | { [key: string]: JsonInput };
+type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };
+type JsonObject = { [key: string]: JsonValue };
 
-function asJsonInput(value: StaffProfile): JsonInput {
-  return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+function asJsonInput(value: StaffProfile): JsonObject {
+  return JSON.parse(JSON.stringify(value)) as JsonObject;
 }
 
 @Injectable()
