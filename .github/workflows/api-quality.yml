@@ -1,0 +1,44 @@
+name: API quality
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  api-quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/api
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm and Node
+        uses: pnpm/setup@v1
+        with:
+          version: 11.9.0
+          runtime: node@22.13.1
+          cache: true
+          cache-dependency-path: pnpm-lock.yaml
+          package-json-file: apps/api/package.json
+          install: false
+
+      - name: Install dependencies
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Type check
+        run: pnpm exec tsc --noEmit
+
+      - name: Test
+        run: pnpm test -- --runInBand
+
+      - name: Production build
+        run: pnpm build
