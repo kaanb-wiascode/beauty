@@ -3,9 +3,13 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { InventoryService } from './inventory.service';
 import type {
+  InventoryAssetInput,
+  InventoryAssetMaintenanceInput,
   InventoryCategoryInput,
   InventoryMaterialsInput,
   InventoryMovementInput,
+  InventoryProductInput,
+  InventoryPurchaseOrderInput,
   InventorySupplierInput,
   InventoryTransferInput,
 } from './inventory.types';
@@ -68,7 +72,7 @@ export class InventoryController {
 
   @Get('overview') overview() { return this.inventory.overview(); }
   @Get('products') products(@Query('search') search?: string) { return this.inventory.products(search); }
-  @Post('products') createProduct(@Body() body: InventoryBody) { return this.inventory.createProduct(body); }
+  @Post('products') createProduct(@Body() body: InventoryProductInput) { return this.inventory.createProduct(body); }
   @Get('categories') categories() { return this.inventory.categories(); }
   @Post('categories') createCategory(@Body() body: InventoryCategoryInput) { return this.inventory.createCategory(body); }
 
@@ -96,11 +100,11 @@ export class InventoryController {
   @Get('suppliers') suppliers() { return this.inventory.suppliers(); }
   @Post('suppliers') createSupplier(@Body() body: InventorySupplierInput) { return this.inventory.createSupplier(body); }
   @Get('purchase-orders') purchaseOrders() { return this.inventory.purchaseOrders(); }
-  @Post('purchase-orders') createPurchaseOrder(@Body() body: InventoryBody) { return this.inventory.createPurchaseOrder(body); }
+  @Post('purchase-orders') createPurchaseOrder(@Body() body: InventoryPurchaseOrderInput) { return this.inventory.createPurchaseOrder(body); }
   @Get('assets') assets() { return this.inventory.assets(); }
-  @Post('assets') createAsset(@Body() body: InventoryBody) { return this.inventory.createAsset(body); }
+  @Post('assets') createAsset(@Body() body: InventoryAssetInput) { return this.inventory.createAsset(body); }
   @Get('assets/maintenance') assetMaintenance() { return this.inventory.assetMaintenance(); }
-  @Post('assets/maintenance') createAssetMaintenance(@Body() body: InventoryBody) { return this.inventory.createAssetMaintenance(body); }
+  @Post('assets/maintenance') createAssetMaintenance(@Body() body: InventoryAssetMaintenanceInput) { return this.inventory.createAssetMaintenance(body); }
   @Get('notifications') notifications() { return this.inventory.notifications(); }
   @Get('transfers') transfers() { return this.inventory.transfers(); }
   @Post('transfers') createTransfer(@Body() body: InventoryTransferInput) { return this.inventory.createTransfer(body); }
