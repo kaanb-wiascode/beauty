@@ -2,6 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
+/* The HR queries intentionally use quoted PostgreSQL identifiers inside template literals. */
+/* eslint-disable no-useless-escape */
+
 type StaffProfile = Record<string, unknown>;
 
 type HrBody = {
