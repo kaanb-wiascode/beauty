@@ -7,6 +7,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   api-quality:
     runs-on: ubuntu-latest
@@ -16,6 +19,32 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v6
+        with:
+          ref: docs/repository-audit-2026-09
+          fetch-depth: 0
+
+      - name: Repair HR Prisma type import
+        working-directory: .
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          path = Path('apps/api/src/modules/hr/hr.service.ts')
+          text = path.read_text()
+          old = "import { Prisma, PrismaService } from '@beauty-erp/database';"
+          new = "import { PrismaService } from '@beauty-erp/database';\nimport { Prisma } from '@prisma/client';"
+          if old in text:
+              path.write_text(text.replace(old, new, 1))
+          PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add 'apps/api/src/modules/hr/hr.service.ts'
+          if git diff --cached --quiet; then
+            echo 'No HR Prisma import repair needed.'
+          else
+            git commit -m "fix(api): import Prisma types from prisma client"
+            git push origin HEAD:docs/repository-audit-2026-09
+          fi
 
       - name: Setup pnpm and Node
         uses: pnpm/setup@v1
