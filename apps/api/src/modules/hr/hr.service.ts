@@ -1,11 +1,12 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
-import { Prisma } from '@prisma/client';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type StaffProfile = Record<string, unknown>;
 
-function asJsonInput(value: StaffProfile): Prisma.InputJsonValue {
+type JsonInput = string | number | boolean | null | JsonInput[] | { [key: string]: JsonInput };
+
+function asJsonInput(value: StaffProfile): JsonInput {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
 }
 
