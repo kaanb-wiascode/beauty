@@ -271,8 +271,6 @@ export class AppointmentsService {
   }
 
   async findAll(input: ListAppointmentsInput) {
-    const tenantId = this.getTenantId();
-
     const {
       page,
       limit,
