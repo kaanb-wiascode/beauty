@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { Prisma, PrismaService } from '@beauty-erp/database';
+import { PrismaService } from '@beauty-erp/database';
+import { Prisma } from '@prisma/client';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type StaffProfile = Record<string, unknown>;
