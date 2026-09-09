@@ -37,10 +37,12 @@ jobs:
           old_prisma_import = "import { Prisma } from '@prisma/client';\n"
           if old_prisma_import in text:
               text = text.replace(old_prisma_import, '', 1)
-          old_type = 'function asJsonInput(value: StaffProfile): Prisma.InputJsonValue {'
-          new_type = "type JsonInput = string | number | boolean | null | JsonInput[] | { [key: string]: JsonInput };\n\nfunction asJsonInput(value: StaffProfile): JsonInput {"
+          old_type = 'type JsonInput = string | number | boolean | null | JsonInput[] | { [key: string]: JsonInput };'
+          new_type = "type JsonValue = string | number | boolean | null | JsonValue[] | { [key: string]: JsonValue };\ntype JsonObject = { [key: string]: JsonValue };"
           if old_type in text:
               text = text.replace(old_type, new_type, 1)
+          text = text.replace('function asJsonInput(value: StaffProfile): JsonInput {', 'function asJsonInput(value: StaffProfile): JsonObject {', 1)
+          text = text.replace('as Prisma.InputJsonValue;', 'as JsonObject;', 1)
           path.write_text(text)
           PY
           git config user.name "github-actions[bot]"
@@ -49,7 +51,7 @@ jobs:
           if git diff --cached --quiet; then
             echo 'No HR Prisma typing repair needed.'
           else
-            git commit -m "fix(api): normalize HR JSON input typing"
+            git commit -m "fix(api): normalize HR JSON object typing"
             git push origin HEAD:docs/repository-audit-2026-09
           fi
 
