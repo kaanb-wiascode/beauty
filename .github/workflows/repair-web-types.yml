@@ -1,0 +1,51 @@
+name: Repair web type errors
+
+on:
+  push:
+    branches: [docs/repository-audit-2026-09]
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          ref: docs/repository-audit-2026-09
+          fetch-depth: 0
+
+      - name: Apply targeted fixes
+        shell: bash
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+
+          customers = Path('apps/web/app/(app)/customers/page.tsx')
+          text = customers.read_text()
+          old = 'onCancel={() => setPendingDelete(null)}'
+          new = 'onClose={() => setPendingDelete(null)}'
+          if old not in text:
+              raise SystemExit('customers target not found')
+          customers.write_text(text.replace(old, new, 1))
+
+          inventory = Path('apps/web/app/(app)/inventory/page.tsx')
+          text = inventory.read_text()
+          old = 'value={w.branchId}'
+          new = 'value={w.branchId ?? ""}'
+          if old not in text:
+              raise SystemExit('inventory target not found')
+          inventory.write_text(text.replace(old, new, 1))
+          PY
+
+      - name: Commit fixes and remove one-off workflow
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/repair-web-types.yml
+          git add 'apps/web/app/(app)/customers/page.tsx' 'apps/web/app/(app)/inventory/page.tsx'
+          git commit -m "fix(web): resolve production build type errors"
+          git push origin HEAD:docs/repository-audit-2026-09
