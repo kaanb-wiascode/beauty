@@ -120,7 +120,7 @@ describe('financial provider webhooks', () => {
     })).rejects.toThrow('paymentId does not match');
   });
 
-  it('verifies PayTR Direct/iFrame callback hash and parses minor-unit payment amount', async () => {
+  it('verifies PayTR callback and defers successful card transaction amounts to status-query enrichment', async () => {
     const adapter = new PaytrAdapter();
     const credentials = { merchantId: '123456', merchantKey: 'key', merchantSalt: 'salt' };
     const payload = {
@@ -139,13 +139,81 @@ describe('financial provider webhooks', () => {
       .resolves.toEqual({ valid: true });
 
     const parsed = await adapter.parseWebhook({ headers: {}, payload: signedPayload, credentials });
-    expect(parsed.transaction).toMatchObject({
+    expect(parsed.transaction).toBeUndefined();
+    expect(parsed.correlation).toMatchObject({
+      providerTransactionId: 'order-42',
+      merchantReference: 'order-42',
+      status: 'CAPTURED',
+      requiresEnrichment: true,
+    });
+  });
+
+  it('retrieves PayTR status query with signed form data and maps fees/net amount', async () => {
+    const adapter = new PaytrAdapter();
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'success',
+        net_tutar: '97.50',
+        kesinti_tutari: '2.50',
+        payment_amount: '100.00',
+        payment_total: '105.00',
+        payment_date: '2026-09-10 18:15:30',
+        currency: 'TL',
+        taksit: '3',
+        returns: [],
+      }),
+    } as Response);
+
+    const transaction = await adapter.retrievePosTransaction({
+      credentials: { merchantId: '123456', merchantKey: 'merchant-key', merchantSalt: 'merchant-salt' },
+      providerTransactionId: 'order-42',
+      merchantReference: 'order-42',
+      occurredAt: new Date('2026-09-10T15:15:00.000Z'),
+    });
+
+    expect(transaction).toEqual({
       externalTransactionId: 'order-42',
+      merchantId: '123456',
+      occurredAt: new Date('2026-09-10T15:15:30.000Z'),
       grossAmount: 100,
-      netAmount: 100,
+      feeAmount: 2.5,
+      netAmount: 97.5,
       currency: 'TRY',
       status: 'CAPTURED',
+      installmentCount: 3,
     });
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe('https://www.paytr.com/odeme/durum-sorgu');
+    expect(init?.method).toBe('POST');
+    const body = init?.body as URLSearchParams;
+    expect(body.get('merchant_id')).toBe('123456');
+    expect(body.get('merchant_oid')).toBe('order-42');
+    expect(body.get('paytr_token')).toBe(
+      createHmac('sha256', 'merchant-key')
+        .update('123456order-42merchant-salt')
+        .digest('base64'),
+    );
+  });
+
+  it('rejects unsuccessful PayTR status queries without exposing provider error text', async () => {
+    const adapter = new PaytrAdapter();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'error',
+        err_no: '004',
+        err_msg: 'sensitive provider detail',
+      }),
+    } as Response);
+
+    await expect(adapter.retrievePosTransaction({
+      credentials: { merchantId: '123456', merchantKey: 'key', merchantSalt: 'salt' },
+      providerTransactionId: 'order-404',
+    })).rejects.toThrow('PayTR status query failed (004).');
   });
 
   it('rejects altered provider webhook signatures', async () => {
