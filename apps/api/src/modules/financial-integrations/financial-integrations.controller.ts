@@ -12,6 +12,7 @@ import { PosWebhookQueueService } from './pos-webhook-queue.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
 import { PosFinancialEventsService } from './pos-financial-events.service';
+import { PosRefundService } from './pos-refund.service';
 
 const createSchema = z.object({
   kind: z.enum(['OPEN_BANKING','VIRTUAL_POS']),
@@ -60,6 +61,10 @@ const financialEventSchema = z.object({
   feeAmount: z.coerce.number().min(0).optional(),
   occurredAt: z.coerce.date(),
 });
+const refundSchema = z.object({
+  amount: z.coerce.number().positive(),
+  externalEventId: z.string().trim().min(1).max(160),
+});
 
 @Controller('financial-integrations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -75,6 +80,7 @@ export class FinancialIntegrationsController {
     private readonly reconciliation: PosBankReconciliationService,
     private readonly paymentLinkage: PosSalePaymentLinkageService,
     private readonly financialEvents: PosFinancialEventsService,
+    private readonly refunds: PosRefundService,
   ) {}
 
   @Post() create(@Body() body: unknown) { return this.service.create(createSchema.parse(body)); }
@@ -115,6 +121,12 @@ export class FinancialIntegrationsController {
   ) {
     const parsed = paymentLinkSchema.parse(body);
     return this.paymentLinkage.link(posTransactionId, parsed.salePaymentId);
+  }
+  @Post('pos/transactions/:posTransactionId/refund') refundPosTransaction(
+    @Param('posTransactionId') posTransactionId: string,
+    @Body() body: unknown,
+  ) {
+    return this.refunds.refund(posTransactionId, refundSchema.parse(body));
   }
   @Post('pos/transactions/:posTransactionId/financial-events') recordFinancialEvent(
     @Param('posTransactionId') posTransactionId: string,
