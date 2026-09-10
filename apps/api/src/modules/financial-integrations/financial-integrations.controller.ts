@@ -56,6 +56,7 @@ export class FinancialIntegrationsController {
   @Get('bank-accounts') bankAccounts() { return this.service.accounts(); }
   @Get('bank-transactions') bankTransactions(@Query() query: unknown) { const q=txQuery.parse(query); return this.service.transactions(q.limit); }
   @Get('liquidity') liquidity() { return this.service.liquidity(); }
+  @Get('treasury-position') treasuryPosition() { return this.service.treasuryPosition(); }
   @Get('pos/summary') posSummary() { return this.service.posSummary(); }
   @Get('pos/settlements') listSettlements(@Query() query: unknown) {
     const parsed = settlementListSchema.parse(query);
