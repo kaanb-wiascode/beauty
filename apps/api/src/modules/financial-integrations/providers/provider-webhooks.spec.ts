@@ -59,6 +59,7 @@ describe('financial provider webhook adapters', () => {
     };
     const message = `${credentials.secretKey}${payload.iyziEventType}${payload.paymentId}${payload.paymentConversationId}${payload.status}`;
     const signature = createHmac('sha256', credentials.secretKey).update(message).digest('hex');
+    const invalidSignature = `${signature.slice(0, -1)}${signature.endsWith('0') ? '1' : '0'}`;
 
     await expect(adapter.verifyWebhook({
       headers: { 'x-iyz-signature-v3': signature },
@@ -66,7 +67,7 @@ describe('financial provider webhook adapters', () => {
       credentials,
     })).resolves.toEqual({ valid: true });
     await expect(adapter.verifyWebhook({
-      headers: { 'x-iyz-signature-v3': `${signature.slice(0, -1)}0` },
+      headers: { 'x-iyz-signature-v3': invalidSignature },
       payload,
       credentials,
     })).resolves.toEqual({ valid: false });
