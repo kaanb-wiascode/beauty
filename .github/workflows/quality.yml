@@ -59,9 +59,17 @@ jobs:
       - name: Build shared commerce contracts
         run: pnpm --filter @beauty-erp/types build
 
-      - name: Report legacy API lint debt
+      - name: Report commerce lint debt
         continue-on-error: true
-        run: pnpm --filter api lint
+        run: >-
+          pnpm --filter api exec eslint
+          "src/modules/commerce/**/*.ts"
+          "src/modules/packages/**/*.ts"
+          "src/modules/sales/**/*.ts"
+          "src/modules/sessions/**/*.ts"
+          "src/modules/appointments/**/*.ts"
+          "src/app.module.ts"
+          --no-error-on-unmatched-pattern
 
       - name: Typecheck API
         run: pnpm --filter api typecheck
