@@ -117,8 +117,6 @@ export class PaymentsService {
     from: Date,
     to: Date,
   ) {
-    const tenantId = this.getTenantId();
-
     const [summary, appointments, newCustomers] =
       await Promise.all([
         this.summary({
@@ -228,8 +226,6 @@ export class PaymentsService {
   }
 
   async findAll(input: ListPaymentsInput) {
-    const tenantId = this.getTenantId();
-
     const skip = (input.page - 1) * input.limit;
 
     const where = {
@@ -281,8 +277,6 @@ export class PaymentsService {
   }
 
   async refund(id: string, input: RefundPaymentInput) {
-    const tenantId = this.getTenantId();
-
     const payment = await this.prisma.payment.findFirst({
       where: {
         id,
@@ -313,8 +307,6 @@ export class PaymentsService {
   }
 
   async summary(input: PaymentSummaryInput) {
-    const tenantId = this.getTenantId();
-
     const [completed, refunded] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
@@ -391,7 +383,6 @@ export class PaymentsService {
 
 
     async dashboardReport(input: DashboardReportInput) {
-    const tenantId = this.getTenantId();
     const now = new Date();
 
     const last7From = new Date(input.from);
@@ -705,8 +696,6 @@ export class PaymentsService {
   }
 
   async findOne(id: string) {
-    const tenantId = this.getTenantId();
-
     const payment =
       await this.prisma.payment.findFirst({
         where: {

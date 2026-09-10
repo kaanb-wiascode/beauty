@@ -7,6 +7,11 @@ allowBuilds:
   argon2: true
   prisma: false
   unrs-resolver: false
+overrides:
+  deepmerge-ts: 8.0.1
+  multer: 2.3.0
+  js-yaml: 4.3.2
+  sharp: 0.35.4
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.18'
   - '@expo/config-plugins@57.0.9'
