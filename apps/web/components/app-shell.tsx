@@ -23,6 +23,7 @@ const NAV_SECTIONS = [
   ]},
   { label: "Finans & CFO", items: [
     { href: "/finance/cfo", label: "Yönetim Kokpiti", icon: "trend" },
+    { href: "/finance/cfo/treasury", label: "Canlı Treasury", icon: "activity" },
     { href: "/finance/integrations", label: "Finansal Entegrasyonlar", icon: "wallet" },
     { href: "/finance/reconciliation", label: "Mutabakat Merkezi", icon: "arrows" },
     { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
