@@ -6,6 +6,7 @@ import { ProcurementService } from './procurement.service';
 import { ProcurementRequestsService } from './procurement-requests.service';
 import { ProcurementApprovalsService } from './procurement-approvals.service';
 import { ProcurementReturnsService } from './procurement-returns.service';
+import { ProcurementReturnRequestsService } from './procurement-return-requests.service';
 
 const receiveSchema = z.object({
   items: z.array(
@@ -29,6 +30,14 @@ const partialReturnSchema = z.object({
     goodsReceiptItemId: z.string().uuid(),
     quantity: z.coerce.number().positive(),
   })).min(1),
+});
+
+const rejectReturnSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
+const returnRequestListSchema = z.object({
+  status: z.enum(['PENDING','APPROVED','REJECTED','EXECUTED']).optional(),
 });
 
 const receiptListSchema = z.object({
@@ -61,6 +70,7 @@ export class ProcurementController {
     private readonly requests: ProcurementRequestsService,
     private readonly approvals: ProcurementApprovalsService,
     private readonly returns: ProcurementReturnsService,
+    private readonly returnRequests: ProcurementReturnRequestsService,
   ) {}
 
   @Get('purchase-requests')
@@ -129,6 +139,49 @@ export class ProcurementController {
   @Post('goods-receipts/:id/partial-return')
   partialReturn(@Param('id') id: string, @Body() body: unknown) {
     return this.returns.partialReturn(id, partialReturnSchema.parse(body));
+  }
+
+  @Post('goods-receipts/:id/return-requests')
+  submitReturnRequest(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new UnauthorizedException('Authenticated user id is missing.');
+    return this.returnRequests.submit(id, partialReturnSchema.parse(body), userId);
+  }
+
+  @Get('return-requests')
+  listReturnRequests(@Query() query: unknown) {
+    const parsed = returnRequestListSchema.parse(query);
+    return this.returnRequests.list(parsed.status);
+  }
+
+  @Post('return-requests/:id/approve')
+  approveReturnRequest(
+    @Param('id') id: string,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new UnauthorizedException('Authenticated user id is missing.');
+    return this.returnRequests.approve(id, userId);
+  }
+
+  @Post('return-requests/:id/reject')
+  rejectReturnRequest(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new UnauthorizedException('Authenticated user id is missing.');
+    return this.returnRequests.reject(id, userId, rejectReturnSchema.parse(body).reason);
+  }
+
+  @Post('return-requests/:id/execute')
+  executeReturnRequest(@Param('id') id: string) {
+    return this.returnRequests.execute(id);
   }
 
   @Get('goods-receipts')
