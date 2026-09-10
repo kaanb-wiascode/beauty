@@ -7,6 +7,7 @@ import { NetProfitabilityService } from './net-profitability.service';
 import { ProfitabilityConfigService } from './profitability-config.service';
 import { CostCenterService } from './cost-center.service';
 import { BudgetingService } from './budgeting.service';
+import { CashFlowForecastService } from './cash-flow-forecast.service';
 
 const filterSchema = z.object({
   from: z.coerce.date().optional(),
@@ -31,6 +32,15 @@ const forecastSchema = z.object({
   from: z.coerce.date(),
   to: z.coerce.date(),
   asOf: z.coerce.date().optional(),
+});
+
+const cashFlowSchema = z.object({
+  start: z.coerce.date().optional(),
+  scenario: z.enum(['BASE', 'BEST', 'WORST']).default('BASE'),
+});
+
+const cashFlowComparisonSchema = z.object({
+  start: z.coerce.date().optional(),
 });
 
 const commissionSchema = z.object({
@@ -76,6 +86,7 @@ export class ProfitabilityController {
     private readonly config: ProfitabilityConfigService,
     private readonly costCenters: CostCenterService,
     private readonly budgeting: BudgetingService,
+    private readonly cashFlow: CashFlowForecastService,
   ) {}
 
   @Get('summary')
@@ -173,6 +184,18 @@ export class ProfitabilityController {
   rollingForecast(@Query() query: unknown) {
     const parsed = forecastSchema.parse(query);
     return this.budgeting.forecast(parsed.from, parsed.to, parsed.asOf);
+  }
+
+  @Get('cash-flow/13-week')
+  cashFlowThirteenWeek(@Query() query: unknown) {
+    const parsed = cashFlowSchema.parse(query);
+    return this.cashFlow.thirteenWeek(parsed.start ?? new Date(), parsed.scenario);
+  }
+
+  @Get('cash-flow/scenarios')
+  cashFlowScenarios(@Query() query: unknown) {
+    const parsed = cashFlowComparisonSchema.parse(query);
+    return this.cashFlow.scenarioComparison(parsed.start ?? new Date());
   }
 
   @Get('net/summary')
