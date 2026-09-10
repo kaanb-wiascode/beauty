@@ -1,8 +1,8 @@
-import { Injectable, LoggerService } from '@nestjs/common';
+import { Injectable, Logger, LoggerService } from '@nestjs/common';
 
 @Injectable()
 export class AppLoggerService implements LoggerService {
-  private readonly logger = new (require('@nestjs/common').Logger)('BeautyERP');
+  private readonly logger = new Logger('BeautyERP');
 
   log(message: unknown, context?: string) {
     this.logger.log(this.stringify(message), context);
