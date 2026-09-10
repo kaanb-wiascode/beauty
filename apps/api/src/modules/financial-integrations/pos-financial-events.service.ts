@@ -92,17 +92,17 @@ export class PosFinancialEventsService {
       );
       if (duplicate.length) return { id: duplicate[0].id, duplicate: true, accountingJournalEntryId: duplicate[0].accountingJournalEntryId };
 
-      const aggregateRows = await tx.$queryRawUnsafe<Array<{ total: number }>>(
-        `SELECT COALESCE(SUM(amount),0)::float8 AS total
+      const aggregateRows = await tx.$queryRawUnsafe<Array<{ total: number; hasChargeback: boolean }>>(
+        `SELECT COALESCE(SUM(amount),0)::float8 AS total,
+                COALESCE(BOOL_OR(event_type='CHARGEBACK'),FALSE) AS "hasChargeback"
          FROM pos_financial_events
-         WHERE pos_transaction_id=$1::text AND event_type=$2`,
+         WHERE pos_transaction_id=$1::text`,
         posTransactionId,
-        input.eventType,
       );
       const priorAmount = this.round(Number(aggregateRows[0]?.total ?? 0));
       const cumulativeAmount = this.round(priorAmount + amount);
       if (cumulativeAmount - Number(pos.amount) > 0.01) {
-        throw new BadRequestException('Financial events cannot exceed POS transaction amount cumulatively.');
+        throw new BadRequestException('Combined refunds and chargebacks cannot exceed the POS transaction amount.');
       }
 
       const eventId = randomUUID();
@@ -158,10 +158,12 @@ export class PosFinancialEventsService {
       );
 
       const fullyReversed = cumulativeAmount >= this.round(Number(pos.amount) - 0.01);
+      const hasChargeback = Boolean(aggregateRows[0]?.hasChargeback) || input.eventType === 'CHARGEBACK';
+      const finalStatus = hasChargeback ? 'CHARGEBACK' : 'REFUNDED';
       await tx.$executeRawUnsafe(
         `UPDATE pos_transactions SET status=$2,updated_at=NOW() WHERE id=$1::text`,
         posTransactionId,
-        fullyReversed ? (input.eventType === 'REFUND' ? 'REFUNDED' : 'CHARGEBACK') : 'CAPTURED',
+        fullyReversed ? finalStatus : 'CAPTURED',
       );
 
       if (pos.salePaymentId && fullyReversed) {
@@ -170,7 +172,7 @@ export class PosFinancialEventsService {
           data: {
             status: 'REFUNDED',
             refundedAt: input.occurredAt,
-            refundReason: input.eventType === 'CHARGEBACK' ? 'POS CHARGEBACK' : 'POS PROVIDER REFUND',
+            refundReason: hasChargeback ? 'POS CHARGEBACK' : 'POS PROVIDER REFUND',
           },
         });
       }
