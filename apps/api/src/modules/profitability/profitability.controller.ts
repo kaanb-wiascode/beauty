@@ -88,6 +88,12 @@ export class ProfitabilityController {
     return this.costCenters.list();
   }
 
+  @Get('cost-centers/unallocated-expenses')
+  listUnallocatedExpenses(@Query() query: unknown) {
+    const parsed = filterSchema.parse(query);
+    return this.costCenters.listUnallocatedExpenses(parsed.from, parsed.to);
+  }
+
   @Post('cost-centers/:id/allocations')
   setCostCenterAllocations(@Param('id') id: string, @Body() body: unknown) {
     return this.costCenters.setAllocations(id, allocationSchema.parse(body));
