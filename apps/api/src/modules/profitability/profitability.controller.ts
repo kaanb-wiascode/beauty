@@ -9,6 +9,7 @@ import { CostCenterService } from './cost-center.service';
 import { BudgetingService } from './budgeting.service';
 import { CashFlowForecastService } from './cash-flow-forecast.service';
 import { TreasuryRiskService } from './treasury-risk.service';
+import { CfoDashboardService } from './cfo-dashboard.service';
 
 const filterSchema = z.object({
   from: z.coerce.date().optional(),
@@ -55,6 +56,11 @@ const treasuryAlertSchema = z.object({
 const treasurySettingsSchema = z.object({
   minimumLiquidity: z.coerce.number().min(0),
   warningBufferPercent: z.coerce.number().min(0).max(100).optional(),
+});
+
+const cfoSchema = z.object({
+  asOf: z.coerce.date().optional(),
+  lookbackDays: z.coerce.number().int().min(7).max(730).optional(),
 });
 
 const commissionSchema = z.object({
@@ -106,6 +112,7 @@ export class ProfitabilityController {
     private readonly budgeting: BudgetingService,
     private readonly cashFlow: CashFlowForecastService,
     private readonly treasuryRisk: TreasuryRiskService,
+    private readonly cfo: CfoDashboardService,
   ) {}
 
   @Get('summary')
@@ -251,6 +258,21 @@ export class ProfitabilityController {
   paymentPriorities(@Query() query: unknown) {
     const parsed = treasuryDateSchema.parse(query);
     return this.treasuryRisk.paymentPriorities(parsed.asOf ?? new Date());
+  }
+
+  @Get('cfo/working-capital')
+  cfoWorkingCapital(@Query() query: unknown) {
+    return this.cfo.workingCapital(cfoSchema.parse(query));
+  }
+
+  @Get('cfo/cash-runway')
+  cfoCashRunway(@Query() query: unknown) {
+    return this.cfo.cashRunway(cfoSchema.parse(query));
+  }
+
+  @Get('cfo/dashboard')
+  cfoDashboard(@Query() query: unknown) {
+    return this.cfo.dashboard(cfoSchema.parse(query));
   }
 
   @Get('net/summary')
