@@ -113,6 +113,7 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     { key: 'sftpPort', label: 'SFTP Port', secret: false, required: false },
     { key: 'sftpUsername', label: 'SFTP Username', secret: true, required: false },
     { key: 'sftpPassword', label: 'SFTP Password', secret: true, required: false },
+    { key: 'sftpHostKeySha256', label: 'SFTP Host Key SHA-256', secret: false, required: false },
   ];
   readonly capabilities = {
     apiCredentials: true,
