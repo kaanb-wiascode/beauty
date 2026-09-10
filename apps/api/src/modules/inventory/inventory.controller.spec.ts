@@ -28,11 +28,12 @@ describe('InventoryController permissions', () => {
 
   it('requires an explicit inventory permission on every route', () => {
     for (const [method, permission] of Object.entries(expectedPermissions)) {
-      const metadata = Reflect.getMetadata(
-        REQUIRED_PERMISSION_KEY,
-        InventoryController.prototype,
-        method,
-      );
+      const descriptor = Object.getOwnPropertyDescriptor(InventoryController.prototype, method);
+      expect(descriptor?.value).toBeDefined();
+
+      // SetMetadata stores method-level metadata on the decorated function.
+      // eslint-disable-next-line @typescript-eslint/unbound-method
+      const metadata = Reflect.getMetadata(REQUIRED_PERMISSION_KEY, descriptor?.value);
 
       expect(metadata).toEqual({
         resource: permission[0],
