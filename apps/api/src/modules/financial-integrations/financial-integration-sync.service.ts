@@ -1,8 +1,16 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
 import { ProviderRegistryService } from './provider-registry.service';
+import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
+
+interface IntegrationScope {
+  tenantId: string;
+  companyId: string;
+  branchId: string | null;
+}
 
 @Injectable()
 export class FinancialIntegrationSyncService {
@@ -10,16 +18,38 @@ export class FinancialIntegrationSyncService {
     private readonly prisma: PrismaService,
     private readonly providers: ProviderRegistryService,
     private readonly vault: IntegrationSecretVaultService,
+    private readonly tenant: TenantContext,
+    private readonly paymentLinkage: PosSalePaymentLinkageService,
   ) {}
 
+  private context(): IntegrationScope {
+    return {
+      tenantId: this.tenant.getTenantId(),
+      companyId: this.tenant.getCompanyId(),
+      branchId: this.tenant.getBranchId(),
+    };
+  }
+
   async syncIntegration(integrationId: string) {
+    return this.syncIntegrationInternal(integrationId, this.context());
+  }
+
+  private async syncIntegrationInternal(integrationId: string, scope?: IntegrationScope) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",
               kind,provider,status,last_sync_at AS "lastSyncAt"
-       FROM finance_integrations WHERE id=$1::text LIMIT 1`,
+       FROM finance_integrations
+       WHERE id=$1::text
+         AND ($2::text IS NULL OR tenant_id=$2::text)
+         AND ($3::text IS NULL OR company_id=$3::text)
+         AND ($4::text IS NULL OR branch_id=$4::text)
+       LIMIT 1`,
       integrationId,
+      scope?.tenantId ?? null,
+      scope?.companyId ?? null,
+      scope?.branchId ?? null,
     );
-    if (!rows.length) throw new BadRequestException('Financial integration not found.');
+    if (!rows.length) throw new NotFoundException('Financial integration not found.');
     const integration = rows[0];
     if (integration.status !== 'CONNECTED') {
       throw new BadRequestException('Only connected integrations can be synchronized.');
@@ -37,6 +67,8 @@ export class FinancialIntegrationSyncService {
     );
 
     let records = 0;
+    let linkedPayments = 0;
+    let unresolvedPaymentLinks = 0;
     try {
       if (integration.kind === 'OPEN_BANKING') {
         if (!adapter.listBankAccounts) {
@@ -79,9 +111,15 @@ export class FinancialIntegrationSyncService {
           for (const transaction of transactions) {
             const accountRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
               `SELECT id FROM bank_accounts
-               WHERE integration_id=$1::text AND external_account_id=$2 LIMIT 1`,
+               WHERE integration_id=$1::text AND external_account_id=$2
+                 AND tenant_id=$3::text AND company_id=$4::text
+                 AND ($5::text IS NULL OR branch_id=$5::text)
+               LIMIT 1`,
               integrationId,
               transaction.externalAccountId,
+              integration.tenantId,
+              integration.companyId,
+              integration.branchId,
             );
             if (!accountRows.length) continue;
             const inserted = await this.prisma.$executeRawUnsafe(
@@ -114,8 +152,14 @@ export class FinancialIntegrationSyncService {
           throw new BadRequestException('Provider does not support POS transaction synchronization.');
         }
         const terminalRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
-          `SELECT id FROM pos_terminals WHERE integration_id=$1::text AND active=TRUE ORDER BY created_at LIMIT 1`,
+          `SELECT id FROM pos_terminals
+           WHERE integration_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND ($4::text IS NULL OR branch_id=$4::text) AND active=TRUE
+           ORDER BY created_at LIMIT 1`,
           integrationId,
+          integration.tenantId,
+          integration.companyId,
+          integration.branchId,
         );
         let terminalId = terminalRows[0]?.id;
         if (!terminalId) {
@@ -136,7 +180,7 @@ export class FinancialIntegrationSyncService {
           integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined,
         );
         for (const transaction of transactions) {
-          await this.prisma.$executeRawUnsafe(
+          const posRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
             `INSERT INTO pos_transactions(
                id,tenant_id,company_id,branch_id,terminal_id,provider_transaction_id,status,amount,
                fee_amount,net_amount,currency,expected_settlement_at,created_at,updated_at
@@ -144,7 +188,8 @@ export class FinancialIntegrationSyncService {
              ON CONFLICT(company_id,provider_transaction_id) DO UPDATE SET
                status=EXCLUDED.status,amount=EXCLUDED.amount,fee_amount=EXCLUDED.fee_amount,
                net_amount=EXCLUDED.net_amount,currency=EXCLUDED.currency,
-               expected_settlement_at=EXCLUDED.expected_settlement_at,updated_at=NOW()`,
+               expected_settlement_at=EXCLUDED.expected_settlement_at,updated_at=NOW()
+             RETURNING id`,
             randomUUID(),
             integration.tenantId,
             integration.companyId,
@@ -160,6 +205,20 @@ export class FinancialIntegrationSyncService {
             transaction.occurredAt,
           );
           records += 1;
+
+          const posTransactionId = posRows[0]?.id;
+          if (posTransactionId && integration.branchId && ['AUTHORIZED', 'CAPTURED'].includes(transaction.status)) {
+            const link = await this.paymentLinkage.autoLinkOneInScope(
+              {
+                tenantId: integration.tenantId,
+                companyId: integration.companyId,
+                branchId: integration.branchId,
+              },
+              posTransactionId,
+            );
+            if (link.linked) linkedPayments += 1;
+            else unresolvedPaymentLinks += 1;
+          }
         }
       }
 
@@ -175,7 +234,13 @@ export class FinancialIntegrationSyncService {
           records,
         ),
       ]);
-      return { integrationId, recordsSynced: records, status: 'SUCCESS' };
+      return {
+        integrationId,
+        recordsSynced: records,
+        linkedPayments,
+        unresolvedPaymentLinks,
+        status: 'SUCCESS',
+      };
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Unknown integration sync error';
       await this.prisma.$transaction([
@@ -200,11 +265,24 @@ export class FinancialIntegrationSyncService {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id FROM finance_integrations WHERE status='CONNECTED' ORDER BY COALESCE(last_sync_at,'epoch') ASC`,
     );
-    const results: Array<{ integrationId: string; ok: boolean; records?: number; error?: string }> = [];
+    const results: Array<{
+      integrationId: string;
+      ok: boolean;
+      records?: number;
+      linkedPayments?: number;
+      unresolvedPaymentLinks?: number;
+      error?: string;
+    }> = [];
     for (const row of rows) {
       try {
-        const result = await this.syncIntegration(row.id);
-        results.push({ integrationId: row.id, ok: true, records: result.recordsSynced });
+        const result = await this.syncIntegrationInternal(row.id);
+        results.push({
+          integrationId: row.id,
+          ok: true,
+          records: result.recordsSynced,
+          linkedPayments: result.linkedPayments,
+          unresolvedPaymentLinks: result.unresolvedPaymentLinks,
+        });
       } catch (error) {
         results.push({
           integrationId: row.id,
