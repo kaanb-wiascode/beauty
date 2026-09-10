@@ -13,6 +13,12 @@ export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
 export const PAYMENT_STATUSES = ['COMPLETED', 'REFUNDED'] as const;
 export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
 
+export const CUSTOMER_LEDGER_ENTRY_TYPES = ['SALE', 'PAYMENT', 'REFUND'] as const;
+export type CustomerLedgerEntryType = (typeof CUSTOMER_LEDGER_ENTRY_TYPES)[number];
+
+export const CUSTOMER_LEDGER_STATUSES = ['UNPAID', 'PARTIALLY_PAID', 'SETTLED'] as const;
+export type CustomerLedgerStatus = (typeof CUSTOMER_LEDGER_STATUSES)[number];
+
 export interface PackageItemContract {
   id: string;
   serviceId: string;
@@ -87,4 +93,26 @@ export interface SaleBalanceContract {
   paid: string;
   refunded: string;
   outstanding: string;
+}
+
+export interface CustomerLedgerEntryContract {
+  id: string;
+  type: CustomerLedgerEntryType;
+  occurredAt: string;
+  description: string;
+  debit: number;
+  credit: number;
+  saleId: string;
+  paymentId: string | null;
+  paymentMethod: PaymentMethod | null;
+  runningBalance: number;
+}
+
+export interface CustomerLedgerSummaryContract {
+  totalSales: number;
+  grossPaid: number;
+  totalRefunded: number;
+  netPaid: number;
+  balance: number;
+  status: CustomerLedgerStatus;
 }
