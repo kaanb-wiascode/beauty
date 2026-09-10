@@ -8,6 +8,7 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosSettlementService } from './pos-settlement.service';
+import { PosWebhookQueueService } from './pos-webhook-queue.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
 import { PosFinancialEventsService } from './pos-financial-events.service';
@@ -39,6 +40,19 @@ const reconciliationMatchSchema = z.object({
 });
 const autoMatchSchema = z.object({ limit: z.coerce.number().int().min(1).max(500).optional() });
 const paymentLinkSchema = z.object({ salePaymentId: z.string().uuid() });
+const webhookAuditQuerySchema = z.object({
+  status: z.enum([
+    'RECEIVED',
+    'PROCESSING',
+    'PROCESSED',
+    'IGNORED',
+    'FAILED',
+    'RETRY_PENDING',
+    'ENRICHMENT_PENDING',
+    'DEAD_LETTER',
+  ]).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
 const financialEventSchema = z.object({
   eventType: z.enum(['REFUND','CHARGEBACK']),
   externalEventId: z.string().trim().min(1).max(160),
@@ -57,6 +71,7 @@ export class FinancialIntegrationsController {
     private readonly credentials: FinancialIntegrationCredentialsService,
     private readonly providers: ProviderRegistryService,
     private readonly settlements: PosSettlementService,
+    private readonly webhookQueue: PosWebhookQueueService,
     private readonly reconciliation: PosBankReconciliationService,
     private readonly paymentLinkage: PosSalePaymentLinkageService,
     private readonly financialEvents: PosFinancialEventsService,
@@ -77,6 +92,13 @@ export class FinancialIntegrationsController {
   @Get('pos/settlements') listSettlements(@Query() query: unknown) {
     const parsed = settlementListSchema.parse(query);
     return this.settlements.list(parsed.integrationId);
+  }
+  @Get('pos/webhooks') webhookAudit(@Query() query: unknown) {
+    const parsed = webhookAuditQuerySchema.parse(query);
+    return this.webhookQueue.list(parsed.status, parsed.limit);
+  }
+  @Post('pos/webhooks/:eventId/replay') replayWebhook(@Param('eventId') eventId: string) {
+    return this.webhookQueue.requestReplay(eventId);
   }
   @Get('pos/reconciliation/summary') reconciliationSummary() { return this.reconciliation.summary(); }
   @Post('pos/reconciliation/auto-match') autoMatch(@Body() body: unknown) {
