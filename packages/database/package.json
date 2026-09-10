@@ -1,27 +1,29 @@
 {
-    "name": "@beauty-erp/database",
-    "version": "0.1.0",
-    "private": true,
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
-    "scripts": {
-        "build": "tsc",
-        "dev": "tsc --watch",
-        "prisma": "prisma",
-        "generate": "prisma generate",
-        "migrate:dev": "prisma migrate dev",
-        "migrate:deploy": "prisma migrate deploy",
-        "studio": "prisma studio",
-        "seed": "ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/demo.ts"
-    },
-    "dependencies": {
-        "@nestjs/common": "^11.1.6",
-        "@prisma/client": "6.19.3"
-    },
-    "devDependencies": {
-        "@types/node": "^24.13.3",
-        "prisma": "6.19.3",
-        "ts-node": "^10.9.2",
-        "typescript": "6.0.3"
-    }
+  "name": "@beauty-erp/database",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "dev": "tsc --watch",
+    "prisma": "prisma",
+    "validate": "prisma validate",
+    "generate": "prisma generate",
+    "migrate:dev": "prisma migrate dev",
+    "migrate:deploy": "prisma migrate deploy",
+    "studio": "prisma studio",
+    "seed": "ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/demo.ts"
+  },
+  "dependencies": {
+    "@nestjs/common": "^11.1.6",
+    "@prisma/client": "6.19.3"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "prisma": "6.19.3",
+    "ts-node": "^10.9.2",
+    "typescript": "6.0.3"
+  }
 }
