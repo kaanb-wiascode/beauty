@@ -17,6 +17,9 @@ import { FinancialHealthSchedulerService } from './financial-health-scheduler.se
 import { ExecutiveFinanceService } from './executive-finance.service';
 import { FinancialBenchmarkService } from './financial-benchmark.service';
 import { ManagementFinanceActionsService } from './management-finance-actions.service';
+import { ManagementFinanceAutomationService } from './management-finance-automation.service';
+import { ManagementFinanceAutomationSchedulerService } from './management-finance-automation-scheduler.service';
+import { FinancialManagementCockpitService } from './financial-management-cockpit.service';
 
 @Module({
   controllers: [
@@ -40,6 +43,9 @@ import { ManagementFinanceActionsService } from './management-finance-actions.se
     ExecutiveFinanceService,
     FinancialBenchmarkService,
     ManagementFinanceActionsService,
+    ManagementFinanceAutomationService,
+    ManagementFinanceAutomationSchedulerService,
+    FinancialManagementCockpitService,
   ],
   exports: [
     ProfitabilityService,
@@ -56,6 +62,8 @@ import { ManagementFinanceActionsService } from './management-finance-actions.se
     ExecutiveFinanceService,
     FinancialBenchmarkService,
     ManagementFinanceActionsService,
+    ManagementFinanceAutomationService,
+    FinancialManagementCockpitService,
   ],
 })
 export class ProfitabilityModule {}
