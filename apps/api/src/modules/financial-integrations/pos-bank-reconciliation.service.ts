@@ -68,10 +68,7 @@ export class PosBankReconciliationService {
       if (dayDistance <= 1) confidence += 20;
       else if (dayDistance <= 2) confidence += 10;
       if (sameAccount) confidence += 10;
-      return {
-        ...row,
-        confidence: Math.min(confidence, 100),
-      };
+      return { ...row, confidence: Math.min(confidence, 100) };
     });
     return { settlementId, suggestions };
   }
@@ -92,9 +89,7 @@ export class PosBankReconciliationService {
       );
       if (!settlements.length) throw new NotFoundException('POS settlement not found.');
       const settlement = settlements[0];
-      if (settlement.reconciliationStatus === 'MATCHED') {
-        throw new BadRequestException('POS settlement is already matched.');
-      }
+      if (settlement.reconciliationStatus === 'MATCHED') throw new BadRequestException('POS settlement is already matched.');
 
       const transactions = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,bank_account_id AS "bankAccountId",amount,currency,reconciliation_status AS "reconciliationStatus"
@@ -109,18 +104,10 @@ export class PosBankReconciliationService {
       );
       if (!transactions.length) throw new NotFoundException('Bank transaction not found.');
       const transaction = transactions[0];
-      if (transaction.reconciliationStatus !== 'UNMATCHED') {
-        throw new BadRequestException('Bank transaction is already reconciled.');
-      }
-      if (transaction.currency !== settlement.currency) {
-        throw new BadRequestException('Settlement and bank transaction currencies do not match.');
-      }
-      if (Math.abs(Number(transaction.amount) - Number(settlement.netAmount)) > 0.01) {
-        throw new BadRequestException('Settlement net amount does not match bank transaction amount.');
-      }
-      if (settlement.bankAccountId && settlement.bankAccountId !== transaction.bankAccountId) {
-        throw new BadRequestException('Bank transaction belongs to a different bank account.');
-      }
+      if (transaction.reconciliationStatus !== 'UNMATCHED') throw new BadRequestException('Bank transaction is already reconciled.');
+      if (transaction.currency !== settlement.currency) throw new BadRequestException('Settlement and bank transaction currencies do not match.');
+      if (Math.abs(Number(transaction.amount) - Number(settlement.netAmount)) > 0.01) throw new BadRequestException('Settlement net amount does not match bank transaction amount.');
+      if (settlement.bankAccountId && settlement.bankAccountId !== transaction.bankAccountId) throw new BadRequestException('Bank transaction belongs to a different bank account.');
 
       await tx.$executeRawUnsafe(
         `UPDATE pos_settlements
@@ -132,12 +119,27 @@ export class PosBankReconciliationService {
         Math.min(Math.max(confidence, 0), 100),
         note?.trim() || null,
       );
-      await tx.$executeRawUnsafe(
-        `UPDATE bank_transactions SET reconciliation_status='MATCHED' WHERE id=$1::text`,
-        bankTransactionId,
-      );
+      await tx.$executeRawUnsafe(`UPDATE bank_transactions SET reconciliation_status='MATCHED' WHERE id=$1::text`, bankTransactionId);
       return this.getWith(tx, settlementId, ctx.companyId, ctx.branchId);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async ignoreBankTransaction(bankTransactionId: string) {
+    const ctx = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `UPDATE bank_transactions
+       SET reconciliation_status='IGNORED'
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND ($4::text IS NULL OR branch_id=$4::text)
+         AND reconciliation_status='UNMATCHED'
+       RETURNING id,bank_account_id AS "bankAccountId",booked_at AS "bookedAt",amount,currency,description,reconciliation_status AS "reconciliationStatus"`,
+      bankTransactionId,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+    );
+    if (!rows.length) throw new BadRequestException('Bank transaction is not available for ignore action.');
+    return rows[0];
   }
 
   async autoMatch(limit = 100) {
@@ -174,17 +176,24 @@ export class PosBankReconciliationService {
   async summary() {
     const ctx = this.context();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT
-         COUNT(*)::int AS total,
-         COUNT(*) FILTER (WHERE reconciliation_status='MATCHED')::int AS matched,
-         COUNT(*) FILTER (WHERE reconciliation_status='UNMATCHED')::int AS unmatched,
-         COALESCE(SUM(net_amount) FILTER (WHERE reconciliation_status='UNMATCHED'),0)::numeric AS "unmatchedAmount"
+      `SELECT COUNT(*)::int AS total,
+              COUNT(*) FILTER (WHERE reconciliation_status='MATCHED')::int AS matched,
+              COUNT(*) FILTER (WHERE reconciliation_status='UNMATCHED')::int AS unmatched,
+              COALESCE(SUM(net_amount) FILTER (WHERE reconciliation_status='UNMATCHED'),0)::numeric AS "unmatchedAmount"
        FROM pos_settlements
        WHERE company_id=$1::text AND ($2::text IS NULL OR branch_id=$2::text)`,
       ctx.companyId,
       ctx.branchId,
     );
-    return rows[0] ?? { total: 0, matched: 0, unmatched: 0, unmatchedAmount: 0 };
+    const bank = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT COUNT(*) FILTER (WHERE reconciliation_status='UNMATCHED')::int AS "unmatchedBankTransactions",
+              COUNT(*) FILTER (WHERE reconciliation_status='IGNORED')::int AS "ignoredBankTransactions"
+       FROM bank_transactions
+       WHERE company_id=$1::text AND ($2::text IS NULL OR branch_id=$2::text)`,
+      ctx.companyId,
+      ctx.branchId,
+    );
+    return { ...(rows[0] ?? { total: 0, matched: 0, unmatched: 0, unmatchedAmount: 0 }), ...(bank[0] ?? { unmatchedBankTransactions: 0, ignoredBankTransactions: 0 }) };
   }
 
   private async getWith(client: Prisma.TransactionClient | PrismaService, id: string, companyId: string, branchId: string | null) {
