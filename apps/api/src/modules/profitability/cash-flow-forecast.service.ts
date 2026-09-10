@@ -2,9 +2,9 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
-type CashFlowScenario = 'BASE' | 'BEST' | 'WORST';
+export type CashFlowScenario = 'BASE' | 'BEST' | 'WORST';
 
-interface ScenarioAssumptions {
+export interface ScenarioAssumptions {
   receivableCollectionRate: number;
   payablePaymentRate: number;
   label: string;
@@ -155,17 +155,23 @@ export class CashFlowForecastService {
 
     for (const row of receivables) {
       const dueAt = new Date(row.due_at);
-      const index = Math.floor((dueAt.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      const index = Math.floor(
+        (dueAt.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000),
+      );
       if (index >= 0 && index < weeks.length) {
-        weeks[index].projectedInflows += Number(row.outstanding ?? 0) * assumptions.receivableCollectionRate;
+        weeks[index].projectedInflows +=
+          Number(row.outstanding ?? 0) * assumptions.receivableCollectionRate;
       }
     }
 
     for (const row of payables) {
       const dueAt = new Date(row.due_at);
-      const index = Math.floor((dueAt.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000));
+      const index = Math.floor(
+        (dueAt.getTime() - start.getTime()) / (7 * 24 * 60 * 60 * 1000),
+      );
       if (index >= 0 && index < weeks.length) {
-        weeks[index].projectedOutflows += Number(row.outstanding ?? 0) * assumptions.payablePaymentRate;
+        weeks[index].projectedOutflows +=
+          Number(row.outstanding ?? 0) * assumptions.payablePaymentRate;
       }
     }
 
@@ -173,13 +179,19 @@ export class CashFlowForecastService {
     for (const week of weeks) {
       week.projectedInflows = this.round(week.projectedInflows);
       week.projectedOutflows = this.round(week.projectedOutflows);
-      week.netCashFlow = this.round(week.projectedInflows - week.projectedOutflows);
+      week.netCashFlow = this.round(
+        week.projectedInflows - week.projectedOutflows,
+      );
       running = this.round(running + week.netCashFlow);
       week.closingLiquidity = running;
     }
 
-    const projectedInflows = this.round(weeks.reduce((sum, week) => sum + week.projectedInflows, 0));
-    const projectedOutflows = this.round(weeks.reduce((sum, week) => sum + week.projectedOutflows, 0));
+    const projectedInflows = this.round(
+      weeks.reduce((sum, week) => sum + week.projectedInflows, 0),
+    );
+    const projectedOutflows = this.round(
+      weeks.reduce((sum, week) => sum + week.projectedOutflows, 0),
+    );
     const lowestLiquidity = weeks.reduce(
       (lowest, week) => Math.min(lowest, week.closingLiquidity),
       openingLiquidity,
