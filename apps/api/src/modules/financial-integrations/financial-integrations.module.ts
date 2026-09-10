@@ -16,6 +16,7 @@ import { PosWebhookQueueSchedulerService } from './pos-webhook-queue-scheduler.s
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
 import { PosFinancialEventsService } from './pos-financial-events.service';
+import { PosRefundService } from './pos-refund.service';
 import { PosReconciliationSchedulerService } from './pos-reconciliation-scheduler.service';
 import { IyzicoAdapter } from './providers/iyzico.adapter';
 import { PaytrAdapter } from './providers/paytr.adapter';
@@ -43,6 +44,7 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     PosBankReconciliationService,
     PosSalePaymentLinkageService,
     PosFinancialEventsService,
+    PosRefundService,
     PosReconciliationSchedulerService,
   ],
   exports: [
@@ -58,6 +60,7 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     PosBankReconciliationService,
     PosSalePaymentLinkageService,
     PosFinancialEventsService,
+    PosRefundService,
   ],
 })
 export class FinancialIntegrationsModule {}
