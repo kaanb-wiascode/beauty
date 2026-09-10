@@ -69,6 +69,28 @@ export class CostCenterService {
     );
   }
 
+  async listUnallocatedExpenses(from?: Date, to?: Date) {
+    const { companyId } = this.context();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT jel.id AS "journalEntryLineId",je.id AS "journalEntryId",je.number,
+              je."entryDate",je.description,coa.code AS "accountCode",coa.name AS "accountName",
+              (jel.debit-jel.credit)::numeric AS amount
+       FROM journal_entry_lines jel
+       JOIN journal_entries je ON je.id=jel."journalEntryId" AND je.status='POSTED'
+       JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.type='EXPENSE' AND coa.code<>'740'
+       LEFT JOIN cost_center_expense_links ccel ON ccel.journal_entry_line_id=jel.id
+       WHERE je."companyId"=$1::text
+         AND je."branchId" IS NULL
+         AND ccel.journal_entry_line_id IS NULL
+         AND ($2::timestamptz IS NULL OR je."entryDate">=$2::timestamptz)
+         AND ($3::timestamptz IS NULL OR je."entryDate"<=$3::timestamptz)
+       ORDER BY je."entryDate" DESC,je.number DESC`,
+      companyId,
+      from ?? null,
+      to ?? null,
+    );
+  }
+
   async setAllocations(costCenterId: string, input: SetAllocationsInput) {
     const { companyId } = this.context();
     if (!input.allocations.length) throw new BadRequestException('At least one allocation is required.');
