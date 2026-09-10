@@ -78,16 +78,24 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       }
 
       const exceptionResponse = exception.getResponse();
+      const responseObject =
+        typeof exceptionResponse === 'object' && exceptionResponse !== null
+          ? (exceptionResponse as { error?: unknown; message?: unknown })
+          : undefined;
       const message =
         typeof exceptionResponse === 'string'
           ? exceptionResponse
-          : typeof exceptionResponse === 'object' && exceptionResponse !== null && 'message' in exceptionResponse
-            ? (exceptionResponse as { message?: string | string[] }).message ?? exception.message
+          : typeof responseObject?.message === 'string' || Array.isArray(responseObject?.message)
+            ? responseObject.message
             : exception.message;
+      const error =
+        typeof responseObject?.error === 'string'
+          ? responseObject.error
+          : this.httpErrorName(statusCode);
 
       return {
         statusCode,
-        error: this.httpErrorName(statusCode),
+        error,
         message,
         timestamp,
         path: req.originalUrl,
