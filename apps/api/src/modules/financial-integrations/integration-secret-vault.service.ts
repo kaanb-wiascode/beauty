@@ -67,16 +67,11 @@ export class IntegrationSecretVaultService {
     });
   }
 
-  async store(integrationId: string, tokens: ProviderTokenSet) {
-    return this.storeWith(this.prisma, integrationId, tokens);
-  }
-
-  async storeWith(
+  private async writeEncrypted(
     client: Prisma.TransactionClient | PrismaService,
     integrationId: string,
-    tokens: ProviderTokenSet,
+    encryptedPayload: string,
   ) {
-    const encryptedPayload = this.serialize(tokens);
     await client.$executeRawUnsafe(
       `INSERT INTO finance_integration_secrets(integration_id,encrypted_payload,key_version,updated_at)
        VALUES($1::text,$2,'v1',NOW())
@@ -87,6 +82,33 @@ export class IntegrationSecretVaultService {
     );
   }
 
+  async store(integrationId: string, tokens: ProviderTokenSet) {
+    return this.storeWith(this.prisma, integrationId, tokens);
+  }
+
+  async storeWith(
+    client: Prisma.TransactionClient | PrismaService,
+    integrationId: string,
+    tokens: ProviderTokenSet,
+  ) {
+    await this.writeEncrypted(client, integrationId, this.serialize(tokens));
+  }
+
+  async storeOpaque(integrationId: string, payload: Record<string, string>) {
+    await this.writeEncrypted(this.prisma, integrationId, this.encrypt({ opaque: payload }));
+  }
+
+  async loadOpaque(integrationId: string): Promise<Record<string, string> | null> {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ encryptedPayload: string }>>(
+      `SELECT encrypted_payload AS "encryptedPayload"
+       FROM finance_integration_secrets WHERE integration_id=$1::text LIMIT 1`,
+      integrationId,
+    );
+    if (!rows.length) return null;
+    const value = this.decrypt<{ opaque?: Record<string, string> }>(rows[0].encryptedPayload);
+    return value.opaque ?? null;
+  }
+
   async load(integrationId: string): Promise<ProviderTokenSet | null> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ encryptedPayload: string }>>(
       `SELECT encrypted_payload AS "encryptedPayload"
@@ -95,17 +117,21 @@ export class IntegrationSecretVaultService {
     );
     if (!rows.length) return null;
     const value = this.decrypt<{
-      accessToken: string;
+      accessToken?: string;
       refreshToken?: string;
       expiresAt?: string;
       externalConnectionId?: string;
       consentExpiresAt?: string;
       metadata?: Record<string, unknown>;
     }>(rows[0].encryptedPayload);
+    if (!value.accessToken) return null;
     return {
-      ...value,
+      accessToken: value.accessToken,
+      refreshToken: value.refreshToken,
       expiresAt: value.expiresAt ? new Date(value.expiresAt) : undefined,
+      externalConnectionId: value.externalConnectionId,
       consentExpiresAt: value.consentExpiresAt ? new Date(value.consentExpiresAt) : undefined,
+      metadata: value.metadata,
     };
   }
 
