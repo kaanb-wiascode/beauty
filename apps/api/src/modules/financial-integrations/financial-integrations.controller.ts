@@ -1,10 +1,11 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { FinancialIntegrationsService } from './financial-integrations.service';
 import { FinancialIntegrationConnectionService } from './financial-integration-connection.service';
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
+import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { ProviderRegistryService } from './provider-registry.service';
 
 const createSchema = z.object({
@@ -16,6 +17,9 @@ const createSchema = z.object({
 });
 const beginSchema = z.object({ callbackBaseUrl: z.string().url() });
 const txQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).optional() });
+const credentialsSchema = z.object({
+  credentials: z.record(z.string().min(1).max(80), z.string().min(1).max(4000)),
+});
 
 @Controller('financial-integrations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -24,6 +28,7 @@ export class FinancialIntegrationsController {
     private readonly service: FinancialIntegrationsService,
     private readonly connection: FinancialIntegrationConnectionService,
     private readonly sync: FinancialIntegrationSyncService,
+    private readonly credentials: FinancialIntegrationCredentialsService,
     private readonly providers: ProviderRegistryService,
   ) {}
 
@@ -35,6 +40,12 @@ export class FinancialIntegrationsController {
   @Get('liquidity') liquidity() { return this.service.liquidity(); }
   @Get('pos/summary') posSummary() { return this.service.posSummary(); }
   @Get(':id') get(@Param('id') id: string) { return this.service.get(id); }
+  @Get(':id/credentials') credentialStatus(@Param('id') id: string) { return this.credentials.status(id); }
+  @Post(':id/credentials') configureCredentials(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = credentialsSchema.parse(body);
+    return this.credentials.configure(id, parsed.credentials);
+  }
+  @Delete(':id/credentials') clearCredentials(@Param('id') id: string) { return this.credentials.clear(id); }
   @Post(':id/connect') connect(@Param('id') id: string, @Body() body: unknown) { const b=beginSchema.parse(body); return this.connection.begin(id,b.callbackBaseUrl); }
   @Post(':id/sync') syncIntegration(@Param('id') id: string) { return this.sync.syncIntegration(id); }
   @Post(':id/disconnect') disconnect(@Param('id') id: string) { return this.connection.disconnect(id); }
