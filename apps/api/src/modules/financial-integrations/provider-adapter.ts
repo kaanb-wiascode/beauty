@@ -67,10 +67,19 @@ export interface ProviderWebhookFinancialEvent {
   occurredAt: Date;
 }
 
+export interface ProviderWebhookCorrelation {
+  providerTransactionId: string;
+  merchantReference?: string;
+  occurredAt?: Date;
+  status?: 'AUTHORIZED' | 'CAPTURED' | 'FAILED' | 'REFUNDED' | 'CHARGEBACK';
+  requiresEnrichment?: boolean;
+}
+
 export interface ProviderWebhookEvent {
   externalEventId: string;
   eventType: string;
   transaction?: ProviderPosTransaction;
+  correlation?: ProviderWebhookCorrelation;
   financialEvent?: ProviderWebhookFinancialEvent;
 }
 
