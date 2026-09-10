@@ -3,6 +3,9 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { FinancialIntegrationsService } from './financial-integrations.service';
+import { FinancialIntegrationConnectionService } from './financial-integration-connection.service';
+import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
+import { ProviderRegistryService } from './provider-registry.service';
 
 const createSchema = z.object({
   kind: z.enum(['OPEN_BANKING','VIRTUAL_POS']),
@@ -17,15 +20,22 @@ const txQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).option
 @Controller('financial-integrations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class FinancialIntegrationsController {
-  constructor(private readonly service: FinancialIntegrationsService) {}
+  constructor(
+    private readonly service: FinancialIntegrationsService,
+    private readonly connection: FinancialIntegrationConnectionService,
+    private readonly sync: FinancialIntegrationSyncService,
+    private readonly providers: ProviderRegistryService,
+  ) {}
 
   @Post() create(@Body() body: unknown) { return this.service.create(createSchema.parse(body)); }
   @Get() list() { return this.service.list(); }
+  @Get('providers') providerList() { return this.providers.list(); }
   @Get('bank-accounts') bankAccounts() { return this.service.accounts(); }
   @Get('bank-transactions') bankTransactions(@Query() query: unknown) { const q=txQuery.parse(query); return this.service.transactions(q.limit); }
   @Get('liquidity') liquidity() { return this.service.liquidity(); }
   @Get('pos/summary') posSummary() { return this.service.posSummary(); }
   @Get(':id') get(@Param('id') id: string) { return this.service.get(id); }
-  @Post(':id/connect') connect(@Param('id') id: string, @Body() body: unknown) { const b=beginSchema.parse(body); return this.service.beginConnection(id,b.callbackBaseUrl); }
+  @Post(':id/connect') connect(@Param('id') id: string, @Body() body: unknown) { const b=beginSchema.parse(body); return this.connection.begin(id,b.callbackBaseUrl); }
+  @Post(':id/sync') syncIntegration(@Param('id') id: string) { return this.sync.syncIntegration(id); }
   @Post(':id/disconnect') disconnect(@Param('id') id: string) { return this.service.disconnect(id); }
 }
