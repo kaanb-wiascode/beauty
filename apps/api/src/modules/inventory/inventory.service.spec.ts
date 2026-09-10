@@ -29,6 +29,26 @@ describe('InventoryService asset maintenance scope', () => {
     ]);
   });
 
+  it('allows maintenance for a company asset without a branch assignment', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([{ id: 'asset-shared' }])
+      .mockResolvedValueOnce([{ id: 'maintenance-shared', assetId: 'asset-shared' }]);
+    const service = new InventoryService(prisma, tenantContext);
+
+    const result = await service.createAssetMaintenance({
+      assetId: 'asset-shared',
+      type: 'PREVENTIVE',
+    } as any);
+
+    expect(result).toEqual({ id: 'maintenance-shared', assetId: 'asset-shared' });
+    expect(queryRawUnsafe.mock.calls[0][0]).toContain('AND (branch_id=$3::text OR branch_id IS NULL)');
+    expect(queryRawUnsafe.mock.calls[0].slice(1)).toEqual([
+      'asset-shared',
+      'company-1',
+      'branch-1',
+    ]);
+  });
+
   it('uses the scoped asset id when creating maintenance', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'asset-1' }])
