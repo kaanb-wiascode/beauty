@@ -21,6 +21,7 @@ import { SessionsModule } from './modules/sessions/sessions.module';
 import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
+import { AccountsPayableModule } from './modules/accounts-payable/accounts-payable.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AccountingModule } from './modules/accounting/accounting.module';
     CustomerLedgerModule,
     InstallmentsModule,
     AccountingModule,
+    AccountsPayableModule,
   ],
 })
 export class AppModule {}
