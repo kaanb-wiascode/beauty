@@ -1,5 +1,6 @@
 import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { FinancialProviderAdapter } from './provider-adapter';
+import { GarantiBbvaAdapter } from './providers/garanti-bbva.adapter';
 import { IyzicoAdapter } from './providers/iyzico.adapter';
 import { PaytrAdapter } from './providers/paytr.adapter';
 
@@ -8,11 +9,13 @@ export class ProviderRegistryService implements OnModuleInit {
   private readonly adapters = new Map<string, FinancialProviderAdapter>();
 
   constructor(
+    private readonly garantiBbva: GarantiBbvaAdapter,
     private readonly iyzico: IyzicoAdapter,
     private readonly paytr: PaytrAdapter,
   ) {}
 
   onModuleInit() {
+    this.register(this.garantiBbva);
     this.register(this.iyzico);
     this.register(this.paytr);
   }
