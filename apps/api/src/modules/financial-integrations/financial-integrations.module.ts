@@ -8,6 +8,7 @@ import { FinancialIntegrationConnectionService } from './financial-integration-c
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
 import { FinancialIntegrationSyncSchedulerService } from './financial-integration-sync-scheduler.service';
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
+import { PosSettlementService } from './pos-settlement.service';
 
 @Module({
   controllers: [FinancialIntegrationsController, FinancialIntegrationCallbackController],
@@ -19,6 +20,7 @@ import { FinancialIntegrationCredentialsService } from './financial-integration-
     FinancialIntegrationSyncService,
     FinancialIntegrationSyncSchedulerService,
     FinancialIntegrationCredentialsService,
+    PosSettlementService,
   ],
   exports: [
     FinancialIntegrationsService,
@@ -27,6 +29,7 @@ import { FinancialIntegrationCredentialsService } from './financial-integration-
     FinancialIntegrationConnectionService,
     FinancialIntegrationSyncService,
     FinancialIntegrationCredentialsService,
+    PosSettlementService,
   ],
 })
 export class FinancialIntegrationsModule {}
