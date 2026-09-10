@@ -1,6 +1,8 @@
 import { NestFactory } from '@nestjs/core';
 import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
+import { AuditLogService } from './common/audit/audit-log.service';
+import { AuditLoggingMiddleware } from './common/audit/audit-logging.middleware';
 import { GlobalExceptionFilter } from './common/http/global-exception.filter';
 import { requestIdMiddleware } from './common/http/request-id.middleware';
 import { RequestLoggingMiddleware } from './common/http/request-logging.middleware';
@@ -13,6 +15,10 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(requestIdMiddleware);
+  const auditLoggingMiddleware = new AuditLoggingMiddleware(
+    app.get(AuditLogService),
+  );
+  app.use(auditLoggingMiddleware.use.bind(auditLoggingMiddleware));
   const requestLoggingMiddleware = new RequestLoggingMiddleware();
   app.use(requestLoggingMiddleware.use.bind(requestLoggingMiddleware));
   app.useGlobalFilters(new GlobalExceptionFilter());
