@@ -5,6 +5,7 @@ import { NetProfitabilityService } from './net-profitability.service';
 import { ProfitabilityConfigService } from './profitability-config.service';
 import { CostCenterService } from './cost-center.service';
 import { BudgetingService } from './budgeting.service';
+import { CashFlowForecastService } from './cash-flow-forecast.service';
 
 @Module({
   controllers: [ProfitabilityController],
@@ -14,6 +15,7 @@ import { BudgetingService } from './budgeting.service';
     ProfitabilityConfigService,
     CostCenterService,
     BudgetingService,
+    CashFlowForecastService,
   ],
   exports: [
     ProfitabilityService,
@@ -21,6 +23,7 @@ import { BudgetingService } from './budgeting.service';
     ProfitabilityConfigService,
     CostCenterService,
     BudgetingService,
+    CashFlowForecastService,
   ],
 })
 export class ProfitabilityModule {}
