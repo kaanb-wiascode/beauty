@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { ProfitabilityController } from './profitability.controller';
 import { FinancialHealthHistoryController } from './financial-health-history.controller';
 import { ExecutiveFinanceController } from './executive-finance.controller';
+import { FinancialGovernanceController } from './financial-governance.controller';
 import { ProfitabilityService } from './profitability.service';
 import { NetProfitabilityService } from './net-profitability.service';
 import { ProfitabilityConfigService } from './profitability-config.service';
@@ -14,12 +15,15 @@ import { FinancialHealthService } from './financial-health.service';
 import { FinancialHealthHistoryService } from './financial-health-history.service';
 import { FinancialHealthSchedulerService } from './financial-health-scheduler.service';
 import { ExecutiveFinanceService } from './executive-finance.service';
+import { FinancialBenchmarkService } from './financial-benchmark.service';
+import { ManagementFinanceActionsService } from './management-finance-actions.service';
 
 @Module({
   controllers: [
     ProfitabilityController,
     FinancialHealthHistoryController,
     ExecutiveFinanceController,
+    FinancialGovernanceController,
   ],
   providers: [
     ProfitabilityService,
@@ -34,6 +38,8 @@ import { ExecutiveFinanceService } from './executive-finance.service';
     FinancialHealthHistoryService,
     FinancialHealthSchedulerService,
     ExecutiveFinanceService,
+    FinancialBenchmarkService,
+    ManagementFinanceActionsService,
   ],
   exports: [
     ProfitabilityService,
@@ -48,6 +54,8 @@ import { ExecutiveFinanceService } from './executive-finance.service';
     FinancialHealthHistoryService,
     FinancialHealthSchedulerService,
     ExecutiveFinanceService,
+    FinancialBenchmarkService,
+    ManagementFinanceActionsService,
   ],
 })
 export class ProfitabilityModule {}
