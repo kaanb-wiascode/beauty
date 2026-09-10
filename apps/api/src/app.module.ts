@@ -20,10 +20,15 @@ import { SalesModule } from './modules/sales/sales.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
+import { AccountingModule } from './modules/accounting/accounting.module';
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: (config) => envSchema.parse(config) }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      validate: (config) => envSchema.parse(config),
+    }),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -43,6 +48,7 @@ import { InstallmentsModule } from './modules/installments/installments.module';
     SessionsModule,
     CustomerLedgerModule,
     InstallmentsModule,
+    AccountingModule,
   ],
 })
 export class AppModule {}
