@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
+import { InstallmentsService } from '../installments/installments.service';
 
 interface CreateSaleInput {
   customerId: string;
@@ -29,6 +30,7 @@ export class SalesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly installmentsService: InstallmentsService,
   ) {}
 
   private requireBranchId(): string {
@@ -145,6 +147,7 @@ export class SalesService {
         customer: true,
         items: true,
         payments: { orderBy: { paidAt: 'desc' } },
+        installmentPlan: { include: { installments: { orderBy: { sequence: 'asc' } } } },
         customerPackages: { include: { sessions: true, package: true } },
       },
     });
@@ -193,7 +196,7 @@ export class SalesService {
         throw new BadRequestException(`Payment exceeds remaining balance of ${remaining.toFixed(2)}.`);
       }
 
-      return tx.salePayment.create({
+      const createdPayment = await tx.salePayment.create({
         data: {
           tenantId,
           branchId,
@@ -204,6 +207,9 @@ export class SalesService {
           note: input.note?.trim() || null,
         },
       });
+
+      await this.installmentsService.allocatePayment(tx, sale.id, createdPayment.id, amount);
+      return createdPayment;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return {
@@ -307,6 +313,7 @@ export class SalesService {
         include: {
           items: true,
           payments: true,
+          installmentPlan: { include: { installments: { orderBy: { sequence: 'asc' } } } },
           customerPackages: { include: { package: true, sessions: true } },
         },
       });
