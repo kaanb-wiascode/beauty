@@ -48,34 +48,38 @@ export class ProfitabilityService {
     return [companyId, branchId, filter.from ?? null, filter.to ?? null] as const;
   }
 
+  private baseCostCte() {
+    return `WITH appointment_costs AS (
+      SELECT im.reference_id AS appointment_id,
+             COALESCE(SUM(jel.debit),0)::numeric AS material_cost
+      FROM inventory_movements im
+      JOIN journal_entries je ON je."companyId"=im.company_id
+        AND je."referenceType"='INVENTORY_CONSUMPTION'
+        AND je."referenceId"=im.id
+        AND je.status='POSTED'
+      JOIN journal_entry_lines jel ON jel."journalEntryId"=je.id
+      JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.code='740'
+      WHERE im.reference_type='APPOINTMENT' AND im.type='SERVICE_CONSUMPTION'
+      GROUP BY im.reference_id
+    )`;
+  }
+
   async byBranch(filter: ProfitabilityFilter) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `WITH appointment_costs AS (
-         SELECT im.reference_id AS appointment_id,
-                COALESCE(SUM(jel.debit),0)::numeric AS material_cost
-         FROM inventory_movements im
-         JOIN journal_entries je ON je."companyId"=im.company_id
-           AND je."referenceType"='INVENTORY_CONSUMPTION'
-           AND je."referenceId"=im.id
-           AND je.status='POSTED'
-         JOIN journal_entry_lines jel ON jel."journalEntryId"=je.id
-         JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.code='740'
-         WHERE im.reference_type='APPOINTMENT' AND im.type='SERVICE_CONSUMPTION'
-         GROUP BY im.reference_id
-       )
+      `${this.baseCostCte()}
        SELECT b.id AS "branchId",b.name AS "branchName",
               COUNT(a.id)::int AS "appointmentCount",
               COALESCE(SUM(s.price),0)::numeric AS revenue,
               COALESCE(SUM(ac.material_cost),0)::numeric AS "materialCost"
        FROM appointments a
-       JOIN branches b ON b.id=a.branch_id
-       JOIN services s ON s.id=a.service_id
+       JOIN branches b ON b.id=a."branchId"
+       JOIN services s ON s.id=a."serviceId"
        LEFT JOIN appointment_costs ac ON ac.appointment_id=a.id
-       WHERE b.company_id=$1::text
+       WHERE b."companyId"=$1::text
          AND a.status='COMPLETED'
-         AND ($2::text IS NULL OR a.branch_id=$2::text)
-         AND ($3::timestamptz IS NULL OR a.end_at >= $3::timestamptz)
-         AND ($4::timestamptz IS NULL OR a.end_at <= $4::timestamptz)
+         AND ($2::text IS NULL OR a."branchId"=$2::text)
+         AND ($3::timestamptz IS NULL OR a."endAt" >= $3::timestamptz)
+         AND ($4::timestamptz IS NULL OR a."endAt" <= $4::timestamptz)
        GROUP BY b.id,b.name
        ORDER BY revenue DESC`,
       ...this.params(filter),
@@ -85,32 +89,20 @@ export class ProfitabilityService {
 
   async byService(filter: ProfitabilityFilter) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `WITH appointment_costs AS (
-         SELECT im.reference_id AS appointment_id,
-                COALESCE(SUM(jel.debit),0)::numeric AS material_cost
-         FROM inventory_movements im
-         JOIN journal_entries je ON je."companyId"=im.company_id
-           AND je."referenceType"='INVENTORY_CONSUMPTION'
-           AND je."referenceId"=im.id
-           AND je.status='POSTED'
-         JOIN journal_entry_lines jel ON jel."journalEntryId"=je.id
-         JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.code='740'
-         WHERE im.reference_type='APPOINTMENT' AND im.type='SERVICE_CONSUMPTION'
-         GROUP BY im.reference_id
-       )
+      `${this.baseCostCte()}
        SELECT s.id AS "serviceId",s.name AS "serviceName",
               COUNT(a.id)::int AS "appointmentCount",
               COALESCE(SUM(s.price),0)::numeric AS revenue,
               COALESCE(SUM(ac.material_cost),0)::numeric AS "materialCost"
        FROM appointments a
-       JOIN services s ON s.id=a.service_id
-       JOIN branches b ON b.id=a.branch_id
+       JOIN services s ON s.id=a."serviceId"
+       JOIN branches b ON b.id=a."branchId"
        LEFT JOIN appointment_costs ac ON ac.appointment_id=a.id
-       WHERE b.company_id=$1::text
+       WHERE b."companyId"=$1::text
          AND a.status='COMPLETED'
-         AND ($2::text IS NULL OR a.branch_id=$2::text)
-         AND ($3::timestamptz IS NULL OR a.end_at >= $3::timestamptz)
-         AND ($4::timestamptz IS NULL OR a.end_at <= $4::timestamptz)
+         AND ($2::text IS NULL OR a."branchId"=$2::text)
+         AND ($3::timestamptz IS NULL OR a."endAt" >= $3::timestamptz)
+         AND ($4::timestamptz IS NULL OR a."endAt" <= $4::timestamptz)
        GROUP BY s.id,s.name
        ORDER BY revenue DESC`,
       ...this.params(filter),
@@ -120,35 +112,23 @@ export class ProfitabilityService {
 
   async byStaff(filter: ProfitabilityFilter) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `WITH appointment_costs AS (
-         SELECT im.reference_id AS appointment_id,
-                COALESCE(SUM(jel.debit),0)::numeric AS material_cost
-         FROM inventory_movements im
-         JOIN journal_entries je ON je."companyId"=im.company_id
-           AND je."referenceType"='INVENTORY_CONSUMPTION'
-           AND je."referenceId"=im.id
-           AND je.status='POSTED'
-         JOIN journal_entry_lines jel ON jel."journalEntryId"=je.id
-         JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.code='740'
-         WHERE im.reference_type='APPOINTMENT' AND im.type='SERVICE_CONSUMPTION'
-         GROUP BY im.reference_id
-       )
+      `${this.baseCostCte()}
        SELECT st.id AS "staffId",
-              CONCAT_WS(' ',st.first_name,st.last_name) AS "staffName",
+              CONCAT_WS(' ',st."firstName",st."lastName") AS "staffName",
               COUNT(a.id)::int AS "appointmentCount",
               COALESCE(SUM(s.price),0)::numeric AS revenue,
               COALESCE(SUM(ac.material_cost),0)::numeric AS "materialCost"
        FROM appointments a
-       JOIN staff st ON st.id=a.staff_id
-       JOIN services s ON s.id=a.service_id
-       JOIN branches b ON b.id=a.branch_id
+       JOIN staff st ON st.id=a."staffId"
+       JOIN services s ON s.id=a."serviceId"
+       JOIN branches b ON b.id=a."branchId"
        LEFT JOIN appointment_costs ac ON ac.appointment_id=a.id
-       WHERE b.company_id=$1::text
+       WHERE b."companyId"=$1::text
          AND a.status='COMPLETED'
-         AND ($2::text IS NULL OR a.branch_id=$2::text)
-         AND ($3::timestamptz IS NULL OR a.end_at >= $3::timestamptz)
-         AND ($4::timestamptz IS NULL OR a.end_at <= $4::timestamptz)
-       GROUP BY st.id,st.first_name,st.last_name
+         AND ($2::text IS NULL OR a."branchId"=$2::text)
+         AND ($3::timestamptz IS NULL OR a."endAt" >= $3::timestamptz)
+         AND ($4::timestamptz IS NULL OR a."endAt" <= $4::timestamptz)
+       GROUP BY st.id,st."firstName",st."lastName"
        ORDER BY revenue DESC`,
       ...this.params(filter),
     );
