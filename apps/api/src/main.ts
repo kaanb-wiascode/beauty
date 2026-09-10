@@ -13,7 +13,8 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(requestIdMiddleware);
-  app.use(new RequestLoggingMiddleware().use.bind(new RequestLoggingMiddleware()));
+  const requestLoggingMiddleware = new RequestLoggingMiddleware();
+  app.use(requestLoggingMiddleware.use.bind(requestLoggingMiddleware));
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.use((_request: unknown, response: { setHeader: (name: string, value: string) => void }, next: () => void) => {
