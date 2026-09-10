@@ -9,6 +9,7 @@ describe('FinancialIntegrationSyncService', () => {
     linkage?: jest.Mock;
     reconciliation?: jest.Mock;
     tokens?: Record<string, unknown>;
+    opaqueCredentials?: Record<string, string>;
   }) {
     const query = overrides?.query ?? jest.fn();
     const execute = overrides?.execute ?? jest.fn().mockResolvedValue(1);
@@ -22,6 +23,7 @@ describe('FinancialIntegrationSyncService', () => {
     } as never;
     const vault = {
       load: jest.fn().mockResolvedValue(overrides?.tokens ?? { accessToken: 'test-token' }),
+      loadOpaque: jest.fn().mockResolvedValue(overrides?.opaqueCredentials ?? { clientId: 'client', clientSecret: 'secret' }),
       store: jest.fn().mockResolvedValue(undefined),
     } as never;
     const tenant = {
@@ -39,7 +41,7 @@ describe('FinancialIntegrationSyncService', () => {
       service: new FinancialIntegrationSyncService(prisma, providers, vault, tenant, linkage, reconciliation),
       query,
       execute,
-      vault: vault as unknown as { load: jest.Mock; store: jest.Mock },
+      vault: vault as unknown as { load: jest.Mock; loadOpaque: jest.Mock; store: jest.Mock },
       linkage: linkage as unknown as { autoLinkOneInScope: jest.Mock },
       reconciliation: reconciliation as unknown as { autoMatchInScope: jest.Mock },
     };
@@ -63,27 +65,16 @@ describe('FinancialIntegrationSyncService', () => {
   it('links synchronized captured POS transactions to SalePayment within provider scope', async () => {
     const query = jest.fn()
       .mockResolvedValueOnce([{
-        id: 'integration-pos',
-        tenantId: 'tenant-a',
-        companyId: 'company-a',
-        branchId: 'branch-a',
-        kind: 'VIRTUAL_POS',
-        provider: 'TESTPOS',
-        status: 'CONNECTED',
-        lastSyncAt: null,
+        id: 'integration-pos', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
+        kind: 'VIRTUAL_POS', provider: 'TESTPOS', status: 'CONNECTED', authType: 'OAUTH2', lastSyncAt: null,
       }])
       .mockResolvedValueOnce([{ id: 'terminal-a' }])
       .mockResolvedValueOnce([{ id: 'pos-a' }]);
     const linkage = jest.fn().mockResolvedValue({ linked: true, reason: 'WEBHOOK_REFERENCE' });
     const adapter = {
       listPosTransactions: jest.fn().mockResolvedValue([{
-        externalTransactionId: 'provider-tx-1',
-        occurredAt: new Date('2026-09-10T15:00:00.000Z'),
-        grossAmount: 100,
-        feeAmount: 2,
-        netAmount: 98,
-        currency: 'TRY',
-        status: 'CAPTURED',
+        externalTransactionId: 'provider-tx-1', occurredAt: new Date('2026-09-10T15:00:00.000Z'),
+        grossAmount: 100, feeAmount: 2, netAmount: 98, currency: 'TRY', status: 'CAPTURED',
       }]),
     };
     const { service } = createService({ query, adapter, linkage });
@@ -94,32 +85,16 @@ describe('FinancialIntegrationSyncService', () => {
       { tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a' },
       'pos-a',
     );
-    expect(result).toMatchObject({
-      integrationId: 'integration-pos',
-      recordsSynced: 1,
-      linkedPayments: 1,
-      unresolvedPaymentLinks: 0,
-      status: 'SUCCESS',
-    });
+    expect(result).toMatchObject({ integrationId: 'integration-pos', recordsSynced: 1, linkedPayments: 1, unresolvedPaymentLinks: 0, status: 'SUCCESS' });
   });
 
   it('runs settlement reconciliation immediately after open-banking synchronization', async () => {
-    const query = jest.fn()
-      .mockResolvedValueOnce([{
-        id: 'integration-bank',
-        tenantId: 'tenant-a',
-        companyId: 'company-a',
-        branchId: 'branch-a',
-        kind: 'OPEN_BANKING',
-        provider: 'TESTBANK',
-        status: 'CONNECTED',
-        lastSyncAt: null,
-      }]);
+    const query = jest.fn().mockResolvedValueOnce([{
+      id: 'integration-bank', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
+      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', authType: 'OAUTH2', lastSyncAt: null,
+    }]);
     const reconciliation = jest.fn().mockResolvedValue({ scanned: 3, matched: 2, skipped: 1 });
-    const adapter = {
-      listBankAccounts: jest.fn().mockResolvedValue([]),
-      listBankTransactions: jest.fn().mockResolvedValue([]),
-    };
+    const adapter = { listBankAccounts: jest.fn().mockResolvedValue([]), listBankTransactions: jest.fn().mockResolvedValue([]) };
     const { service } = createService({ query, adapter, reconciliation });
 
     const result = await service.syncIntegration('integration-bank');
@@ -128,32 +103,22 @@ describe('FinancialIntegrationSyncService', () => {
       { tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a' },
       250,
     );
-    expect(result).toMatchObject({
-      reconciledSettlements: 2,
-      unresolvedSettlements: 1,
-      status: 'SUCCESS',
-    });
+    expect(result).toMatchObject({ reconciledSettlements: 2, unresolvedSettlements: 1, status: 'SUCCESS' });
   });
 
   it('refreshes an expiring open-banking token before provider synchronization', async () => {
     const query = jest.fn().mockResolvedValueOnce([{
       id: 'integration-bank', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
-      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', lastSyncAt: null,
+      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', authType: 'OAUTH2', lastSyncAt: null,
     }]);
-    const refreshTokens = jest.fn().mockResolvedValue({
-      accessToken: 'fresh-token',
-      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
-    });
+    const refreshTokens = jest.fn().mockResolvedValue({ accessToken: 'fresh-token', expiresAt: new Date(Date.now() + 60 * 60 * 1000) });
     const listBankAccounts = jest.fn().mockResolvedValue([]);
     const adapter = { refreshTokens, listBankAccounts, listBankTransactions: jest.fn().mockResolvedValue([]) };
     const { service, vault } = createService({
       query,
       adapter,
       tokens: {
-        accessToken: 'old-token',
-        refreshToken: 'refresh-token',
-        expiresAt: new Date(Date.now() + 30 * 1000),
-        externalConnectionId: 'connection-1',
+        accessToken: 'old-token', refreshToken: 'refresh-token', expiresAt: new Date(Date.now() + 30 * 1000), externalConnectionId: 'connection-1',
       },
     });
 
@@ -161,33 +126,44 @@ describe('FinancialIntegrationSyncService', () => {
 
     expect(refreshTokens).toHaveBeenCalledTimes(1);
     expect(vault.store).toHaveBeenCalledWith('integration-bank', expect.objectContaining({
-      accessToken: 'fresh-token',
-      refreshToken: 'refresh-token',
-      externalConnectionId: 'connection-1',
+      accessToken: 'fresh-token', refreshToken: 'refresh-token', externalConnectionId: 'connection-1',
     }));
     expect(listBankAccounts).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'fresh-token' }));
+  });
+
+  it('uses transient client-credential tokens for API_KEY open-banking integrations', async () => {
+    const query = jest.fn().mockResolvedValueOnce([{
+      id: 'integration-bank', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
+      kind: 'OPEN_BANKING', provider: 'GARANTI_BBVA', status: 'CONNECTED', authType: 'API_KEY', lastSyncAt: null,
+    }]);
+    const authenticateCredentials = jest.fn().mockResolvedValue({ accessToken: 'transient-token' });
+    const listBankAccounts = jest.fn().mockResolvedValue([]);
+    const adapter = { authenticateCredentials, listBankAccounts, listBankTransactions: jest.fn().mockResolvedValue([]) };
+    const opaqueCredentials = { clientId: 'client-1', clientSecret: 'test-secret', redirectUri: 'https://erp.example.com/callback' };
+    const { service, vault } = createService({ query, adapter, opaqueCredentials });
+
+    await service.syncIntegration('integration-bank');
+
+    expect(vault.loadOpaque).toHaveBeenCalledWith('integration-bank');
+    expect(vault.load).not.toHaveBeenCalled();
+    expect(authenticateCredentials).toHaveBeenCalledWith(opaqueCredentials);
+    expect(listBankAccounts).toHaveBeenCalledWith({ accessToken: 'transient-token' });
   });
 
   it('blocks provider synchronization when open-banking consent has expired', async () => {
     const query = jest.fn().mockResolvedValueOnce([{
       id: 'integration-bank', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
-      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', lastSyncAt: null,
+      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', authType: 'OAUTH2', lastSyncAt: null,
     }]);
     const listBankAccounts = jest.fn();
     const { service, execute } = createService({
       query,
       adapter: { listBankAccounts },
-      tokens: {
-        accessToken: 'old-token',
-        consentExpiresAt: new Date(Date.now() - 60 * 1000),
-      },
+      tokens: { accessToken: 'old-token', consentExpiresAt: new Date(Date.now() - 60 * 1000) },
     });
 
     await expect(service.syncIntegration('integration-bank')).rejects.toBeInstanceOf(BadRequestException);
     expect(listBankAccounts).not.toHaveBeenCalled();
-    expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining("status='ERROR'"),
-      'integration-bank',
-    );
+    expect(execute).toHaveBeenCalledWith(expect.stringContaining("status='ERROR'"), 'integration-bank');
   });
 });
