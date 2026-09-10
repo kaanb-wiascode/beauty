@@ -4,11 +4,14 @@ import type {
   FinancialProviderAdapter,
   ProviderPosRefundRequest,
   ProviderPosRefundResult,
+  ProviderPosSettlementBatch,
+  ProviderPosSettlementQuery,
   ProviderPosTransaction,
   ProviderPosTransactionLookup,
   ProviderWebhookEvent,
   ProviderWebhookVerificationResult,
 } from '../provider-adapter';
+import { listIyzicoSftpSettlements } from './iyzico-sftp-settlement';
 
 const PAYMENT_DETAIL_PATH = '/payment/detail';
 const REFUND_V2_PATH = '/v2/payment/refund';
@@ -106,6 +109,10 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     { key: 'secretKey', label: 'Secret Key', secret: true, required: true },
     { key: 'merchantId', label: 'Merchant ID', secret: false, required: false },
     { key: 'baseUrl', label: 'API Base URL', secret: false, required: false },
+    { key: 'sftpHost', label: 'SFTP Host', secret: false, required: false },
+    { key: 'sftpPort', label: 'SFTP Port', secret: false, required: false },
+    { key: 'sftpUsername', label: 'SFTP Username', secret: true, required: false },
+    { key: 'sftpPassword', label: 'SFTP Password', secret: true, required: false },
   ];
   readonly capabilities = {
     apiCredentials: true,
@@ -113,8 +120,13 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     posTransactionEnrichment: true,
     posRefunds: true,
     settlements: true,
+    settlementImport: true,
     webhooks: true,
   };
+
+  async listPosSettlements(input: ProviderPosSettlementQuery): Promise<ProviderPosSettlementBatch[]> {
+    return listIyzicoSftpSettlements(input.credentials, input.date);
+  }
 
   async refundPosTransaction(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult> {
     const apiKey = input.credentials.apiKey?.trim();
