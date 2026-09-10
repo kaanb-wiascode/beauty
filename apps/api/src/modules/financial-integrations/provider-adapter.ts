@@ -54,6 +54,13 @@ export interface ProviderPosTransaction {
   installmentCount?: number;
 }
 
+export interface ProviderPosTransactionLookup {
+  credentials: Record<string, string>;
+  providerTransactionId: string;
+  merchantReference?: string;
+  occurredAt?: Date;
+}
+
 export interface ProviderWebhookVerificationResult {
   valid: boolean;
 }
@@ -97,6 +104,7 @@ export interface ProviderCapabilities {
   balances?: boolean;
   bankTransactions?: boolean;
   posTransactions?: boolean;
+  posTransactionEnrichment?: boolean;
   settlements?: boolean;
   webhooks?: boolean;
 }
@@ -120,6 +128,7 @@ export interface FinancialProviderAdapter {
   listBankAccounts?(tokens: ProviderTokenSet): Promise<ProviderBankAccount[]>;
   listBankTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderBankTransaction[]>;
   listPosTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderPosTransaction[]>;
+  retrievePosTransaction?(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction>;
 
   verifyWebhook?(input: {
     headers: Record<string, string | string[] | undefined>;
