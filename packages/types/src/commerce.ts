@@ -7,6 +7,12 @@ export type CustomerPackageStatus = (typeof CUSTOMER_PACKAGE_STATUSES)[number];
 export const SESSION_STATUSES = ['AVAILABLE', 'RESERVED', 'CONSUMED', 'CANCELLED'] as const;
 export type SessionStatus = (typeof SESSION_STATUSES)[number];
 
+export const PAYMENT_METHODS = ['CASH', 'CARD', 'TRANSFER'] as const;
+export type PaymentMethod = (typeof PAYMENT_METHODS)[number];
+
+export const PAYMENT_STATUSES = ['COMPLETED', 'REFUNDED'] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
 export interface PackageItemContract {
   id: string;
   serviceId: string;
@@ -58,4 +64,27 @@ export interface SaleContract {
   discountTotal: string;
   total: string;
   createdAt: string;
+}
+
+export interface SalePaymentContract {
+  id: string;
+  tenantId: string;
+  branchId: string;
+  saleId: string;
+  amount: string;
+  method: PaymentMethod;
+  status: PaymentStatus;
+  paidAt: string;
+  refundedAt: string | null;
+  refundReason: string | null;
+  reference: string | null;
+  note: string | null;
+}
+
+export interface SaleBalanceContract {
+  saleId: string;
+  total: string;
+  paid: string;
+  refunded: string;
+  outstanding: string;
 }
