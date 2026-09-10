@@ -66,6 +66,14 @@ export class PosSettlementImportService {
     const skipped: Array<{ providerSettlementId: string; reason: string }> = [];
 
     for (const batch of batches) {
+      if (batch.requiresReview) {
+        skipped.push({
+          providerSettlementId: batch.providerSettlementId,
+          reason: batch.reviewReason ? `PROVIDER_REVIEW_REQUIRED:${batch.reviewReason}` : 'PROVIDER_REVIEW_REQUIRED',
+        });
+        continue;
+      }
+
       const existing = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT id FROM pos_settlements
          WHERE integration_id=$1::text AND provider_settlement_id=$2
@@ -118,6 +126,10 @@ export class PosSettlementImportService {
       }
       if (local.some((row) => row.status !== 'CAPTURED' || row.settledAt)) {
         skipped.push({ providerSettlementId: batch.providerSettlementId, reason: 'TRANSACTION_NOT_SETTLEABLE' });
+        continue;
+      }
+      if (!(batch.settledAt instanceof Date) || Number.isNaN(batch.settledAt.getTime()) || batch.settledAt.getTime() <= 0) {
+        skipped.push({ providerSettlementId: batch.providerSettlementId, reason: 'SETTLEMENT_DATE_INVALID' });
         continue;
       }
 
