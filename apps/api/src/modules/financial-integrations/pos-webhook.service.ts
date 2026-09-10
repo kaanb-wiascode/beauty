@@ -34,7 +34,7 @@ export class PosWebhookService {
     if (integration.provider !== providerName.trim().toUpperCase()) throw new BadRequestException('Webhook provider does not match integration provider.');
 
     const adapter = this.providers.get('VIRTUAL_POS', integration.provider);
-    if (!adapter.runtimeReady || !adapter.verifyWebhook || !adapter.parseWebhook) {
+    if (!adapter.capabilities?.webhooks || !adapter.verifyWebhook || !adapter.parseWebhook) {
       throw new ServiceUnavailableException('Provider webhook runtime is not enabled yet.');
     }
     const credentials = await this.vault.loadOpaque(integrationId);
