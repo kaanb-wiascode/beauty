@@ -16,6 +16,7 @@ export const envSchema = z.object({
   JWT_ACCESS_EXPIRES_IN: z.string().default('15m'),
   JWT_REFRESH_EXPIRES_IN: z.string().default('7d'),
 
+  PUBLIC_API_URL: z.string().url().optional(),
   FINANCIAL_INTEGRATION_MASTER_KEY: z.string().min(32).optional(),
 });
 
