@@ -37,6 +37,9 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['services', 'create'],
   ['services', 'update'],
   ['services', 'delete'],
+  ['inventory', 'read'],
+  ['inventory', 'create'],
+  ['inventory', 'update'],
 ] as const;
 
 type RefreshSession = {
