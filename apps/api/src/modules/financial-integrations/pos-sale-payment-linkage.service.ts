@@ -2,6 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
+interface PosScope {
+  tenantId: string;
+  companyId: string;
+  branchId: string | null;
+}
+
 @Injectable()
 export class PosSalePaymentLinkageService {
   constructor(
@@ -9,7 +15,7 @@ export class PosSalePaymentLinkageService {
     private readonly tenant: TenantContext,
   ) {}
 
-  private context() {
+  private context(): PosScope {
     return {
       tenantId: this.tenant.getTenantId(),
       companyId: this.tenant.getCompanyId(),
@@ -18,7 +24,10 @@ export class PosSalePaymentLinkageService {
   }
 
   async link(posTransactionId: string, salePaymentId: string, note = 'MANUAL') {
-    const ctx = this.context();
+    return this.linkInScope(this.context(), posTransactionId, salePaymentId, note);
+  }
+
+  async linkInScope(ctx: PosScope, posTransactionId: string, salePaymentId: string, note = 'AUTO') {
     return this.prisma.$transaction(async (tx) => {
       const posRows = await tx.$queryRawUnsafe<any[]>(
         `SELECT p.id,p.sale_payment_id AS "salePaymentId",p.sale_id AS "saleId",p.amount,p.currency,p.status,p.branch_id AS "branchId"
@@ -38,6 +47,9 @@ export class PosSalePaymentLinkageService {
       }
       if (pos.salePaymentId && pos.salePaymentId !== salePaymentId) {
         throw new BadRequestException('POS transaction is already linked to another sale payment.');
+      }
+      if (!pos.branchId) {
+        throw new BadRequestException('POS transaction must belong to a branch before linking a sale payment.');
       }
 
       const payment = await tx.salePayment.findFirst({
@@ -67,10 +79,73 @@ export class PosSalePaymentLinkageService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  async autoLinkOneInScope(ctx: PosScope, posTransactionId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT p.id,p.amount,p.provider_transaction_id AS "providerTransactionId",p.created_at AS "createdAt",
+              p.branch_id AS "branchId",p.sale_payment_id AS "salePaymentId",p.status
+       FROM pos_transactions p
+       WHERE p.id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text
+         AND ($4::text IS NULL OR p.branch_id=$4::text)
+       LIMIT 1`,
+      posTransactionId,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+    );
+    if (!rows.length) return { linked: false, reason: 'NOT_FOUND' };
+    const row = rows[0];
+    if (row.salePaymentId) return { linked: true, reason: 'ALREADY_LINKED', salePaymentId: row.salePaymentId };
+    if (!['AUTHORIZED','CAPTURED'].includes(row.status)) return { linked: false, reason: 'STATUS' };
+    if (!row.branchId) return { linked: false, reason: 'BRANCH_REQUIRED' };
+
+    const exact = await this.prisma.salePayment.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        branchId: row.branchId,
+        method: 'CARD',
+        status: 'COMPLETED',
+        reference: row.providerTransactionId,
+      },
+      select: { id: true },
+      take: 2,
+    });
+
+    let candidateId = exact.length === 1 ? exact[0].id : null;
+    let linkType = 'WEBHOOK_REFERENCE';
+    if (!candidateId) {
+      const from = new Date(new Date(row.createdAt).getTime() - 30 * 60 * 1000);
+      const to = new Date(new Date(row.createdAt).getTime() + 30 * 60 * 1000);
+      const candidates = await this.prisma.salePayment.findMany({
+        where: {
+          tenantId: ctx.tenantId,
+          branchId: row.branchId,
+          method: 'CARD',
+          status: 'COMPLETED',
+          amount: new Prisma.Decimal(row.amount),
+          paidAt: { gte: from, lte: to },
+        },
+        select: { id: true },
+        take: 2,
+      });
+      if (candidates.length === 1) {
+        candidateId = candidates[0].id;
+        linkType = 'WEBHOOK_AMOUNT_TIME';
+      }
+    }
+
+    if (!candidateId) return { linked: false, reason: 'AMBIGUOUS_OR_MISSING' };
+    try {
+      const result = await this.linkInScope(ctx, row.id, candidateId, linkType);
+      return { linked: true, reason: linkType, ...result };
+    } catch {
+      return { linked: false, reason: 'LINK_REJECTED' };
+    }
+  }
+
   async autoLink(limit = 200) {
     const ctx = this.context();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT p.id,p.amount,p.provider_transaction_id AS "providerTransactionId",p.created_at AS "createdAt",p.branch_id AS "branchId"
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT p.id
        FROM pos_transactions p
        WHERE p.tenant_id=$1::text AND p.company_id=$2::text
          AND ($3::text IS NULL OR p.branch_id=$3::text)
@@ -86,47 +161,9 @@ export class PosSalePaymentLinkageService {
     let linked = 0;
     let skipped = 0;
     for (const row of rows) {
-      const exact = await this.prisma.salePayment.findMany({
-        where: {
-          tenantId: ctx.tenantId,
-          branchId: row.branchId,
-          method: 'CARD',
-          status: 'COMPLETED',
-          reference: row.providerTransactionId,
-        },
-        select: { id: true },
-        take: 2,
-      });
-
-      let candidateId = exact.length === 1 ? exact[0].id : null;
-      if (!candidateId) {
-        const from = new Date(new Date(row.createdAt).getTime() - 30 * 60 * 1000);
-        const to = new Date(new Date(row.createdAt).getTime() + 30 * 60 * 1000);
-        const candidates = await this.prisma.salePayment.findMany({
-          where: {
-            tenantId: ctx.tenantId,
-            branchId: row.branchId,
-            method: 'CARD',
-            status: 'COMPLETED',
-            amount: new Prisma.Decimal(row.amount),
-            paidAt: { gte: from, lte: to },
-          },
-          select: { id: true },
-          take: 2,
-        });
-        if (candidates.length === 1) candidateId = candidates[0].id;
-      }
-
-      if (!candidateId) {
-        skipped += 1;
-        continue;
-      }
-      try {
-        await this.link(row.id, candidateId, 'AUTO');
-        linked += 1;
-      } catch {
-        skipped += 1;
-      }
+      const result = await this.autoLinkOneInScope(ctx, row.id);
+      if (result.linked) linked += 1;
+      else skipped += 1;
     }
     return { scanned: rows.length, linked, skipped };
   }
