@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { REQUIRED_PERMISSION_KEY } from '../../common/auth/permissions.decorator';
 import { InventoryController } from './inventory.controller';
 
@@ -40,5 +41,50 @@ describe('InventoryController permissions', () => {
         action: permission[1],
       });
     }
+  });
+});
+
+describe('InventoryController payload bounds', () => {
+  const inventory = {
+    products: jest.fn(),
+    movements: jest.fn(),
+    setServiceMaterials: jest.fn(),
+    createPurchaseOrder: jest.fn(),
+    createTransfer: jest.fn(),
+  } as never;
+
+  const controller = new InventoryController(inventory);
+
+  it('rejects an oversized product search', () => {
+    expect(() => controller.products('x'.repeat(101))).toThrow(BadRequestException);
+  });
+
+  it('rejects movement limits outside the safe range', () => {
+    expect(() => controller.movements('101')).toThrow(BadRequestException);
+    expect(() => controller.movements('0')).toThrow(BadRequestException);
+    expect(() => controller.movements('not-a-number')).toThrow(BadRequestException);
+  });
+
+  it('rejects non-finite service material quantities', () => {
+    expect(() =>
+      controller.setServiceMaterials('service-1', {
+        materials: [{ productId: 'product-1', quantity: Number.NaN }],
+      }),
+    ).toThrow(BadRequestException);
+  });
+
+  it('caps purchase order and transfer item collections', () => {
+    const items = Array.from({ length: 101 }, () => ({ productId: 'product-1', quantity: 1 }));
+
+    expect(() => controller.createPurchaseOrder({
+      warehouseId: 'warehouse-1',
+      items,
+    } as never)).toThrow(BadRequestException);
+
+    expect(() => controller.createTransfer({
+      sourceWarehouseId: 'warehouse-1',
+      destinationWarehouseId: 'warehouse-2',
+      items,
+    } as never)).toThrow(BadRequestException);
   });
 });
