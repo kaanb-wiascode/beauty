@@ -3,7 +3,7 @@ import { InventoryService } from './inventory.service';
 
 describe('InventoryService asset maintenance scope', () => {
   const queryRawUnsafe = jest.fn();
-  const prisma = { queryRawUnsafe } as any;
+  const prisma = { $queryRawUnsafe: queryRawUnsafe } as any;
   const tenantContext = {
     getTenantId: () => 'tenant-1',
     getCompanyId: () => 'company-1',
