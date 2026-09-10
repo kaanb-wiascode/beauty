@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { AppModule } from './app.module';
 import { GlobalExceptionFilter } from './common/http/global-exception.filter';
 import { requestIdMiddleware } from './common/http/request-id.middleware';
+import { RequestLoggingMiddleware } from './common/http/request-logging.middleware';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -12,6 +13,7 @@ async function bootstrap() {
   app.getHttpAdapter().getInstance().set('trust proxy', 1);
 
   app.use(requestIdMiddleware);
+  app.use(new RequestLoggingMiddleware().use.bind(new RequestLoggingMiddleware()));
   app.useGlobalFilters(new GlobalExceptionFilter());
 
   app.use((_request: unknown, response: { setHeader: (name: string, value: string) => void }, next: () => void) => {
