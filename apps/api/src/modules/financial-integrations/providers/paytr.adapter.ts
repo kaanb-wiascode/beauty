@@ -4,6 +4,8 @@ import type {
   FinancialProviderAdapter,
   ProviderPosRefundRequest,
   ProviderPosRefundResult,
+  ProviderPosSettlementBatch,
+  ProviderPosSettlementQuery,
   ProviderPosTransaction,
   ProviderPosTransactionLookup,
   ProviderWebhookEvent,
@@ -12,6 +14,7 @@ import type {
 
 const STATUS_QUERY_URL = 'https://www.paytr.com/odeme/durum-sorgu';
 const REFUND_URL = 'https://www.paytr.com/odeme/iade';
+const PAYMENT_DETAIL_URL = 'https://www.paytr.com/rapor/odeme-detayi';
 
 function payloadRecord(payload: unknown): Record<string, unknown> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -63,6 +66,28 @@ function parsePaymentDate(value: unknown, fallback?: Date) {
   throw new ServiceUnavailableException('PayTR status query payment date is invalid.');
 }
 
+function formatReportDate(value: Date) {
+  if (!(value instanceof Date) || Number.isNaN(value.getTime())) {
+    throw new BadRequestException('PayTR settlement report date is invalid.');
+  }
+  const formatter = new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Europe/Istanbul',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+  });
+  return formatter.format(value);
+}
+
+function settlementRows(payload: Record<string, unknown>) {
+  const direct = Object.values(payload).find((value) =>
+    Array.isArray(value) && value.some((item) => item && typeof item === 'object' && !Array.isArray(item) && 'merchant_oid' in item),
+  );
+  if (Array.isArray(direct)) return direct as Record<string, unknown>[];
+  if (payload.merchant_oid !== undefined) return [payload];
+  return [];
+}
+
 @Injectable()
 export class PaytrAdapter implements FinancialProviderAdapter {
   readonly provider = 'PAYTR';
@@ -80,8 +105,72 @@ export class PaytrAdapter implements FinancialProviderAdapter {
     posTransactionEnrichment: true,
     posRefunds: true,
     settlements: true,
+    settlementImport: true,
     webhooks: true,
   };
+
+  async listPosSettlements(input: ProviderPosSettlementQuery): Promise<ProviderPosSettlementBatch[]> {
+    const merchantId = input.credentials.merchantId?.trim();
+    const merchantKey = input.credentials.merchantKey?.trim();
+    const merchantSalt = input.credentials.merchantSalt?.trim();
+    if (!merchantId || !merchantKey || !merchantSalt) {
+      throw new ServiceUnavailableException('PayTR API credentials are not configured.');
+    }
+    const date = formatReportDate(input.date);
+    const paytrToken = createHmac('sha256', merchantKey)
+      .update(`${merchantId}${date}${merchantSalt}`)
+      .digest('base64');
+    const body = new URLSearchParams({ merchant_id: merchantId, date, paytr_token: paytrToken });
+
+    let response: Response;
+    try {
+      response = await fetch(PAYMENT_DETAIL_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new ServiceUnavailableException('PayTR settlement report request failed.');
+    }
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`PayTR settlement report returned HTTP ${response.status}.`);
+    }
+
+    let result: Record<string, unknown>;
+    try {
+      result = payloadRecord(await response.json());
+    } catch {
+      throw new ServiceUnavailableException('PayTR settlement report response is invalid.');
+    }
+    const status = String(result.status ?? '').toLowerCase();
+    if (status === 'failed') return [];
+    if (status !== 'success') {
+      throw new ServiceUnavailableException('PayTR settlement report request was rejected.');
+    }
+
+    const groups = new Map<string, string[]>();
+    for (const row of settlementRows(result)) {
+      const providerTransactionId = String(row.merchant_oid ?? '').trim();
+      if (!providerTransactionId) continue;
+      const currency = normalizeCurrency(row.currency);
+      const key = `${date}:${currency}`;
+      const ids = groups.get(key) ?? [];
+      if (!ids.includes(providerTransactionId)) ids.push(providerTransactionId);
+      groups.set(key, ids);
+    }
+
+    const settledAt = new Date(`${date}T23:59:59+03:00`);
+    return Array.from(groups.entries()).map(([key, providerTransactionIds]) => {
+      const currency = key.slice(key.lastIndexOf(':') + 1);
+      return {
+        providerSettlementId: `PAYTR:${date}:${currency}`,
+        settledAt,
+        currency,
+        providerTransactionIds,
+      };
+    });
+  }
 
   async refundPosTransaction(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult> {
     const merchantId = input.credentials.merchantId?.trim();
