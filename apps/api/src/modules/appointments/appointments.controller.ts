@@ -4,6 +4,7 @@ import {
   Delete,
   Get,
   Param,
+  ParseUUIDPipe,
   Patch,
   Post,
   Query,
@@ -28,8 +29,8 @@ export class AppointmentsController {
   ) {}
 
   @Post()
-    @UseGuards(PermissionsGuard)
-    @RequirePermission('appointments', 'create')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'create')
   async create(@Body() body: unknown) {
     const input = createAppointmentSchema.parse(body);
 
@@ -37,24 +38,37 @@ export class AppointmentsController {
   }
 
   @Get()
-    @UseGuards(PermissionsGuard)
-    @RequirePermission('appointments', 'read')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
   async findAll(@Query() query: unknown) {
     const input = listAppointmentsSchema.parse(query);
 
     return this.appointmentsService.findAll(input);
   }
 
+  @Get('eligible-sessions')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  async findEligibleSessions(
+    @Query('customerId', new ParseUUIDPipe()) customerId: string,
+    @Query('serviceId', new ParseUUIDPipe()) serviceId: string,
+  ) {
+    return this.appointmentsService.findEligibleSessions(
+      customerId,
+      serviceId,
+    );
+  }
+
   @Get(':id')
-    @UseGuards(PermissionsGuard)
-    @RequirePermission('appointments', 'read')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
   async findOne(@Param('id') id: string) {
     return this.appointmentsService.findOne(id);
   }
 
   @Patch(':id')
-    @UseGuards(PermissionsGuard)
-    @RequirePermission('appointments', 'update')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'update')
   async update(
     @Param('id') id: string,
     @Body() body: unknown,
@@ -65,8 +79,8 @@ export class AppointmentsController {
   }
 
   @Delete(':id')
-    @UseGuards(PermissionsGuard)
-    @RequirePermission('appointments', 'cancel')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'cancel')
   async remove(@Param('id') id: string) {
     return this.appointmentsService.remove(id);
   }
