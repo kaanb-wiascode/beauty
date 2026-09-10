@@ -81,7 +81,6 @@ export class PosFinancialEventsService {
       if (!['CAPTURED','REFUNDED','CHARGEBACK'].includes(pos.status)) {
         throw new BadRequestException('Only captured POS transactions can be refunded or charged back.');
       }
-      if (amount - Number(pos.amount) > 0.01) throw new BadRequestException('Financial event amount cannot exceed POS transaction amount.');
 
       const duplicate = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,accounting_journal_entry_id AS "accountingJournalEntryId"
@@ -92,6 +91,19 @@ export class PosFinancialEventsService {
         input.externalEventId.trim(),
       );
       if (duplicate.length) return { id: duplicate[0].id, duplicate: true, accountingJournalEntryId: duplicate[0].accountingJournalEntryId };
+
+      const aggregateRows = await tx.$queryRawUnsafe<Array<{ total: number }>>(
+        `SELECT COALESCE(SUM(amount),0)::float8 AS total
+         FROM pos_financial_events
+         WHERE pos_transaction_id=$1::text AND event_type=$2`,
+        posTransactionId,
+        input.eventType,
+      );
+      const priorAmount = this.round(Number(aggregateRows[0]?.total ?? 0));
+      const cumulativeAmount = this.round(priorAmount + amount);
+      if (cumulativeAmount - Number(pos.amount) > 0.01) {
+        throw new BadRequestException('Financial events cannot exceed POS transaction amount cumulatively.');
+      }
 
       const eventId = randomUUID();
       const receivable = await this.ensureAccount(tx, ctx.tenantId, ctx.companyId, '120', 'Alıcılar', 'ASSET');
@@ -145,13 +157,14 @@ export class PosFinancialEventsService {
         journal.id,
       );
 
+      const fullyReversed = cumulativeAmount >= this.round(Number(pos.amount) - 0.01);
       await tx.$executeRawUnsafe(
         `UPDATE pos_transactions SET status=$2,updated_at=NOW() WHERE id=$1::text`,
         posTransactionId,
-        input.eventType === 'REFUND' ? 'REFUNDED' : 'CHARGEBACK',
+        fullyReversed ? (input.eventType === 'REFUND' ? 'REFUNDED' : 'CHARGEBACK') : 'CAPTURED',
       );
 
-      if (pos.salePaymentId) {
+      if (pos.salePaymentId && fullyReversed) {
         await tx.salePayment.updateMany({
           where: { id: pos.salePaymentId, tenantId: ctx.tenantId, branchId: pos.branchId, status: 'COMPLETED' },
           data: {
@@ -168,6 +181,8 @@ export class PosFinancialEventsService {
         eventType: input.eventType,
         amount,
         feeAmount,
+        cumulativeAmount,
+        fullyReversed,
         settled: Boolean(pos.settledAt),
         accountingJournalEntryId: journal.id,
         duplicate: false,
