@@ -3,10 +3,17 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { FinancialBenchmarkService } from './financial-benchmark.service';
+import { FinancialManagementCockpitService } from './financial-management-cockpit.service';
 import { ManagementFinanceActionsService } from './management-finance-actions.service';
+import { ManagementFinanceAutomationService } from './management-finance-automation.service';
 
 const anomalySchema = z.object({
   days: z.coerce.number().int().min(14).max(365).optional(),
+});
+
+const cfoSchema = z.object({
+  asOf: z.coerce.date().optional(),
+  lookbackDays: z.coerce.number().int().min(7).max(730).optional(),
 });
 
 const actionListSchema = z.object({
@@ -33,12 +40,22 @@ const updateActionSchema = z.object({
   resolutionNote: z.string().trim().max(2000).nullable().optional(),
 });
 
+const policySchema = z.object({
+  criticalHours: z.coerce.number().int().min(1).max(8760).optional(),
+  highHours: z.coerce.number().int().min(1).max(8760).optional(),
+  mediumHours: z.coerce.number().int().min(1).max(8760).optional(),
+  lowHours: z.coerce.number().int().min(1).max(8760).optional(),
+  escalationGraceHours: z.coerce.number().int().min(1).max(8760).optional(),
+});
+
 @Controller('profitability/cfo')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class FinancialGovernanceController {
   constructor(
     private readonly benchmark: FinancialBenchmarkService,
     private readonly actions: ManagementFinanceActionsService,
+    private readonly automation: ManagementFinanceAutomationService,
+    private readonly cockpit: FinancialManagementCockpitService,
   ) {}
 
   @Get('branches/benchmark')
@@ -71,5 +88,37 @@ export class FinancialGovernanceController {
   @Patch('actions/:id')
   updateAction(@Param('id') id: string, @Body() body: unknown) {
     return this.actions.update(id, updateActionSchema.parse(body));
+  }
+
+  @Get('actions/policy')
+  getActionPolicy() {
+    return this.automation.getPolicy();
+  }
+
+  @Post('actions/policy')
+  setActionPolicy(@Body() body: unknown) {
+    return this.automation.setPolicy(policySchema.parse(body));
+  }
+
+  @Post('actions/sync-recommendations')
+  syncRecommendations(@Query() query: unknown) {
+    return this.automation.syncRecommendations(cfoSchema.parse(query));
+  }
+
+  @Post('actions/escalate')
+  escalateActions(@Query() query: unknown) {
+    const parsed = cfoSchema.parse(query);
+    return this.automation.escalateOverdue(parsed.asOf ?? new Date());
+  }
+
+  @Get('actions/sla')
+  actionSla(@Query() query: unknown) {
+    const parsed = cfoSchema.parse(query);
+    return this.automation.slaSummary(parsed.asOf ?? new Date());
+  }
+
+  @Get('management-cockpit')
+  managementCockpit(@Query() query: unknown) {
+    return this.cockpit.cockpit(cfoSchema.parse(query));
   }
 }
