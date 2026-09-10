@@ -132,6 +132,7 @@ export interface ProviderCredentialField {
 export interface ProviderCapabilities {
   oauth?: boolean;
   apiCredentials?: boolean;
+  credentialTokenAuth?: boolean;
   accounts?: boolean;
   balances?: boolean;
   bankTransactions?: boolean;
@@ -156,6 +157,7 @@ export interface FinancialProviderAdapter {
     code: string;
     callbackUrl: string;
   }): Promise<ProviderTokenSet>;
+  authenticateCredentials?(credentials: Record<string, string>): Promise<ProviderTokenSet>;
   refreshTokens?(tokens: ProviderTokenSet): Promise<ProviderTokenSet>;
   revoke?(tokens: ProviderTokenSet): Promise<void>;
 
