@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
@@ -16,6 +16,10 @@ const receiveSchema = z.object({
   invoiceNumber: z.string().trim().max(100).optional(),
   dueAt: z.coerce.date().optional(),
   note: z.string().trim().max(500).optional(),
+});
+
+const reverseReceiptSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
 });
 
 const receiptListSchema = z.object({
@@ -74,7 +78,7 @@ export class ProcurementController {
     @Req() req: { user?: { sub?: string } },
   ) {
     const userId = req.user?.sub;
-    if (!userId) throw new Error('Authenticated user id is missing.');
+    if (!userId) throw new UnauthorizedException('Authenticated user id is missing.');
     return this.approvals.approve(id, Number(level), userId);
   }
 
@@ -85,7 +89,7 @@ export class ProcurementController {
     @Req() req: { user?: { sub?: string } },
   ) {
     const userId = req.user?.sub;
-    if (!userId) throw new Error('Authenticated user id is missing.');
+    if (!userId) throw new UnauthorizedException('Authenticated user id is missing.');
     return this.approvals.reject(id, Number(level), userId);
   }
 
@@ -97,6 +101,11 @@ export class ProcurementController {
   @Post('purchase-orders/:id/receive')
   receivePurchaseOrder(@Param('id') id: string, @Body() body: unknown) {
     return this.service.receivePurchaseOrder(id, receiveSchema.parse(body));
+  }
+
+  @Post('goods-receipts/:id/reverse')
+  reverseGoodsReceipt(@Param('id') id: string, @Body() body: unknown) {
+    return this.service.reverseGoodsReceipt(id, reverseReceiptSchema.parse(body));
   }
 
   @Get('goods-receipts')
