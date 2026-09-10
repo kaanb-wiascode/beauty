@@ -14,6 +14,17 @@ const createSaleSchema = z.object({
   })).min(1),
 });
 
+const addSalePaymentSchema = z.object({
+  amount: z.coerce.number().positive(),
+  method: z.enum(['CASH', 'CARD', 'TRANSFER']),
+  reference: z.string().trim().max(150).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+
+const refundSalePaymentSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 @Controller('sales')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class SalesController {
@@ -27,6 +38,25 @@ export class SalesController {
   @Get()
   findAll() {
     return this.salesService.findAll();
+  }
+
+  @Get(':id/payment-summary')
+  getPaymentSummary(@Param('id') id: string) {
+    return this.salesService.getPaymentSummary(id);
+  }
+
+  @Post(':id/payments')
+  addPayment(@Param('id') id: string, @Body() body: unknown) {
+    return this.salesService.addPayment(id, addSalePaymentSchema.parse(body));
+  }
+
+  @Post(':id/payments/:paymentId/refund')
+  refundPayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Body() body: unknown,
+  ) {
+    return this.salesService.refundPayment(id, paymentId, refundSalePaymentSchema.parse(body));
   }
 
   @Get(':id')
