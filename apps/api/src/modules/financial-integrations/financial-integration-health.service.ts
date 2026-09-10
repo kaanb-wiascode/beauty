@@ -20,8 +20,8 @@ export class FinancialIntegrationHealthService {
               i.consent_expires_at AS "consentExpiresAt",i.last_sync_at AS "lastSyncAt",
               i.last_error AS "lastError",i.updated_at AS "updatedAt",
               EXISTS(SELECT 1 FROM finance_integration_secrets s WHERE s.integration_id=i.id) AS "hasCredentials",
-              (SELECT r.status FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.created_at DESC LIMIT 1) AS "lastSyncStatus",
-              (SELECT r.completed_at FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.created_at DESC LIMIT 1) AS "lastSyncCompletedAt"
+              (SELECT r.status FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.started_at DESC LIMIT 1) AS "lastSyncStatus",
+              (SELECT r.completed_at FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.started_at DESC LIMIT 1) AS "lastSyncCompletedAt"
        FROM finance_integrations i
        WHERE i.id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
          AND ($4::text IS NULL OR i.branch_id=$4::text)
