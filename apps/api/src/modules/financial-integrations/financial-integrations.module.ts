@@ -12,6 +12,9 @@ import { FinancialIntegrationCredentialsService } from './financial-integration-
 import { PosSettlementService } from './pos-settlement.service';
 import { PosWebhookService } from './pos-webhook.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
+import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
+import { PosFinancialEventsService } from './pos-financial-events.service';
+import { PosReconciliationSchedulerService } from './pos-reconciliation-scheduler.service';
 import { IyzicoAdapter } from './providers/iyzico.adapter';
 import { PaytrAdapter } from './providers/paytr.adapter';
 
@@ -34,6 +37,9 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     PosSettlementService,
     PosWebhookService,
     PosBankReconciliationService,
+    PosSalePaymentLinkageService,
+    PosFinancialEventsService,
+    PosReconciliationSchedulerService,
   ],
   exports: [
     FinancialIntegrationsService,
@@ -45,6 +51,8 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     PosSettlementService,
     PosWebhookService,
     PosBankReconciliationService,
+    PosSalePaymentLinkageService,
+    PosFinancialEventsService,
   ],
 })
 export class FinancialIntegrationsModule {}
