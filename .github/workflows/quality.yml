@@ -1,37 +1,81 @@
-name: Web quality
+name: Monorepo quality
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/core-commerce-foundation
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  web-quality:
+  quality:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty_ci?schema=public
+
     steps:
       - name: Checkout
-        uses: actions/checkout@v6
+        uses: actions/checkout@v4
 
-      - name: Setup pnpm and Node
-        uses: pnpm/setup@v1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
         with:
           version: 11.9.0
-          runtime: node@22.13.1
-          cache: true
-          cache-dependency-path: apps/web/pnpm-lock.yaml
-          package-json-file: apps/web/package.json
-          install: false
+          run_install: false
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
 
-      - name: Lint
-        run: pnpm lint
+      - name: Install workspace dependencies
+        run: pnpm install --no-frozen-lockfile
 
-      - name: Production build
-        run: pnpm build
+      - name: Validate Prisma schema
+        run: pnpm --filter @beauty-erp/database validate
+
+      - name: Generate Prisma client
+        run: pnpm --filter @beauty-erp/database generate
+
+      - name: Typecheck database package
+        run: pnpm --filter @beauty-erp/database typecheck
+
+      - name: Build database package
+        run: pnpm --filter @beauty-erp/database build
+
+      - name: Typecheck shared commerce contracts
+        run: pnpm --filter @beauty-erp/types typecheck
+
+      - name: Build shared commerce contracts
+        run: pnpm --filter @beauty-erp/types build
+
+      - name: Lint API
+        run: pnpm --filter api lint
+
+      - name: Typecheck API
+        run: pnpm --filter api typecheck
+
+      - name: Test API
+        run: pnpm --filter api test:ci
+
+      - name: Build API
+        run: pnpm --filter api build
+
+      - name: Lint web
+        run: pnpm --filter web lint
+
+      - name: Typecheck web
+        run: pnpm --filter web typecheck
+
+      - name: Build web
+        run: pnpm --filter web build
