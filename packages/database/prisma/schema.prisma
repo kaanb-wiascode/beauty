@@ -43,6 +43,8 @@ model Tenant {
   customerPackages       CustomerPackage[]
   sessions               Session[]
   salePayments           SalePayment[]
+  chartOfAccounts        ChartOfAccount[]
+  journalEntries         JournalEntry[]
 
   @@map("tenants")
 }
@@ -74,10 +76,12 @@ model Company {
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
 
-  tenant      Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branches    Branch[]
-  memberships Membership[]
-  roles       Role[]
+  tenant          Tenant           @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branches        Branch[]
+  memberships     Membership[]
+  roles           Role[]
+  chartOfAccounts ChartOfAccount[]
+  journalEntries  JournalEntry[]
 
   @@unique([tenantId, slug])
   @@index([tenantId])
@@ -112,6 +116,7 @@ model Branch {
   customerPackages       CustomerPackage[]
   sessions               Session[]
   salePayments           SalePayment[]
+  journalEntries         JournalEntry[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -596,15 +601,15 @@ model SalePayment {
 }
 
 model InstallmentPlan {
-  id               String        @id @default(uuid())
+  id               String   @id @default(uuid())
   tenantId         String
   branchId         String
-  saleId           String        @unique
+  saleId           String   @unique
   installmentCount Int
-  intervalMonths   Int           @default(1)
+  intervalMonths   Int      @default(1)
   firstDueAt       DateTime
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
 
   sale         Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
   installments Installment[]
@@ -643,6 +648,74 @@ model InstallmentAllocation {
   @@unique([installmentId, salePaymentId])
   @@index([salePaymentId])
   @@map("installment_allocations")
+}
+
+model ChartOfAccount {
+  id        String      @id @default(uuid())
+  tenantId  String
+  companyId String
+  parentId  String?
+  code      String
+  name      String
+  type      AccountType
+  active    Boolean     @default(true)
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  tenant   Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company  Company           @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  parent   ChartOfAccount?   @relation("ChartOfAccountTree", fields: [parentId], references: [id], onDelete: SetNull)
+  children ChartOfAccount[]  @relation("ChartOfAccountTree")
+  lines    JournalEntryLine[]
+
+  @@unique([companyId, code])
+  @@index([tenantId, companyId, type])
+  @@index([parentId])
+  @@map("chart_of_accounts")
+}
+
+model JournalEntry {
+  id            String             @id @default(uuid())
+  tenantId      String
+  companyId     String
+  branchId      String?
+  number        String
+  status        JournalEntryStatus @default(DRAFT)
+  entryDate     DateTime
+  description   String
+  referenceType String?
+  referenceId   String?
+  postedAt      DateTime?
+  createdAt     DateTime           @default(now())
+  updatedAt     DateTime           @updatedAt
+
+  tenant  Tenant             @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  company Company            @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  branch  Branch?            @relation(fields: [branchId], references: [id], onDelete: SetNull)
+  lines   JournalEntryLine[]
+
+  @@unique([companyId, number])
+  @@index([tenantId, companyId, entryDate])
+  @@index([branchId, entryDate])
+  @@index([tenantId, status])
+  @@map("journal_entries")
+}
+
+model JournalEntryLine {
+  id             String   @id @default(uuid())
+  journalEntryId String
+  accountId      String
+  debit          Decimal  @default(0) @db.Decimal(12, 2)
+  credit         Decimal  @default(0) @db.Decimal(12, 2)
+  memo           String?
+  createdAt      DateTime @default(now())
+
+  journalEntry JournalEntry   @relation(fields: [journalEntryId], references: [id], onDelete: Cascade)
+  account      ChartOfAccount @relation(fields: [accountId], references: [id], onDelete: Restrict)
+
+  @@index([journalEntryId])
+  @@index([accountId])
+  @@map("journal_entry_lines")
 }
 
 model CustomerPackage {
@@ -792,4 +865,18 @@ enum SessionStatus {
   RESERVED
   CONSUMED
   CANCELLED
+}
+
+enum AccountType {
+  ASSET
+  LIABILITY
+  EQUITY
+  REVENUE
+  EXPENSE
+}
+
+enum JournalEntryStatus {
+  DRAFT
+  POSTED
+  REVERSED
 }
