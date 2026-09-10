@@ -37,5 +37,5 @@ export class FinancialIntegrationsController {
   @Get(':id') get(@Param('id') id: string) { return this.service.get(id); }
   @Post(':id/connect') connect(@Param('id') id: string, @Body() body: unknown) { const b=beginSchema.parse(body); return this.connection.begin(id,b.callbackBaseUrl); }
   @Post(':id/sync') syncIntegration(@Param('id') id: string) { return this.sync.syncIntegration(id); }
-  @Post(':id/disconnect') disconnect(@Param('id') id: string) { return this.service.disconnect(id); }
+  @Post(':id/disconnect') disconnect(@Param('id') id: string) { return this.connection.disconnect(id); }
 }
