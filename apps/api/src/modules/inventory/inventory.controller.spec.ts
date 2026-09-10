@@ -30,7 +30,8 @@ describe('InventoryController permissions', () => {
     for (const [method, permission] of Object.entries(expectedPermissions)) {
       const metadata = Reflect.getMetadata(
         REQUIRED_PERMISSION_KEY,
-        InventoryController.prototype[method as keyof typeof InventoryController.prototype],
+        InventoryController.prototype,
+        method,
       );
 
       expect(metadata).toEqual({
