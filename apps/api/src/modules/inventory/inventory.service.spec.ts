@@ -66,3 +66,77 @@ describe('InventoryService asset maintenance scope', () => {
     expect(queryRawUnsafe.mock.calls[1][1]).toBe('asset-1');
   });
 });
+
+describe('InventoryService write scope', () => {
+  const queryRawUnsafe = jest.fn();
+  const executeRawUnsafe = jest.fn();
+  const prisma = { $queryRawUnsafe: queryRawUnsafe, $executeRawUnsafe: executeRawUnsafe } as any;
+  const tenantContext = {
+    getTenantId: () => 'tenant-1',
+    getCompanyId: () => 'company-1',
+    getBranchId: () => 'branch-1',
+  } as any;
+
+  beforeEach(() => {
+    queryRawUnsafe.mockReset();
+    executeRawUnsafe.mockReset();
+  });
+
+  it('rejects asset creation when the requested branch differs from the active branch', async () => {
+    const service = new InventoryService(prisma, tenantContext);
+
+    await expect(
+      service.createAsset({
+        name: 'Other branch asset',
+        assetCode: 'ASSET-OTHER',
+        branchId: 'branch-2',
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(queryRawUnsafe).not.toHaveBeenCalled();
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it('rejects purchase orders for a warehouse outside the active branch', async () => {
+    queryRawUnsafe.mockResolvedValueOnce([]);
+    const service = new InventoryService(prisma, tenantContext);
+
+    await expect(
+      service.createPurchaseOrder({
+        warehouseId: 'warehouse-other-branch',
+        items: [{ productId: 'product-1', quantity: 1 }],
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(queryRawUnsafe.mock.calls[0][0]).toContain('AND branch_id=$3::text');
+    expect(queryRawUnsafe.mock.calls[0].slice(1)).toEqual([
+      'warehouse-other-branch',
+      'company-1',
+      'branch-1',
+    ]);
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+
+  it('rejects transfers when the source warehouse is outside the active branch', async () => {
+    queryRawUnsafe.mockResolvedValueOnce([]);
+    const service = new InventoryService(prisma, tenantContext);
+
+    await expect(
+      service.createTransfer({
+        sourceWarehouseId: 'warehouse-other-branch',
+        destinationWarehouseId: 'warehouse-branch-1',
+        items: [{ productId: 'product-1', quantity: 1 }],
+      } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(queryRawUnsafe.mock.calls[0][0]).toContain('AND branch_id=$3::text');
+    expect(queryRawUnsafe.mock.calls[0].slice(1)).toEqual([
+      'warehouse-other-branch',
+      'company-1',
+      'branch-1',
+    ]);
+    expect(executeRawUnsafe).not.toHaveBeenCalled();
+  });
+});
