@@ -84,6 +84,8 @@ export interface ProviderPosSettlementBatch {
   settledAt: Date;
   currency: string;
   providerTransactionIds: string[];
+  requiresReview?: boolean;
+  reviewReason?: string;
 }
 
 export interface ProviderPosSettlementQuery {
