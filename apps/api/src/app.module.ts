@@ -1,4 +1,4 @@
-import { Module } from '@nestjs/common';
+import { MiddlewareConsumer, Module, NestModule } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
 import { DatabaseModule } from '@beauty-erp/database';
 import { envSchema } from './config/env.schema';
@@ -7,6 +7,7 @@ import { RedisModule } from './infrastructure/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { LoggingModule } from './common/logging/logging.module';
+import { RequestIdMiddleware } from './common/http/request-id.middleware';
 import { CustomersModule } from './modules/customers/customers.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
@@ -37,4 +38,8 @@ import { HrModule } from './modules/hr/hr.module';
     HrModule,
   ],
 })
-export class AppModule {}
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer.apply(RequestIdMiddleware).forRoutes('*');
+  }
+}
