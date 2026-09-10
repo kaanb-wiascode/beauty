@@ -8,6 +8,7 @@ import { BudgetingService } from './budgeting.service';
 import { CashFlowForecastService } from './cash-flow-forecast.service';
 import { TreasuryRiskService } from './treasury-risk.service';
 import { CfoDashboardService } from './cfo-dashboard.service';
+import { FinancialHealthService } from './financial-health.service';
 
 @Module({
   controllers: [ProfitabilityController],
@@ -20,6 +21,7 @@ import { CfoDashboardService } from './cfo-dashboard.service';
     CashFlowForecastService,
     TreasuryRiskService,
     CfoDashboardService,
+    FinancialHealthService,
   ],
   exports: [
     ProfitabilityService,
@@ -30,6 +32,7 @@ import { CfoDashboardService } from './cfo-dashboard.service';
     CashFlowForecastService,
     TreasuryRiskService,
     CfoDashboardService,
+    FinancialHealthService,
   ],
 })
 export class ProfitabilityModule {}
