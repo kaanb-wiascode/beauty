@@ -18,6 +18,11 @@ import type {
 
 type InventoryBody = Record<string, unknown>;
 
+const MAX_COLLECTION_ITEMS = 100;
+const MAX_SEARCH_LENGTH = 100;
+const DEFAULT_MOVEMENT_LIMIT = 80;
+const MAX_MOVEMENT_LIMIT = 100;
+
 const stringField = (body: InventoryBody, key: string): string => {
   const value = body[key];
   if (typeof value !== 'string' || !value.trim()) {
@@ -35,6 +40,35 @@ const numberField = (body: InventoryBody, key: string): number => {
   return number;
 };
 
+const collectionField = (body: InventoryBody, key: string): unknown[] => {
+  const value = body[key];
+  if (!Array.isArray(value)) {
+    throw new BadRequestException(`${key} must be an array`);
+  }
+  if (value.length > MAX_COLLECTION_ITEMS) {
+    throw new BadRequestException(`${key} cannot contain more than ${MAX_COLLECTION_ITEMS} items`);
+  }
+  return value;
+};
+
+const boundedSearch = (search?: string): string | undefined => {
+  if (search === undefined) return undefined;
+  const value = search.trim();
+  if (value.length > MAX_SEARCH_LENGTH) {
+    throw new BadRequestException(`search cannot exceed ${MAX_SEARCH_LENGTH} characters`);
+  }
+  return value || undefined;
+};
+
+const movementLimit = (limit?: string): number => {
+  if (limit === undefined || limit.trim() === '') return DEFAULT_MOVEMENT_LIMIT;
+  const value = Number(limit);
+  if (!Number.isInteger(value) || value < 1 || value > MAX_MOVEMENT_LIMIT) {
+    throw new BadRequestException(`limit must be an integer between 1 and ${MAX_MOVEMENT_LIMIT}`);
+  }
+  return value;
+};
+
 const movementInput = (body: InventoryBody): InventoryMovementInput => ({
   productId: stringField(body, 'productId'),
   warehouseId: stringField(body, 'warehouseId'),
@@ -47,9 +81,10 @@ const movementInput = (body: InventoryBody): InventoryMovementInput => ({
 
 const serviceMaterials = (body: InventoryBody): InventoryMaterialsInput => {
   if (!Array.isArray(body.materials)) return { materials: [] };
+  const materials = collectionField(body, 'materials');
 
   return {
-    materials: body.materials.map((material) => {
+    materials: materials.map((material) => {
       if (!material || typeof material !== 'object') {
         throw new BadRequestException('Invalid service material');
       }
@@ -58,13 +93,20 @@ const serviceMaterials = (body: InventoryBody): InventoryMaterialsInput => {
       const productId = value.productId;
       const quantity = value.quantity;
 
-      if (typeof productId !== 'string' || !productId.trim() || typeof quantity !== 'number') {
+      if (typeof productId !== 'string' || !productId.trim() || typeof quantity !== 'number' || !Number.isFinite(quantity)) {
         throw new BadRequestException('Invalid service material');
       }
 
       return { productId, quantity };
     }),
   };
+};
+
+const assertCollectionLimit = (body: InventoryBody, key: string): void => {
+  const value = body[key];
+  if (Array.isArray(value) && value.length > MAX_COLLECTION_ITEMS) {
+    throw new BadRequestException(`${key} cannot contain more than ${MAX_COLLECTION_ITEMS} items`);
+  }
 };
 
 @Controller('inventory')
@@ -80,7 +122,7 @@ export class InventoryController {
   @Get('products')
   @UseGuards(PermissionsGuard)
   @RequirePermission('inventory', 'read')
-  products(@Query('search') search?: string) { return this.inventory.products(search); }
+  products(@Query('search') search?: string) { return this.inventory.products(boundedSearch(search)); }
 
   @Post('products')
   @UseGuards(PermissionsGuard)
@@ -116,7 +158,7 @@ export class InventoryController {
   @Get('movements')
   @UseGuards(PermissionsGuard)
   @RequirePermission('inventory', 'read')
-  movements(@Query('limit') limit?: string) { return this.inventory.movements(Number(limit || 80)); }
+  movements(@Query('limit') limit?: string) { return this.inventory.movements(movementLimit(limit)); }
 
   @Get('services/:serviceId/materials')
   @UseGuards(PermissionsGuard)
@@ -153,7 +195,10 @@ export class InventoryController {
   @Post('purchase-orders')
   @UseGuards(PermissionsGuard)
   @RequirePermission('inventory', 'create')
-  createPurchaseOrder(@Body() body: InventoryPurchaseOrderInput) { return this.inventory.createPurchaseOrder(body); }
+  createPurchaseOrder(@Body() body: InventoryPurchaseOrderInput) {
+    assertCollectionLimit(body as unknown as InventoryBody, 'items');
+    return this.inventory.createPurchaseOrder(body);
+  }
 
   @Get('assets')
   @UseGuards(PermissionsGuard)
@@ -188,5 +233,8 @@ export class InventoryController {
   @Post('transfers')
   @UseGuards(PermissionsGuard)
   @RequirePermission('inventory', 'create')
-  createTransfer(@Body() body: InventoryTransferInput) { return this.inventory.createTransfer(body); }
+  createTransfer(@Body() body: InventoryTransferInput) {
+    assertCollectionLimit(body as unknown as InventoryBody, 'items');
+    return this.inventory.createTransfer(body);
+  }
 }
