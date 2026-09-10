@@ -79,6 +79,18 @@ export interface ProviderPosRefundResult {
   providerReference?: string;
 }
 
+export interface ProviderPosSettlementBatch {
+  providerSettlementId: string;
+  settledAt: Date;
+  currency: string;
+  providerTransactionIds: string[];
+}
+
+export interface ProviderPosSettlementQuery {
+  credentials: Record<string, string>;
+  date: Date;
+}
+
 export interface ProviderWebhookVerificationResult {
   valid: boolean;
 }
@@ -125,6 +137,7 @@ export interface ProviderCapabilities {
   posTransactionEnrichment?: boolean;
   posRefunds?: boolean;
   settlements?: boolean;
+  settlementImport?: boolean;
   webhooks?: boolean;
 }
 
@@ -149,6 +162,7 @@ export interface FinancialProviderAdapter {
   listPosTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderPosTransaction[]>;
   retrievePosTransaction?(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction>;
   refundPosTransaction?(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult>;
+  listPosSettlements?(input: ProviderPosSettlementQuery): Promise<ProviderPosSettlementBatch[]>;
 
   verifyWebhook?(input: {
     headers: Record<string, string | string[] | undefined>;
