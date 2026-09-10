@@ -72,15 +72,9 @@ export class CareEventsService {
   private async ensureAppointment(
     customerId: string,
     appointmentId: string,
+    branchId: string,
   ) {
     const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        "A branch must be selected for this operation.",
-      );
-    }
 
     const appointment = await this.prisma.appointment.findFirst({
       where: {
@@ -101,15 +95,8 @@ export class CareEventsService {
     }
   }
 
-  private async ensureStaff(staffId: string) {
+  private async ensureStaff(staffId: string, branchId: string) {
     const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        "A branch must be selected for this operation.",
-      );
-    }
 
     const staff = await this.prisma.staff.findFirst({
       where: {
@@ -179,11 +166,12 @@ export class CareEventsService {
       await this.ensureAppointment(
         customerId,
         input.appointmentId,
+        customer.branchId,
       );
     }
 
     if (input.staffId) {
-      await this.ensureStaff(input.staffId);
+      await this.ensureStaff(input.staffId, customer.branchId);
     }
 
     const resolved =
@@ -239,11 +227,12 @@ export class CareEventsService {
       await this.ensureAppointment(
         customerId,
         input.appointmentId,
+        customer.branchId,
       );
     }
 
     if (input.staffId) {
-      await this.ensureStaff(input.staffId);
+      await this.ensureStaff(input.staffId, customer.branchId);
     }
 
     const resolved =
@@ -266,6 +255,7 @@ export class CareEventsService {
         }),
         ...(input.status !== undefined && {
           status: input.status,
+          resolvedAt: resolved ? new Date() : null,
         }),
         ...(input.severity !== undefined && {
           severity: input.severity,
@@ -288,13 +278,6 @@ export class CareEventsService {
         ...(input.followUpAt !== undefined && {
           followUpAt: input.followUpAt,
         }),
-        ...(input.resolvedAt !== undefined && {
-          resolvedAt: input.resolvedAt,
-        }),
-        ...(resolved &&
-          input.resolvedAt === undefined && {
-            resolvedAt: new Date(),
-          }),
       },
       include: this.getInclude(),
     });
@@ -322,15 +305,10 @@ export class CareEventsService {
       throw new NotFoundException("Care event not found");
     }
 
-    await this.prisma.customerCareEvent.delete({
+    return this.prisma.customerCareEvent.delete({
       where: {
         id: event.id,
       },
     });
-
-    return {
-      deleted: true,
-      id: event.id,
-    };
   }
 }
