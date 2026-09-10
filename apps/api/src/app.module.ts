@@ -23,6 +23,7 @@ import { InstallmentsModule } from './modules/installments/installments.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { AccountsPayableModule } from './modules/accounts-payable/accounts-payable.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
+import { ProfitabilityModule } from './modules/profitability/profitability.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ProcurementModule } from './modules/procurement/procurement.module';
     AccountingModule,
     AccountsPayableModule,
     ProcurementModule,
+    ProfitabilityModule,
   ],
 })
 export class AppModule {}
