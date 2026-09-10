@@ -3,6 +3,7 @@ import { JwtModule } from '@nestjs/jwt';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 
 import { AuthController } from './auth.controller';
+import { AuthRateLimitService } from './auth-rate-limit.service';
 import { AuthService } from './auth.service';
 import { JwtStrategy } from '../../common/auth/jwt.strategy';
 
@@ -20,6 +21,6 @@ import { JwtStrategy } from '../../common/auth/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy],
+  providers: [AuthService, AuthRateLimitService, JwtStrategy],
 })
 export class AuthModule {}
