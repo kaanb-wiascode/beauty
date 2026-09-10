@@ -6,6 +6,7 @@ import { FinancialIntegrationsService } from './financial-integrations.service';
 import { FinancialIntegrationConnectionService } from './financial-integration-connection.service';
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
+import { FinancialIntegrationHealthService } from './financial-integration-health.service';
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosSettlementService } from './pos-settlement.service';
 import { PosSettlementImportService } from './pos-settlement-import.service';
@@ -76,6 +77,7 @@ export class FinancialIntegrationsController {
     private readonly connection: FinancialIntegrationConnectionService,
     private readonly sync: FinancialIntegrationSyncService,
     private readonly credentials: FinancialIntegrationCredentialsService,
+    private readonly health: FinancialIntegrationHealthService,
     private readonly providers: ProviderRegistryService,
     private readonly settlements: PosSettlementService,
     private readonly settlementImport: PosSettlementImportService,
@@ -161,6 +163,7 @@ export class FinancialIntegrationsController {
       parsed.note,
     );
   }
+  @Get(':id/health') integrationHealth(@Param('id') id: string) { return this.health.get(id); }
   @Get(':id') get(@Param('id') id: string) { return this.service.get(id); }
   @Get(':id/credentials') credentialStatus(@Param('id') id: string) { return this.credentials.status(id); }
   @Post(':id/credentials') configureCredentials(@Param('id') id: string, @Body() body: unknown) {
