@@ -86,7 +86,7 @@ export class FinancialIntegrationConnectionService {
         code,
         callbackUrl: session.callbackUrl,
       });
-      await this.vault.store(session.integrationId, tokens);
+      await this.vault.storeWith(tx, session.integrationId, tokens);
       await tx.$executeRawUnsafe(
         `UPDATE finance_integration_auth_sessions SET consumed_at=NOW() WHERE id=$1::text`,
         session.id,
@@ -109,5 +109,28 @@ export class FinancialIntegrationConnectionService {
       if (!integration.length) throw new NotFoundException('Financial integration not found.');
       return integration[0];
     });
+  }
+
+  async disconnect(integrationId: string) {
+    const integration = await this.integrations.get(integrationId);
+    const tokens = await this.vault.load(integrationId);
+    if (tokens && this.providers.has(integration.kind, integration.provider)) {
+      const adapter = this.providers.get(integration.kind, integration.provider);
+      if (adapter.revoke) {
+        try {
+          await adapter.revoke(tokens);
+        } catch {
+          // Local disconnect must still proceed even if the provider revoke endpoint is unavailable.
+        }
+      }
+    }
+    await this.vault.clear(integrationId);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE finance_integrations
+       SET status='DISCONNECTED',external_connection_id=NULL,consent_expires_at=NULL,last_error=NULL,updated_at=NOW()
+       WHERE id=$1::text`,
+      integrationId,
+    );
+    return this.integrations.get(integrationId);
   }
 }
