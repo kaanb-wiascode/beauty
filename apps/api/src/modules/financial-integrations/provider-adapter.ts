@@ -53,9 +53,31 @@ export interface ProviderPosTransaction {
   expectedSettlementAt?: Date;
 }
 
+export interface ProviderCredentialField {
+  key: string;
+  label: string;
+  secret?: boolean;
+  required?: boolean;
+}
+
+export interface ProviderCapabilities {
+  oauth?: boolean;
+  apiCredentials?: boolean;
+  accounts?: boolean;
+  balances?: boolean;
+  bankTransactions?: boolean;
+  posTransactions?: boolean;
+  settlements?: boolean;
+  webhooks?: boolean;
+}
+
 export interface FinancialProviderAdapter {
   readonly provider: string;
+  readonly displayName?: string;
   readonly kind: 'OPEN_BANKING' | 'VIRTUAL_POS';
+  readonly credentialFields?: ProviderCredentialField[];
+  readonly capabilities?: ProviderCapabilities;
+  readonly runtimeReady?: boolean;
 
   beginAuthorization?(request: ProviderAuthorizationRequest): Promise<ProviderAuthorizationResult>;
   exchangeAuthorizationCode?(input: {
