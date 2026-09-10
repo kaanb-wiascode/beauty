@@ -2,6 +2,12 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
+export interface PosReconciliationScope {
+  tenantId: string;
+  companyId: string;
+  branchId: string | null;
+}
+
 @Injectable()
 export class PosBankReconciliationService {
   constructor(
@@ -9,7 +15,7 @@ export class PosBankReconciliationService {
     private readonly tenant: TenantContext,
   ) {}
 
-  private context() {
+  private context(): PosReconciliationScope {
     return {
       tenantId: this.tenant.getTenantId(),
       companyId: this.tenant.getCompanyId(),
@@ -18,7 +24,10 @@ export class PosBankReconciliationService {
   }
 
   async suggest(settlementId: string, days = 3) {
-    const ctx = this.context();
+    return this.suggestInScope(this.context(), settlementId, days);
+  }
+
+  async suggestInScope(ctx: PosReconciliationScope, settlementId: string, days = 3) {
     const settlements = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,bank_account_id AS "bankAccountId",net_amount AS "netAmount",currency,settled_at AS "settledAt",reconciliation_status AS "reconciliationStatus"
        FROM pos_settlements
@@ -74,7 +83,16 @@ export class PosBankReconciliationService {
   }
 
   async match(settlementId: string, bankTransactionId: string, confidence = 100, note?: string) {
-    const ctx = this.context();
+    return this.matchInScope(this.context(), settlementId, bankTransactionId, confidence, note);
+  }
+
+  async matchInScope(
+    ctx: PosReconciliationScope,
+    settlementId: string,
+    bankTransactionId: string,
+    confidence = 100,
+    note?: string,
+  ) {
     return this.prisma.$transaction(async (tx) => {
       const settlements = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,bank_account_id AS "bankAccountId",net_amount AS "netAmount",currency,reconciliation_status AS "reconciliationStatus"
@@ -120,7 +138,7 @@ export class PosBankReconciliationService {
         note?.trim() || null,
       );
       await tx.$executeRawUnsafe(`UPDATE bank_transactions SET reconciliation_status='MATCHED' WHERE id=$1::text`, bankTransactionId);
-      return this.getWith(tx, settlementId, ctx.companyId, ctx.branchId);
+      return this.getWith(tx, settlementId, ctx.tenantId, ctx.companyId, ctx.branchId);
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
@@ -143,12 +161,17 @@ export class PosBankReconciliationService {
   }
 
   async autoMatch(limit = 100) {
-    const ctx = this.context();
+    return this.autoMatchInScope(this.context(), limit);
+  }
+
+  async autoMatchInScope(ctx: PosReconciliationScope, limit = 100) {
     const settlements = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id FROM pos_settlements
-       WHERE company_id=$1::text AND ($2::text IS NULL OR branch_id=$2::text)
+       WHERE tenant_id=$1::text AND company_id=$2::text
+         AND ($3::text IS NULL OR branch_id=$3::text)
          AND reconciliation_status='UNMATCHED'
-       ORDER BY settled_at ASC LIMIT $3`,
+       ORDER BY settled_at ASC LIMIT $4`,
+      ctx.tenantId,
       ctx.companyId,
       ctx.branchId,
       Math.min(Math.max(limit, 1), 500),
@@ -156,7 +179,7 @@ export class PosBankReconciliationService {
     let matched = 0;
     const skipped: string[] = [];
     for (const settlement of settlements) {
-      const result = await this.suggest(settlement.id, 3);
+      const result = await this.suggestInScope(ctx, settlement.id, 3);
       const best = result.suggestions[0];
       const second = result.suggestions[1];
       if (!best || best.confidence < 90 || (second && second.confidence === best.confidence)) {
@@ -164,7 +187,7 @@ export class PosBankReconciliationService {
         continue;
       }
       try {
-        await this.match(settlement.id, best.id, best.confidence, 'AUTO_MATCH');
+        await this.matchInScope(ctx, settlement.id, best.id, best.confidence, 'AUTO_MATCH');
         matched += 1;
       } catch {
         skipped.push(settlement.id);
@@ -181,7 +204,8 @@ export class PosBankReconciliationService {
               COUNT(*) FILTER (WHERE reconciliation_status='UNMATCHED')::int AS unmatched,
               COALESCE(SUM(net_amount) FILTER (WHERE reconciliation_status='UNMATCHED'),0)::numeric AS "unmatchedAmount"
        FROM pos_settlements
-       WHERE company_id=$1::text AND ($2::text IS NULL OR branch_id=$2::text)`,
+       WHERE tenant_id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text)`,
+      ctx.tenantId,
       ctx.companyId,
       ctx.branchId,
     );
@@ -189,22 +213,32 @@ export class PosBankReconciliationService {
       `SELECT COUNT(*) FILTER (WHERE reconciliation_status='UNMATCHED')::int AS "unmatchedBankTransactions",
               COUNT(*) FILTER (WHERE reconciliation_status='IGNORED')::int AS "ignoredBankTransactions"
        FROM bank_transactions
-       WHERE company_id=$1::text AND ($2::text IS NULL OR branch_id=$2::text)`,
+       WHERE tenant_id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text)`,
+      ctx.tenantId,
       ctx.companyId,
       ctx.branchId,
     );
     return { ...(rows[0] ?? { total: 0, matched: 0, unmatched: 0, unmatchedAmount: 0 }), ...(bank[0] ?? { unmatchedBankTransactions: 0, ignoredBankTransactions: 0 }) };
   }
 
-  private async getWith(client: Prisma.TransactionClient | PrismaService, id: string, companyId: string, branchId: string | null) {
+  private async getWith(
+    client: Prisma.TransactionClient | PrismaService,
+    id: string,
+    tenantId: string,
+    companyId: string,
+    branchId: string | null,
+  ) {
     const rows = await client.$queryRawUnsafe<any[]>(
       `SELECT id,integration_id AS "integrationId",bank_account_id AS "bankAccountId",provider_settlement_id AS "providerSettlementId",
               gross_amount AS "grossAmount",fee_amount AS "feeAmount",net_amount AS "netAmount",currency,settled_at AS "settledAt",
               reconciliation_status AS "reconciliationStatus",matched_bank_transaction_id AS "matchedBankTransactionId",
               reconciliation_confidence AS "reconciliationConfidence",reconciliation_note AS "reconciliationNote",reconciled_at AS "reconciledAt"
        FROM pos_settlements
-       WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text) LIMIT 1`,
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND ($4::text IS NULL OR branch_id=$4::text)
+       LIMIT 1`,
       id,
+      tenantId,
       companyId,
       branchId,
     );
