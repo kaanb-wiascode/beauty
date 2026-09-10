@@ -1,10 +1,16 @@
-import { createHmac, timingSafeEqual } from 'node:crypto';
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
+import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import type {
   FinancialProviderAdapter,
+  ProviderPosTransaction,
+  ProviderPosTransactionLookup,
   ProviderWebhookEvent,
   ProviderWebhookVerificationResult,
 } from '../provider-adapter';
+
+const PAYMENT_DETAIL_PATH = '/payment/detail';
+const DEFAULT_BASE_URL = 'https://api.iyzipay.com';
+const ALLOWED_IYZICO_HOSTS = new Set(['api.iyzipay.com', 'sandbox-api.iyzipay.com']);
 
 function payloadRecord(payload: unknown): Record<string, unknown> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -44,6 +50,36 @@ function mapStatus(status: string) {
   return 'AUTHORIZED' as const;
 }
 
+function numericField(record: Record<string, unknown>, key: string, fallback?: number) {
+  const raw = record[key];
+  if (raw === undefined || raw === null || raw === '') {
+    if (fallback !== undefined) return fallback;
+    throw new ServiceUnavailableException(`iyzico payment detail field ${key} is missing.`);
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new ServiceUnavailableException(`iyzico payment detail field ${key} is invalid.`);
+  }
+  return value;
+}
+
+function paymentDetailStatus(record: Record<string, unknown>): ProviderPosTransaction['status'] {
+  const paymentStatus = typeof record.paymentStatus === 'string' ? record.paymentStatus.toUpperCase() : '';
+  if (paymentStatus === 'SUCCESS') return 'CAPTURED';
+  if (paymentStatus === 'FAILURE') return 'FAILED';
+  if (paymentStatus === 'INIT_THREEDS' || paymentStatus === 'CALLBACK_THREEDS') return 'AUTHORIZED';
+  if (Number(record.fraudStatus) === -1) return 'FAILED';
+  return 'CAPTURED';
+}
+
+function resolveBaseUrl(configured?: string) {
+  const parsed = new URL(configured?.trim() || DEFAULT_BASE_URL);
+  if (parsed.protocol !== 'https:' || !ALLOWED_IYZICO_HOSTS.has(parsed.hostname)) {
+    throw new BadRequestException('iyzico API base URL is not an allowed official endpoint.');
+  }
+  return parsed.origin;
+}
+
 @Injectable()
 export class IyzicoAdapter implements FinancialProviderAdapter {
   readonly provider = 'IYZICO';
@@ -59,9 +95,100 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
   readonly capabilities = {
     apiCredentials: true,
     posTransactions: true,
+    posTransactionEnrichment: true,
     settlements: true,
     webhooks: true,
   };
+
+  async retrievePosTransaction(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction> {
+    const apiKey = input.credentials.apiKey?.trim();
+    const secretKey = input.credentials.secretKey?.trim();
+    if (!apiKey || !secretKey) {
+      throw new ServiceUnavailableException('iyzico API credentials are not configured.');
+    }
+    if (!input.occurredAt || Number.isNaN(input.occurredAt.getTime())) {
+      throw new ServiceUnavailableException('iyzico transaction occurrence time is unavailable for enrichment.');
+    }
+
+    const paymentId = input.providerTransactionId.trim();
+    if (!paymentId) throw new BadRequestException('iyzico paymentId is required for enrichment.');
+
+    const body = JSON.stringify({
+      locale: 'tr',
+      paymentId,
+      ...(input.merchantReference ? { paymentConversationId: input.merchantReference } : {}),
+    });
+    const randomKey = `${Date.now()}${randomBytes(12).toString('hex')}`;
+    const signature = createHmac('sha256', secretKey)
+      .update(`${randomKey}${PAYMENT_DETAIL_PATH}${body}`)
+      .digest('hex');
+    const authorization = Buffer.from(
+      `apiKey:${apiKey}&randomKey:${randomKey}&signature:${signature}`,
+      'utf8',
+    ).toString('base64');
+
+    let response: Response;
+    try {
+      response = await fetch(`${resolveBaseUrl(input.credentials.baseUrl)}${PAYMENT_DETAIL_PATH}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `IYZWSv2 ${authorization}`,
+          'Content-Type': 'application/json',
+          'x-iyzi-rnd': randomKey,
+        },
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new ServiceUnavailableException('iyzico payment detail request failed.');
+    }
+
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`iyzico payment detail request returned HTTP ${response.status}.`);
+    }
+
+    let detail: Record<string, unknown>;
+    try {
+      detail = payloadRecord(await response.json());
+    } catch {
+      throw new ServiceUnavailableException('iyzico payment detail response is invalid.');
+    }
+    if (String(detail.status ?? '').toLowerCase() !== 'success') {
+      const errorCode = typeof detail.errorCode === 'string' ? detail.errorCode.trim() : '';
+      throw new ServiceUnavailableException(
+        errorCode ? `iyzico payment detail lookup failed (${errorCode}).` : 'iyzico payment detail lookup failed.',
+      );
+    }
+
+    const returnedPaymentId = String(detail.paymentId ?? '').trim();
+    if (!returnedPaymentId || returnedPaymentId !== paymentId) {
+      throw new ServiceUnavailableException('iyzico payment detail response paymentId does not match the request.');
+    }
+    if (input.merchantReference) {
+      const returnedReference = String(detail.paymentConversationId ?? detail.conversationId ?? '').trim();
+      if (returnedReference && returnedReference !== input.merchantReference) {
+        throw new ServiceUnavailableException('iyzico payment detail merchant reference does not match the request.');
+      }
+    }
+
+    const grossAmount = numericField(detail, 'paidPrice');
+    const commissionAmount = numericField(detail, 'iyziCommissionRateAmount', 0);
+    const commissionFee = numericField(detail, 'iyziCommissionFee', 0);
+    const feeAmount = Math.max(0, commissionAmount + commissionFee);
+    const currency = String(detail.currency ?? '').trim().toUpperCase();
+    if (!currency) throw new ServiceUnavailableException('iyzico payment detail currency is missing.');
+
+    return {
+      externalTransactionId: paymentId,
+      occurredAt: input.occurredAt,
+      grossAmount,
+      feeAmount,
+      netAmount: Math.max(0, grossAmount - feeAmount),
+      currency,
+      status: paymentDetailStatus(detail),
+      installmentCount: Math.max(1, Math.trunc(numericField(detail, 'installment', 1))),
+    };
+  }
 
   async verifyWebhook(input: {
     headers: Record<string, string | string[] | undefined>;
