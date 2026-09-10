@@ -6,6 +6,7 @@ import { HealthModule } from './modules/health/health.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './common/tenant/tenant.module';
+import { AuditModule } from './common/audit/audit.module';
 import { CustomersModule } from './modules/customers/customers.module';
 import { StaffModule } from './modules/staff/staff.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
@@ -23,6 +24,7 @@ import { HrModule } from './modules/hr/hr.module';
     RedisModule,
     AuthModule,
     TenantModule,
+    AuditModule,
     HealthModule,
     CustomersModule,
     StaffModule,
