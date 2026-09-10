@@ -10,6 +10,7 @@ import { BudgetingService } from './budgeting.service';
 import { CashFlowForecastService } from './cash-flow-forecast.service';
 import { TreasuryRiskService } from './treasury-risk.service';
 import { CfoDashboardService } from './cfo-dashboard.service';
+import { FinancialHealthService } from './financial-health.service';
 
 const filterSchema = z.object({
   from: z.coerce.date().optional(),
@@ -63,6 +64,15 @@ const cfoSchema = z.object({
   lookbackDays: z.coerce.number().int().min(7).max(730).optional(),
 });
 
+const healthThresholdSchema = z.object({
+  minimumHealthScore: z.coerce.number().min(0).max(100).optional(),
+  minimumRunwayWeeks: z.coerce.number().min(0).optional(),
+  maximumDsoDays: z.coerce.number().min(0).optional(),
+  minimumNetWorkingCapital: z.coerce.number().optional(),
+  maximumOverdueReceivableRatio: z.coerce.number().min(0).max(100).optional(),
+  maximumLiquidityAlerts: z.coerce.number().int().min(0).optional(),
+});
+
 const commissionSchema = z.object({
   rate: z.coerce.number().min(0).max(100),
 });
@@ -113,6 +123,7 @@ export class ProfitabilityController {
     private readonly cashFlow: CashFlowForecastService,
     private readonly treasuryRisk: TreasuryRiskService,
     private readonly cfo: CfoDashboardService,
+    private readonly financialHealth: FinancialHealthService,
   ) {}
 
   @Get('summary')
@@ -273,6 +284,32 @@ export class ProfitabilityController {
   @Get('cfo/dashboard')
   cfoDashboard(@Query() query: unknown) {
     return this.cfo.dashboard(cfoSchema.parse(query));
+  }
+
+  @Get('cfo/health/thresholds')
+  getFinancialHealthThresholds() {
+    return this.financialHealth.getThresholds();
+  }
+
+  @Post('cfo/health/thresholds')
+  setFinancialHealthThresholds(@Body() body: unknown) {
+    return this.financialHealth.setThresholds(healthThresholdSchema.parse(body));
+  }
+
+  @Get('cfo/health')
+  financialHealthScore(@Query() query: unknown) {
+    return this.financialHealth.score(cfoSchema.parse(query));
+  }
+
+  @Get('cfo/executive-alerts')
+  cfoExecutiveAlerts(@Query() query: unknown) {
+    return this.financialHealth.score(cfoSchema.parse(query)).then((result) => ({
+      asOf: result.asOf,
+      healthScore: result.healthScore,
+      healthStatus: result.healthStatus,
+      covenantSummary: result.covenantSummary,
+      alerts: result.executiveAlerts,
+    }));
   }
 
   @Get('net/summary')
