@@ -3,6 +3,8 @@ import { IyzicoAdapter } from './providers/iyzico.adapter';
 import { PaytrAdapter } from './providers/paytr.adapter';
 
 describe('financial provider webhooks', () => {
+  afterEach(() => jest.restoreAllMocks());
+
   it('verifies iyzico X-IYZ-SIGNATURE-V3 and exposes correlation without inventing amounts', async () => {
     const adapter = new IyzicoAdapter();
     const credentials = { apiKey: 'api', secretKey: 'secret' };
@@ -34,6 +36,88 @@ describe('financial provider webhooks', () => {
       status: 'CAPTURED',
       requiresEnrichment: true,
     });
+  });
+
+  it('retrieves iyzico payment detail with IYZWSv2 and maps provider fees without merchant commission', async () => {
+    const adapter = new IyzicoAdapter();
+    const occurredAt = new Date('2026-09-10T12:00:00.000Z');
+    const fetchSpy = jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'success',
+        paymentStatus: 'SUCCESS',
+        paymentId: '28157248',
+        paymentConversationId: 'SALE-77',
+        paidPrice: 100,
+        merchantCommissionRateAmount: 8,
+        iyziCommissionRateAmount: 2.5,
+        iyziCommissionFee: 0.25,
+        installment: 3,
+        currency: 'TRY',
+        fraudStatus: 1,
+      }),
+    } as Response);
+
+    const transaction = await adapter.retrievePosTransaction({
+      credentials: {
+        apiKey: 'api-key',
+        secretKey: 'secret-key',
+        baseUrl: 'https://sandbox-api.iyzipay.com',
+      },
+      providerTransactionId: '28157248',
+      merchantReference: 'SALE-77',
+      occurredAt,
+    });
+
+    expect(transaction).toEqual({
+      externalTransactionId: '28157248',
+      occurredAt,
+      grossAmount: 100,
+      feeAmount: 2.75,
+      netAmount: 97.25,
+      currency: 'TRY',
+      status: 'CAPTURED',
+      installmentCount: 3,
+    });
+
+    const [url, init] = fetchSpy.mock.calls[0];
+    expect(url).toBe('https://sandbox-api.iyzipay.com/payment/detail');
+    const headers = init?.headers as Record<string, string>;
+    const randomKey = headers['x-iyzi-rnd'];
+    const body = String(init?.body);
+    const expectedSignature = createHmac('sha256', 'secret-key')
+      .update(`${randomKey}/payment/detail${body}`)
+      .digest('hex');
+    const encoded = headers.Authorization.replace('IYZWSv2 ', '');
+    expect(Buffer.from(encoded, 'base64').toString('utf8')).toBe(
+      `apiKey:api-key&randomKey:${randomKey}&signature:${expectedSignature}`,
+    );
+    expect(JSON.parse(body)).toEqual({
+      locale: 'tr',
+      paymentId: '28157248',
+      paymentConversationId: 'SALE-77',
+    });
+  });
+
+  it('rejects mismatched iyzico payment detail correlation', async () => {
+    const adapter = new IyzicoAdapter();
+    jest.spyOn(global, 'fetch').mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({
+        status: 'success',
+        paymentId: 'different-payment',
+        paidPrice: 100,
+        currency: 'TRY',
+      }),
+    } as Response);
+
+    await expect(adapter.retrievePosTransaction({
+      credentials: { apiKey: 'api', secretKey: 'secret' },
+      providerTransactionId: 'expected-payment',
+      occurredAt: new Date('2026-09-10T12:00:00.000Z'),
+    })).rejects.toThrow('paymentId does not match');
   });
 
   it('verifies PayTR Direct/iFrame callback hash and parses minor-unit payment amount', async () => {
