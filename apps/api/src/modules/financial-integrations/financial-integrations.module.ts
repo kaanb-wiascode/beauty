@@ -9,11 +9,15 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 import { FinancialIntegrationSyncSchedulerService } from './financial-integration-sync-scheduler.service';
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { PosSettlementService } from './pos-settlement.service';
+import { IyzicoAdapter } from './providers/iyzico.adapter';
+import { PaytrAdapter } from './providers/paytr.adapter';
 
 @Module({
   controllers: [FinancialIntegrationsController, FinancialIntegrationCallbackController],
   providers: [
     FinancialIntegrationsService,
+    IyzicoAdapter,
+    PaytrAdapter,
     ProviderRegistryService,
     IntegrationSecretVaultService,
     FinancialIntegrationConnectionService,
