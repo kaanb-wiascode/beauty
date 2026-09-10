@@ -6,12 +6,13 @@ export class PosWebhookController {
   constructor(private readonly webhooks: PosWebhookService) {}
 
   @Post(':integrationId/:provider')
-  ingest(
+  async ingest(
     @Param('integrationId') integrationId: string,
     @Param('provider') provider: string,
     @Headers() headers: Record<string, string | string[] | undefined>,
     @Body() payload: unknown,
   ) {
-    return this.webhooks.ingest(integrationId, provider, headers, payload);
+    const result = await this.webhooks.ingest(integrationId, provider, headers, payload);
+    return provider.trim().toUpperCase() === 'PAYTR' ? 'OK' : result;
   }
 }
