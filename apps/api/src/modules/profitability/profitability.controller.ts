@@ -5,6 +5,7 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { ProfitabilityService } from './profitability.service';
 import { NetProfitabilityService } from './net-profitability.service';
 import { ProfitabilityConfigService } from './profitability-config.service';
+import { CostCenterService } from './cost-center.service';
 
 const filterSchema = z.object({
   from: z.coerce.date().optional(),
@@ -19,6 +20,22 @@ const attributionSchema = z.object({
   appointmentId: z.string().uuid(),
 });
 
+const createCostCenterSchema = z.object({
+  code: z.string().trim().min(1).max(50),
+  name: z.string().trim().min(1).max(150),
+});
+
+const allocationSchema = z.object({
+  allocations: z.array(z.object({
+    branchId: z.string().uuid(),
+    percent: z.coerce.number().positive().max(100),
+  })).min(1),
+});
+
+const assignExpenseSchema = z.object({
+  costCenterId: z.string().uuid(),
+});
+
 @Controller('profitability')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class ProfitabilityController {
@@ -26,6 +43,7 @@ export class ProfitabilityController {
     private readonly service: ProfitabilityService,
     private readonly net: NetProfitabilityService,
     private readonly config: ProfitabilityConfigService,
+    private readonly costCenters: CostCenterService,
   ) {}
 
   @Get('summary')
@@ -58,6 +76,30 @@ export class ProfitabilityController {
   attributeSaleItem(@Param('saleItemId') saleItemId: string, @Body() body: unknown) {
     const parsed = attributionSchema.parse(body);
     return this.config.attributeSaleItem(saleItemId, parsed.appointmentId);
+  }
+
+  @Post('cost-centers')
+  createCostCenter(@Body() body: unknown) {
+    return this.costCenters.create(createCostCenterSchema.parse(body));
+  }
+
+  @Get('cost-centers')
+  listCostCenters() {
+    return this.costCenters.list();
+  }
+
+  @Post('cost-centers/:id/allocations')
+  setCostCenterAllocations(@Param('id') id: string, @Body() body: unknown) {
+    return this.costCenters.setAllocations(id, allocationSchema.parse(body));
+  }
+
+  @Post('journal-lines/:journalEntryLineId/cost-center')
+  assignExpenseLine(
+    @Param('journalEntryLineId') journalEntryLineId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = assignExpenseSchema.parse(body);
+    return this.costCenters.assignExpenseLine(journalEntryLineId, parsed.costCenterId);
   }
 
   @Get('net/summary')
