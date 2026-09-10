@@ -24,6 +24,11 @@ interface CreateJournalEntryInput {
   }>;
 }
 
+export interface AccountingReportFilter {
+  from?: Date;
+  to?: Date;
+}
+
 type AutomaticJournalLine = {
   accountId: string;
   debit: number;
@@ -55,6 +60,17 @@ export class AccountingService {
 
   private journalNumber(entryDate: Date): string {
     return `JE-${entryDate.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  }
+
+  private reportDateWhere(filter: AccountingReportFilter) {
+    return filter.from || filter.to
+      ? {
+          entryDate: {
+            ...(filter.from ? { gte: filter.from } : {}),
+            ...(filter.to ? { lte: filter.to } : {}),
+          },
+        }
+      : {};
   }
 
   private async ensureSystemAccount(
@@ -428,5 +444,180 @@ export class AccountingService {
         include: { lines: { include: { account: true } }, branch: true },
       });
     });
+  }
+
+  async trialBalance(filter: AccountingReportFilter) {
+    const { tenantId, companyId, branchId } = this.context();
+    const accounts = await this.prisma.chartOfAccount.findMany({
+      where: { tenantId, companyId },
+      orderBy: { code: 'asc' },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              tenantId,
+              companyId,
+              ...(branchId ? { branchId } : {}),
+              ...this.reportDateWhere(filter),
+            },
+          },
+          select: { debit: true, credit: true },
+        },
+      },
+    });
+
+    const rows = accounts.map((account) => {
+      const debit = account.journalLines.reduce((sum, line) => sum + Number(line.debit), 0);
+      const credit = account.journalLines.reduce((sum, line) => sum + Number(line.credit), 0);
+      const net = Math.round((debit - credit + Number.EPSILON) * 100) / 100;
+      return {
+        accountId: account.id,
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        debit: Math.round((debit + Number.EPSILON) * 100) / 100,
+        credit: Math.round((credit + Number.EPSILON) * 100) / 100,
+        debitBalance: net > 0 ? net : 0,
+        creditBalance: net < 0 ? Math.abs(net) : 0,
+      };
+    }).filter((row) => row.debit !== 0 || row.credit !== 0);
+
+    const totals = rows.reduce(
+      (acc, row) => ({
+        debit: acc.debit + row.debit,
+        credit: acc.credit + row.credit,
+        debitBalance: acc.debitBalance + row.debitBalance,
+        creditBalance: acc.creditBalance + row.creditBalance,
+      }),
+      { debit: 0, credit: 0, debitBalance: 0, creditBalance: 0 },
+    );
+
+    return { filter, rows, totals };
+  }
+
+  async accountLedger(accountId: string, filter: AccountingReportFilter) {
+    const { tenantId, companyId, branchId } = this.context();
+    const account = await this.prisma.chartOfAccount.findFirst({
+      where: { id: accountId, tenantId, companyId },
+      select: { id: true, code: true, name: true, type: true },
+    });
+    if (!account) throw new NotFoundException('Account not found.');
+
+    const lines = await this.prisma.journalEntryLine.findMany({
+      where: {
+        accountId,
+        journalEntry: {
+          status: 'POSTED',
+          tenantId,
+          companyId,
+          ...(branchId ? { branchId } : {}),
+          ...this.reportDateWhere(filter),
+        },
+      },
+      orderBy: [
+        { journalEntry: { entryDate: 'asc' } },
+        { createdAt: 'asc' },
+      ],
+      include: {
+        journalEntry: {
+          select: {
+            id: true,
+            number: true,
+            entryDate: true,
+            description: true,
+            referenceType: true,
+            referenceId: true,
+            branchId: true,
+          },
+        },
+      },
+    });
+
+    let runningBalance = 0;
+    const entries = lines.map((line) => {
+      const debit = Number(line.debit);
+      const credit = Number(line.credit);
+      runningBalance = Math.round((runningBalance + debit - credit + Number.EPSILON) * 100) / 100;
+      return {
+        lineId: line.id,
+        journalEntryId: line.journalEntry.id,
+        number: line.journalEntry.number,
+        entryDate: line.journalEntry.entryDate,
+        description: line.journalEntry.description,
+        referenceType: line.journalEntry.referenceType,
+        referenceId: line.journalEntry.referenceId,
+        branchId: line.journalEntry.branchId,
+        memo: line.memo,
+        debit,
+        credit,
+        runningBalance,
+      };
+    });
+
+    return {
+      account,
+      filter,
+      totals: {
+        debit: entries.reduce((sum, entry) => sum + entry.debit, 0),
+        credit: entries.reduce((sum, entry) => sum + entry.credit, 0),
+        balance: runningBalance,
+      },
+      entries,
+    };
+  }
+
+  async incomeSummary(filter: AccountingReportFilter) {
+    const { tenantId, companyId, branchId } = this.context();
+    const accounts = await this.prisma.chartOfAccount.findMany({
+      where: {
+        tenantId,
+        companyId,
+        type: { in: ['REVENUE', 'EXPENSE'] },
+      },
+      orderBy: { code: 'asc' },
+      include: {
+        journalLines: {
+          where: {
+            journalEntry: {
+              status: 'POSTED',
+              tenantId,
+              companyId,
+              ...(branchId ? { branchId } : {}),
+              ...this.reportDateWhere(filter),
+            },
+          },
+          select: { debit: true, credit: true },
+        },
+      },
+    });
+
+    const rows = accounts.map((account) => {
+      const debit = account.journalLines.reduce((sum, line) => sum + Number(line.debit), 0);
+      const credit = account.journalLines.reduce((sum, line) => sum + Number(line.credit), 0);
+      const amount = account.type === 'REVENUE' ? credit - debit : debit - credit;
+      return {
+        accountId: account.id,
+        code: account.code,
+        name: account.name,
+        type: account.type,
+        amount: Math.round((amount + Number.EPSILON) * 100) / 100,
+      };
+    }).filter((row) => row.amount !== 0);
+
+    const revenue = rows
+      .filter((row) => row.type === 'REVENUE')
+      .reduce((sum, row) => sum + row.amount, 0);
+    const expense = rows
+      .filter((row) => row.type === 'EXPENSE')
+      .reduce((sum, row) => sum + row.amount, 0);
+
+    return {
+      filter,
+      revenue: Math.round((revenue + Number.EPSILON) * 100) / 100,
+      expense: Math.round((expense + Number.EPSILON) * 100) / 100,
+      netIncome: Math.round((revenue - expense + Number.EPSILON) * 100) / 100,
+      rows,
+    };
   }
 }
