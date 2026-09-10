@@ -21,6 +21,10 @@ const NAV_SECTIONS = [
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
     { href: "/payments", permission: "payments.read", label: "Ödemeler", icon: "wallet" },
   ]},
+  { label: "Finans & CFO", items: [
+    { href: "/finance/cfo", label: "Yönetim Kokpiti", icon: "trend" },
+    { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
+  ]},
   { label: "İnsan Kaynakları", items: [
     { href: "/hr", label: "İK Genel Bakış", icon: "briefcase" },
     { href: "/hr/employees", label: "Personeller", icon: "users" },
@@ -44,7 +48,6 @@ const NAV_SECTIONS = [
   ]},
   { label: "Yönetim", items: [
     { href: "/settings/roles", permission: "roles.read", label: "Roller & Yetkiler", icon: "shield" },
-    { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
     { href: "/settings", label: "Ayarlar", icon: "settings" },
   ]},
 ] as const;
