@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { AccountsPayableService } from './accounts-payable.service';
 import { AccountsPayableReversalsService } from './accounts-payable-reversals.service';
+import { AccountsPayableCreditAnalyticsService } from './accounts-payable-credit-analytics.service';
 
 const createBillSchema = z.object({
   supplierId: z.string().uuid(),
@@ -39,6 +40,7 @@ export class AccountsPayableController {
   constructor(
     private readonly service: AccountsPayableService,
     private readonly reversalsService: AccountsPayableReversalsService,
+    private readonly creditAnalytics: AccountsPayableCreditAnalyticsService,
   ) {}
 
   @Post('bills')
@@ -53,17 +55,17 @@ export class AccountsPayableController {
 
   @Get('summary')
   summary() {
-    return this.service.summary();
+    return this.creditAnalytics.summary();
   }
 
   @Get('aging')
   aging() {
-    return this.service.aging();
+    return this.creditAnalytics.aging();
   }
 
   @Get('suppliers/:supplierId/ledger')
   supplierLedger(@Param('supplierId') supplierId: string) {
-    return this.service.supplierLedger(supplierId);
+    return this.creditAnalytics.supplierLedger(supplierId);
   }
 
   @Get('bills/:id')
