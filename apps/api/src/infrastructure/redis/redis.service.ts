@@ -50,6 +50,12 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
   }
 
   async get(key: string): Promise<string | null> {
+    // Refresh sessions are single-use; consume them atomically to prevent
+    // concurrent refresh requests from both accepting the same token.
+    if (key.startsWith('auth:refresh:')) {
+      return this.client.getDel(key);
+    }
+
     return this.client.get(key);
   }
 
