@@ -86,6 +86,30 @@ export class FinancialIntegrationSyncService {
     return merged;
   }
 
+  private async resolveTokens(
+    integration: any,
+    adapter: FinancialProviderAdapter,
+  ): Promise<ProviderTokenSet> {
+    if (integration.kind === 'OPEN_BANKING' && integration.authType === 'API_KEY') {
+      if (!adapter.authenticateCredentials) {
+        throw new BadRequestException('Open Banking provider does not support credential-token authentication.');
+      }
+      const credentials = await this.vault.loadOpaque(integration.id);
+      if (!credentials) throw new BadRequestException('Integration credentials are missing.');
+      const tokens = await adapter.authenticateCredentials(credentials);
+      if (!tokens.accessToken) {
+        throw new BadRequestException('Open Banking provider returned an invalid authentication response.');
+      }
+      return tokens;
+    }
+
+    const storedTokens = await this.vault.load(integration.id);
+    if (!storedTokens) throw new BadRequestException('Integration credentials are missing.');
+    return integration.kind === 'OPEN_BANKING'
+      ? this.ensureFreshTokens(integration.id, adapter, storedTokens)
+      : storedTokens;
+  }
+
   async syncIntegration(integrationId: string) {
     return this.syncIntegrationInternal(integrationId, this.context());
   }
@@ -93,7 +117,7 @@ export class FinancialIntegrationSyncService {
   private async syncIntegrationInternal(integrationId: string, scope?: IntegrationScope) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",
-              kind,provider,status,last_sync_at AS "lastSyncAt"
+              kind,provider,status,auth_type AS "authType",last_sync_at AS "lastSyncAt"
        FROM finance_integrations
        WHERE id=$1::text
          AND ($2::text IS NULL OR tenant_id=$2::text)
@@ -111,11 +135,7 @@ export class FinancialIntegrationSyncService {
       throw new BadRequestException('Only connected integrations can be synchronized.');
     }
     const adapter = this.providers.get(integration.kind, integration.provider);
-    const storedTokens = await this.vault.load(integrationId);
-    if (!storedTokens) throw new BadRequestException('Integration credentials are missing.');
-    const tokens = integration.kind === 'OPEN_BANKING'
-      ? await this.ensureFreshTokens(integrationId, adapter, storedTokens)
-      : storedTokens;
+    const tokens = await this.resolveTokens(integration, adapter);
 
     const runId = randomUUID();
     await this.prisma.$executeRawUnsafe(
