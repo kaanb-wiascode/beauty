@@ -61,6 +61,24 @@ export interface ProviderPosTransactionLookup {
   occurredAt?: Date;
 }
 
+export interface ProviderPosRefundRequest {
+  credentials: Record<string, string>;
+  providerTransactionId: string;
+  merchantReference?: string;
+  amount: number;
+  currency: string;
+  externalEventId: string;
+}
+
+export interface ProviderPosRefundResult {
+  providerTransactionId: string;
+  externalEventId: string;
+  amount: number;
+  currency: string;
+  occurredAt: Date;
+  providerReference?: string;
+}
+
 export interface ProviderWebhookVerificationResult {
   valid: boolean;
 }
@@ -105,6 +123,7 @@ export interface ProviderCapabilities {
   bankTransactions?: boolean;
   posTransactions?: boolean;
   posTransactionEnrichment?: boolean;
+  posRefunds?: boolean;
   settlements?: boolean;
   webhooks?: boolean;
 }
@@ -129,6 +148,7 @@ export interface FinancialProviderAdapter {
   listBankTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderBankTransaction[]>;
   listPosTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderPosTransaction[]>;
   retrievePosTransaction?(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction>;
+  refundPosTransaction?(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult>;
 
   verifyWebhook?(input: {
     headers: Record<string, string | string[] | undefined>;
