@@ -47,6 +47,9 @@ CREATE UNIQUE INDEX "chart_of_accounts_companyId_code_key" ON "chart_of_accounts
 CREATE INDEX "chart_of_accounts_tenantId_companyId_type_idx" ON "chart_of_accounts"("tenantId", "companyId", "type");
 CREATE INDEX "chart_of_accounts_parentId_idx" ON "chart_of_accounts"("parentId");
 CREATE UNIQUE INDEX "journal_entries_companyId_number_key" ON "journal_entries"("companyId", "number");
+CREATE UNIQUE INDEX "journal_entries_company_reference_key"
+  ON "journal_entries"("companyId", "referenceType", "referenceId")
+  WHERE "referenceType" IS NOT NULL AND "referenceId" IS NOT NULL;
 CREATE INDEX "journal_entries_tenantId_companyId_entryDate_idx" ON "journal_entries"("tenantId", "companyId", "entryDate");
 CREATE INDEX "journal_entries_branchId_entryDate_idx" ON "journal_entries"("branchId", "entryDate");
 CREATE INDEX "journal_entries_tenantId_status_idx" ON "journal_entries"("tenantId", "status");
