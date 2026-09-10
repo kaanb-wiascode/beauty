@@ -1,9 +1,21 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, OnModuleInit } from '@nestjs/common';
 import type { FinancialProviderAdapter } from './provider-adapter';
+import { IyzicoAdapter } from './providers/iyzico.adapter';
+import { PaytrAdapter } from './providers/paytr.adapter';
 
 @Injectable()
-export class ProviderRegistryService {
+export class ProviderRegistryService implements OnModuleInit {
   private readonly adapters = new Map<string, FinancialProviderAdapter>();
+
+  constructor(
+    private readonly iyzico: IyzicoAdapter,
+    private readonly paytr: PaytrAdapter,
+  ) {}
+
+  onModuleInit() {
+    this.register(this.iyzico);
+    this.register(this.paytr);
+  }
 
   register(adapter: FinancialProviderAdapter) {
     this.adapters.set(this.key(adapter.kind, adapter.provider), adapter);
@@ -27,6 +39,10 @@ export class ProviderRegistryService {
     return Array.from(this.adapters.values()).map((adapter) => ({
       kind: adapter.kind,
       provider: adapter.provider,
+      displayName: adapter.displayName ?? adapter.provider,
+      credentialFields: adapter.credentialFields ?? [],
+      capabilities: adapter.capabilities ?? {},
+      runtimeReady: adapter.runtimeReady ?? false,
     }));
   }
 
