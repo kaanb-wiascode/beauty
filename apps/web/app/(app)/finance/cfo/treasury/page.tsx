@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 import Link from "next/link";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -86,7 +86,7 @@ export default function TreasuryCockpitPage(){
 
 function ForecastBars({days}:{days:ForecastDay[]}){if(!days.length)return <Empty text="Beklenen settlement verisi bulunamadı."/>;const max=Math.max(1,...days.map(d=>Number(d.netAmount)));return <div className="overflow-x-auto"><div className="flex min-w-[720px] items-end gap-3 rounded-[16px] border border-[#efedf3] bg-[#fbfafe] px-4 py-4">{days.map((d,i)=><div key={`${d.date}-${i}`} className="flex min-w-[48px] flex-1 flex-col items-center gap-2"><div className="flex h-[180px] items-end"><div className="w-7 rounded-t-[8px] bg-[#7657e8]" style={{height:`${Math.max(4,(Number(d.netAmount)/max)*160)}px`}} title={money(d.netAmount)}/></div><span className="text-[9px] font-semibold text-[#918d9b]">{shortDate(d.date)}</span><span className="text-[8px] text-[#aaa6b2]">{d.transactionCount} tx</span></div>)}</div></div>}
 function Metric({label,value,sub,tone="default"}:{label:string;value:string;sub:string;tone?:"default"|"good"|"warn"}){const cls=tone==="good"?"border-[#d7eadf] bg-[#f4fbf7]":tone==="warn"?"border-[#f1e1bc] bg-[#fffaf0]":"border-[#ece9f0] bg-white/85";return <div className={`rounded-[20px] border p-4 shadow-[0_8px_28px_rgba(49,38,74,.035)] ${cls}`}><p className="text-[10px] font-semibold uppercase tracking-[.11em] text-[#9b97a5]">{label}</p><p className="mt-3 text-[22px] font-semibold tracking-[-.035em] text-[#292734]">{value}</p><p className="mt-1 text-[10px] text-[#9d99a6]">{sub}</p></div>}
-function Panel({title,subtitle,children}:{title:string;subtitle?:string;children:React.ReactNode}){return <section className="rounded-[22px] border border-[#ece9f0] bg-white/85 p-5 shadow-[0_12px_36px_rgba(49,38,74,.04)]"><div className="mb-4"><h2 className="text-[16px] font-semibold tracking-[-.02em] text-[#2d2b37]">{title}</h2>{subtitle?<p className="mt-1 text-[11px] text-[#9995a2]">{subtitle}</p>:null}</div>{children}</section>}
+function Panel({title,subtitle,children}:{title:string;subtitle?:string;children:ReactNode}){return <section className="rounded-[22px] border border-[#ece9f0] bg-white/85 p-5 shadow-[0_12px_36px_rgba(49,38,74,.04)]"><div className="mb-4"><h2 className="text-[16px] font-semibold tracking-[-.02em] text-[#2d2b37]">{title}</h2>{subtitle?<p className="mt-1 text-[11px] text-[#9995a2]">{subtitle}</p>:null}</div>{children}</section>}
 function Mini({label,value}:{label:string;value:string}){return <div className="rounded-[15px] border border-[#efedf2] bg-[#faf9fc] p-3"><p className="text-[9px] uppercase tracking-[.1em] text-[#aaa6b2]">{label}</p><p className="mt-2 text-[16px] font-semibold text-[#373540]">{value}</p></div>}
 function Empty({text}:{text:string}){return <div className="rounded-[14px] border border-dashed border-[#e6e2ea] px-4 py-7 text-center text-[11px] text-[#aaa6b2]">{text}</div>}
 function money(v:unknown,currency="TRY"){const n=Number(v??0);return new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:0}).format(Number.isFinite(n)?n:0)}
