@@ -109,8 +109,33 @@ export class PosWebhookService {
     const credentials = await this.vault.loadOpaque(integration.id);
     if (!credentials) throw new ServiceUnavailableException('Provider credentials are not configured.');
 
-    const event = await adapter.parseWebhook({ headers: {}, payload: stored.payload, credentials });
+    let event = await adapter.parseWebhook({ headers: {}, payload: stored.payload, credentials });
     if (!event.externalEventId || !event.eventType) throw new BadRequestException('Provider webhook event is incomplete.');
+
+    if (
+      event.correlation?.requiresEnrichment &&
+      !event.transaction &&
+      adapter.capabilities?.posTransactionEnrichment &&
+      adapter.retrievePosTransaction
+    ) {
+      const transaction = await adapter.retrievePosTransaction({
+        credentials,
+        providerTransactionId: event.correlation.providerTransactionId,
+        merchantReference: event.correlation.merchantReference,
+        occurredAt: event.correlation.occurredAt,
+      });
+      if (transaction.externalTransactionId !== event.correlation.providerTransactionId) {
+        throw new BadRequestException('Enriched POS transaction does not match webhook correlation.');
+      }
+      event = {
+        ...event,
+        transaction,
+        correlation: {
+          ...event.correlation,
+          requiresEnrichment: false,
+        },
+      };
+    }
 
     return this.processVerifiedEvent(eventId, integration, event);
   }
