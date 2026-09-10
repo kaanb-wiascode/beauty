@@ -539,6 +539,7 @@ model Sale {
   items            SaleItem[]
   customerPackages CustomerPackage[]
   payments         SalePayment[]
+  installmentPlan  InstallmentPlan?
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, customerId])
@@ -582,15 +583,66 @@ model SalePayment {
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
 
-  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
-  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  tenant                 Tenant                  @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch                 Branch                  @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  sale                   Sale                    @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  installmentAllocations InstallmentAllocation[]
 
   @@index([tenantId, branchId, paidAt])
   @@index([tenantId, saleId])
   @@index([tenantId, status])
   @@index([tenantId, method])
   @@map("sale_payments")
+}
+
+model InstallmentPlan {
+  id               String        @id @default(uuid())
+  tenantId         String
+  branchId         String
+  saleId           String        @unique
+  installmentCount Int
+  intervalMonths   Int           @default(1)
+  firstDueAt       DateTime
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  sale         Sale          @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  installments Installment[]
+
+  @@index([tenantId, branchId])
+  @@map("installment_plans")
+}
+
+model Installment {
+  id                String   @id @default(uuid())
+  installmentPlanId String
+  sequence          Int
+  amount            Decimal  @db.Decimal(10, 2)
+  dueAt             DateTime
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  installmentPlan InstallmentPlan         @relation(fields: [installmentPlanId], references: [id], onDelete: Cascade)
+  allocations     InstallmentAllocation[]
+
+  @@unique([installmentPlanId, sequence])
+  @@index([dueAt])
+  @@map("installments")
+}
+
+model InstallmentAllocation {
+  id            String   @id @default(uuid())
+  installmentId String
+  salePaymentId String
+  amount        Decimal  @db.Decimal(10, 2)
+  createdAt     DateTime @default(now())
+
+  installment Installment @relation(fields: [installmentId], references: [id], onDelete: Cascade)
+  salePayment SalePayment @relation(fields: [salePaymentId], references: [id], onDelete: Cascade)
+
+  @@unique([installmentId, salePaymentId])
+  @@index([salePaymentId])
+  @@map("installment_allocations")
 }
 
 model CustomerPackage {
