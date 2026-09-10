@@ -1,5 +1,5 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { Prisma, PrismaService } from '@beauty-erp/database';
+import { PrismaService } from '@beauty-erp/database';
 
 export type AuditResult = 'SUCCESS' | 'FAILURE';
 
@@ -24,33 +24,31 @@ export class AuditLogService {
 
   async record(event: AuditEventInput): Promise<void> {
     try {
-      await this.prisma.$executeRaw(
-        Prisma.sql`
-          INSERT INTO "audit_events" (
-            "tenant_id",
-            "company_id",
-            "branch_id",
-            "actor_user_id",
-            "request_id",
-            "action",
-            "resource",
-            "result",
-            "status_code",
-            "metadata"
-          ) VALUES (
-            ${event.tenantId ?? null},
-            ${event.companyId ?? null},
-            ${event.branchId ?? null},
-            ${event.actorUserId ?? null},
-            ${event.requestId ?? null},
-            ${event.action.slice(0, 120)},
-            ${event.resource.slice(0, 500)},
-            ${event.result},
-            ${event.statusCode ?? null},
-            ${event.metadata ? JSON.stringify(event.metadata) : null}::jsonb
-          )
-        `,
-      );
+      await this.prisma.$executeRaw`
+        INSERT INTO "audit_events" (
+          "tenant_id",
+          "company_id",
+          "branch_id",
+          "actor_user_id",
+          "request_id",
+          "action",
+          "resource",
+          "result",
+          "status_code",
+          "metadata"
+        ) VALUES (
+          ${event.tenantId ?? null},
+          ${event.companyId ?? null},
+          ${event.branchId ?? null},
+          ${event.actorUserId ?? null},
+          ${event.requestId ?? null},
+          ${event.action.slice(0, 120)},
+          ${event.resource.slice(0, 500)},
+          ${event.result},
+          ${event.statusCode ?? null},
+          ${event.metadata ? JSON.stringify(event.metadata) : null}::jsonb
+        )
+      `;
     } catch (error) {
       this.logger.error(
         JSON.stringify({
