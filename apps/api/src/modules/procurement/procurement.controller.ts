@@ -1,9 +1,10 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { ProcurementService } from './procurement.service';
 import { ProcurementRequestsService } from './procurement-requests.service';
+import { ProcurementApprovalsService } from './procurement-approvals.service';
 
 const receiveSchema = z.object({
   items: z.array(
@@ -37,6 +38,7 @@ export class ProcurementController {
   constructor(
     private readonly service: ProcurementService,
     private readonly requests: ProcurementRequestsService,
+    private readonly approvals: ProcurementApprovalsService,
   ) {}
 
   @Get('purchase-requests')
@@ -53,6 +55,38 @@ export class ProcurementController {
   @Post('purchase-requests/:id/convert')
   convertPurchaseRequest(@Param('id') id: string, @Body() body: unknown) {
     return this.requests.convertPurchaseRequest(id, convertPurchaseRequestSchema.parse(body));
+  }
+
+  @Post('purchase-orders/:id/submit-approval')
+  submitPurchaseOrderApproval(@Param('id') id: string) {
+    return this.approvals.submit(id);
+  }
+
+  @Get('purchase-orders/:id/approvals')
+  getPurchaseOrderApprovals(@Param('id') id: string) {
+    return this.approvals.getState(id);
+  }
+
+  @Post('purchase-orders/:id/approvals/:level/approve')
+  approvePurchaseOrderLevel(
+    @Param('id') id: string,
+    @Param('level') level: string,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new Error('Authenticated user id is missing.');
+    return this.approvals.approve(id, Number(level), userId);
+  }
+
+  @Post('purchase-orders/:id/approvals/:level/reject')
+  rejectPurchaseOrderLevel(
+    @Param('id') id: string,
+    @Param('level') level: string,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const userId = req.user?.sub;
+    if (!userId) throw new Error('Authenticated user id is missing.');
+    return this.approvals.reject(id, Number(level), userId);
   }
 
   @Post('purchase-orders/:id/order')
