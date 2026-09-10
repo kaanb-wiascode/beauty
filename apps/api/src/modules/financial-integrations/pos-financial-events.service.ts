@@ -11,6 +11,12 @@ interface RecordPosFinancialEventInput {
   occurredAt: Date;
 }
 
+interface PosScope {
+  tenantId: string;
+  companyId: string;
+  branchId: string | null;
+}
+
 @Injectable()
 export class PosFinancialEventsService {
   constructor(
@@ -18,7 +24,7 @@ export class PosFinancialEventsService {
     private readonly tenant: TenantContext,
   ) {}
 
-  private context() {
+  private context(): PosScope {
     return {
       tenantId: this.tenant.getTenantId(),
       companyId: this.tenant.getCompanyId(),
@@ -47,7 +53,10 @@ export class PosFinancialEventsService {
   }
 
   async record(posTransactionId: string, input: RecordPosFinancialEventInput) {
-    const ctx = this.context();
+    return this.recordInScope(this.context(), posTransactionId, input);
+  }
+
+  async recordInScope(ctx: PosScope, posTransactionId: string, input: RecordPosFinancialEventInput) {
     const amount = this.round(input.amount);
     const feeAmount = this.round(input.feeAmount ?? 0);
     if (amount <= 0) throw new BadRequestException('Financial event amount must be positive.');
