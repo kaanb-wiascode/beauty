@@ -1,4 +1,4 @@
-import { NotFoundException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
 
 describe('FinancialIntegrationSyncService', () => {
@@ -8,6 +8,7 @@ describe('FinancialIntegrationSyncService', () => {
     adapter?: Record<string, unknown>;
     linkage?: jest.Mock;
     reconciliation?: jest.Mock;
+    tokens?: Record<string, unknown>;
   }) {
     const query = overrides?.query ?? jest.fn();
     const execute = overrides?.execute ?? jest.fn().mockResolvedValue(1);
@@ -19,7 +20,10 @@ describe('FinancialIntegrationSyncService', () => {
     const providers = {
       get: jest.fn().mockReturnValue(overrides?.adapter ?? {}),
     } as never;
-    const vault = { load: jest.fn().mockResolvedValue({ accessToken: 'test-token' }) } as never;
+    const vault = {
+      load: jest.fn().mockResolvedValue(overrides?.tokens ?? { accessToken: 'test-token' }),
+      store: jest.fn().mockResolvedValue(undefined),
+    } as never;
     const tenant = {
       getTenantId: jest.fn().mockReturnValue('tenant-a'),
       getCompanyId: jest.fn().mockReturnValue('company-a'),
@@ -35,7 +39,7 @@ describe('FinancialIntegrationSyncService', () => {
       service: new FinancialIntegrationSyncService(prisma, providers, vault, tenant, linkage, reconciliation),
       query,
       execute,
-      vault: vault as unknown as { load: jest.Mock },
+      vault: vault as unknown as { load: jest.Mock; store: jest.Mock },
       linkage: linkage as unknown as { autoLinkOneInScope: jest.Mock },
       reconciliation: reconciliation as unknown as { autoMatchInScope: jest.Mock },
     };
@@ -129,5 +133,61 @@ describe('FinancialIntegrationSyncService', () => {
       unresolvedSettlements: 1,
       status: 'SUCCESS',
     });
+  });
+
+  it('refreshes an expiring open-banking token before provider synchronization', async () => {
+    const query = jest.fn().mockResolvedValueOnce([{
+      id: 'integration-bank', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
+      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', lastSyncAt: null,
+    }]);
+    const refreshTokens = jest.fn().mockResolvedValue({
+      accessToken: 'fresh-token',
+      expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+    });
+    const listBankAccounts = jest.fn().mockResolvedValue([]);
+    const adapter = { refreshTokens, listBankAccounts, listBankTransactions: jest.fn().mockResolvedValue([]) };
+    const { service, vault } = createService({
+      query,
+      adapter,
+      tokens: {
+        accessToken: 'old-token',
+        refreshToken: 'refresh-token',
+        expiresAt: new Date(Date.now() + 30 * 1000),
+        externalConnectionId: 'connection-1',
+      },
+    });
+
+    await service.syncIntegration('integration-bank');
+
+    expect(refreshTokens).toHaveBeenCalledTimes(1);
+    expect(vault.store).toHaveBeenCalledWith('integration-bank', expect.objectContaining({
+      accessToken: 'fresh-token',
+      refreshToken: 'refresh-token',
+      externalConnectionId: 'connection-1',
+    }));
+    expect(listBankAccounts).toHaveBeenCalledWith(expect.objectContaining({ accessToken: 'fresh-token' }));
+  });
+
+  it('blocks provider synchronization when open-banking consent has expired', async () => {
+    const query = jest.fn().mockResolvedValueOnce([{
+      id: 'integration-bank', tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a',
+      kind: 'OPEN_BANKING', provider: 'TESTBANK', status: 'CONNECTED', lastSyncAt: null,
+    }]);
+    const listBankAccounts = jest.fn();
+    const { service, execute } = createService({
+      query,
+      adapter: { listBankAccounts },
+      tokens: {
+        accessToken: 'old-token',
+        consentExpiresAt: new Date(Date.now() - 60 * 1000),
+      },
+    });
+
+    await expect(service.syncIntegration('integration-bank')).rejects.toBeInstanceOf(BadRequestException);
+    expect(listBankAccounts).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("status='ERROR'"),
+      'integration-bank',
+    );
   });
 });
