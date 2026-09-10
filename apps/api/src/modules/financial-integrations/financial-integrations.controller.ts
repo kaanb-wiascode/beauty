@@ -9,6 +9,8 @@ import { FinancialIntegrationCredentialsService } from './financial-integration-
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosSettlementService } from './pos-settlement.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
+import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
+import { PosFinancialEventsService } from './pos-financial-events.service';
 
 const createSchema = z.object({
   kind: z.enum(['OPEN_BANKING','VIRTUAL_POS']),
@@ -37,6 +39,14 @@ const reconciliationMatchSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 const autoMatchSchema = z.object({ limit: z.coerce.number().int().min(1).max(500).optional() });
+const paymentLinkSchema = z.object({ salePaymentId: z.string().uuid() });
+const financialEventSchema = z.object({
+  eventType: z.enum(['REFUND','CHARGEBACK']),
+  externalEventId: z.string().trim().min(1).max(160),
+  amount: z.coerce.number().positive(),
+  feeAmount: z.coerce.number().min(0).optional(),
+  occurredAt: z.coerce.date(),
+});
 
 @Controller('financial-integrations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -49,6 +59,8 @@ export class FinancialIntegrationsController {
     private readonly providers: ProviderRegistryService,
     private readonly settlements: PosSettlementService,
     private readonly reconciliation: PosBankReconciliationService,
+    private readonly paymentLinkage: PosSalePaymentLinkageService,
+    private readonly financialEvents: PosFinancialEventsService,
   ) {}
 
   @Post() create(@Body() body: unknown) { return this.service.create(createSchema.parse(body)); }
@@ -71,6 +83,23 @@ export class FinancialIntegrationsController {
   @Post('pos/reconciliation/auto-match') autoMatch(@Body() body: unknown) {
     const parsed = autoMatchSchema.parse(body ?? {});
     return this.reconciliation.autoMatch(parsed.limit);
+  }
+  @Post('pos/payment-links/auto') autoLinkPayments(@Body() body: unknown) {
+    const parsed = autoMatchSchema.parse(body ?? {});
+    return this.paymentLinkage.autoLink(parsed.limit);
+  }
+  @Post('pos/transactions/:posTransactionId/link-payment') linkPayment(
+    @Param('posTransactionId') posTransactionId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = paymentLinkSchema.parse(body);
+    return this.paymentLinkage.link(posTransactionId, parsed.salePaymentId);
+  }
+  @Post('pos/transactions/:posTransactionId/financial-events') recordFinancialEvent(
+    @Param('posTransactionId') posTransactionId: string,
+    @Body() body: unknown,
+  ) {
+    return this.financialEvents.record(posTransactionId, financialEventSchema.parse(body));
   }
   @Post('bank-transactions/:bankTransactionId/ignore') ignoreBankTransaction(
     @Param('bankTransactionId') bankTransactionId: string,
