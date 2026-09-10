@@ -51,6 +51,17 @@ export interface ProviderPosTransaction {
   currency: string;
   status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'FAILED';
   expectedSettlementAt?: Date;
+  installmentCount?: number;
+}
+
+export interface ProviderWebhookVerificationResult {
+  valid: boolean;
+}
+
+export interface ProviderWebhookEvent {
+  externalEventId: string;
+  eventType: string;
+  transaction?: ProviderPosTransaction;
 }
 
 export interface ProviderCredentialField {
@@ -90,4 +101,15 @@ export interface FinancialProviderAdapter {
   listBankAccounts?(tokens: ProviderTokenSet): Promise<ProviderBankAccount[]>;
   listBankTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderBankTransaction[]>;
   listPosTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderPosTransaction[]>;
+
+  verifyWebhook?(input: {
+    headers: Record<string, string | string[] | undefined>;
+    payload: unknown;
+    credentials: Record<string, string>;
+  }): Promise<ProviderWebhookVerificationResult>;
+  parseWebhook?(input: {
+    headers: Record<string, string | string[] | undefined>;
+    payload: unknown;
+    credentials: Record<string, string>;
+  }): Promise<ProviderWebhookEvent>;
 }
