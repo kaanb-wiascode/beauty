@@ -18,6 +18,7 @@ import { HrModule } from './modules/hr/hr.module';
 import { PackagesModule } from './modules/packages/packages.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
+import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.module';
 
 @Module({
   imports: [
@@ -39,6 +40,7 @@ import { SessionsModule } from './modules/sessions/sessions.module';
     PackagesModule,
     SalesModule,
     SessionsModule,
+    CustomerLedgerModule,
   ],
 })
 export class AppModule {}
