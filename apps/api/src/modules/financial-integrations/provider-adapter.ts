@@ -49,7 +49,7 @@ export interface ProviderPosTransaction {
   feeAmount: number;
   netAmount: number;
   currency: string;
-  status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'FAILED';
+  status: 'AUTHORIZED' | 'CAPTURED' | 'REFUNDED' | 'CHARGEBACK' | 'FAILED';
   expectedSettlementAt?: Date;
   installmentCount?: number;
 }
@@ -58,10 +58,20 @@ export interface ProviderWebhookVerificationResult {
   valid: boolean;
 }
 
+export interface ProviderWebhookFinancialEvent {
+  eventType: 'REFUND' | 'CHARGEBACK';
+  externalEventId: string;
+  providerTransactionId: string;
+  amount: number;
+  feeAmount?: number;
+  occurredAt: Date;
+}
+
 export interface ProviderWebhookEvent {
   externalEventId: string;
   eventType: string;
   transaction?: ProviderPosTransaction;
+  financialEvent?: ProviderWebhookFinancialEvent;
 }
 
 export interface ProviderCredentialField {
