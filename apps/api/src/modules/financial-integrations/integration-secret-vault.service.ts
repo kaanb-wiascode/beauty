@@ -1,7 +1,7 @@
 import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:crypto';
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import type { ProviderTokenSet } from './provider-adapter';
 
 @Injectable()
@@ -56,8 +56,8 @@ export class IntegrationSecretVaultService {
     return JSON.parse(decrypted.toString('utf8')) as T;
   }
 
-  async store(integrationId: string, tokens: ProviderTokenSet) {
-    const encryptedPayload = this.encrypt({
+  private serialize(tokens: ProviderTokenSet) {
+    return this.encrypt({
       accessToken: tokens.accessToken,
       refreshToken: tokens.refreshToken,
       expiresAt: tokens.expiresAt?.toISOString(),
@@ -65,7 +65,19 @@ export class IntegrationSecretVaultService {
       consentExpiresAt: tokens.consentExpiresAt?.toISOString(),
       metadata: tokens.metadata ?? {},
     });
-    await this.prisma.$executeRawUnsafe(
+  }
+
+  async store(integrationId: string, tokens: ProviderTokenSet) {
+    return this.storeWith(this.prisma, integrationId, tokens);
+  }
+
+  async storeWith(
+    client: Prisma.TransactionClient | PrismaService,
+    integrationId: string,
+    tokens: ProviderTokenSet,
+  ) {
+    const encryptedPayload = this.serialize(tokens);
+    await client.$executeRawUnsafe(
       `INSERT INTO finance_integration_secrets(integration_id,encrypted_payload,key_version,updated_at)
        VALUES($1::text,$2,'v1',NOW())
        ON CONFLICT(integration_id) DO UPDATE
