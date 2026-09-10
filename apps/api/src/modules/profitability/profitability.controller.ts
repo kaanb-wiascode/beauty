@@ -18,6 +18,21 @@ const requiredPeriodSchema = z.object({
   to: z.coerce.date(),
 });
 
+const yearSchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+});
+
+const ytdSchema = z.object({
+  year: z.coerce.number().int().min(2000).max(2100),
+  asOf: z.coerce.date().optional(),
+});
+
+const forecastSchema = z.object({
+  from: z.coerce.date(),
+  to: z.coerce.date(),
+  asOf: z.coerce.date().optional(),
+});
+
 const commissionSchema = z.object({
   rate: z.coerce.number().min(0).max(100),
 });
@@ -140,6 +155,24 @@ export class ProfitabilityController {
   actualVsBudget(@Query() query: unknown) {
     const parsed = requiredPeriodSchema.parse(query);
     return this.budgeting.actualVsBudget(parsed.from, parsed.to);
+  }
+
+  @Get('budgets/monthly')
+  monthlyBudgetPerformance(@Query() query: unknown) {
+    const parsed = yearSchema.parse(query);
+    return this.budgeting.monthly(parsed.year);
+  }
+
+  @Get('budgets/ytd')
+  ytdBudgetPerformance(@Query() query: unknown) {
+    const parsed = ytdSchema.parse(query);
+    return this.budgeting.ytd(parsed.year, parsed.asOf);
+  }
+
+  @Get('budgets/forecast')
+  rollingForecast(@Query() query: unknown) {
+    const parsed = forecastSchema.parse(query);
+    return this.budgeting.forecast(parsed.from, parsed.to, parsed.asOf);
   }
 
   @Get('net/summary')
