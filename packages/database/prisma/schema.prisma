@@ -38,6 +38,10 @@ model Tenant {
   customerHealthProfiles CustomerHealthProfile[]
   customerCareEvents     CustomerCareEvent[]
   companies              Company[]
+  servicePackages        ServicePackage[]
+  sales                  Sale[]
+  customerPackages       CustomerPackage[]
+  sessions               Session[]
 
   @@map("tenants")
 }
@@ -96,12 +100,16 @@ model Branch {
   membershipAccess       MembershipBranchAccess[]
   customers              Customer[]
   customerHealthProfiles CustomerHealthProfile[]
-  customerDocuments     CustomerDocument[]
-  customerConsents      CustomerConsent[]
-  customerCareEvents    CustomerCareEvent[]
+  customerDocuments      CustomerDocument[]
+  customerConsents       CustomerConsent[]
+  customerCareEvents     CustomerCareEvent[]
   appointments           Appointment[]
   staff                  Staff[]
   services               Service[]
+  servicePackages        ServicePackage[]
+  sales                   Sale[]
+  customerPackages       CustomerPackage[]
+  sessions               Session[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -208,6 +216,8 @@ model Customer {
   documents      CustomerDocument[]
   consents       CustomerConsent[]
   careEvents     CustomerCareEvent[]
+  sales          Sale[]
+  packages       CustomerPackage[]
 
   @@index([tenantId])
   @@index([branchId])
@@ -244,8 +254,8 @@ model CustomerHealthProfile {
 }
 
 model CustomerDocument {
-  branchId    String               
-id          String               @id @default(uuid())
+  branchId    String
+  id          String               @id @default(uuid())
   tenantId    String
   customerId  String?
   type        CustomerDocumentType
@@ -269,8 +279,8 @@ id          String               @id @default(uuid())
 }
 
 model CustomerConsent {
-  branchId          String                
-id                String                @id @default(uuid())
+  branchId          String
+  id                String                @id @default(uuid())
   tenantId          String
   customerId        String
   documentId        String?
@@ -328,8 +338,8 @@ enum CustomerCareSeverity {
 }
 
 model CustomerCareEvent {
-  branchId      String                  
-id            String                  @id @default(uuid())
+  branchId      String
+  id            String                  @id @default(uuid())
   tenantId      String
   customerId    String
   appointmentId String?
@@ -400,6 +410,9 @@ model Service {
   appointments    Appointment[]
   tenant          Tenant        @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch          Branch        @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  packageItems    PackageItem[]
+  saleItems       SaleItem[]
+  sessions        Session[]
 
   @@index([tenantId])
   @@index([branchId])
@@ -430,6 +443,7 @@ model Appointment {
   tenant     Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   payment    Payment?
   careEvents CustomerCareEvent[]
+  session    Session?
 
   @@index([tenantId])
   @@index([branchId])
@@ -463,6 +477,138 @@ model Payment {
   @@index([tenantId, method])
   @@index([tenantId, status])
   @@map("payments")
+}
+
+model ServicePackage {
+  id           String            @id @default(uuid())
+  tenantId     String
+  branchId     String
+  name         String
+  description  String?
+  price        Decimal           @db.Decimal(10, 2)
+  validityDays Int?
+  active       Boolean           @default(true)
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch           Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  items            PackageItem[]
+  saleItems        SaleItem[]
+  customerPackages CustomerPackage[]
+
+  @@index([tenantId, branchId])
+  @@index([tenantId, active])
+  @@map("service_packages")
+}
+
+model PackageItem {
+  id        String   @id @default(uuid())
+  packageId String
+  serviceId String
+  quantity  Int
+  createdAt DateTime @default(now())
+
+  package ServicePackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  service Service        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+
+  @@unique([packageId, serviceId])
+  @@index([serviceId])
+  @@map("package_items")
+}
+
+model Sale {
+  id            String     @id @default(uuid())
+  tenantId      String
+  branchId      String
+  customerId    String
+  status        SaleStatus @default(DRAFT)
+  subtotal      Decimal    @db.Decimal(10, 2)
+  discountTotal Decimal    @default(0) @db.Decimal(10, 2)
+  total         Decimal    @db.Decimal(10, 2)
+  confirmedAt   DateTime?
+  cancelledAt   DateTime?
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  tenant           Tenant            @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch           Branch            @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  items            SaleItem[]
+  customerPackages CustomerPackage[]
+
+  @@index([tenantId, branchId, createdAt])
+  @@index([tenantId, customerId])
+  @@index([tenantId, status])
+  @@map("sales")
+}
+
+model SaleItem {
+  id          String       @id @default(uuid())
+  saleId      String
+  type        SaleItemType
+  serviceId   String?
+  packageId   String?
+  description String
+  quantity    Int          @default(1)
+  unitPrice   Decimal      @db.Decimal(10, 2)
+  lineTotal   Decimal      @db.Decimal(10, 2)
+  createdAt   DateTime     @default(now())
+
+  sale    Sale            @relation(fields: [saleId], references: [id], onDelete: Cascade)
+  service Service?        @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  package ServicePackage? @relation(fields: [packageId], references: [id], onDelete: Restrict)
+
+  @@index([saleId])
+  @@map("sale_items")
+}
+
+model CustomerPackage {
+  id          String                @id @default(uuid())
+  tenantId    String
+  branchId    String
+  customerId  String
+  packageId   String
+  saleId      String
+  status      CustomerPackageStatus @default(ACTIVE)
+  purchasedAt DateTime              @default(now())
+  expiresAt   DateTime?
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  tenant   Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch   Branch         @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customer Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  package  ServicePackage @relation(fields: [packageId], references: [id], onDelete: Restrict)
+  sale     Sale           @relation(fields: [saleId], references: [id], onDelete: Restrict)
+  sessions Session[]
+
+  @@index([tenantId, customerId])
+  @@index([tenantId, status])
+  @@map("customer_packages")
+}
+
+model Session {
+  id                String        @id @default(uuid())
+  tenantId          String
+  branchId          String
+  customerPackageId String
+  serviceId         String
+  appointmentId     String?       @unique
+  status            SessionStatus @default(AVAILABLE)
+  consumedAt        DateTime?
+  createdAt         DateTime      @default(now())
+  updatedAt         DateTime      @updatedAt
+
+  tenant          Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch          Branch          @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  customerPackage CustomerPackage @relation(fields: [customerPackageId], references: [id], onDelete: Cascade)
+  service         Service         @relation(fields: [serviceId], references: [id], onDelete: Restrict)
+  appointment     Appointment?    @relation(fields: [appointmentId], references: [id], onDelete: SetNull)
+
+  @@index([tenantId, customerPackageId, status])
+  @@index([tenantId, serviceId, status])
+  @@map("sessions")
 }
 
 enum CustomerSource {
@@ -539,4 +685,29 @@ enum PaymentMethod {
 enum PaymentStatus {
   COMPLETED
   REFUNDED
+}
+
+enum SaleStatus {
+  DRAFT
+  CONFIRMED
+  CANCELLED
+}
+
+enum SaleItemType {
+  SERVICE
+  PACKAGE
+}
+
+enum CustomerPackageStatus {
+  ACTIVE
+  COMPLETED
+  EXPIRED
+  CANCELLED
+}
+
+enum SessionStatus {
+  AVAILABLE
+  RESERVED
+  CONSUMED
+  CANCELLED
 }
