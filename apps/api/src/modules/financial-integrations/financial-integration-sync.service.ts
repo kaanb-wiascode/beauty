@@ -6,6 +6,7 @@ import { IntegrationSecretVaultService } from './integration-secret-vault.servic
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
+import type { FinancialProviderAdapter, ProviderTokenSet } from './provider-adapter';
 
 interface IntegrationScope {
   tenantId: string;
@@ -30,6 +31,59 @@ export class FinancialIntegrationSyncService {
       companyId: this.tenant.getCompanyId(),
       branchId: this.tenant.getBranchId(),
     };
+  }
+
+  private async ensureFreshTokens(
+    integrationId: string,
+    adapter: FinancialProviderAdapter,
+    tokens: ProviderTokenSet,
+  ): Promise<ProviderTokenSet> {
+    const now = Date.now();
+    if (tokens.consentExpiresAt && tokens.consentExpiresAt.getTime() <= now) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE finance_integrations
+         SET status='ERROR',last_error='OPEN_BANKING_CONSENT_EXPIRED',updated_at=NOW()
+         WHERE id=$1::text`,
+        integrationId,
+      );
+      throw new BadRequestException('Open Banking consent has expired and must be renewed.');
+    }
+
+    const expiresSoon = tokens.expiresAt && tokens.expiresAt.getTime() <= now + 2 * 60 * 1000;
+    if (!expiresSoon) return tokens;
+    if (!tokens.refreshToken || !adapter.refreshTokens) {
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE finance_integrations
+         SET status='ERROR',last_error='OPEN_BANKING_TOKEN_REFRESH_REQUIRED',updated_at=NOW()
+         WHERE id=$1::text`,
+        integrationId,
+      );
+      throw new BadRequestException('Open Banking access token has expired and cannot be refreshed automatically.');
+    }
+
+    const refreshed = await adapter.refreshTokens(tokens);
+    if (!refreshed.accessToken) {
+      throw new BadRequestException('Open Banking provider returned an invalid refreshed token set.');
+    }
+    const merged: ProviderTokenSet = {
+      ...tokens,
+      ...refreshed,
+      refreshToken: refreshed.refreshToken ?? tokens.refreshToken,
+      externalConnectionId: refreshed.externalConnectionId ?? tokens.externalConnectionId,
+      consentExpiresAt: refreshed.consentExpiresAt ?? tokens.consentExpiresAt,
+      metadata: { ...(tokens.metadata ?? {}), ...(refreshed.metadata ?? {}) },
+    };
+    await this.vault.store(integrationId, merged);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE finance_integrations
+       SET external_connection_id=COALESCE($2,external_connection_id),
+           consent_expires_at=COALESCE($3,consent_expires_at),last_error=NULL,updated_at=NOW()
+       WHERE id=$1::text`,
+      integrationId,
+      merged.externalConnectionId ?? null,
+      merged.consentExpiresAt ?? null,
+    );
+    return merged;
   }
 
   async syncIntegration(integrationId: string) {
@@ -57,8 +111,11 @@ export class FinancialIntegrationSyncService {
       throw new BadRequestException('Only connected integrations can be synchronized.');
     }
     const adapter = this.providers.get(integration.kind, integration.provider);
-    const tokens = await this.vault.load(integrationId);
-    if (!tokens) throw new BadRequestException('Integration credentials are missing.');
+    const storedTokens = await this.vault.load(integrationId);
+    if (!storedTokens) throw new BadRequestException('Integration credentials are missing.');
+    const tokens = integration.kind === 'OPEN_BANKING'
+      ? await this.ensureFreshTokens(integrationId, adapter, storedTokens)
+      : storedTokens;
 
     const runId = randomUUID();
     await this.prisma.$executeRawUnsafe(
