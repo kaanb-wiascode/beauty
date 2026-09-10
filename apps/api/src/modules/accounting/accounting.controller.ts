@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
@@ -26,6 +26,14 @@ const createJournalEntrySchema = z.object({
   lines: z.array(journalLineSchema).min(2),
 });
 
+const reportFilterSchema = z.object({
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+}).refine(
+  (value) => !value.from || !value.to || value.from <= value.to,
+  { message: 'from must be before or equal to to' },
+);
+
 @Controller('accounting')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class AccountingController {
@@ -39,6 +47,27 @@ export class AccountingController {
   @Get('accounts')
   listAccounts() {
     return this.accountingService.listAccounts();
+  }
+
+  @Get('reports/trial-balance')
+  trialBalance(@Query() query: unknown) {
+    return this.accountingService.trialBalance(reportFilterSchema.parse(query));
+  }
+
+  @Get('reports/income-summary')
+  incomeSummary(@Query() query: unknown) {
+    return this.accountingService.incomeSummary(reportFilterSchema.parse(query));
+  }
+
+  @Get('reports/accounts/:accountId/ledger')
+  accountLedger(
+    @Param('accountId') accountId: string,
+    @Query() query: unknown,
+  ) {
+    return this.accountingService.accountLedger(
+      accountId,
+      reportFilterSchema.parse(query),
+    );
   }
 
   @Post('journal-entries')
