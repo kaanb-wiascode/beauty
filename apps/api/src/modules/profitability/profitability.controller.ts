@@ -6,10 +6,16 @@ import { ProfitabilityService } from './profitability.service';
 import { NetProfitabilityService } from './net-profitability.service';
 import { ProfitabilityConfigService } from './profitability-config.service';
 import { CostCenterService } from './cost-center.service';
+import { BudgetingService } from './budgeting.service';
 
 const filterSchema = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+});
+
+const requiredPeriodSchema = z.object({
+  from: z.coerce.date(),
+  to: z.coerce.date(),
 });
 
 const commissionSchema = z.object({
@@ -36,6 +42,16 @@ const assignExpenseSchema = z.object({
   costCenterId: z.string().uuid(),
 });
 
+const budgetSchema = z.object({
+  targetType: z.enum(['BRANCH', 'COST_CENTER']),
+  targetId: z.string().uuid(),
+  metricType: z.enum(['REVENUE', 'EXPENSE']),
+  periodStart: z.coerce.date(),
+  periodEnd: z.coerce.date(),
+  amount: z.coerce.number().min(0),
+  note: z.string().trim().max(500).optional(),
+});
+
 @Controller('profitability')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class ProfitabilityController {
@@ -44,6 +60,7 @@ export class ProfitabilityController {
     private readonly net: NetProfitabilityService,
     private readonly config: ProfitabilityConfigService,
     private readonly costCenters: CostCenterService,
+    private readonly budgeting: BudgetingService,
   ) {}
 
   @Get('summary')
@@ -106,6 +123,23 @@ export class ProfitabilityController {
   ) {
     const parsed = assignExpenseSchema.parse(body);
     return this.costCenters.assignExpenseLine(journalEntryLineId, parsed.costCenterId);
+  }
+
+  @Post('budgets')
+  upsertBudget(@Body() body: unknown) {
+    return this.budgeting.upsert(budgetSchema.parse(body));
+  }
+
+  @Get('budgets')
+  listBudgets(@Query() query: unknown) {
+    const parsed = filterSchema.parse(query);
+    return this.budgeting.list(parsed.from, parsed.to);
+  }
+
+  @Get('budgets/actual-vs-budget')
+  actualVsBudget(@Query() query: unknown) {
+    const parsed = requiredPeriodSchema.parse(query);
+    return this.budgeting.actualVsBudget(parsed.from, parsed.to);
   }
 
   @Get('net/summary')
