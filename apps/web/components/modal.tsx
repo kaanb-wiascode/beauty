@@ -64,10 +64,22 @@ export function Modal({ title, description, open, onClose, children }: { title: 
 
 export function Drawer(props: Parameters<typeof Modal>[0]) { return <Modal {...props} />; }
 
-export function ConfirmDialog({ open, title, description, confirmLabel = "Sil", loading, onConfirm, onClose }: { open: boolean; title: string; description: string; confirmLabel?: string; loading?: boolean; onConfirm: () => void; onClose: () => void }) {
-  return <Modal open={open} onClose={onClose} title={title} description={description}>
+type ConfirmDialogProps = {
+  open: boolean;
+  title: string;
+  description: string;
+  confirmLabel?: string;
+  loading?: boolean;
+  onConfirm: () => void;
+  onClose?: () => void;
+  onCancel?: () => void;
+};
+
+export function ConfirmDialog({ open, title, description, confirmLabel = "Sil", loading, onConfirm, onClose, onCancel }: ConfirmDialogProps) {
+  const handleClose = onClose ?? onCancel ?? (() => undefined);
+  return <Modal open={open} onClose={handleClose} title={title} description={description}>
     <div className="flex justify-end gap-3">
-      <Button variant="secondary" onClick={onClose} disabled={loading}>Vazgeç</Button>
+      <Button variant="secondary" onClick={handleClose} disabled={loading}>Vazgeç</Button>
       <Button variant="danger" disabled={loading} aria-busy={loading} onClick={onConfirm}>{loading ? "İşleniyor..." : confirmLabel}</Button>
     </div>
   </Modal>;
