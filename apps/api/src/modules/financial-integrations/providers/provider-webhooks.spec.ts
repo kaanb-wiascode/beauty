@@ -76,6 +76,13 @@ describe('financial provider webhook adapters', () => {
     expect(parsed).toEqual({
       externalEventId: 'ref-77',
       eventType: 'PAYMENT_SUCCESS',
+      correlation: {
+        providerTransactionId: '28157248',
+        merchantReference: 'SALE-77',
+        status: 'CAPTURED',
+        occurredAt: new Date(1766730778396),
+        requiresEnrichment: true,
+      },
     });
   });
 
