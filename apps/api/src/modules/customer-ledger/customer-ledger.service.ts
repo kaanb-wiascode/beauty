@@ -2,9 +2,9 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
-type LedgerEntryType = 'SALE' | 'PAYMENT' | 'REFUND';
+export type LedgerEntryType = 'SALE' | 'PAYMENT' | 'REFUND';
 
-interface LedgerEntry {
+export interface LedgerEntry {
   id: string;
   type: LedgerEntryType;
   occurredAt: Date;
@@ -110,9 +110,24 @@ export class CustomerLedgerService {
       return { ...entry, runningBalance };
     });
 
-    const totalSales = money(entries.reduce((sum, entry) => sum + (entry.type === 'SALE' ? entry.debit : 0), 0));
-    const grossPaid = money(entries.reduce((sum, entry) => sum + (entry.type === 'PAYMENT' ? entry.credit : 0), 0));
-    const totalRefunded = money(entries.reduce((sum, entry) => sum + (entry.type === 'REFUND' ? entry.debit : 0), 0));
+    const totalSales = money(
+      entries.reduce(
+        (sum, entry) => sum + (entry.type === 'SALE' ? entry.debit : 0),
+        0,
+      ),
+    );
+    const grossPaid = money(
+      entries.reduce(
+        (sum, entry) => sum + (entry.type === 'PAYMENT' ? entry.credit : 0),
+        0,
+      ),
+    );
+    const totalRefunded = money(
+      entries.reduce(
+        (sum, entry) => sum + (entry.type === 'REFUND' ? entry.debit : 0),
+        0,
+      ),
+    );
     const netPaid = money(grossPaid - totalRefunded);
     const balance = money(totalSales - netPaid);
 
