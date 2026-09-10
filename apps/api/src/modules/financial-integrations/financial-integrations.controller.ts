@@ -66,6 +66,11 @@ export class FinancialIntegrationsController {
     const parsed = autoMatchSchema.parse(body ?? {});
     return this.reconciliation.autoMatch(parsed.limit);
   }
+  @Post('bank-transactions/:bankTransactionId/ignore') ignoreBankTransaction(
+    @Param('bankTransactionId') bankTransactionId: string,
+  ) {
+    return this.reconciliation.ignoreBankTransaction(bankTransactionId);
+  }
   @Get('pos/settlements/:settlementId/reconciliation-suggestions') reconciliationSuggestions(
     @Param('settlementId') settlementId: string,
     @Query() query: unknown,
