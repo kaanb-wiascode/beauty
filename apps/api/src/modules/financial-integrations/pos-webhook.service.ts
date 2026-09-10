@@ -76,6 +76,7 @@ export class PosWebhookService {
     try {
       let posTransactionId: string | null = null;
       let linkageResult: unknown = null;
+      let correlationResult: unknown = null;
       let financialEventResult: unknown = null;
 
       if (event.transaction) {
@@ -130,6 +131,16 @@ export class PosWebhookService {
         }
       }
 
+      if (event.correlation) {
+        correlationResult = await this.paymentLinkage.correlateProviderReferenceInScope(
+          scope,
+          event.correlation.providerTransactionId,
+          event.correlation.merchantReference,
+        );
+        const correlated = correlationResult as { posTransactionId?: string } | null;
+        if (!posTransactionId && correlated?.posTransactionId) posTransactionId = correlated.posTransactionId;
+      }
+
       if (event.financialEvent) {
         if (event.transaction && event.transaction.externalTransactionId !== event.financialEvent.providerTransactionId) {
           throw new BadRequestException('Webhook transaction and financial event references do not match.');
@@ -164,7 +175,9 @@ export class PosWebhookService {
       const processingResult = {
         posTransactionId,
         linkage: linkageResult,
+        correlation: correlationResult,
         financialEvent: financialEventResult,
+        requiresEnrichment: Boolean(event.correlation?.requiresEnrichment && !posTransactionId),
       };
       await this.prisma.$executeRawUnsafe(
         `UPDATE pos_webhook_events
