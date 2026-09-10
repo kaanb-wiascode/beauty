@@ -159,22 +159,8 @@ export class AccountingService {
     input: CommerceAccountingContext,
   ) {
     const companyId = this.tenantContext.getCompanyId();
-    const receivable = await this.ensureSystemAccount(
-      tx,
-      input.tenantId,
-      companyId,
-      '120',
-      'Alıcılar',
-      'ASSET',
-    );
-    const revenue = await this.ensureSystemAccount(
-      tx,
-      input.tenantId,
-      companyId,
-      '600',
-      'Hizmet Gelirleri',
-      'REVENUE',
-    );
+    const receivable = await this.ensureSystemAccount(tx, input.tenantId, companyId, '120', 'Alıcılar', 'ASSET');
+    const revenue = await this.ensureSystemAccount(tx, input.tenantId, companyId, '600', 'Hizmet Gelirleri', 'REVENUE');
 
     return this.createAutomaticJournal(tx, {
       tenantId: input.tenantId,
@@ -198,14 +184,7 @@ export class AccountingService {
     input: CommerceAccountingContext,
   ) {
     const companyId = this.tenantContext.getCompanyId();
-    const receivable = await this.ensureSystemAccount(
-      tx,
-      input.tenantId,
-      companyId,
-      '120',
-      'Alıcılar',
-      'ASSET',
-    );
+    const receivable = await this.ensureSystemAccount(tx, input.tenantId, companyId, '120', 'Alıcılar', 'ASSET');
     const paymentAccountDefinition = method === 'CASH'
       ? { code: '100', name: 'Kasa' }
       : method === 'CARD'
@@ -242,14 +221,7 @@ export class AccountingService {
     input: CommerceAccountingContext,
   ) {
     const companyId = this.tenantContext.getCompanyId();
-    const receivable = await this.ensureSystemAccount(
-      tx,
-      input.tenantId,
-      companyId,
-      '120',
-      'Alıcılar',
-      'ASSET',
-    );
+    const receivable = await this.ensureSystemAccount(tx, input.tenantId, companyId, '120', 'Alıcılar', 'ASSET');
     const paymentAccountDefinition = method === 'CASH'
       ? { code: '100', name: 'Kasa' }
       : method === 'CARD'
@@ -284,9 +256,7 @@ export class AccountingService {
     const code = input.code.trim();
     const name = input.name.trim();
 
-    if (!code || !name) {
-      throw new BadRequestException('Account code and name are required.');
-    }
+    if (!code || !name) throw new BadRequestException('Account code and name are required.');
 
     if (input.parentId) {
       const parent = await this.prisma.chartOfAccount.findFirst({
@@ -296,21 +266,11 @@ export class AccountingService {
       if (!parent) throw new BadRequestException('Parent account is invalid.');
     }
 
-    const duplicate = await this.prisma.chartOfAccount.findFirst({
-      where: { companyId, code },
-      select: { id: true },
-    });
+    const duplicate = await this.prisma.chartOfAccount.findFirst({ where: { companyId, code }, select: { id: true } });
     if (duplicate) throw new BadRequestException('Account code already exists.');
 
     return this.prisma.chartOfAccount.create({
-      data: {
-        tenantId,
-        companyId,
-        code,
-        name,
-        type: input.type,
-        parentId: input.parentId ?? null,
-      },
+      data: { tenantId, companyId, code, name, type: input.type, parentId: input.parentId ?? null },
     });
   }
 
@@ -349,14 +309,12 @@ export class AccountingService {
       if (!branch) throw new BadRequestException('Branch context is invalid.');
     }
 
-    const number = this.journalNumber(input.entryDate);
-
     return this.prisma.journalEntry.create({
       data: {
         tenantId,
         companyId,
         branchId,
-        number,
+        number: this.journalNumber(input.entryDate),
         entryDate: input.entryDate,
         description: input.description.trim(),
         referenceType: input.referenceType?.trim() || null,
@@ -370,20 +328,14 @@ export class AccountingService {
           })),
         },
       },
-      include: {
-        lines: { include: { account: true } },
-      },
+      include: { lines: { include: { account: true } } },
     });
   }
 
   async listJournalEntries() {
     const { tenantId, companyId, branchId } = this.context();
     return this.prisma.journalEntry.findMany({
-      where: {
-        tenantId,
-        companyId,
-        ...(branchId ? { branchId } : {}),
-      },
+      where: { tenantId, companyId, ...(branchId ? { branchId } : {}) },
       orderBy: [{ entryDate: 'desc' }, { createdAt: 'desc' }],
       include: { lines: { include: { account: true } }, branch: true },
     });
@@ -392,12 +344,7 @@ export class AccountingService {
   async getJournalEntry(id: string) {
     const { tenantId, companyId, branchId } = this.context();
     const entry = await this.prisma.journalEntry.findFirst({
-      where: {
-        id,
-        tenantId,
-        companyId,
-        ...(branchId ? { branchId } : {}),
-      },
+      where: { id, tenantId, companyId, ...(branchId ? { branchId } : {}) },
       include: { lines: { include: { account: true } }, branch: true },
     });
     if (!entry) throw new NotFoundException('Journal entry not found.');
@@ -409,24 +356,14 @@ export class AccountingService {
 
     return this.prisma.$transaction(async (tx) => {
       const entry = await tx.journalEntry.findFirst({
-        where: {
-          id,
-          tenantId,
-          companyId,
-          ...(branchId ? { branchId } : {}),
-        },
+        where: { id, tenantId, companyId, ...(branchId ? { branchId } : {}) },
         include: { lines: true },
       });
       if (!entry) throw new NotFoundException('Journal entry not found.');
-      if (entry.status !== 'DRAFT') {
-        throw new BadRequestException('Only draft journal entries can be posted.');
-      }
+      if (entry.status !== 'DRAFT') throw new BadRequestException('Only draft journal entries can be posted.');
 
       try {
-        validateJournalLines(entry.lines.map((line) => ({
-          debit: Number(line.debit),
-          credit: Number(line.credit),
-        })));
+        validateJournalLines(entry.lines.map((line) => ({ debit: Number(line.debit), credit: Number(line.credit) })));
       } catch (error) {
         throw new BadRequestException(error instanceof Error ? error.message : 'Invalid journal entry.');
       }
@@ -435,9 +372,7 @@ export class AccountingService {
         where: { id: entry.id, status: 'DRAFT' },
         data: { status: 'POSTED', postedAt: new Date() },
       });
-      if (posted.count !== 1) {
-        throw new BadRequestException('Journal entry is no longer in a postable state.');
-      }
+      if (posted.count !== 1) throw new BadRequestException('Journal entry is no longer in a postable state.');
 
       return tx.journalEntry.findUnique({
         where: { id: entry.id },
@@ -452,7 +387,7 @@ export class AccountingService {
       where: { tenantId, companyId },
       orderBy: { code: 'asc' },
       include: {
-        journalLines: {
+        lines: {
           where: {
             journalEntry: {
               status: 'POSTED',
@@ -468,8 +403,8 @@ export class AccountingService {
     });
 
     const rows = accounts.map((account) => {
-      const debit = account.journalLines.reduce((sum, line) => sum + Number(line.debit), 0);
-      const credit = account.journalLines.reduce((sum, line) => sum + Number(line.credit), 0);
+      const debit = account.lines.reduce((sum, line) => sum + Number(line.debit), 0);
+      const credit = account.lines.reduce((sum, line) => sum + Number(line.credit), 0);
       const net = Math.round((debit - credit + Number.EPSILON) * 100) / 100;
       return {
         accountId: account.id,
@@ -515,10 +450,7 @@ export class AccountingService {
           ...this.reportDateWhere(filter),
         },
       },
-      orderBy: [
-        { journalEntry: { entryDate: 'asc' } },
-        { createdAt: 'asc' },
-      ],
+      orderBy: [{ journalEntry: { entryDate: 'asc' } }, { createdAt: 'asc' }],
       include: {
         journalEntry: {
           select: {
@@ -570,14 +502,10 @@ export class AccountingService {
   async incomeSummary(filter: AccountingReportFilter) {
     const { tenantId, companyId, branchId } = this.context();
     const accounts = await this.prisma.chartOfAccount.findMany({
-      where: {
-        tenantId,
-        companyId,
-        type: { in: ['REVENUE', 'EXPENSE'] },
-      },
+      where: { tenantId, companyId, type: { in: ['REVENUE', 'EXPENSE'] } },
       orderBy: { code: 'asc' },
       include: {
-        journalLines: {
+        lines: {
           where: {
             journalEntry: {
               status: 'POSTED',
@@ -593,8 +521,8 @@ export class AccountingService {
     });
 
     const rows = accounts.map((account) => {
-      const debit = account.journalLines.reduce((sum, line) => sum + Number(line.debit), 0);
-      const credit = account.journalLines.reduce((sum, line) => sum + Number(line.credit), 0);
+      const debit = account.lines.reduce((sum, line) => sum + Number(line.debit), 0);
+      const credit = account.lines.reduce((sum, line) => sum + Number(line.credit), 0);
       const amount = account.type === 'REVENUE' ? credit - debit : debit - credit;
       return {
         accountId: account.id,
@@ -605,12 +533,8 @@ export class AccountingService {
       };
     }).filter((row) => row.amount !== 0);
 
-    const revenue = rows
-      .filter((row) => row.type === 'REVENUE')
-      .reduce((sum, row) => sum + row.amount, 0);
-    const expense = rows
-      .filter((row) => row.type === 'EXPENSE')
-      .reduce((sum, row) => sum + row.amount, 0);
+    const revenue = rows.filter((row) => row.type === 'REVENUE').reduce((sum, row) => sum + row.amount, 0);
+    const expense = rows.filter((row) => row.type === 'EXPENSE').reduce((sum, row) => sum + row.amount, 0);
 
     return {
       filter,
