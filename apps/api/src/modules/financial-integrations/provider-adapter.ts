@@ -40,6 +40,18 @@ export interface ProviderBankTransaction {
   counterpartyIbanMasked?: string;
 }
 
+export interface ProviderBankPageRequest {
+  since?: Date;
+  pageCursor?: string;
+  syncCursor?: string;
+}
+
+export interface ProviderBankPage<T> {
+  items: T[];
+  nextPageCursor?: string;
+  nextSyncCursor?: string;
+}
+
 export interface ProviderPosTransaction {
   externalTransactionId: string;
   merchantId?: string;
@@ -136,6 +148,7 @@ export interface ProviderCapabilities {
   accounts?: boolean;
   balances?: boolean;
   bankTransactions?: boolean;
+  pagedBankSync?: boolean;
   posTransactions?: boolean;
   posTransactionEnrichment?: boolean;
   posRefunds?: boolean;
@@ -162,7 +175,15 @@ export interface FinancialProviderAdapter {
   revoke?(tokens: ProviderTokenSet): Promise<void>;
 
   listBankAccounts?(tokens: ProviderTokenSet): Promise<ProviderBankAccount[]>;
+  listBankAccountPage?(
+    tokens: ProviderTokenSet,
+    request: ProviderBankPageRequest,
+  ): Promise<ProviderBankPage<ProviderBankAccount>>;
   listBankTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderBankTransaction[]>;
+  listBankTransactionPage?(
+    tokens: ProviderTokenSet,
+    request: ProviderBankPageRequest,
+  ): Promise<ProviderBankPage<ProviderBankTransaction>>;
   listPosTransactions?(tokens: ProviderTokenSet, since?: Date): Promise<ProviderPosTransaction[]>;
   retrievePosTransaction?(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction>;
   refundPosTransaction?(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult>;
