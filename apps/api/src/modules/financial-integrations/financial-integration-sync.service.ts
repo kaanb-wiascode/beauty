@@ -44,7 +44,6 @@ export class FinancialIntegrationSyncService {
         }
         const accounts = await adapter.listBankAccounts(tokens);
         for (const account of accounts) {
-          const accountId = randomUUID();
           await this.prisma.$executeRawUnsafe(
             `INSERT INTO bank_accounts(
                id,tenant_id,company_id,branch_id,integration_id,external_account_id,bank_name,account_name,
@@ -55,7 +54,7 @@ export class FinancialIntegrationSyncService {
                currency=EXCLUDED.currency,current_balance=EXCLUDED.current_balance,
                available_balance=EXCLUDED.available_balance,balance_as_of=EXCLUDED.balance_as_of,
                active=TRUE,updated_at=NOW()`,
-            accountId,
+            randomUUID(),
             integration.tenantId,
             integration.companyId,
             integration.branchId,
@@ -85,7 +84,7 @@ export class FinancialIntegrationSyncService {
               transaction.externalAccountId,
             );
             if (!accountRows.length) continue;
-            await this.prisma.$executeRawUnsafe(
+            const inserted = await this.prisma.$executeRawUnsafe(
               `INSERT INTO bank_transactions(
                  id,tenant_id,company_id,branch_id,bank_account_id,external_transaction_id,booked_at,value_at,
                  amount,currency,description,counterparty_name,counterparty_iban_masked
@@ -105,7 +104,7 @@ export class FinancialIntegrationSyncService {
               transaction.counterpartyName ?? null,
               transaction.counterpartyIbanMasked ?? null,
             );
-            records += 1;
+            records += inserted;
           }
         }
       }
@@ -181,7 +180,7 @@ export class FinancialIntegrationSyncService {
       const message = error instanceof Error ? error.message : 'Unknown integration sync error';
       await this.prisma.$transaction([
         this.prisma.$executeRawUnsafe(
-          `UPDATE finance_integrations SET status='ERROR',last_error=$2,updated_at=NOW() WHERE id=$1::text`,
+          `UPDATE finance_integrations SET last_error=$2,updated_at=NOW() WHERE id=$1::text`,
           integrationId,
           message.slice(0, 1000),
         ),
