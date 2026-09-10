@@ -8,6 +8,7 @@ import { ProfitabilityConfigService } from './profitability-config.service';
 import { CostCenterService } from './cost-center.service';
 import { BudgetingService } from './budgeting.service';
 import { CashFlowForecastService } from './cash-flow-forecast.service';
+import { TreasuryRiskService } from './treasury-risk.service';
 
 const filterSchema = z.object({
   from: z.coerce.date().optional(),
@@ -43,6 +44,19 @@ const cashFlowComparisonSchema = z.object({
   start: z.coerce.date().optional(),
 });
 
+const treasuryDateSchema = z.object({
+  asOf: z.coerce.date().optional(),
+});
+
+const treasuryAlertSchema = z.object({
+  start: z.coerce.date().optional(),
+});
+
+const treasurySettingsSchema = z.object({
+  minimumLiquidity: z.coerce.number().min(0),
+  warningBufferPercent: z.coerce.number().min(0).max(100).optional(),
+});
+
 const commissionSchema = z.object({
   rate: z.coerce.number().min(0).max(100),
 });
@@ -57,10 +71,14 @@ const createCostCenterSchema = z.object({
 });
 
 const allocationSchema = z.object({
-  allocations: z.array(z.object({
-    branchId: z.string().uuid(),
-    percent: z.coerce.number().positive().max(100),
-  })).min(1),
+  allocations: z
+    .array(
+      z.object({
+        branchId: z.string().uuid(),
+        percent: z.coerce.number().positive().max(100),
+      }),
+    )
+    .min(1),
 });
 
 const assignExpenseSchema = z.object({
@@ -87,6 +105,7 @@ export class ProfitabilityController {
     private readonly costCenters: CostCenterService,
     private readonly budgeting: BudgetingService,
     private readonly cashFlow: CashFlowForecastService,
+    private readonly treasuryRisk: TreasuryRiskService,
   ) {}
 
   @Get('summary')
@@ -148,7 +167,10 @@ export class ProfitabilityController {
     @Body() body: unknown,
   ) {
     const parsed = assignExpenseSchema.parse(body);
-    return this.costCenters.assignExpenseLine(journalEntryLineId, parsed.costCenterId);
+    return this.costCenters.assignExpenseLine(
+      journalEntryLineId,
+      parsed.costCenterId,
+    );
   }
 
   @Post('budgets')
@@ -189,13 +211,46 @@ export class ProfitabilityController {
   @Get('cash-flow/13-week')
   cashFlowThirteenWeek(@Query() query: unknown) {
     const parsed = cashFlowSchema.parse(query);
-    return this.cashFlow.thirteenWeek(parsed.start ?? new Date(), parsed.scenario);
+    return this.cashFlow.thirteenWeek(
+      parsed.start ?? new Date(),
+      parsed.scenario,
+    );
   }
 
   @Get('cash-flow/scenarios')
   cashFlowScenarios(@Query() query: unknown) {
     const parsed = cashFlowComparisonSchema.parse(query);
     return this.cashFlow.scenarioComparison(parsed.start ?? new Date());
+  }
+
+  @Post('treasury/settings')
+  setTreasurySettings(@Body() body: unknown) {
+    return this.treasuryRisk.setSettings(treasurySettingsSchema.parse(body));
+  }
+
+  @Get('treasury/settings')
+  getTreasurySettings() {
+    return this.treasuryRisk.getSettings();
+  }
+
+  @Get('treasury/alerts')
+  treasuryAlerts(@Query() query: unknown) {
+    const parsed = treasuryAlertSchema.parse(query);
+    return this.treasuryRisk.liquidityAlerts(parsed.start ?? new Date());
+  }
+
+  @Get('treasury/receivables/stress')
+  overdueReceivableStress(@Query() query: unknown) {
+    const parsed = treasuryDateSchema.parse(query);
+    return this.treasuryRisk.overdueReceivableStress(
+      parsed.asOf ?? new Date(),
+    );
+  }
+
+  @Get('treasury/payments/priorities')
+  paymentPriorities(@Query() query: unknown) {
+    const parsed = treasuryDateSchema.parse(query);
+    return this.treasuryRisk.paymentPriorities(parsed.asOf ?? new Date());
   }
 
   @Get('net/summary')
