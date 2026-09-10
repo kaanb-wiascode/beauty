@@ -6,11 +6,13 @@ import { PosWebhookService } from './pos-webhook.service';
 
 const MAX_RETRY_COUNT = 8;
 const MAX_BACKOFF_MINUTES = 6 * 60;
+const STALE_CLAIM_MINUTES = 10;
 
 type QueueRow = {
   id: string;
   retryCount: number;
   status: string;
+  claimToken: string;
 };
 
 @Injectable()
@@ -60,17 +62,20 @@ export class PosWebhookQueueService {
            replay_requested_at=NOW(),claimed_at=NULL,claim_token=NULL
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          AND ($4::text IS NULL OR branch_id=$4::text)
+         AND status<>'PROCESSING'
        RETURNING id`,
       eventId,
       ctx.tenantId,
       ctx.companyId,
       ctx.branchId,
     );
-    if (!rows.length) throw new NotFoundException('POS webhook event not found.');
+    if (!rows.length) throw new NotFoundException('POS webhook event not found or currently processing.');
     return { eventId, queued: true };
   }
 
   async processDue(limit = 25) {
+    await this.recoverStaleClaims();
+
     const claimToken = randomUUID();
     const claimed = await this.prisma.$queryRawUnsafe<QueueRow[]>(
       `WITH candidates AS (
@@ -87,7 +92,7 @@ export class PosWebhookQueueService {
        SET status='PROCESSING',claimed_at=NOW(),claim_token=$2,last_attempt_at=NOW()
        FROM candidates c
        WHERE e.id=c.id
-       RETURNING e.id,e.retry_count AS "retryCount",e.status`,
+       RETURNING e.id,e.retry_count AS "retryCount",e.status,e.claim_token AS "claimToken"`,
       limit,
       claimToken,
     );
@@ -97,25 +102,60 @@ export class PosWebhookQueueService {
       try {
         const result = await this.webhooks.replayStored(row.id);
         if (result.requiresEnrichment) {
-          const status = await this.reschedule(row.id, row.retryCount, 'ENRICHMENT_PENDING');
+          const status = await this.reschedule(
+            row.id,
+            row.retryCount,
+            'ENRICHMENT_PENDING',
+            undefined,
+            row.claimToken,
+          );
           results.push({ eventId: row.id, ok: status !== 'DEAD_LETTER', status });
         } else {
+          await this.releaseClaim(row.id, row.claimToken);
           results.push({ eventId: row.id, ok: true, status: 'PROCESSED' });
         }
       } catch (error) {
         const message = error instanceof Error ? error.message : 'Unknown webhook retry error';
-        const status = await this.reschedule(row.id, row.retryCount, 'RETRY_PENDING', message);
+        const status = await this.reschedule(
+          row.id,
+          row.retryCount,
+          'RETRY_PENDING',
+          message,
+          row.claimToken,
+        );
         results.push({ eventId: row.id, ok: false, status });
       }
     }
     return results;
   }
 
+  private async recoverStaleClaims() {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE pos_webhook_events
+       SET status='RETRY_PENDING',next_retry_at=NOW(),claimed_at=NULL,claim_token=NULL,
+           error_message=COALESCE(error_message,'Recovered stale webhook processing claim.')
+       WHERE status='PROCESSING'
+         AND claimed_at IS NOT NULL
+         AND claimed_at < NOW()-INTERVAL '${STALE_CLAIM_MINUTES} minutes'`,
+    );
+  }
+
+  private async releaseClaim(eventId: string, claimToken: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE pos_webhook_events
+       SET claimed_at=NULL,claim_token=NULL
+       WHERE id=$1::text AND status='PROCESSED' AND claim_token=$2`,
+      eventId,
+      claimToken,
+    );
+  }
+
   private async reschedule(
     eventId: string,
     previousRetryCount: number,
     pendingStatus: 'RETRY_PENDING' | 'ENRICHMENT_PENDING',
-    errorMessage?: string,
+    errorMessage: string | undefined,
+    claimToken: string,
   ) {
     const retryCount = previousRetryCount + 1;
     if (retryCount >= MAX_RETRY_COUNT) {
@@ -123,10 +163,11 @@ export class PosWebhookQueueService {
         `UPDATE pos_webhook_events
          SET status='DEAD_LETTER',retry_count=$2,next_retry_at=NULL,dead_letter_at=NOW(),
              error_message=COALESCE($3,error_message),claimed_at=NULL,claim_token=NULL
-         WHERE id=$1::text`,
+         WHERE id=$1::text AND status='PROCESSING' AND claim_token=$4`,
         eventId,
         retryCount,
         errorMessage?.slice(0, 1000) ?? null,
+        claimToken,
       );
       return 'DEAD_LETTER';
     }
@@ -136,12 +177,13 @@ export class PosWebhookQueueService {
       `UPDATE pos_webhook_events
        SET status=$2,retry_count=$3,next_retry_at=NOW()+($4::text||' minutes')::interval,
            error_message=COALESCE($5,error_message),claimed_at=NULL,claim_token=NULL
-       WHERE id=$1::text`,
+       WHERE id=$1::text AND status='PROCESSING' AND claim_token=$6`,
       eventId,
       pendingStatus,
       retryCount,
       delayMinutes,
       errorMessage?.slice(0, 1000) ?? null,
+      claimToken,
     );
     return pendingStatus;
   }
