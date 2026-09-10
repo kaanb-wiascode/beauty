@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
 
@@ -13,6 +13,17 @@ interface CreateSaleInput {
   }>;
 }
 
+interface AddSalePaymentInput {
+  amount: number;
+  method: 'CASH' | 'CARD' | 'TRANSFER';
+  reference?: string;
+  note?: string;
+}
+
+interface RefundSalePaymentInput {
+  reason: string;
+}
+
 @Injectable()
 export class SalesService {
   constructor(
@@ -24,6 +35,32 @@ export class SalesService {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
     return branchId;
+  }
+
+  private async paymentSummary(saleId: string, tenantId: string, branchId: string) {
+    const sale = await this.prisma.sale.findFirst({
+      where: { id: saleId, tenantId, branchId },
+      select: { id: true, total: true, status: true },
+    });
+    if (!sale) throw new NotFoundException('Sale not found');
+
+    const aggregate = await this.prisma.salePayment.aggregate({
+      where: { saleId, tenantId, branchId, status: 'COMPLETED' },
+      _sum: { amount: true },
+    });
+
+    const total = Number(sale.total);
+    const paid = Number(aggregate._sum.amount ?? 0);
+    const balance = Math.max(0, Math.round((total - paid + Number.EPSILON) * 100) / 100);
+
+    return {
+      saleId: sale.id,
+      saleStatus: sale.status,
+      total,
+      paid,
+      balance,
+      paymentStatus: paid <= 0 ? 'UNPAID' : balance > 0 ? 'PARTIALLY_PAID' : 'PAID',
+    };
   }
 
   async create(input: CreateSaleInput) {
@@ -94,7 +131,7 @@ export class SalesService {
     const branchId = this.requireBranchId();
     return this.prisma.sale.findMany({
       where: { tenantId, branchId },
-      include: { customer: true, items: true, customerPackages: true },
+      include: { customer: true, items: true, customerPackages: true, payments: true },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -107,11 +144,106 @@ export class SalesService {
       include: {
         customer: true,
         items: true,
+        payments: { orderBy: { paidAt: 'desc' } },
         customerPackages: { include: { sessions: true, package: true } },
       },
     });
     if (!sale) throw new NotFoundException('Sale not found');
     return sale;
+  }
+
+  async getPaymentSummary(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+    return this.paymentSummary(id, tenantId, branchId);
+  }
+
+  async addPayment(id: string, input: AddSalePaymentInput) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new BadRequestException('Payment amount must be greater than zero.');
+    }
+
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({
+        where: { id, tenantId, branchId },
+        select: { id: true, total: true, status: true },
+      });
+      if (!sale) throw new NotFoundException('Sale not found');
+      if (sale.status !== 'CONFIRMED') {
+        throw new BadRequestException('Payments can only be recorded for confirmed sales.');
+      }
+
+      const aggregate = await tx.salePayment.aggregate({
+        where: { saleId: sale.id, tenantId, branchId, status: 'COMPLETED' },
+        _sum: { amount: true },
+      });
+
+      const paid = Number(aggregate._sum.amount ?? 0);
+      const total = Number(sale.total);
+      const remaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
+      const amount = Math.round((input.amount + Number.EPSILON) * 100) / 100;
+
+      if (remaining <= 0) {
+        throw new BadRequestException('Sale is already fully paid.');
+      }
+      if (amount > remaining) {
+        throw new BadRequestException(`Payment exceeds remaining balance of ${remaining.toFixed(2)}.`);
+      }
+
+      return tx.salePayment.create({
+        data: {
+          tenantId,
+          branchId,
+          saleId: sale.id,
+          amount,
+          method: input.method,
+          reference: input.reference?.trim() || null,
+          note: input.note?.trim() || null,
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    return {
+      payment,
+      summary: await this.paymentSummary(id, tenantId, branchId),
+    };
+  }
+
+  async refundPayment(saleId: string, paymentId: string, input: RefundSalePaymentInput) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('Refund reason is required.');
+
+    const payment = await this.prisma.$transaction(async (tx) => {
+      const sale = await tx.sale.findFirst({ where: { id: saleId, tenantId, branchId }, select: { id: true } });
+      if (!sale) throw new NotFoundException('Sale not found');
+
+      const existing = await tx.salePayment.findFirst({
+        where: { id: paymentId, saleId, tenantId, branchId },
+      });
+      if (!existing) throw new NotFoundException('Sale payment not found');
+      if (existing.status !== 'COMPLETED') {
+        throw new BadRequestException('Only completed payments can be refunded.');
+      }
+
+      return tx.salePayment.update({
+        where: { id: existing.id },
+        data: {
+          status: 'REFUNDED',
+          refundedAt: new Date(),
+          refundReason: reason,
+        },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+
+    return {
+      payment,
+      summary: await this.paymentSummary(saleId, tenantId, branchId),
+    };
   }
 
   async confirm(id: string) {
@@ -174,6 +306,7 @@ export class SalesService {
         where: { id: sale.id },
         include: {
           items: true,
+          payments: true,
           customerPackages: { include: { package: true, sessions: true } },
         },
       });
