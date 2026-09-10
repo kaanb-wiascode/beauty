@@ -15,6 +15,10 @@ interface ReceivePurchaseOrderInput {
   note?: string;
 }
 
+interface ReverseGoodsReceiptInput {
+  reason: string;
+}
+
 @Injectable()
 export class ProcurementService {
   constructor(
@@ -70,7 +74,7 @@ export class ProcurementService {
     const updated = await this.prisma.$executeRawUnsafe(
       `UPDATE inventory_purchase_orders
        SET status='ORDERED',ordered_at=COALESCE(ordered_at,NOW()),updated_at=NOW()
-       WHERE id=$1::text AND company_id=$2::text AND status IN ('DRAFT','PENDING','APPROVED')`,
+       WHERE id=$1::text AND company_id=$2::text AND status='APPROVED'`,
       id,
       companyId,
     );
@@ -81,7 +85,7 @@ export class ProcurementService {
         companyId,
       );
       if (!rows.length) throw new NotFoundException('Purchase order not found');
-      throw new BadRequestException(`Purchase order cannot be ordered from status ${rows[0].status}.`);
+      throw new BadRequestException(`Purchase order cannot be ordered from status ${rows[0].status}. Approval must be completed first.`);
     }
     return { id, status: 'ORDERED' };
   }
@@ -142,6 +146,9 @@ export class ProcurementService {
           receiptTotal += quantity * Number(item.unitCost);
         }
         receiptTotal = this.roundMoney(receiptTotal);
+        if (receiptTotal <= 0) {
+          throw new BadRequestException('Goods receipt total must be greater than zero. Check purchase order unit costs.');
+        }
 
         const receiptId = randomUUID();
         await tx.$executeRawUnsafe(
@@ -251,22 +258,8 @@ export class ProcurementService {
           billId,
         );
 
-        const inventoryAccount = await this.ensureAccount(
-          tx,
-          tenantId,
-          companyId,
-          '150',
-          'İlk Madde ve Malzeme',
-          'ASSET',
-        );
-        const payableAccount = await this.ensureAccount(
-          tx,
-          tenantId,
-          companyId,
-          '320',
-          'Satıcılar',
-          'LIABILITY',
-        );
+        const inventoryAccount = await this.ensureAccount(tx, tenantId, companyId, '150', 'İlk Madde ve Malzeme', 'ASSET');
+        const payableAccount = await this.ensureAccount(tx, tenantId, companyId, '320', 'Satıcılar', 'LIABILITY');
         const now = new Date();
         await tx.journalEntry.create({
           data: {
@@ -280,12 +273,10 @@ export class ProcurementService {
             referenceType: 'GOODS_RECEIPT',
             referenceId: receiptId,
             postedAt: now,
-            lines: {
-              create: [
-                { accountId: inventoryAccount.id, debit: receiptTotal, credit: 0 },
-                { accountId: payableAccount.id, debit: 0, credit: receiptTotal },
-              ],
-            },
+            lines: { create: [
+              { accountId: inventoryAccount.id, debit: receiptTotal, credit: 0 },
+              { accountId: payableAccount.id, debit: 0, credit: receiptTotal },
+            ] },
           },
         });
 
@@ -301,11 +292,162 @@ export class ProcurementService {
     );
   }
 
+  async reverseGoodsReceipt(receiptId: string, input: ReverseGoodsReceiptInput) {
+    const { tenantId, companyId } = this.context();
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('Return reason is required.');
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const receipts = await tx.$queryRawUnsafe<any[]>(
+          `SELECT gr.id,gr.purchase_order_id AS "purchaseOrderId",gr.supplier_bill_id AS "supplierBillId",
+                  gr.branch_id AS "branchId",gr.reversed_at AS "reversedAt",po.warehouse_id AS "warehouseId"
+           FROM inventory_goods_receipts gr
+           JOIN inventory_purchase_orders po ON po.id=gr.purchase_order_id
+           WHERE gr.id=$1::text AND gr.company_id=$2::text
+           FOR UPDATE`,
+          receiptId,
+          companyId,
+        );
+        if (!receipts.length) throw new NotFoundException('Goods receipt not found');
+        const receipt = receipts[0];
+        if (receipt.reversedAt) throw new BadRequestException('Goods receipt is already reversed.');
+        if (!receipt.supplierBillId) throw new BadRequestException('Goods receipt has no supplier bill to reverse.');
+
+        const billRows = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,status,amount,
+                  COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=sb.id),0)::numeric AS paid
+           FROM supplier_bills sb WHERE sb.id=$1::text AND sb.company_id=$2::text FOR UPDATE`,
+          receipt.supplierBillId,
+          companyId,
+        );
+        const bill = billRows[0];
+        if (!bill) throw new BadRequestException('Linked supplier bill not found.');
+        if (bill.status === 'CANCELLED') throw new BadRequestException('Linked supplier bill is already cancelled.');
+        if (Number(bill.paid) !== 0) {
+          throw new BadRequestException('Paid goods receipts cannot be reversed until supplier payments are reversed.');
+        }
+
+        const items = await tx.$queryRawUnsafe<any[]>(
+          `SELECT gri.purchase_order_item_id AS "purchaseOrderItemId",gri.product_id AS "productId",
+                  gri.quantity,gri.unit_cost AS "unitCost"
+           FROM inventory_goods_receipt_items gri
+           WHERE gri.goods_receipt_id=$1::text
+           ORDER BY gri.id
+           FOR UPDATE`,
+          receiptId,
+        );
+        if (!items.length) throw new BadRequestException('Goods receipt has no items.');
+
+        const total = this.roundMoney(items.reduce((sum, item) => sum + Number(item.quantity) * Number(item.unitCost), 0));
+        if (total <= 0) throw new BadRequestException('Goods receipt reversal total must be greater than zero.');
+
+        for (const item of items) {
+          const stockRows = await tx.$queryRawUnsafe<any[]>(
+            `SELECT id,quantity FROM inventory_stock
+             WHERE product_id=$1::text AND warehouse_id=$2::text FOR UPDATE`,
+            item.productId,
+            receipt.warehouseId,
+          );
+          if (!stockRows.length || Number(stockRows[0].quantity) < Number(item.quantity)) {
+            throw new BadRequestException(`Insufficient stock to return product ${item.productId}.`);
+          }
+        }
+
+        await tx.$executeRawUnsafe(
+          `UPDATE inventory_goods_receipts
+           SET reversed_at=NOW(),reversal_reason=$2
+           WHERE id=$1::text AND reversed_at IS NULL`,
+          receiptId,
+          reason,
+        );
+
+        for (const item of items) {
+          await tx.$executeRawUnsafe(
+            `UPDATE inventory_stock
+             SET quantity=quantity-$3,updated_at=NOW()
+             WHERE product_id=$1::text AND warehouse_id=$2::text`,
+            item.productId,
+            receipt.warehouseId,
+            Number(item.quantity),
+          );
+          await tx.$executeRawUnsafe(
+            `INSERT INTO inventory_movements(
+               tenant_id,company_id,product_id,warehouse_id,type,quantity,unit_cost,reference_type,reference_id,note
+             ) VALUES($1::text,$2::text,$3::text,$4::text,'RETURN',$5,$6,'GOODS_RECEIPT_REVERSAL',$7::text,$8)`,
+            tenantId,
+            companyId,
+            item.productId,
+            receipt.warehouseId,
+            Number(item.quantity),
+            Number(item.unitCost),
+            receiptId,
+            reason,
+          );
+          await tx.$executeRawUnsafe(
+            `UPDATE inventory_purchase_order_items
+             SET received_quantity=GREATEST(received_quantity-$2,0)
+             WHERE id=$1::text`,
+            item.purchaseOrderItemId,
+            Number(item.quantity),
+          );
+        }
+
+        await tx.$executeRawUnsafe(
+          `UPDATE supplier_bills
+           SET status='CANCELLED',cancelled_at=NOW(),cancel_reason=$2,updated_at=NOW()
+           WHERE id=$1::text AND status<>'CANCELLED'`,
+          receipt.supplierBillId,
+          `Mal kabul iadesi: ${reason}`,
+        );
+
+        await tx.$executeRawUnsafe(
+          `UPDATE inventory_purchase_orders
+           SET status='ORDERED',received_at=NULL,updated_at=NOW()
+           WHERE id=$1::text AND status='RECEIVED'`,
+          receipt.purchaseOrderId,
+        );
+
+        const inventoryAccount = await this.ensureAccount(tx, tenantId, companyId, '150', 'İlk Madde ve Malzeme', 'ASSET');
+        const payableAccount = await this.ensureAccount(tx, tenantId, companyId, '320', 'Satıcılar', 'LIABILITY');
+        const now = new Date();
+        await tx.journalEntry.create({
+          data: {
+            tenantId,
+            companyId,
+            branchId: receipt.branchId,
+            number: this.journalNumber(now),
+            status: 'POSTED',
+            entryDate: now,
+            description: `Mal kabul iadesi ${receiptId}`,
+            referenceType: 'GOODS_RECEIPT_REVERSAL',
+            referenceId: receiptId,
+            postedAt: now,
+            lines: { create: [
+              { accountId: payableAccount.id, debit: total, credit: 0 },
+              { accountId: inventoryAccount.id, debit: 0, credit: total },
+            ] },
+          },
+        });
+
+        return {
+          receiptId,
+          purchaseOrderId: receipt.purchaseOrderId,
+          supplierBillId: receipt.supplierBillId,
+          reversedTotal: total,
+          status: 'REVERSED',
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
   async listGoodsReceipts(purchaseOrderId?: string) {
     const { companyId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT gr.id,gr.purchase_order_id AS "purchaseOrderId",gr.supplier_bill_id AS "supplierBillId",
-              gr.branch_id AS "branchId",gr.received_at AS "receivedAt",gr.note,
+              gr.branch_id AS "branchId",gr.received_at AS "receivedAt",gr.reversed_at AS "reversedAt",
+              gr.reversal_reason AS "reversalReason",gr.note,
               COALESCE(SUM(i.quantity*i.unit_cost),0)::numeric AS total,
               COUNT(i.id)::int AS "itemCount"
        FROM inventory_goods_receipts gr
