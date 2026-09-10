@@ -2,6 +2,8 @@ import { createHmac, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import type {
   FinancialProviderAdapter,
+  ProviderPosRefundRequest,
+  ProviderPosRefundResult,
   ProviderPosTransaction,
   ProviderPosTransactionLookup,
   ProviderWebhookEvent,
@@ -9,6 +11,7 @@ import type {
 } from '../provider-adapter';
 
 const STATUS_QUERY_URL = 'https://www.paytr.com/odeme/durum-sorgu';
+const REFUND_URL = 'https://www.paytr.com/odeme/iade';
 
 function payloadRecord(payload: unknown): Record<string, unknown> {
   if (!payload || typeof payload !== 'object' || Array.isArray(payload)) {
@@ -75,9 +78,80 @@ export class PaytrAdapter implements FinancialProviderAdapter {
     apiCredentials: true,
     posTransactions: true,
     posTransactionEnrichment: true,
+    posRefunds: true,
     settlements: true,
     webhooks: true,
   };
+
+  async refundPosTransaction(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult> {
+    const merchantId = input.credentials.merchantId?.trim();
+    const merchantKey = input.credentials.merchantKey?.trim();
+    const merchantSalt = input.credentials.merchantSalt?.trim();
+    const merchantOid = input.providerTransactionId.trim();
+    const referenceNo = input.externalEventId.trim();
+    if (!merchantId || !merchantKey || !merchantSalt) {
+      throw new ServiceUnavailableException('PayTR API credentials are not configured.');
+    }
+    if (!merchantOid) throw new BadRequestException('PayTR merchant_oid is required for refund.');
+    if (!referenceNo) throw new BadRequestException('PayTR refund reference is required.');
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new BadRequestException('PayTR refund amount must be positive.');
+    }
+
+    const returnAmount = input.amount.toFixed(2);
+    const paytrToken = createHmac('sha256', merchantKey)
+      .update(`${merchantId}${merchantOid}${returnAmount}${merchantSalt}`)
+      .digest('base64');
+    const body = new URLSearchParams({
+      merchant_id: merchantId,
+      merchant_oid: merchantOid,
+      return_amount: returnAmount,
+      paytr_token: paytrToken,
+      reference_no: referenceNo.slice(0, 64),
+    });
+
+    let response: Response;
+    try {
+      response = await fetch(REFUND_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new ServiceUnavailableException('PayTR refund request failed.');
+    }
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`PayTR refund request returned HTTP ${response.status}.`);
+    }
+
+    let result: Record<string, unknown>;
+    try {
+      result = payloadRecord(await response.json());
+    } catch {
+      throw new ServiceUnavailableException('PayTR refund response is invalid.');
+    }
+    if (String(result.status ?? '').toLowerCase() !== 'success') {
+      throw new ServiceUnavailableException('PayTR refund request was rejected.');
+    }
+    const returnedOid = String(result.merchant_oid ?? '').trim();
+    if (returnedOid && returnedOid !== merchantOid) {
+      throw new ServiceUnavailableException('PayTR refund response merchant_oid does not match the request.');
+    }
+    const returnedAmount = Number(String(result.return_amount ?? returnAmount).replace(',', '.'));
+    if (!Number.isFinite(returnedAmount) || Math.abs(returnedAmount - input.amount) > 0.01) {
+      throw new ServiceUnavailableException('PayTR refund response amount does not match the request.');
+    }
+
+    return {
+      providerTransactionId: merchantOid,
+      externalEventId: referenceNo,
+      amount: returnedAmount,
+      currency: input.currency.toUpperCase(),
+      occurredAt: new Date(),
+      providerReference: String(result.reference_no ?? referenceNo).trim() || referenceNo,
+    };
+  }
 
   async retrievePosTransaction(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction> {
     const merchantId = input.credentials.merchantId?.trim();
@@ -92,11 +166,7 @@ export class PaytrAdapter implements FinancialProviderAdapter {
     const paytrToken = createHmac('sha256', merchantKey)
       .update(`${merchantId}${merchantOid}${merchantSalt}`)
       .digest('base64');
-    const body = new URLSearchParams({
-      merchant_id: merchantId,
-      merchant_oid: merchantOid,
-      paytr_token: paytrToken,
-    });
+    const body = new URLSearchParams({ merchant_id: merchantId, merchant_oid: merchantOid, paytr_token: paytrToken });
 
     let response: Response;
     try {
@@ -109,28 +179,19 @@ export class PaytrAdapter implements FinancialProviderAdapter {
     } catch {
       throw new ServiceUnavailableException('PayTR status query request failed.');
     }
-    if (!response.ok) {
-      throw new ServiceUnavailableException(`PayTR status query returned HTTP ${response.status}.`);
-    }
+    if (!response.ok) throw new ServiceUnavailableException(`PayTR status query returned HTTP ${response.status}.`);
 
     let detail: Record<string, unknown>;
-    try {
-      detail = payloadRecord(await response.json());
-    } catch {
-      throw new ServiceUnavailableException('PayTR status query response is invalid.');
-    }
+    try { detail = payloadRecord(await response.json()); } catch { throw new ServiceUnavailableException('PayTR status query response is invalid.'); }
     if (String(detail.status ?? '').toLowerCase() !== 'success') {
       const errorNo = String(detail.err_no ?? '').trim();
-      throw new ServiceUnavailableException(
-        errorNo ? `PayTR status query failed (${errorNo}).` : 'PayTR status query failed.',
-      );
+      throw new ServiceUnavailableException(errorNo ? `PayTR status query failed (${errorNo}).` : 'PayTR status query failed.');
     }
 
     const grossAmount = numericDetailField(detail, 'payment_amount');
     const feeAmount = numericDetailField(detail, 'kesinti_tutari');
     const netAmount = numericDetailField(detail, 'net_tutar');
     const installmentRaw = numericDetailField(detail, 'taksit');
-
     return {
       externalTransactionId: merchantOid,
       merchantId,
@@ -144,11 +205,7 @@ export class PaytrAdapter implements FinancialProviderAdapter {
     };
   }
 
-  async verifyWebhook(input: {
-    headers: Record<string, string | string[] | undefined>;
-    payload: unknown;
-    credentials: Record<string, string>;
-  }): Promise<ProviderWebhookVerificationResult> {
+  async verifyWebhook(input: { headers: Record<string, string | string[] | undefined>; payload: unknown; credentials: Record<string, string> }): Promise<ProviderWebhookVerificationResult> {
     const payload = payloadRecord(input.payload);
     const merchantOid = requiredString(payload, 'merchant_oid');
     const status = requiredString(payload, 'status');
@@ -157,31 +214,21 @@ export class PaytrAdapter implements FinancialProviderAdapter {
     const merchantKey = input.credentials.merchantKey;
     const merchantSalt = input.credentials.merchantSalt;
     if (!merchantKey || !merchantSalt) return { valid: false };
-
-    const message = `${merchantOid}${merchantSalt}${status}${totalAmount}`;
-    const expectedHash = createHmac('sha256', merchantKey).update(message).digest('base64');
+    const expectedHash = createHmac('sha256', merchantKey).update(`${merchantOid}${merchantSalt}${status}${totalAmount}`).digest('base64');
     return { valid: secureEqual(expectedHash, receivedHash) };
   }
 
-  async parseWebhook(input: {
-    headers: Record<string, string | string[] | undefined>;
-    payload: unknown;
-    credentials: Record<string, string>;
-  }): Promise<ProviderWebhookEvent> {
+  async parseWebhook(input: { headers: Record<string, string | string[] | undefined>; payload: unknown; credentials: Record<string, string> }): Promise<ProviderWebhookEvent> {
     const payload = payloadRecord(input.payload);
     const merchantOid = requiredString(payload, 'merchant_oid');
     const status = requiredString(payload, 'status').toLowerCase();
     const paymentType = requiredString(payload, 'payment_type').toLowerCase();
-    if (paymentType !== 'card') {
-      throw new BadRequestException('PayTR callback is not a card payment.');
-    }
-
+    if (paymentType !== 'card') throw new BadRequestException('PayTR callback is not a card payment.');
     const totalAmountMinor = Number(requiredString(payload, 'total_amount'));
     const paymentAmountMinor = Number(payload.payment_amount ?? totalAmountMinor);
     if (!Number.isFinite(totalAmountMinor) || totalAmountMinor < 0 || !Number.isFinite(paymentAmountMinor) || paymentAmountMinor < 0) {
       throw new BadRequestException('PayTR callback amount is invalid.');
     }
-
     return {
       externalEventId: `${merchantOid}:${status}:${totalAmountMinor}`,
       eventType: status === 'success' ? 'PAYMENT_SUCCESS' : 'PAYMENT_FAILED',
