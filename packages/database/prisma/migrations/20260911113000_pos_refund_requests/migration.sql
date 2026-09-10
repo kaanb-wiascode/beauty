@@ -16,8 +16,9 @@ CREATE TABLE IF NOT EXISTS pos_refund_requests (
   error_code TEXT,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  provider_succeeded_at TIMESTAMPTZ,
   completed_at TIMESTAMPTZ,
-  CONSTRAINT pos_refund_requests_status_check CHECK (status IN ('PROCESSING','SUCCEEDED','FAILED')),
+  CONSTRAINT pos_refund_requests_status_check CHECK (status IN ('PROCESSING','PROVIDER_SUCCEEDED','SUCCEEDED','FAILED')),
   CONSTRAINT pos_refund_requests_amount_check CHECK (amount > 0),
   CONSTRAINT pos_refund_requests_external_event_unique UNIQUE (tenant_id, company_id, external_event_id)
 );
