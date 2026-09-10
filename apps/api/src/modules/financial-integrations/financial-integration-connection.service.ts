@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@beauty-erp/database';
+import type { Env } from '../../config/env.schema';
 import { FinancialIntegrationsService } from './financial-integrations.service';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
 import { ProviderRegistryService } from './provider-registry.service';
@@ -12,16 +14,36 @@ export class FinancialIntegrationConnectionService {
     private readonly integrations: FinancialIntegrationsService,
     private readonly providers: ProviderRegistryService,
     private readonly vault: IntegrationSecretVaultService,
+    private readonly config: ConfigService<Env>,
   ) {}
 
   private hashState(state: string) {
     return createHash('sha256').update(state).digest('hex');
   }
 
-  async begin(integrationId: string, callbackBaseUrl: string) {
+  private trustedCallbackUrl() {
+    const configured = this.config.get('PUBLIC_API_URL', { infer: true });
+    if (configured) return `${configured.replace(/\/$/, '')}/financial-integrations/callback`;
+
+    const environment = this.config.get('NODE_ENV', { infer: true }) ?? 'development';
+    if (environment === 'production') {
+      throw new ServiceUnavailableException('PUBLIC_API_URL must be configured before OAuth connections can be started.');
+    }
+    const port = this.config.get('PORT', { infer: true }) ?? 3000;
+    return `http://localhost:${port}/financial-integrations/callback`;
+  }
+
+  async begin(integrationId: string) {
     const integration = await this.integrations.get(integrationId);
     if (integration.authType !== 'OAUTH2') {
-      return this.integrations.beginConnection(integrationId, callbackBaseUrl);
+      return {
+        integrationId,
+        provider: integration.provider,
+        status: integration.status,
+        providerConfigured: this.providers.has(integration.kind, integration.provider),
+        mode: integration.authType,
+        message: 'Provider credentials must be submitted through the secure credential endpoint; secrets are never returned by this API.',
+      };
     }
 
     if (!this.providers.has(integration.kind, integration.provider)) {
@@ -35,7 +57,7 @@ export class FinancialIntegrationConnectionService {
     }
 
     const state = randomUUID();
-    const callbackUrl = `${callbackBaseUrl.replace(/\/$/, '')}/financial-integrations/callback`;
+    const callbackUrl = this.trustedCallbackUrl();
     const sessionId = randomUUID();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO finance_integration_auth_sessions(id,integration_id,state_hash,callback_url,expires_at)
