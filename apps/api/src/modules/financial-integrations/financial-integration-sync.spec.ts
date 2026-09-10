@@ -7,6 +7,7 @@ describe('FinancialIntegrationSyncService', () => {
     execute?: jest.Mock;
     adapter?: Record<string, unknown>;
     linkage?: jest.Mock;
+    reconciliation?: jest.Mock;
   }) {
     const query = overrides?.query ?? jest.fn();
     const execute = overrides?.execute ?? jest.fn().mockResolvedValue(1);
@@ -27,12 +28,16 @@ describe('FinancialIntegrationSyncService', () => {
     const linkage = {
       autoLinkOneInScope: overrides?.linkage ?? jest.fn().mockResolvedValue({ linked: true }),
     } as never;
+    const reconciliation = {
+      autoMatchInScope: overrides?.reconciliation ?? jest.fn().mockResolvedValue({ scanned: 0, matched: 0, skipped: 0 }),
+    } as never;
     return {
-      service: new FinancialIntegrationSyncService(prisma, providers, vault, tenant, linkage),
+      service: new FinancialIntegrationSyncService(prisma, providers, vault, tenant, linkage, reconciliation),
       query,
       execute,
       vault: vault as unknown as { load: jest.Mock },
       linkage: linkage as unknown as { autoLinkOneInScope: jest.Mock },
+      reconciliation: reconciliation as unknown as { autoMatchInScope: jest.Mock },
     };
   }
 
@@ -90,6 +95,38 @@ describe('FinancialIntegrationSyncService', () => {
       recordsSynced: 1,
       linkedPayments: 1,
       unresolvedPaymentLinks: 0,
+      status: 'SUCCESS',
+    });
+  });
+
+  it('runs settlement reconciliation immediately after open-banking synchronization', async () => {
+    const query = jest.fn()
+      .mockResolvedValueOnce([{
+        id: 'integration-bank',
+        tenantId: 'tenant-a',
+        companyId: 'company-a',
+        branchId: 'branch-a',
+        kind: 'OPEN_BANKING',
+        provider: 'TESTBANK',
+        status: 'CONNECTED',
+        lastSyncAt: null,
+      }]);
+    const reconciliation = jest.fn().mockResolvedValue({ scanned: 3, matched: 2, skipped: 1 });
+    const adapter = {
+      listBankAccounts: jest.fn().mockResolvedValue([]),
+      listBankTransactions: jest.fn().mockResolvedValue([]),
+    };
+    const { service } = createService({ query, adapter, reconciliation });
+
+    const result = await service.syncIntegration('integration-bank');
+
+    expect(reconciliation).toHaveBeenCalledWith(
+      { tenantId: 'tenant-a', companyId: 'company-a', branchId: 'branch-a' },
+      250,
+    );
+    expect(result).toMatchObject({
+      reconciledSettlements: 2,
+      unresolvedSettlements: 1,
       status: 'SUCCESS',
     });
   });
