@@ -19,6 +19,7 @@ import { PackagesModule } from './modules/packages/packages.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.module';
+import { InstallmentsModule } from './modules/installments/installments.module';
 
 @Module({
   imports: [
@@ -41,6 +42,7 @@ import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.
     SalesModule,
     SessionsModule,
     CustomerLedgerModule,
+    InstallmentsModule,
   ],
 })
 export class AppModule {}
