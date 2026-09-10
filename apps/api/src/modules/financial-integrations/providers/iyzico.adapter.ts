@@ -2,6 +2,8 @@ import { createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, Injectable, ServiceUnavailableException } from '@nestjs/common';
 import type {
   FinancialProviderAdapter,
+  ProviderPosRefundRequest,
+  ProviderPosRefundResult,
   ProviderPosTransaction,
   ProviderPosTransactionLookup,
   ProviderWebhookEvent,
@@ -9,6 +11,7 @@ import type {
 } from '../provider-adapter';
 
 const PAYMENT_DETAIL_PATH = '/payment/detail';
+const REFUND_V2_PATH = '/v2/payment/refund';
 const DEFAULT_BASE_URL = 'https://api.iyzipay.com';
 const ALLOWED_IYZICO_HOSTS = new Set(['api.iyzipay.com', 'sandbox-api.iyzipay.com']);
 
@@ -80,6 +83,18 @@ function resolveBaseUrl(configured?: string) {
   return parsed.origin;
 }
 
+function buildAuthorization(secretKey: string, apiKey: string, path: string, body: string) {
+  const randomKey = `${Date.now()}${randomBytes(12).toString('hex')}`;
+  const signature = createHmac('sha256', secretKey)
+    .update(`${randomKey}${path}${body}`)
+    .digest('hex');
+  const authorization = Buffer.from(
+    `apiKey:${apiKey}&randomKey:${randomKey}&signature:${signature}`,
+    'utf8',
+  ).toString('base64');
+  return { randomKey, authorization };
+}
+
 @Injectable()
 export class IyzicoAdapter implements FinancialProviderAdapter {
   readonly provider = 'IYZICO';
@@ -96,9 +111,92 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     apiCredentials: true,
     posTransactions: true,
     posTransactionEnrichment: true,
+    posRefunds: true,
     settlements: true,
     webhooks: true,
   };
+
+  async refundPosTransaction(input: ProviderPosRefundRequest): Promise<ProviderPosRefundResult> {
+    const apiKey = input.credentials.apiKey?.trim();
+    const secretKey = input.credentials.secretKey?.trim();
+    const paymentId = input.providerTransactionId.trim();
+    const conversationId = input.externalEventId.trim();
+    const currency = input.currency.trim().toUpperCase();
+    if (!apiKey || !secretKey) {
+      throw new ServiceUnavailableException('iyzico API credentials are not configured.');
+    }
+    if (!paymentId) throw new BadRequestException('iyzico paymentId is required for refund.');
+    if (!conversationId) throw new BadRequestException('iyzico refund reference is required.');
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new BadRequestException('iyzico refund amount must be positive.');
+    }
+    if (!currency) throw new BadRequestException('iyzico refund currency is required.');
+
+    const amount = Math.round((input.amount + Number.EPSILON) * 100) / 100;
+    const body = JSON.stringify({
+      locale: 'tr',
+      conversationId,
+      paymentId,
+      price: amount,
+      currency,
+    });
+    const { randomKey, authorization } = buildAuthorization(secretKey, apiKey, REFUND_V2_PATH, body);
+
+    let response: Response;
+    try {
+      response = await fetch(`${resolveBaseUrl(input.credentials.baseUrl)}${REFUND_V2_PATH}`, {
+        method: 'POST',
+        headers: {
+          Authorization: `IYZWSv2 ${authorization}`,
+          'Content-Type': 'application/json',
+          'x-iyzi-rnd': randomKey,
+        },
+        body,
+        signal: AbortSignal.timeout(10_000),
+      });
+    } catch {
+      throw new ServiceUnavailableException('iyzico refund request failed.');
+    }
+    if (!response.ok) {
+      throw new ServiceUnavailableException(`iyzico refund request returned HTTP ${response.status}.`);
+    }
+
+    let result: Record<string, unknown>;
+    try {
+      result = payloadRecord(await response.json());
+    } catch {
+      throw new ServiceUnavailableException('iyzico refund response is invalid.');
+    }
+    if (String(result.status ?? '').toLowerCase() !== 'success') {
+      const errorCode = String(result.errorCode ?? '').trim();
+      throw new ServiceUnavailableException(
+        errorCode ? `iyzico refund request failed (${errorCode}).` : 'iyzico refund request failed.',
+      );
+    }
+    if (String(result.paymentId ?? '').trim() !== paymentId) {
+      throw new ServiceUnavailableException('iyzico refund response paymentId does not match the request.');
+    }
+    if (result.conversationId !== undefined && String(result.conversationId ?? '').trim() !== conversationId) {
+      throw new ServiceUnavailableException('iyzico refund response conversationId does not match the request.');
+    }
+    const returnedAmount = Number(result.price);
+    if (!Number.isFinite(returnedAmount) || Math.abs(returnedAmount - amount) > 0.01) {
+      throw new ServiceUnavailableException('iyzico refund response amount does not match the request.');
+    }
+    const returnedCurrency = String(result.currency ?? currency).trim().toUpperCase();
+    if (returnedCurrency !== currency) {
+      throw new ServiceUnavailableException('iyzico refund response currency does not match the request.');
+    }
+
+    return {
+      providerTransactionId: paymentId,
+      externalEventId: conversationId,
+      amount: returnedAmount,
+      currency: returnedCurrency,
+      occurredAt: new Date(),
+      providerReference: String(result.refundHostReference ?? result.hostReference ?? '').trim() || undefined,
+    };
+  }
 
   async retrievePosTransaction(input: ProviderPosTransactionLookup): Promise<ProviderPosTransaction> {
     const apiKey = input.credentials.apiKey?.trim();
@@ -118,14 +216,7 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
       paymentId,
       ...(input.merchantReference ? { paymentConversationId: input.merchantReference } : {}),
     });
-    const randomKey = `${Date.now()}${randomBytes(12).toString('hex')}`;
-    const signature = createHmac('sha256', secretKey)
-      .update(`${randomKey}${PAYMENT_DETAIL_PATH}${body}`)
-      .digest('hex');
-    const authorization = Buffer.from(
-      `apiKey:${apiKey}&randomKey:${randomKey}&signature:${signature}`,
-      'utf8',
-    ).toString('base64');
+    const { randomKey, authorization } = buildAuthorization(secretKey, apiKey, PAYMENT_DETAIL_PATH, body);
 
     let response: Response;
     try {
@@ -175,8 +266,8 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     const commissionAmount = numericField(detail, 'iyziCommissionRateAmount', 0);
     const commissionFee = numericField(detail, 'iyziCommissionFee', 0);
     const feeAmount = Math.max(0, commissionAmount + commissionFee);
-    const currency = String(detail.currency ?? '').trim().toUpperCase();
-    if (!currency) throw new ServiceUnavailableException('iyzico payment detail currency is missing.');
+    const detailCurrency = String(detail.currency ?? '').trim().toUpperCase();
+    if (!detailCurrency) throw new ServiceUnavailableException('iyzico payment detail currency is missing.');
 
     return {
       externalTransactionId: paymentId,
@@ -184,7 +275,7 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
       grossAmount,
       feeAmount,
       netAmount: Math.max(0, grossAmount - feeAmount),
-      currency,
+      currency: detailCurrency,
       status: paymentDetailStatus(detail),
       installmentCount: Math.max(1, Math.trunc(numericField(detail, 'installment', 1))),
     };
