@@ -4,6 +4,7 @@ import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
 import { ProviderRegistryService } from './provider-registry.service';
+import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
 
 interface IntegrationScope {
@@ -20,6 +21,7 @@ export class FinancialIntegrationSyncService {
     private readonly vault: IntegrationSecretVaultService,
     private readonly tenant: TenantContext,
     private readonly paymentLinkage: PosSalePaymentLinkageService,
+    private readonly reconciliation: PosBankReconciliationService,
   ) {}
 
   private context(): IntegrationScope {
@@ -69,6 +71,8 @@ export class FinancialIntegrationSyncService {
     let records = 0;
     let linkedPayments = 0;
     let unresolvedPaymentLinks = 0;
+    let reconciledSettlements = 0;
+    let unresolvedSettlements = 0;
     try {
       if (integration.kind === 'OPEN_BANKING') {
         if (!adapter.listBankAccounts) {
@@ -145,6 +149,17 @@ export class FinancialIntegrationSyncService {
             records += inserted;
           }
         }
+
+        const reconciliation = await this.reconciliation.autoMatchInScope(
+          {
+            tenantId: integration.tenantId,
+            companyId: integration.companyId,
+            branchId: integration.branchId,
+          },
+          250,
+        );
+        reconciledSettlements = reconciliation.matched;
+        unresolvedSettlements = reconciliation.skipped;
       }
 
       if (integration.kind === 'VIRTUAL_POS') {
@@ -239,6 +254,8 @@ export class FinancialIntegrationSyncService {
         recordsSynced: records,
         linkedPayments,
         unresolvedPaymentLinks,
+        reconciledSettlements,
+        unresolvedSettlements,
         status: 'SUCCESS',
       };
     } catch (error) {
@@ -271,6 +288,8 @@ export class FinancialIntegrationSyncService {
       records?: number;
       linkedPayments?: number;
       unresolvedPaymentLinks?: number;
+      reconciledSettlements?: number;
+      unresolvedSettlements?: number;
       error?: string;
     }> = [];
     for (const row of rows) {
@@ -282,6 +301,8 @@ export class FinancialIntegrationSyncService {
           records: result.recordsSynced,
           linkedPayments: result.linkedPayments,
           unresolvedPaymentLinks: result.unresolvedPaymentLinks,
+          reconciledSettlements: result.reconciledSettlements,
+          unresolvedSettlements: result.unresolvedSettlements,
         });
       } catch (error) {
         results.push({
