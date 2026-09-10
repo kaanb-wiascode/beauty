@@ -19,6 +19,9 @@ export type CustomerLedgerEntryType = (typeof CUSTOMER_LEDGER_ENTRY_TYPES)[numbe
 export const CUSTOMER_LEDGER_STATUSES = ['UNPAID', 'PARTIALLY_PAID', 'SETTLED'] as const;
 export type CustomerLedgerStatus = (typeof CUSTOMER_LEDGER_STATUSES)[number];
 
+export const INSTALLMENT_RUNTIME_STATUSES = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'] as const;
+export type InstallmentRuntimeStatus = (typeof INSTALLMENT_RUNTIME_STATUSES)[number];
+
 export interface PackageItemContract {
   id: string;
   serviceId: string;
@@ -115,4 +118,16 @@ export interface CustomerLedgerSummaryContract {
   netPaid: number;
   balance: number;
   status: CustomerLedgerStatus;
+}
+
+export interface PlannedInstallmentContract {
+  sequence: number;
+  amount: number;
+  dueAt: string;
+}
+
+export interface InstallmentSummaryContract extends PlannedInstallmentContract {
+  paidAmount: number;
+  outstanding: number;
+  status: InstallmentRuntimeStatus;
 }
