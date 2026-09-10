@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { FinancialIntegrationsService } from './financial-integrations.service';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
+import { ProviderRegistryService } from './provider-registry.service';
 
 @Injectable()
 export class FinancialIntegrationCredentialsService {
@@ -9,6 +10,7 @@ export class FinancialIntegrationCredentialsService {
     private readonly prisma: PrismaService,
     private readonly integrations: FinancialIntegrationsService,
     private readonly vault: IntegrationSecretVaultService,
+    private readonly providers: ProviderRegistryService,
   ) {}
 
   async configure(
@@ -39,6 +41,23 @@ export class FinancialIntegrationCredentialsService {
       }
     }
 
+    if (this.providers.has(integration.kind, integration.provider)) {
+      const adapter = this.providers.get(integration.kind, integration.provider);
+      const allowed = new Set((adapter.credentialFields ?? []).map((field) => field.key));
+      const required = (adapter.credentialFields ?? []).filter((field) => field.required).map((field) => field.key);
+      if (allowed.size) {
+        const unknown = entries.map(([key]) => key).filter((key) => !allowed.has(key));
+        if (unknown.length) {
+          throw new BadRequestException(`Unsupported credential field(s): ${unknown.join(', ')}.`);
+        }
+      }
+      const supplied = new Set(entries.map(([key]) => key));
+      const missing = required.filter((key) => !supplied.has(key));
+      if (missing.length) {
+        throw new BadRequestException(`Missing required credential field(s): ${missing.join(', ')}.`);
+      }
+    }
+
     await this.vault.storeOpaque(integrationId, Object.fromEntries(entries));
     await this.prisma.$executeRawUnsafe(
       `UPDATE finance_integrations
@@ -59,11 +78,21 @@ export class FinancialIntegrationCredentialsService {
   async status(integrationId: string) {
     const integration = await this.integrations.get(integrationId);
     const credentials = await this.vault.loadOpaque(integrationId);
+    const adapter = this.providers.has(integration.kind, integration.provider)
+      ? this.providers.get(integration.kind, integration.provider)
+      : null;
     return {
       integrationId,
       authType: integration.authType,
       configured: Boolean(credentials && Object.keys(credentials).length),
       fields: credentials ? Object.keys(credentials) : [],
+      requiredFields: (adapter?.credentialFields ?? []).map((field) => ({
+        key: field.key,
+        label: field.label,
+        secret: field.secret ?? true,
+        required: field.required ?? false,
+      })),
+      runtimeReady: adapter?.runtimeReady ?? false,
     };
   }
 
