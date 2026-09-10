@@ -8,6 +8,7 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosSettlementService } from './pos-settlement.service';
+import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 
 const createSchema = z.object({
   kind: z.enum(['OPEN_BANKING','VIRTUAL_POS']),
@@ -28,6 +29,13 @@ const settlementSchema = z.object({
   transactionIds: z.array(z.string().uuid()).min(1).max(1000),
   settledAt: z.coerce.date(),
 });
+const reconciliationSuggestSchema = z.object({ days: z.coerce.number().int().min(1).max(14).optional() });
+const reconciliationMatchSchema = z.object({
+  bankTransactionId: z.string().uuid(),
+  confidence: z.coerce.number().min(0).max(100).optional(),
+  note: z.string().trim().max(500).optional(),
+});
+const autoMatchSchema = z.object({ limit: z.coerce.number().int().min(1).max(500).optional() });
 
 @Controller('financial-integrations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -39,6 +47,7 @@ export class FinancialIntegrationsController {
     private readonly credentials: FinancialIntegrationCredentialsService,
     private readonly providers: ProviderRegistryService,
     private readonly settlements: PosSettlementService,
+    private readonly reconciliation: PosBankReconciliationService,
   ) {}
 
   @Post() create(@Body() body: unknown) { return this.service.create(createSchema.parse(body)); }
@@ -51,6 +60,30 @@ export class FinancialIntegrationsController {
   @Get('pos/settlements') listSettlements(@Query() query: unknown) {
     const parsed = settlementListSchema.parse(query);
     return this.settlements.list(parsed.integrationId);
+  }
+  @Get('pos/reconciliation/summary') reconciliationSummary() { return this.reconciliation.summary(); }
+  @Post('pos/reconciliation/auto-match') autoMatch(@Body() body: unknown) {
+    const parsed = autoMatchSchema.parse(body ?? {});
+    return this.reconciliation.autoMatch(parsed.limit);
+  }
+  @Get('pos/settlements/:settlementId/reconciliation-suggestions') reconciliationSuggestions(
+    @Param('settlementId') settlementId: string,
+    @Query() query: unknown,
+  ) {
+    const parsed = reconciliationSuggestSchema.parse(query);
+    return this.reconciliation.suggest(settlementId, parsed.days);
+  }
+  @Post('pos/settlements/:settlementId/match-bank-transaction') matchBankTransaction(
+    @Param('settlementId') settlementId: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = reconciliationMatchSchema.parse(body);
+    return this.reconciliation.match(
+      settlementId,
+      parsed.bankTransactionId,
+      parsed.confidence,
+      parsed.note,
+    );
   }
   @Get(':id') get(@Param('id') id: string) { return this.service.get(id); }
   @Get(':id/credentials') credentialStatus(@Param('id') id: string) { return this.credentials.status(id); }
