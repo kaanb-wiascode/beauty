@@ -19,7 +19,6 @@ const createSchema = z.object({
   authType: z.enum(['OAUTH2','API_KEY','MANUAL']).optional(),
   branchId: z.string().uuid().optional(),
 });
-const beginSchema = z.object({ callbackBaseUrl: z.string().url() });
 const txQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).optional() });
 const settlementForecastQuery = z.object({ days: z.coerce.number().int().min(1).max(90).optional() });
 const credentialsSchema = z.object({
@@ -132,7 +131,7 @@ export class FinancialIntegrationsController {
     return this.credentials.configure(id, parsed.credentials);
   }
   @Delete(':id/credentials') clearCredentials(@Param('id') id: string) { return this.credentials.clear(id); }
-  @Post(':id/connect') connect(@Param('id') id: string, @Body() body: unknown) { const b=beginSchema.parse(body); return this.connection.begin(id,b.callbackBaseUrl); }
+  @Post(':id/connect') connect(@Param('id') id: string) { return this.connection.begin(id); }
   @Post(':id/sync') syncIntegration(@Param('id') id: string) { return this.sync.syncIntegration(id); }
   @Post(':id/pos/settlements') recordSettlement(@Param('id') id: string, @Body() body: unknown) {
     const parsed = settlementSchema.parse(body);
