@@ -112,9 +112,9 @@ export class NetProfitabilityService {
       `SELECT COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS expenses
        FROM journal_entry_lines jel
        JOIN journal_entries je ON je.id=jel."journalEntryId" AND je.status='POSTED'
-       JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.code='770'
+       JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.type='EXPENSE' AND coa.code<>'740'
        WHERE je."companyId"=$1::text
-         AND ($2::text IS NULL OR je."branchId"=$2::text)
+         AND ($2::text IS NULL OR je."branchId"=$2::text OR je."branchId" IS NULL)
          AND ($3::timestamptz IS NULL OR je."entryDate">=$3::timestamptz)
          AND ($4::timestamptz IS NULL OR je."entryDate"<=$4::timestamptz)`,
       ...params,
@@ -141,6 +141,7 @@ export class NetProfitabilityService {
   }
 
   async byBranch(filter: NetProfitabilityFilter) {
+    const params = this.params(filter);
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `${this.baseCte()}, branch_revenue AS (
          SELECT branch_id,COUNT(DISTINCT sale_id)::int AS sale_count,SUM(net_revenue)::numeric AS net_revenue
@@ -156,9 +157,68 @@ export class NetProfitabilityService {
        JOIN branches b ON b.id=br.branch_id
        LEFT JOIN branch_cost bc ON bc.branch_id=br.branch_id
        ORDER BY br.net_revenue DESC`,
-      ...this.params(filter),
+      ...params,
     );
-    return this.normalize(rows);
+
+    const expenseRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `WITH direct_expense AS (
+         SELECT je."branchId" AS branch_id,
+                COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS amount
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id=jel."journalEntryId" AND je.status='POSTED'
+         JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.type='EXPENSE' AND coa.code<>'740'
+         WHERE je."companyId"=$1::text
+           AND je."branchId" IS NOT NULL
+           AND ($2::text IS NULL OR je."branchId"=$2::text)
+           AND ($3::timestamptz IS NULL OR je."entryDate">=$3::timestamptz)
+           AND ($4::timestamptz IS NULL OR je."entryDate"<=$4::timestamptz)
+         GROUP BY je."branchId"
+       ), allocated_expense AS (
+         SELECT cba.branch_id,
+                COALESCE(SUM((jel.debit-jel.credit)*(cba.percent/100.0)),0)::numeric AS amount
+         FROM cost_center_expense_links ccel
+         JOIN cost_centers cc ON cc.id=ccel.cost_center_id AND cc.active=true
+         JOIN cost_center_branch_allocations cba ON cba.cost_center_id=cc.id
+         JOIN journal_entry_lines jel ON jel.id=ccel.journal_entry_line_id
+         JOIN journal_entries je ON je.id=jel."journalEntryId" AND je.status='POSTED' AND je."branchId" IS NULL
+         JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.type='EXPENSE' AND coa.code<>'740'
+         WHERE cc.company_id=$1::text
+           AND ($2::text IS NULL OR cba.branch_id=$2::text)
+           AND ($3::timestamptz IS NULL OR je."entryDate">=$3::timestamptz)
+           AND ($4::timestamptz IS NULL OR je."entryDate"<=$4::timestamptz)
+         GROUP BY cba.branch_id
+       )
+       SELECT b.id AS "branchId",
+              COALESCE(d.amount,0)::numeric AS "directExpenses",
+              COALESCE(a.amount,0)::numeric AS "allocatedExpenses"
+       FROM branches b
+       LEFT JOIN direct_expense d ON d.branch_id=b.id
+       LEFT JOIN allocated_expense a ON a.branch_id=b.id
+       WHERE b."companyId"=$1::text
+         AND ($2::text IS NULL OR b.id=$2::text)`,
+      ...params,
+    );
+
+    const expensesByBranch = new Map(
+      expenseRows.map((row) => [row.branchId, {
+        directExpenses: this.round(Number(row.directExpenses ?? 0)),
+        allocatedExpenses: this.round(Number(row.allocatedExpenses ?? 0)),
+      }]),
+    );
+
+    return this.normalize(rows).map((row) => {
+      const expenses = expensesByBranch.get(row.branchId) ?? { directExpenses: 0, allocatedExpenses: 0 };
+      const generalExpenses = this.round(expenses.directExpenses + expenses.allocatedExpenses);
+      const operatingProfit = this.round(row.contributionProfit - generalExpenses);
+      return {
+        ...row,
+        directExpenses: expenses.directExpenses,
+        allocatedExpenses: expenses.allocatedExpenses,
+        generalExpenses,
+        operatingProfit,
+        operatingMarginPercent: row.netRevenue > 0 ? this.round((operatingProfit / row.netRevenue) * 100) : 0,
+      };
+    });
   }
 
   async byService(filter: NetProfitabilityFilter) {
