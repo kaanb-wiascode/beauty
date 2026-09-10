@@ -1,4 +1,4 @@
-import { Injectable, TooManyRequestsException } from '@nestjs/common';
+import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
 import { RedisService } from '../../infrastructure/redis/redis.service';
@@ -19,8 +19,9 @@ export class AuthRateLimitService {
     const count = await this.redis.increment(key, windowSeconds);
 
     if (count > maxAttempts) {
-      throw new TooManyRequestsException(
+      throw new HttpException(
         'Too many authentication attempts. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
       );
     }
   }
