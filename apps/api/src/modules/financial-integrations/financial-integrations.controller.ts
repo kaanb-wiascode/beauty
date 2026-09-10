@@ -19,6 +19,7 @@ const createSchema = z.object({
 });
 const beginSchema = z.object({ callbackBaseUrl: z.string().url() });
 const txQuery = z.object({ limit: z.coerce.number().int().min(1).max(500).optional() });
+const settlementForecastQuery = z.object({ days: z.coerce.number().int().min(1).max(90).optional() });
 const credentialsSchema = z.object({
   credentials: z.record(z.string().min(1).max(80), z.string().min(1).max(4000)),
 });
@@ -57,6 +58,10 @@ export class FinancialIntegrationsController {
   @Get('bank-transactions') bankTransactions(@Query() query: unknown) { const q=txQuery.parse(query); return this.service.transactions(q.limit); }
   @Get('liquidity') liquidity() { return this.service.liquidity(); }
   @Get('treasury-position') treasuryPosition() { return this.service.treasuryPosition(); }
+  @Get('pos/settlement-forecast') settlementForecast(@Query() query: unknown) {
+    const parsed = settlementForecastQuery.parse(query);
+    return this.service.settlementForecast(parsed.days);
+  }
   @Get('pos/summary') posSummary() { return this.service.posSummary(); }
   @Get('pos/settlements') listSettlements(@Query() query: unknown) {
     const parsed = settlementListSchema.parse(query);
