@@ -96,37 +96,6 @@ export class FinancialIntegrationsService {
     return { accountCount: accounts.length, byCurrency, accounts };
   }
 
-  async treasuryPosition() {
-    const [bank, pos] = await Promise.all([this.liquidity(), this.posSummary()]);
-    const currencies = new Set<string>([
-      ...Object.keys(bank.byCurrency),
-      ...pos.currencies.map((row: any) => String(row.currency || 'TRY')),
-    ]);
-    const byCurrency = Array.from(currencies).sort().map((currency) => {
-      const bankPosition = bank.byCurrency[currency] ?? { current: 0, available: 0 };
-      const posPosition = pos.currencies.find((row: any) => row.currency === currency);
-      const cash = Number(bankPosition.available ?? bankPosition.current ?? 0);
-      const nearCash = Number(posPosition?.nearCash ?? 0);
-      return {
-        currency,
-        cash,
-        currentBankBalance: Number(bankPosition.current ?? 0),
-        nearCash,
-        totalLiquidity: cash + nearCash,
-        settledPos: Number(posPosition?.settled ?? 0),
-      };
-    });
-    return {
-      accountCount: bank.accountCount,
-      classification: {
-        cash: 'Bank account available balances (102)',
-        nearCash: 'Captured but unsettled POS receivables (108)',
-        totalLiquidity: 'Cash + Near Cash',
-      },
-      byCurrency,
-    };
-  }
-
   async transactions(limit = 100) {
     const ctx = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
@@ -141,5 +110,64 @@ export class FinancialIntegrationsService {
       `SELECT currency,COALESCE(SUM(net_amount) FILTER (WHERE status='CAPTURED' AND settled_at IS NULL),0)::numeric AS "nearCash",COALESCE(SUM(net_amount) FILTER (WHERE settled_at IS NOT NULL),0)::numeric AS settled,COUNT(*)::int AS "transactionCount"
        FROM pos_transactions WHERE tenant_id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3) GROUP BY currency`, ctx.tenantId, ctx.companyId, ctx.branchId);
     return { currencies: rows };
+  }
+
+  async treasuryPosition() {
+    const [liquidity, pos] = await Promise.all([this.liquidity(), this.posSummary()]);
+    const currencies = new Set<string>([
+      ...Object.keys(liquidity.byCurrency),
+      ...pos.currencies.map((row: any) => String(row.currency || 'TRY')),
+    ]);
+    const byCurrency: Record<string, { cash: number; nearCash: number; totalLiquidity: number; currentBankBalance: number; settledPos: number }> = {};
+    for (const currency of currencies) {
+      const bank = liquidity.byCurrency[currency] ?? { current: 0, available: 0 };
+      const posRow = pos.currencies.find((row: any) => row.currency === currency);
+      const cash = Number(bank.available ?? 0);
+      const nearCash = Number(posRow?.nearCash ?? 0);
+      byCurrency[currency] = {
+        cash,
+        nearCash,
+        totalLiquidity: cash + nearCash,
+        currentBankBalance: Number(bank.current ?? 0),
+        settledPos: Number(posRow?.settled ?? 0),
+      };
+    }
+    return { accountCount: liquidity.accountCount, byCurrency };
+  }
+
+  async settlementForecast(days = 14) {
+    const ctx = this.context();
+    const horizon = Math.min(Math.max(days, 1), 90);
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT
+         DATE(COALESCE(expected_settlement_at, NOW())) AS date,
+         currency,
+         COUNT(*)::int AS "transactionCount",
+         COALESCE(SUM(amount),0)::numeric AS "grossAmount",
+         COALESCE(SUM(fee_amount),0)::numeric AS "feeAmount",
+         COALESCE(SUM(net_amount),0)::numeric AS "netAmount"
+       FROM pos_transactions
+       WHERE tenant_id=$1 AND company_id=$2
+         AND ($3::text IS NULL OR branch_id=$3)
+         AND status='CAPTURED'
+         AND settled_at IS NULL
+         AND COALESCE(expected_settlement_at, NOW()) < NOW() + ($4::text || ' days')::interval
+       GROUP BY DATE(COALESCE(expected_settlement_at, NOW())), currency
+       ORDER BY date ASC, currency ASC`,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      horizon,
+    );
+    const totals = rows.reduce((acc: Record<string, { grossAmount: number; feeAmount: number; netAmount: number; transactionCount: number }>, row: any) => {
+      const currency = String(row.currency || 'TRY');
+      acc[currency] ??= { grossAmount: 0, feeAmount: 0, netAmount: 0, transactionCount: 0 };
+      acc[currency].grossAmount += Number(row.grossAmount ?? 0);
+      acc[currency].feeAmount += Number(row.feeAmount ?? 0);
+      acc[currency].netAmount += Number(row.netAmount ?? 0);
+      acc[currency].transactionCount += Number(row.transactionCount ?? 0);
+      return acc;
+    }, {});
+    return { horizonDays: horizon, totals, days: rows };
   }
 }
