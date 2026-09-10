@@ -57,7 +57,7 @@ const NAV_SECTIONS = [
 
 type NavItem = (typeof NAV_SECTIONS)[number]["items"][number];
 function isAllowed(item: NavItem) { if (!("permission" in item) || !item.permission) return true; const [resource, action] = item.permission.split("."); return hasPermission(resource, action); }
-function isActivePath(pathname: string, href: string) { return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`)); }
+function isActivePath(pathname: string, href: string) { if (href === "/finance/cfo") return pathname === href; return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`)); }
 
 function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
   return <nav aria-label="Ana navigasyon" className="flex flex-1 flex-col overflow-y-auto px-3 pb-4 pt-2">
