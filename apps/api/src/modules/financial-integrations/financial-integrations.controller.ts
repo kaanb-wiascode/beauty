@@ -8,6 +8,7 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosSettlementService } from './pos-settlement.service';
+import { PosSettlementImportService } from './pos-settlement-import.service';
 import { PosWebhookQueueService } from './pos-webhook-queue.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
@@ -33,6 +34,7 @@ const settlementSchema = z.object({
   transactionIds: z.array(z.string().uuid()).min(1).max(1000),
   settledAt: z.coerce.date(),
 });
+const settlementImportSchema = z.object({ date: z.coerce.date() });
 const reconciliationSuggestSchema = z.object({ days: z.coerce.number().int().min(1).max(14).optional() });
 const reconciliationMatchSchema = z.object({
   bankTransactionId: z.string().uuid(),
@@ -76,6 +78,7 @@ export class FinancialIntegrationsController {
     private readonly credentials: FinancialIntegrationCredentialsService,
     private readonly providers: ProviderRegistryService,
     private readonly settlements: PosSettlementService,
+    private readonly settlementImport: PosSettlementImportService,
     private readonly webhookQueue: PosWebhookQueueService,
     private readonly reconciliation: PosBankReconciliationService,
     private readonly paymentLinkage: PosSalePaymentLinkageService,
@@ -170,6 +173,10 @@ export class FinancialIntegrationsController {
   @Post(':id/pos/settlements') recordSettlement(@Param('id') id: string, @Body() body: unknown) {
     const parsed = settlementSchema.parse(body);
     return this.settlements.record(id, parsed);
+  }
+  @Post(':id/pos/settlements/import') importSettlements(@Param('id') id: string, @Body() body: unknown) {
+    const parsed = settlementImportSchema.parse(body);
+    return this.settlementImport.import(id, parsed.date);
   }
   @Post(':id/disconnect') disconnect(@Param('id') id: string) { return this.connection.disconnect(id); }
 }
