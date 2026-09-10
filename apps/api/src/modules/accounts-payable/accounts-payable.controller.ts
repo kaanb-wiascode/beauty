@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { AccountsPayableService } from './accounts-payable.service';
+import { AccountsPayableReversalsService } from './accounts-payable-reversals.service';
 
 const createBillSchema = z.object({
   supplierId: z.string().uuid(),
@@ -23,6 +24,10 @@ const cancelBillSchema = z.object({
   reason: z.string().trim().min(1).max(500),
 });
 
+const reversePaymentSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 const listSchema = z.object({
   status: z.enum(['OPEN', 'PARTIALLY_PAID', 'PAID', 'CANCELLED']).optional(),
   supplierId: z.string().uuid().optional(),
@@ -31,7 +36,10 @@ const listSchema = z.object({
 @Controller('accounts-payable')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class AccountsPayableController {
-  constructor(private readonly service: AccountsPayableService) {}
+  constructor(
+    private readonly service: AccountsPayableService,
+    private readonly reversalsService: AccountsPayableReversalsService,
+  ) {}
 
   @Post('bills')
   createBill(@Body() body: unknown) {
@@ -66,6 +74,16 @@ export class AccountsPayableController {
   @Post('bills/:id/payments')
   payBill(@Param('id') id: string, @Body() body: unknown) {
     return this.service.payBill(id, payBillSchema.parse(body));
+  }
+
+  @Post('bills/:id/payments/:paymentId/reverse')
+  reversePayment(
+    @Param('id') id: string,
+    @Param('paymentId') paymentId: string,
+    @Body() body: unknown,
+  ) {
+    const input = reversePaymentSchema.parse(body);
+    return this.reversalsService.reversePayment(id, paymentId, input.reason);
   }
 
   @Post('bills/:id/cancel')
