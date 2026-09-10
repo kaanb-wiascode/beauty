@@ -6,7 +6,12 @@ import { IntegrationSecretVaultService } from './integration-secret-vault.servic
 import { ProviderRegistryService } from './provider-registry.service';
 import { PosBankReconciliationService } from './pos-bank-reconciliation.service';
 import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service';
-import type { FinancialProviderAdapter, ProviderTokenSet } from './provider-adapter';
+import type {
+  FinancialProviderAdapter,
+  ProviderBankAccount,
+  ProviderBankTransaction,
+  ProviderTokenSet,
+} from './provider-adapter';
 
 interface IntegrationScope {
   tenantId: string;
@@ -14,8 +19,16 @@ interface IntegrationScope {
   branchId: string | null;
 }
 
+interface OpenBankingPages {
+  accounts: ProviderBankAccount[];
+  transactions: ProviderBankTransaction[];
+  nextSyncCursor?: string;
+}
+
 @Injectable()
 export class FinancialIntegrationSyncService {
+  private static readonly MAX_PROVIDER_PAGES = 100;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly providers: ProviderRegistryService,
@@ -110,6 +123,68 @@ export class FinancialIntegrationSyncService {
       : storedTokens;
   }
 
+  private metadataSyncCursor(metadata: unknown) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
+    const value = (metadata as Record<string, unknown>).bankTransactionSyncCursor;
+    return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private async collectOpenBankingPages(
+    adapter: FinancialProviderAdapter,
+    tokens: ProviderTokenSet,
+    since: Date | undefined,
+    syncCursor: string | undefined,
+  ): Promise<OpenBankingPages> {
+    const accounts: ProviderBankAccount[] = [];
+    const transactions: ProviderBankTransaction[] = [];
+
+    if (adapter.listBankAccountPage) {
+      let pageCursor: string | undefined;
+      const seenCursors = new Set<string>();
+      for (let page = 0; page < FinancialIntegrationSyncService.MAX_PROVIDER_PAGES; page += 1) {
+        const result = await adapter.listBankAccountPage(tokens, { pageCursor });
+        accounts.push(...result.items);
+        if (!result.nextPageCursor) break;
+        if (seenCursors.has(result.nextPageCursor)) {
+          throw new BadRequestException('Open Banking provider returned a repeating account page cursor.');
+        }
+        seenCursors.add(result.nextPageCursor);
+        pageCursor = result.nextPageCursor;
+        if (page === FinancialIntegrationSyncService.MAX_PROVIDER_PAGES - 1) {
+          throw new BadRequestException('Open Banking account pagination exceeded the safety limit.');
+        }
+      }
+    } else if (adapter.listBankAccounts) {
+      accounts.push(...await adapter.listBankAccounts(tokens));
+    } else {
+      throw new BadRequestException('Provider does not support bank account synchronization.');
+    }
+
+    let nextSyncCursor: string | undefined;
+    if (adapter.listBankTransactionPage) {
+      let pageCursor: string | undefined;
+      const seenCursors = new Set<string>();
+      for (let page = 0; page < FinancialIntegrationSyncService.MAX_PROVIDER_PAGES; page += 1) {
+        const result = await adapter.listBankTransactionPage(tokens, { since, pageCursor, syncCursor });
+        transactions.push(...result.items);
+        nextSyncCursor = result.nextSyncCursor ?? nextSyncCursor;
+        if (!result.nextPageCursor) break;
+        if (seenCursors.has(result.nextPageCursor)) {
+          throw new BadRequestException('Open Banking provider returned a repeating transaction page cursor.');
+        }
+        seenCursors.add(result.nextPageCursor);
+        pageCursor = result.nextPageCursor;
+        if (page === FinancialIntegrationSyncService.MAX_PROVIDER_PAGES - 1) {
+          throw new BadRequestException('Open Banking transaction pagination exceeded the safety limit.');
+        }
+      }
+    } else if (adapter.listBankTransactions) {
+      transactions.push(...await adapter.listBankTransactions(tokens, since));
+    }
+
+    return { accounts, transactions, nextSyncCursor };
+  }
+
   async syncIntegration(integrationId: string) {
     return this.syncIntegrationInternal(integrationId, this.context());
   }
@@ -117,7 +192,7 @@ export class FinancialIntegrationSyncService {
   private async syncIntegrationInternal(integrationId: string, scope?: IntegrationScope) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",
-              kind,provider,status,auth_type AS "authType",last_sync_at AS "lastSyncAt"
+              kind,provider,status,auth_type AS "authType",last_sync_at AS "lastSyncAt",metadata
        FROM finance_integrations
        WHERE id=$1::text
          AND ($2::text IS NULL OR tenant_id=$2::text)
@@ -150,13 +225,19 @@ export class FinancialIntegrationSyncService {
     let unresolvedPaymentLinks = 0;
     let reconciledSettlements = 0;
     let unresolvedSettlements = 0;
+    let nextBankSyncCursor: string | undefined;
     try {
       if (integration.kind === 'OPEN_BANKING') {
-        if (!adapter.listBankAccounts) {
-          throw new BadRequestException('Provider does not support bank account synchronization.');
-        }
-        const accounts = await adapter.listBankAccounts(tokens);
-        for (const account of accounts) {
+        const providerData = await this.collectOpenBankingPages(
+          adapter,
+          tokens,
+          integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined,
+          this.metadataSyncCursor(integration.metadata),
+        );
+        nextBankSyncCursor = providerData.nextSyncCursor;
+
+        const seenAccountIds = Array.from(new Set(providerData.accounts.map((account) => account.externalAccountId)));
+        for (const account of providerData.accounts) {
           await this.prisma.$executeRawUnsafe(
             `INSERT INTO bank_accounts(
                id,tenant_id,company_id,branch_id,integration_id,external_account_id,bank_name,account_name,
@@ -184,47 +265,54 @@ export class FinancialIntegrationSyncService {
           records += 1;
         }
 
-        if (adapter.listBankTransactions) {
-          const transactions = await adapter.listBankTransactions(
-            tokens,
-            integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined,
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE bank_accounts
+           SET active=FALSE,updated_at=NOW()
+           WHERE integration_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND ($4::text IS NULL OR branch_id=$4::text)
+             AND NOT (external_account_id = ANY($5::text[]))`,
+          integrationId,
+          integration.tenantId,
+          integration.companyId,
+          integration.branchId,
+          seenAccountIds,
+        );
+
+        for (const transaction of providerData.transactions) {
+          const accountRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id FROM bank_accounts
+             WHERE integration_id=$1::text AND external_account_id=$2
+               AND tenant_id=$3::text AND company_id=$4::text
+               AND ($5::text IS NULL OR branch_id=$5::text)
+             LIMIT 1`,
+            integrationId,
+            transaction.externalAccountId,
+            integration.tenantId,
+            integration.companyId,
+            integration.branchId,
           );
-          for (const transaction of transactions) {
-            const accountRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
-              `SELECT id FROM bank_accounts
-               WHERE integration_id=$1::text AND external_account_id=$2
-                 AND tenant_id=$3::text AND company_id=$4::text
-                 AND ($5::text IS NULL OR branch_id=$5::text)
-               LIMIT 1`,
-              integrationId,
-              transaction.externalAccountId,
-              integration.tenantId,
-              integration.companyId,
-              integration.branchId,
-            );
-            if (!accountRows.length) continue;
-            const inserted = await this.prisma.$executeRawUnsafe(
-              `INSERT INTO bank_transactions(
-                 id,tenant_id,company_id,branch_id,bank_account_id,external_transaction_id,booked_at,value_at,
-                 amount,currency,description,counterparty_name,counterparty_iban_masked
-               ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13)
-               ON CONFLICT(bank_account_id,external_transaction_id) DO NOTHING`,
-              randomUUID(),
-              integration.tenantId,
-              integration.companyId,
-              integration.branchId,
-              accountRows[0].id,
-              transaction.externalTransactionId,
-              transaction.bookedAt,
-              transaction.valueAt ?? null,
-              transaction.amount,
-              transaction.currency,
-              transaction.description ?? null,
-              transaction.counterpartyName ?? null,
-              transaction.counterpartyIbanMasked ?? null,
-            );
-            records += inserted;
-          }
+          if (!accountRows.length) continue;
+          const inserted = await this.prisma.$executeRawUnsafe(
+            `INSERT INTO bank_transactions(
+               id,tenant_id,company_id,branch_id,bank_account_id,external_transaction_id,booked_at,value_at,
+               amount,currency,description,counterparty_name,counterparty_iban_masked
+             ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13)
+             ON CONFLICT(bank_account_id,external_transaction_id) DO NOTHING`,
+            randomUUID(),
+            integration.tenantId,
+            integration.companyId,
+            integration.branchId,
+            accountRows[0].id,
+            transaction.externalTransactionId,
+            transaction.bookedAt,
+            transaction.valueAt ?? null,
+            transaction.amount,
+            transaction.currency,
+            transaction.description ?? null,
+            transaction.counterpartyName ?? null,
+            transaction.counterpartyIbanMasked ?? null,
+          );
+          records += inserted;
         }
 
         const reconciliation = await this.reconciliation.autoMatchInScope(
@@ -316,8 +404,14 @@ export class FinancialIntegrationSyncService {
 
       await this.prisma.$transaction([
         this.prisma.$executeRawUnsafe(
-          `UPDATE finance_integrations SET last_sync_at=NOW(),last_error=NULL,updated_at=NOW() WHERE id=$1::text`,
+          `UPDATE finance_integrations
+           SET last_sync_at=NOW(),last_error=NULL,
+               metadata=CASE WHEN $2::text IS NULL THEN metadata
+                 ELSE jsonb_set(metadata,'{bankTransactionSyncCursor}',to_jsonb($2::text),TRUE) END,
+               updated_at=NOW()
+           WHERE id=$1::text`,
           integrationId,
+          nextBankSyncCursor ?? null,
         ),
         this.prisma.$executeRawUnsafe(
           `UPDATE finance_integration_sync_runs
