@@ -7,6 +7,7 @@ import { IntegrationSecretVaultService } from './integration-secret-vault.servic
 import { FinancialIntegrationConnectionService } from './financial-integration-connection.service';
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
 import { FinancialIntegrationSyncSchedulerService } from './financial-integration-sync-scheduler.service';
+import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 
 @Module({
   controllers: [FinancialIntegrationsController, FinancialIntegrationCallbackController],
@@ -17,6 +18,7 @@ import { FinancialIntegrationSyncSchedulerService } from './financial-integratio
     FinancialIntegrationConnectionService,
     FinancialIntegrationSyncService,
     FinancialIntegrationSyncSchedulerService,
+    FinancialIntegrationCredentialsService,
   ],
   exports: [
     FinancialIntegrationsService,
@@ -24,6 +26,7 @@ import { FinancialIntegrationSyncSchedulerService } from './financial-integratio
     IntegrationSecretVaultService,
     FinancialIntegrationConnectionService,
     FinancialIntegrationSyncService,
+    FinancialIntegrationCredentialsService,
   ],
 })
 export class FinancialIntegrationsModule {}
