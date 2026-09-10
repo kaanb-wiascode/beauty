@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { AccountingService } from '../accounting/accounting.service';
 import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
 import { InstallmentsService } from '../installments/installments.service';
 
@@ -31,6 +32,7 @@ export class SalesService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly installmentsService: InstallmentsService,
+    private readonly accountingService: AccountingService,
   ) {}
 
   private requireBranchId(): string {
@@ -209,6 +211,17 @@ export class SalesService {
       });
 
       await this.installmentsService.allocatePayment(tx, sale.id, createdPayment.id, amount);
+      await this.accountingService.recordSalePayment(
+        tx,
+        createdPayment.id,
+        createdPayment.method,
+        {
+          tenantId,
+          branchId,
+          entryDate: createdPayment.paidAt,
+          amount,
+        },
+      );
       return createdPayment;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
@@ -236,14 +249,29 @@ export class SalesService {
         throw new BadRequestException('Only completed payments can be refunded.');
       }
 
-      return tx.salePayment.update({
+      const refundedAt = new Date();
+      const updatedPayment = await tx.salePayment.update({
         where: { id: existing.id },
         data: {
           status: 'REFUNDED',
-          refundedAt: new Date(),
+          refundedAt,
           refundReason: reason,
         },
       });
+
+      await this.accountingService.recordSalePaymentRefund(
+        tx,
+        existing.id,
+        existing.method,
+        {
+          tenantId,
+          branchId,
+          entryDate: refundedAt,
+          amount: Number(existing.amount),
+        },
+      );
+
+      return updatedPayment;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return {
@@ -261,12 +289,31 @@ export class SalesService {
     const packageItems = sale.items.filter((item) => item.type === 'PACKAGE' && item.packageId);
 
     return this.prisma.$transaction(async (tx) => {
+      const confirmedAt = new Date();
+      const claimed = await tx.sale.updateMany({
+        where: {
+          id: sale.id,
+          tenantId: sale.tenantId,
+          branchId: sale.branchId,
+          status: 'DRAFT',
+        },
+        data: { status: 'CONFIRMED', confirmedAt },
+      });
+      if (claimed.count !== 1) {
+        throw new BadRequestException('Sale is no longer in a confirmable state.');
+      }
+
       for (const line of packageItems) {
-        const definition = await tx.servicePackage.findUnique({
-          where: { id: line.packageId! },
+        const definition = await tx.servicePackage.findFirst({
+          where: {
+            id: line.packageId!,
+            tenantId: sale.tenantId,
+            branchId: sale.branchId,
+            active: true,
+          },
           include: { items: true },
         });
-        if (!definition || !definition.active) {
+        if (!definition) {
           throw new BadRequestException('A package in this sale is no longer available.');
         }
 
@@ -303,9 +350,11 @@ export class SalesService {
         }
       }
 
-      await tx.sale.update({
-        where: { id: sale.id },
-        data: { status: 'CONFIRMED', confirmedAt: new Date() },
+      await this.accountingService.recordSaleConfirmed(tx, sale.id, {
+        tenantId: sale.tenantId,
+        branchId: sale.branchId,
+        entryDate: confirmedAt,
+        amount: Number(sale.total),
       });
 
       return tx.sale.findUnique({
@@ -317,7 +366,7 @@ export class SalesService {
           customerPackages: { include: { package: true, sessions: true } },
         },
       });
-    });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async cancel(id: string) {
