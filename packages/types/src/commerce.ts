@@ -22,6 +22,12 @@ export type CustomerLedgerStatus = (typeof CUSTOMER_LEDGER_STATUSES)[number];
 export const INSTALLMENT_RUNTIME_STATUSES = ['PENDING', 'PARTIALLY_PAID', 'PAID', 'OVERDUE'] as const;
 export type InstallmentRuntimeStatus = (typeof INSTALLMENT_RUNTIME_STATUSES)[number];
 
+export const ACCOUNT_TYPES = ['ASSET', 'LIABILITY', 'EQUITY', 'REVENUE', 'EXPENSE'] as const;
+export type AccountType = (typeof ACCOUNT_TYPES)[number];
+
+export const JOURNAL_ENTRY_STATUSES = ['DRAFT', 'POSTED', 'REVERSED'] as const;
+export type JournalEntryStatus = (typeof JOURNAL_ENTRY_STATUSES)[number];
+
 export interface PackageItemContract {
   id: string;
   serviceId: string;
@@ -130,4 +136,38 @@ export interface InstallmentSummaryContract extends PlannedInstallmentContract {
   paidAmount: number;
   outstanding: number;
   status: InstallmentRuntimeStatus;
+}
+
+export interface ChartOfAccountContract {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  code: string;
+  name: string;
+  type: AccountType;
+  active: boolean;
+  parentId: string | null;
+}
+
+export interface JournalEntryLineContract {
+  id: string;
+  accountId: string;
+  debit: string;
+  credit: string;
+  memo: string | null;
+}
+
+export interface JournalEntryContract {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  branchId: string | null;
+  number: string;
+  status: JournalEntryStatus;
+  entryDate: string;
+  description: string;
+  referenceType: string | null;
+  referenceId: string | null;
+  postedAt: string | null;
+  lines: JournalEntryLineContract[];
 }
