@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from './domain/journal-policy';
 
@@ -24,6 +24,20 @@ interface CreateJournalEntryInput {
   }>;
 }
 
+type AutomaticJournalLine = {
+  accountId: string;
+  debit: number;
+  credit: number;
+  memo?: string;
+};
+
+type CommerceAccountingContext = {
+  tenantId: string;
+  branchId: string;
+  entryDate: Date;
+  amount: number;
+};
+
 @Injectable()
 export class AccountingService {
   constructor(
@@ -37,6 +51,216 @@ export class AccountingService {
       companyId: this.tenantContext.getCompanyId(),
       branchId: this.tenantContext.getBranchId(),
     };
+  }
+
+  private journalNumber(entryDate: Date): string {
+    return `JE-${entryDate.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+  }
+
+  private async ensureSystemAccount(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    companyId: string,
+    code: string,
+    name: string,
+    type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
+  ) {
+    const existing = await tx.chartOfAccount.findFirst({
+      where: { tenantId, companyId, code },
+      select: { id: true, active: true },
+    });
+
+    if (existing) {
+      if (!existing.active) {
+        return tx.chartOfAccount.update({
+          where: { id: existing.id },
+          data: { active: true },
+          select: { id: true },
+        });
+      }
+      return existing;
+    }
+
+    return tx.chartOfAccount.create({
+      data: { tenantId, companyId, code, name, type, active: true },
+      select: { id: true },
+    });
+  }
+
+  private async createAutomaticJournal(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string;
+      companyId: string;
+      branchId: string;
+      entryDate: Date;
+      description: string;
+      referenceType: string;
+      referenceId: string;
+      lines: AutomaticJournalLine[];
+    },
+  ) {
+    const existing = await tx.journalEntry.findFirst({
+      where: {
+        companyId: input.companyId,
+        referenceType: input.referenceType,
+        referenceId: input.referenceId,
+      },
+      select: { id: true },
+    });
+    if (existing) return existing;
+
+    validateJournalLines(input.lines);
+
+    return tx.journalEntry.create({
+      data: {
+        tenantId: input.tenantId,
+        companyId: input.companyId,
+        branchId: input.branchId,
+        number: this.journalNumber(input.entryDate),
+        entryDate: input.entryDate,
+        description: input.description,
+        referenceType: input.referenceType,
+        referenceId: input.referenceId,
+        status: 'POSTED',
+        postedAt: new Date(),
+        lines: {
+          create: input.lines.map((line) => ({
+            accountId: line.accountId,
+            debit: line.debit,
+            credit: line.credit,
+            memo: line.memo?.trim() || null,
+          })),
+        },
+      },
+      select: { id: true },
+    });
+  }
+
+  async recordSaleConfirmed(
+    tx: Prisma.TransactionClient,
+    saleId: string,
+    input: CommerceAccountingContext,
+  ) {
+    const companyId = this.tenantContext.getCompanyId();
+    const receivable = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '120',
+      'Alıcılar',
+      'ASSET',
+    );
+    const revenue = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '600',
+      'Hizmet Gelirleri',
+      'REVENUE',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Satış onayı ${saleId}`,
+      referenceType: 'SALE',
+      referenceId: saleId,
+      lines: [
+        { accountId: receivable.id, debit: input.amount, credit: 0, memo: 'Müşteri alacağı' },
+        { accountId: revenue.id, debit: 0, credit: input.amount, memo: 'Hizmet satışı' },
+      ],
+    });
+  }
+
+  async recordSalePayment(
+    tx: Prisma.TransactionClient,
+    paymentId: string,
+    method: 'CASH' | 'CARD' | 'TRANSFER',
+    input: CommerceAccountingContext,
+  ) {
+    const companyId = this.tenantContext.getCompanyId();
+    const receivable = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '120',
+      'Alıcılar',
+      'ASSET',
+    );
+    const paymentAccountDefinition = method === 'CASH'
+      ? { code: '100', name: 'Kasa' }
+      : method === 'CARD'
+        ? { code: '108', name: 'POS Alacakları' }
+        : { code: '102', name: 'Bankalar' };
+    const paymentAccount = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      paymentAccountDefinition.code,
+      paymentAccountDefinition.name,
+      'ASSET',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Satış tahsilatı ${paymentId}`,
+      referenceType: 'SALE_PAYMENT',
+      referenceId: paymentId,
+      lines: [
+        { accountId: paymentAccount.id, debit: input.amount, credit: 0, memo: 'Tahsilat' },
+        { accountId: receivable.id, debit: 0, credit: input.amount, memo: 'Müşteri alacağı kapama' },
+      ],
+    });
+  }
+
+  async recordSalePaymentRefund(
+    tx: Prisma.TransactionClient,
+    paymentId: string,
+    method: 'CASH' | 'CARD' | 'TRANSFER',
+    input: CommerceAccountingContext,
+  ) {
+    const companyId = this.tenantContext.getCompanyId();
+    const receivable = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '120',
+      'Alıcılar',
+      'ASSET',
+    );
+    const paymentAccountDefinition = method === 'CASH'
+      ? { code: '100', name: 'Kasa' }
+      : method === 'CARD'
+        ? { code: '108', name: 'POS Alacakları' }
+        : { code: '102', name: 'Bankalar' };
+    const paymentAccount = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      paymentAccountDefinition.code,
+      paymentAccountDefinition.name,
+      'ASSET',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Tahsilat iadesi ${paymentId}`,
+      referenceType: 'SALE_PAYMENT_REFUND',
+      referenceId: paymentId,
+      lines: [
+        { accountId: receivable.id, debit: input.amount, credit: 0, memo: 'Müşteri alacağını yeniden açma' },
+        { accountId: paymentAccount.id, debit: 0, credit: input.amount, memo: 'Tahsilat iadesi' },
+      ],
+    });
   }
 
   async createAccount(input: CreateAccountInput) {
@@ -109,7 +333,7 @@ export class AccountingService {
       if (!branch) throw new BadRequestException('Branch context is invalid.');
     }
 
-    const number = `JE-${input.entryDate.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
+    const number = this.journalNumber(input.entryDate);
 
     return this.prisma.journalEntry.create({
       data: {
