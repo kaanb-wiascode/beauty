@@ -38,6 +38,12 @@ function secureHexEqual(left: string, right: string) {
   return a.length === b.length && timingSafeEqual(a, b);
 }
 
+function mapStatus(status: string) {
+  if (status === 'SUCCESS') return 'CAPTURED' as const;
+  if (status === 'FAILURE') return 'FAILED' as const;
+  return 'AUTHORIZED' as const;
+}
+
 @Injectable()
 export class IyzicoAdapter implements FinancialProviderAdapter {
   readonly provider = 'IYZICO';
@@ -89,15 +95,24 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     const payload = payloadRecord(input.payload);
     const eventType = requiredString(payload, 'iyziEventType');
     const status = requiredString(payload, 'status').toUpperCase();
+    const paymentConversationId = requiredString(payload, 'paymentConversationId');
     const paymentId = typeof payload.paymentId === 'string' || typeof payload.paymentId === 'number'
       ? String(payload.paymentId)
       : requiredString(payload, 'iyziPaymentId');
     const referenceCode = typeof payload.iyziReferenceCode === 'string' ? payload.iyziReferenceCode.trim() : '';
     const eventTime = Number(payload.iyziEventTime ?? Date.now());
+    const occurredAt = Number.isFinite(eventTime) ? new Date(eventTime) : new Date();
 
     return {
       externalEventId: referenceCode || `${eventType}:${paymentId}:${eventTime}`,
-      eventType: status === 'SUCCESS' ? 'PAYMENT_SUCCESS' : 'PAYMENT_STATUS',
+      eventType: status === 'SUCCESS' ? 'PAYMENT_SUCCESS' : status === 'FAILURE' ? 'PAYMENT_FAILED' : 'PAYMENT_STATUS',
+      correlation: {
+        providerTransactionId: paymentId,
+        merchantReference: paymentConversationId,
+        occurredAt,
+        status: mapStatus(status),
+        requiresEnrichment: true,
+      },
     };
   }
 }
