@@ -96,6 +96,37 @@ export class FinancialIntegrationsService {
     return { accountCount: accounts.length, byCurrency, accounts };
   }
 
+  async treasuryPosition() {
+    const [bank, pos] = await Promise.all([this.liquidity(), this.posSummary()]);
+    const currencies = new Set<string>([
+      ...Object.keys(bank.byCurrency),
+      ...pos.currencies.map((row: any) => String(row.currency || 'TRY')),
+    ]);
+    const byCurrency = Array.from(currencies).sort().map((currency) => {
+      const bankPosition = bank.byCurrency[currency] ?? { current: 0, available: 0 };
+      const posPosition = pos.currencies.find((row: any) => row.currency === currency);
+      const cash = Number(bankPosition.available ?? bankPosition.current ?? 0);
+      const nearCash = Number(posPosition?.nearCash ?? 0);
+      return {
+        currency,
+        cash,
+        currentBankBalance: Number(bankPosition.current ?? 0),
+        nearCash,
+        totalLiquidity: cash + nearCash,
+        settledPos: Number(posPosition?.settled ?? 0),
+      };
+    });
+    return {
+      accountCount: bank.accountCount,
+      classification: {
+        cash: 'Bank account available balances (102)',
+        nearCash: 'Captured but unsettled POS receivables (108)',
+        totalLiquidity: 'Cash + Near Cash',
+      },
+      byCurrency,
+    };
+  }
+
   async transactions(limit = 100) {
     const ctx = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
