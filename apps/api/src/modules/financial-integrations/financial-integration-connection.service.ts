@@ -35,17 +35,6 @@ export class FinancialIntegrationConnectionService {
 
   async begin(integrationId: string) {
     const integration = await this.integrations.get(integrationId);
-    if (integration.authType !== 'OAUTH2') {
-      return {
-        integrationId,
-        provider: integration.provider,
-        status: integration.status,
-        providerConfigured: this.providers.has(integration.kind, integration.provider),
-        mode: integration.authType,
-        message: 'Provider credentials must be submitted through the secure credential endpoint; secrets are never returned by this API.',
-      };
-    }
-
     if (!this.providers.has(integration.kind, integration.provider)) {
       return {
         integrationId,
@@ -53,6 +42,45 @@ export class FinancialIntegrationConnectionService {
         status: integration.status,
         providerConfigured: false,
         message: 'Provider adapter is not configured yet.',
+      };
+    }
+
+    const adapter = this.providers.get(integration.kind, integration.provider);
+    if (integration.authType !== 'OAUTH2') {
+      if (integration.authType === 'API_KEY' && adapter.authenticateCredentials) {
+        const credentials = await this.vault.loadOpaque(integrationId);
+        if (!credentials) {
+          throw new BadRequestException('Provider credentials must be configured before the connection can be started.');
+        }
+        const tokens = await adapter.authenticateCredentials(credentials);
+        if (!tokens.accessToken) {
+          throw new BadRequestException('Provider returned an invalid authentication response.');
+        }
+        await this.prisma.$executeRawUnsafe(
+          `UPDATE finance_integrations
+           SET status='CONNECTED',external_connection_id=COALESCE($2,external_connection_id),
+               consent_expires_at=COALESCE($3,consent_expires_at),last_error=NULL,
+               metadata=metadata || jsonb_build_object('authenticationMode','CLIENT_CREDENTIALS'),updated_at=NOW()
+           WHERE id=$1::text`,
+          integrationId,
+          tokens.externalConnectionId ?? null,
+          tokens.consentExpiresAt ?? null,
+        );
+        return {
+          ...(await this.integrations.get(integrationId)),
+          providerConfigured: true,
+          mode: integration.authType,
+          authenticated: true,
+        };
+      }
+
+      return {
+        integrationId,
+        provider: integration.provider,
+        status: integration.status,
+        providerConfigured: true,
+        mode: integration.authType,
+        message: 'Provider credentials must be submitted through the secure credential endpoint; secrets are never returned by this API.',
       };
     }
 
@@ -68,7 +96,6 @@ export class FinancialIntegrationConnectionService {
       callbackUrl,
     );
 
-    const adapter = this.providers.get(integration.kind, integration.provider);
     if (!adapter.beginAuthorization) {
       throw new BadRequestException('Provider does not support OAuth authorization.');
     }
