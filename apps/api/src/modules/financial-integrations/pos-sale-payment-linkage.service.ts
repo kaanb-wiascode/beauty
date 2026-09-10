@@ -79,6 +79,57 @@ export class PosSalePaymentLinkageService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  async correlateProviderReferenceInScope(
+    ctx: PosScope,
+    providerTransactionId: string,
+    merchantReference?: string,
+  ) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; salePaymentId: string | null }>>(
+      `SELECT p.id,p.sale_payment_id AS "salePaymentId"
+       FROM pos_transactions p
+       WHERE p.tenant_id=$1::text AND p.company_id=$2::text
+         AND ($3::text IS NULL OR p.branch_id=$3::text)
+         AND p.provider_transaction_id=$4
+       ORDER BY p.created_at DESC
+       LIMIT 2`,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      providerTransactionId,
+    );
+    if (rows.length !== 1) {
+      return { linked: false, reason: rows.length ? 'AMBIGUOUS_POS_TRANSACTION' : 'NEEDS_ENRICHMENT' };
+    }
+    const pos = rows[0];
+    if (pos.salePaymentId) {
+      return { linked: true, reason: 'ALREADY_LINKED', posTransactionId: pos.id, salePaymentId: pos.salePaymentId };
+    }
+    if (!merchantReference?.trim()) {
+      return this.autoLinkOneInScope(ctx, pos.id);
+    }
+
+    const exact = await this.prisma.salePayment.findMany({
+      where: {
+        tenantId: ctx.tenantId,
+        method: 'CARD',
+        status: 'COMPLETED',
+        reference: merchantReference.trim(),
+        ...(ctx.branchId ? { branchId: ctx.branchId } : {}),
+      },
+      select: { id: true },
+      take: 2,
+    });
+    if (exact.length !== 1) {
+      return { linked: false, reason: exact.length ? 'AMBIGUOUS_MERCHANT_REFERENCE' : 'MERCHANT_REFERENCE_NOT_FOUND', posTransactionId: pos.id };
+    }
+    try {
+      const result = await this.linkInScope(ctx, pos.id, exact[0].id, 'PROVIDER_MERCHANT_REFERENCE');
+      return { linked: true, reason: 'PROVIDER_MERCHANT_REFERENCE', ...result };
+    } catch {
+      return { linked: false, reason: 'LINK_REJECTED', posTransactionId: pos.id };
+    }
+  }
+
   async autoLinkOneInScope(ctx: PosScope, posTransactionId: string) {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT p.id,p.amount,p.provider_transaction_id AS "providerTransactionId",p.created_at AS "createdAt",
