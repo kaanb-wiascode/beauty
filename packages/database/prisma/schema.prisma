@@ -42,6 +42,7 @@ model Tenant {
   sales                  Sale[]
   customerPackages       CustomerPackage[]
   sessions               Session[]
+  salePayments           SalePayment[]
 
   @@map("tenants")
 }
@@ -107,9 +108,10 @@ model Branch {
   staff                  Staff[]
   services               Service[]
   servicePackages        ServicePackage[]
-  sales                   Sale[]
+  sales                  Sale[]
   customerPackages       CustomerPackage[]
   sessions               Session[]
+  salePayments           SalePayment[]
 
   @@unique([companyId, code])
   @@index([companyId])
@@ -536,6 +538,7 @@ model Sale {
   customer         Customer          @relation(fields: [customerId], references: [id], onDelete: Restrict)
   items            SaleItem[]
   customerPackages CustomerPackage[]
+  payments         SalePayment[]
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, customerId])
@@ -561,6 +564,33 @@ model SaleItem {
 
   @@index([saleId])
   @@map("sale_items")
+}
+
+model SalePayment {
+  id           String        @id @default(uuid())
+  tenantId     String
+  branchId     String
+  saleId       String
+  amount       Decimal       @db.Decimal(10, 2)
+  method       PaymentMethod
+  status       PaymentStatus @default(COMPLETED)
+  paidAt       DateTime      @default(now())
+  refundedAt   DateTime?
+  refundReason String?
+  reference    String?
+  note         String?
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  sale   Sale   @relation(fields: [saleId], references: [id], onDelete: Restrict)
+
+  @@index([tenantId, branchId, paidAt])
+  @@index([tenantId, saleId])
+  @@index([tenantId, status])
+  @@index([tenantId, method])
+  @@map("sale_payments")
 }
 
 model CustomerPackage {
