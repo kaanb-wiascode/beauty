@@ -19,6 +19,10 @@ const payBillSchema = z.object({
   note: z.string().trim().max(500).optional(),
 });
 
+const cancelBillSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 const listSchema = z.object({
   status: z.enum(['OPEN', 'PARTIALLY_PAID', 'PAID', 'CANCELLED']).optional(),
   supplierId: z.string().uuid().optional(),
@@ -44,6 +48,16 @@ export class AccountsPayableController {
     return this.service.summary();
   }
 
+  @Get('aging')
+  aging() {
+    return this.service.aging();
+  }
+
+  @Get('suppliers/:supplierId/ledger')
+  supplierLedger(@Param('supplierId') supplierId: string) {
+    return this.service.supplierLedger(supplierId);
+  }
+
   @Get('bills/:id')
   getBill(@Param('id') id: string) {
     return this.service.getBill(id);
@@ -52,5 +66,10 @@ export class AccountsPayableController {
   @Post('bills/:id/payments')
   payBill(@Param('id') id: string, @Body() body: unknown) {
     return this.service.payBill(id, payBillSchema.parse(body));
+  }
+
+  @Post('bills/:id/cancel')
+  cancelBill(@Param('id') id: string, @Body() body: unknown) {
+    return this.service.cancelBill(id, cancelBillSchema.parse(body));
   }
 }
