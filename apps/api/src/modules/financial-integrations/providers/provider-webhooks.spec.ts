@@ -25,13 +25,16 @@ describe('financial provider webhook adapters', () => {
 
     await expect(adapter.verifyWebhook({ headers: {}, payload, credentials })).resolves.toEqual({ valid: true });
     const parsed = await adapter.parseWebhook({ headers: {}, payload, credentials });
-    expect(parsed.externalEventId).toBe('SALE-42');
-    expect(parsed.transaction).toMatchObject({
-      externalTransactionId: 'SALE-42',
-      status: 'CAPTURED',
-      grossAmount: 100,
-      netAmount: 100,
-      currency: 'TRY',
+    expect(parsed).toEqual({
+      externalEventId: 'SALE-42:success:10500',
+      eventType: 'PAYMENT_SUCCESS',
+      correlation: {
+        providerTransactionId: 'SALE-42',
+        merchantReference: 'SALE-42',
+        status: 'CAPTURED',
+        occurredAt: expect.any(Date),
+        requiresEnrichment: true,
+      },
     });
 
     await expect(adapter.verifyWebhook({
