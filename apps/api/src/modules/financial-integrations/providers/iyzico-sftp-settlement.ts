@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import type { ProviderPosSettlementBatch } from '../provider-adapter';
 
@@ -5,7 +6,15 @@ const ALLOWED_SFTP_HOSTS = new Set(['report.iyzipay.com', 'sandbox-report.iyzipa
 
 interface SftpEntry { name: string; type?: string }
 interface SftpClientLike {
-  connect(config: { host: string; port: number; username: string; password: string; readyTimeout?: number }): Promise<unknown>;
+  connect(config: {
+    host: string;
+    port: number;
+    username: string;
+    password: string;
+    readyTimeout?: number;
+    hostHash?: string;
+    hostVerifier?: (hashedKey: string) => boolean;
+  }): Promise<unknown>;
   list(path: string): Promise<SftpEntry[]>;
   get(path: string): Promise<Buffer | string>;
   end(): Promise<unknown>;
@@ -63,6 +72,35 @@ function parseSettlementDate(raw: string) {
   const hasZone = /(?:Z|[+-]\d{2}:?\d{2})$/i.test(isoLike);
   const parsed = new Date(hasZone ? isoLike : `${isoLike}+03:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
+}
+
+function normalizeFingerprint(value: string) {
+  const normalized = value.trim();
+  if (/^[a-f0-9]{64}$/i.test(normalized)) {
+    return { format: 'hex' as const, value: normalized.toLowerCase() };
+  }
+  const base64 = normalized.replace(/^SHA256:/i, '').replace(/=+$/, '');
+  if (!/^[A-Za-z0-9+/]{40,50}$/.test(base64)) {
+    throw new BadRequestException('iyzico SFTP host key fingerprint format is invalid.');
+  }
+  return { format: 'base64' as const, value: base64 };
+}
+
+function secureTextEqual(left: string, right: string) {
+  const a = Buffer.from(left, 'utf8');
+  const b = Buffer.from(right, 'utf8');
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function buildHostVerifier(expectedFingerprint: string) {
+  const expected = normalizeFingerprint(expectedFingerprint);
+  return (hashedKey: string) => {
+    const actualHex = hashedKey.trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(actualHex)) return false;
+    if (expected.format === 'hex') return secureTextEqual(actualHex, expected.value);
+    const actualBase64 = Buffer.from(actualHex, 'hex').toString('base64').replace(/=+$/, '');
+    return secureTextEqual(actualBase64, expected.value);
+  };
 }
 
 export function parseIyzicoSettlementCsv(csv: string, filename: string): ProviderPosSettlementBatch[] {
@@ -168,10 +206,14 @@ export async function listIyzicoSftpSettlements(
   const merchantId = credentials.merchantId?.trim();
   const username = credentials.sftpUsername?.trim();
   const password = credentials.sftpPassword;
+  const hostKeyFingerprint = credentials.sftpHostKeySha256?.trim();
   const host = credentials.sftpHost?.trim() || 'report.iyzipay.com';
   const port = Number(credentials.sftpPort || 22);
   if (!merchantId || !username || !password) {
     throw new ServiceUnavailableException('iyzico SFTP credentials are not configured.');
+  }
+  if (!hostKeyFingerprint) {
+    throw new ServiceUnavailableException('iyzico SFTP host key fingerprint is not configured.');
   }
   if (!ALLOWED_SFTP_HOSTS.has(host)) {
     throw new BadRequestException('iyzico SFTP host is not an allowed official endpoint.');
@@ -179,11 +221,20 @@ export async function listIyzicoSftpSettlements(
   if (!Number.isInteger(port) || port !== 22) {
     throw new BadRequestException('iyzico SFTP port must be the official port 22.');
   }
+  const hostVerifier = buildHostVerifier(hostKeyFingerprint);
 
   const client = factory();
   const root = '/settlement';
   try {
-    await client.connect({ host, port, username, password, readyTimeout: 10_000 });
+    await client.connect({
+      host,
+      port,
+      username,
+      password,
+      readyTimeout: 10_000,
+      hostHash: 'sha256',
+      hostVerifier,
+    });
     const entries = await client.list(root);
     const token = dateToken(date);
     const prefix = `settlement-${merchantId}-${token}`;
