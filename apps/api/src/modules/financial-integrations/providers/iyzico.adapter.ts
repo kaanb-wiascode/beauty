@@ -164,9 +164,9 @@ export class IyzicoAdapter implements FinancialProviderAdapter {
     if (!returnedPaymentId || returnedPaymentId !== paymentId) {
       throw new ServiceUnavailableException('iyzico payment detail response paymentId does not match the request.');
     }
-    if (input.merchantReference) {
-      const returnedReference = String(detail.paymentConversationId ?? detail.conversationId ?? '').trim();
-      if (returnedReference && returnedReference !== input.merchantReference) {
+    if (input.merchantReference && detail.paymentConversationId !== undefined) {
+      const returnedReference = String(detail.paymentConversationId ?? '').trim();
+      if (returnedReference !== input.merchantReference) {
         throw new ServiceUnavailableException('iyzico payment detail merchant reference does not match the request.');
       }
     }
