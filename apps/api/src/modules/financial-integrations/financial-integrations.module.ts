@@ -20,6 +20,7 @@ import { PosSalePaymentLinkageService } from './pos-sale-payment-linkage.service
 import { PosFinancialEventsService } from './pos-financial-events.service';
 import { PosRefundService } from './pos-refund.service';
 import { PosReconciliationSchedulerService } from './pos-reconciliation-scheduler.service';
+import { GarantiBbvaAdapter } from './providers/garanti-bbva.adapter';
 import { IyzicoAdapter } from './providers/iyzico.adapter';
 import { PaytrAdapter } from './providers/paytr.adapter';
 
@@ -31,6 +32,7 @@ import { PaytrAdapter } from './providers/paytr.adapter';
   ],
   providers: [
     FinancialIntegrationsService,
+    GarantiBbvaAdapter,
     IyzicoAdapter,
     PaytrAdapter,
     ProviderRegistryService,
