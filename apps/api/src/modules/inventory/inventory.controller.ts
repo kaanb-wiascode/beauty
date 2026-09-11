@@ -4,6 +4,9 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { InventoryService } from './inventory.service';
 import { WarehouseAccountingService } from './warehouse-accounting.service';
+import { InventoryGovernanceService } from './inventory-governance.service';
+import { InventoryTransferReceiptService } from './inventory-transfer-receipt.service';
+import { InventoryValuationReportService } from './inventory-valuation-report.service';
 
 const adjustmentSchema = z.object({
   warehouseId: z.string().uuid(),
@@ -16,12 +19,34 @@ const adjustmentSchema = z.object({
   })).min(1),
 });
 
+const cycleCountSchema = z.object({
+  warehouseId: z.string().uuid(),
+  reason: z.string().trim().min(1).max(500),
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    countedQuantity: z.coerce.number().min(0),
+  })).min(1),
+});
+const cycleCountListSchema = z.object({
+  status: z.enum(['DRAFT','SUBMITTED','APPROVED','REJECTED','POSTED']).optional(),
+});
+const rejectCycleCountSchema = z.object({ reason: z.string().trim().min(1).max(500) });
+const valuationQuerySchema = z.object({ warehouseId: z.string().uuid().optional() });
+const movementReportSchema = z.object({
+  warehouseId: z.string().uuid().optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+});
+
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class InventoryController {
   constructor(
     private readonly inventory: InventoryService,
     private readonly warehouseAccounting: WarehouseAccountingService,
+    private readonly governance: InventoryGovernanceService,
+    private readonly transferReceipt: InventoryTransferReceiptService,
+    private readonly valuationReports: InventoryValuationReportService,
   ) {}
 
   private userId(req: { user?: { sub?: string } }) {
@@ -49,9 +74,12 @@ export class InventoryController {
   @Get('assets/maintenance') assetMaintenance(){ return this.inventory.assetMaintenance(); }
   @Post('assets/maintenance') createAssetMaintenance(@Body() body:any){ return this.inventory.createAssetMaintenance(body); }
   @Get('notifications') notifications(){ return this.inventory.notifications(); }
+
   @Get('transfers') transfers(){ return this.inventory.transfers(); }
   @Post('transfers') createTransfer(@Body() body:any){ return this.inventory.createTransfer(body); }
-  @Post('transfers/:id/receive') receiveTransfer(@Param('id') id:string){ return this.warehouseAccounting.receiveTransfer(id); }
+  @Post('transfers/:id/approve') approveTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.approveTransfer(id,this.userId(req)); }
+  @Post('transfers/:id/dispatch') dispatchTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.dispatchTransfer(id,this.userId(req)); }
+  @Post('transfers/:id/receive') receiveTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.transferReceipt.receive(id,this.userId(req)); }
 
   @Get('accounting/valuation') valuation(){ return this.warehouseAccounting.valuation(); }
   @Get('accounting/reconciliation') reconciliation(){ return this.warehouseAccounting.reconciliation(); }
@@ -60,4 +88,25 @@ export class InventoryController {
     const parsed=adjustmentSchema.parse(body);
     return this.warehouseAccounting.postAdjustment({...parsed,userId:this.userId(req)});
   }
+
+  @Get('accounting/valuation/detail')
+  valuationDetail(@Query() query:unknown){ const parsed=valuationQuerySchema.parse(query); return this.valuationReports.detail(parsed.warehouseId); }
+  @Get('accounting/movement-summary')
+  movementSummary(@Query() query:unknown){ const parsed=movementReportSchema.parse(query); return this.valuationReports.movementSummary(parsed.from,parsed.to,parsed.warehouseId); }
+  @Get('accounting/in-transit') inTransit(){ return this.valuationReports.inTransit(); }
+
+  @Post('cycle-counts')
+  createCycleCount(@Body() body:unknown,@Req() req:{user?:{sub?:string}}){
+    const parsed=cycleCountSchema.parse(body);
+    return this.governance.createCycleCount({...parsed,userId:this.userId(req)});
+  }
+  @Get('cycle-counts')
+  listCycleCounts(@Query() query:unknown){ const parsed=cycleCountListSchema.parse(query); return this.governance.listCycleCounts(parsed.status); }
+  @Post('cycle-counts/:id/submit') submitCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.submitCycleCount(id,this.userId(req)); }
+  @Post('cycle-counts/:id/approve') approveCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.approveCycleCount(id,this.userId(req)); }
+  @Post('cycle-counts/:id/reject')
+  rejectCycleCount(@Param('id') id:string,@Body() body:unknown,@Req() req:{user?:{sub?:string}}){
+    return this.governance.rejectCycleCount(id,this.userId(req),rejectCycleCountSchema.parse(body).reason);
+  }
+  @Post('cycle-counts/:id/post') postCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.postCycleCount(id,this.userId(req)); }
 }
