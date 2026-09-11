@@ -42,26 +42,88 @@ export class TreasuryRiskService {
     );
   }
 
+  async liquidityPosition(asOfInput: Date = new Date()) {
+    const { tenantId, companyId, branchId } = this.context();
+    const asOf = new Date(asOfInput);
+    const [bookRows, bankRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT coa.code,COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS amount
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id=jel."journalEntryId" AND je.status='POSTED'
+         JOIN chart_of_accounts coa ON coa.id=jel."accountId" AND coa.code IN ('100','102','108')
+         WHERE je."companyId"=$1::text
+           AND ($2::text IS NULL OR je."branchId"=$2::text)
+           AND je."entryDate"<=$3::timestamptz
+         GROUP BY coa.code`,
+        companyId,
+        branchId,
+        asOf,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT currency,
+                COALESCE(SUM(current_balance),0)::numeric AS "currentBalance",
+                COALESCE(SUM(available_balance),0)::numeric AS "availableBalance",
+                MAX(balance_as_of) AS "balanceAsOf",
+                COUNT(*)::int AS "accountCount"
+         FROM bank_accounts
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND active=TRUE
+         GROUP BY currency
+         ORDER BY currency`,
+        tenantId,
+        companyId,
+        branchId,
+      ),
+    ]);
+
+    const book = new Map<string, number>();
+    for (const row of bookRows) book.set(String(row.code), this.round(Number(row.amount ?? 0)));
+    const cashOnHand = book.get('100') ?? 0;
+    const bookBankBalance = book.get('102') ?? 0;
+    const posReceivables = book.get('108') ?? 0;
+    const bookActualCash = this.round(cashOnHand + bookBankBalance);
+    const bookTotalLiquidPosition = this.round(bookActualCash + posReceivables);
+
+    const providerBankBalances = bankRows.map((row) => ({
+      currency: String(row.currency),
+      currentBalance: this.round(Number(row.currentBalance ?? 0)),
+      availableBalance: this.round(Number(row.availableBalance ?? 0)),
+      balanceAsOf: row.balanceAsOf ?? null,
+      accountCount: Number(row.accountCount ?? 0),
+    }));
+
+    return {
+      asOf,
+      book: {
+        cashOnHand,
+        bankBalance: bookBankBalance,
+        actualCash: bookActualCash,
+        posReceivables,
+        nearCash: posReceivables,
+        totalLiquidPosition: bookTotalLiquidPosition,
+      },
+      provider: {
+        bankBalancesByCurrency: providerBankBalances,
+      },
+      definitions: {
+        actualCash: '100 Cash + 102 Banks',
+        nearCash: '108 POS Receivables',
+        totalLiquidPosition: 'Actual Cash + Near Cash',
+      },
+    };
+  }
+
   async setSettings(input: TreasuryRiskSettingsInput) {
     const { tenantId, companyId, branchId } = this.context();
     const minimumLiquidity = this.round(Number(input.minimumLiquidity));
-    const warningBufferPercent = this.round(
-      Number(input.warningBufferPercent ?? 20),
-    );
+    const warningBufferPercent = this.round(Number(input.warningBufferPercent ?? 20));
 
     if (!Number.isFinite(minimumLiquidity) || minimumLiquidity < 0) {
-      throw new BadRequestException(
-        'Minimum liquidity must be zero or greater.',
-      );
+      throw new BadRequestException('Minimum liquidity must be zero or greater.');
     }
-    if (
-      !Number.isFinite(warningBufferPercent) ||
-      warningBufferPercent < 0 ||
-      warningBufferPercent > 100
-    ) {
-      throw new BadRequestException(
-        'Warning buffer percent must be between 0 and 100.',
-      );
+    if (!Number.isFinite(warningBufferPercent) || warningBufferPercent < 0 || warningBufferPercent > 100) {
+      throw new BadRequestException('Warning buffer percent must be between 0 and 100.');
     }
 
     const id = randomUUID();
@@ -76,12 +138,7 @@ export class TreasuryRiskService {
        RETURNING id,company_id AS "companyId",branch_id AS "branchId",
                  minimum_liquidity AS "minimumLiquidity",
                  warning_buffer_percent AS "warningBufferPercent",updated_at AS "updatedAt"`,
-      id,
-      tenantId,
-      companyId,
-      branchId,
-      minimumLiquidity,
-      warningBufferPercent,
+      id, tenantId, companyId, branchId, minimumLiquidity, warningBufferPercent,
     );
     return rows[0];
   }
@@ -95,68 +152,20 @@ export class TreasuryRiskService {
        FROM treasury_risk_settings
        WHERE company_id=$1::text
          AND COALESCE(branch_id,'')=COALESCE($2::text,'')
-       LIMIT 1`,
-      companyId,
-      branchId,
-    );
-    if (!rows.length) {
-      return {
-        companyId,
-        branchId,
-        minimumLiquidity: 0,
-        warningBufferPercent: 20,
-        configured: false,
-      };
-    }
-    return {
-      ...rows[0],
-      minimumLiquidity: this.round(Number(rows[0].minimumLiquidity ?? 0)),
-      warningBufferPercent: this.round(
-        Number(rows[0].warningBufferPercent ?? 20),
-      ),
-      configured: true,
-    };
+       LIMIT 1`, companyId, branchId);
+    if (!rows.length) return { companyId, branchId, minimumLiquidity: 0, warningBufferPercent: 20, configured: false };
+    return { ...rows[0], minimumLiquidity: this.round(Number(rows[0].minimumLiquidity ?? 0)), warningBufferPercent: this.round(Number(rows[0].warningBufferPercent ?? 20)), configured: true };
   }
 
   async liquidityAlerts(startInput: Date) {
-    const [settings, forecast] = await Promise.all([
-      this.getSettings(),
-      this.cashFlow.thirteenWeek(startInput, 'BASE'),
-    ]);
+    const [settings, forecast] = await Promise.all([this.getSettings(), this.cashFlow.thirteenWeek(startInput, 'BASE')]);
     const minimumLiquidity = Number(settings.minimumLiquidity ?? 0);
-    const warningThreshold = this.round(
-      minimumLiquidity *
-        (1 + Number(settings.warningBufferPercent ?? 20) / 100),
-    );
-
-    const alerts = forecast.weeks
-      .filter((week) => week.closingLiquidity < warningThreshold)
-      .map((week) => {
-        const critical = week.closingLiquidity < minimumLiquidity;
-        return {
-          week: week.week,
-          start: week.start,
-          end: week.end,
-          closingLiquidity: week.closingLiquidity,
-          minimumLiquidity,
-          warningThreshold,
-          shortfall: critical
-            ? this.round(minimumLiquidity - week.closingLiquidity)
-            : 0,
-          severity: critical ? 'CRITICAL' : 'WARNING',
-        };
-      });
-
-    return {
-      start: forecast.start,
-      horizonWeeks: 13,
-      openingLiquidity: forecast.openingLiquidity,
-      minimumLiquidity,
-      warningThreshold,
-      alertCount: alerts.length,
-      firstRiskWeek: alerts[0]?.week ?? null,
-      alerts,
-    };
+    const warningThreshold = this.round(minimumLiquidity * (1 + Number(settings.warningBufferPercent ?? 20) / 100));
+    const alerts = forecast.weeks.filter((week) => week.closingLiquidity < warningThreshold).map((week) => {
+      const critical = week.closingLiquidity < minimumLiquidity;
+      return { week: week.week, start: week.start, end: week.end, closingLiquidity: week.closingLiquidity, minimumLiquidity, warningThreshold, shortfall: critical ? this.round(minimumLiquidity - week.closingLiquidity) : 0, severity: critical ? 'CRITICAL' : 'WARNING' };
+    });
+    return { start: forecast.start, horizonWeeks: 13, openingLiquidity: forecast.openingLiquidity, minimumLiquidity, warningThreshold, alertCount: alerts.length, firstRiskWeek: alerts[0]?.week ?? null, alerts };
   }
 
   async overdueReceivableStress(asOfInput: Date) {
@@ -171,168 +180,65 @@ export class TreasuryRiskService {
        JOIN branches b ON b.id=s."branchId"
        LEFT JOIN installment_allocations ia ON ia."installmentId"=i.id
        LEFT JOIN sale_payments sp ON sp.id=ia."salePaymentId"
-       WHERE b."companyId"=$1::text
-         AND ($2::text IS NULL OR s."branchId"=$2::text)
-         AND i."dueAt"<$3::timestamptz
+       WHERE b."companyId"=$1::text AND ($2::text IS NULL OR s."branchId"=$2::text) AND i."dueAt"<$3::timestamptz
        GROUP BY i.id,i."dueAt",i.amount,s."customerId"
        HAVING GREATEST(i.amount-COALESCE(SUM(CASE WHEN sp.status='COMPLETED' THEN ia.amount ELSE 0 END),0),0)>0
-       ORDER BY i."dueAt"`,
-      companyId,
-      branchId,
-      asOf,
-    );
-
-    const buckets = {
-      days1to30: 0,
-      days31to60: 0,
-      days61to90: 0,
-      days90plus: 0,
-    };
+       ORDER BY i."dueAt"`, companyId, branchId, asOf);
+    const buckets = { days1to30: 0, days31to60: 0, days61to90: 0, days90plus: 0 };
     let total = 0;
     const customers = new Map<string, number>();
-
     for (const row of rows) {
       const amount = Number(row.outstanding ?? 0);
-      const overdueDays = Math.max(
-        1,
-        this.diffDays(asOf, new Date(row.dueAt)),
-      );
+      const overdueDays = Math.max(1, this.diffDays(asOf, new Date(row.dueAt)));
       total += amount;
-      customers.set(
-        row.customerId,
-        (customers.get(row.customerId) ?? 0) + amount,
-      );
+      customers.set(row.customerId, (customers.get(row.customerId) ?? 0) + amount);
       if (overdueDays <= 30) buckets.days1to30 += amount;
       else if (overdueDays <= 60) buckets.days31to60 += amount;
       else if (overdueDays <= 90) buckets.days61to90 += amount;
       else buckets.days90plus += amount;
     }
-
     const overdueOutstanding = this.round(total);
-    const normalizedBuckets = Object.fromEntries(
-      Object.entries(buckets).map(([key, value]) => [key, this.round(value)]),
-    );
-    const topCustomers = Array.from(customers.entries())
-      .map(([customerId, amount]) => ({
-        customerId,
-        outstanding: this.round(amount),
-      }))
-      .sort((a, b) => b.outstanding - a.outstanding)
-      .slice(0, 10);
-
-    return {
-      asOf,
-      overdueInstallmentCount: rows.length,
-      overdueOutstanding,
-      buckets: normalizedBuckets,
-      stressScenarios: [
-        { scenario: 'NORMAL', recoveryRate: 0.8 },
-        { scenario: 'STRESS', recoveryRate: 0.5 },
-        { scenario: 'SEVERE', recoveryRate: 0.25 },
-      ].map((item) => ({
-        ...item,
-        recoverableCash: this.round(overdueOutstanding * item.recoveryRate),
-        potentialLossOrDelay: this.round(
-          overdueOutstanding * (1 - item.recoveryRate),
-        ),
-      })),
-      topCustomers,
-    };
+    const normalizedBuckets = Object.fromEntries(Object.entries(buckets).map(([key, value]) => [key, this.round(value)]));
+    const topCustomers = Array.from(customers.entries()).map(([customerId, amount]) => ({ customerId, outstanding: this.round(amount) })).sort((a, b) => b.outstanding - a.outstanding).slice(0, 10);
+    return { asOf, overdueInstallmentCount: rows.length, overdueOutstanding, buckets: normalizedBuckets, stressScenarios: [{ scenario: 'NORMAL', recoveryRate: 0.8 }, { scenario: 'STRESS', recoveryRate: 0.5 }, { scenario: 'SEVERE', recoveryRate: 0.25 }].map((item) => ({ ...item, recoverableCash: this.round(overdueOutstanding * item.recoveryRate), potentialLossOrDelay: this.round(overdueOutstanding * (1 - item.recoveryRate)) })), topCustomers };
   }
 
   async paymentPriorities(asOfInput: Date) {
     const { companyId, branchId } = this.context();
     const asOf = this.startOfDay(asOfInput);
     const [settings, forecast, rows] = await Promise.all([
-      this.getSettings(),
-      this.cashFlow.thirteenWeek(asOf, 'BASE'),
+      this.getSettings(), this.cashFlow.thirteenWeek(asOf, 'BASE'),
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT sb.id,sb.supplier_id AS "supplierId",s.name AS "supplierName",
                 sb.invoice_number AS "invoiceNumber",sb.description,sb.due_at AS "dueAt",
                 GREATEST(sb.amount-COALESCE(SUM(sbp.amount),0),0)::numeric AS outstanding
-         FROM supplier_bills sb
-         JOIN inventory_suppliers s ON s.id=sb.supplier_id
+         FROM supplier_bills sb JOIN inventory_suppliers s ON s.id=sb.supplier_id
          LEFT JOIN supplier_bill_payments sbp ON sbp.supplier_bill_id=sb.id
-         WHERE sb.company_id=$1::text
-           AND ($2::text IS NULL OR sb.branch_id=$2::text)
-           AND sb.status<>'CANCELLED'
+         WHERE sb.company_id=$1::text AND ($2::text IS NULL OR sb.branch_id=$2::text) AND sb.status<>'CANCELLED'
          GROUP BY sb.id,sb.supplier_id,s.name,sb.invoice_number,sb.description,sb.due_at,sb.amount
          HAVING GREATEST(sb.amount-COALESCE(SUM(sbp.amount),0),0)>0
-         ORDER BY sb.due_at NULLS LAST,sb.created_at`,
-        companyId,
-        branchId,
-      ),
+         ORDER BY sb.due_at NULLS LAST,sb.created_at`, companyId, branchId),
     ]);
-
     const minimumLiquidity = Number(settings.minimumLiquidity ?? 0);
-    let availableForPayments = Math.max(
-      0,
-      this.round(forecast.openingLiquidity - minimumLiquidity),
-    );
-
-    const ranked = rows
-      .map((row) => {
-        const dueAt = row.dueAt ? new Date(row.dueAt) : null;
-        const overdueDays = dueAt
-          ? Math.max(0, this.diffDays(asOf, dueAt))
-          : 0;
-        const dueInDays = dueAt ? this.diffDays(dueAt, asOf) : null;
-        const outstanding = this.round(Number(row.outstanding ?? 0));
-        let priorityScore = 0;
-        if (overdueDays > 0) priorityScore += 100 + Math.min(overdueDays, 90);
-        else if (dueInDays !== null && dueInDays <= 7) priorityScore += 80;
-        else if (dueInDays !== null && dueInDays <= 30) priorityScore += 50;
-        else if (dueAt) priorityScore += 20;
-        priorityScore += Math.min(Math.floor(outstanding / 10000), 20);
-
-        return {
-          billId: row.id,
-          supplierId: row.supplierId,
-          supplierName: row.supplierName,
-          invoiceNumber: row.invoiceNumber,
-          description: row.description,
-          dueAt,
-          overdueDays,
-          dueInDays,
-          outstanding,
-          priorityScore,
-          urgency:
-            overdueDays > 0
-              ? 'OVERDUE'
-              : dueInDays !== null && dueInDays <= 7
-                ? 'DUE_SOON'
-                : 'PLANNED',
-        };
-      })
-      .sort((a, b) => b.priorityScore - a.priorityScore);
-
+    let availableForPayments = Math.max(0, this.round(forecast.openingLiquidity - minimumLiquidity));
+    const ranked = rows.map((row) => {
+      const dueAt = row.dueAt ? new Date(row.dueAt) : null;
+      const overdueDays = dueAt ? Math.max(0, this.diffDays(asOf, dueAt)) : 0;
+      const dueInDays = dueAt ? this.diffDays(dueAt, asOf) : null;
+      const outstanding = this.round(Number(row.outstanding ?? 0));
+      let priorityScore = 0;
+      if (overdueDays > 0) priorityScore += 100 + Math.min(overdueDays, 90);
+      else if (dueInDays !== null && dueInDays <= 7) priorityScore += 80;
+      else if (dueInDays !== null && dueInDays <= 30) priorityScore += 50;
+      else if (dueAt) priorityScore += 20;
+      priorityScore += Math.min(Math.floor(outstanding / 10000), 20);
+      return { billId: row.id, supplierId: row.supplierId, supplierName: row.supplierName, invoiceNumber: row.invoiceNumber, description: row.description, dueAt, overdueDays, dueInDays, outstanding, priorityScore, urgency: overdueDays > 0 ? 'OVERDUE' : dueInDays !== null && dueInDays <= 7 ? 'DUE_SOON' : 'PLANNED' };
+    }).sort((a, b) => b.priorityScore - a.priorityScore);
     const recommendations = ranked.map((item) => {
       const recommendedPayNow = availableForPayments >= item.outstanding;
-      if (recommendedPayNow) {
-        availableForPayments = this.round(
-          availableForPayments - item.outstanding,
-        );
-      }
-      return {
-        ...item,
-        recommendedPayNow,
-        recommendation: recommendedPayNow
-          ? 'PAY_NOW'
-          : item.urgency === 'OVERDUE'
-            ? 'NEGOTIATE_OR_PARTIAL_PAY'
-            : 'SCHEDULE',
-      };
+      if (recommendedPayNow) availableForPayments = this.round(availableForPayments - item.outstanding);
+      return { ...item, recommendedPayNow, recommendation: recommendedPayNow ? 'PAY_NOW' : item.urgency === 'OVERDUE' ? 'NEGOTIATE_OR_PARTIAL_PAY' : 'SCHEDULE' };
     });
-
-    return {
-      asOf,
-      openingLiquidity: forecast.openingLiquidity,
-      minimumLiquidity,
-      initialPaymentCapacity: this.round(
-        Math.max(0, forecast.openingLiquidity - minimumLiquidity),
-      ),
-      remainingPaymentCapacity: availableForPayments,
-      recommendations,
-    };
+    return { asOf, openingLiquidity: forecast.openingLiquidity, minimumLiquidity, initialPaymentCapacity: this.round(Math.max(0, forecast.openingLiquidity - minimumLiquidity)), remainingPaymentCapacity: availableForPayments, recommendations };
   }
 }
