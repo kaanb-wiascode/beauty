@@ -1,11 +1,12 @@
 import { createHash, randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException, Optional, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@beauty-erp/database';
 import type { Env } from '../../config/env.schema';
 import { FinancialIntegrationsService } from './financial-integrations.service';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
 import { ProviderRegistryService } from './provider-registry.service';
+import { ProviderResilienceService } from './provider-resilience.service';
 
 @Injectable()
 export class FinancialIntegrationConnectionService {
@@ -15,6 +16,7 @@ export class FinancialIntegrationConnectionService {
     private readonly providers: ProviderRegistryService,
     private readonly vault: IntegrationSecretVaultService,
     private readonly config: ConfigService<Env>,
+    @Optional() private readonly resilience?: ProviderResilienceService,
   ) {}
 
   private hashState(state: string) {
@@ -31,6 +33,12 @@ export class FinancialIntegrationConnectionService {
     }
     const port = this.config.get('PORT', { infer: true }) ?? 3000;
     return `http://localhost:${port}/financial-integrations/callback`;
+  }
+
+  private providerCall<T>(key: string, operation: () => Promise<T>, retries = 0) {
+    return this.resilience
+      ? this.resilience.execute(key, operation, { retries, timeoutMs: 10_000 })
+      : operation();
   }
 
   async begin(integrationId: string) {
@@ -52,7 +60,11 @@ export class FinancialIntegrationConnectionService {
         if (!credentials) {
           throw new BadRequestException('Provider credentials must be configured before the connection can be started.');
         }
-        const tokens = await adapter.authenticateCredentials(credentials);
+        const tokens = await this.providerCall(
+          `${integration.kind}:${integration.provider}:authenticate`,
+          () => adapter.authenticateCredentials!(credentials),
+          1,
+        );
         if (!tokens.accessToken) {
           throw new BadRequestException('Provider returned an invalid authentication response.');
         }
@@ -147,10 +159,11 @@ export class FinancialIntegrationConnectionService {
 
     let tokens;
     try {
-      tokens = await adapter.exchangeAuthorizationCode({
-        code,
-        callbackUrl: claimed.callbackUrl,
-      });
+      tokens = await this.providerCall(
+        `${claimed.kind}:${claimed.provider}:oauth_exchange`,
+        () => adapter.exchangeAuthorizationCode!({ code, callbackUrl: claimed.callbackUrl }),
+        0,
+      );
     } catch (error) {
       const message = error instanceof Error ? error.message : 'OAuth provider code exchange failed.';
       await this.releaseCallbackClaim(claimed.id, claimToken, message);
@@ -216,7 +229,11 @@ export class FinancialIntegrationConnectionService {
       const adapter = this.providers.get(integration.kind, integration.provider);
       if (adapter.revoke) {
         try {
-          await adapter.revoke(tokens);
+          await this.providerCall(
+            `${integration.kind}:${integration.provider}:revoke`,
+            () => adapter.revoke!(tokens),
+            0,
+          );
         } catch {
           // Local disconnect must still proceed even if the provider revoke endpoint is unavailable.
         }
