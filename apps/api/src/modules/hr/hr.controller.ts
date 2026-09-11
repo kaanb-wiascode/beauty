@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { HrService } from './hr.service';
@@ -61,7 +61,7 @@ export class HrController {
   @Get('payments') payments(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payments(year?+year:undefined,month?+month:undefined);}
   @Post('payments')
   createPayment(@Body()body:any,@Req()req:{user?:{sub?:string}}){
-    if(!body.periodId) throw new UnauthorizedException('periodId is required for accounting-backed salary payment.');
+    if(!body.periodId) throw new BadRequestException('periodId is required for accounting-backed salary payment.');
     return this.payrollSettlement.paySalary(body.periodId,body.staffId,Number(body.amount),body.method==='CASH'?'CASH':'BANK',this.userId(req),body.note);
   }
   @Get('sgk') sgk(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.sgk(year?+year:undefined,month?+month:undefined);}
