@@ -46,6 +46,30 @@ export class QualityService {
     if(!rows.length) throw new BadRequestException('Branch is outside tenant/company scope.');
   }
 
+  private async assertAssignee(assignedUserId:string|null|undefined,branchId:string){
+    if(!assignedUserId) return;
+    const {tenantId,companyId}=this.context();
+    const rows=await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT m.id
+       FROM memberships m
+       JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
+       WHERE m."userId"=$1::text
+         AND m."tenantId"=$2::text
+         AND m.status='ACTIVE'
+         AND (r.scope='CENTRAL' OR m."companyId"=$3::text)
+         AND (
+           r.scope<>'BRANCH'
+           OR EXISTS (
+             SELECT 1 FROM membership_branch_access mba
+             WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text
+           )
+         )
+       LIMIT 1`,
+      assignedUserId,tenantId,companyId,branchId,
+    );
+    if(!rows.length) throw new BadRequestException('Assigned user is outside tenant/company/branch scope.');
+  }
+
   private async assertReferences(input:{branchId:string;customerId?:string|null;appointmentId?:string|null;serviceId?:string|null;staffId?:string|null;careEventId?:string|null}){
     const {tenantId}=this.context();
     await this.assertBranch(input.branchId);
@@ -106,6 +130,7 @@ export class QualityService {
     if(!cleanCategory) throw new BadRequestException('Quality case category is required.');
     if(!cleanTitle) throw new BadRequestException('Quality case title is required.');
     await this.assertReferences(input);
+    await this.assertAssignee(input.assignedUserId,input.branchId);
     const {tenantId,companyId}=this.context();
     if(input.feedbackId){
       const feedback=await this.prisma.$queryRawUnsafe<any[]>(`SELECT id,branch_id AS "branchId",customer_id AS "customerId",appointment_id AS "appointmentId",service_id AS "serviceId",staff_id AS "staffId",care_event_id AS "careEventId" FROM customer_feedback WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text LIMIT 1`,input.feedbackId,tenantId,companyId,input.branchId);
@@ -158,6 +183,21 @@ export class QualityService {
 
   async assign(id:string,assignedUserId:string|null,userId:string,note?:string){
     return this.mutateCase(id,userId,async(tx,q,ctx)=>{
+      if(assignedUserId){
+        const memberships=await tx.$queryRawUnsafe<any[]>(
+          `SELECT m.id
+           FROM memberships m
+           JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
+           WHERE m."userId"=$1::text
+             AND m."tenantId"=$2::text
+             AND m.status='ACTIVE'
+             AND (r.scope='CENTRAL' OR m."companyId"=$3::text)
+             AND (r.scope<>'BRANCH' OR EXISTS (SELECT 1 FROM membership_branch_access mba WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text))
+           LIMIT 1`,
+          assignedUserId,ctx.tenantId,ctx.companyId,q.branchId,
+        );
+        if(!memberships.length) throw new BadRequestException('Assigned user is outside tenant/company/branch scope.');
+      }
       await tx.$executeRawUnsafe(`UPDATE quality_cases SET assigned_user_id=$2::text,updated_by_user_id=$3::text,updated_at=NOW() WHERE id=$1::text`,id,assignedUserId,userId);
       await tx.$executeRawUnsafe(`INSERT INTO quality_case_events(case_id,tenant_id,company_id,branch_id,event_type,from_status,to_status,assigned_user_id,note,actor_user_id) VALUES($1::text,$2::text,$3::text,$4::text,'ASSIGNED',$5,$5,$6::text,$7,$8::text)`,id,ctx.tenantId,ctx.companyId,q.branchId,q.status,assignedUserId,note?.trim()||null,userId);
       return{id,status:q.status,assignedUserId};
