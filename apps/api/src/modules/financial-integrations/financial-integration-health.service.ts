@@ -22,6 +22,13 @@ export class FinancialIntegrationHealthService {
               EXISTS(SELECT 1 FROM finance_integration_secrets s WHERE s.integration_id=i.id) AS "hasCredentials",
               (SELECT r.status FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.started_at DESC LIMIT 1) AS "lastSyncStatus",
               (SELECT r.completed_at FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.started_at DESC LIMIT 1) AS "lastSyncCompletedAt",
+              (SELECT COUNT(*)::int FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.status='SUCCESS' AND r.started_at>=NOW()-INTERVAL '24 hours') AS "syncSuccess24h",
+              (SELECT COUNT(*)::int FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.status='FAILED' AND r.started_at>=NOW()-INTERVAL '24 hours') AS "syncFailure24h",
+              (SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (r.completed_at-r.started_at))*1000),0)::bigint
+               FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.completed_at IS NOT NULL AND r.started_at>=NOW()-INTERVAL '24 hours') AS "avgSyncDurationMs24h",
               (SELECT COUNT(*)::int FROM bank_accounts a WHERE a.integration_id=i.id AND a.active=TRUE) AS "activeAccountCount",
               (SELECT COUNT(*)::int FROM bank_accounts a WHERE a.integration_id=i.id AND a.active=FALSE) AS "inactiveAccountCount",
               (SELECT MAX(a.balance_as_of) FROM bank_accounts a WHERE a.integration_id=i.id AND a.active=TRUE) AS "latestBalanceAsOf",
@@ -66,6 +73,9 @@ export class FinancialIntegrationHealthService {
     const syncHealthy = !row.lastSyncStatus || row.lastSyncStatus === 'SUCCESS';
     const lastSyncAt = row.lastSyncAt ? new Date(row.lastSyncAt) : null;
     const syncStale = Boolean(lastSyncAt && lastSyncAt.getTime() < Date.now() - 24 * 60 * 60 * 1000);
+    const success24h = Number(row.syncSuccess24h ?? 0);
+    const failure24h = Number(row.syncFailure24h ?? 0);
+    const attempts24h = success24h + failure24h;
     const healthy = connected && adapterAvailable && Boolean(row.hasCredentials) && !consentExpired && syncHealthy;
 
     return {
@@ -88,6 +98,14 @@ export class FinancialIntegrationHealthService {
         lastStatus: row.lastSyncStatus ?? null,
         lastCompletedAt: row.lastSyncCompletedAt ?? null,
         stale: syncStale,
+      },
+      observability: {
+        windowHours: 24,
+        attempts: attempts24h,
+        successes: success24h,
+        failures: failure24h,
+        successRate: attempts24h ? Number(((success24h / attempts24h) * 100).toFixed(2)) : null,
+        averageDurationMs: Number(row.avgSyncDurationMs24h ?? 0),
       },
       banking: row.kind === 'OPEN_BANKING' ? {
         activeAccountCount: Number(row.activeAccountCount ?? 0),
