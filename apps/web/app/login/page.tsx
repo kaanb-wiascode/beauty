@@ -26,7 +26,6 @@ export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [remember, setRemember] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
@@ -114,16 +113,6 @@ export default function LoginPage() {
             </div>
           ) : null}
 
-          <label className="mt-5 flex cursor-pointer items-center justify-center gap-2 text-[14px] text-[#667482]">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(event) => setRemember(event.target.checked)}
-              className="h-4 w-4 rounded border-[#bfcbd4] accent-[#1674bd]"
-            />
-            Oturumumu açık tut
-          </label>
-
           <Button
             type="submit"
             disabled={loading}
@@ -140,11 +129,12 @@ export default function LoginPage() {
 
           <button
             type="button"
-            className="flex h-[52px] w-full items-center justify-center gap-2 rounded-[14px] border border-[#dfe7ed] bg-white text-[16px] font-medium text-[#17212b] transition hover:bg-[#f1f6fa]"
-            onClick={() => setError("Apple ile giriş bu hesap için henüz etkin değil.")}
+            disabled
+            aria-disabled="true"
+            className="flex h-[52px] w-full cursor-not-allowed items-center justify-center gap-2 rounded-[14px] border border-[#dfe7ed] bg-white text-[16px] font-medium text-[#8a98a5] opacity-75"
           >
             <span aria-hidden="true" className="text-[17px]">●</span>
-            Apple ile devam et
+            Apple ile giriş — yakında
           </button>
 
           <div className="mt-9 flex items-start gap-3 rounded-[14px] border border-[#dfe7ed] bg-white px-4 py-4 text-left">
