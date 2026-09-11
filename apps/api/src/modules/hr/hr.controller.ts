@@ -4,6 +4,8 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { HrService } from './hr.service';
 import { PayrollAccountingService } from './payroll-accounting.service';
 import { PayrollPeriodService } from './payroll-period.service';
+import { PayrollSettlementService } from './payroll-settlement.service';
+import { PayrollReportService } from './payroll-report.service';
 
 @Controller('hr')
 @UseGuards(JwtAuthGuard,TenantAuthGuard)
@@ -12,6 +14,8 @@ export class HrController {
     private readonly hrService: HrService,
     private readonly payrollAccounting: PayrollAccountingService,
     private readonly payrollPeriods: PayrollPeriodService,
+    private readonly payrollSettlement: PayrollSettlementService,
+    private readonly payrollReport: PayrollReportService,
   ) {}
 
   private userId(req:{user?:{sub?:string}}){ const id=req.user?.sub; if(!id) throw new UnauthorizedException('Authenticated user id is missing.'); return id; }
@@ -43,9 +47,23 @@ export class HrController {
   @Post('payroll/periods/:id/submit') submitPayroll(@Param('id')id:string){return this.payrollAccounting.submit(id);}
   @Post('payroll/periods/:id/approve') approvePayroll(@Param('id')id:string,@Req()req:{user?:{sub?:string}}){return this.payrollAccounting.approve(id,this.userId(req));}
   @Post('payroll/periods/:id/post') postPayroll(@Param('id')id:string){return this.payrollAccounting.post(id);}
+  @Get('payroll/periods/:id/report') payrollPeriodReport(@Param('id')id:string){return this.payrollReport.period(id);}
+  @Post('payroll/periods/:id/payments')
+  paySalary(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    return this.payrollSettlement.paySalary(id,b.staffId,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);
+  }
+  @Post('payroll/periods/:id/liabilities')
+  settleLiability(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    const type=b.type==='TAX'?'TAX':b.type==='SOCIAL_SECURITY'?'SOCIAL_SECURITY':'OTHER';
+    return this.payrollSettlement.settleLiability(id,type,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);
+  }
 
   @Get('payments') payments(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payments(year?+year:undefined,month?+month:undefined);}
-  @Post('payments') createPayment(@Body()body:any){return this.hrService.createPayment(body);}
+  @Post('payments')
+  createPayment(@Body()body:any,@Req()req:{user?:{sub?:string}}){
+    if(!body.periodId) throw new UnauthorizedException('periodId is required for accounting-backed salary payment.');
+    return this.payrollSettlement.paySalary(body.periodId,body.staffId,Number(body.amount),body.method==='CASH'?'CASH':'BANK',this.userId(req),body.note);
+  }
   @Get('sgk') sgk(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.sgk(year?+year:undefined,month?+month:undefined);}
   @Post('sgk') createSgk(@Body()body:any){return this.hrService.createSgk(body);}
 }
