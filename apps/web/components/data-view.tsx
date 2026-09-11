@@ -77,7 +77,7 @@ export function SearchField({
         className={cx(
           "h-11 w-full rounded-[14px] border border-transparent bg-[var(--surface-2)]/70 pl-11 pr-10 text-[13px] text-[var(--ink)] outline-none transition",
           "placeholder:text-[var(--muted-soft)] hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.22)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-soft)]",
-          props.className,
+          className,
         )}
       />
 
@@ -105,7 +105,7 @@ export function ToolbarSelect({
         className={cx(
           "h-10 min-w-[132px] appearance-none rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 pr-8 text-[11px] font-medium text-[var(--muted)] outline-none transition",
           "hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.20)] focus:text-[var(--ink)] focus:ring-4 focus:ring-[var(--accent-soft)]",
-          props.className,
+          className,
         )}
       >
         {children}
