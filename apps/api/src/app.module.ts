@@ -26,6 +26,7 @@ import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProfitabilityModule } from './modules/profitability/profitability.module';
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
 import { TaxModule } from './modules/tax/tax.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { TaxModule } from './modules/tax/tax.module';
     ProfitabilityModule,
     FinancialIntegrationsModule,
     TaxModule,
+    MarketplaceModule,
   ],
 })
 export class AppModule {}
