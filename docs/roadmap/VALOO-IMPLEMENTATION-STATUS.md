@@ -46,24 +46,25 @@ Not yet complete:
 
 ### Supplier Network
 
-Status: **Core identity + scoped administration + membership + verification foundations implemented**
+Status: **Core identity + administration + portal auth + membership + verification foundations implemented**
 
 Implemented:
 
 - platform-scoped `supplier_organizations`
 - tenant/company-private `inventory_suppliers` preserved
-- `supplier_connections` bridge
-- database-level tenant/company scope validation guard
-- SupplierConnection tenant/company scope derives from `TenantContext`, not request-controlled input
-- tenant-scoped connection list/upsert API
-- append-only SupplierConnection audit trail
-- explicit platform-admin authorization boundary for global SupplierOrganization read access
+- `supplier_connections` bridge with database-level scope validation
+- SupplierConnection scope derives from `TenantContext`, not request-controlled input
+- tenant-scoped connection list/upsert API and append-only audit
+- explicit platform-admin authorization boundary
+- audited platform-admin SupplierOrganization create/update mutations
 - supplier memberships/users bounded context separate from ERP membership
 - supplier membership role/lifecycle persistence and audit
-- supplier verification case/document workflow
-- single-open-case invariant per supplier organization
+- supplier verification case/document workflow with single-open-case invariant
 - verification decision workflow with organization verification status update + audit
-- Supplier isolation/admin/audit/membership/verification regression tests
+- supplier portal authentication using supplier-specific token type/audience
+- supplier portal guard revalidates ACTIVE membership and ACTIVE supplier organization on every request
+- supplier portal role authorization foundation (`OWNER` / `ADMIN` / `MEMBER`)
+- Supplier isolation/admin/audit/membership/verification/portal-auth regression tests
 
 Validated commits:
 
@@ -73,19 +74,22 @@ Validated commits:
 - `fe4bc93ab7f8dbe159b749af41b8255f2a30068e` — platform-admin read boundary; descendant CI validated
 - `7fac18d2c31faef01a5c4a07ade77b8576fc7ca0` — SupplierMembership foundation; descendant CI validated
 - `1c89973bfbb1f9b8aacc4570bccebfa09f8955b9` — SupplierVerification foundation; CI #722 SUCCESS
+- `dc9a27d2976d43ee0c8e8730305e3273be2392b9` — Supplier Portal auth foundation; CI #726 SUCCESS
+- `f7fb06100de9b1c3f7a3b018423b23361c2b1661` — audited SupplierOrganization mutations; CI #727 SUCCESS
 
 Important boundary:
 
 - `SupplierOrganization` is platform-scoped.
 - ordinary tenant RBAC does not grant global supplier administration.
 - supplier portal identity/authorization is separate from ERP tenant membership semantics.
+- verification state is not directly editable through generic organization update; it remains controlled by the verification workflow.
+- platform audit metadata intentionally does not copy raw tax-number values.
 
 Not yet complete:
 
-- Supplier Portal authentication/authorization foundation
-- supplier membership invitation / acceptance flow
+- supplier membership invitation / acceptance / self-service onboarding
+- supplier portal refresh/revocation session lifecycle
 - verification object-storage upload/signing
-- audited SupplierOrganization create/update mutations
 - public/self-service supplier registration
 - brands/catalog
 - SupplierOffer
@@ -145,6 +149,7 @@ Not yet implemented:
 - `SupplierOrganization` is platform-scoped.
 - `inventory_suppliers` remains tenant/company-private.
 - `SupplierConnection` bridges the two safely.
+- Supplier Portal tokens are distinct from ordinary ERP tenant-context JWT semantics.
 - Marketplace publication is explicit opt-in.
 - Public Marketplace APIs use allowlisted projections.
 - Consumer identity does not automatically equal ERP `Customer` identity.
@@ -162,11 +167,11 @@ Not yet implemented:
 
 ### P0 — Ecosystem reliability / identity
 
-1. Supplier Portal authentication/authorization foundation.
-2. Audited SupplierOrganization create/update mutations under platform-admin boundary.
-3. Supplier membership invitation / acceptance / self-service onboarding.
-4. Verification document object-storage upload/signing.
-5. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+1. Supplier membership invitation / acceptance / self-service onboarding.
+2. Supplier Portal refresh/revocation session lifecycle.
+3. Verification document object-storage upload/signing.
+4. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+5. Public/self-service supplier registration after invitation/auth boundaries are stable.
 
 ### P0-Architecture — Healthcare parallel track
 
@@ -205,8 +210,9 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 
 ## 5. Current Risk / Release Notes
 
-- Supplier portal auth must remain separate from ordinary tenant JWT/membership semantics.
-- Global SupplierOrganization mutations require platform-admin audit before exposure.
+- Supplier portal refresh/revocation lifecycle is not yet implemented; current access tokens are short-lived (15 minutes) and membership/org state is revalidated per request.
+- Supplier invitation/self-service onboarding must not weaken existing user password/authentication guarantees.
+- Verification upload must store only controlled object references/metadata in the database, not raw secrets or credentials.
 - Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
 - Core VALOO ERP UI modernization is substantially complete; remaining UI work is release cleanup/reconciliation rather than a major redesign phase.
 - `main` remains untouched.
