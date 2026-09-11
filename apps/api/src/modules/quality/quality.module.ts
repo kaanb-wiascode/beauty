@@ -19,6 +19,8 @@ import { QualityOverdueController } from './quality-overdue.controller';
 import { QualityOverdueService } from './quality-overdue.service';
 import { QualityPublicFeedbackController } from './quality-public-feedback.controller';
 import { QualityPublicFeedbackService } from './quality-public-feedback.service';
+import { QualityScoreController } from './quality-score.controller';
+import { QualityScoreService } from './quality-score.service';
 import { QualitySlaService } from './quality-sla.service';
 import { QualityService } from './quality.service';
 
@@ -33,6 +35,7 @@ import { QualityService } from './quality.service';
     QualityInspectionSchedulerController,
     QualityOverdueController,
     QualityEvidenceController,
+    QualityScoreController,
   ],
   providers: [
     QualityService,
@@ -47,6 +50,7 @@ import { QualityService } from './quality.service';
     QualityInspectionSchedulerService,
     QualityOverdueService,
     QualityEvidenceService,
+    QualityScoreService,
     QualityAssigneeScopeGuard,
   ],
   exports: [
@@ -61,6 +65,7 @@ import { QualityService } from './quality.service';
     QualityInspectionSchedulerService,
     QualityOverdueService,
     QualityEvidenceService,
+    QualityScoreService,
   ],
 })
 export class QualityModule {}
