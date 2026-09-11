@@ -2,7 +2,7 @@ import { ServiceUnavailableException } from '@nestjs/common';
 import { ProviderResilienceService } from './provider-resilience.service';
 
 describe('ProviderResilienceService', () => {
-  function service(initialCircuit: string | null = null) {
+  function createService(initialCircuit: string | null = null) {
     const client = {
       incr: jest.fn().mockResolvedValue(1),
       expire: jest.fn().mockResolvedValue(true),
@@ -17,7 +17,7 @@ describe('ProviderResilienceService', () => {
   }
 
   it('retries explicitly safe provider operations', async () => {
-    const { service } = service();
+    const { service } = createService();
     const operation = jest.fn()
       .mockRejectedValueOnce(new Error('temporary'))
       .mockResolvedValueOnce('ok');
@@ -27,7 +27,7 @@ describe('ProviderResilienceService', () => {
   });
 
   it('opens the circuit after the configured failure threshold', async () => {
-    const { service, redis } = service();
+    const { service, redis } = createService();
     await expect(service.execute(
       'bank:read',
       async () => { throw new Error('down'); },
@@ -38,7 +38,7 @@ describe('ProviderResilienceService', () => {
   });
 
   it('short-circuits provider calls while the circuit is open', async () => {
-    const { service } = service('1');
+    const { service } = createService('1');
     const operation = jest.fn();
 
     await expect(service.execute('bank:read', operation)).rejects.toBeInstanceOf(ServiceUnavailableException);
