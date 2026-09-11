@@ -62,9 +62,13 @@ export class FinancialIntegrationCredentialsService {
     await this.prisma.$executeRawUnsafe(
       `UPDATE finance_integrations
        SET status='PENDING',last_error=NULL,metadata=metadata || jsonb_build_object('credentialFields',$2::jsonb),updated_at=NOW()
-       WHERE id=$1::text`,
+       WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text
+         AND branch_id IS NOT DISTINCT FROM $5::text`,
       integrationId,
       JSON.stringify(entries.map(([key]) => key)),
+      integration.tenantId,
+      integration.companyId,
+      integration.branchId,
     );
 
     return {
@@ -78,6 +82,7 @@ export class FinancialIntegrationCredentialsService {
   async status(integrationId: string) {
     const integration = await this.integrations.get(integrationId);
     const credentials = await this.vault.loadOpaque(integrationId);
+    const key = await this.vault.keyStatus(integrationId);
     const adapter = this.providers.has(integration.kind, integration.provider)
       ? this.providers.get(integration.kind, integration.provider)
       : null;
@@ -93,7 +98,13 @@ export class FinancialIntegrationCredentialsService {
         required: field.required ?? false,
       })),
       runtimeReady: adapter?.runtimeReady ?? false,
+      encryption: key,
     };
+  }
+
+  async rotate(integrationId: string) {
+    await this.integrations.get(integrationId);
+    return this.vault.rotate(integrationId);
   }
 
   async clear(integrationId: string) {
@@ -105,8 +116,12 @@ export class FinancialIntegrationCredentialsService {
     await this.prisma.$executeRawUnsafe(
       `UPDATE finance_integrations
        SET status='DISCONNECTED',last_error=NULL,updated_at=NOW()
-       WHERE id=$1::text`,
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND branch_id IS NOT DISTINCT FROM $4::text`,
       integrationId,
+      integration.tenantId,
+      integration.companyId,
+      integration.branchId,
     );
     return { integrationId, configured: false, fields: [] };
   }
