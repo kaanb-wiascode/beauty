@@ -46,7 +46,7 @@ Not yet complete:
 
 ### Supplier Network
 
-Status: **Core identity + tenant-scoped connection administration/audit implemented**
+Status: **Core identity, platform/tenant authorization boundaries, membership and verification foundations implemented**
 
 Implemented:
 
@@ -63,27 +63,44 @@ Implemented:
 - company/tenant audit scope database guard
 - connection upsert + audit insert execute atomically in one SQL statement
 - tenant/company-scoped audit list endpoint
-- Supplier isolation/admin/audit regression tests
+- explicit `platform_admin_users` authorization boundary independent from tenant RBAC
+- read-only platform SupplierOrganization administration surface guarded by `PlatformAdminGuard`
+- tenant owners are not implicitly elevated to platform-admin
+- separate `supplier_memberships` bounded-context persistence linking platform SupplierOrganization identities to global users
+- SupplierMembership roles/lifecycle are independent from tenant/company ERP `memberships`
+- platform-admin membership list/upsert endpoints
+- SupplierMembership upsert + audit append execute atomically in one SQL statement
+- `supplier_verification_cases` lifecycle with one-open-case database invariant
+- `supplier_verification_documents` metadata persistence using opaque storage keys rather than public URLs/raw binary storage
+- verification case open/submit/decision endpoints guarded by platform-admin authorization
+- supplier `verification_status` synchronizes atomically with verification case decisions
+- verification audit history for case/document/decision events
+- Supplier isolation/admin/membership/verification regression tests
 
 Validated commits:
 
 - `74d2e08ae58d48d1328ea5b2a56e40d20a21a7bf` + `a58f1bc839f7def6d7052d1ea148218074b334ae` — TenantContext binding; CI #696 SUCCESS
 - `b3b731d9ae27489db8c3d28a2d59082a090bed39` — tenant-scoped connection Admin API; CI #701 SUCCESS
 - `b14a208462750d8da57818465b9c56493328946b` — SupplierConnection audit trail; CI #702 SUCCESS
+- `fe4bc93ab7f8dbe159b749af41b8255f2a30068e` — platform-admin read boundary; validated by later successful descendant runs
+- `7fac18d2c31faef01a5c4a07ade77b8576fc7ca0` — SupplierMembership foundation; validated by descendant CI #722 SUCCESS
+- `1c89973bfbb1f9b8aacc4570bccebfa09f8955b9` — SupplierVerification workflow foundation; CI #722 SUCCESS
 
 Important boundary:
 
 - `SupplierOrganization` is platform-scoped.
-- global SupplierOrganization CRUD is intentionally **not exposed** through ordinary tenant RBAC.
-- a platform-admin authorization model must be defined before global organization administration becomes an API surface.
+- global SupplierOrganization administration must not reuse ordinary tenant RBAC.
+- platform-admin assignments are explicit and separate from tenant memberships.
+- SupplierMembership is separate from ERP `Membership`; Supplier Portal authorization must consume the supplier membership boundary rather than tenant membership state.
+- verification documents store only metadata/object references; credentials, raw secrets and banking login data are not part of this domain.
 
 Not yet complete:
 
-- platform-admin authorization boundary
-- supplier memberships/users
-- supplier verification case/document workflow
-- Supplier Portal
+- audited platform-admin SupplierOrganization create/update lifecycle
+- Supplier Portal authentication/authorization foundation
 - public/self-service supplier registration
+- supplier membership self-service/invitation acceptance lifecycle
+- document object-storage upload/signing integration
 - brands/catalog
 - SupplierOffer
 - RFQ/SupplierQuote
@@ -142,6 +159,8 @@ Not yet implemented:
 - `SupplierOrganization` is platform-scoped.
 - `inventory_suppliers` remains tenant/company-private.
 - `SupplierConnection` bridges the two safely.
+- Supplier platform administration uses an explicit platform-admin authorization boundary independent from tenant RBAC.
+- SupplierMembership is a separate bounded context from tenant ERP Membership.
 - Marketplace publication is explicit opt-in.
 - Public Marketplace APIs use allowlisted projections.
 - Consumer identity does not automatically equal ERP `Customer` identity.
@@ -159,11 +178,11 @@ Not yet implemented:
 
 ### P0 — Ecosystem reliability / identity
 
-1. Define platform-admin authentication/authorization boundary for global SupplierOrganization administration.
-2. SupplierMembership design + persistence.
-3. SupplierVerification case/document workflow and migration.
-4. Supplier Portal authentication/authorization foundation.
-5. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+1. Supplier Portal authentication/authorization foundation using SupplierMembership.
+2. Audited platform-admin SupplierOrganization create/update lifecycle.
+3. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+4. Supplier membership invitation/acceptance lifecycle and self-service identity boundary.
+5. Verification document object-storage upload/signing integration.
 
 ### P0-Architecture — Healthcare parallel track
 
@@ -202,7 +221,9 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 
 ## 5. Current Risk / Release Notes
 
-- Global SupplierOrganization administration must not reuse ordinary tenant authorization without an explicit platform-admin boundary.
+- Supplier Portal must authorize against SupplierMembership rather than ordinary tenant Membership.
+- Global SupplierOrganization mutations must remain platform-admin-only and audited.
+- Verification binary upload/storage integration is not yet implemented; current persistence stores opaque object references and metadata only.
 - Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
 - Core VALOO ERP UI modernization is substantially complete; remaining UI work is release cleanup/reconciliation rather than a major redesign phase.
 - `main` remains untouched.
