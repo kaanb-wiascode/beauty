@@ -10,6 +10,9 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 import { FinancialIntegrationSyncSchedulerService } from './financial-integration-sync-scheduler.service';
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { FinancialIntegrationHealthService } from './financial-integration-health.service';
+import { FinancialIntegrationPermissionGuard } from './financial-integration-permission.guard';
+import { FinancialIntegrationAuditInterceptor } from './financial-integration-audit.interceptor';
+import { FinancialIntegrationRateLimitGuard } from './financial-integration-rate-limit.guard';
 import { PosSettlementService } from './pos-settlement.service';
 import { PosSettlementImportService } from './pos-settlement-import.service';
 import { PosWebhookService } from './pos-webhook.service';
@@ -42,6 +45,9 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     FinancialIntegrationSyncSchedulerService,
     FinancialIntegrationCredentialsService,
     FinancialIntegrationHealthService,
+    FinancialIntegrationPermissionGuard,
+    FinancialIntegrationAuditInterceptor,
+    FinancialIntegrationRateLimitGuard,
     PosSettlementService,
     PosSettlementImportService,
     PosWebhookService,
