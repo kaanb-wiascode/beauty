@@ -27,6 +27,7 @@ import { ProfitabilityModule } from './modules/profitability/profitability.modul
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
     FinancialIntegrationsModule,
     TaxModule,
     MarketplaceModule,
+    SupplierNetworkModule,
   ],
 })
 export class AppModule {}
