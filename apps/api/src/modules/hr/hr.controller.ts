@@ -6,6 +6,9 @@ import { PayrollAccountingService } from './payroll-accounting.service';
 import { PayrollPeriodService } from './payroll-period.service';
 import { PayrollSettlementService } from './payroll-settlement.service';
 import { PayrollReportService } from './payroll-report.service';
+import { PayrollPostingOrchestratorService } from './payroll-posting-orchestrator.service';
+import { PayrollReversalService } from './payroll-reversal.service';
+import { PayrollDashboardService } from './payroll-dashboard.service';
 
 @Controller('hr')
 @UseGuards(JwtAuthGuard,TenantAuthGuard)
@@ -16,6 +19,9 @@ export class HrController {
     private readonly payrollPeriods: PayrollPeriodService,
     private readonly payrollSettlement: PayrollSettlementService,
     private readonly payrollReport: PayrollReportService,
+    private readonly payrollPosting: PayrollPostingOrchestratorService,
+    private readonly payrollReversal: PayrollReversalService,
+    private readonly payrollDashboard: PayrollDashboardService,
   ) {}
 
   private userId(req:{user?:{sub?:string}}){ const id=req.user?.sub; if(!id) throw new UnauthorizedException('Authenticated user id is missing.'); return id; }
@@ -33,6 +39,7 @@ export class HrController {
   @Delete('leaves/:id') deleteLeave(@Param('id')id:string){return this.hrService.deleteLeave(id);}
 
   @Get('payroll') payroll(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payroll(year?+year:undefined,month?+month:undefined);}
+  @Get('payroll/dashboard') payrollDashboardSummary(@Query('year')year?:string,@Query('month')month?:string){return this.payrollDashboard.summary(year?+year:undefined,month?+month:undefined);}
   @Post('payroll/periods') createPayrollPeriod(@Body()b:{year:number;month:number}){return this.payrollPeriods.create(+b.year,+b.month);}
   @Post('payroll/periods/:id/items')
   upsertPayrollItem(@Param('id')id:string,@Body()b:any){
@@ -46,7 +53,9 @@ export class HrController {
   }
   @Post('payroll/periods/:id/submit') submitPayroll(@Param('id')id:string){return this.payrollAccounting.submit(id);}
   @Post('payroll/periods/:id/approve') approvePayroll(@Param('id')id:string,@Req()req:{user?:{sub?:string}}){return this.payrollAccounting.approve(id,this.userId(req));}
-  @Post('payroll/periods/:id/post') postPayroll(@Param('id')id:string){return this.payrollAccounting.post(id);}
+  @Post('payroll/periods/:id/post') postPayroll(@Param('id')id:string){return this.payrollPosting.post(id);}
+  @Post('payroll/periods/:id/cancel') cancelPayroll(@Param('id')id:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.payrollReversal.cancel(id,this.userId(req),b.reason??'');}
+  @Post('payroll/periods/:id/reverse') reversePayroll(@Param('id')id:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.payrollReversal.reverse(id,this.userId(req),b.reason??'');}
   @Get('payroll/periods/:id/report') payrollPeriodReport(@Param('id')id:string){return this.payrollReport.period(id);}
   @Post('payroll/periods/:id/payments')
   paySalary(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
