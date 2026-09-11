@@ -1,4 +1,270 @@
 "use client";
-import{useEffect,useState}from"react";import{api,ApiError}from"@/lib/api";import{Alert,Spinner}from"@/components/ui";
-type M={id:string;productName:string;warehouseName:string;type:string;quantity:number|string;unit:string;unitCost?:number|string;note?:string;createdAt:string};const labels:any={PURCHASE:"Satın alma",SERVICE_CONSUMPTION:"Hizmet tüketimi",TRANSFER_IN:"Transfer girişi",TRANSFER_OUT:"Transfer çıkışı",ADJUSTMENT_IN:"Stok girişi",ADJUSTMENT_OUT:"Stok çıkışı",DAMAGE:"Hasar",EXPIRED:"Son kullanma",RETURN:"İade"};
-export default function MovementsPage(){const[r,setR]=useState<M[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");useEffect(()=>{api<M[]>("/inventory/movements").then(setR).catch(e=>setError(e instanceof ApiError?e.message:"Hareketler yüklenemedi.")).finally(()=>setLoading(false))},[]);if(loading)return <div className="py-16"><Spinner label="Stok hareketleri hazırlanıyor..."/></div>;return <div className="mx-auto max-w-[1440px] space-y-6 pb-10"><header><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[#9a96a2]">ENVANTER</p><h1 className="text-[30px] font-semibold tracking-[-.035em] text-[#20202a]">Stok Hareketleri</h1><p className="mt-1 text-[14px] text-[#85828e]">Envanterde gerçekleşen tüm giriş, çıkış ve tüketimleri izleyin.</p></header>{error&&<Alert onClose={()=>setError("")}>{error}</Alert>}<section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-white"><div className="grid grid-cols-[1.3fr_1fr_.8fr_.8fr_1.4fr] border-b border-[var(--line)] bg-[#fbfafc] px-5 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[#96929d]"><span>Ürün</span><span>Lokasyon</span><span>İşlem</span><span>Miktar</span><span>Tarih / Açıklama</span></div><div className="divide-y divide-[#f0eef2]">{r.map(m=><div key={m.id} className="grid grid-cols-[1.3fr_1fr_.8fr_.8fr_1.4fr] items-center px-5 py-4"><div className="text-[13px] font-semibold text-[#292833]">{m.productName}</div><span className="text-[12px] text-[#5f5b67]">{m.warehouseName}</span><span className="w-fit rounded-full bg-[#f4f1fa] px-2.5 py-1 text-[9px] font-semibold text-[#756f83]">{labels[m.type]||m.type}</span><span className={`text-[12px] font-semibold ${['TRANSFER_OUT','SERVICE_CONSUMPTION','ADJUSTMENT_OUT','DAMAGE','EXPIRED'].includes(m.type)?'text-[#a16446]':'text-[#66816c]'}`}>{['TRANSFER_OUT','SERVICE_CONSUMPTION','ADJUSTMENT_OUT','DAMAGE','EXPIRED'].includes(m.type)?'-':'+'}{fmt(m.quantity)} {unit(m.unit)}</span><div><div className="text-[11px] text-[#5f5b67]">{new Date(m.createdAt).toLocaleString('tr-TR')}</div><div className="mt-1 truncate text-[10px] text-[#aaa6b0]">{m.note||'—'}</div></div></div>)}{!r.length&&<div className="py-16 text-center text-[13px] text-[#9995a0]">Henüz stok hareketi yok.</div>}</div></section></div>};function fmt(v:any){return Number(v||0).toLocaleString('tr-TR',{maximumFractionDigits:3})}function unit(v:string){return({UNIT:'adet',ML:'ml',LITER:'lt',GRAM:'gr',KG:'kg',METER:'m',PAIR:'çift',BOX:'kutu'}as any)[v]||v}
+
+import { useEffect, useMemo, useState } from "react";
+
+import {
+  DataView,
+  DataViewMeta,
+  DataViewToolbar,
+  FilterChip,
+  SearchField,
+  ToolbarSelect,
+} from "@/components/data-view";
+import { Alert, Spinner } from "@/components/ui";
+import { api, ApiError } from "@/lib/api";
+
+type InventoryMovement = {
+  id: string;
+  productName: string;
+  warehouseName: string;
+  type: string;
+  quantity: number | string;
+  unit: string;
+  unitCost?: number | string;
+  note?: string;
+  createdAt: string;
+};
+
+type MovementFilter = "ALL" | "IN" | "OUT";
+
+const MOVEMENT_LABELS: Record<string, string> = {
+  PURCHASE: "Satın alma",
+  SERVICE_CONSUMPTION: "Hizmet tüketimi",
+  TRANSFER_IN: "Transfer girişi",
+  TRANSFER_OUT: "Transfer çıkışı",
+  ADJUSTMENT_IN: "Stok girişi",
+  ADJUSTMENT_OUT: "Stok çıkışı",
+  DAMAGE: "Hasar",
+  EXPIRED: "Son kullanma",
+  RETURN: "İade",
+};
+
+const UNIT_LABELS: Record<string, string> = {
+  UNIT: "adet",
+  ML: "ml",
+  LITER: "lt",
+  GRAM: "gr",
+  KG: "kg",
+  METER: "m",
+  PAIR: "çift",
+  BOX: "kutu",
+};
+
+const OUT_TYPES = new Set([
+  "TRANSFER_OUT",
+  "SERVICE_CONSUMPTION",
+  "ADJUSTMENT_OUT",
+  "DAMAGE",
+  "EXPIRED",
+]);
+
+export default function MovementsPage() {
+  const [rows, setRows] = useState<InventoryMovement[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [direction, setDirection] = useState<MovementFilter>("ALL");
+  const [movementType, setMovementType] = useState("");
+
+  useEffect(() => {
+    api<InventoryMovement[]>("/inventory/movements")
+      .then(setRows)
+      .catch((requestError) =>
+        setError(requestError instanceof ApiError ? requestError.message : "Hareketler yüklenemedi."),
+      )
+      .finally(() => setLoading(false));
+  }, []);
+
+  const movementTypes = useMemo(
+    () => Array.from(new Set(rows.map((row) => row.type))).sort(),
+    [rows],
+  );
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("tr-TR");
+
+    return rows.filter((row) => {
+      const isOut = OUT_TYPES.has(row.type);
+      if (direction === "IN" && isOut) return false;
+      if (direction === "OUT" && !isOut) return false;
+      if (movementType && row.type !== movementType) return false;
+      if (!query) return true;
+
+      return [
+        row.productName,
+        row.warehouseName,
+        MOVEMENT_LABELS[row.type] ?? row.type,
+        row.note ?? "",
+      ].some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
+    });
+  }, [direction, movementType, rows, search]);
+
+  const incomingCount = useMemo(() => rows.filter((row) => !OUT_TYPES.has(row.type)).length, [rows]);
+  const outgoingCount = rows.length - incomingCount;
+
+  if (loading) {
+    return (
+      <div className="py-16">
+        <Spinner label="Stok hareketleri hazırlanıyor..." />
+      </div>
+    );
+  }
+
+  return (
+    <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
+      <header>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">
+          ENVANTER
+        </p>
+        <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">
+          Stok Hareketleri
+        </h1>
+        <p className="mt-1 text-[14px] text-[var(--muted)]">
+          Envanterde gerçekleşen tüm giriş, çıkış ve tüketimleri izleyin.
+        </p>
+      </header>
+
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+
+      <DataView>
+        <DataViewToolbar
+          search={
+            <SearchField
+              value={search}
+              placeholder="Ürün, lokasyon veya açıklama ara..."
+              onChange={(event) => setSearch(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === "Escape") setSearch("");
+              }}
+              aria-label="Stok hareketlerinde ara"
+            />
+          }
+          actions={
+            <ToolbarSelect
+              value={movementType}
+              onChange={(event) => setMovementType(event.target.value)}
+              aria-label="Hareket tipi"
+            >
+              <option value="">Tüm işlem tipleri</option>
+              {movementTypes.map((type) => (
+                <option key={type} value={type}>
+                  {MOVEMENT_LABELS[type] ?? type}
+                </option>
+              ))}
+            </ToolbarSelect>
+          }
+          filters={
+            <>
+              <FilterChip active={direction === "ALL"} count={rows.length} onClick={() => setDirection("ALL")}>
+                Tümü
+              </FilterChip>
+              <FilterChip active={direction === "IN"} count={incomingCount} onClick={() => setDirection("IN")}>
+                Girişler
+              </FilterChip>
+              <FilterChip active={direction === "OUT"} count={outgoingCount} onClick={() => setDirection("OUT")}>
+                Çıkışlar
+              </FilterChip>
+            </>
+          }
+        />
+
+        <div className="hidden md:block">
+          <div className="grid grid-cols-[1.3fr_1fr_.8fr_.8fr_1.4fr] border-b border-[var(--line)] bg-[var(--surface-2)]/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">
+            <span>Ürün</span>
+            <span>Lokasyon</span>
+            <span>İşlem</span>
+            <span>Miktar</span>
+            <span>Tarih / Açıklama</span>
+          </div>
+
+          <div className="divide-y divide-[var(--line)]">
+            {visibleRows.map((movement) => (
+              <MovementRow key={movement.id} movement={movement} />
+            ))}
+          </div>
+        </div>
+
+        <div className="divide-y divide-[var(--line)] md:hidden">
+          {visibleRows.map((movement) => (
+            <MovementCard key={movement.id} movement={movement} />
+          ))}
+        </div>
+
+        {!visibleRows.length ? (
+          <div className="px-5 py-14 text-center">
+            <p className="text-[13px] font-medium text-[var(--ink)]">Eşleşen stok hareketi yok.</p>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">
+              Arama veya filtreleri değiştirerek tekrar deneyin.
+            </p>
+          </div>
+        ) : null}
+
+        <DataViewMeta>
+          <span>{visibleRows.length} kayıt gösteriliyor</span>
+          <span>Toplam {rows.length} hareket</span>
+        </DataViewMeta>
+      </DataView>
+    </div>
+  );
+}
+
+function MovementRow({ movement }: { movement: InventoryMovement }) {
+  const isOut = OUT_TYPES.has(movement.type);
+
+  return (
+    <div className="grid grid-cols-[1.3fr_1fr_.8fr_.8fr_1.4fr] items-center px-5 py-4">
+      <div className="text-[13px] font-semibold text-[var(--ink)]">{movement.productName}</div>
+      <span className="text-[12px] text-[var(--muted)]">{movement.warehouseName}</span>
+      <MovementBadge type={movement.type} />
+      <span className={isOut ? "text-[12px] font-semibold text-[var(--danger)]" : "text-[12px] font-semibold text-[var(--success)]"}>
+        {isOut ? "-" : "+"}{formatQuantity(movement.quantity)} {UNIT_LABELS[movement.unit] ?? movement.unit}
+      </span>
+      <div className="min-w-0">
+        <div className="text-[11px] text-[var(--muted)]">{formatDateTime(movement.createdAt)}</div>
+        <div className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">{movement.note || "—"}</div>
+      </div>
+    </div>
+  );
+}
+
+function MovementCard({ movement }: { movement: InventoryMovement }) {
+  const isOut = OUT_TYPES.has(movement.type);
+
+  return (
+    <article className="space-y-3 px-4 py-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="truncate text-[13px] font-semibold text-[var(--ink)]">{movement.productName}</p>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">{movement.warehouseName}</p>
+        </div>
+        <MovementBadge type={movement.type} />
+      </div>
+      <div className="flex items-center justify-between gap-3 text-[11px]">
+        <span className={isOut ? "font-semibold text-[var(--danger)]" : "font-semibold text-[var(--success)]"}>
+          {isOut ? "-" : "+"}{formatQuantity(movement.quantity)} {UNIT_LABELS[movement.unit] ?? movement.unit}
+        </span>
+        <span className="text-[var(--muted-soft)]">{formatDateTime(movement.createdAt)}</span>
+      </div>
+      {movement.note ? <p className="text-[10px] leading-5 text-[var(--muted)]">{movement.note}</p> : null}
+    </article>
+  );
+}
+
+function MovementBadge({ type }: { type: string }) {
+  return (
+    <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">
+      {MOVEMENT_LABELS[type] ?? type}
+    </span>
+  );
+}
+
+function formatQuantity(value: number | string) {
+  return Number(value || 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
+}
+
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    dateStyle: "medium",
+    timeStyle: "short",
+  }).format(new Date(value));
+}
