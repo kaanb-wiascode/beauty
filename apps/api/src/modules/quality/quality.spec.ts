@@ -30,6 +30,21 @@ describe('QualityService',()=>{
     expect((prisma as any).$transaction).not.toHaveBeenCalled();
   });
 
+  it('rejects an assignee without active company or branch access',async()=>{
+    const tx={
+      $queryRawUnsafe:jest.fn()
+        .mockResolvedValueOnce([{id:'case-a',status:'OPEN',branchId:'branch-a',assignedUserId:null,resolution:null}])
+        .mockResolvedValueOnce([]),
+      $executeRawUnsafe:jest.fn(),
+    };
+    const prisma={$transaction:jest.fn(async(fn:any)=>fn(tx))} as never;
+    const service=new QualityService(prisma,tenant);
+    await expect(service.assign('case-a','user-outside','user-a')).rejects.toThrow('Assigned user is outside tenant/company/branch scope.');
+    expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
+    expect(String(tx.$queryRawUnsafe.mock.calls[1][0])).toContain('membership_branch_access');
+    expect(tx.$queryRawUnsafe.mock.calls[1].slice(1)).toEqual(['user-outside','tenant-a','company-a','branch-a']);
+  });
+
   it('blocks skipping directly from OPEN to CLOSED',async()=>{
     const tx={$queryRawUnsafe:jest.fn().mockResolvedValue([{id:'case-a',status:'OPEN',branchId:'branch-a',assignedUserId:null,resolution:null}])};
     const prisma={$transaction:jest.fn(async(fn:any)=>fn(tx))} as never;
