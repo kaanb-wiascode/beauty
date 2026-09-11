@@ -11,7 +11,7 @@ describe('QualityNotificationDispatcherService', () => {
     }),
   } as any;
 
-  it('dispatches email without persisting the raw recipient', async () => {
+  it('dispatches email with a public feedback token without persisting raw recipient/token', async () => {
     const prisma = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ email: 'Person@Example.com' }]),
     } as any;
@@ -35,29 +35,42 @@ describe('QualityNotificationDispatcherService', () => {
       supports: jest.fn().mockReturnValue(true),
       send: jest.fn().mockResolvedValue({ providerMessageId: 'provider-1' }),
     } as any;
+    const publicFeedback = {
+      issueToken: jest.fn().mockResolvedValue({
+        token: 'v1.public.token',
+        expiresAt: new Date('2026-09-20T00:00:00.000Z'),
+      }),
+    } as any;
 
     const service = new QualityNotificationDispatcherService(
       prisma,
       tenantContext,
       outbox,
       provider,
+      publicFeedback,
     );
 
     const result = await service.dispatchFeedbackBatch('actor-1', 5);
 
     expect(result).toEqual({ claimed: 1, sent: 1, retry: 0, dead: 0 });
+    expect(publicFeedback.issueToken).toHaveBeenCalledWith('feedback-1');
     expect(provider.send).toHaveBeenCalledWith(
       expect.objectContaining({
         channel: 'EMAIL',
         recipient: 'person@example.com',
+        data: expect.objectContaining({
+          feedbackToken: 'v1.public.token',
+          feedbackExpiresAt: '2026-09-20T00:00:00.000Z',
+        }),
       }),
     );
     const sentArgs = outbox.markSent.mock.calls[0];
     expect(sentArgs).not.toContain('person@example.com');
+    expect(sentArgs).not.toContain('v1.public.token');
     expect(sentArgs[6]).toMatch(/^[a-f0-9]{64}$/);
   });
 
-  it('marks missing email as permanent without retrying', async () => {
+  it('marks missing email as permanent without issuing a public token', async () => {
     const prisma = {
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ email: null }]),
     } as any;
@@ -77,17 +90,20 @@ describe('QualityNotificationDispatcherService', () => {
       markPermanentFailure: jest.fn().mockResolvedValue({ status: 'DEAD' }),
     } as any;
     const provider = { key: 'SIGNED_WEBHOOK', supports: jest.fn(), send: jest.fn() } as any;
+    const publicFeedback = { issueToken: jest.fn() } as any;
 
     const service = new QualityNotificationDispatcherService(
       prisma,
       tenantContext,
       outbox,
       provider,
+      publicFeedback,
     );
 
     const result = await service.dispatchFeedbackBatch('actor-1', 5);
 
     expect(result.dead).toBe(1);
+    expect(publicFeedback.issueToken).not.toHaveBeenCalled();
     expect(outbox.markPermanentFailure).toHaveBeenCalledWith(
       'outbox-2',
       'y'.repeat(64),
@@ -119,8 +135,11 @@ describe('QualityNotificationDispatcherService', () => {
       supports: jest.fn().mockReturnValue(true),
       send: jest.fn().mockRejectedValue(new QualityNotificationProviderError('PROVIDER_HTTP_503', true)),
     } as any;
+    const publicFeedback = {
+      issueToken: jest.fn().mockResolvedValue({ token: 'v1.public.token', expiresAt: new Date('2026-09-20T00:00:00.000Z') }),
+    } as any;
 
-    const service = new QualityNotificationDispatcherService(prisma, tenantContext, outbox, provider);
+    const service = new QualityNotificationDispatcherService(prisma, tenantContext, outbox, provider, publicFeedback);
     const result = await service.dispatchFeedbackBatch('actor-1', 5);
 
     expect(result.retry).toBe(1);

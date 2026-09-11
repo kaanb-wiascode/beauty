@@ -24,6 +24,7 @@ export const envSchema = z.object({
   QUALITY_NOTIFICATION_WEBHOOK_URL: z.string().url().optional(),
   QUALITY_NOTIFICATION_WEBHOOK_SECRET: z.string().min(32).optional(),
   QUALITY_NOTIFICATION_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(5000),
+  QUALITY_FEEDBACK_PUBLIC_TOKEN_SECRET: z.string().min(32).optional(),
 }).superRefine((env, ctx) => {
   const hasUrl = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_URL);
   const hasSecret = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_SECRET);

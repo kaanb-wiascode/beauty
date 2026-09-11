@@ -11,6 +11,8 @@ export interface QualityNotificationDispatchRequest {
     companyId: string;
     branchId: string;
     customerId: string;
+    feedbackToken: string;
+    feedbackExpiresAt: string;
   };
 }
 

@@ -7,6 +7,7 @@ import {
   QualityNotificationProviderError,
 } from './quality-notification-provider';
 import { QualityNotificationWebhookProvider } from './quality-notification-webhook.provider';
+import { QualityPublicFeedbackService } from './quality-public-feedback.service';
 
 @Injectable()
 export class QualityNotificationDispatcherService {
@@ -15,6 +16,7 @@ export class QualityNotificationDispatcherService {
     private readonly tenantContext: TenantContext,
     private readonly outbox: QualityNotificationOutboxService,
     private readonly provider: QualityNotificationWebhookProvider,
+    private readonly publicFeedback: QualityPublicFeedbackService,
   ) {}
 
   async dispatchFeedbackBatch(actorUserId: string, requestedLimit?: number) {
@@ -63,6 +65,10 @@ export class QualityNotificationDispatcherService {
           continue;
         }
 
+        const publicAccess = await this.publicFeedback.issueToken(
+          delivery.feedbackRequestId,
+        );
+
         const result = await this.provider.send({
           outboxId: delivery.id,
           feedbackRequestId: delivery.feedbackRequestId,
@@ -74,6 +80,8 @@ export class QualityNotificationDispatcherService {
             companyId,
             branchId: delivery.branchId,
             customerId: delivery.customerId,
+            feedbackToken: publicAccess.token,
+            feedbackExpiresAt: new Date(publicAccess.expiresAt).toISOString(),
           },
         });
 
