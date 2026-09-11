@@ -1,519 +1,407 @@
-# Beauty ERP — Current State
+# VALOO — Current State
 
 > Bu dosya projenin mevcut teknik ve ürün durumunun ana referansıdır.
-> Yeni bir çalışma oturumunda öncelikle bu dosya okunmalıdır.
+> Yeni bir geliştirme oturumunda önce bu dosya, ardından ilgili domain/runbook belgeleri okunmalıdır.
+
+Last updated: 2026-09-11
 
 ---
 
-## 1. Project
+## 1. Project Identity
 
-**Name:** Beauty ERP
-
-**Repository:** beauty-erp
-
+**Product Name:** VALOO  
+**Repository:** `kaanb-wiascode/beauty`  
+**Active Development Branch:** `feature/core-commerce-foundation`  
+**Default Branch:** `main`  
+**Product Type:** Multi-tenant SaaS CRM + ERP  
 **Initial Market:** Türkiye
 
-**Target:** Güzellik merkezleri, estetik merkezleri, medikal estetik merkezleri ve estetik klinikleri
+Target businesses include beauty, aesthetics, medical-aesthetics and clinic-style service organizations.
 
-**Product Type:** SaaS CRM + ERP
+### Branch rule
 
-**Platforms:**
+All current development described in this file is on `feature/core-commerce-foundation`.
 
-- Responsive Web Application
-- iOS
-- Android
+`main` must not be merged into or written to as part of incremental development unless an explicit release/merge decision is made.
 
 ---
 
-# 2. Development Principle
+## 2. Current Development Phase
 
-Ana geliştirme prensibi:
+The project is no longer in the early Foundation/Redis checkpoint documented by the previous version of this file.
 
-> Önce sağlam çekirdek + gerçek müşterinin kullanabileceği MVP → sonra modüler büyüme.
+Current phase:
 
-İlk hedef tüm ERP modüllerini aynı anda geliştirmek değildir.
+> **Core commerce + operational ERP hardening and VALOO frontend modernization**
 
-Öncelik:
+Current priorities:
 
-1. Sağlam teknik altyapı
-2. Güvenli multi-tenant mimari
-3. Identity & Authorization
-4. Organizasyon yapısı
-5. Gerçek CRM
-6. Randevu ve hizmet operasyonları
-7. Satış ve ödeme
-8. Temel stok
-9. Temel finans / muhasebe
-10. Müşteri portalı
-11. Gerçek müşterinin kullanabileceği MVP
+1. Preserve tenant/company/branch isolation.
+2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
+3. Complete operational UI migration to the shared VALOO component systems.
+4. Remove non-functional UI actions rather than presenting future features as working.
+5. Complete responsive/accessibility/consistency review.
+6. Update current documentation and run full regression/CI before any release decision.
 
 ---
 
-# 3. Current Phase
+## 3. Verified Quality State
 
-**Phase:** Foundation
-
-**Current Milestone:** Foundation Infrastructure
-
-**Current Checkpoint:** CHECKPOINT-003
-
-**Checkpoint Name:** Redis Infrastructure
-
-**Status:** COMPLETED
-
----
-
-# 4. Completed Checkpoints
-
-## CHECKPOINT-001 — Monorepo & Infrastructure
-
-Status: COMPLETED
-
-Tamamlananlar:
-
-- Git repository
-- pnpm workspace
-- Monorepo structure
-- apps/api
-- apps/web
-- apps/mobile
-- packages/database
-- packages/types
-- packages/ui
-- packages/config
-- infrastructure
-- Docker infrastructure
-- PostgreSQL
-- Redis
-
-Git commit:
+Latest fully verified implementation head before this documentation update:
 
 ```text
-8a00d8a6 chore: bootstrap beauty erp monorepo
-CHECKPOINT-002 — API & Database Foundation
+85fd8d52356036c0cd54646ab789a91733f63efb
+fix(web): repair finance integrations lint blocker
+```
 
-Status: COMPLETED
+GitHub Actions:
 
-Tamamlananlar:
+```text
+Monorepo quality #659 — SUCCESS
+```
 
-NestJS API
-API configuration
-Environment validation
-Zod configuration validation
-PostgreSQL connection
-Prisma
-Prisma Client
-Database workspace package
-PrismaService
-DatabaseModule
-Initial Tenant model
-Initial Tenant migration
-/health endpoint
-Database health check
-Redis health check
+The successful workflow included:
 
-Git commit:
+- Prisma schema validation and client generation
+- database package typecheck/build
+- shared commerce contract typecheck/build
+- API typecheck
+- API tests
+- API build
+- web lint
+- web typecheck
+- web build
 
-be428599 feat: establish api and database foundation
-CHECKPOINT-003 — Redis Infrastructure
+API test result on the preceding failing lint run was 38 suites / 126 tests passing; the failure was isolated to a web lint error and was subsequently fixed before #659 passed.
 
-Status: COMPLETED
+The workflow still reports existing commerce lint debt in its dedicated non-blocking reporting step. A green quality run must not be represented as meaning the repository has zero lint debt.
 
-Tamamlananlar:
+---
 
-RedisService
-RedisModule
-Centralized Redis connection
-Redis lifecycle management
-HealthService Redis integration
-Redis health check
+## 4. Core Architecture Invariants
 
-Git commit:
+The following rules are active and must not be weakened by UI or domain work:
 
-0ca9d430 feat: add redis infrastructure
-5. Verified Infrastructure
-PostgreSQL
+- Tenant is the primary isolation boundary.
+- Company/legal-entity and branch context must be preserved where applicable.
+- Employee and User remain separate concepts.
+- Authorization is permission/scope-aware and must not rely on role name alone.
+- Financial mutations must remain auditable.
+- Existing idempotency/concurrency/accounting rules must be preserved.
+- Provider/live-bank balances never replace accounting-ledger truth.
+- Reconciliation remains explicit.
+- Secrets/API credentials must not be returned to the client after storage.
+- Internet-banking usernames/passwords are not collected.
+- External financial integrations use the integration layer rather than embedding provider logic into business-domain code.
 
-Status:
+---
 
-UP
+## 5. Shared Frontend Systems
 
-Development environment:
+### Data View V2
 
-localhost:5432
+Path:
 
-Database:
+```text
+apps/web/components/data-view.tsx
+```
 
-beauty_erp
-Redis
+Used for standardized search/filter/list/table surfaces.
 
-Status:
+Primary primitives include:
 
-UP
+- `DataView`
+- `DataViewToolbar`
+- `SearchField`
+- `FilterChip`
+- `ToolbarButton`
+- `ToolbarSelect`
+- `DataViewMeta`
 
-Development environment:
+### Form System V2
 
-localhost:6379
-API
+Path:
 
-Development server:
+```text
+apps/web/components/form-system.tsx
+```
 
-localhost:3000
+Primary primitives include:
 
-Health endpoint:
+- `FormSection`
+- `FormGrid`
+- `FormActions`
+- `FormHint`
+- `CheckboxField`
+- `FormStepper`
+- `FormSubmitButton`
 
-GET /health
+### Finance View V2
 
-Last verified response:
+Path:
 
-{
-  "status": "ok",
-  "services": {
-    "database": "up",
-    "redis": "up"
-  }
-}
-6. Current Repository State
+```text
+apps/web/components/finance-view.tsx
+```
 
-Last verified Git state:
+Primary primitives include:
 
-On branch main
-nothing to commit, working tree clean
+- `FinanceMetric`
+- `FinancePanel`
+- `FinanceTabs`
+- `FinanceTab`
+- `FinanceStatus`
+- `FinanceEmpty`
 
-Current HEAD:
+### Typed frontend domain contracts
 
-0ca9d430 feat: add redis infrastructure
+```text
+apps/web/lib/cfo-types.ts
+apps/web/lib/inventory-types.ts
+```
 
-Recent history:
+Inventory form shell:
 
-0ca9d430 feat: add redis infrastructure
-be428599 feat: establish api and database foundation
-8a00d8a6 chore: bootstrap beauty erp monorepo
-7. Current Architecture
-
-Current high-level backend structure:
-
-Beauty ERP API
-│
-├── ConfigModule
-│
-├── DatabaseModule
-│   └── PrismaService
-│       └── PostgreSQL
-│
-├── RedisModule
-│   └── RedisService
-│       └── Redis
-│
-└── HealthModule
-    └── HealthService
-
-Current dependency direction:
-
-API
- │
- ├── DatabaseModule
- │       ↓
- │   PrismaService
- │       ↓
- │   PostgreSQL
- │
- ├── RedisModule
- │       ↓
- │   RedisService
- │       ↓
- │   Redis
- │
- └── HealthModule
-8. Current Database State
-
-Current Prisma schema contains:
-
-Tenant
-
-Tenant currently contains:
-
-id
-name
-slug
-createdAt
-updatedAt
-
-Database migration has been created and applied successfully.
-
-The domain model is intentionally not yet complete.
-
-9. Next Foundation Tasks
-
-The next technical foundation tasks are:
-
-Structured application logging
-Request ID / Correlation ID
-Global exception handling
-Global validation pipeline
-Security baseline
-API documentation / OpenAPI
-Authentication foundation
-Authorization foundation
-
-These tasks should be completed before beginning the main business-domain implementation.
-
-10. Next Major Domain Phase
-
-After foundation:
-
-Identity & Authorization
-        ↓
-Tenant / Organization
-        ↓
-Legal Entity
-        ↓
-Region
-        ↓
-Branch
-        ↓
-Department
-        ↓
-Employee
-        ↓
-User
-        ↓
-Role
-        ↓
-Permission
-        ↓
-Scope / Assignment
-
-The exact domain model must be documented and reviewed before final Prisma models are implemented.
-
-11. Product Decisions Already Made
-
-The product must support:
-
-One tenant having multiple legal entities
-Entity-based organizational structure
-Region structure
-Branch structure
-Branch classification by size, revenue and location
-Region manager qualification / adequacy checks
-Central departments
-Branch-level operational units
-Employees working at multiple branches
-Daily and hourly assignments
-Primary branch
-Secondary branches
-Temporary assignments
-Delegation / proxy
-Management assignments
-Leave-related authorization changes
-Employee termination workflows
-Trial-period related authorization
-General Manager and HR controlled delegation / authorization
-Customer user accounts
-Customer self-service portal
-Online payments
-Payment links
-Virtual POS integration infrastructure
-Customer feedback collection
-Quality department feedback workflows
-Google review workflow
-Data migration from previous systems
-Multi-language support
-Multi-currency support
-Full accounting
-Real payroll
-Future integrations
-Responsive web
-iOS
-Android
-12. Customer Core Workflow
-
-Core operational scenario:
-
-Customer arrives at branch
-        ↓
-Service is performed
-        ↓
-Package session is deducted
-        ↓
-Payment is received
-        ↓
-Accounting record is created
-        ↓
-Inventory is reduced
-        ↓
-Customer notification is sent
-        ↓
-Customer feedback is requested
-        ↓
-Feedback is evaluated
-        ↓
-Quality workflow may be triggered
-        ↓
-Google review workflow may be triggered
-        ↓
-Reporting is updated
-
-This workflow is one of the core business flows of Beauty ERP.
-
-13. Data Migration Requirement
-
-Beauty ERP must support migration from existing CRM / ERP systems.
-
-Planned migration flow:
-
-Existing System
-      ↓
-Import
-      ↓
-Validation
-      ↓
-Mapping
-      ↓
-Transformation
-      ↓
-Preview
-      ↓
-Approval
-      ↓
-Import
-      ↓
-Audit
-
-Potential sources:
-
-CSV
-Excel
-API
-Database
-Other CRM / ERP systems
-14. Customer Portal Requirement
-
-Customers should be able to access their own account after receiving a customer user account from the branch.
-
-Planned customer capabilities:
-
-Profile
-Service history
-Transaction history
-Payment history
-Service personnel history
-Packages
-Remaining sessions
-Remaining balance
-Campaigns
-Opportunities
-Appointments
-Appointment rescheduling
-Appointment advancement
-Online payments
-Payment links
-
-Additional customer capabilities may be added later.
-
-15. Important Architecture Rules
-
-The following rules are currently established:
-
-Employee and User are separate concepts.
-A tenant may contain multiple legal entities.
-An employee may work at multiple branches.
-Primary and secondary branch relationships must be supported.
-Temporary assignments must be supported.
-Authorization must not depend only on role.
-Tenant isolation is mandatory.
-External integrations must use an integration architecture rather than being embedded directly into business logic.
-Financial operations must be auditable.
-Important architectural decisions must be recorded in docs/17-DECISIONS.md.
-Current project state must be maintained in this file.
-Important milestones must have Git checkpoints.
-Domain models must be designed before implementing their final database structures.
-16. Documentation Protocol
-
-The project memory is maintained through:
-
-docs/
-├── 00-PROJECT-CONTEXT.md
-├── 02-SYSTEM-ARCHITECTURE.md
-├── 03-DOMAIN-MODEL.md
-├── 17-DECISIONS.md
-└── state/
-    └── CURRENT-STATE.md
-
-Additional documentation will be added as the project expands.
-
-At every significant milestone:
-
-Verify implementation
-Run tests
-Create Git checkpoint
-Update CURRENT-STATE.md
-Update relevant architecture documentation
-Record important decisions
-17. New Session Protocol
-
-When continuing the project in a new conversation:
-
-Read docs/state/CURRENT-STATE.md
-Read docs/17-DECISIONS.md
-Read the relevant architecture/domain documentation
-Confirm the current Git checkpoint
-Continue from the documented next step
-Do not repeat completed work unless explicitly requested
-
-The project should always continue from the documented state rather than from assumptions.
-
-18. Current Next Action
+```text
+apps/web/components/inventory-form-shell.tsx
+```
+
+---
+
+## 6. Frontend Modernization Completed
+
+### Customer / Commerce Operations
+
+- Customers — Data View V2
+- Staff — Data View V2 + reusable multi-step staff form
+- Services — Data View V2 + Form System
+- Payments — Data View V2
+- Appointments — Data View V2
+- Dashboard quick actions — Form System and explicit consent handling
+
+Important compliance correction already completed:
+
+The quick customer form no longer silently sends KVKK acknowledgement or membership agreement as `true`; consent is explicitly collected in the UI.
+
+### HR / Payroll
+
+Completed:
+
+- HR dynamic section framework
+- employees
+- personnel files
+- attendance
+- leaves
+- payroll
+- salary payments
+- SGK
+- HR dashboard
+- payroll dashboard
+
+The HR dashboard no longer presents placeholder tabs as implemented functionality; real operational routes are used.
+
+### Finance / CFO
+
+Completed:
+
+- reconciliation center
+- CFO typed domain contracts
+- CFO management cockpit
+- treasury cockpit
+- integration operations
+- financial integrations management
+
+Financial integration flows preserved:
+
+- provider registry
+- integration creation
+- OAuth/connect
+- sync
+- disconnect
+- health
+- consent status
+- encrypted credential-vault write/clear
+- liquidity
+- POS near-cash
+- bank transactions
+
+Credential values are not read back to the UI after storage.
+
+### Inventory submodules
+
+Completed:
+
+- inventory movements
+- purchase requests
+- transfers
+- typed Inventory frontend contracts
+- reusable Inventory FormStepper shell
+
+A false `+ Yeni talep` action was removed from purchase requests after backend inspection confirmed there is no create endpoint for that flow.
+
+---
+
+## 7. Remaining Major Frontend Work
+
+### Inventory main screen
+
+Path:
+
+```text
+apps/web/app/(app)/inventory/page.tsx
+```
+
+This is the largest remaining modernization surface. It currently combines:
+
+- products
+- assets
+- categories
+- suppliers
+- overview metrics
+- critical stock
+- warehouse/location views
+- multi-step product creation
+- multi-step asset creation
+
+Prepared migration foundations:
+
+```text
+apps/web/lib/inventory-types.ts
+apps/web/components/inventory-form-shell.tsx
+```
+
+The migration must preserve the current inventory API/payload semantics and permissions. It should remove remaining local `any` usage and move the form shell/list presentation onto the shared systems without changing stock business rules.
+
+### Consistency cleanup
+
+Known remaining item:
+
+- Services quick panel contains category/package actions without a verified functional route/backend flow. These must be removed, disabled/labeled as unavailable, or wired only after an actual route/endpoint is verified.
+
+### Responsive and accessibility pass
+
+Final review still required for:
+
+- keyboard/focus behavior
+- modal/stepper navigation
+- mobile list/table fallbacks
+- focus-visible states
+- semantic labels
+- reduced-motion behavior
+- long-content overflow
+
+---
+
+## 8. Known Data-Scope Constraints
+
+Some frontend pages intentionally operate on limited or page-local datasets. UI text must remain truthful about this.
+
+Examples:
+
+- Payments currently works over a bounded recent record set rather than an unlimited global dataset.
+- Appointments uses a bounded API result size.
+- Some Staff status counts are page-local rather than global.
+- Financial Integrations bank movement view explicitly represents the latest bounded set returned by its endpoint.
+
+Do not present page-local counts as global totals.
+
+---
+
+## 9. Branding State
+
+Current product-facing brand:
+
+> **VALOO**
+
+Historical source files and architecture documents still contain `Beauty ERP` wording and technical `beauty*` identifiers.
+
+Brand cleanup must distinguish between:
+
+1. user-facing/product wording that should become VALOO;
+2. comments/documentation that can be migrated safely;
+3. technical identifiers, package names, database names, migrations, environment variables or deployment references whose renaming may cause regressions.
+
+Do not bulk-rename technical identifiers without dependency analysis.
+
+`docs/VALOO-MODERNIZATION-STATUS.md` contains the active modernization checklist.
+
+---
+
+## 10. Local/Remote Reconciliation Warning
+
+Dashboard/AppShell work may exist locally in a newer state than the remote branch.
+
+Do not overwrite the remote Dashboard/AppShell files as part of cleanup without first reconciling the user's local work.
+
+This warning does not apply to the already migrated Customers, Staff, Services, Payments, Appointments, Finance, HR and Inventory submodule files listed above.
+
+---
+
+## 11. Documentation Protocol
+
+At each significant milestone:
+
+1. inspect the current implementation before editing;
+2. preserve existing domain/API semantics;
+3. commit only to `feature/core-commerce-foundation`;
+4. run/check the real GitHub Actions workflow;
+5. fix blocking lint/typecheck/build/test errors;
+6. update `docs/state/CURRENT-STATE.md` when project state materially changes;
+7. update relevant architecture/runbook docs when contracts or operational behavior change.
+
+Do not use a missing combined commit status as proof that CI passed; inspect the actual Actions workflow runs/jobs.
+
+---
+
+## 12. Current Next Action
 
 NEXT ACTION:
 
-Complete the remaining backend foundation:
+```text
+Inventory main-screen controlled migration
+        ↓
+Services non-functional action cleanup
+        ↓
+Responsive / Accessibility / Consistency pass
+        ↓
+Controlled product-brand documentation cleanup
+        ↓
+Final full Monorepo quality regression
+```
 
-Logger
-   ↓
-Request ID / Correlation ID
-   ↓
-Global Exception Handling
-   ↓
-Validation Pipeline
-   ↓
-Security Baseline
-   ↓
-OpenAPI
+The Inventory migration should be incremental and must preserve product/asset/category/supplier creation semantics and stock integrity.
 
-After foundation completion, begin Identity & Authorization design.
+---
 
-19. Current Status Summary
-Monorepo                  ✅
-Docker                    ✅
-PostgreSQL                ✅
-Redis                     ✅
-Prisma                    ✅
-Database Package          ✅
-DatabaseModule            ✅
-PrismaService             ✅
-RedisModule               ✅
-RedisService              ✅
-Environment Validation    ✅
-Health Endpoint           ✅
-Database Health           ✅
-Redis Health              ✅
+## 13. Current Status Summary
 
-Logger                    ⏳
-Request ID                ⏳
-Global Error Handling     ⏳
-Validation Pipeline       ⏳
-Security Baseline         ⏳
-OpenAPI                   ⏳
-Authentication            ⏳
-Authorization             ⏳
-Domain Model              ⏳
-CRM                       ⏳
-Operations                ⏳
-Finance                   ⏳
-HR / Payroll              ⏳
-Inventory                 ⏳
-Customer Portal           ⏳
-Payments                  ⏳
-Integrations              ⏳
-Reporting                 ⏳
+```text
+Core multi-tenant architecture       ✅ established
+Authorization foundation             ✅ established
+CRM / Customers                      ✅ active
+Appointments                         ✅ active
+Services                             ✅ active
+Payments                             ✅ active
+Finance / Reconciliation             ✅ active + migrated
+CFO cockpit                          ✅ active + migrated
+Treasury                             ✅ active + migrated
+Financial integrations               ✅ active + migrated
+HR dynamic modules                   ✅ active + migrated
+Payroll dashboard                    ✅ active + migrated
+Inventory movements                  ✅ migrated
+Inventory purchase requests          ✅ migrated
+Inventory transfers                  ✅ migrated
+Inventory typed/form foundations     ✅ prepared
+Inventory main screen                ⏳ final large migration
+Responsive/accessibility pass        ⏳ final review
+Brand/docs cleanup                   ⏳ controlled cleanup
+Final regression CI                  ⏳ after remaining changes
+```
+
+---
+
+## 14. Release Boundary
+
+This state is a development-branch checkpoint, not a release declaration.
+
+`main` remains untouched by this modernization work until an explicit merge/release decision is made.
