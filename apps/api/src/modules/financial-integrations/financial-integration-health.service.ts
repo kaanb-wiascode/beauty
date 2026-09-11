@@ -3,6 +3,9 @@ import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { ProviderRegistryService } from './provider-registry.service';
 
+const SYNC_STALE_HOURS = 24;
+const ACTIVE_RUN_STALE_MINUTES = 30;
+
 @Injectable()
 export class FinancialIntegrationHealthService {
   constructor(
@@ -16,16 +19,29 @@ export class FinancialIntegrationHealthService {
     const companyId = this.tenant.getCompanyId();
     const branchId = this.tenant.getBranchId();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT i.id,i.kind,i.provider,i.status,i.auth_type AS "authType",
+      `SELECT i.id,i.kind,i.provider,i.status,i.auth_type AS "authType",i.metadata,
               i.consent_expires_at AS "consentExpiresAt",i.last_sync_at AS "lastSyncAt",
               i.last_error AS "lastError",i.updated_at AS "updatedAt",
               EXISTS(SELECT 1 FROM finance_integration_secrets s WHERE s.integration_id=i.id) AS "hasCredentials",
               (SELECT r.status FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.started_at DESC LIMIT 1) AS "lastSyncStatus",
               (SELECT r.completed_at FROM finance_integration_sync_runs r WHERE r.integration_id=i.id ORDER BY r.started_at DESC LIMIT 1) AS "lastSyncCompletedAt",
+              (SELECT r.id FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.status='RUNNING'
+               ORDER BY r.started_at DESC LIMIT 1) AS "activeRunId",
+              (SELECT r.started_at FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.status='RUNNING'
+               ORDER BY r.started_at DESC LIMIT 1) AS "activeRunStartedAt",
+              (SELECT r.heartbeat_at FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.status='RUNNING'
+               ORDER BY r.started_at DESC LIMIT 1) AS "activeRunHeartbeatAt",
               (SELECT COUNT(*)::int FROM finance_integration_sync_runs r
                WHERE r.integration_id=i.id AND r.status='SUCCESS' AND r.started_at>=NOW()-INTERVAL '24 hours') AS "syncSuccess24h",
               (SELECT COUNT(*)::int FROM finance_integration_sync_runs r
                WHERE r.integration_id=i.id AND r.status='FAILED' AND r.started_at>=NOW()-INTERVAL '24 hours') AS "syncFailure24h",
+              (SELECT COUNT(*)::int FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.recovered_at>=NOW()-INTERVAL '24 hours') AS "staleRecovered24h",
+              (SELECT MAX(r.recovered_at) FROM finance_integration_sync_runs r
+               WHERE r.integration_id=i.id AND r.recovered_at IS NOT NULL) AS "lastRecoveredAt",
               (SELECT COALESCE(AVG(EXTRACT(EPOCH FROM (r.completed_at-r.started_at))*1000),0)::bigint
                FROM finance_integration_sync_runs r
                WHERE r.integration_id=i.id AND r.completed_at IS NOT NULL AND r.started_at>=NOW()-INTERVAL '24 hours') AS "avgSyncDurationMs24h",
@@ -66,17 +82,51 @@ export class FinancialIntegrationHealthService {
     const consentExpired = Boolean(consentExpiresAt && consentExpiresAt.getTime() <= Date.now());
     const consentExpiringSoon = Boolean(
       consentExpiresAt &&
-      !consentExpired &&
-      consentExpiresAt.getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000,
+        !consentExpired &&
+        consentExpiresAt.getTime() <= Date.now() + 7 * 24 * 60 * 60 * 1000,
     );
     const connected = row.status === 'CONNECTED';
-    const syncHealthy = !row.lastSyncStatus || row.lastSyncStatus === 'SUCCESS';
     const lastSyncAt = row.lastSyncAt ? new Date(row.lastSyncAt) : null;
-    const syncStale = Boolean(lastSyncAt && lastSyncAt.getTime() < Date.now() - 24 * 60 * 60 * 1000);
+    const syncStale = Boolean(
+      lastSyncAt &&
+        lastSyncAt.getTime() < Date.now() - SYNC_STALE_HOURS * 60 * 60 * 1000,
+    );
+    const activeRunStartedAt = row.activeRunStartedAt ? new Date(row.activeRunStartedAt) : null;
+    const activeRunHeartbeatAt = row.activeRunHeartbeatAt
+      ? new Date(row.activeRunHeartbeatAt)
+      : activeRunStartedAt;
+    const activeRunStale = Boolean(
+      row.activeRunId &&
+        activeRunHeartbeatAt &&
+        activeRunHeartbeatAt.getTime() <
+          Date.now() - ACTIVE_RUN_STALE_MINUTES * 60 * 1000,
+    );
+    const syncHealthy =
+      !row.lastSyncStatus ||
+      row.lastSyncStatus === 'SUCCESS' ||
+      (row.lastSyncStatus === 'RUNNING' && !activeRunStale);
     const success24h = Number(row.syncSuccess24h ?? 0);
     const failure24h = Number(row.syncFailure24h ?? 0);
     const attempts24h = success24h + failure24h;
-    const healthy = connected && adapterAvailable && Boolean(row.hasCredentials) && !consentExpired && syncHealthy;
+    const healthy =
+      connected &&
+      adapterAvailable &&
+      Boolean(row.hasCredentials) &&
+      !consentExpired &&
+      syncHealthy &&
+      !activeRunStale;
+    const metadata =
+      row.metadata && typeof row.metadata === 'object' && !Array.isArray(row.metadata)
+        ? (row.metadata as Record<string, unknown>)
+        : {};
+    const watermarkRaw = metadata.bankTransactionWatermark;
+    const transactionWatermark =
+      typeof watermarkRaw === 'string' && !Number.isNaN(new Date(watermarkRaw).getTime())
+        ? new Date(watermarkRaw)
+        : null;
+    const overlapRaw = metadata.bankTransactionOverlapHours;
+    const transactionOverlapHours =
+      typeof overlapRaw === 'number' && Number.isFinite(overlapRaw) ? overlapRaw : null;
 
     return {
       integrationId: row.id,
@@ -98,23 +148,46 @@ export class FinancialIntegrationHealthService {
         lastStatus: row.lastSyncStatus ?? null,
         lastCompletedAt: row.lastSyncCompletedAt ?? null,
         stale: syncStale,
+        staleAfterHours: SYNC_STALE_HOURS,
+        activeRun: row.activeRunId
+          ? {
+              id: row.activeRunId,
+              startedAt: activeRunStartedAt,
+              heartbeatAt: activeRunHeartbeatAt,
+              stale: activeRunStale,
+              staleAfterMinutes: ACTIVE_RUN_STALE_MINUTES,
+            }
+          : null,
       },
       observability: {
         windowHours: 24,
         attempts: attempts24h,
         successes: success24h,
         failures: failure24h,
-        successRate: attempts24h ? Number(((success24h / attempts24h) * 100).toFixed(2)) : null,
+        successRate: attempts24h
+          ? Number(((success24h / attempts24h) * 100).toFixed(2))
+          : null,
         averageDurationMs: Number(row.avgSyncDurationMs24h ?? 0),
+        staleRecoveries: Number(row.staleRecovered24h ?? 0),
+        lastRecoveredAt: row.lastRecoveredAt ? new Date(row.lastRecoveredAt) : null,
       },
-      banking: row.kind === 'OPEN_BANKING' ? {
-        activeAccountCount: Number(row.activeAccountCount ?? 0),
-        inactiveAccountCount: Number(row.inactiveAccountCount ?? 0),
-        latestBalanceAsOf: row.latestBalanceAsOf ? new Date(row.latestBalanceAsOf) : null,
-        currentBalancesByCurrency: row.currentBalancesByCurrency ?? {},
-        latestTransactionAt: row.latestBankTransactionAt ? new Date(row.latestBankTransactionAt) : null,
-        unmatchedTransactionCount: Number(row.unmatchedBankTransactionCount ?? 0),
-      } : null,
+      banking:
+        row.kind === 'OPEN_BANKING'
+          ? {
+              activeAccountCount: Number(row.activeAccountCount ?? 0),
+              inactiveAccountCount: Number(row.inactiveAccountCount ?? 0),
+              latestBalanceAsOf: row.latestBalanceAsOf
+                ? new Date(row.latestBalanceAsOf)
+                : null,
+              currentBalancesByCurrency: row.currentBalancesByCurrency ?? {},
+              latestTransactionAt: row.latestBankTransactionAt
+                ? new Date(row.latestBankTransactionAt)
+                : null,
+              unmatchedTransactionCount: Number(row.unmatchedBankTransactionCount ?? 0),
+              transactionWatermark,
+              transactionOverlapHours,
+            }
+          : null,
       lastError: row.lastError ?? null,
       capabilities: adapter?.capabilities ?? {},
     };
