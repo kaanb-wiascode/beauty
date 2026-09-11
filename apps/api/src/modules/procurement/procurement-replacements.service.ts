@@ -97,10 +97,11 @@ export class ProcurementReplacementsService {
       const returns = await tx.$queryRawUnsafe<any[]>(
         `SELECT pr.id,pr.goods_receipt_id AS "goodsReceiptId",pr.supplier_bill_id AS "supplierBillId",pr.branch_id AS "branchId"
          FROM inventory_purchase_returns pr
-         WHERE pr.id=$1::text AND pr.company_id=$2::text
-           AND ($3::text IS NULL OR pr.branch_id=$3::text)
+         WHERE pr.id=$1::text AND pr.tenant_id=$2::text AND pr.company_id=$3::text
+           AND ($4::text IS NULL OR pr.branch_id=$4::text)
          FOR UPDATE`,
         purchaseReturnId,
+        tenantId,
         companyId,
         branchId,
       );
@@ -112,13 +113,16 @@ export class ProcurementReplacementsService {
                 pri.quantity,pri.unit_cost AS "unitCost",
                 COALESCE((SELECT SUM(ri.quantity) FROM inventory_purchase_replacement_items ri
                           JOIN inventory_purchase_replacement_requests rr ON rr.id=ri.replacement_request_id
-                          WHERE ri.purchase_return_item_id=pri.id AND rr.status <> 'REJECTED'),0)::numeric AS "replacementQuantity"
+                          WHERE ri.purchase_return_item_id=pri.id AND rr.tenant_id=$3::text
+                            AND rr.company_id=$4::text AND rr.status <> 'REJECTED'),0)::numeric AS "replacementQuantity"
          FROM inventory_purchase_return_items pri
          WHERE pri.purchase_return_id=$1::text AND pri.id=ANY($2::text[])
          ORDER BY pri.id
          FOR UPDATE`,
         purchaseReturnId,
         ids,
+        tenantId,
+        companyId,
       );
       if (rows.length !== input.items.length) {
         throw new BadRequestException('One or more replacement items do not belong to this purchase return.');
@@ -171,7 +175,7 @@ export class ProcurementReplacementsService {
   }
 
   async list(status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'RECEIVED') {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT rr.id,rr.purchase_return_id AS "purchaseReturnId",rr.goods_receipt_id AS "goodsReceiptId",
               rr.supplier_bill_id AS "supplierBillId",rr.branch_id AS "branchId",rr.status,rr.reason,
@@ -183,10 +187,12 @@ export class ProcurementReplacementsService {
               COALESCE(SUM(ri.quantity*ri.unit_cost),0)::numeric AS "totalAmount"
        FROM inventory_purchase_replacement_requests rr
        LEFT JOIN inventory_purchase_replacement_items ri ON ri.replacement_request_id=rr.id
-       WHERE rr.company_id=$1::text AND ($2::text IS NULL OR rr.branch_id=$2::text)
-         AND ($3::text IS NULL OR rr.status=$3::text)
+       WHERE rr.tenant_id=$1::text AND rr.company_id=$2::text
+         AND ($3::text IS NULL OR rr.branch_id=$3::text)
+         AND ($4::text IS NULL OR rr.status=$4::text)
        GROUP BY rr.id
        ORDER BY rr.created_at DESC`,
+      tenantId,
       companyId,
       branchId,
       status ?? null,
@@ -194,11 +200,13 @@ export class ProcurementReplacementsService {
   }
 
   async approve(id: string, userId: string) {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,status,branch_id AS "branchId" FROM inventory_purchase_replacement_requests
-       WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text) LIMIT 1`,
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND ($4::text IS NULL OR branch_id=$4::text) LIMIT 1`,
       id,
+      tenantId,
       companyId,
       branchId,
     );
@@ -208,22 +216,26 @@ export class ProcurementReplacementsService {
     const updated = await this.prisma.$executeRawUnsafe(
       `UPDATE inventory_purchase_replacement_requests
        SET status='APPROVED',approved_by_user_id=$2::text,approved_at=NOW(),updated_at=NOW()
-       WHERE id=$1::text AND status='PENDING'`,
+       WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='PENDING'`,
       id,
       userId,
+      tenantId,
+      companyId,
     );
     if (updated !== 1) throw new BadRequestException('Replacement request changed concurrently.');
     return (await this.list()).find((item) => item.id === id);
   }
 
   async reject(id: string, userId: string, reason: string) {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const cleanReason = reason.trim();
     if (!cleanReason) throw new BadRequestException('Rejection reason is required.');
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,status,branch_id AS "branchId" FROM inventory_purchase_replacement_requests
-       WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text) LIMIT 1`,
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND ($4::text IS NULL OR branch_id=$4::text) LIMIT 1`,
       id,
+      tenantId,
       companyId,
       branchId,
     );
@@ -233,10 +245,12 @@ export class ProcurementReplacementsService {
     const updated = await this.prisma.$executeRawUnsafe(
       `UPDATE inventory_purchase_replacement_requests
        SET status='REJECTED',rejected_by_user_id=$2::text,rejected_at=NOW(),rejection_reason=$3,updated_at=NOW()
-       WHERE id=$1::text AND status='PENDING'`,
+       WHERE id=$1::text AND tenant_id=$4::text AND company_id=$5::text AND status='PENDING'`,
       id,
       userId,
       cleanReason,
+      tenantId,
+      companyId,
     );
     if (updated !== 1) throw new BadRequestException('Replacement request changed concurrently.');
     return (await this.list()).find((item) => item.id === id);
@@ -250,12 +264,13 @@ export class ProcurementReplacementsService {
                 rr.supplier_bill_id AS "supplierBillId",rr.branch_id AS "branchId",gr.purchase_order_id AS "purchaseOrderId",
                 po.warehouse_id AS "warehouseId"
          FROM inventory_purchase_replacement_requests rr
-         JOIN inventory_goods_receipts gr ON gr.id=rr.goods_receipt_id
-         JOIN inventory_purchase_orders po ON po.id=gr.purchase_order_id
-         WHERE rr.id=$1::text AND rr.company_id=$2::text
-           AND ($3::text IS NULL OR rr.branch_id=$3::text)
+         JOIN inventory_goods_receipts gr ON gr.id=rr.goods_receipt_id AND gr.tenant_id=rr.tenant_id AND gr.company_id=rr.company_id
+         JOIN inventory_purchase_orders po ON po.id=gr.purchase_order_id AND po.company_id=rr.company_id
+         WHERE rr.id=$1::text AND rr.tenant_id=$2::text AND rr.company_id=$3::text
+           AND ($4::text IS NULL OR rr.branch_id=$4::text)
          FOR UPDATE`,
         id,
+        tenantId,
         companyId,
         branchId,
       );
@@ -264,13 +279,16 @@ export class ProcurementReplacementsService {
       if (request.status !== 'APPROVED') throw new BadRequestException('Only approved replacement requests can be received.');
 
       const items = await tx.$queryRawUnsafe<any[]>(
-        `SELECT id,purchase_return_item_id AS "purchaseReturnItemId",purchase_order_item_id AS "purchaseOrderItemId",
-                product_id AS "productId",quantity,unit_cost AS "unitCost",received_quantity AS "receivedQuantity"
-         FROM inventory_purchase_replacement_items
-         WHERE replacement_request_id=$1::text
-         ORDER BY id
+        `SELECT ri.id,ri.purchase_return_item_id AS "purchaseReturnItemId",ri.purchase_order_item_id AS "purchaseOrderItemId",
+                ri.product_id AS "productId",ri.quantity,ri.unit_cost AS "unitCost",ri.received_quantity AS "receivedQuantity"
+         FROM inventory_purchase_replacement_items ri
+         JOIN inventory_purchase_replacement_requests rr ON rr.id=ri.replacement_request_id
+         WHERE ri.replacement_request_id=$1::text AND rr.tenant_id=$2::text AND rr.company_id=$3::text
+         ORDER BY ri.id
          FOR UPDATE`,
         id,
+        tenantId,
+        companyId,
       );
       if (!items.length) throw new BadRequestException('Replacement request has no items.');
       if (items.some((item) => Number(item.receivedQuantity) !== 0)) {
@@ -278,8 +296,10 @@ export class ProcurementReplacementsService {
       }
 
       const billRows = await tx.$queryRawUnsafe<any[]>(
-        `SELECT id,status,amount FROM supplier_bills WHERE id=$1::text AND company_id=$2::text FOR UPDATE`,
+        `SELECT id,status,amount FROM supplier_bills
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text FOR UPDATE`,
         request.supplierBillId,
+        tenantId,
         companyId,
       );
       const bill = billRows[0];
@@ -340,9 +360,12 @@ export class ProcurementReplacementsService {
       }
 
       await tx.$executeRawUnsafe(
-        `UPDATE supplier_bills SET amount=amount+$2,status='OPEN',updated_at=NOW() WHERE id=$1::text`,
+        `UPDATE supplier_bills SET amount=amount+$2,status='OPEN',updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text`,
         request.supplierBillId,
         total,
+        tenantId,
+        companyId,
       );
       const outstanding = await tx.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*)::int AS count FROM inventory_purchase_order_items
@@ -351,8 +374,10 @@ export class ProcurementReplacementsService {
       );
       if (Number(outstanding[0]?.count ?? 0) === 0) {
         await tx.$executeRawUnsafe(
-          `UPDATE inventory_purchase_orders SET status='RECEIVED',received_at=NOW(),updated_at=NOW() WHERE id=$1::text`,
+          `UPDATE inventory_purchase_orders SET status='RECEIVED',received_at=NOW(),updated_at=NOW()
+           WHERE id=$1::text AND company_id=$2::text`,
           request.purchaseOrderId,
+          companyId,
         );
       }
 
@@ -380,10 +405,12 @@ export class ProcurementReplacementsService {
       const updated = await tx.$executeRawUnsafe(
         `UPDATE inventory_purchase_replacement_requests
          SET status='RECEIVED',received_by_user_id=$2::text,received_at=NOW(),replacement_receipt_id=$3::text,updated_at=NOW()
-         WHERE id=$1::text AND status='APPROVED'`,
+         WHERE id=$1::text AND tenant_id=$4::text AND company_id=$5::text AND status='APPROVED'`,
         id,
         userId,
         replacementReceiptId,
+        tenantId,
+        companyId,
       );
       if (updated !== 1) throw new BadRequestException('Replacement request changed concurrently.');
       return {
