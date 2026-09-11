@@ -91,9 +91,11 @@ export function FinanceTab({
 
 export function FinanceStatus({
   status,
+  label,
   children,
 }: {
   status: string;
+  label?: ReactNode;
   children?: ReactNode;
 }) {
   const tone =
@@ -105,19 +107,21 @@ export function FinanceStatus({
           ? "bg-[var(--warning-soft)] text-[var(--warning)]"
           : "bg-[var(--surface-2)] text-[var(--muted)]";
 
-  return <span className={cx("inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold", tone)}>{children ?? status}</span>;
+  return <span className={cx("inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold", tone)}>{children ?? label ?? status}</span>;
 }
 
 export function FinanceEmpty({
   title,
   description,
+  children,
 }: {
-  title: string;
+  title?: string;
   description?: string;
+  children?: ReactNode;
 }) {
   return (
     <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface-2)]/35 px-5 py-8 text-center">
-      <p className="text-[12px] font-semibold text-[var(--ink)]">{title}</p>
+      <p className="text-[12px] font-semibold text-[var(--ink)]">{children ?? title ?? "Kayıt bulunamadı."}</p>
       {description ? <p className="mx-auto mt-1 max-w-md text-[10px] leading-5 text-[var(--muted)]">{description}</p> : null}
     </div>
   );
