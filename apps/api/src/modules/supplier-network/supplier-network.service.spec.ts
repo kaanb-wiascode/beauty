@@ -2,6 +2,7 @@ import { BadRequestException, NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { SupplierNetworkService } from './supplier-network.service';
 
 describe('SupplierNetworkService', () => {
@@ -9,10 +10,18 @@ describe('SupplierNetworkService', () => {
   const prisma = {
     $queryRawUnsafe: queryRawUnsafe,
   } as unknown as PrismaService;
-  const service = new SupplierNetworkService(prisma);
+
+  const tenantContext = {
+    getTenantId: jest.fn(),
+    getCompanyId: jest.fn(),
+  } as unknown as TenantContext;
+
+  const service = new SupplierNetworkService(prisma, tenantContext);
 
   beforeEach(() => {
     jest.clearAllMocks();
+    jest.mocked(tenantContext.getTenantId).mockReturnValue('tenant-1');
+    jest.mocked(tenantContext.getCompanyId).mockReturnValue('company-1');
   });
 
   it('rejects incomplete supplier organization data before querying the database', async () => {
@@ -49,7 +58,7 @@ describe('SupplierNetworkService', () => {
     );
   });
 
-  it('enforces tenant and company scope when connecting an inventory supplier', async () => {
+  it('enforces tenant and company context when connecting an inventory supplier', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'supplier-org-1', status: 'ACTIVE' }])
       .mockResolvedValueOnce([]);
@@ -57,12 +66,12 @@ describe('SupplierNetworkService', () => {
     await expect(
       service.connectInventorySupplier({
         supplierOrganizationId: 'supplier-org-1',
-        tenantId: 'tenant-1',
-        companyId: 'company-1',
         inventorySupplierId: 'inventory-supplier-1',
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
+    expect(tenantContext.getTenantId).toHaveBeenCalledTimes(1);
+    expect(tenantContext.getCompanyId).toHaveBeenCalledTimes(1);
     expect(queryRawUnsafe).toHaveBeenCalledTimes(2);
     expect(queryRawUnsafe).toHaveBeenNthCalledWith(
       2,
@@ -75,7 +84,7 @@ describe('SupplierNetworkService', () => {
     );
   });
 
-  it('persists the same tenant and company scope on a valid supplier connection', async () => {
+  it('persists the same tenant and company context on a valid supplier connection', async () => {
     const connection = {
       id: 'connection-1',
       supplierOrganizationId: 'supplier-org-1',
@@ -100,8 +109,6 @@ describe('SupplierNetworkService', () => {
     await expect(
       service.connectInventorySupplier({
         supplierOrganizationId: 'supplier-org-1',
-        tenantId: 'tenant-1',
-        companyId: 'company-1',
         inventorySupplierId: 'inventory-supplier-1',
       }),
     ).resolves.toEqual(connection);
