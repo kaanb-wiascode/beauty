@@ -46,4 +46,41 @@ describe('TaxService', () => {
     const { service } = createService([]);
     await expect(service.getSettings()).resolves.toEqual({ salesVatRate: 0, purchaseVatRate: 0, pricesIncludeVat: true });
   });
+
+  it('nets purchase returns and received replacements into input VAT', async () => {
+    const { service, query } = createService([{
+      outputVat: '75.00',
+      goodsReceiptInputVat: '50.00',
+      purchaseReturnVat: '12.00',
+      replacementInputVat: '7.00',
+    }]);
+    await expect(service.taxSummary()).resolves.toEqual({
+      outputVat: 75,
+      inputVat: 45,
+      goodsReceiptInputVat: 50,
+      purchaseReturnVat: 12,
+      replacementInputVat: 7,
+      netVatPayable: 30,
+      position: 'PAYABLE',
+      from: null,
+      to: null,
+    });
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('inventory_purchase_returns');
+    expect(sql).toContain("rr.status='RECEIVED'");
+    expect(query.mock.calls[0].slice(1, 4)).toEqual(['tenant-a', 'company-a', 'branch-a']);
+  });
+
+  it('reports a VAT credit position when deductible VAT exceeds output VAT', async () => {
+    const { service } = createService([{
+      outputVat: '10.00',
+      goodsReceiptInputVat: '30.00',
+      purchaseReturnVat: '5.00',
+      replacementInputVat: '0.00',
+    }]);
+    const result = await service.taxSummary();
+    expect(result.inputVat).toBe(25);
+    expect(result.netVatPayable).toBe(-15);
+    expect(result.position).toBe('CREDIT');
+  });
 });
