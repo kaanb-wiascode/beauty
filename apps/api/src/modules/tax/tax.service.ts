@@ -100,7 +100,18 @@ export class TaxService {
                      AND ($3::text IS NULL OR gr.branch_id=$3::text)
                      AND gr.reversed_at IS NULL
                      AND ($4::timestamptz IS NULL OR gr.created_at >= $4::timestamptz)
-                     AND ($5::timestamptz IS NULL OR gr.created_at <= $5::timestamptz)),0)::numeric AS "inputVat"`,
+                     AND ($5::timestamptz IS NULL OR gr.created_at <= $5::timestamptz)),0)::numeric AS "goodsReceiptInputVat",
+         COALESCE((SELECT SUM(vat_amount) FROM inventory_purchase_returns pr
+                   WHERE pr.tenant_id=$1::text AND pr.company_id=$2::text
+                     AND ($3::text IS NULL OR pr.branch_id=$3::text)
+                     AND ($4::timestamptz IS NULL OR pr.created_at >= $4::timestamptz)
+                     AND ($5::timestamptz IS NULL OR pr.created_at <= $5::timestamptz)),0)::numeric AS "purchaseReturnVat",
+         COALESCE((SELECT SUM(vat_amount) FROM inventory_purchase_replacement_requests rr
+                   WHERE rr.tenant_id=$1::text AND rr.company_id=$2::text
+                     AND ($3::text IS NULL OR rr.branch_id=$3::text)
+                     AND rr.status='RECEIVED'
+                     AND ($4::timestamptz IS NULL OR rr.received_at >= $4::timestamptz)
+                     AND ($5::timestamptz IS NULL OR rr.received_at <= $5::timestamptz)),0)::numeric AS "replacementInputVat"`,
       tenantId,
       companyId,
       branchId,
@@ -108,11 +119,19 @@ export class TaxService {
       to ?? null,
     );
     const outputVat = Number(rows[0]?.outputVat ?? 0);
-    const inputVat = Number(rows[0]?.inputVat ?? 0);
+    const goodsReceiptInputVat = Number(rows[0]?.goodsReceiptInputVat ?? 0);
+    const purchaseReturnVat = Number(rows[0]?.purchaseReturnVat ?? 0);
+    const replacementInputVat = Number(rows[0]?.replacementInputVat ?? 0);
+    const inputVat = this.round(goodsReceiptInputVat - purchaseReturnVat + replacementInputVat);
+    const netVatPayable = this.round(outputVat - inputVat);
     return {
       outputVat,
       inputVat,
-      netVatPayable: this.round(outputVat - inputVat),
+      goodsReceiptInputVat,
+      purchaseReturnVat,
+      replacementInputVat,
+      netVatPayable,
+      position: netVatPayable > 0 ? 'PAYABLE' : netVatPayable < 0 ? 'CREDIT' : 'BALANCED',
       from: from ?? null,
       to: to ?? null,
     };
