@@ -5,11 +5,12 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
 import { QualityService } from './quality.service';
+import { QualitySlaService } from './quality-sla.service';
 
 @Controller('quality')
 @UseGuards(JwtAuthGuard,TenantAuthGuard,PermissionsGuard)
 export class QualityController {
-  constructor(private readonly quality:QualityService){}
+  constructor(private readonly quality:QualityService,private readonly sla:QualitySlaService){}
 
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
 
@@ -36,6 +37,18 @@ export class QualityController {
   escalate(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
     return this.quality.escalateFeedback(id,this.userId(req),{category:b.category,severity,title:b.title,assignedUserId:b.assignedUserId??null,slaDueAt:b.slaDueAt??null});
+  }
+
+  @Get('sla/breaches')
+  @RequirePermission('quality','read')
+  listSlaBreaches(@Query('limit')limit?:string){
+    return this.sla.listBreaches(limit?Number(limit):undefined);
+  }
+
+  @Post('sla/process')
+  @RequirePermission('quality','manage')
+  processSla(@Body()b:any,@Req()req:{user?:{sub?:string}}){
+    return this.sla.processOverdue(this.userId(req),b?.limit==null?undefined:Number(b.limit));
   }
 
   @Get('cases')
