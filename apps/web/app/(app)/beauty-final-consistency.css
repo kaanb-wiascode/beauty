@@ -1,15 +1,15 @@
-/* Beauty ERP — shared light UI consistency layer */
-:root{--beauty-page:#f7f7fb;--beauty-surface:#fff;--beauty-ink:#302b3f;--beauty-muted:#77748a;--beauty-line:#e8e4ee;--beauty-purple:#7456e8;--beauty-purple-hover:#6546d9;--beauty-purple-soft:#f1edff;--beauty-green:#39a86b;--beauty-green-soft:#eaf8f0}
+/* VALOO — shared light UI consistency layer */
+:root{--beauty-page:#f7fafc;--beauty-surface:#fff;--beauty-ink:#17212b;--beauty-muted:#667482;--beauty-line:#dfe7ed;--beauty-purple:#1674bd;--beauty-purple-hover:#0b5fa9;--beauty-purple-soft:#eaf5fb;--beauty-green:#178a61;--beauty-green-soft:#eaf7f1}
 html,body{background:var(--beauty-page);color:var(--beauty-ink)}
 button,a,input,select,textarea{font-family:inherit}
 input,select,textarea{color:var(--beauty-ink)}
-input::placeholder,textarea::placeholder{color:#aaa6b7}
+input::placeholder,textarea::placeholder{color:#8a98a5}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:0;box-shadow:0 0 0 4px var(--beauty-purple-soft)}
 input:not([type="checkbox"]):not([type="radio"]),select,textarea{border-color:var(--beauty-line)}
-input:not([type="checkbox"]):not([type="radio"]):focus,select:focus,textarea:focus{border-color:rgba(116,86,232,.42);box-shadow:0 0 0 4px var(--beauty-purple-soft);outline:none}
+input:not([type="checkbox"]):not([type="radio"]):focus,select:focus,textarea:focus{border-color:rgba(22,116,189,.42);box-shadow:0 0 0 4px var(--beauty-purple-soft);outline:none}
 button:disabled{cursor:not-allowed;opacity:.55}
 table thead th{color:var(--beauty-muted)!important;border-bottom-color:var(--beauty-line)!important}
 table tbody tr{border-bottom-color:var(--beauty-line)!important}
-table tbody tr:hover{background:#fbf9ff!important}
+table tbody tr:hover{background:#f1f6fa!important}
 button,a{transition:color .16s ease,background-color .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease}
 @media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:16px!important}table{min-width:680px}input,select,textarea{max-width:100%}}
