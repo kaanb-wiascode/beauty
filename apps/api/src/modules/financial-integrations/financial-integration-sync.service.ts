@@ -36,6 +36,8 @@ type SyncInvocation = 'MANUAL' | 'SCHEDULER';
 export class FinancialIntegrationSyncService {
   private static readonly MAX_PROVIDER_PAGES = 100;
   private static readonly STALE_SYNC_MINUTES = 30;
+  private static readonly HEARTBEAT_INTERVAL_MS = 5 * 60 * 1000;
+  private static readonly BANK_TRANSACTION_OVERLAP_HOURS = 48;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -83,10 +85,10 @@ export class FinancialIntegrationSyncService {
 
       await tx.$executeRawUnsafe(
         `UPDATE finance_integration_sync_runs
-         SET status='FAILED',completed_at=NOW(),
+         SET status='FAILED',completed_at=NOW(),recovered_at=NOW(),heartbeat_at=NOW(),
              error_message=COALESCE(error_message,'STALE_SYNC_RUN_RECOVERED')
          WHERE integration_id=$1::text AND status='RUNNING'
-           AND started_at < NOW()-($2::int * INTERVAL '1 minute')`,
+           AND COALESCE(heartbeat_at,started_at) < NOW()-($2::int * INTERVAL '1 minute')`,
         integrationId,
         FinancialIntegrationSyncService.STALE_SYNC_MINUTES,
       );
@@ -104,13 +106,23 @@ export class FinancialIntegrationSyncService {
 
       const runId = randomUUID();
       await tx.$executeRawUnsafe(
-        `INSERT INTO finance_integration_sync_runs(id,integration_id,sync_type,status)
-         VALUES($1::text,$2::text,'FULL','RUNNING')`,
+        `INSERT INTO finance_integration_sync_runs(id,integration_id,sync_type,status,heartbeat_at)
+         VALUES($1::text,$2::text,'FULL','RUNNING',NOW())`,
         runId,
         integrationId,
       );
       return { integration, runId };
     });
+  }
+
+  private async touchSyncHeartbeat(runId: string, recordsSynced: number) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE finance_integration_sync_runs
+       SET heartbeat_at=NOW(),records_synced=$2
+       WHERE id=$1::text AND status='RUNNING'`,
+      runId,
+      recordsSynced,
+    );
   }
 
   private async ensureFreshTokens(
@@ -213,6 +225,40 @@ export class FinancialIntegrationSyncService {
     }
     const value = (metadata as Record<string, unknown>).bankTransactionSyncCursor;
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
+  }
+
+  private metadataBankWatermark(metadata: unknown) {
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return undefined;
+    }
+    const value = (metadata as Record<string, unknown>).bankTransactionWatermark;
+    if (typeof value !== 'string' || !value.trim()) return undefined;
+    const parsed = new Date(value);
+    return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+  }
+
+  private bankSyncSince(lastSyncAt: unknown, metadata: unknown) {
+    const watermark = this.metadataBankWatermark(metadata);
+    const fallback = lastSyncAt ? new Date(lastSyncAt as string | number | Date) : undefined;
+    const base = watermark ?? (fallback && !Number.isNaN(fallback.getTime()) ? fallback : undefined);
+    if (!base) return undefined;
+    return new Date(
+      base.getTime() -
+        FinancialIntegrationSyncService.BANK_TRANSACTION_OVERLAP_HOURS * 60 * 60 * 1000,
+    );
+  }
+
+  private nextBankWatermark(
+    metadata: unknown,
+    transactions: ProviderBankTransaction[],
+  ) {
+    let watermark = this.metadataBankWatermark(metadata);
+    for (const transaction of transactions) {
+      const bookedAt = new Date(transaction.bookedAt);
+      if (Number.isNaN(bookedAt.getTime())) continue;
+      if (!watermark || bookedAt.getTime() > watermark.getTime()) watermark = bookedAt;
+    }
+    return watermark;
   }
 
   private async collectOpenBankingPages(
@@ -327,19 +373,33 @@ export class FinancialIntegrationSyncService {
     let reconciledSettlements = 0;
     let unresolvedSettlements = 0;
     let nextBankSyncCursor: string | undefined;
+    let nextBankWatermark: Date | undefined;
+    let heartbeatTimer: NodeJS.Timeout | null = null;
 
     try {
+      heartbeatTimer = setInterval(() => {
+        void this.touchSyncHeartbeat(runId, records).catch(() => undefined);
+      }, FinancialIntegrationSyncService.HEARTBEAT_INTERVAL_MS);
+      heartbeatTimer.unref?.();
+      await this.touchSyncHeartbeat(runId, records);
+
       const adapter = this.providers.get(integration.kind, integration.provider);
       const tokens = await this.resolveTokens(integration, adapter);
+      await this.touchSyncHeartbeat(runId, records);
 
       if (integration.kind === 'OPEN_BANKING') {
         const providerData = await this.collectOpenBankingPages(
           adapter,
           tokens,
-          integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined,
+          this.bankSyncSince(integration.lastSyncAt, integration.metadata),
           this.metadataSyncCursor(integration.metadata),
         );
         nextBankSyncCursor = providerData.nextSyncCursor;
+        nextBankWatermark = this.nextBankWatermark(
+          integration.metadata,
+          providerData.transactions,
+        );
+        await this.touchSyncHeartbeat(runId, records);
 
         const seenAccountIds = Array.from(
           new Set(
@@ -425,6 +485,7 @@ export class FinancialIntegrationSyncService {
           );
           records += inserted;
         }
+        await this.touchSyncHeartbeat(runId, records);
 
         const reconciliation = await this.reconciliation.autoMatchInScope(
           {
@@ -474,6 +535,7 @@ export class FinancialIntegrationSyncService {
           tokens,
           integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined,
         );
+        await this.touchSyncHeartbeat(runId, records);
         for (const transaction of transactions) {
           const posRows = await this.prisma.$queryRawUnsafe<
             Array<{ id: string }>
@@ -527,16 +589,24 @@ export class FinancialIntegrationSyncService {
         this.prisma.$executeRawUnsafe(
           `UPDATE finance_integrations
            SET last_sync_at=NOW(),last_error=NULL,
-               metadata=CASE WHEN $2::text IS NULL THEN metadata
-                 ELSE jsonb_set(metadata,'{bankTransactionSyncCursor}',to_jsonb($2::text),TRUE) END,
+               metadata=COALESCE(metadata,'{}'::jsonb) || jsonb_strip_nulls(
+                 jsonb_build_object(
+                   'bankTransactionSyncCursor',$2::text,
+                   'bankTransactionWatermark',$3::text,
+                   'bankTransactionOverlapHours',$4::int
+                 )
+               ),
                updated_at=NOW()
            WHERE id=$1::text`,
           integrationId,
           nextBankSyncCursor ?? null,
+          nextBankWatermark?.toISOString() ?? null,
+          FinancialIntegrationSyncService.BANK_TRANSACTION_OVERLAP_HOURS,
         ),
         this.prisma.$executeRawUnsafe(
           `UPDATE finance_integration_sync_runs
-           SET status='SUCCESS',completed_at=NOW(),records_synced=$2 WHERE id=$1::text`,
+           SET status='SUCCESS',completed_at=NOW(),heartbeat_at=NOW(),records_synced=$2
+           WHERE id=$1::text`,
           runId,
           records,
         ),
@@ -561,13 +631,16 @@ export class FinancialIntegrationSyncService {
         ),
         this.prisma.$executeRawUnsafe(
           `UPDATE finance_integration_sync_runs
-           SET status='FAILED',completed_at=NOW(),records_synced=$2,error_message=$3 WHERE id=$1::text`,
+           SET status='FAILED',completed_at=NOW(),heartbeat_at=NOW(),records_synced=$2,error_message=$3
+           WHERE id=$1::text`,
           runId,
           records,
           message.slice(0, 1000),
         ),
       ]);
       throw error;
+    } finally {
+      if (heartbeatTimer) clearInterval(heartbeatTimer);
     }
   }
 
