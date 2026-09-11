@@ -341,10 +341,10 @@ function PreferredPanel({ preferred }: { preferred: { service: Service; stats?: 
 }
 
 function QuickPanel({ onCreate }: { onCreate: () => void }) {
-  return <Panel title="Hızlı işlemler" subtitle="Hizmet yönetimi"><div className="space-y-2"><QuickAction label="Yeni hizmet" description="Hizmet oluştur" icon="spark" onClick={onCreate} /><QuickAction label="Kategorileri yönet" description="Hizmet kategorileri" icon="grid" /><QuickAction label="Paketler" description="Hizmet paketlerini yönet" icon="money" /></div></Panel>;
+  return <Panel title="Hızlı işlemler" subtitle="Hizmet yönetimi"><QuickAction label="Yeni hizmet" description="Hizmet oluştur" icon="spark" onClick={onCreate} /></Panel>;
 }
 
-function QuickAction({ label, description, icon, onClick }: { label: string; description: string; icon: "spark" | "grid" | "money"; onClick?: () => void }) {
+function QuickAction({ label, description, icon, onClick }: { label: string; description: string; icon: "spark" | "grid" | "money"; onClick: () => void }) {
   return <button type="button" onClick={onClick} className="flex w-full items-center gap-3 rounded-[12px] px-2.5 py-2.5 text-left hover:bg-[#faf9f7]"><span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[#f4f1ff] text-[#7569d9]"><Icon name={icon} size={17} /></span><span className="min-w-0 flex-1"><strong className="block text-[12px] font-semibold text-[#49443f]">{label}</strong><span className="mt-0.5 block truncate text-[10px] text-[#9a948e]">{description}</span></span><Icon name="arrow" size={15} /></button>;
 }
 
