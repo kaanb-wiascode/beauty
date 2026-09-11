@@ -7,10 +7,12 @@ import { MarketplaceService } from './marketplace.service';
 
 describe('MarketplaceService', () => {
   const findFirst = jest.fn();
+  const queryRawUnsafe = jest.fn();
   const prisma = {
     branch: {
       findFirst,
     },
+    $queryRawUnsafe: queryRawUnsafe,
   } as unknown as PrismaService;
 
   const tenantContext = {
@@ -35,6 +37,7 @@ describe('MarketplaceService', () => {
       BadRequestException,
     );
     expect(findFirst).not.toHaveBeenCalled();
+    expect(queryRawUnsafe).not.toHaveBeenCalled();
   });
 
   it('rejects when no active branch matches the tenant and company scope', async () => {
@@ -88,7 +91,7 @@ describe('MarketplaceService', () => {
     });
   });
 
-  it('returns only the safe preview projection and keeps publication disabled', async () => {
+  it('returns the safe preview projection with persisted publication state', async () => {
     const services = [
       {
         id: 'service-1',
@@ -98,6 +101,7 @@ describe('MarketplaceService', () => {
         price: 1500,
       },
     ];
+    const publishedAt = new Date('2026-09-11T16:00:00.000Z');
 
     findFirst.mockResolvedValue({
       id: 'branch-1',
@@ -113,6 +117,21 @@ describe('MarketplaceService', () => {
       },
       services,
     });
+    queryRawUnsafe.mockResolvedValue([
+      {
+        id: 'publication-1',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        status: 'PUBLISHED',
+        publishedAt,
+        unpublishedAt: null,
+        publishedByUserId: 'user-1',
+        unpublishedByUserId: null,
+        createdAt: publishedAt,
+        updatedAt: publishedAt,
+      },
+    ]);
 
     await expect(service.previewCurrentBranch()).resolves.toEqual({
       listing: {
@@ -132,9 +151,114 @@ describe('MarketplaceService', () => {
         services,
       },
       publication: {
-        status: 'PREVIEW_ONLY',
-        public: false,
+        status: 'PUBLISHED',
+        public: true,
+        publishedAt,
+        unpublishedAt: null,
       },
     });
+  });
+
+  it('defaults publication status to unpublished when no opt-in row exists', async () => {
+    queryRawUnsafe.mockResolvedValue([]);
+
+    await expect(service.publicationStatus()).resolves.toEqual({
+      status: 'UNPUBLISHED',
+      public: false,
+      publishedAt: null,
+      unpublishedAt: null,
+    });
+
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('FROM marketplace_publications'),
+      'tenant-1',
+      'company-1',
+      'branch-1',
+    );
+  });
+
+  it('publishes only after validating the active tenant/company/branch scope', async () => {
+    const publishedAt = new Date('2026-09-11T16:00:00.000Z');
+    findFirst.mockResolvedValue({ id: 'branch-1' });
+    queryRawUnsafe.mockResolvedValue([
+      {
+        id: 'publication-1',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        status: 'PUBLISHED',
+        publishedAt,
+        unpublishedAt: null,
+        publishedByUserId: 'user-1',
+        unpublishedByUserId: null,
+        createdAt: publishedAt,
+        updatedAt: publishedAt,
+      },
+    ]);
+
+    await expect(service.publishCurrentBranch('user-1')).resolves.toEqual({
+      status: 'PUBLISHED',
+      public: true,
+      publishedAt,
+      unpublishedAt: null,
+    });
+
+    expect(findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'branch-1',
+        companyId: 'company-1',
+        status: 'ACTIVE',
+        company: {
+          tenantId: 'tenant-1',
+          status: 'ACTIVE',
+        },
+      },
+      select: { id: true },
+    });
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('ON CONFLICT (branch_id)'),
+      expect.any(String),
+      'tenant-1',
+      'company-1',
+      'branch-1',
+      'user-1',
+    );
+  });
+
+  it('unpublishes inside the same organization scope', async () => {
+    const publishedAt = new Date('2026-09-11T16:00:00.000Z');
+    const unpublishedAt = new Date('2026-09-11T17:00:00.000Z');
+    findFirst.mockResolvedValue({ id: 'branch-1' });
+    queryRawUnsafe.mockResolvedValue([
+      {
+        id: 'publication-1',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        status: 'UNPUBLISHED',
+        publishedAt,
+        unpublishedAt,
+        publishedByUserId: 'user-1',
+        unpublishedByUserId: 'user-2',
+        createdAt: publishedAt,
+        updatedAt: unpublishedAt,
+      },
+    ]);
+
+    await expect(service.unpublishCurrentBranch('user-2')).resolves.toEqual({
+      status: 'UNPUBLISHED',
+      public: false,
+      publishedAt,
+      unpublishedAt,
+    });
+
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining("status='UNPUBLISHED'"),
+      expect.any(String),
+      'tenant-1',
+      'company-1',
+      'branch-1',
+      'user-2',
+    );
   });
 });
