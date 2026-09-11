@@ -7,6 +7,7 @@ import { CashFlowForecastService } from './cash-flow-forecast.service';
 export interface TreasuryRiskSettingsInput {
   minimumLiquidity: number;
   warningBufferPercent?: number;
+  reportingCurrency?: string;
 }
 
 @Injectable()
@@ -45,7 +46,7 @@ export class TreasuryRiskService {
   async liquidityPosition(asOfInput: Date = new Date()) {
     const { tenantId, companyId, branchId } = this.context();
     const asOf = new Date(asOfInput);
-    const [bookRows, bankRows] = await Promise.all([
+    const [bookRows, bankRows, settlementRows, unknownSettlementRows, settings] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT coa.code,COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS amount
          FROM journal_entry_lines jel
@@ -75,6 +76,40 @@ export class TreasuryRiskService {
         companyId,
         branchId,
       ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT currency,
+                DATE(expected_settlement_at) AS "settlementDate",
+                COALESCE(SUM(amount),0)::numeric AS "grossAmount",
+                COALESCE(SUM(fee_amount),0)::numeric AS "feeAmount",
+                COALESCE(SUM(net_amount),0)::numeric AS "netAmount",
+                COUNT(*)::int AS "transactionCount"
+         FROM pos_transactions
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND status='CAPTURED' AND settled_at IS NULL
+           AND expected_settlement_at IS NOT NULL
+         GROUP BY currency,DATE(expected_settlement_at)
+         ORDER BY DATE(expected_settlement_at),currency`,
+        tenantId,
+        companyId,
+        branchId,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT currency,
+                COALESCE(SUM(net_amount),0)::numeric AS "netAmount",
+                COUNT(*)::int AS "transactionCount"
+         FROM pos_transactions
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND status='CAPTURED' AND settled_at IS NULL
+           AND expected_settlement_at IS NULL
+         GROUP BY currency
+         ORDER BY currency`,
+        tenantId,
+        companyId,
+        branchId,
+      ),
+      this.getSettings(),
     ]);
 
     const book = new Map<string, number>();
@@ -93,8 +128,48 @@ export class TreasuryRiskService {
       accountCount: Number(row.accountCount ?? 0),
     }));
 
+    const reportingCurrency = settings.reportingCurrency ?? null;
+    const comparableProviderBalance = reportingCurrency
+      ? providerBankBalances.find((row) => row.currency === reportingCurrency) ?? null
+      : null;
+    const bankVariance = reportingCurrency && comparableProviderBalance
+      ? {
+          currency: reportingCurrency,
+          bookBalance: bookBankBalance,
+          providerCurrentBalance: comparableProviderBalance.currentBalance,
+          variance: this.round(comparableProviderBalance.currentBalance - bookBankBalance),
+          providerBalanceAsOf: comparableProviderBalance.balanceAsOf,
+          comparable: true,
+          reason: null,
+        }
+      : {
+          currency: reportingCurrency,
+          bookBalance: bookBankBalance,
+          providerCurrentBalance: null,
+          variance: null,
+          providerBalanceAsOf: null,
+          comparable: false,
+          reason: reportingCurrency ? 'NO_PROVIDER_BALANCE_FOR_REPORTING_CURRENCY' : 'REPORTING_CURRENCY_NOT_CONFIGURED',
+        };
+
+    const settlementForecast = settlementRows.map((row) => ({
+      settlementDate: row.settlementDate,
+      currency: String(row.currency),
+      grossAmount: this.round(Number(row.grossAmount ?? 0)),
+      feeAmount: this.round(Number(row.feeAmount ?? 0)),
+      expectedNetCash: this.round(Number(row.netAmount ?? 0)),
+      transactionCount: Number(row.transactionCount ?? 0),
+      overdue: new Date(row.settlementDate).getTime() < this.startOfDay(asOf).getTime(),
+    }));
+    const unknownSettlementTiming = unknownSettlementRows.map((row) => ({
+      currency: String(row.currency),
+      expectedNetCash: this.round(Number(row.netAmount ?? 0)),
+      transactionCount: Number(row.transactionCount ?? 0),
+    }));
+
     return {
       asOf,
+      reportingCurrency,
       book: {
         cashOnHand,
         bankBalance: bookBankBalance,
@@ -106,10 +181,18 @@ export class TreasuryRiskService {
       provider: {
         bankBalancesByCurrency: providerBankBalances,
       },
+      reconciliation: {
+        bankVariance,
+      },
+      posSettlementForecast: {
+        scheduled: settlementForecast,
+        unknownTiming: unknownSettlementTiming,
+      },
       definitions: {
         actualCash: '100 Cash + 102 Banks',
         nearCash: '108 POS Receivables',
         totalLiquidPosition: 'Actual Cash + Near Cash',
+        bankVariance: 'Provider current balance - 102 book balance, only in configured reporting currency',
       },
     };
   }
@@ -118,6 +201,7 @@ export class TreasuryRiskService {
     const { tenantId, companyId, branchId } = this.context();
     const minimumLiquidity = this.round(Number(input.minimumLiquidity));
     const warningBufferPercent = this.round(Number(input.warningBufferPercent ?? 20));
+    const reportingCurrency = input.reportingCurrency?.trim().toUpperCase() || null;
 
     if (!Number.isFinite(minimumLiquidity) || minimumLiquidity < 0) {
       throw new BadRequestException('Minimum liquidity must be zero or greater.');
@@ -125,20 +209,25 @@ export class TreasuryRiskService {
     if (!Number.isFinite(warningBufferPercent) || warningBufferPercent < 0 || warningBufferPercent > 100) {
       throw new BadRequestException('Warning buffer percent must be between 0 and 100.');
     }
+    if (reportingCurrency && !/^[A-Z]{3}$/.test(reportingCurrency)) {
+      throw new BadRequestException('Reporting currency must be a 3-letter ISO currency code.');
+    }
 
     const id = randomUUID();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `INSERT INTO treasury_risk_settings(
-         id,tenant_id,company_id,branch_id,minimum_liquidity,warning_buffer_percent,created_at,updated_at
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,NOW(),NOW())
+         id,tenant_id,company_id,branch_id,minimum_liquidity,warning_buffer_percent,reporting_currency,created_at,updated_at
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,$7,NOW(),NOW())
        ON CONFLICT(company_id,(COALESCE(branch_id,'')))
        DO UPDATE SET minimum_liquidity=EXCLUDED.minimum_liquidity,
                      warning_buffer_percent=EXCLUDED.warning_buffer_percent,
+                     reporting_currency=EXCLUDED.reporting_currency,
                      updated_at=NOW()
        RETURNING id,company_id AS "companyId",branch_id AS "branchId",
                  minimum_liquidity AS "minimumLiquidity",
-                 warning_buffer_percent AS "warningBufferPercent",updated_at AS "updatedAt"`,
-      id, tenantId, companyId, branchId, minimumLiquidity, warningBufferPercent,
+                 warning_buffer_percent AS "warningBufferPercent",
+                 reporting_currency AS "reportingCurrency",updated_at AS "updatedAt"`,
+      id, tenantId, companyId, branchId, minimumLiquidity, warningBufferPercent, reportingCurrency,
     );
     return rows[0];
   }
@@ -148,13 +237,14 @@ export class TreasuryRiskService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,company_id AS "companyId",branch_id AS "branchId",
               minimum_liquidity AS "minimumLiquidity",
-              warning_buffer_percent AS "warningBufferPercent",updated_at AS "updatedAt"
+              warning_buffer_percent AS "warningBufferPercent",
+              reporting_currency AS "reportingCurrency",updated_at AS "updatedAt"
        FROM treasury_risk_settings
        WHERE company_id=$1::text
          AND COALESCE(branch_id,'')=COALESCE($2::text,'')
        LIMIT 1`, companyId, branchId);
-    if (!rows.length) return { companyId, branchId, minimumLiquidity: 0, warningBufferPercent: 20, configured: false };
-    return { ...rows[0], minimumLiquidity: this.round(Number(rows[0].minimumLiquidity ?? 0)), warningBufferPercent: this.round(Number(rows[0].warningBufferPercent ?? 20)), configured: true };
+    if (!rows.length) return { companyId, branchId, minimumLiquidity: 0, warningBufferPercent: 20, reportingCurrency: null, configured: false };
+    return { ...rows[0], minimumLiquidity: this.round(Number(rows[0].minimumLiquidity ?? 0)), warningBufferPercent: this.round(Number(rows[0].warningBufferPercent ?? 20)), reportingCurrency: rows[0].reportingCurrency ?? null, configured: true };
   }
 
   async liquidityAlerts(startInput: Date) {
