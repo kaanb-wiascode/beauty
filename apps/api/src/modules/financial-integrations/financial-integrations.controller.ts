@@ -229,6 +229,12 @@ export class FinancialIntegrationsController {
     return this.credentials.configure(id, parsed.credentials);
   }
 
+  @Post(':id/credentials/rotate')
+  @RequireFinancialIntegrationPermission('manage')
+  @AuditFinancialIntegrationAction('credentials.rotate')
+  @FinancialIntegrationRateLimit('credentials-rotate', 5, 60)
+  rotateCredentials(@Param('id') id: string) { return this.credentials.rotate(id); }
+
   @Delete(':id/credentials')
   @RequireFinancialIntegrationPermission('manage')
   @AuditFinancialIntegrationAction('credentials.clear')
