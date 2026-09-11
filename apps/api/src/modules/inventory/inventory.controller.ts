@@ -1,12 +1,35 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { InventoryService } from './inventory.service';
+import { WarehouseAccountingService } from './warehouse-accounting.service';
+
+const adjustmentSchema = z.object({
+  warehouseId: z.string().uuid(),
+  type: z.enum(['ADJUSTMENT_IN','ADJUSTMENT_OUT','DAMAGE','EXPIRED']),
+  reason: z.string().trim().min(1).max(500),
+  items: z.array(z.object({
+    productId: z.string().uuid(),
+    quantity: z.coerce.number().positive(),
+    unitCost: z.coerce.number().min(0).optional(),
+  })).min(1),
+});
 
 @Controller('inventory')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class InventoryController {
-  constructor(private readonly inventory: InventoryService) {}
+  constructor(
+    private readonly inventory: InventoryService,
+    private readonly warehouseAccounting: WarehouseAccountingService,
+  ) {}
+
+  private userId(req: { user?: { sub?: string } }) {
+    const userId = req.user?.sub;
+    if (!userId) throw new UnauthorizedException('Authenticated user id is missing.');
+    return userId;
+  }
+
   @Get('overview') overview(){ return this.inventory.overview(); }
   @Get('products') products(@Query('search') search?:string){ return this.inventory.products(search); }
   @Post('products') createProduct(@Body() body:any){ return this.inventory.createProduct(body); }
@@ -28,4 +51,13 @@ export class InventoryController {
   @Get('notifications') notifications(){ return this.inventory.notifications(); }
   @Get('transfers') transfers(){ return this.inventory.transfers(); }
   @Post('transfers') createTransfer(@Body() body:any){ return this.inventory.createTransfer(body); }
+  @Post('transfers/:id/receive') receiveTransfer(@Param('id') id:string){ return this.warehouseAccounting.receiveTransfer(id); }
+
+  @Get('accounting/valuation') valuation(){ return this.warehouseAccounting.valuation(); }
+  @Get('accounting/reconciliation') reconciliation(){ return this.warehouseAccounting.reconciliation(); }
+  @Post('accounting/adjustments')
+  postAdjustment(@Body() body:unknown,@Req() req:{user?:{sub?:string}}){
+    const parsed=adjustmentSchema.parse(body);
+    return this.warehouseAccounting.postAdjustment({...parsed,userId:this.userId(req)});
+  }
 }
