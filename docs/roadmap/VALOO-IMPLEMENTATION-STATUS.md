@@ -13,7 +13,7 @@ Do not merge/push to `main` without explicit approval.
 
 ### Marketplace
 
-Status: **Foundation started**
+Status: **Publication foundation implemented; public marketplace not yet exposed**
 
 Implemented:
 
@@ -23,12 +23,17 @@ Implemented:
 - module registered in `AppModule`
 - authenticated marketplace preview endpoint foundation
 - preview uses allowlisted business/service projection rather than exposing raw ERP entities
+- persistent branch-scoped `marketplace_publications` foundation
+- explicit publish/unpublish workflow
+- publication state read endpoint
+- tenant/company/branch scope validation in service and database trigger
+- idempotent publish semantics that preserve first `publishedAt` while already published
+- publication mutations protected by existing `services.update` permission
 
 Not yet complete:
 
-- persistent publication model
-- publish/unpublish workflow
 - public marketplace endpoint
+- public slug/routing model
 - availability engine
 - concurrency-safe marketplace booking
 - ConsumerAccount
@@ -37,7 +42,7 @@ Not yet complete:
 
 ### Supplier Network
 
-Status: **Core identity foundation started**
+Status: **Core identity foundation started; tenant scope hardened**
 
 Implemented:
 
@@ -47,6 +52,8 @@ Implemented:
 - database-level tenant/company scope validation guard
 - `apps/api/src/modules/supplier-network/` module/service foundation
 - Supplier Network module registered in `AppModule`
+- Marketplace/Supplier regression tests for isolation invariants
+- SupplierConnection tenant/company context now derives from `TenantContext`, not request-controlled input
 
 Initial organization types:
 
@@ -68,6 +75,8 @@ Initial verification states:
 
 Not yet complete:
 
+- explicit platform-admin authorization boundary for global SupplierOrganization administration
+- tenant-scoped SupplierConnection admin API + RBAC
 - supplier memberships/users
 - verification case/document workflow
 - Supplier Portal
@@ -150,46 +159,47 @@ Not yet implemented:
 
 ### P0 — Existing Main Roadmap
 
-1. MarketplacePublication persistence and publish/unpublish workflow.
-2. Marketplace authorization + data-leakage tests.
-3. Supplier Network admin API with RBAC.
-4. SupplierOrganization audit events/history.
-5. SupplierMembership + SupplierVerification design and migration.
+1. Validate MarketplacePublication migration/workflow in CI and add public-safe listing endpoint.
+2. Extend Marketplace authorization/data-leakage coverage for the future public boundary.
+3. Define platform-admin authorization boundary for global SupplierOrganization administration.
+4. Add tenant-scoped SupplierConnection admin API with RBAC.
+5. SupplierOrganization audit events/history.
+6. SupplierMembership + SupplierVerification design and migration.
 
 ### P0-Architecture — Healthcare Parallel Track
 
-6. H0 OrganizationProfile schema/design review against existing Tenant/Company/Branch model.
-7. H1 Capability registry/evaluation contract design.
-8. H2 RegulatoryProfile/versioning/rule-result data model design.
+7. H0 OrganizationProfile schema/design review against existing Tenant/Company/Branch model.
+8. H1 Capability registry/evaluation contract design.
+9. H2 RegulatoryProfile/versioning/rule-result data model design.
 
 These healthcare foundation items may progress incrementally but must not block the main P0 reliability and ecosystem queue.
 
 ### P1
 
-9. Availability engine foundation.
-10. concurrency-safe marketplace booking orchestration.
-11. Brand + CatalogProduct + ProductVariant + identifiers.
-12. SupplierOffer.
-13. RFQ + SupplierQuote.
-14. Healthcare onboarding/capability prototype only after H0-H2 design is validated.
+10. Availability engine foundation.
+11. concurrency-safe marketplace booking orchestration.
+12. Brand + CatalogProduct + ProductVariant + identifiers.
+13. SupplierOffer.
+14. RFQ + SupplierQuote.
+15. Healthcare onboarding/capability prototype only after H0-H2 design is validated.
 
 ### P2
 
-15. Procurement conversion from selected offer/quote.
-16. ConsumerAccount/reviews/favorites.
-17. payment/deposit/no-show.
-18. smart replenishment and contract pricing.
-19. equipment/asset/service lifecycle.
-20. VALOO Clinic foundation after security/regulatory architecture is ready.
+16. Procurement conversion from selected offer/quote.
+17. ConsumerAccount/reviews/favorites.
+18. payment/deposit/no-show.
+19. smart replenishment and contract pricing.
+20. equipment/asset/service lifecycle.
+21. VALOO Clinic foundation after security/regulatory architecture is ready.
 
 ### P3
 
-21. compliance engine extensions.
-22. logistics/EDI/API integrations.
-23. financing/leasing.
-24. supplier intelligence.
-25. AI recommendations/concierge.
-26. Hospital Ops / Healthcare Integration Hub.
+22. compliance engine extensions.
+23. logistics/EDI/API integrations.
+24. financing/leasing.
+25. supplier intelligence.
+26. AI recommendations/concierge.
+27. Hospital Ops / Healthcare Integration Hub.
 
 ## 5. Evidence / Commit Log
 
@@ -197,9 +207,14 @@ Known ecosystem foundation commits:
 
 - `a46b3b9f3b0b6b154221df04bd97776b6c2c9a9b` — Marketplace module registered in API application.
 - `0891c7d8784ae83aab632317073a852d9959d1a6` — Supplier Network foundation and application registration sequence.
+- `c9ad805a3aa8fad6e5e56728ecdcdef4b279248f` — Marketplace preview isolation regression tests.
+- `c3386e9cc58418adf61c3b989867e411014f0710` — Supplier Network scope invariant regression tests.
+- `74d2e08ae58d48d1328ea5b2a56e40d20a21a7bf` — SupplierConnection scope bound to TenantContext.
+- `a58f1bc839f7def6d7052d1ea148218074b334ae` — Supplier tenant-context regression tests; CI #696 success.
 - `6e2869a8ab7ff5ef32f255af2eeadca1b65f95b9` — Healthcare capability/regulatory architecture document added.
 - `4d8b2ae98a8ef34f1d4df2708c8a1dceeacfc050` — Healthcare expansion roadmap added.
-- documentation baseline commits are tracked through Git history on this branch.
+
+MarketplacePublication foundation commit is created through Git data as `a99f20e293971bb491c5951741bb2306054de1cb`; branch ref update/CI validation must be observed before marking it passed.
 
 ## 6. CI Status Rule
 
