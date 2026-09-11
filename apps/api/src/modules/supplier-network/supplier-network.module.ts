@@ -5,6 +5,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PlatformAdminGuard } from '../../common/auth/platform-admin.guard';
 import { PlatformSupplierNetworkController } from './platform-supplier-network.controller';
 import { PlatformSupplierNetworkService } from './platform-supplier-network.service';
+import { SupplierInvitationController } from './supplier-invitation.controller';
+import { SupplierInvitationService } from './supplier-invitation.service';
 import { SupplierMembershipController } from './supplier-membership.controller';
 import { SupplierMembershipService } from './supplier-membership.service';
 import { SupplierNetworkController } from './supplier-network.controller';
@@ -32,6 +34,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierMembershipController,
     SupplierVerificationController,
     SupplierPortalAuthController,
+    SupplierInvitationController,
   ],
   providers: [
     SupplierNetworkService,
@@ -39,6 +42,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierMembershipService,
     SupplierVerificationService,
     SupplierPortalAuthService,
+    SupplierInvitationService,
     SupplierPortalAuthGuard,
     SupplierPortalRoleGuard,
     PlatformAdminGuard,
