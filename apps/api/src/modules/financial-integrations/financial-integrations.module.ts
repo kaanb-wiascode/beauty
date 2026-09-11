@@ -4,6 +4,7 @@ import { FinancialIntegrationCallbackController } from './financial-integration-
 import { PosWebhookController } from './pos-webhook.controller';
 import { FinancialIntegrationsService } from './financial-integrations.service';
 import { ProviderRegistryService } from './provider-registry.service';
+import { ProviderResilienceService } from './provider-resilience.service';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
 import { FinancialIntegrationConnectionService } from './financial-integration-connection.service';
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
@@ -41,6 +42,7 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     IyzicoAdapter,
     PaytrAdapter,
     ProviderRegistryService,
+    ProviderResilienceService,
     IntegrationSecretVaultService,
     FinancialIntegrationConnectionService,
     FinancialIntegrationSyncService,
@@ -66,6 +68,7 @@ import { PaytrAdapter } from './providers/paytr.adapter';
   exports: [
     FinancialIntegrationsService,
     ProviderRegistryService,
+    ProviderResilienceService,
     IntegrationSecretVaultService,
     FinancialIntegrationConnectionService,
     FinancialIntegrationSyncService,
