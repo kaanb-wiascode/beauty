@@ -18,6 +18,8 @@ export const envSchema = z.object({
 
   PUBLIC_API_URL: z.string().url().optional(),
   FINANCIAL_INTEGRATION_MASTER_KEY: z.string().min(32).optional(),
+  FINANCIAL_INTEGRATION_MASTER_KEY_VERSION: z.string().trim().min(1).max(64).default('v1'),
+  FINANCIAL_INTEGRATION_PREVIOUS_MASTER_KEYS: z.string().optional(),
 });
 
 export type Env = z.infer<typeof envSchema>;
