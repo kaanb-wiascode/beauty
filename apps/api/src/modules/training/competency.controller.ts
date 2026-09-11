@@ -11,24 +11,24 @@ export class CompetencyController {
   constructor(private readonly competency:CompetencyService){}
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
 
-  @Get('definitions') @RequirePermission('quality','read')
+  @Get('definitions') @RequirePermission('training','read')
   definitions(){return this.competency.listDefinitions();}
 
-  @Post('definitions') @RequirePermission('quality','manage')
+  @Post('definitions') @RequirePermission('training','manage')
   createDefinition(@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.competency.createDefinition(b,this.userId(req));}
 
-  @Get('profiles') @RequirePermission('quality','read')
+  @Get('profiles') @RequirePermission('training','read')
   profiles(){return this.competency.listProfiles();}
 
-  @Post('profiles') @RequirePermission('quality','manage')
+  @Post('profiles') @RequirePermission('training','manage')
   createProfile(@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.competency.createProfile(b,this.userId(req));}
 
-  @Post('staff/:staffId/profile') @RequirePermission('quality','manage')
+  @Post('staff/:staffId/profile') @RequirePermission('training','manage')
   assignProfile(@Param('staffId')staffId:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.competency.assignProfile(staffId,b,this.userId(req));}
 
-  @Post('staff/:staffId/assessments') @RequirePermission('quality','manage')
+  @Post('staff/:staffId/assessments') @RequirePermission('training','manage')
   assess(@Param('staffId')staffId:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.competency.assess(staffId,b,this.userId(req));}
 
-  @Get('staff/:staffId/gaps') @RequirePermission('quality','read')
+  @Get('staff/:staffId/gaps') @RequirePermission('training','read')
   gaps(@Param('staffId')staffId:string){return this.competency.gaps(staffId);}
 }
