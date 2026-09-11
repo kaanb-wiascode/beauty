@@ -23,6 +23,12 @@ type MarketplacePublicationRow = {
   updatedAt: Date;
 };
 
+type PublicPublicationScope = {
+  tenantId: string;
+  companyId: string;
+  branchId: string;
+};
+
 @Injectable()
 export class MarketplaceService {
   constructor(
@@ -200,6 +206,99 @@ export class MarketplaceService {
     );
 
     return this.publicationResponse(rows[0]);
+  }
+
+  async publicListing(companySlug: string, branchCode: string) {
+    const scopes = await this.prisma.$queryRawUnsafe<PublicPublicationScope[]>(
+      `SELECT
+         mp.tenant_id AS "tenantId",
+         mp.company_id AS "companyId",
+         mp.branch_id AS "branchId"
+       FROM marketplace_publications mp
+       JOIN branches b ON b.id=mp.branch_id
+       JOIN companies c ON c.id=mp.company_id
+       WHERE mp.status='PUBLISHED'
+         AND b.status='ACTIVE'
+         AND c.status='ACTIVE'
+         AND b."companyId"=mp.company_id
+         AND c."tenantId"=mp.tenant_id
+         AND c.slug=$1
+         AND b.code=$2
+       LIMIT 1`,
+      companySlug,
+      branchCode,
+    );
+
+    const scope = scopes[0];
+    if (!scope) {
+      throw new NotFoundException('Marketplace listing not found');
+    }
+
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: scope.branchId,
+        companyId: scope.companyId,
+        code: branchCode,
+        status: 'ACTIVE',
+        company: {
+          id: scope.companyId,
+          tenantId: scope.tenantId,
+          slug: companySlug,
+          status: 'ACTIVE',
+        },
+      },
+      select: {
+        name: true,
+        code: true,
+        address: true,
+        phone: true,
+        email: true,
+        company: {
+          select: {
+            name: true,
+            slug: true,
+          },
+        },
+        services: {
+          where: {
+            tenantId: scope.tenantId,
+            status: 'ACTIVE',
+          },
+          orderBy: {
+            name: 'asc',
+          },
+          select: {
+            id: true,
+            name: true,
+            description: true,
+            durationMinutes: true,
+            price: true,
+          },
+        },
+      },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Marketplace listing not found');
+    }
+
+    return {
+      listing: {
+        company: branch.company,
+        branch: {
+          name: branch.name,
+          code: branch.code,
+          address: branch.address,
+          phone: branch.phone,
+          email: branch.email,
+        },
+        services: branch.services,
+      },
+      publication: {
+        status: 'PUBLISHED' as const,
+        public: true,
+      },
+    };
   }
 
   /**
