@@ -28,6 +28,7 @@ import { FinancialIntegrationsModule } from './modules/financial-integrations/fi
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
+import { QualityModule } from './modules/quality/quality.module';
 
 @Module({
   imports: [
@@ -63,6 +64,7 @@ import { SupplierNetworkModule } from './modules/supplier-network/supplier-netwo
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
+    QualityModule,
   ],
 })
 export class AppModule {}
