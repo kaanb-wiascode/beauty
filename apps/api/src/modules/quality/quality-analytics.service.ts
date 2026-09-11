@@ -84,24 +84,50 @@ export class QualityAnalyticsService {
     const c = this.context();
     const windowDays = Math.min(Math.max(days, 7), 3650);
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT b.id AS "branchId",b.name AS "branchName",
-              COUNT(DISTINCT f.id)::int AS "findingCount",
-              COUNT(DISTINCT f.id) FILTER (WHERE f.severity IN ('HIGH','CRITICAL'))::int AS "highRiskFindings",
-              COUNT(DISTINCT f.id) FILTER (WHERE f.status <> 'CLOSED')::int AS "openFindings",
-              COUNT(DISTINCT p.id)::int AS "capaCount",
-              COUNT(DISTINCT p.id) FILTER (WHERE p.status='INEFFECTIVE')::int AS "ineffectiveCapas",
-              COUNT(DISTINCT q.id)::int AS "completedInspections",
-              ROUND(AVG(q.score)::numeric,2) AS "averageInspectionScore"
+      `WITH findings AS (
+         SELECT f.branch_id,
+                COUNT(*)::int AS finding_count,
+                COUNT(*) FILTER (WHERE f.severity IN ('HIGH','CRITICAL'))::int AS high_risk_findings,
+                COUNT(*) FILTER (WHERE f.status <> 'CLOSED')::int AS open_findings
+         FROM quality_findings f
+         WHERE f.tenant_id=$1::text AND f.company_id=$2::text
+           AND ($3::text IS NULL OR f.branch_id=$3::text)
+           AND f.created_at >= now() - ($4::int * interval '1 day')
+         GROUP BY f.branch_id
+       ), capas AS (
+         SELECT p.branch_id,
+                COUNT(*)::int AS capa_count,
+                COUNT(*) FILTER (WHERE p.status='INEFFECTIVE')::int AS ineffective_capas
+         FROM quality_capa_plans p
+         WHERE p.tenant_id=$1::text AND p.company_id=$2::text
+           AND ($3::text IS NULL OR p.branch_id=$3::text)
+           AND p.created_at >= now() - ($4::int * interval '1 day')
+         GROUP BY p.branch_id
+       ), inspections AS (
+         SELECT q.branch_id,
+                COUNT(*)::int AS completed_inspections,
+                ROUND(AVG(q.score)::numeric,2) AS average_inspection_score
+         FROM quality_inspections q
+         WHERE q.tenant_id=$1::text AND q.company_id=$2::text
+           AND ($3::text IS NULL OR q.branch_id=$3::text)
+           AND q.status='COMPLETED'
+           AND q.completed_at >= now() - ($4::int * interval '1 day')
+         GROUP BY q.branch_id
+       )
+       SELECT b.id AS "branchId",b.name AS "branchName",
+              COALESCE(f.finding_count,0)::int AS "findingCount",
+              COALESCE(f.high_risk_findings,0)::int AS "highRiskFindings",
+              COALESCE(f.open_findings,0)::int AS "openFindings",
+              COALESCE(p.capa_count,0)::int AS "capaCount",
+              COALESCE(p.ineffective_capas,0)::int AS "ineffectiveCapas",
+              COALESCE(q.completed_inspections,0)::int AS "completedInspections",
+              q.average_inspection_score AS "averageInspectionScore"
        FROM branches b
        JOIN companies co ON co.id=b."companyId" AND co.id=$2::text AND co."tenantId"=$1::text
-       LEFT JOIN quality_findings f ON f.branch_id=b.id AND f.tenant_id=$1::text AND f.company_id=$2::text
-         AND f.created_at >= now() - ($4::int * interval '1 day')
-       LEFT JOIN quality_capa_plans p ON p.branch_id=b.id AND p.tenant_id=$1::text AND p.company_id=$2::text
-         AND p.created_at >= now() - ($4::int * interval '1 day')
-       LEFT JOIN quality_inspections q ON q.branch_id=b.id AND q.tenant_id=$1::text AND q.company_id=$2::text
-         AND q.status='COMPLETED' AND q.completed_at >= now() - ($4::int * interval '1 day')
+       LEFT JOIN findings f ON f.branch_id=b.id
+       LEFT JOIN capas p ON p.branch_id=b.id
+       LEFT JOIN inspections q ON q.branch_id=b.id
        WHERE ($3::text IS NULL OR b.id=$3::text)
-       GROUP BY b.id,b.name
        ORDER BY "highRiskFindings" DESC,"findingCount" DESC,b.name`,
       c.tenantId,c.companyId,c.branchId,windowDays,
     );
