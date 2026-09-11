@@ -113,38 +113,76 @@ export class FinancialIntegrationConnectionService {
   async callback(state: string, code: string) {
     if (!state || !code) throw new BadRequestException('OAuth state and code are required.');
     const stateHash = this.hashState(state);
+    const claimToken = randomUUID();
+
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      const sessions = await tx.$queryRawUnsafe<any[]>(
+        `UPDATE finance_integration_auth_sessions
+         SET claim_token=$2::text,claimed_at=NOW(),last_error=NULL
+         WHERE state_hash=$1
+           AND consumed_at IS NULL
+           AND expires_at>NOW()
+           AND (claim_token IS NULL OR claimed_at<NOW()-INTERVAL '5 minutes')
+         RETURNING id,integration_id AS "integrationId",callback_url AS "callbackUrl"`,
+        stateHash,
+        claimToken,
+      );
+      if (!sessions.length) {
+        throw new BadRequestException('OAuth state is invalid, expired, or already being processed.');
+      }
+      const session = sessions[0];
+      const integrations = await tx.$queryRawUnsafe<any[]>(
+        `SELECT kind,provider FROM finance_integrations WHERE id=$1::text LIMIT 1`,
+        session.integrationId,
+      );
+      if (!integrations.length) throw new NotFoundException('Financial integration not found.');
+      return { ...session, ...integrations[0] };
+    });
+
+    const adapter = this.providers.get(claimed.kind, claimed.provider);
+    if (!adapter.exchangeAuthorizationCode) {
+      await this.releaseCallbackClaim(claimed.id, claimToken, 'Provider does not support OAuth code exchange.');
+      throw new BadRequestException('Provider does not support OAuth code exchange.');
+    }
+
+    let tokens;
+    try {
+      tokens = await adapter.exchangeAuthorizationCode({
+        code,
+        callbackUrl: claimed.callbackUrl,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'OAuth provider code exchange failed.';
+      await this.releaseCallbackClaim(claimed.id, claimToken, message);
+      throw error;
+    }
 
     return this.prisma.$transaction(async (tx) => {
       const sessions = await tx.$queryRawUnsafe<any[]>(
-        `SELECT s.id,s.integration_id AS "integrationId",s.callback_url AS "callbackUrl",
-                i.kind,i.provider
-         FROM finance_integration_auth_sessions s
-         JOIN finance_integrations i ON i.id=s.integration_id
-         WHERE s.state_hash=$1 AND s.consumed_at IS NULL AND s.expires_at>NOW()
+        `SELECT id,integration_id AS "integrationId"
+         FROM finance_integration_auth_sessions
+         WHERE id=$1::text AND claim_token=$2::text AND consumed_at IS NULL
          FOR UPDATE`,
-        stateHash,
+        claimed.id,
+        claimToken,
       );
-      if (!sessions.length) throw new BadRequestException('OAuth state is invalid or expired.');
-      const session = sessions[0];
-      const adapter = this.providers.get(session.kind, session.provider);
-      if (!adapter.exchangeAuthorizationCode) {
-        throw new BadRequestException('Provider does not support OAuth code exchange.');
+      if (!sessions.length) {
+        throw new BadRequestException('OAuth callback claim is no longer valid.');
       }
 
-      const tokens = await adapter.exchangeAuthorizationCode({
-        code,
-        callbackUrl: session.callbackUrl,
-      });
-      await this.vault.storeWith(tx, session.integrationId, tokens);
+      await this.vault.storeWith(tx, claimed.integrationId, tokens);
       await tx.$executeRawUnsafe(
-        `UPDATE finance_integration_auth_sessions SET consumed_at=NOW() WHERE id=$1::text`,
-        session.id,
+        `UPDATE finance_integration_auth_sessions
+         SET consumed_at=NOW(),claim_token=NULL,claimed_at=NULL,last_error=NULL
+         WHERE id=$1::text AND claim_token=$2::text`,
+        claimed.id,
+        claimToken,
       );
       await tx.$executeRawUnsafe(
         `UPDATE finance_integrations
          SET status='CONNECTED',external_connection_id=$2,consent_expires_at=$3,last_error=NULL,updated_at=NOW()
          WHERE id=$1::text`,
-        session.integrationId,
+        claimed.integrationId,
         tokens.externalConnectionId ?? null,
         tokens.consentExpiresAt ?? null,
       );
@@ -153,11 +191,22 @@ export class FinancialIntegrationConnectionService {
         `SELECT id,kind,provider,display_name AS "displayName",status,branch_id AS "branchId",
                 consent_expires_at AS "consentExpiresAt"
          FROM finance_integrations WHERE id=$1::text LIMIT 1`,
-        session.integrationId,
+        claimed.integrationId,
       );
       if (!integration.length) throw new NotFoundException('Financial integration not found.');
       return integration[0];
     });
+  }
+
+  private async releaseCallbackClaim(sessionId: string, claimToken: string, message: string) {
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE finance_integration_auth_sessions
+       SET claim_token=NULL,claimed_at=NULL,last_error=$3
+       WHERE id=$1::text AND claim_token=$2::text AND consumed_at IS NULL`,
+      sessionId,
+      claimToken,
+      message.slice(0, 1000),
+    );
   }
 
   async disconnect(integrationId: string) {
