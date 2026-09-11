@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { CallHandler, ExecutionContext, Injectable, NestInterceptor, SetMetadata } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { PrismaService } from '@beauty-erp/database';
-import { Observable, catchError, tap, throwError } from 'rxjs';
+import { Observable, catchError, from, map, mergeMap, throwError } from 'rxjs';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -31,11 +31,12 @@ export class FinancialIntegrationAuditInterceptor implements NestInterceptor {
     const entityId = request.params?.id ?? request.params?.eventId ?? request.params?.settlementId ?? request.params?.bankTransactionId ?? request.params?.posTransactionId ?? null;
 
     return next.handle().pipe(
-      tap(() => { void this.write(action, 'SUCCESS', user, entityId, request, null); }),
+      mergeMap((value) => from(this.write(action, 'SUCCESS', user, entityId, request, null)).pipe(map(() => value))),
       catchError((error: unknown) => {
         const message = error instanceof Error ? error.message : 'Unknown error';
-        void this.write(action, 'FAILED', user, entityId, request, message);
-        return throwError(() => error);
+        return from(this.write(action, 'FAILED', user, entityId, request, message)).pipe(
+          mergeMap(() => throwError(() => error)),
+        );
       }),
     );
   }
