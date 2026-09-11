@@ -3,6 +3,8 @@ import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
 import { QualityController } from './quality.controller';
 import { QualityFeedbackRequestController } from './quality-feedback-request.controller';
 import { QualityFeedbackRequestService } from './quality-feedback-request.service';
+import { QualityInspectionController } from './quality-inspection.controller';
+import { QualityInspectionService } from './quality-inspection.service';
 import { QualityNotificationDispatcherService } from './quality-notification-dispatcher.service';
 import { QualityNotificationOutboxController } from './quality-notification-outbox.controller';
 import { QualityNotificationOutboxService } from './quality-notification-outbox.service';
@@ -13,8 +15,8 @@ import { QualitySlaService } from './quality-sla.service';
 import { QualityService } from './quality.service';
 
 @Module({
-  controllers:[QualityController,QualityFeedbackRequestController,QualityNotificationOutboxController,QualityPublicFeedbackController],
-  providers:[QualityService,QualitySlaService,QualityFeedbackRequestService,QualityNotificationOutboxService,QualityNotificationDispatcherService,QualityNotificationWebhookProvider,QualityPublicFeedbackService,QualityAssigneeScopeGuard],
-  exports:[QualityService,QualitySlaService,QualityFeedbackRequestService,QualityNotificationOutboxService,QualityNotificationDispatcherService,QualityPublicFeedbackService],
+  controllers:[QualityController,QualityFeedbackRequestController,QualityNotificationOutboxController,QualityPublicFeedbackController,QualityInspectionController],
+  providers:[QualityService,QualitySlaService,QualityFeedbackRequestService,QualityNotificationOutboxService,QualityNotificationDispatcherService,QualityNotificationWebhookProvider,QualityPublicFeedbackService,QualityInspectionService,QualityAssigneeScopeGuard],
+  exports:[QualityService,QualitySlaService,QualityFeedbackRequestService,QualityNotificationOutboxService,QualityNotificationDispatcherService,QualityPublicFeedbackService,QualityInspectionService],
 })
 export class QualityModule {}
