@@ -88,13 +88,13 @@ export class TaxService {
     const branchId = this.tenant.getBranchId();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT
-         COALESCE((SELECT SUM(vat_total) FROM sales s
-                   JOIN branches b ON b.id=s.branch_id
-                   WHERE s.tenant_id=$1::text AND b.company_id=$2::text
-                     AND ($3::text IS NULL OR s.branch_id=$3::text)
+         COALESCE((SELECT SUM(s.vat_total) FROM sales s
+                   JOIN branches b ON b.id=s."branchId"
+                   WHERE s."tenantId"=$1::text AND b."companyId"=$2::text
+                     AND ($3::text IS NULL OR s."branchId"=$3::text)
                      AND s.status='CONFIRMED'
-                     AND ($4::timestamptz IS NULL OR s.confirmed_at >= $4::timestamptz)
-                     AND ($5::timestamptz IS NULL OR s.confirmed_at <= $5::timestamptz)),0)::numeric AS "outputVat",
+                     AND ($4::timestamptz IS NULL OR s."confirmedAt" >= $4::timestamptz)
+                     AND ($5::timestamptz IS NULL OR s."confirmedAt" <= $5::timestamptz)),0)::numeric AS "outputVat",
          COALESCE((SELECT SUM(vat_total) FROM inventory_goods_receipts gr
                    WHERE gr.tenant_id=$1::text AND gr.company_id=$2::text
                      AND ($3::text IS NULL OR gr.branch_id=$3::text)
