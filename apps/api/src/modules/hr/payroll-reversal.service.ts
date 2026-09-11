@@ -74,7 +74,7 @@ export class PayrollReversalService {
       const settlement=await tx.$queryRawUnsafe<any[]>(
         `SELECT
            (SELECT COUNT(*)::int FROM salary_payments WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='PAID') AS salary_count,
-           (SELECT COUNT(*)::int FROM payroll_liability_payments WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text) AS liability_count`,periodId,tenantId,companyId);
+           (SELECT COUNT(*)::int FROM payroll_liability_payments WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='PAID') AS liability_count`,periodId,tenantId,companyId);
       if(Number(settlement[0]?.salary_count??0)>0||Number(settlement[0]?.liability_count??0)>0) throw new BadRequestException('Payroll has settlements. Reverse salary/liability payments before reversing payroll.');
       const original=await tx.journalEntry.findFirst({where:{id:period.journalEntryId,tenantId,companyId,status:'POSTED'},include:{lines:true}});
       if(!original||!original.lines.length) throw new BadRequestException('Original payroll journal is missing.');
