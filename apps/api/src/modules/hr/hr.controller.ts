@@ -1,4 +1,4 @@
-import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Delete, Get, Param, Patch, Post, Put, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { HrService } from './hr.service';
@@ -12,6 +12,7 @@ import { PayrollDashboardService } from './payroll-dashboard.service';
 import { PayrollPaymentReversalService } from './payroll-payment-reversal.service';
 import { PayrollWorkInputService } from './payroll-work-input.service';
 import { HrAnalyticsService } from './hr-analytics.service';
+import { PayrollPolicyService } from './payroll-policy.service';
 
 @Controller('hr')
 @UseGuards(JwtAuthGuard,TenantAuthGuard)
@@ -28,6 +29,7 @@ export class HrController {
     private readonly paymentReversal: PayrollPaymentReversalService,
     private readonly payrollWorkInputs: PayrollWorkInputService,
     private readonly hrAnalytics: HrAnalyticsService,
+    private readonly payrollPolicy: PayrollPolicyService,
   ) {}
 
   private userId(req:{user?:{sub?:string}}){ const id=req.user?.sub; if(!id) throw new UnauthorizedException('Authenticated user id is missing.'); return id; }
@@ -48,6 +50,9 @@ export class HrController {
   @Get('payroll') payroll(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payroll(year?+year:undefined,month?+month:undefined);}
   @Get('payroll/dashboard') payrollDashboardSummary(@Query('year')year?:string,@Query('month')month?:string){return this.payrollDashboard.summary(year?+year:undefined,month?+month:undefined);}
   @Get('payroll/work-inputs') payrollWorkInputPreview(@Query('year')year:string,@Query('month')month:string){return this.payrollWorkInputs.preview(+year,+month);}
+  @Get('payroll/policy') payrollPolicySettings(){return this.payrollPolicy.getSettings();}
+  @Put('payroll/policy') updatePayrollPolicy(@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.payrollPolicy.updateSettings({enabled:Boolean(b.enabled),applyOvertime:Boolean(b.applyOvertime),applyUnpaidLeaveDeduction:Boolean(b.applyUnpaidLeaveDeduction),standardMonthlyMinutes:b.standardMonthlyMinutes==null?null:Number(b.standardMonthlyMinutes),overtimeMultiplier:b.overtimeMultiplier==null?null:Number(b.overtimeMultiplier),monthlyDayDivisor:b.monthlyDayDivisor==null?null:Number(b.monthlyDayDivisor)},this.userId(req));}
+  @Get('payroll/policy/preview') payrollPolicyPreview(@Query('year')year:string,@Query('month')month:string){return this.payrollPolicy.preview(+year,+month);}
   @Post('payroll/periods') createPayrollPeriod(@Body()b:{year:number;month:number}){return this.payrollPeriods.create(+b.year,+b.month);}
   @Post('payroll/periods/:id/items')
   upsertPayrollItem(@Param('id')id:string,@Body()b:any){
@@ -60,6 +65,7 @@ export class HrController {
     });
   }
   @Post('payroll/periods/:id/items/:staffId/work-inputs') attachPayrollWorkInputs(@Param('id')id:string,@Param('staffId')staffId:string){return this.payrollWorkInputs.attachToDraft(id,staffId);}
+  @Post('payroll/periods/:id/items/:staffId/policy-evaluation') attachPayrollPolicyEvaluation(@Param('id')id:string,@Param('staffId')staffId:string){return this.payrollPolicy.attachEvaluation(id,staffId);}
   @Post('payroll/periods/:id/submit') submitPayroll(@Param('id')id:string){return this.payrollAccounting.submit(id);}
   @Post('payroll/periods/:id/approve') approvePayroll(@Param('id')id:string,@Req()req:{user?:{sub?:string}}){return this.payrollAccounting.approve(id,this.userId(req));}
   @Post('payroll/periods/:id/post') postPayroll(@Param('id')id:string){return this.payrollPosting.post(id);}
