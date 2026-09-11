@@ -1,21 +1,24 @@
 import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { QualityPermissionGuard, RequireQualityPermission } from './quality-permission.guard';
 import { QualityService } from './quality.service';
 
 @Controller('quality')
-@UseGuards(JwtAuthGuard,TenantAuthGuard)
+@UseGuards(JwtAuthGuard,TenantAuthGuard,QualityPermissionGuard)
 export class QualityController {
   constructor(private readonly quality:QualityService){}
 
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
 
   @Get('feedback')
+  @RequireQualityPermission('read')
   listFeedback(@Query('classification')classification?:string,@Query('customerId')customerId?:string,@Query('limit')limit?:string){
     return this.quality.listFeedback({classification:classification||undefined,customerId:customerId||undefined,limit:limit?Number(limit):undefined});
   }
 
   @Post('feedback')
+  @RequireQualityPermission('manage')
   createFeedback(@Body()b:any,@Req()req:{user?:{sub?:string}}){
     return this.quality.createFeedback({
       branchId:b.branchId,customerId:b.customerId,appointmentId:b.appointmentId??null,serviceId:b.serviceId??null,staffId:b.staffId??null,careEventId:b.careEventId??null,
@@ -26,19 +29,24 @@ export class QualityController {
   }
 
   @Post('feedback/:id/escalate')
+  @RequireQualityPermission('manage')
   escalate(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
     return this.quality.escalateFeedback(id,this.userId(req),{category:b.category,severity,title:b.title,assignedUserId:b.assignedUserId??null,slaDueAt:b.slaDueAt??null});
   }
 
   @Get('cases')
+  @RequireQualityPermission('read')
   listCases(@Query('status')status?:string,@Query('severity')severity?:string,@Query('assignedUserId')assignedUserId?:string,@Query('limit')limit?:string){
     return this.quality.listCases({status:status||undefined,severity:severity||undefined,assignedUserId:assignedUserId||undefined,limit:limit?Number(limit):undefined});
   }
 
-  @Get('cases/:id') getCase(@Param('id')id:string){return this.quality.getCase(id);}
+  @Get('cases/:id')
+  @RequireQualityPermission('read')
+  getCase(@Param('id')id:string){return this.quality.getCase(id);}
 
   @Post('cases')
+  @RequireQualityPermission('manage')
   createCase(@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const sourceType=['FEEDBACK','CARE_EVENT','MANUAL','INCIDENT'].includes(b.sourceType)?b.sourceType:'MANUAL';
     const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
@@ -46,9 +54,11 @@ export class QualityController {
   }
 
   @Post('cases/:id/assign')
+  @RequireQualityPermission('manage')
   assign(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.quality.assign(id,b.assignedUserId??null,this.userId(req),b.note);}
 
   @Post('cases/:id/transition')
+  @RequireQualityPermission('manage')
   transition(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const status=String(b.status??'');
     if(!['INVESTIGATING','ACTION_REQUIRED','RESOLVED','CLOSED'].includes(status)) throw new BadRequestException('Invalid quality target status.');
