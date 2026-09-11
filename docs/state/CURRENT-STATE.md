@@ -16,7 +16,7 @@ Last updated: 2026-09-11
 **Product Type:** Multi-tenant SaaS CRM + ERP  
 **Initial Market:** Türkiye
 
-All work in this checkpoint is on `feature/core-commerce-foundation`. `main` must remain untouched until an explicit merge/release decision is made.
+All active development remains on `feature/core-commerce-foundation`. `main` must remain untouched until an explicit merge/release decision is made.
 
 ---
 
@@ -24,35 +24,38 @@ All work in this checkpoint is on `feature/core-commerce-foundation`. `main` mus
 
 Current phase:
 
-> **Core commerce + operational ERP hardening and VALOO frontend modernization — final cleanup/regression stage**
+> **Core ERP/finance backbone mature; HR/payroll advanced; customer feedback and quality-management layer now entering active implementation.**
 
 Current priorities:
 
 1. Preserve tenant/company/branch isolation.
 2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
-3. Remove UI actions that do not have a verified working route/backend flow.
-4. Complete responsive/accessibility/consistency review.
-5. Continue controlled VALOO naming/documentation cleanup without risky bulk technical renames.
-6. Finish with a full green Monorepo quality run before any release decision.
+3. Complete customer feedback → quality case governance without duplicating existing Customer/Appointment/Service/Staff/CustomerCareEvent models.
+4. Add explicit permissions, assignment validation, SLA/escalation and management UI around Quality.
+5. Build service-completion → feedback-request → notification automation as a separate event-driven layer.
+6. Keep Google Review flow policy-compliant; never generate or manipulate reviews.
+7. Continue controlled VALOO frontend consistency/accessibility work.
+8. Finish every material milestone with a full green Monorepo quality run.
 
 ---
 
-## 3. Verified Quality State
+## 3. Latest Verified Quality State
 
-Latest fully verified implementation head:
+Latest fully verified implementation head before this documentation-only checkpoint:
 
 ```text
-2097f4fe9433203498a14eddf20d7278f7071be5
-refactor(web): integrate inventory main with VALOO form foundations
+5b3587a7e89cb5694894338c8b3bc7b9edb56d71
+feat(hr): surface payroll policy in control center
 ```
 
 GitHub Actions:
 
 ```text
-Monorepo quality #662 — SUCCESS
+Monorepo quality #714 — SUCCESS
+run: 34629012181
 ```
 
-The verified workflow includes:
+Verified steps:
 
 - Prisma schema validation and client generation
 - database package typecheck/build
@@ -64,247 +67,307 @@ The verified workflow includes:
 - web typecheck
 - web build
 
-The workflow still contains a dedicated non-blocking commerce lint-debt reporting step. A green quality run does not mean the repository has zero historical lint debt.
-
-A later shared accessibility commit is currently being validated separately:
-
-```text
-b89680611b937707db67f0026b1ded2f0cb2d2a4
-fix(web): improve data view accessibility
-```
+The workflow retains a dedicated non-blocking commerce lint-debt reporting step; a green run does not mean historical lint debt is zero.
 
 ---
 
-## 4. Core Architecture Invariants
+## 4. Architecture Invariants
 
-The following rules must not be weakened by UI or domain work:
+The following rules must not be weakened:
 
 - Tenant is the primary isolation boundary.
-- Company/legal-entity and branch context must be preserved where applicable.
-- Employee and User remain separate concepts.
-- Authorization is permission/scope-aware and must not rely on role name alone.
-- Financial mutations must remain auditable.
-- Existing idempotency/concurrency/accounting rules must be preserved.
+- Company/legal-entity and branch scope must be preserved where applicable.
+- Employee and User are separate concepts.
+- Authorization must be permission/scope-aware; role name alone is not sufficient.
+- Financial mutations must remain auditable and idempotent.
 - Provider/live-bank balances never replace accounting-ledger truth.
 - Reconciliation remains explicit.
-- Secrets/API credentials must not be returned to the client after storage.
+- Secrets/API credentials are never returned after storage.
 - Internet-banking usernames/passwords are not collected.
-- External financial integrations use the integration layer rather than embedding provider logic into business-domain code.
+- External providers use the integration layer rather than business-domain embedding.
+- Historical transaction/tax/payroll snapshots remain authoritative for later reversals/adjustments.
 
 ---
 
-## 5. Shared Frontend Systems
+## 5. Major Backend State
 
-### Data View V2
+### Core commerce / customer operations
 
-```text
-apps/web/components/data-view.tsx
-```
+Implemented and substantially hardened:
 
-Primary primitives:
+- Customers
+- Appointments
+- Services
+- Packages / Sessions
+- Sales
+- Payment v2
+- Installments
+- Customer Ledger
+- refunds and payment reversals
+- accounting links from operational source documents
 
-- `DataView`
-- `DataViewToolbar`
-- `SearchField`
-- `FilterChip`
-- `ToolbarButton`
-- `ToolbarSelect`
-- `DataViewMeta`
+### Accounting / Finance
 
-The shared accessibility pass now guarantees a search-field accessible name, communicates filter-chip pressed state and only shows the ESC hint when a key handler exists.
+Implemented at advanced level:
 
-### Form System V2
+- Chart of Accounts / Journal Entries
+- automatic Sale / Payment / Refund posting
+- Accounts Payable / Supplier Ledger / AP Aging
+- Procurement / PO approval / Goods Receipt / Returns / Supplier Credit Notes
+- replacement / re-delivery workflow
+- VAT/KDV snapshots and reporting
+- Cost Centers
+- Profitability
+- Budgeting / Forecasting
+- 13-week cash flow
+- Treasury / Working Capital / DSO / DPO
+- CFO cockpit / financial health / benchmarks / alerts / management actions
 
-```text
-apps/web/components/form-system.tsx
-```
+### Banking / Financial Integrations
 
-Primary primitives:
+Implemented at advanced level:
 
-- `FormSection`
-- `FormGrid`
-- `FormActions`
-- `FormHint`
-- `CheckboxField`
-- `FormStepper`
-- `FormSubmitButton`
+- provider registry/adapters
+- encrypted credential vault + rotation
+- signed/idempotent webhook runtime and durable queue
+- iyzico and PayTR financial workflows
+- POS settlement/accounting/reconciliation
+- Open Banking runtime and token lifecycle
+- Garanti client-credentials integration foundation
+- pagination/cursors/watermarks/overlap sync
+- distributed scheduler lease and per-integration claims
+- circuit breaker / timeout / safe retry
+- integration operations and health monitoring
 
-### Finance View V2
+### Inventory / Warehouse
 
-```text
-apps/web/components/finance-view.tsx
-```
+Implemented at advanced level:
 
-Primary primitives:
-
-- `FinanceMetric`
-- `FinancePanel`
-- `FinanceTabs`
-- `FinanceTab`
-- `FinanceStatus`
-- `FinanceEmpty`
-
-### Typed frontend domain contracts
-
-```text
-apps/web/lib/cfo-types.ts
-apps/web/lib/inventory-types.ts
-```
-
-Inventory form shell:
-
-```text
-apps/web/components/inventory-form-shell.tsx
-```
-
----
-
-## 6. Frontend Modernization Completed
-
-### Customer / Commerce Operations
-
-- Customers — Data View V2
-- Staff — Data View V2 + reusable multi-step staff form
-- Services — Data View V2 + Form System
-- Payments — Data View V2
-- Appointments — Data View V2
-- Dashboard quick actions — Form System + explicit consent handling
-
-Important compliance correction:
-
-The quick customer form no longer silently sends KVKK acknowledgement or membership agreement as `true`; consent is explicitly collected in the UI.
+- stock movements and consumption accounting
+- procurement receipt/return integration
+- stock adjustments / damage / expired
+- warehouse valuation/reconciliation
+- transfer lifecycle `PENDING → APPROVED → IN_TRANSIT → RECEIVED`
+- cycle count lifecycle and accounting
+- in-transit valuation
 
 ### HR / Payroll
 
-Completed:
+Implemented at advanced level:
 
-- HR dynamic section framework
-- employees
-- personnel files
-- attendance
-- leaves
-- payroll
-- salary payments
-- SGK
-- HR dashboard
-- payroll dashboard
+- HR operational records
+- attendance / leave inputs
+- payroll periods/items lifecycle
+- payroll accounting
+- salary and liability settlement
+- settlement reversal
+- payroll cancellation/reversal
+- cost-center expense split
+- payroll reporting/dashboard
+- HR analytics
+- auditable work-input snapshots
+- configurable payroll policy engine
 
-The HR dashboard no longer presents placeholder tabs as implemented functionality; real operational routes are used.
+Payroll policy behavior:
 
-### Finance / CFO
+- company-level settings
+- overtime and unpaid-leave effects are explicit configuration, not legal constants hardcoded in code
+- policy disabled means no financial effect
+- preview/evaluation does not silently overwrite payroll amounts
 
-Completed:
+### Marketplace / Supplier Network
 
-- reconciliation center
-- CFO typed domain contracts
-- CFO management cockpit
-- treasury cockpit
-- integration operations
-- financial integrations management
-
-Financial integration behavior preserved:
-
-- provider registry
-- integration creation
-- OAuth/connect
-- sync
-- disconnect
-- health
-- consent status
-- encrypted credential-vault write/clear
-- liquidity
-- POS near-cash
-- bank transactions
-
-Credential values are not read back to the UI after storage.
-
-### Inventory
-
-Completed:
-
-- inventory movements
-- purchase requests
-- transfers
-- typed Inventory frontend contracts
-- reusable Inventory FormStepper shell
-- main inventory screen integration
-
-The main inventory screen now uses shared Inventory domain contracts and form shells while preserving product/asset/category/supplier API and payload behavior. Local `any` usage in the migrated surface was removed and purchase navigation now uses application routing rather than direct `window.location` mutation.
-
-A false `+ Yeni talep` action was removed from purchase requests after backend inspection confirmed there is no create endpoint for that flow.
+Marketplace and supplier-network foundations are present on the active branch. Continue incrementally from the existing modules and current docs; do not recreate parallel supplier entities.
 
 ---
 
-## 7. Remaining Frontend Work
+## 6. Payroll Policy UI — Completed
 
-### Services consistency cleanup
+The Payroll Control Center now exposes company-level policy management.
 
-Known remaining item:
+Implemented:
 
-- Services quick panel still contains category/package actions without a verified functional route/backend flow. These must be removed or only wired after an actual route/endpoint is verified.
+- GET `/hr/payroll/policy`
+- PUT `/hr/payroll/policy`
+- GET `/hr/payroll/policy/preview`
+- web API client supports `PUT`
+- policy enable/disable
+- overtime enable/disable
+- standard monthly minutes
+- overtime multiplier
+- unpaid-leave deduction enable/disable
+- monthly day divisor
+- employee preview with overtime minutes, unpaid-leave days, base gross, proposed gross and delta
 
-### Responsive / accessibility / consistency final pass
+Important rule:
 
-Remaining review areas:
+> Preview is decision support. It does not automatically mutate the employee's payroll amounts.
 
-- keyboard/focus behavior
-- modal/stepper navigation
-- mobile list/table fallbacks
-- focus-visible states
-- semantic labels
-- reduced-motion behavior
-- long-content overflow
-
-The shared Data View accessibility correction is already implemented; route-specific review remains.
-
-### Controlled branding cleanup
-
-Historical files and architecture documentation still contain `Beauty ERP` wording and technical `beauty*` identifiers.
-
-Cleanup must distinguish between:
-
-1. user-facing/product wording that should become VALOO;
-2. comments/documentation that can be migrated safely;
-3. technical identifiers, package names, database names, migrations, environment variables or deployment references whose renaming may cause regressions.
-
-Do not bulk-rename technical identifiers without dependency analysis.
+Current UI note: the policy panel currently previews the current calendar month independently from the payroll dashboard's internal selector. A future UI refinement can lift the period selector into a shared state without changing backend semantics.
 
 ---
 
-## 8. Known Data-Scope Constraints
+## 7. Customer Feedback & Quality Management — Foundation Completed
 
-Some frontend pages intentionally operate on limited or page-local datasets. UI text must remain truthful about this.
+Migration:
 
-Examples:
+```text
+packages/database/prisma/migrations/20260911220000_quality_management_foundation/migration.sql
+```
 
-- Payments works over a bounded recent record set rather than an unlimited global dataset.
-- Appointments uses a bounded API result size.
-- Some Staff status counts are page-local rather than global.
-- Financial Integrations bank movement view represents the latest bounded set returned by its endpoint.
+New persistence:
 
-Do not present page-local counts as global totals.
+- `customer_feedback`
+- `quality_cases`
+- `quality_case_events`
+
+The design reuses existing Customer, Appointment, Service, Staff, Branch and `CustomerCareEvent` records rather than creating parallel operational models.
+
+### Customer Feedback
+
+Feedback can link to:
+
+- Branch
+- Customer
+- Appointment
+- Service
+- Staff
+- existing Customer Care Event
+
+Supported source values:
+
+- `MANUAL`
+- `POST_SERVICE`
+- `COMPLAINT`
+- `CUSTOMER_PORTAL`
+- `IMPORT`
+
+Classification foundation:
+
+- `UNCLASSIFIED`
+- `POSITIVE`
+- `NEUTRAL`
+- `NEGATIVE`
+- `CRITICAL`
+
+No rating threshold is hardcoded to automatically classify/escalate feedback. Automatic policy belongs in a later configurable policy layer.
+
+### Quality Case
+
+Supported sources:
+
+- `FEEDBACK`
+- `CARE_EVENT`
+- `MANUAL`
+- `INCIDENT`
+
+Lifecycle follows `docs/07-DOMAIN-FLOWS.md`:
+
+```text
+OPEN
+  ↓
+INVESTIGATING
+  ↓
+ACTION_REQUIRED
+  ↓
+RESOLVED
+  ↓
+CLOSED
+```
+
+`INVESTIGATING → RESOLVED` is also supported when no separate action-required stage is necessary.
+
+Resolution requires:
+
+- root cause
+- corrective action
+- resolution
+
+The schema also supports:
+
+- preventive action
+- customer follow-up
+- assignee
+- severity
+- SLA due date
+- lifecycle timestamps
+
+### Quality Audit / Integrity
+
+- assignment and lifecycle events are written to `quality_case_events`
+- actor comes from authenticated JWT context
+- tenant/company/branch scope is enforced
+- Customer/Appointment/Service/Staff/CustomerCareEvent references are scope-validated
+- appointment/customer/service/staff relationship mismatches are rejected
+- one feedback can create at most one quality case
+- feedback escalation is idempotent
+- state transitions are serialized and row-locked
+
+API foundation:
+
+```text
+GET  /quality/feedback
+POST /quality/feedback
+POST /quality/feedback/:id/escalate
+GET  /quality/cases
+GET  /quality/cases/:id
+POST /quality/cases
+POST /quality/cases/:id/assign
+POST /quality/cases/:id/transition
+```
+
+Regression coverage includes rating validation, tenant/company/branch scoping, feedback escalation idempotency and lifecycle/resolution guards.
 
 ---
 
-## 9. Branding State
+## 8. Quality Management — Not Yet Complete
 
-Current product-facing brand:
+The following must not be described as implemented yet:
 
-> **VALOO**
+- service-completion driven feedback-request creation
+- notification delivery for feedback requests
+- configurable automatic classification/escalation rules
+- Quality-specific permission model
+- explicit assignee membership/company/branch validation
+- SLA breach scheduler and escalation
+- Quality Management web cockpit
+- customer-facing feedback form/portal workflow
+- customer follow-up automation
+- analytics / recurring root-cause reporting
+- Google Review invitation workflow
 
-`docs/VALOO-MODERNIZATION-STATUS.md` contains the modernization checklist.
-
-Old `Beauty ERP` wording in legacy documents is historical technical debt and should not be treated as the current product name.
+Google Review work must follow platform rules and customer choice. VALOO must never manufacture, gate deceptively, or manipulate reviews.
 
 ---
 
-## 10. Local/Remote Reconciliation Warning
+## 9. Shared Frontend Systems
 
-Dashboard/AppShell work may exist locally in a newer state than the remote branch.
+Established shared systems:
 
-Do not overwrite remote Dashboard/AppShell files during cleanup without first reconciling the user's local work.
+- Data View V2 — `apps/web/components/data-view.tsx`
+- Form System V2 — `apps/web/components/form-system.tsx`
+- Finance View V2 — `apps/web/components/finance-view.tsx`
+- typed CFO contracts
+- typed Inventory contracts
+- reusable Inventory form shell
 
-This warning does not apply to the already migrated Customers, Staff, Services, Payments, Appointments, Finance, HR and Inventory surfaces listed above.
+Modernized operational surfaces include Customers, Staff, Services, Payments, Appointments, Finance/CFO, HR/Payroll and Inventory.
+
+User-facing product brand is **VALOO**. Legacy `Beauty ERP` wording and `beauty*` technical identifiers remain controlled technical debt. Do not bulk-rename package/database/migration/environment identifiers without dependency analysis.
+
+---
+
+## 10. Known Frontend / Documentation Debt
+
+Remaining cleanup includes:
+
+- Services quick-panel actions that lack a verified route/backend flow
+- route-specific responsive/accessibility/consistency review
+- keyboard/focus and mobile table/list fallbacks
+- controlled brand/documentation cleanup
+- reconcile local Dashboard/AppShell work before overwriting those files
+
+Some UI datasets are intentionally bounded. Page-local counts must never be presented as global totals unless the endpoint truly returns global aggregates.
 
 ---
 
@@ -315,26 +378,34 @@ At each significant milestone:
 1. inspect the current implementation before editing;
 2. preserve existing domain/API semantics;
 3. commit only to `feature/core-commerce-foundation`;
-4. inspect the real GitHub Actions workflow;
+4. inspect the real GitHub Actions run/jobs;
 5. fix blocking lint/typecheck/build/test errors;
-6. update `docs/state/CURRENT-STATE.md` when project state materially changes;
-7. update architecture/runbook docs when contracts or operational behavior change.
+6. update this file when project state materially changes;
+7. update architecture/domain/runbook docs when contracts change.
 
-Do not use an empty combined commit status as proof that CI passed; inspect actual Actions runs/jobs.
+Do not use an empty combined commit status as proof that CI passed.
 
 ---
 
 ## 12. Current Next Action
 
 ```text
-Services non-functional action cleanup
+Quality permission + assignee-scope hardening
         ↓
-Route-specific Responsive / Accessibility / Consistency pass
+Quality SLA / escalation runtime
         ↓
-Controlled VALOO documentation/brand cleanup
+ServiceCompleted → Feedback Request foundation
         ↓
-Final full Monorepo quality regression
+Notification integration for feedback requests
+        ↓
+Quality Management web cockpit
+        ↓
+Quality analytics / recurring root-cause reporting
+        ↓
+Google Review invitation workflow
 ```
+
+In parallel, continue remaining VALOO frontend consistency/brand cleanup without weakening domain integrity.
 
 ---
 
@@ -343,32 +414,36 @@ Final full Monorepo quality regression
 ```text
 Core multi-tenant architecture       ✅ established
 Authorization foundation             ✅ established
-CRM / Customers                      ✅ active + migrated
-Appointments                         ✅ active + migrated
-Services                             ✅ active + migrated
-Payments                             ✅ active + migrated
-Finance / Reconciliation             ✅ active + migrated
-CFO cockpit                          ✅ active + migrated
-Treasury                             ✅ active + migrated
-Financial integrations               ✅ active + migrated
-HR dynamic modules                   ✅ active + migrated
-Payroll dashboard                    ✅ active + migrated
-Inventory movements                  ✅ migrated
-Inventory purchase requests          ✅ migrated
-Inventory transfers                  ✅ migrated
-Inventory typed/form foundations     ✅ migrated
-Inventory main screen                ✅ migrated + CI verified
-Shared Data View accessibility       ✅ implemented; CI validation pending
-Services fake-action cleanup         ⏳ final cleanup
+CRM / Customers                      ✅ active
+Appointments / Services              ✅ active
+Packages / Sessions                  ✅ advanced
+Sales / Payments                     ✅ advanced
+Accounting / AP / Procurement        ✅ advanced
+VAT / Tax                            ✅ advanced foundation
+Inventory / Warehouse                ✅ advanced
+Profitability / CFO / Treasury       ✅ advanced
+Banking / POS integrations           ✅ advanced
+HR / Payroll                         ✅ advanced
+Payroll policy engine                ✅ backend + management UI
+Marketplace / Supplier Network       🟡 active foundation
+Customer Feedback                    ✅ persistence/API foundation
+Quality Management                   ✅ governance foundation
+Quality permissions                  ⏳ next
+Quality SLA/escalation               ⏳ next
+Feedback request automation          ⏳ next
+Notifications                        ⏳ broader integration pending
+Quality web cockpit                  ⏳ pending
+Google Review workflow               ⏳ pending
+Customer Portal                      ⏳ pending
+Data Migration                       ⏳ pending
 Route accessibility/consistency      ⏳ final review
-Brand/docs cleanup                   ⏳ controlled cleanup
-Final regression CI                  ⏳ after remaining changes
+Controlled brand/docs cleanup        ⏳ ongoing
 ```
 
 ---
 
 ## 14. Release Boundary
 
-This is a development-branch checkpoint, not a release declaration.
+This remains a development-branch checkpoint, not a release declaration.
 
-`main` remains untouched by this modernization work until an explicit merge/release decision is made.
+`main` remains untouched until an explicit merge/release decision is made.
