@@ -4,6 +4,7 @@ import type {
   ButtonHTMLAttributes,
   InputHTMLAttributes,
   ReactNode,
+  SelectHTMLAttributes,
 } from "react";
 
 import { cx } from "@/lib/format";
@@ -88,6 +89,33 @@ export function SearchField({
           ESC
         </span>
       ) : null}
+    </label>
+  );
+}
+
+export function ToolbarSelect({
+  className,
+  children,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  return (
+    <label className={cx("relative inline-flex", className)}>
+      <select
+        {...props}
+        className={cx(
+          "h-10 min-w-[132px] appearance-none rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 pr-8 text-[11px] font-medium text-[var(--muted)] outline-none transition",
+          "hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.20)] focus:text-[var(--ink)] focus:ring-4 focus:ring-[var(--accent-soft)]",
+          props.className,
+        )}
+      >
+        {children}
+      </select>
+      <span
+        aria-hidden="true"
+        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-soft)]"
+      >
+        ▾
+      </span>
     </label>
   );
 }
