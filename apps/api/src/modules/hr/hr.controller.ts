@@ -9,6 +9,9 @@ import { PayrollReportService } from './payroll-report.service';
 import { PayrollPostingOrchestratorService } from './payroll-posting-orchestrator.service';
 import { PayrollReversalService } from './payroll-reversal.service';
 import { PayrollDashboardService } from './payroll-dashboard.service';
+import { PayrollPaymentReversalService } from './payroll-payment-reversal.service';
+import { PayrollWorkInputService } from './payroll-work-input.service';
+import { HrAnalyticsService } from './hr-analytics.service';
 
 @Controller('hr')
 @UseGuards(JwtAuthGuard,TenantAuthGuard)
@@ -22,6 +25,9 @@ export class HrController {
     private readonly payrollPosting: PayrollPostingOrchestratorService,
     private readonly payrollReversal: PayrollReversalService,
     private readonly payrollDashboard: PayrollDashboardService,
+    private readonly paymentReversal: PayrollPaymentReversalService,
+    private readonly payrollWorkInputs: PayrollWorkInputService,
+    private readonly hrAnalytics: HrAnalyticsService,
   ) {}
 
   private userId(req:{user?:{sub?:string}}){ const id=req.user?.sub; if(!id) throw new UnauthorizedException('Authenticated user id is missing.'); return id; }
@@ -37,9 +43,11 @@ export class HrController {
   @Post('leaves') createLeave(@Body()body:any){return this.hrService.createLeave(body);}
   @Patch('leaves/:id') updateLeave(@Param('id')id:string,@Body()body:any){return this.hrService.updateLeave(id,body);}
   @Delete('leaves/:id') deleteLeave(@Param('id')id:string){return this.hrService.deleteLeave(id);}
+  @Get('analytics') analytics(@Query('year')year?:string,@Query('month')month?:string){const now=new Date();return this.hrAnalytics.summary(year?+year:now.getFullYear(),month?+month:now.getMonth()+1);}
 
   @Get('payroll') payroll(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payroll(year?+year:undefined,month?+month:undefined);}
   @Get('payroll/dashboard') payrollDashboardSummary(@Query('year')year?:string,@Query('month')month?:string){return this.payrollDashboard.summary(year?+year:undefined,month?+month:undefined);}
+  @Get('payroll/work-inputs') payrollWorkInputPreview(@Query('year')year:string,@Query('month')month:string){return this.payrollWorkInputs.preview(+year,+month);}
   @Post('payroll/periods') createPayrollPeriod(@Body()b:{year:number;month:number}){return this.payrollPeriods.create(+b.year,+b.month);}
   @Post('payroll/periods/:id/items')
   upsertPayrollItem(@Param('id')id:string,@Body()b:any){
@@ -51,6 +59,7 @@ export class HrController {
       otherDeductions:Number(b.otherDeductions??0),employerCost:Number(b.employerCost),note:b.note,
     });
   }
+  @Post('payroll/periods/:id/items/:staffId/work-inputs') attachPayrollWorkInputs(@Param('id')id:string,@Param('staffId')staffId:string){return this.payrollWorkInputs.attachToDraft(id,staffId);}
   @Post('payroll/periods/:id/submit') submitPayroll(@Param('id')id:string){return this.payrollAccounting.submit(id);}
   @Post('payroll/periods/:id/approve') approvePayroll(@Param('id')id:string,@Req()req:{user?:{sub?:string}}){return this.payrollAccounting.approve(id,this.userId(req));}
   @Post('payroll/periods/:id/post') postPayroll(@Param('id')id:string){return this.payrollPosting.post(id);}
@@ -66,6 +75,8 @@ export class HrController {
     const type=b.type==='TAX'?'TAX':b.type==='SOCIAL_SECURITY'?'SOCIAL_SECURITY':'OTHER';
     return this.payrollSettlement.settleLiability(id,type,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);
   }
+  @Post('payroll/payments/:paymentId/reverse') reverseSalaryPayment(@Param('paymentId')paymentId:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.paymentReversal.reverseSalaryPayment(paymentId,this.userId(req),b.reason??'');}
+  @Post('payroll/liability-payments/:paymentId/reverse') reverseLiabilityPayment(@Param('paymentId')paymentId:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.paymentReversal.reverseLiabilityPayment(paymentId,this.userId(req),b.reason??'');}
 
   @Get('payments') payments(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payments(year?+year:undefined,month?+month:undefined);}
   @Post('payments')
