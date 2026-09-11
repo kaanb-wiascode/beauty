@@ -23,7 +23,7 @@ describe('LmsService', () => {
 
     const result=await service.submitExamAttempt('a1','e1',{answers:{q1:'A',q2:['C','B']}},'u1');
     expect(result.score).toBe(100);
-    expect(execute.mock.calls.some(call=>String(call[0]).includes('training-exam-attempt:a1:e1'))).toBe(true);
+    expect(execute.mock.calls.some(call=>String(call[1]).includes('training-exam-attempt:a1:e1'))).toBe(true);
     expect(execute.mock.calls.some(call=>String(call[0]).includes("'EXAM_SUBMITTED'"))).toBe(true);
   });
 
