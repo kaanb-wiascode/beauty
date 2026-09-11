@@ -5,6 +5,7 @@ import { ProcurementRequestsService } from './procurement-requests.service';
 import { ProcurementApprovalsService } from './procurement-approvals.service';
 import { ProcurementReturnsService } from './procurement-returns.service';
 import { ProcurementReturnRequestsService } from './procurement-return-requests.service';
+import { ProcurementReplacementsService } from './procurement-replacements.service';
 
 @Module({
   controllers: [ProcurementController],
@@ -14,6 +15,7 @@ import { ProcurementReturnRequestsService } from './procurement-return-requests.
     ProcurementApprovalsService,
     ProcurementReturnsService,
     ProcurementReturnRequestsService,
+    ProcurementReplacementsService,
   ],
   exports: [
     ProcurementService,
@@ -21,6 +23,7 @@ import { ProcurementReturnRequestsService } from './procurement-return-requests.
     ProcurementApprovalsService,
     ProcurementReturnsService,
     ProcurementReturnRequestsService,
+    ProcurementReplacementsService,
   ],
 })
 export class ProcurementModule {}
