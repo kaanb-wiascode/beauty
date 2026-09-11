@@ -15,6 +15,8 @@ export class CompetencyService {
     return rows[0];
   }
 
+  private date(value:string,field:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value??''))throw new BadRequestException(`${field} must use YYYY-MM-DD.`);return value;}
+
   async createDefinition(input:{code:string;name:string;description?:string|null;category?:string},actorUserId:string){
     const c=this.context(),code=input.code?.trim().toUpperCase(),name=input.name?.trim(),category=input.category?.trim().toUpperCase()||'GENERAL';
     if(!code||!name)throw new BadRequestException('Competency code and name are required.');
@@ -24,33 +26,41 @@ export class CompetencyService {
 
   async listDefinitions(){const c=this.context();return this.prisma.$queryRawUnsafe<any[]>(`SELECT id,code,name,description,category,is_active AS "isActive" FROM competency_definitions WHERE tenant_id=$1::text AND company_id=$2::text ORDER BY is_active DESC,category,name`,c.tenantId,c.companyId);}
 
-  async createProfile(input:{code:string;name:string;description?:string|null;requirements:Array<{competencyId:string;requiredLevel:number;weight?:number}>},actorUserId:string){
+  async createProfile(input:{code:string;name:string;description?:string|null;effectiveFrom?:string;effectiveTo?:string|null;requirements:Array<{competencyId:string;requiredLevel:number;weight?:number}>},actorUserId:string){
     const c=this.context(),code=input.code?.trim().toUpperCase(),name=input.name?.trim();
     if(!code||!name)throw new BadRequestException('Profile code and name are required.');
     if(!input.requirements?.length)throw new BadRequestException('At least one competency requirement is required.');
+    const effectiveFrom=this.date(input.effectiveFrom??new Date().toISOString().slice(0,10),'effectiveFrom');
+    const effectiveTo=input.effectiveTo?this.date(input.effectiveTo,'effectiveTo'):null;
+    if(effectiveTo&&effectiveTo<effectiveFrom)throw new BadRequestException('effectiveTo cannot be before effectiveFrom.');
     const ids=new Set<string>();
     for(const r of input.requirements){if(ids.has(r.competencyId))throw new BadRequestException('Duplicate competency requirement.');ids.add(r.competencyId);if(!Number.isFinite(r.requiredLevel)||r.requiredLevel<0||r.requiredLevel>100)throw new BadRequestException('requiredLevel must be between 0 and 100.');if(!Number.isFinite(r.weight??1)||(r.weight??1)<=0)throw new BadRequestException('weight must be greater than zero.');}
     return this.prisma.$transaction(async tx=>{
+      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`competency-profile:${c.tenantId}:${c.companyId}:${code}`);
       const found=await tx.$queryRawUnsafe<any[]>(`SELECT id FROM competency_definitions WHERE tenant_id=$1::text AND company_id=$2::text AND is_active=true AND id=ANY($3::text[])`,c.tenantId,c.companyId,[...ids]);
       if(found.length!==ids.size)throw new BadRequestException('One or more competency definitions are outside scope or inactive.');
-      const profiles=await tx.$queryRawUnsafe<any[]>(`INSERT INTO competency_profiles(tenant_id,company_id,code,name,description,created_by_user_id) VALUES($1::text,$2::text,$3,$4,$5,$6::text) ON CONFLICT(tenant_id,company_id,code) DO UPDATE SET name=EXCLUDED.name,description=EXCLUDED.description,is_active=true,updated_at=now() RETURNING id,code,name`,c.tenantId,c.companyId,code,name,input.description?.trim()||null,actorUserId);
+      const versions=await tx.$queryRawUnsafe<any[]>(`SELECT COALESCE(MAX(version),0)+1 AS version FROM competency_profiles WHERE tenant_id=$1::text AND company_id=$2::text AND code=$3`,c.tenantId,c.companyId,code);
+      const version=Number(versions[0]?.version??1);
+      await tx.$executeRawUnsafe(`UPDATE competency_profiles SET is_active=false,effective_to=CASE WHEN effective_from<$4::date THEN ($4::date-interval '1 day')::date ELSE effective_from END,updated_at=now() WHERE tenant_id=$1::text AND company_id=$2::text AND code=$3 AND is_active=true`,c.tenantId,c.companyId,code,effectiveFrom);
+      const profiles=await tx.$queryRawUnsafe<any[]>(`INSERT INTO competency_profiles(tenant_id,company_id,code,name,description,version,effective_from,effective_to,is_active,created_by_user_id) VALUES($1::text,$2::text,$3,$4,$5,$6,$7::date,$8::date,true,$9::text) RETURNING id,code,name,version,effective_from AS "effectiveFrom",effective_to AS "effectiveTo",is_active AS "isActive"`,c.tenantId,c.companyId,code,name,input.description?.trim()||null,version,effectiveFrom,effectiveTo,actorUserId);
       const p=profiles[0];
-      await tx.$executeRawUnsafe(`DELETE FROM competency_profile_requirements WHERE profile_id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,p.id,c.tenantId,c.companyId);
       for(const r of input.requirements)await tx.$executeRawUnsafe(`INSERT INTO competency_profile_requirements(profile_id,competency_id,tenant_id,company_id,required_level,weight) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6)`,p.id,r.competencyId,c.tenantId,c.companyId,r.requiredLevel,r.weight??1);
       return{...p,requirements:input.requirements};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
-  async listProfiles(){const c=this.context();return this.prisma.$queryRawUnsafe<any[]>(`SELECT p.id,p.code,p.name,p.description,p.is_active AS "isActive",COALESCE(jsonb_agg(jsonb_build_object('competencyId',d.id,'competencyCode',d.code,'competencyName',d.name,'requiredLevel',r.required_level,'weight',r.weight) ORDER BY d.name) FILTER(WHERE d.id IS NOT NULL),'[]'::jsonb) AS requirements FROM competency_profiles p LEFT JOIN competency_profile_requirements r ON r.profile_id=p.id LEFT JOIN competency_definitions d ON d.id=r.competency_id WHERE p.tenant_id=$1::text AND p.company_id=$2::text GROUP BY p.id ORDER BY p.is_active DESC,p.name`,c.tenantId,c.companyId);}
+  async listProfiles(){const c=this.context();return this.prisma.$queryRawUnsafe<any[]>(`SELECT p.id,p.code,p.name,p.description,p.version,p.effective_from AS "effectiveFrom",p.effective_to AS "effectiveTo",p.is_active AS "isActive",COALESCE(jsonb_agg(jsonb_build_object('competencyId',d.id,'competencyCode',d.code,'competencyName',d.name,'requiredLevel',r.required_level,'weight',r.weight) ORDER BY d.name) FILTER(WHERE d.id IS NOT NULL),'[]'::jsonb) AS requirements FROM competency_profiles p LEFT JOIN competency_profile_requirements r ON r.profile_id=p.id LEFT JOIN competency_definitions d ON d.id=r.competency_id WHERE p.tenant_id=$1::text AND p.company_id=$2::text GROUP BY p.id ORDER BY p.code,p.version DESC`,c.tenantId,c.companyId);}
 
   async assignProfile(staffId:string,input:{profileId:string;effectiveFrom?:string;effectiveTo?:string|null},actorUserId:string){
-    const c=this.context(),staff=await this.staff(staffId),effectiveFrom=input.effectiveFrom??new Date().toISOString().slice(0,10);
-    const profiles=await this.prisma.$queryRawUnsafe<any[]>(`SELECT id FROM competency_profiles WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND is_active=true LIMIT 1`,input.profileId,c.tenantId,c.companyId);
-    if(!profiles.length)throw new NotFoundException('Competency profile not found.');
+    const c=this.context(),staff=await this.staff(staffId),effectiveFrom=this.date(input.effectiveFrom??new Date().toISOString().slice(0,10),'effectiveFrom');
+    const effectiveTo=input.effectiveTo?this.date(input.effectiveTo,'effectiveTo'):null;
+    if(effectiveTo&&effectiveTo<effectiveFrom)throw new BadRequestException('effectiveTo cannot be before effectiveFrom.');
+    const profiles=await this.prisma.$queryRawUnsafe<any[]>(`SELECT id,version FROM competency_profiles WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND is_active=true AND effective_from<=$4::date AND (effective_to IS NULL OR effective_to>=$4::date) LIMIT 1`,input.profileId,c.tenantId,c.companyId,effectiveFrom);
+    if(!profiles.length)throw new NotFoundException('Active competency profile version not found for effective date.');
     return this.prisma.$transaction(async tx=>{
       await tx.$executeRawUnsafe(`UPDATE staff_competency_profiles SET effective_to=($4::date-interval '1 day')::date WHERE tenant_id=$1::text AND company_id=$2::text AND staff_id=$3::text AND effective_to IS NULL AND effective_from<$4::date`,c.tenantId,c.companyId,staffId,effectiveFrom);
-      const rows=await tx.$queryRawUnsafe<any[]>(`INSERT INTO staff_competency_profiles(tenant_id,company_id,branch_id,staff_id,profile_id,effective_from,effective_to,assigned_by_user_id) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::date,$7::date,$8::text) ON CONFLICT(tenant_id,company_id,staff_id,effective_from) DO UPDATE SET profile_id=EXCLUDED.profile_id,effective_to=EXCLUDED.effective_to,assigned_by_user_id=EXCLUDED.assigned_by_user_id RETURNING id,staff_id AS "staffId",profile_id AS "profileId",effective_from AS "effectiveFrom",effective_to AS "effectiveTo"`,c.tenantId,c.companyId,staff.branchId,staffId,input.profileId,effectiveFrom,input.effectiveTo??null,actorUserId);
-      return rows[0];
+      const rows=await tx.$queryRawUnsafe<any[]>(`INSERT INTO staff_competency_profiles(tenant_id,company_id,branch_id,staff_id,profile_id,effective_from,effective_to,assigned_by_user_id) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::date,$7::date,$8::text) ON CONFLICT(tenant_id,company_id,staff_id,effective_from) DO UPDATE SET profile_id=EXCLUDED.profile_id,effective_to=EXCLUDED.effective_to,assigned_by_user_id=EXCLUDED.assigned_by_user_id RETURNING id,staff_id AS "staffId",profile_id AS "profileId",effective_from AS "effectiveFrom",effective_to AS "effectiveTo"`,c.tenantId,c.companyId,staff.branchId,staffId,input.profileId,effectiveFrom,effectiveTo,actorUserId);
+      return{...rows[0],profileVersion:Number(profiles[0].version)};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
