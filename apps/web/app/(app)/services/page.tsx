@@ -11,6 +11,13 @@ import {
   ToolbarSelect,
 } from "@/components/data-view";
 import {
+  FormActions,
+  FormGrid,
+  FormHint,
+  FormSection,
+  FormSubmitButton,
+} from "@/components/form-system";
+import {
   Alert,
   Button,
   EmptyState,
@@ -264,15 +271,39 @@ export default function ServicesPage() {
       </div>
 
       <Modal open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Hizmeti düzenle" : "Yeni hizmet"} description="Hizmet bilgilerini ve fiyatlandırmasını yönetin.">
-        <form onSubmit={onSubmit} className="space-y-4">
-          <Field label="Hizmet adı" required><TextInput required value={form.name} placeholder="Örn. Hydrafacial" onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} /></Field>
-          <Field label="Açıklama"><TextArea rows={3} value={form.description} placeholder="Hizmet açıklamasını girin..." onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Süre (dakika)" required><TextInput type="number" min={1} max={1440} required value={form.durationMinutes} onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))} /></Field>
-            <Field label="Fiyat" required><TextInput type="number" min={0} step="0.01" required value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} /></Field>
-          </div>
-          {formError ? <Alert>{formError}</Alert> : null}
-          <div className="flex justify-end gap-3 pt-2"><Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : editing ? "Değişiklikleri kaydet" : "Hizmeti oluştur"}</Button></div>
+        <form onSubmit={onSubmit}>
+          <FormSection
+            title="Temel bilgiler"
+            description="Hizmetin müşteriye görünen adını, açıklamasını, süresini ve fiyatını belirleyin."
+          >
+            <Field label="Hizmet adı" required>
+              <TextInput required value={form.name} placeholder="Örn. Hydrafacial" onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+            </Field>
+            <Field label="Açıklama">
+              <TextArea rows={3} value={form.description} placeholder="Hizmet açıklamasını girin..." onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+            </Field>
+            <FormGrid>
+              <Field label="Süre (dakika)" required>
+                <TextInput type="number" min={1} max={1440} required value={form.durationMinutes} onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))} />
+              </Field>
+              <Field label="Fiyat" required>
+                <TextInput type="number" min={0} step="0.01" required value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} />
+              </Field>
+            </FormGrid>
+            <FormHint tone="info" title="Randevu akışı">
+              Süre bilgisi randevu planlamasında varsayılan zaman aralığını, fiyat ise tahsilat formundaki önerilen tutarı besler.
+            </FormHint>
+          </FormSection>
+
+          {formError ? <div className="mt-4"><Alert>{formError}</Alert></div> : null}
+
+          <FormActions>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button>
+            <FormSubmitButton
+              saving={saving}
+              idleLabel={editing ? "Değişiklikleri kaydet" : "Hizmeti oluştur"}
+            />
+          </FormActions>
         </form>
       </Modal>
 
