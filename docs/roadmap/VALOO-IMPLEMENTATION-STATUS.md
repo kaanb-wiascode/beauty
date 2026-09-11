@@ -1,7 +1,7 @@
-# VALOO — Marketplace + Supplier Implementation Status
+# VALOO — Implementation Status
 
 > Purpose: evidence-based implementation tracker.
-> Update this file when Marketplace/Supplier/Procurement ecosystem code materially changes.
+> Update this file when Marketplace/Supplier/Procurement or Healthcare ecosystem code materially changes.
 
 ## 1. Current Branch
 
@@ -95,6 +95,38 @@ Existing code already contains buyer-side procurement services and migrations in
 
 Supplier Network must integrate into this domain without replacing it.
 
+### Healthcare / Dynamic Organization Profiles
+
+Status: **Architecture documented; implementation not started**
+
+Documented:
+
+- organization classification direction
+- Beauty / Clinic / Hospital Ops / Supplier vertical composition
+- OrganizationProfile concept
+- Capability Engine contract direction
+- RegulatoryProfile and Regulatory Rules Engine direction
+- dynamic navigation/workflow policy principle
+- Customer vs Patient boundary
+- Clinic bounded-context direction
+- Hospital Ops integration-first strategy
+- asset/biomedical equipment direction
+- backward-compatibility rule for existing Beauty tenants
+- parallel healthcare roadmap H0-H9
+
+Not yet implemented:
+
+- OrganizationProfile persistence
+- capability registry/evaluator
+- RegulatoryProfile persistence
+- regulatory rule evaluator
+- dynamic navigation integration
+- organization setup wizard
+- PatientProfile / clinical domain
+- HealthcareFacility domain
+- biomedical asset lifecycle
+- healthcare integration hub
+
 ## 3. Architecture Decisions Locked In
 
 - `SupplierOrganization` is platform-scoped.
@@ -107,11 +139,16 @@ Supplier Network must integrate into this domain without replacing it.
 - RFQ is first-class for negotiated/high-value procurement.
 - Equipment lifecycle continues after purchase into warranty/maintenance/service.
 - Regulated categories require policy-driven eligibility/compliance.
+- Organization types are expressed through OrganizationProfile + capabilities + policy, not scattered `if clinic/hospital` branches.
+- Capability checks do not replace RBAC/authorization.
+- Customer and Patient/clinical identity are separate concepts unless explicitly linked.
+- Existing Beauty tenants must remain backwards compatible.
+- Hospital expansion begins with Hospital Ops/integration, not immediate full HBYS replacement.
 - Growth/marketing is not current technical priority.
 
 ## 4. Next Execution Queue
 
-### P0
+### P0 — Existing Main Roadmap
 
 1. MarketplacePublication persistence and publish/unpublish workflow.
 2. Marketplace authorization + data-leakage tests.
@@ -119,29 +156,40 @@ Supplier Network must integrate into this domain without replacing it.
 4. SupplierOrganization audit events/history.
 5. SupplierMembership + SupplierVerification design and migration.
 
+### P0-Architecture — Healthcare Parallel Track
+
+6. H0 OrganizationProfile schema/design review against existing Tenant/Company/Branch model.
+7. H1 Capability registry/evaluation contract design.
+8. H2 RegulatoryProfile/versioning/rule-result data model design.
+
+These healthcare foundation items may progress incrementally but must not block the main P0 reliability and ecosystem queue.
+
 ### P1
 
-6. Availability engine foundation.
-7. concurrency-safe marketplace booking orchestration.
-8. Brand + CatalogProduct + ProductVariant + identifiers.
-9. SupplierOffer.
-10. RFQ + SupplierQuote.
+9. Availability engine foundation.
+10. concurrency-safe marketplace booking orchestration.
+11. Brand + CatalogProduct + ProductVariant + identifiers.
+12. SupplierOffer.
+13. RFQ + SupplierQuote.
+14. Healthcare onboarding/capability prototype only after H0-H2 design is validated.
 
 ### P2
 
-11. Procurement conversion from selected offer/quote.
-12. ConsumerAccount/reviews/favorites.
-13. payment/deposit/no-show.
-14. smart replenishment and contract pricing.
-15. equipment/asset/service lifecycle.
+15. Procurement conversion from selected offer/quote.
+16. ConsumerAccount/reviews/favorites.
+17. payment/deposit/no-show.
+18. smart replenishment and contract pricing.
+19. equipment/asset/service lifecycle.
+20. VALOO Clinic foundation after security/regulatory architecture is ready.
 
 ### P3
 
-16. compliance engine extensions.
-17. logistics/EDI/API integrations.
-18. financing/leasing.
-19. supplier intelligence.
-20. AI recommendations/concierge.
+21. compliance engine extensions.
+22. logistics/EDI/API integrations.
+23. financing/leasing.
+24. supplier intelligence.
+25. AI recommendations/concierge.
+26. Hospital Ops / Healthcare Integration Hub.
 
 ## 5. Evidence / Commit Log
 
@@ -149,6 +197,8 @@ Known ecosystem foundation commits:
 
 - `a46b3b9f3b0b6b154221df04bd97776b6c2c9a9b` — Marketplace module registered in API application.
 - `0891c7d8784ae83aab632317073a852d9959d1a6` — Supplier Network foundation and application registration sequence.
+- `6e2869a8ab7ff5ef32f255af2eeadca1b65f95b9` — Healthcare capability/regulatory architecture document added.
+- `4d8b2ae98a8ef34f1d4df2708c8a1dceeacfc050` — Healthcare expansion roadmap added.
 - documentation baseline commits are tracked through Git history on this branch.
 
 ## 6. CI Status Rule
