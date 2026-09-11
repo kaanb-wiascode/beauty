@@ -76,16 +76,36 @@ describe('SupplierNetworkService', () => {
     expect(sql).not.toContain('legal_name');
   });
 
+  it('lists audit records only inside the current tenant and company scope', async () => {
+    queryRawUnsafe.mockResolvedValueOnce([]);
+
+    await expect(service.listAudit(500)).resolves.toEqual([]);
+
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('FROM supplier_network_audit_logs'),
+      'tenant-1',
+      'company-1',
+      200,
+    );
+    const sql = String(queryRawUnsafe.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain('WHERE tenant_id=$1 AND company_id=$2');
+    expect(sql).not.toContain('tax_number');
+    expect(sql).not.toContain('legal_name');
+  });
+
   it('enforces tenant and company context when connecting an inventory supplier', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'supplier-org-1', status: 'ACTIVE' }])
       .mockResolvedValueOnce([]);
 
     await expect(
-      service.connectInventorySupplier({
-        supplierOrganizationId: 'supplier-org-1',
-        inventorySupplierId: 'inventory-supplier-1',
-      }),
+      service.connectInventorySupplier(
+        {
+          supplierOrganizationId: 'supplier-org-1',
+          inventorySupplierId: 'inventory-supplier-1',
+        },
+        'user-1',
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
 
     expect(tenantContext.getTenantId).toHaveBeenCalledTimes(1);
@@ -102,7 +122,7 @@ describe('SupplierNetworkService', () => {
     );
   });
 
-  it('persists the same tenant and company context on a valid supplier connection', async () => {
+  it('persists connection and append-only audit atomically in one scoped SQL statement', async () => {
     const connection = {
       id: 'connection-1',
       supplierOrganizationId: 'supplier-org-1',
@@ -125,19 +145,31 @@ describe('SupplierNetworkService', () => {
       .mockResolvedValueOnce([connection]);
 
     await expect(
-      service.connectInventorySupplier({
-        supplierOrganizationId: 'supplier-org-1',
-        inventorySupplierId: 'inventory-supplier-1',
-      }),
+      service.connectInventorySupplier(
+        {
+          supplierOrganizationId: 'supplier-org-1',
+          inventorySupplierId: 'inventory-supplier-1',
+        },
+        'user-1',
+      ),
     ).resolves.toEqual(connection);
 
     expect(queryRawUnsafe).toHaveBeenNthCalledWith(
       3,
-      expect.stringContaining('INSERT INTO supplier_connections'),
+      expect.stringContaining('WITH connection AS'),
       'supplier-org-1',
       'tenant-1',
       'company-1',
       'inventory-supplier-1',
+      expect.any(String),
+      'user-1',
     );
+
+    const sql = String(queryRawUnsafe.mock.calls[2]?.[0] ?? '');
+    expect(sql).toContain('INSERT INTO supplier_connections');
+    expect(sql).toContain('INSERT INTO supplier_network_audit_logs');
+    expect(sql).toContain("'SUPPLIER_CONNECTION_UPSERT'");
+    expect(sql).not.toContain('tax_number');
+    expect(sql).not.toContain('legal_name');
   });
 });

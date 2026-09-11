@@ -3,6 +3,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
+import { randomUUID } from 'node:crypto';
 import { PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -50,6 +51,16 @@ type SupplierConnectionListRow = {
     email: string | null;
     phone: string | null;
   };
+};
+
+type SupplierNetworkAuditRow = {
+  id: string;
+  action: string;
+  supplierOrganizationId: string | null;
+  inventorySupplierId: string | null;
+  connectionId: string | null;
+  actorUserId: string;
+  createdAt: Date;
 };
 
 @Injectable()
@@ -177,7 +188,34 @@ export class SupplierNetworkService {
     );
   }
 
-  async connectInventorySupplier(input: ConnectInventorySupplierInput) {
+  async listAudit(limit = 50) {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const safeLimit = Math.min(Math.max(limit, 1), 200);
+
+    return this.prisma.$queryRawUnsafe<SupplierNetworkAuditRow[]>(
+      `SELECT
+         id,
+         action,
+         supplier_organization_id AS "supplierOrganizationId",
+         inventory_supplier_id AS "inventorySupplierId",
+         connection_id AS "connectionId",
+         actor_user_id AS "actorUserId",
+         created_at AS "createdAt"
+       FROM supplier_network_audit_logs
+       WHERE tenant_id=$1 AND company_id=$2
+       ORDER BY created_at DESC
+       LIMIT $3::int`,
+      tenantId,
+      companyId,
+      safeLimit,
+    );
+  }
+
+  async connectInventorySupplier(
+    input: ConnectInventorySupplierInput,
+    actorUserId: string,
+  ) {
     const tenantId = this.tenantContext.getTenantId();
     const companyId = this.tenantContext.getCompanyId();
 
@@ -206,23 +244,45 @@ export class SupplierNetworkService {
     }
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO supplier_connections(
-         supplier_organization_id,tenant_id,company_id,inventory_supplier_id
-       ) VALUES($1,$2,$3,$4)
-       ON CONFLICT (inventory_supplier_id)
-       DO UPDATE SET
-         supplier_organization_id=EXCLUDED.supplier_organization_id,
-         status='ACTIVE',
-         updated_at=NOW()
-       RETURNING
-         id,supplier_organization_id AS "supplierOrganizationId",
-         tenant_id AS "tenantId",company_id AS "companyId",
-         inventory_supplier_id AS "inventorySupplierId",status,
-         created_at AS "createdAt",updated_at AS "updatedAt"`,
+      `WITH connection AS (
+         INSERT INTO supplier_connections(
+           supplier_organization_id,tenant_id,company_id,inventory_supplier_id
+         ) VALUES($1,$2,$3,$4)
+         ON CONFLICT (inventory_supplier_id)
+         DO UPDATE SET
+           supplier_organization_id=EXCLUDED.supplier_organization_id,
+           status='ACTIVE',
+           updated_at=NOW()
+         RETURNING
+           id,supplier_organization_id,tenant_id,company_id,
+           inventory_supplier_id,status,created_at,updated_at
+       ), audit AS (
+         INSERT INTO supplier_network_audit_logs(
+           id,tenant_id,company_id,actor_user_id,action,
+           supplier_organization_id,inventory_supplier_id,connection_id,metadata
+         )
+         SELECT
+           $5,$2,$3,$6,'SUPPLIER_CONNECTION_UPSERT',
+           supplier_organization_id,inventory_supplier_id,id,
+           jsonb_build_object('status', status)
+         FROM connection
+       )
+       SELECT
+         id,
+         supplier_organization_id AS "supplierOrganizationId",
+         tenant_id AS "tenantId",
+         company_id AS "companyId",
+         inventory_supplier_id AS "inventorySupplierId",
+         status,
+         created_at AS "createdAt",
+         updated_at AS "updatedAt"
+       FROM connection`,
       input.supplierOrganizationId,
       tenantId,
       companyId,
       input.inventorySupplierId,
+      randomUUID(),
+      actorUserId,
     );
 
     return rows[0];
