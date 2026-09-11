@@ -12,6 +12,7 @@ import { PayrollDashboardService } from './payroll-dashboard.service';
 import { PayrollPaymentReversalService } from './payroll-payment-reversal.service';
 import { PayrollWorkInputService } from './payroll-work-input.service';
 import { HrAnalyticsService } from './hr-analytics.service';
+import { PayrollPolicyService } from './payroll-policy.service';
 
 @Module({
   controllers: [HrController],
@@ -28,6 +29,7 @@ import { HrAnalyticsService } from './hr-analytics.service';
     PayrollPaymentReversalService,
     PayrollWorkInputService,
     HrAnalyticsService,
+    PayrollPolicyService,
   ],
   exports: [
     HrService,
@@ -42,6 +44,7 @@ import { HrAnalyticsService } from './hr-analytics.service';
     PayrollPaymentReversalService,
     PayrollWorkInputService,
     HrAnalyticsService,
+    PayrollPolicyService,
   ],
 })
 export class HrModule {}
