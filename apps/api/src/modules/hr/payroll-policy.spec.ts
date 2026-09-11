@@ -30,4 +30,13 @@ describe('PayrollPolicyService',()=>{
     expect(String(query.mock.calls[0][0])).toContain('ON CONFLICT(tenant_id,company_id)');
     expect(query.mock.calls[0].slice(1,3)).toEqual(['tenant-a','company-a']);
   });
+
+  it('calculates overtime addition and unpaid leave deduction from explicit company policy',async()=>{
+    const query=jest.fn().mockResolvedValue([{staffId:'staff-a',firstName:'A',lastName:'B',branchId:'branch-a',configuredGrossSalary:30000,overtimeMinutes:600,unpaidLeaveDays:2}]);
+    const prisma={$queryRawUnsafe:query} as never;
+    const service=new PayrollPolicyService(prisma,tenant);
+    jest.spyOn(service,'getSettings').mockResolvedValue({enabled:true,applyOvertime:true,applyUnpaidLeaveDeduction:true,standardMonthlyMinutes:12000,overtimeMultiplier:1.5,monthlyDayDivisor:30,updatedAt:null});
+    const result=await service.preview(2026,9);
+    expect(result.staff[0]).toMatchObject({baseGross:30000,overtimeAddition:2250,unpaidLeaveDeduction:2000,proposedGross:30250,delta:250,policyApplied:true});
+  });
 });
