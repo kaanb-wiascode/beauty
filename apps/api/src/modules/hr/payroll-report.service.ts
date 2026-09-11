@@ -49,9 +49,9 @@ export class PayrollReportService {
                   COALESCE(SUM(other_deductions),0)::numeric AS other
            FROM payroll_items WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          ), paid AS (
-           SELECT COALESCE(SUM(amount) FILTER(WHERE type='TAX'),0)::numeric AS tax,
-                  COALESCE(SUM(amount) FILTER(WHERE type='SOCIAL_SECURITY'),0)::numeric AS social,
-                  COALESCE(SUM(amount) FILTER(WHERE type='OTHER'),0)::numeric AS other
+           SELECT COALESCE(SUM(amount) FILTER(WHERE type='TAX' AND status='PAID'),0)::numeric AS tax,
+                  COALESCE(SUM(amount) FILTER(WHERE type='SOCIAL_SECURITY' AND status='PAID'),0)::numeric AS social,
+                  COALESCE(SUM(amount) FILTER(WHERE type='OTHER' AND status='PAID'),0)::numeric AS other
            FROM payroll_liability_payments WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          ) SELECT due.tax AS "taxDue",paid.tax AS "taxPaid",(due.tax-paid.tax)::numeric AS "taxRemaining",
                   due.social AS "socialDue",paid.social AS "socialPaid",(due.social-paid.social)::numeric AS "socialRemaining",
