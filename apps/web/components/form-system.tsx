@@ -189,7 +189,8 @@ export function FormStepper({
   onStepChange?: (index: number) => void;
 }) {
   return (
-    <div
+    <nav
+      aria-label="Form adımları"
       className="grid gap-2 rounded-[14px] bg-[var(--surface-2)]/70 p-1.5 sm:grid-cols-2 lg:grid-cols-[repeat(var(--step-count),minmax(0,1fr))]"
       style={{ "--step-count": steps.length } as CSSProperties}
     >
@@ -208,6 +209,7 @@ export function FormStepper({
             <button
               key={step.key}
               type="button"
+              aria-current={active ? "step" : undefined}
               onClick={() => onStepChange(index)}
               className={className}
             >
@@ -217,12 +219,16 @@ export function FormStepper({
         }
 
         return (
-          <div key={step.key} className={className}>
+          <div
+            key={step.key}
+            aria-current={active ? "step" : undefined}
+            className={className}
+          >
             <StepContent step={step} index={index} active={active} complete={complete} />
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }
 
