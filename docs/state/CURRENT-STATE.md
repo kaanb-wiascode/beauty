@@ -16,51 +16,43 @@ Last updated: 2026-09-11
 **Product Type:** Multi-tenant SaaS CRM + ERP  
 **Initial Market:** Türkiye
 
-Target businesses include beauty, aesthetics, medical-aesthetics and clinic-style service organizations.
-
-### Branch rule
-
-All current development described in this file is on `feature/core-commerce-foundation`.
-
-`main` must not be merged into or written to as part of incremental development unless an explicit release/merge decision is made.
+All work in this checkpoint is on `feature/core-commerce-foundation`. `main` must remain untouched until an explicit merge/release decision is made.
 
 ---
 
 ## 2. Current Development Phase
 
-The project is no longer in the early Foundation/Redis checkpoint documented by the previous version of this file.
-
 Current phase:
 
-> **Core commerce + operational ERP hardening and VALOO frontend modernization**
+> **Core commerce + operational ERP hardening and VALOO frontend modernization — final cleanup/regression stage**
 
 Current priorities:
 
 1. Preserve tenant/company/branch isolation.
 2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
-3. Complete operational UI migration to the shared VALOO component systems.
-4. Remove non-functional UI actions rather than presenting future features as working.
-5. Complete responsive/accessibility/consistency review.
-6. Update current documentation and run full regression/CI before any release decision.
+3. Remove UI actions that do not have a verified working route/backend flow.
+4. Complete responsive/accessibility/consistency review.
+5. Continue controlled VALOO naming/documentation cleanup without risky bulk technical renames.
+6. Finish with a full green Monorepo quality run before any release decision.
 
 ---
 
 ## 3. Verified Quality State
 
-Latest fully verified implementation head before this documentation update:
+Latest fully verified implementation head:
 
 ```text
-85fd8d52356036c0cd54646ab789a91733f63efb
-fix(web): repair finance integrations lint blocker
+2097f4fe9433203498a14eddf20d7278f7071be5
+refactor(web): integrate inventory main with VALOO form foundations
 ```
 
 GitHub Actions:
 
 ```text
-Monorepo quality #659 — SUCCESS
+Monorepo quality #662 — SUCCESS
 ```
 
-The successful workflow included:
+The verified workflow includes:
 
 - Prisma schema validation and client generation
 - database package typecheck/build
@@ -72,15 +64,20 @@ The successful workflow included:
 - web typecheck
 - web build
 
-API test result on the preceding failing lint run was 38 suites / 126 tests passing; the failure was isolated to a web lint error and was subsequently fixed before #659 passed.
+The workflow still contains a dedicated non-blocking commerce lint-debt reporting step. A green quality run does not mean the repository has zero historical lint debt.
 
-The workflow still reports existing commerce lint debt in its dedicated non-blocking reporting step. A green quality run must not be represented as meaning the repository has zero lint debt.
+A later shared accessibility commit is currently being validated separately:
+
+```text
+b89680611b937707db67f0026b1ded2f0cb2d2a4
+fix(web): improve data view accessibility
+```
 
 ---
 
 ## 4. Core Architecture Invariants
 
-The following rules are active and must not be weakened by UI or domain work:
+The following rules must not be weakened by UI or domain work:
 
 - Tenant is the primary isolation boundary.
 - Company/legal-entity and branch context must be preserved where applicable.
@@ -100,15 +97,11 @@ The following rules are active and must not be weakened by UI or domain work:
 
 ### Data View V2
 
-Path:
-
 ```text
 apps/web/components/data-view.tsx
 ```
 
-Used for standardized search/filter/list/table surfaces.
-
-Primary primitives include:
+Primary primitives:
 
 - `DataView`
 - `DataViewToolbar`
@@ -118,15 +111,15 @@ Primary primitives include:
 - `ToolbarSelect`
 - `DataViewMeta`
 
-### Form System V2
+The shared accessibility pass now guarantees a search-field accessible name, communicates filter-chip pressed state and only shows the ESC hint when a key handler exists.
 
-Path:
+### Form System V2
 
 ```text
 apps/web/components/form-system.tsx
 ```
 
-Primary primitives include:
+Primary primitives:
 
 - `FormSection`
 - `FormGrid`
@@ -138,13 +131,11 @@ Primary primitives include:
 
 ### Finance View V2
 
-Path:
-
 ```text
 apps/web/components/finance-view.tsx
 ```
 
-Primary primitives include:
+Primary primitives:
 
 - `FinanceMetric`
 - `FinancePanel`
@@ -177,9 +168,9 @@ apps/web/components/inventory-form-shell.tsx
 - Services — Data View V2 + Form System
 - Payments — Data View V2
 - Appointments — Data View V2
-- Dashboard quick actions — Form System and explicit consent handling
+- Dashboard quick actions — Form System + explicit consent handling
 
-Important compliance correction already completed:
+Important compliance correction:
 
 The quick customer form no longer silently sends KVKK acknowledgement or membership agreement as `true`; consent is explicitly collected in the UI.
 
@@ -211,7 +202,7 @@ Completed:
 - integration operations
 - financial integrations management
 
-Financial integration flows preserved:
+Financial integration behavior preserved:
 
 - provider registry
 - integration creation
@@ -227,7 +218,7 @@ Financial integration flows preserved:
 
 Credential values are not read back to the UI after storage.
 
-### Inventory submodules
+### Inventory
 
 Completed:
 
@@ -236,51 +227,25 @@ Completed:
 - transfers
 - typed Inventory frontend contracts
 - reusable Inventory FormStepper shell
+- main inventory screen integration
+
+The main inventory screen now uses shared Inventory domain contracts and form shells while preserving product/asset/category/supplier API and payload behavior. Local `any` usage in the migrated surface was removed and purchase navigation now uses application routing rather than direct `window.location` mutation.
 
 A false `+ Yeni talep` action was removed from purchase requests after backend inspection confirmed there is no create endpoint for that flow.
 
 ---
 
-## 7. Remaining Major Frontend Work
+## 7. Remaining Frontend Work
 
-### Inventory main screen
-
-Path:
-
-```text
-apps/web/app/(app)/inventory/page.tsx
-```
-
-This is the largest remaining modernization surface. It currently combines:
-
-- products
-- assets
-- categories
-- suppliers
-- overview metrics
-- critical stock
-- warehouse/location views
-- multi-step product creation
-- multi-step asset creation
-
-Prepared migration foundations:
-
-```text
-apps/web/lib/inventory-types.ts
-apps/web/components/inventory-form-shell.tsx
-```
-
-The migration must preserve the current inventory API/payload semantics and permissions. It should remove remaining local `any` usage and move the form shell/list presentation onto the shared systems without changing stock business rules.
-
-### Consistency cleanup
+### Services consistency cleanup
 
 Known remaining item:
 
-- Services quick panel contains category/package actions without a verified functional route/backend flow. These must be removed, disabled/labeled as unavailable, or wired only after an actual route/endpoint is verified.
+- Services quick panel still contains category/package actions without a verified functional route/backend flow. These must be removed or only wired after an actual route/endpoint is verified.
 
-### Responsive and accessibility pass
+### Responsive / accessibility / consistency final pass
 
-Final review still required for:
+Remaining review areas:
 
 - keyboard/focus behavior
 - modal/stepper navigation
@@ -290,6 +255,20 @@ Final review still required for:
 - reduced-motion behavior
 - long-content overflow
 
+The shared Data View accessibility correction is already implemented; route-specific review remains.
+
+### Controlled branding cleanup
+
+Historical files and architecture documentation still contain `Beauty ERP` wording and technical `beauty*` identifiers.
+
+Cleanup must distinguish between:
+
+1. user-facing/product wording that should become VALOO;
+2. comments/documentation that can be migrated safely;
+3. technical identifiers, package names, database names, migrations, environment variables or deployment references whose renaming may cause regressions.
+
+Do not bulk-rename technical identifiers without dependency analysis.
+
 ---
 
 ## 8. Known Data-Scope Constraints
@@ -298,10 +277,10 @@ Some frontend pages intentionally operate on limited or page-local datasets. UI 
 
 Examples:
 
-- Payments currently works over a bounded recent record set rather than an unlimited global dataset.
+- Payments works over a bounded recent record set rather than an unlimited global dataset.
 - Appointments uses a bounded API result size.
 - Some Staff status counts are page-local rather than global.
-- Financial Integrations bank movement view explicitly represents the latest bounded set returned by its endpoint.
+- Financial Integrations bank movement view represents the latest bounded set returned by its endpoint.
 
 Do not present page-local counts as global totals.
 
@@ -313,17 +292,9 @@ Current product-facing brand:
 
 > **VALOO**
 
-Historical source files and architecture documents still contain `Beauty ERP` wording and technical `beauty*` identifiers.
+`docs/VALOO-MODERNIZATION-STATUS.md` contains the modernization checklist.
 
-Brand cleanup must distinguish between:
-
-1. user-facing/product wording that should become VALOO;
-2. comments/documentation that can be migrated safely;
-3. technical identifiers, package names, database names, migrations, environment variables or deployment references whose renaming may cause regressions.
-
-Do not bulk-rename technical identifiers without dependency analysis.
-
-`docs/VALOO-MODERNIZATION-STATUS.md` contains the active modernization checklist.
+Old `Beauty ERP` wording in legacy documents is historical technical debt and should not be treated as the current product name.
 
 ---
 
@@ -331,9 +302,9 @@ Do not bulk-rename technical identifiers without dependency analysis.
 
 Dashboard/AppShell work may exist locally in a newer state than the remote branch.
 
-Do not overwrite the remote Dashboard/AppShell files as part of cleanup without first reconciling the user's local work.
+Do not overwrite remote Dashboard/AppShell files during cleanup without first reconciling the user's local work.
 
-This warning does not apply to the already migrated Customers, Staff, Services, Payments, Appointments, Finance, HR and Inventory submodule files listed above.
+This warning does not apply to the already migrated Customers, Staff, Services, Payments, Appointments, Finance, HR and Inventory surfaces listed above.
 
 ---
 
@@ -344,32 +315,26 @@ At each significant milestone:
 1. inspect the current implementation before editing;
 2. preserve existing domain/API semantics;
 3. commit only to `feature/core-commerce-foundation`;
-4. run/check the real GitHub Actions workflow;
+4. inspect the real GitHub Actions workflow;
 5. fix blocking lint/typecheck/build/test errors;
 6. update `docs/state/CURRENT-STATE.md` when project state materially changes;
-7. update relevant architecture/runbook docs when contracts or operational behavior change.
+7. update architecture/runbook docs when contracts or operational behavior change.
 
-Do not use a missing combined commit status as proof that CI passed; inspect the actual Actions workflow runs/jobs.
+Do not use an empty combined commit status as proof that CI passed; inspect actual Actions runs/jobs.
 
 ---
 
 ## 12. Current Next Action
 
-NEXT ACTION:
-
 ```text
-Inventory main-screen controlled migration
-        ↓
 Services non-functional action cleanup
         ↓
-Responsive / Accessibility / Consistency pass
+Route-specific Responsive / Accessibility / Consistency pass
         ↓
-Controlled product-brand documentation cleanup
+Controlled VALOO documentation/brand cleanup
         ↓
 Final full Monorepo quality regression
 ```
-
-The Inventory migration should be incremental and must preserve product/asset/category/supplier creation semantics and stock integrity.
 
 ---
 
@@ -378,10 +343,10 @@ The Inventory migration should be incremental and must preserve product/asset/ca
 ```text
 Core multi-tenant architecture       ✅ established
 Authorization foundation             ✅ established
-CRM / Customers                      ✅ active
-Appointments                         ✅ active
-Services                             ✅ active
-Payments                             ✅ active
+CRM / Customers                      ✅ active + migrated
+Appointments                         ✅ active + migrated
+Services                             ✅ active + migrated
+Payments                             ✅ active + migrated
 Finance / Reconciliation             ✅ active + migrated
 CFO cockpit                          ✅ active + migrated
 Treasury                             ✅ active + migrated
@@ -391,9 +356,11 @@ Payroll dashboard                    ✅ active + migrated
 Inventory movements                  ✅ migrated
 Inventory purchase requests          ✅ migrated
 Inventory transfers                  ✅ migrated
-Inventory typed/form foundations     ✅ prepared
-Inventory main screen                ⏳ final large migration
-Responsive/accessibility pass        ⏳ final review
+Inventory typed/form foundations     ✅ migrated
+Inventory main screen                ✅ migrated + CI verified
+Shared Data View accessibility       ✅ implemented; CI validation pending
+Services fake-action cleanup         ⏳ final cleanup
+Route accessibility/consistency      ⏳ final review
 Brand/docs cleanup                   ⏳ controlled cleanup
 Final regression CI                  ⏳ after remaining changes
 ```
@@ -402,6 +369,6 @@ Final regression CI                  ⏳ after remaining changes
 
 ## 14. Release Boundary
 
-This state is a development-branch checkpoint, not a release declaration.
+This is a development-branch checkpoint, not a release declaration.
 
 `main` remains untouched by this modernization work until an explicit merge/release decision is made.
