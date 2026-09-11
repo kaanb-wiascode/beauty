@@ -13,9 +13,9 @@ Do not merge/push to `main` without explicit approval.
 
 ### Marketplace
 
-Status: **Publication foundation implemented; public marketplace not yet exposed**
+Status: **Publication foundation prepared; branch attachment/CI validation pending**
 
-Implemented:
+Implemented/prepared:
 
 - `apps/api/src/modules/marketplace/marketplace.module.ts`
 - `apps/api/src/modules/marketplace/marketplace.controller.ts`
@@ -23,15 +23,16 @@ Implemented:
 - module registered in `AppModule`
 - authenticated marketplace preview endpoint foundation
 - preview uses allowlisted business/service projection rather than exposing raw ERP entities
-- persistent branch-scoped `marketplace_publications` foundation
-- explicit publish/unpublish workflow
-- publication state read endpoint
+- persistent branch-scoped `marketplace_publications` migration prepared
+- explicit publish/unpublish workflow prepared
+- publication state read endpoint prepared
 - tenant/company/branch scope validation in service and database trigger
 - idempotent publish semantics that preserve first `publishedAt` while already published
 - publication mutations protected by existing `services.update` permission
 
 Not yet complete:
 
+- attach prepared MarketplacePublication commit to active branch and validate CI
 - public marketplace endpoint
 - public slug/routing model
 - availability engine
@@ -159,7 +160,7 @@ Not yet implemented:
 
 ### P0 — Existing Main Roadmap
 
-1. Validate MarketplacePublication migration/workflow in CI and add public-safe listing endpoint.
+1. Attach/validate MarketplacePublication migration/workflow and add public-safe listing endpoint.
 2. Extend Marketplace authorization/data-leakage coverage for the future public boundary.
 3. Define platform-admin authorization boundary for global SupplierOrganization administration.
 4. Add tenant-scoped SupplierConnection admin API with RBAC.
@@ -211,10 +212,9 @@ Known ecosystem foundation commits:
 - `c3386e9cc58418adf61c3b989867e411014f0710` — Supplier Network scope invariant regression tests.
 - `74d2e08ae58d48d1328ea5b2a56e40d20a21a7bf` — SupplierConnection scope bound to TenantContext.
 - `a58f1bc839f7def6d7052d1ea148218074b334ae` — Supplier tenant-context regression tests; CI #696 success.
+- `8e1a278e5201fb8c45405078c69e707b51889b7a` — MarketplacePublication migration/workflow commit prepared through Git data; active branch attachment/CI not yet observed.
 - `6e2869a8ab7ff5ef32f255af2eeadca1b65f95b9` — Healthcare capability/regulatory architecture document added.
 - `4d8b2ae98a8ef34f1d4df2708c8a1dceeacfc050` — Healthcare expansion roadmap added.
-
-MarketplacePublication foundation commit is created through Git data as `a99f20e293971bb491c5951741bb2306054de1cb`; branch ref update/CI validation must be observed before marking it passed.
 
 ## 6. CI Status Rule
 
