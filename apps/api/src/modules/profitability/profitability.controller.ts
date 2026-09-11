@@ -21,7 +21,11 @@ const cashFlowSchema = z.object({ start: z.coerce.date().optional(), scenario: z
 const cashFlowComparisonSchema = z.object({ start: z.coerce.date().optional() });
 const treasuryDateSchema = z.object({ asOf: z.coerce.date().optional() });
 const treasuryAlertSchema = z.object({ start: z.coerce.date().optional() });
-const treasurySettingsSchema = z.object({ minimumLiquidity: z.coerce.number().min(0), warningBufferPercent: z.coerce.number().min(0).max(100).optional() });
+const treasurySettingsSchema = z.object({
+  minimumLiquidity: z.coerce.number().min(0),
+  warningBufferPercent: z.coerce.number().min(0).max(100).optional(),
+  reportingCurrency: z.string().trim().length(3).transform((value) => value.toUpperCase()).optional(),
+});
 const cfoSchema = z.object({ asOf: z.coerce.date().optional(), lookbackDays: z.coerce.number().int().min(7).max(730).optional() });
 const healthThresholdSchema = z.object({ minimumHealthScore: z.coerce.number().min(0).max(100).optional(), minimumRunwayWeeks: z.coerce.number().min(0).optional(), maximumDsoDays: z.coerce.number().min(0).optional(), minimumNetWorkingCapital: z.coerce.number().optional(), maximumOverdueReceivableRatio: z.coerce.number().min(0).max(100).optional(), maximumLiquidityAlerts: z.coerce.number().int().min(0).optional() });
 const commissionSchema = z.object({ rate: z.coerce.number().min(0).max(100) });
