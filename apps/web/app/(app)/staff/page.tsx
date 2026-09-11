@@ -3,6 +3,13 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import {
+  DataView,
+  DataViewMeta,
+  DataViewToolbar,
+  FilterChip,
+  SearchField,
+} from "@/components/data-view";
+import {
   Alert,
   Button,
   EmptyState,
@@ -183,10 +190,40 @@ export default function StaffPage() {
         <GlassCard className="!overflow-hidden !rounded-[18px] !p-0"><div className="flex items-center justify-between border-b border-[var(--line)] p-4 sm:p-5"><div><h2 className="text-[15px] font-semibold">Ekip durumu</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Personel dağılımı</p></div><span className="rounded-[9px] bg-[var(--surface-2)] px-2.5 py-1.5 text-[11px] font-semibold">{staff.length}</span></div><div className="grid grid-cols-2 gap-2 p-4 sm:p-5"><div className="rounded-[12px] bg-[var(--surface-2)] p-4"><p className="text-[10px] text-[var(--muted)]">Aktif</p><strong className="mt-1 block text-[26px] tracking-[-.05em]">{activeCount}</strong></div><div className="rounded-[12px] bg-[var(--surface-2)] p-4"><p className="text-[10px] text-[var(--muted)]">Arşiv</p><strong className="mt-1 block text-[26px] tracking-[-.05em]">{archivedCount}</strong></div></div></GlassCard>
       </section>
 
-      <GlassCard className="!overflow-hidden !rounded-[18px] !p-0">
-        <div className="border-b border-[var(--line)] p-4 sm:p-5"><div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between"><div><h2 className="text-[15px] font-semibold">Tüm personel</h2><p className="mt-1 text-[11px] text-[var(--muted)]">İletişim, durum ve günlük performans</p></div><div className="flex flex-col gap-2 sm:flex-row"><div className="relative sm:w-[260px]"><span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[var(--muted-soft)]"><Icon name="search" size={15}/></span><TextInput value={search} placeholder="Personel ara..." className="pl-9" onChange={(event) => {setSearch(event.target.value);setPage(1);}} /></div><div className="flex rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] p-1">{(["ALL","ACTIVE","ARCHIVED"] as Filter[]).map((item) => <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-[8px] px-3 py-1.5 text-[10px] font-semibold ${filter === item ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}>{item === "ALL" ? "Tümü" : item === "ACTIVE" ? "Aktif" : "Arşiv"}</button>)}</div></div></div></div>
+      <DataView>
+        <div className="border-b border-[var(--line)] px-4 pt-4 sm:px-5 sm:pt-5">
+          <h2 className="text-[15px] font-semibold">Tüm personel</h2>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">İletişim, durum ve günlük performans</p>
+        </div>
+        <DataViewToolbar
+          search={
+            <SearchField
+              value={search}
+              placeholder="Personel ara..."
+              aria-label="Personel ara"
+              onChange={(event) => { setSearch(event.target.value); setPage(1); }}
+              onKeyDown={(event) => {
+                if (event.key === "Escape" && search) {
+                  setSearch("");
+                  setPage(1);
+                }
+              }}
+            />
+          }
+          filters={
+            <>
+              <FilterChip active={filter === "ALL"} count={staff.length} onClick={() => setFilter("ALL")}>Tümü</FilterChip>
+              <FilterChip active={filter === "ACTIVE"} count={activeCount} onClick={() => setFilter("ACTIVE")}>Aktif</FilterChip>
+              <FilterChip active={filter === "ARCHIVED"} count={archivedCount} onClick={() => setFilter("ARCHIVED")}>Arşiv</FilterChip>
+            </>
+          }
+        />
         {loading ? <Spinner label="Personel yükleniyor..."/> : filteredStaff.length === 0 ? <EmptyState title={search.trim() ? "Eşleşen personel yok" : "Henüz personel yok"} description={search.trim() ? "Arama kriterinizi değiştirerek tekrar deneyin." : "Yeni personel ekleyerek başlayın."}/> : <><div className="hidden overflow-x-auto md:block"><table className="w-full border-collapse text-left"><thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)] text-[10px] font-semibold text-[var(--muted)]"><th className="px-5 py-3">PERSONEL</th><th className="px-4 py-3">İLETİŞİM</th><th className="px-4 py-3">DURUM</th><th className="px-4 py-3">BUGÜN</th><th className="px-4 py-3">TAHSİLAT</th><th className="px-5 py-3 text-right">İŞLEM</th></tr></thead><tbody className="divide-y divide-[var(--line)]">{filteredStaff.map((member) => {const stats=performance[member.id];return <tr key={member.id} className="transition hover:bg-[#fafaf9]"><td className="px-5 py-4"><div className="flex items-center gap-3"><div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#f0f1f4] text-[10px] font-semibold text-[#5d6270]">{initials(member)}</div><div className="min-w-0"><p className="truncate text-[12px] font-semibold">{member.firstName} {member.lastName}</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">{member.profile?.position || "Personel"}</p></div></div></td><td className="px-4 py-4"><p className="text-[11px]">{member.phone ?? "—"}</p><p className="mt-0.5 max-w-[220px] truncate text-[10px] text-[var(--muted)]">{member.email ?? "E-posta yok"}</p></td><td className="px-4 py-4"><StatusBadge status={member.status} label={staffStatusLabel(member.status)}/></td><td className="px-4 py-4"><p className="text-[11px] font-semibold">{stats?.appointmentCount ?? 0} randevu</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">{stats?.completedAppointments ?? 0} tamamlandı</p></td><td className="px-4 py-4"><p className="text-[11px] font-semibold">{money(stats?.collected ?? 0)}</p></td><td className="px-5 py-4"><div className="flex justify-end gap-1"><button type="button" onClick={()=>openEdit(member)} disabled={!canUpdateStaff} className="rounded-[8px] px-2.5 py-1.5 text-[10px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">Düzenle</button><button type="button" onClick={()=>setPendingDelete(member)} disabled={!canDeleteStaff || member.status === "ARCHIVED"} className="rounded-[8px] px-2.5 py-1.5 text-[10px] font-semibold text-[var(--danger)] disabled:opacity-40">Arşivle</button></div></td></tr>})}</tbody></table></div><div className="divide-y divide-[var(--line)] md:hidden">{filteredStaff.map((member)=>{const stats=performance[member.id];return <article key={member.id} className="p-4"><div className="flex items-start gap-3"><div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[#f0f1f4] text-[10px] font-semibold text-[#5d6270]">{initials(member)}</div><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-2"><div><h3 className="text-[12px] font-semibold">{member.firstName} {member.lastName}</h3><p className="mt-0.5 truncate text-[10px] text-[var(--muted)]">{member.profile?.position || member.phone || "Personel"}</p></div><StatusBadge status={member.status} label={staffStatusLabel(member.status)}/></div><div className="mt-4 grid grid-cols-2 gap-2"><div className="rounded-[9px] bg-[var(--surface-2)] p-2.5"><p className="text-[9px] text-[var(--muted)]">Randevu</p><strong className="mt-1 block text-[14px]">{stats?.appointmentCount ?? 0}</strong></div><div className="rounded-[9px] bg-[var(--surface-2)] p-2.5"><p className="text-[9px] text-[var(--muted)]">Tahsilat</p><strong className="mt-1 block text-[14px]">{money(stats?.collected ?? 0)}</strong></div></div><div className="mt-3 flex gap-2"><button type="button" onClick={()=>openEdit(member)} className="flex-1 rounded-[9px] border border-[var(--line)] py-2 text-[10px] font-semibold">Düzenle</button><button type="button" onClick={()=>setPendingDelete(member)} disabled={!canDeleteStaff || member.status === "ARCHIVED"} className="flex-1 rounded-[9px] border border-[var(--line)] py-2 text-[10px] font-semibold text-[var(--danger)] disabled:opacity-40">Arşivle</button></div></div></div></article>})}</div><Pagination page={page} totalPages={totalPages} onPageChange={setPage}/></>}
-      </GlassCard>
+        <DataViewMeta>
+          <span>Bu sayfada {filteredStaff.length} personel</span>
+          <span>{filter === "ALL" ? "Tüm durumlar" : filter === "ACTIVE" ? "Aktif personel" : "Arşiv personel"}</span>
+        </DataViewMeta>
+      </DataView>
 
       <Modal open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Personeli düzenle" : "Yeni personel"} description="Personel özlük dosyasını adım adım oluşturun.">
         <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
