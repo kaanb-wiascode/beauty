@@ -5,6 +5,8 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 
+import { TenantContext } from '../../common/tenant/tenant-context';
+
 export type SupplierOrganizationType =
   | 'MANUFACTURER'
   | 'DISTRIBUTOR'
@@ -28,14 +30,15 @@ export interface CreateSupplierOrganizationInput {
 
 export interface ConnectInventorySupplierInput {
   supplierOrganizationId: string;
-  tenantId: string;
-  companyId: string;
   inventorySupplierId: string;
 }
 
 @Injectable()
 export class SupplierNetworkService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+  ) {}
 
   private normalizeSlug(value: string) {
     return value
@@ -121,6 +124,9 @@ export class SupplierNetworkService {
   }
 
   async connectInventorySupplier(input: ConnectInventorySupplierInput) {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+
     const [organization, privateSupplier] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT id,status FROM supplier_organizations WHERE id=$1 LIMIT 1`,
@@ -132,8 +138,8 @@ export class SupplierNetworkService {
          WHERE id=$1 AND tenant_id=$2 AND company_id=$3
          LIMIT 1`,
         input.inventorySupplierId,
-        input.tenantId,
-        input.companyId,
+        tenantId,
+        companyId,
       ),
     ]);
 
@@ -160,8 +166,8 @@ export class SupplierNetworkService {
          inventory_supplier_id AS "inventorySupplierId",status,
          created_at AS "createdAt",updated_at AS "updatedAt"`,
       input.supplierOrganizationId,
-      input.tenantId,
-      input.companyId,
+      tenantId,
+      companyId,
       input.inventorySupplierId,
     );
 
