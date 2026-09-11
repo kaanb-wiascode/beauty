@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { FinancialIntegrationsController } from './financial-integrations.controller';
 import { FinancialIntegrationCallbackController } from './financial-integration-callback.controller';
+import { FinancialIntegrationOperationsController } from './financial-integration-operations.controller';
 import { PosWebhookController } from './pos-webhook.controller';
 import { FinancialIntegrationsService } from './financial-integrations.service';
 import { ProviderRegistryService } from './provider-registry.service';
@@ -11,8 +12,10 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 import { FinancialIntegrationSyncSchedulerService } from './financial-integration-sync-scheduler.service';
 import { FinancialIntegrationCredentialsService } from './financial-integration-credentials.service';
 import { FinancialIntegrationHealthService } from './financial-integration-health.service';
+import { FinancialIntegrationAlertsService } from './financial-integration-alerts.service';
 import { FinancialIntegrationPermissionGuard } from './financial-integration-permission.guard';
 import { FinancialIntegrationAuditInterceptor } from './financial-integration-audit.interceptor';
+import { FinancialIntegrationAuditService } from './financial-integration-audit.service';
 import { FinancialIntegrationRateLimitGuard } from './financial-integration-rate-limit.guard';
 import { PublicFinancialRateLimitGuard } from './public-financial-rate-limit.guard';
 import { FinancialIntegrationTelemetryService } from './financial-integration-telemetry.service';
@@ -34,6 +37,7 @@ import { PaytrAdapter } from './providers/paytr.adapter';
   controllers: [
     FinancialIntegrationsController,
     FinancialIntegrationCallbackController,
+    FinancialIntegrationOperationsController,
     PosWebhookController,
   ],
   providers: [
@@ -49,8 +53,10 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     FinancialIntegrationSyncSchedulerService,
     FinancialIntegrationCredentialsService,
     FinancialIntegrationHealthService,
+    FinancialIntegrationAlertsService,
     FinancialIntegrationPermissionGuard,
     FinancialIntegrationAuditInterceptor,
+    FinancialIntegrationAuditService,
     FinancialIntegrationRateLimitGuard,
     PublicFinancialRateLimitGuard,
     FinancialIntegrationTelemetryService,
@@ -74,6 +80,8 @@ import { PaytrAdapter } from './providers/paytr.adapter';
     FinancialIntegrationSyncService,
     FinancialIntegrationCredentialsService,
     FinancialIntegrationHealthService,
+    FinancialIntegrationAlertsService,
+    FinancialIntegrationAuditService,
     FinancialIntegrationTelemetryService,
     PosSettlementService,
     PosSettlementImportService,
