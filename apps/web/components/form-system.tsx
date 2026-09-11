@@ -1,4 +1,8 @@
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type {
+  ButtonHTMLAttributes,
+  CSSProperties,
+  ReactNode,
+} from "react";
 
 import { Button } from "@/components/ui";
 import { cx } from "@/lib/format";
@@ -148,7 +152,10 @@ export function FormStepper({
   onStepChange?: (index: number) => void;
 }) {
   return (
-    <div className="grid gap-2 rounded-[14px] bg-[var(--surface-2)]/70 p-1.5 sm:grid-cols-2 lg:grid-cols-[repeat(var(--step-count),minmax(0,1fr))]" style={{ "--step-count": steps.length } as React.CSSProperties}>
+    <div
+      className="grid gap-2 rounded-[14px] bg-[var(--surface-2)]/70 p-1.5 sm:grid-cols-2 lg:grid-cols-[repeat(var(--step-count),minmax(0,1fr))]"
+      style={{ "--step-count": steps.length } as CSSProperties}
+    >
       {steps.map((step, index) => {
         const active = index === current;
         const complete = index < current;
