@@ -33,7 +33,7 @@ describe('ProcurementReplacementsService', () => {
     };
   }
 
-  it('does not expose a purchase return outside the active company and branch scope', async () => {
+  it('does not expose a purchase return outside the active tenant, company and branch scope', async () => {
     const query = jest.fn().mockResolvedValueOnce([]);
     const { service } = createService(query);
     await expect(
@@ -43,8 +43,10 @@ describe('ProcurementReplacementsService', () => {
         'user-a',
       ),
     ).rejects.toBeInstanceOf(NotFoundException);
-    expect(String(query.mock.calls[0][0])).toContain('pr.company_id=$2::text');
-    expect(String(query.mock.calls[0][0])).toContain('pr.branch_id=$3::text');
+    expect(String(query.mock.calls[0][0])).toContain('pr.tenant_id=$2::text');
+    expect(String(query.mock.calls[0][0])).toContain('pr.company_id=$3::text');
+    expect(String(query.mock.calls[0][0])).toContain('pr.branch_id=$4::text');
+    expect(query.mock.calls[0].slice(1)).toEqual(['return-x', 'tenant-a', 'company-a', 'branch-a']);
   });
 
   it('rejects cumulative replacement quantity above the returned quantity', async () => {
@@ -94,6 +96,9 @@ describe('ProcurementReplacementsService', () => {
     expect(execute.mock.calls.some((call) => String(call[0]).includes('supplier_bills SET amount=amount+$2'))).toBe(true);
     expect(tx.journalEntry.create).toHaveBeenCalledWith(expect.objectContaining({
       data: expect.objectContaining({
+        tenantId: 'tenant-a',
+        companyId: 'company-a',
+        branchId: 'branch-a',
         referenceType: 'PURCHASE_REPLACEMENT',
         lines: { create: [
           { accountId: 'inventory-account', debit: 50, credit: 0 },
