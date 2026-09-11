@@ -74,6 +74,8 @@ export function SearchField({
       <input
         {...props}
         type={props.type ?? "search"}
+        aria-label={props["aria-label"] ?? "Ara"}
+        enterKeyHint={props.enterKeyHint ?? "search"}
         className={cx(
           "h-11 w-full rounded-[14px] border border-transparent bg-[var(--surface-2)]/70 pl-11 pr-10 text-[13px] text-[var(--ink)] outline-none transition",
           "placeholder:text-[var(--muted-soft)] hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.22)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-soft)]",
@@ -81,7 +83,7 @@ export function SearchField({
         )}
       />
 
-      {props.value ? (
+      {props.value && props.onKeyDown ? (
         <span
           aria-hidden="true"
           className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] font-medium text-[var(--muted-soft)]"
@@ -134,6 +136,7 @@ export function FilterChip({
     <button
       {...props}
       type={props.type ?? "button"}
+      aria-pressed={props["aria-pressed"] ?? active}
       className={cx(
         "inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40",
         active
