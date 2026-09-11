@@ -9,6 +9,9 @@ import { PayrollCostCenterAccountingService } from './payroll-cost-center-accoun
 import { PayrollPostingOrchestratorService } from './payroll-posting-orchestrator.service';
 import { PayrollReversalService } from './payroll-reversal.service';
 import { PayrollDashboardService } from './payroll-dashboard.service';
+import { PayrollPaymentReversalService } from './payroll-payment-reversal.service';
+import { PayrollWorkInputService } from './payroll-work-input.service';
+import { HrAnalyticsService } from './hr-analytics.service';
 
 @Module({
   controllers: [HrController],
@@ -22,6 +25,9 @@ import { PayrollDashboardService } from './payroll-dashboard.service';
     PayrollPostingOrchestratorService,
     PayrollReversalService,
     PayrollDashboardService,
+    PayrollPaymentReversalService,
+    PayrollWorkInputService,
+    HrAnalyticsService,
   ],
   exports: [
     HrService,
@@ -33,6 +39,9 @@ import { PayrollDashboardService } from './payroll-dashboard.service';
     PayrollPostingOrchestratorService,
     PayrollReversalService,
     PayrollDashboardService,
+    PayrollPaymentReversalService,
+    PayrollWorkInputService,
+    HrAnalyticsService,
   ],
 })
 export class HrModule {}
