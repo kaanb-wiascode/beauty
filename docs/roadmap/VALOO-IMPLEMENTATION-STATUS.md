@@ -13,73 +13,75 @@ Do not merge/push to `main` without explicit approval.
 
 ### Marketplace
 
-Status: **Publication foundation prepared; branch attachment/CI validation pending**
+Status: **Publication + public listing foundation implemented and CI-validated**
 
-Implemented/prepared:
+Implemented:
 
-- `apps/api/src/modules/marketplace/marketplace.module.ts`
-- `apps/api/src/modules/marketplace/marketplace.controller.ts`
-- `apps/api/src/modules/marketplace/marketplace.service.ts`
-- module registered in `AppModule`
-- authenticated marketplace preview endpoint foundation
-- preview uses allowlisted business/service projection rather than exposing raw ERP entities
-- persistent branch-scoped `marketplace_publications` migration prepared
-- explicit publish/unpublish workflow prepared
-- publication state read endpoint prepared
-- tenant/company/branch scope validation in service and database trigger
-- idempotent publish semantics that preserve first `publishedAt` while already published
-- publication mutations protected by existing `services.update` permission
+- authenticated Marketplace preview with allowlisted business/service projection
+- branch-scoped `marketplace_publications` persistence
+- explicit publish/unpublish workflow
+- publication state read endpoint
+- tenant/company/branch validation in service and database trigger
+- idempotent publish semantics that preserve the first `publishedAt` while already published
+- publication mutations protected by `services.update`
+- public listing route: `GET /public/marketplace/:companySlug/:branchCode`
+- public route returns data only when publication status is `PUBLISHED`
+- unpublished/missing publication does not read branch/service data
+- public response omits internal tenant/company identifiers
+- Marketplace preview/public data-leakage regression coverage
+
+Validated commits:
+
+- `bd5f8f61b3837db08590f59ce6cd9a32e04163b3` — publication workflow foundation; CI #699 SUCCESS
+- `bbe3a41db9918d31717d87318623c72cdbb6f9b6` — published public listings; CI #700 SUCCESS
 
 Not yet complete:
 
-- attach prepared MarketplacePublication commit to active branch and validate CI
-- public marketplace endpoint
-- public slug/routing model
 - availability engine
-- concurrency-safe marketplace booking
+- concurrency-safe Marketplace booking
+- public API abuse controls/rate limiting/caching policy
 - ConsumerAccount
 - reviews/favorites
-- online payment/deposit
+- online payment/deposit/no-show policy
 
 ### Supplier Network
 
-Status: **Core identity foundation started; tenant scope hardened**
+Status: **Core identity + tenant-scoped connection administration/audit implemented**
 
 Implemented:
 
 - platform-scoped `supplier_organizations`
-- `supplier_connections`
-- connection to existing tenant/company-private `inventory_suppliers`
+- tenant/company-private `inventory_suppliers` preserved
+- `supplier_connections` bridge
 - database-level tenant/company scope validation guard
-- `apps/api/src/modules/supplier-network/` module/service foundation
-- Supplier Network module registered in `AppModule`
-- Marketplace/Supplier regression tests for isolation invariants
-- SupplierConnection tenant/company context now derives from `TenantContext`, not request-controlled input
+- SupplierConnection tenant/company scope derives from `TenantContext`, not request-controlled input
+- tenant-scoped connection list endpoint
+- tenant-scoped connection upsert endpoint
+- connection administration protected by existing administrative `roles.read` / `roles.update` permissions
+- connection list excludes legal-name/tax-number data from the response projection
+- append-only `supplier_network_audit_logs`
+- company/tenant audit scope database guard
+- connection upsert + audit insert execute atomically in one SQL statement
+- tenant/company-scoped audit list endpoint
+- Supplier isolation/admin/audit regression tests
 
-Initial organization types:
+Validated commits:
 
-- MANUFACTURER
-- DISTRIBUTOR
-- IMPORTER
-- WHOLESALER
-- RETAILER
-- SERVICE_PROVIDER
-- OTHER
+- `74d2e08ae58d48d1328ea5b2a56e40d20a21a7bf` + `a58f1bc839f7def6d7052d1ea148218074b334ae` — TenantContext binding; CI #696 SUCCESS
+- `b3b731d9ae27489db8c3d28a2d59082a090bed39` — tenant-scoped connection Admin API; CI #701 SUCCESS
+- `b14a208462750d8da57818465b9c56493328946b` — SupplierConnection audit trail; CI #702 SUCCESS
 
-Initial verification states:
+Important boundary:
 
-- UNVERIFIED
-- PENDING
-- VERIFIED
-- REJECTED
-- SUSPENDED
+- `SupplierOrganization` is platform-scoped.
+- global SupplierOrganization CRUD is intentionally **not exposed** through ordinary tenant RBAC.
+- a platform-admin authorization model must be defined before global organization administration becomes an API surface.
 
 Not yet complete:
 
-- explicit platform-admin authorization boundary for global SupplierOrganization administration
-- tenant-scoped SupplierConnection admin API + RBAC
+- platform-admin authorization boundary
 - supplier memberships/users
-- verification case/document workflow
+- supplier verification case/document workflow
 - Supplier Portal
 - public/self-service supplier registration
 - brands/catalog
@@ -89,9 +91,9 @@ Not yet complete:
 
 ### Procurement
 
-Status: **Existing mature buyer-side foundation; integration pending**
+Status: **Existing mature buyer-side foundation; Supplier Network integration pending**
 
-Existing code already contains buyer-side procurement services and migrations including:
+Existing buyer-side capabilities include:
 
 - private `inventory_suppliers`
 - purchase requests
@@ -101,7 +103,7 @@ Existing code already contains buyer-side procurement services and migrations in
 - partial returns/replacements
 - inventory movements and stock posting
 - SupplierBill / accounts-payable linkage
-- accounting-related guards/reversals
+- accounting guards/reversals
 
 Supplier Network must integrate into this domain without replacing it.
 
@@ -111,18 +113,16 @@ Status: **Architecture documented; implementation not started**
 
 Documented:
 
-- organization classification direction
 - Beauty / Clinic / Hospital Ops / Supplier vertical composition
 - OrganizationProfile concept
-- Capability Engine contract direction
-- RegulatoryProfile and Regulatory Rules Engine direction
+- Capability Engine direction
+- RegulatoryProfile / Regulatory Rules Engine direction
 - dynamic navigation/workflow policy principle
 - Customer vs Patient boundary
 - Clinic bounded-context direction
 - Hospital Ops integration-first strategy
-- asset/biomedical equipment direction
-- backward-compatibility rule for existing Beauty tenants
-- parallel healthcare roadmap H0-H9
+- biomedical/asset lifecycle direction
+- backwards compatibility for existing Beauty tenants
 
 Not yet implemented:
 
@@ -143,86 +143,75 @@ Not yet implemented:
 - `inventory_suppliers` remains tenant/company-private.
 - `SupplierConnection` bridges the two safely.
 - Marketplace publication is explicit opt-in.
-- Public marketplace APIs use allowlisted projections.
-- Consumer identity will not automatically equal ERP `Customer` identity.
+- Public Marketplace APIs use allowlisted projections.
+- Consumer identity does not automatically equal ERP `Customer` identity.
 - Canonical catalog separates product identity from seller offers.
 - RFQ is first-class for negotiated/high-value procurement.
 - Equipment lifecycle continues after purchase into warranty/maintenance/service.
 - Regulated categories require policy-driven eligibility/compliance.
-- Organization types are expressed through OrganizationProfile + capabilities + policy, not scattered `if clinic/hospital` branches.
+- Organization types are expressed through OrganizationProfile + capabilities + policy, not scattered vertical conditionals.
 - Capability checks do not replace RBAC/authorization.
-- Customer and Patient/clinical identity are separate concepts unless explicitly linked.
-- Existing Beauty tenants must remain backwards compatible.
+- Customer and Patient/clinical identities remain separate unless explicitly linked.
+- Existing Beauty tenants remain backwards compatible.
 - Hospital expansion begins with Hospital Ops/integration, not immediate full HBYS replacement.
-- Growth/marketing is not current technical priority.
 
 ## 4. Next Execution Queue
 
-### P0 — Existing Main Roadmap
+### P0 — Ecosystem reliability / identity
 
-1. Attach/validate MarketplacePublication migration/workflow and add public-safe listing endpoint.
-2. Extend Marketplace authorization/data-leakage coverage for the future public boundary.
-3. Define platform-admin authorization boundary for global SupplierOrganization administration.
-4. Add tenant-scoped SupplierConnection admin API with RBAC.
-5. SupplierOrganization audit events/history.
-6. SupplierMembership + SupplierVerification design and migration.
+1. Define platform-admin authentication/authorization boundary for global SupplierOrganization administration.
+2. SupplierMembership design + persistence.
+3. SupplierVerification case/document workflow and migration.
+4. Supplier Portal authentication/authorization foundation.
+5. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
 
-### P0-Architecture — Healthcare Parallel Track
+### P0-Architecture — Healthcare parallel track
 
-7. H0 OrganizationProfile schema/design review against existing Tenant/Company/Branch model.
-8. H1 Capability registry/evaluation contract design.
-9. H2 RegulatoryProfile/versioning/rule-result data model design.
+6. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
+7. H1 Capability registry/evaluation contract.
+8. H2 RegulatoryProfile/versioning/rule-result model.
 
-These healthcare foundation items may progress incrementally but must not block the main P0 reliability and ecosystem queue.
+Healthcare foundations may progress incrementally but must not weaken the main tenant/RBAC boundaries.
 
 ### P1
 
-10. Availability engine foundation.
-11. concurrency-safe marketplace booking orchestration.
-12. Brand + CatalogProduct + ProductVariant + identifiers.
-13. SupplierOffer.
-14. RFQ + SupplierQuote.
-15. Healthcare onboarding/capability prototype only after H0-H2 design is validated.
+9. Marketplace availability engine.
+10. concurrency-safe Marketplace booking orchestration.
+11. Brand + CatalogProduct + ProductVariant + identifiers.
+12. SupplierOffer.
+13. RFQ + SupplierQuote.
+14. Healthcare onboarding/capability prototype after H0-H2 validation.
 
 ### P2
 
-16. Procurement conversion from selected offer/quote.
-17. ConsumerAccount/reviews/favorites.
-18. payment/deposit/no-show.
-19. smart replenishment and contract pricing.
-20. equipment/asset/service lifecycle.
-21. VALOO Clinic foundation after security/regulatory architecture is ready.
+15. Procurement conversion from selected offer/quote.
+16. ConsumerAccount/reviews/favorites.
+17. online payment/deposit/no-show.
+18. smart replenishment and contract pricing.
+19. equipment/asset/service lifecycle.
+20. VALOO Clinic foundation after regulatory/security architecture is ready.
 
 ### P3
 
-22. compliance engine extensions.
-23. logistics/EDI/API integrations.
-24. financing/leasing.
-25. supplier intelligence.
-26. AI recommendations/concierge.
-27. Hospital Ops / Healthcare Integration Hub.
+21. compliance engine extensions.
+22. logistics/EDI/API integrations.
+23. financing/leasing.
+24. supplier intelligence.
+25. AI recommendations/concierge.
+26. Hospital Ops / Healthcare Integration Hub.
 
-## 5. Evidence / Commit Log
+## 5. Current Risk / Release Notes
 
-Known ecosystem foundation commits:
-
-- `a46b3b9f3b0b6b154221df04bd97776b6c2c9a9b` — Marketplace module registered in API application.
-- `0891c7d8784ae83aab632317073a852d9959d1a6` — Supplier Network foundation and application registration sequence.
-- `c9ad805a3aa8fad6e5e56728ecdcdef4b279248f` — Marketplace preview isolation regression tests.
-- `c3386e9cc58418adf61c3b989867e411014f0710` — Supplier Network scope invariant regression tests.
-- `74d2e08ae58d48d1328ea5b2a56e40d20a21a7bf` — SupplierConnection scope bound to TenantContext.
-- `a58f1bc839f7def6d7052d1ea148218074b334ae` — Supplier tenant-context regression tests; CI #696 success.
-- `8e1a278e5201fb8c45405078c69e707b51889b7a` — MarketplacePublication migration/workflow commit prepared through Git data; active branch attachment/CI not yet observed.
-- `6e2869a8ab7ff5ef32f255af2eeadca1b65f95b9` — Healthcare capability/regulatory architecture document added.
-- `4d8b2ae98a8ef34f1d4df2708c8a1dceeacfc050` — Healthcare expansion roadmap added.
+- Global SupplierOrganization administration must not reuse ordinary tenant authorization without an explicit platform-admin boundary.
+- Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
+- Core VALOO ERP UI modernization is substantially complete; remaining UI work is release cleanup/reconciliation rather than a major redesign phase.
+- `main` remains untouched.
 
 ## 6. CI Status Rule
 
-Never state that an increment has passed CI unless GitHub exposes a successful check/workflow for the exact relevant commit. If no checks are returned, record the state as **CI not observed**, not passed.
+Never state that an increment has passed CI unless GitHub exposes a successful workflow for the exact relevant commit or a direct descendant containing it.
 
 ## 7. Status Update Template
-
-When completing a future increment, append or update:
 
 ```text
 Feature:
