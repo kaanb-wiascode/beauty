@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "./ui";
 import { cx } from "@/lib/format";
 
@@ -12,8 +12,9 @@ export function Modal({ title, description, open, onClose, children }: { title: 
   const [rendered, setRendered] = useState(open);
   const dialogRef = useRef<HTMLDivElement>(null);
   const previousActiveElement = useRef<HTMLElement | null>(null);
-  const titleId = "modal-title";
-  const descriptionId = "modal-description";
+  const id = useId();
+  const titleId = `${id}-title`;
+  const descriptionId = `${id}-description`;
   const isCustomerForm = title === "Yeni müşteri" || title === "Müşteriyi düzenle";
   const isStaffForm = title === "Yeni personel" || title === "Personeli düzenle";
 
@@ -21,7 +22,11 @@ export function Modal({ title, description, open, onClose, children }: { title: 
     if (open) {
       previousActiveElement.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
       setRendered(true);
-      const frame = window.requestAnimationFrame(() => getFocusableElements(dialogRef.current as HTMLElement)[0]?.focus());
+      const frame = window.requestAnimationFrame(() => {
+        const dialog = dialogRef.current;
+        if (!dialog) return;
+        (getFocusableElements(dialog)[0] ?? dialog).focus();
+      });
       return () => window.cancelAnimationFrame(frame);
     }
     const timeout = window.setTimeout(() => setRendered(false), 240);
@@ -38,7 +43,7 @@ export function Modal({ title, description, open, onClose, children }: { title: 
       const container = dialogRef.current;
       if (!container) return;
       const focusable = getFocusableElements(container);
-      if (!focusable.length) { event.preventDefault(); return; }
+      if (!focusable.length) { event.preventDefault(); container.focus(); return; }
       const first = focusable[0], last = focusable[focusable.length - 1];
       if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
       else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
@@ -51,7 +56,7 @@ export function Modal({ title, description, open, onClose, children }: { title: 
   return (
     <div className={cx("fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6", open ? "animate-fade-in" : "pointer-events-none opacity-0")}>
       <button type="button" aria-label="Kapat" tabIndex={-1} className="absolute inset-0 cursor-default bg-[rgba(26,23,20,0.28)] backdrop-blur-[10px]" onClick={onClose} />
-      <div ref={dialogRef} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cx("glass-elevated relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] px-5 pt-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-[28px] sm:p-7", (isCustomerForm || isStaffForm) ? "sm:max-w-[920px] sm:p-8" : "sm:max-w-lg", open ? "animate-sheet-in sm:animate-rise-in" : "animate-sheet-out")}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cx("glass-elevated relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[28px] px-5 pt-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-[28px] sm:p-7", (isCustomerForm || isStaffForm) ? "sm:max-w-[920px] sm:p-8" : "sm:max-w-lg", open ? "animate-sheet-in sm:animate-rise-in" : "animate-sheet-out")}>
         <div className={cx("mb-6", (isCustomerForm || isStaffForm) && "mb-5 border-b border-[var(--line)] pb-5")}>
           <h2 id={titleId} className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{title}</h2>
           {description ? <p id={descriptionId} className="mt-1.5 text-sm leading-6 text-[var(--muted)]">{description}</p> : null}
