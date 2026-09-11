@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { QualityNotificationDispatcherService } from './quality-notification-dispatcher.service';
 import {
   QualityNotificationOutboxService,
   QualityNotificationOutboxStatus,
@@ -22,7 +23,10 @@ import {
 @Controller('quality/notifications')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class QualityNotificationOutboxController {
-  constructor(private readonly outbox: QualityNotificationOutboxService) {}
+  constructor(
+    private readonly outbox: QualityNotificationOutboxService,
+    private readonly dispatcher: QualityNotificationDispatcherService,
+  ) {}
 
   @Get('outbox')
   @RequirePermission('quality', 'read')
@@ -47,6 +51,18 @@ export class QualityNotificationOutboxController {
     @Req() req: { user?: { sub?: string } },
   ) {
     return this.outbox.enqueueFeedbackRequests(
+      this.userId(req),
+      limit === undefined ? undefined : Number(limit),
+    );
+  }
+
+  @Post('dispatch-feedback')
+  @RequirePermission('quality', 'manage')
+  dispatchFeedback(
+    @Query('limit') limit: string | undefined,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    return this.dispatcher.dispatchFeedbackBatch(
       this.userId(req),
       limit === undefined ? undefined : Number(limit),
     );

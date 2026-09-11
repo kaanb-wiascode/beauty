@@ -2,6 +2,7 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { createHash, randomBytes } from 'crypto';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { QualityNotificationChannel } from './quality-notification-provider';
 
 export type QualityNotificationOutboxStatus =
   | 'PENDING'
@@ -137,6 +138,9 @@ export class QualityNotificationOutboxService {
     claimToken: string,
     actorUserId: string,
     providerMessageId?: string | null,
+    channel?: QualityNotificationChannel | null,
+    providerKey?: string | null,
+    recipientHash?: string | null,
   ) {
     const { tenantId, companyId } = this.tenantContext.getContext();
     const tokenHash = this.hashToken(claimToken);
@@ -144,6 +148,8 @@ export class QualityNotificationOutboxService {
     if (providerId && providerId.length > 200) {
       throw new BadRequestException('providerMessageId is too long');
     }
+    const safeProviderKey = this.normalizeProviderKey(providerKey);
+    const safeRecipientHash = this.normalizeRecipientHash(recipientHash);
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `WITH updated AS (
@@ -151,6 +157,9 @@ export class QualityNotificationOutboxService {
          SET status='SENT',
              sent_at=NOW(),
              provider_message_id=$6::text,
+             channel=$7::text,
+             provider_key=$8::text,
+             recipient_hash=$9::text,
              claim_token_hash=NULL,
              lease_until=NULL,
              updated_at=NOW()
@@ -179,9 +188,9 @@ export class QualityNotificationOutboxService {
          RETURNING feedback_request_id
        ), outbox_event AS (
          INSERT INTO quality_notification_outbox_events (
-           outbox_id,tenant_id,company_id,branch_id,event_type,attempt_number,actor_user_id,created_at
+           outbox_id,tenant_id,company_id,branch_id,event_type,attempt_number,actor_user_id,channel,provider_key,created_at
          )
-         SELECT u.id,$1::text,$2::text,u.branch_id,'SENT',u.attempt_count,$5::text,NOW()
+         SELECT u.id,$1::text,$2::text,u.branch_id,'SENT',u.attempt_count,$5::text,$7::text,$8::text,NOW()
          FROM updated u
          RETURNING outbox_id
        )
@@ -193,6 +202,9 @@ export class QualityNotificationOutboxService {
       tokenHash,
       actorUserId,
       providerId,
+      channel ?? null,
+      safeProviderKey,
+      safeRecipientHash,
     );
 
     if (!rows.length) {
@@ -201,10 +213,18 @@ export class QualityNotificationOutboxService {
     return rows[0];
   }
 
-  async markFailed(id: string, claimToken: string, actorUserId: string, errorCode: string) {
+  async markFailed(
+    id: string,
+    claimToken: string,
+    actorUserId: string,
+    errorCode: string,
+    channel?: QualityNotificationChannel | null,
+    providerKey?: string | null,
+  ) {
     const { tenantId, companyId } = this.tenantContext.getContext();
     const tokenHash = this.hashToken(claimToken);
     const safeErrorCode = this.normalizeErrorCode(errorCode);
+    const safeProviderKey = this.normalizeProviderKey(providerKey);
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `WITH updated AS (
@@ -218,6 +238,8 @@ export class QualityNotificationOutboxService {
                ELSE NOW()+INTERVAL '60 minutes'
              END,
              last_error_code=$6::text,
+             channel=COALESCE($7::text,o.channel),
+             provider_key=COALESCE($8::text,o.provider_key),
              claim_token_hash=NULL,
              lease_until=NULL,
              updated_at=NOW()
@@ -230,11 +252,11 @@ export class QualityNotificationOutboxService {
          RETURNING o.id,o.feedback_request_id,o.branch_id,o.status,o.attempt_count,o.next_attempt_at
        ), event_insert AS (
          INSERT INTO quality_notification_outbox_events (
-           outbox_id,tenant_id,company_id,branch_id,event_type,attempt_number,error_code,actor_user_id,created_at
+           outbox_id,tenant_id,company_id,branch_id,event_type,attempt_number,error_code,actor_user_id,channel,provider_key,created_at
          )
          SELECT u.id,$1::text,$2::text,u.branch_id,
                 CASE WHEN u.status='DEAD' THEN 'DEAD' ELSE 'FAILED' END,
-                u.attempt_count,$6::text,$5::text,NOW()
+                u.attempt_count,$6::text,$5::text,$7::text,$8::text,NOW()
          FROM updated u
          RETURNING outbox_id
        )
@@ -247,6 +269,68 @@ export class QualityNotificationOutboxService {
       tokenHash,
       actorUserId,
       safeErrorCode,
+      channel ?? null,
+      safeProviderKey,
+    );
+
+    if (!rows.length) {
+      throw new BadRequestException('Notification claim is invalid or expired.');
+    }
+    return rows[0];
+  }
+
+  async markPermanentFailure(
+    id: string,
+    claimToken: string,
+    actorUserId: string,
+    errorCode: string,
+    channel?: QualityNotificationChannel | null,
+    providerKey?: string | null,
+    recipientHash?: string | null,
+  ) {
+    const { tenantId, companyId } = this.tenantContext.getContext();
+    const tokenHash = this.hashToken(claimToken);
+    const safeErrorCode = this.normalizeErrorCode(errorCode);
+    const safeProviderKey = this.normalizeProviderKey(providerKey);
+    const safeRecipientHash = this.normalizeRecipientHash(recipientHash);
+
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `WITH updated AS (
+         UPDATE quality_notification_outbox o
+         SET status='DEAD',
+             last_error_code=$6::text,
+             channel=COALESCE($7::text,o.channel),
+             provider_key=COALESCE($8::text,o.provider_key),
+             recipient_hash=COALESCE($9::text,o.recipient_hash),
+             claim_token_hash=NULL,
+             lease_until=NULL,
+             updated_at=NOW()
+         WHERE o.id=$3::text
+           AND o.tenant_id=$1::text
+           AND o.company_id=$2::text
+           AND o.status='CLAIMED'
+           AND o.lease_until >= NOW()
+           AND o.claim_token_hash=$4::text
+         RETURNING o.id,o.feedback_request_id,o.branch_id,o.attempt_count
+       ), event_insert AS (
+         INSERT INTO quality_notification_outbox_events (
+           outbox_id,tenant_id,company_id,branch_id,event_type,attempt_number,error_code,actor_user_id,channel,provider_key,created_at
+         )
+         SELECT u.id,$1::text,$2::text,u.branch_id,'DEAD',u.attempt_count,$6::text,$5::text,$7::text,$8::text,NOW()
+         FROM updated u
+         RETURNING outbox_id
+       )
+       SELECT id,feedback_request_id AS "feedbackRequestId",'DEAD' AS status
+       FROM updated`,
+      tenantId,
+      companyId,
+      id,
+      tokenHash,
+      actorUserId,
+      safeErrorCode,
+      channel ?? null,
+      safeProviderKey,
+      safeRecipientHash,
     );
 
     if (!rows.length) {
@@ -262,6 +346,7 @@ export class QualityNotificationOutboxService {
       `SELECT id,feedback_request_id AS "feedbackRequestId",customer_id AS "customerId",
               branch_id AS "branchId",status,attempt_count AS "attemptCount",
               next_attempt_at AS "nextAttemptAt",lease_until AS "leaseUntil",sent_at AS "sentAt",
+              channel,provider_key AS "providerKey",recipient_hash AS "recipientHash",
               last_error_code AS "lastErrorCode",created_at AS "createdAt"
        FROM quality_notification_outbox
        WHERE tenant_id=$1::text AND company_id=$2::text
@@ -280,6 +365,24 @@ export class QualityNotificationOutboxService {
   private hashToken(token: string): string {
     if (!token || token.length < 32) throw new BadRequestException('claimToken is invalid');
     return createHash('sha256').update(token).digest('hex');
+  }
+
+  private normalizeProviderKey(value?: string | null): string | null {
+    if (value === undefined || value === null || value === '') return null;
+    const key = value.trim().toUpperCase();
+    if (!/^[A-Z0-9_.:-]{1,80}$/.test(key)) {
+      throw new BadRequestException('providerKey is invalid');
+    }
+    return key;
+  }
+
+  private normalizeRecipientHash(value?: string | null): string | null {
+    if (value === undefined || value === null || value === '') return null;
+    const hash = value.trim().toLowerCase();
+    if (!/^[a-f0-9]{64}$/.test(hash)) {
+      throw new BadRequestException('recipientHash is invalid');
+    }
+    return hash;
   }
 
   private normalizeLimit(value?: number): number {
