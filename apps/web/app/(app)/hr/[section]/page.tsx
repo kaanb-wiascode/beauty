@@ -250,7 +250,7 @@ export default function HRSection() {
             title={edit ? "Kaydı Güncelle" : "Yeni Kayıt"}
             description="Alanları doldurun ve kaydedin. Hassas personel ve bordro verileri yalnız yetkili İK rollerince görüntülenmelidir."
           >
-            <FormGrid columns={4}>
+            <FormGrid columns={3} className="xl:grid-cols-4">
               {config.fields.map((field) => (
                 <DynamicField
                   key={field}
