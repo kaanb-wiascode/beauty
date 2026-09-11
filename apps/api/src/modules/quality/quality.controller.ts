@@ -3,6 +3,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
 import { QualityService } from './quality.service';
 
 @Controller('quality')
@@ -31,6 +32,7 @@ export class QualityController {
 
   @Post('feedback/:id/escalate')
   @RequirePermission('quality','manage')
+  @UseGuards(QualityAssigneeScopeGuard)
   escalate(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
     return this.quality.escalateFeedback(id,this.userId(req),{category:b.category,severity,title:b.title,assignedUserId:b.assignedUserId??null,slaDueAt:b.slaDueAt??null});
@@ -48,6 +50,7 @@ export class QualityController {
 
   @Post('cases')
   @RequirePermission('quality','manage')
+  @UseGuards(QualityAssigneeScopeGuard)
   createCase(@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const sourceType=['FEEDBACK','CARE_EVENT','MANUAL','INCIDENT'].includes(b.sourceType)?b.sourceType:'MANUAL';
     const severity=['LOW','MEDIUM','HIGH','CRITICAL'].includes(b.severity)?b.severity:'MEDIUM';
@@ -56,6 +59,7 @@ export class QualityController {
 
   @Post('cases/:id/assign')
   @RequirePermission('quality','manage')
+  @UseGuards(QualityAssigneeScopeGuard)
   assign(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.quality.assign(id,b.assignedUserId??null,this.userId(req),b.note);}
 
   @Post('cases/:id/transition')
