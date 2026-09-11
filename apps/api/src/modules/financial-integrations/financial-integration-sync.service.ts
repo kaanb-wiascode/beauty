@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { IntegrationSecretVaultService } from './integration-secret-vault.service';
@@ -25,9 +30,12 @@ interface OpenBankingPages {
   nextSyncCursor?: string;
 }
 
+type SyncInvocation = 'MANUAL' | 'SCHEDULER';
+
 @Injectable()
 export class FinancialIntegrationSyncService {
   private static readonly MAX_PROVIDER_PAGES = 100;
+  private static readonly STALE_SYNC_MINUTES = 30;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -46,6 +54,65 @@ export class FinancialIntegrationSyncService {
     };
   }
 
+  private async claimSync(
+    integrationId: string,
+    scope: IntegrationScope | undefined,
+    invocation: SyncInvocation,
+  ) {
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",
+                kind,provider,status,auth_type AS "authType",last_sync_at AS "lastSyncAt",metadata
+         FROM finance_integrations
+         WHERE id=$1::text
+           AND ($2::text IS NULL OR tenant_id=$2::text)
+           AND ($3::text IS NULL OR company_id=$3::text)
+           AND ($4::text IS NULL OR branch_id=$4::text)
+         LIMIT 1
+         FOR UPDATE`,
+        integrationId,
+        scope?.tenantId ?? null,
+        scope?.companyId ?? null,
+        scope?.branchId ?? null,
+      );
+      if (!rows.length) throw new NotFoundException('Financial integration not found.');
+      const integration = rows[0];
+      if (integration.status !== 'CONNECTED') {
+        throw new BadRequestException('Only connected integrations can be synchronized.');
+      }
+
+      await tx.$executeRawUnsafe(
+        `UPDATE finance_integration_sync_runs
+         SET status='FAILED',completed_at=NOW(),
+             error_message=COALESCE(error_message,'STALE_SYNC_RUN_RECOVERED')
+         WHERE integration_id=$1::text AND status='RUNNING'
+           AND started_at < NOW()-($2::int * INTERVAL '1 minute')`,
+        integrationId,
+        FinancialIntegrationSyncService.STALE_SYNC_MINUTES,
+      );
+
+      const active = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM finance_integration_sync_runs
+         WHERE integration_id=$1::text AND status='RUNNING'
+         ORDER BY started_at DESC LIMIT 1`,
+        integrationId,
+      );
+      if (active.length) {
+        if (invocation === 'SCHEDULER') return null;
+        throw new ConflictException('A synchronization is already running for this integration.');
+      }
+
+      const runId = randomUUID();
+      await tx.$executeRawUnsafe(
+        `INSERT INTO finance_integration_sync_runs(id,integration_id,sync_type,status)
+         VALUES($1::text,$2::text,'FULL','RUNNING')`,
+        runId,
+        integrationId,
+      );
+      return { integration, runId };
+    });
+  }
+
   private async ensureFreshTokens(
     integrationId: string,
     adapter: FinancialProviderAdapter,
@@ -62,7 +129,8 @@ export class FinancialIntegrationSyncService {
       throw new BadRequestException('Open Banking consent has expired and must be renewed.');
     }
 
-    const expiresSoon = tokens.expiresAt && tokens.expiresAt.getTime() <= now + 2 * 60 * 1000;
+    const expiresSoon =
+      tokens.expiresAt && tokens.expiresAt.getTime() <= now + 2 * 60 * 1000;
     if (!expiresSoon) return tokens;
     if (!tokens.refreshToken || !adapter.refreshTokens) {
       await this.prisma.$executeRawUnsafe(
@@ -71,18 +139,23 @@ export class FinancialIntegrationSyncService {
          WHERE id=$1::text`,
         integrationId,
       );
-      throw new BadRequestException('Open Banking access token has expired and cannot be refreshed automatically.');
+      throw new BadRequestException(
+        'Open Banking access token has expired and cannot be refreshed automatically.',
+      );
     }
 
     const refreshed = await adapter.refreshTokens(tokens);
     if (!refreshed.accessToken) {
-      throw new BadRequestException('Open Banking provider returned an invalid refreshed token set.');
+      throw new BadRequestException(
+        'Open Banking provider returned an invalid refreshed token set.',
+      );
     }
     const merged: ProviderTokenSet = {
       ...tokens,
       ...refreshed,
       refreshToken: refreshed.refreshToken ?? tokens.refreshToken,
-      externalConnectionId: refreshed.externalConnectionId ?? tokens.externalConnectionId,
+      externalConnectionId:
+        refreshed.externalConnectionId ?? tokens.externalConnectionId,
       consentExpiresAt: refreshed.consentExpiresAt ?? tokens.consentExpiresAt,
       metadata: { ...(tokens.metadata ?? {}), ...(refreshed.metadata ?? {}) },
     };
@@ -103,28 +176,41 @@ export class FinancialIntegrationSyncService {
     integration: any,
     adapter: FinancialProviderAdapter,
   ): Promise<ProviderTokenSet> {
-    if (integration.kind === 'OPEN_BANKING' && integration.authType === 'API_KEY') {
+    if (
+      integration.kind === 'OPEN_BANKING' &&
+      integration.authType === 'API_KEY'
+    ) {
       if (!adapter.authenticateCredentials) {
-        throw new BadRequestException('Open Banking provider does not support credential-token authentication.');
+        throw new BadRequestException(
+          'Open Banking provider does not support credential-token authentication.',
+        );
       }
       const credentials = await this.vault.loadOpaque(integration.id);
-      if (!credentials) throw new BadRequestException('Integration credentials are missing.');
+      if (!credentials) {
+        throw new BadRequestException('Integration credentials are missing.');
+      }
       const tokens = await adapter.authenticateCredentials(credentials);
       if (!tokens.accessToken) {
-        throw new BadRequestException('Open Banking provider returned an invalid authentication response.');
+        throw new BadRequestException(
+          'Open Banking provider returned an invalid authentication response.',
+        );
       }
       return tokens;
     }
 
     const storedTokens = await this.vault.load(integration.id);
-    if (!storedTokens) throw new BadRequestException('Integration credentials are missing.');
+    if (!storedTokens) {
+      throw new BadRequestException('Integration credentials are missing.');
+    }
     return integration.kind === 'OPEN_BANKING'
       ? this.ensureFreshTokens(integration.id, adapter, storedTokens)
       : storedTokens;
   }
 
   private metadataSyncCursor(metadata: unknown) {
-    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) return undefined;
+    if (!metadata || typeof metadata !== 'object' || Array.isArray(metadata)) {
+      return undefined;
+    }
     const value = (metadata as Record<string, unknown>).bankTransactionSyncCursor;
     return typeof value === 'string' && value.trim() ? value.trim() : undefined;
   }
@@ -141,92 +227,111 @@ export class FinancialIntegrationSyncService {
     if (adapter.listBankAccountPage) {
       let pageCursor: string | undefined;
       const seenCursors = new Set<string>();
-      for (let page = 0; page < FinancialIntegrationSyncService.MAX_PROVIDER_PAGES; page += 1) {
+      for (
+        let page = 0;
+        page < FinancialIntegrationSyncService.MAX_PROVIDER_PAGES;
+        page += 1
+      ) {
         const result = await adapter.listBankAccountPage(tokens, { pageCursor });
         accounts.push(...result.items);
         if (!result.nextPageCursor) break;
         if (seenCursors.has(result.nextPageCursor)) {
-          throw new BadRequestException('Open Banking provider returned a repeating account page cursor.');
+          throw new BadRequestException(
+            'Open Banking provider returned a repeating account page cursor.',
+          );
         }
         seenCursors.add(result.nextPageCursor);
         pageCursor = result.nextPageCursor;
         if (page === FinancialIntegrationSyncService.MAX_PROVIDER_PAGES - 1) {
-          throw new BadRequestException('Open Banking account pagination exceeded the safety limit.');
+          throw new BadRequestException(
+            'Open Banking account pagination exceeded the safety limit.',
+          );
         }
       }
     } else if (adapter.listBankAccounts) {
-      accounts.push(...await adapter.listBankAccounts(tokens));
+      accounts.push(...(await adapter.listBankAccounts(tokens)));
     } else {
-      throw new BadRequestException('Provider does not support bank account synchronization.');
+      throw new BadRequestException(
+        'Provider does not support bank account synchronization.',
+      );
     }
 
     let nextSyncCursor: string | undefined;
     if (adapter.listBankTransactionPage) {
       let pageCursor: string | undefined;
       const seenCursors = new Set<string>();
-      for (let page = 0; page < FinancialIntegrationSyncService.MAX_PROVIDER_PAGES; page += 1) {
-        const result = await adapter.listBankTransactionPage(tokens, { since, pageCursor, syncCursor });
+      for (
+        let page = 0;
+        page < FinancialIntegrationSyncService.MAX_PROVIDER_PAGES;
+        page += 1
+      ) {
+        const result = await adapter.listBankTransactionPage(tokens, {
+          since,
+          pageCursor,
+          syncCursor,
+        });
         transactions.push(...result.items);
         nextSyncCursor = result.nextSyncCursor ?? nextSyncCursor;
         if (!result.nextPageCursor) break;
         if (seenCursors.has(result.nextPageCursor)) {
-          throw new BadRequestException('Open Banking provider returned a repeating transaction page cursor.');
+          throw new BadRequestException(
+            'Open Banking provider returned a repeating transaction page cursor.',
+          );
         }
         seenCursors.add(result.nextPageCursor);
         pageCursor = result.nextPageCursor;
         if (page === FinancialIntegrationSyncService.MAX_PROVIDER_PAGES - 1) {
-          throw new BadRequestException('Open Banking transaction pagination exceeded the safety limit.');
+          throw new BadRequestException(
+            'Open Banking transaction pagination exceeded the safety limit.',
+          );
         }
       }
     } else if (adapter.listBankTransactions) {
-      transactions.push(...await adapter.listBankTransactions(tokens, since));
+      transactions.push(...(await adapter.listBankTransactions(tokens, since)));
     }
 
     return { accounts, transactions, nextSyncCursor };
   }
 
   async syncIntegration(integrationId: string) {
-    return this.syncIntegrationInternal(integrationId, this.context());
+    return this.syncIntegrationInternal(
+      integrationId,
+      this.context(),
+      'MANUAL',
+    );
   }
 
-  private async syncIntegrationInternal(integrationId: string, scope?: IntegrationScope) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",
-              kind,provider,status,auth_type AS "authType",last_sync_at AS "lastSyncAt",metadata
-       FROM finance_integrations
-       WHERE id=$1::text
-         AND ($2::text IS NULL OR tenant_id=$2::text)
-         AND ($3::text IS NULL OR company_id=$3::text)
-         AND ($4::text IS NULL OR branch_id=$4::text)
-       LIMIT 1`,
-      integrationId,
-      scope?.tenantId ?? null,
-      scope?.companyId ?? null,
-      scope?.branchId ?? null,
-    );
-    if (!rows.length) throw new NotFoundException('Financial integration not found.');
-    const integration = rows[0];
-    if (integration.status !== 'CONNECTED') {
-      throw new BadRequestException('Only connected integrations can be synchronized.');
+  private async syncIntegrationInternal(
+    integrationId: string,
+    scope?: IntegrationScope,
+    invocation: SyncInvocation = 'MANUAL',
+  ) {
+    const claim = await this.claimSync(integrationId, scope, invocation);
+    if (!claim) {
+      return {
+        integrationId,
+        recordsSynced: 0,
+        linkedPayments: 0,
+        unresolvedPaymentLinks: 0,
+        reconciledSettlements: 0,
+        unresolvedSettlements: 0,
+        status: 'SKIPPED' as const,
+        skipReason: 'SYNC_ALREADY_RUNNING' as const,
+      };
     }
-    const adapter = this.providers.get(integration.kind, integration.provider);
-    const tokens = await this.resolveTokens(integration, adapter);
 
-    const runId = randomUUID();
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO finance_integration_sync_runs(id,integration_id,sync_type,status)
-       VALUES($1::text,$2::text,'FULL','RUNNING')`,
-      runId,
-      integrationId,
-    );
-
+    const { integration, runId } = claim;
     let records = 0;
     let linkedPayments = 0;
     let unresolvedPaymentLinks = 0;
     let reconciledSettlements = 0;
     let unresolvedSettlements = 0;
     let nextBankSyncCursor: string | undefined;
+
     try {
+      const adapter = this.providers.get(integration.kind, integration.provider);
+      const tokens = await this.resolveTokens(integration, adapter);
+
       if (integration.kind === 'OPEN_BANKING') {
         const providerData = await this.collectOpenBankingPages(
           adapter,
@@ -236,7 +341,11 @@ export class FinancialIntegrationSyncService {
         );
         nextBankSyncCursor = providerData.nextSyncCursor;
 
-        const seenAccountIds = Array.from(new Set(providerData.accounts.map((account) => account.externalAccountId)));
+        const seenAccountIds = Array.from(
+          new Set(
+            providerData.accounts.map((account) => account.externalAccountId),
+          ),
+        );
         for (const account of providerData.accounts) {
           await this.prisma.$executeRawUnsafe(
             `INSERT INTO bank_accounts(
@@ -279,7 +388,9 @@ export class FinancialIntegrationSyncService {
         );
 
         for (const transaction of providerData.transactions) {
-          const accountRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          const accountRows = await this.prisma.$queryRawUnsafe<
+            Array<{ id: string }>
+          >(
             `SELECT id FROM bank_accounts
              WHERE integration_id=$1::text AND external_account_id=$2
                AND tenant_id=$3::text AND company_id=$4::text
@@ -329,9 +440,13 @@ export class FinancialIntegrationSyncService {
 
       if (integration.kind === 'VIRTUAL_POS') {
         if (!adapter.listPosTransactions) {
-          throw new BadRequestException('Provider does not support POS transaction synchronization.');
+          throw new BadRequestException(
+            'Provider does not support POS transaction synchronization.',
+          );
         }
-        const terminalRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        const terminalRows = await this.prisma.$queryRawUnsafe<
+          Array<{ id: string }>
+        >(
           `SELECT id FROM pos_terminals
            WHERE integration_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
              AND ($4::text IS NULL OR branch_id=$4::text) AND active=TRUE
@@ -360,7 +475,9 @@ export class FinancialIntegrationSyncService {
           integration.lastSyncAt ? new Date(integration.lastSyncAt) : undefined,
         );
         for (const transaction of transactions) {
-          const posRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          const posRows = await this.prisma.$queryRawUnsafe<
+            Array<{ id: string }>
+          >(
             `INSERT INTO pos_transactions(
                id,tenant_id,company_id,branch_id,terminal_id,provider_transaction_id,status,amount,
                fee_amount,net_amount,currency,expected_settlement_at,created_at,updated_at
@@ -387,7 +504,11 @@ export class FinancialIntegrationSyncService {
           records += 1;
 
           const posTransactionId = posRows[0]?.id;
-          if (posTransactionId && integration.branchId && ['AUTHORIZED', 'CAPTURED'].includes(transaction.status)) {
+          if (
+            posTransactionId &&
+            integration.branchId &&
+            ['AUTHORIZED', 'CAPTURED'].includes(transaction.status)
+          ) {
             const link = await this.paymentLinkage.autoLinkOneInScope(
               {
                 tenantId: integration.tenantId,
@@ -427,10 +548,11 @@ export class FinancialIntegrationSyncService {
         unresolvedPaymentLinks,
         reconciledSettlements,
         unresolvedSettlements,
-        status: 'SUCCESS',
+        status: 'SUCCESS' as const,
       };
     } catch (error) {
-      const message = error instanceof Error ? error.message : 'Unknown integration sync error';
+      const message =
+        error instanceof Error ? error.message : 'Unknown integration sync error';
       await this.prisma.$transaction([
         this.prisma.$executeRawUnsafe(
           `UPDATE finance_integrations SET last_error=$2,updated_at=NOW() WHERE id=$1::text`,
@@ -456,6 +578,7 @@ export class FinancialIntegrationSyncService {
     const results: Array<{
       integrationId: string;
       ok: boolean;
+      skipped?: boolean;
       records?: number;
       linkedPayments?: number;
       unresolvedPaymentLinks?: number;
@@ -465,10 +588,15 @@ export class FinancialIntegrationSyncService {
     }> = [];
     for (const row of rows) {
       try {
-        const result = await this.syncIntegrationInternal(row.id);
+        const result = await this.syncIntegrationInternal(
+          row.id,
+          undefined,
+          'SCHEDULER',
+        );
         results.push({
           integrationId: row.id,
           ok: true,
+          skipped: result.status === 'SKIPPED',
           records: result.recordsSynced,
           linkedPayments: result.linkedPayments,
           unresolvedPaymentLinks: result.unresolvedPaymentLinks,
