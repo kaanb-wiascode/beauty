@@ -1,34 +1,39 @@
 :root {
-  /* Beauty ERP — light, purple + green visual language */
-  --background: #f7f7fb;
-  --foreground: #302b3f;
-  --muted: #756f82;
-  --muted-soft: #a39eaf;
-  --line: #e9e5f0;
-  --line-strong: #dcd6e7;
-  --accent: #7456e8;
-  --accent-strong: #6442d8;
-  --accent-soft: #f0ebff;
-  --secondary: #16a579;
-  --secondary-strong: #0d8c65;
-  --secondary-soft: #e8f8f1;
-  --success: #16a579;
-  --success-soft: #e8f8f1;
-  --warning: #c07a28;
+  /* VALOO — light enterprise beauty-tech visual language */
+  --brand-primary: #1674bd;
+  --brand-primary-hover: #0b5fa9;
+  --brand-accent: #51cfe0;
+  --brand-gradient-start: #55d4e1;
+  --brand-gradient-end: #0551b0;
+  --background: #f7fafc;
+  --foreground: #17212b;
+  --muted: #667482;
+  --muted-soft: #8a98a5;
+  --line: #dfe7ed;
+  --line-strong: #c9d6e0;
+  --accent: #1674bd;
+  --accent-strong: #0b5fa9;
+  --accent-soft: #eaf5fb;
+  --secondary: #178a61;
+  --secondary-strong: #0f714f;
+  --secondary-soft: #eaf7f1;
+  --success: #178a61;
+  --success-soft: #eaf7f1;
+  --warning: #b66f24;
   --warning-soft: #fff5e8;
-  --info: #6f63b8;
-  --info-soft: #f0edff;
-  --danger: #c45c70;
+  --info: #1674bd;
+  --info-soft: #eaf5fb;
+  --danger: #c45167;
   --danger-soft: #fff0f3;
   --surface: #ffffff;
-  --surface-2: #fbfaff;
-  --glass: rgba(255, 255, 255, 0.90);
+  --surface-2: #f1f6fa;
+  --glass: rgba(255, 255, 255, 0.9);
   --glass-elevated: rgba(255, 255, 255, 0.96);
   --glass-solid: #ffffff;
-  --ink: #302b3f;
-  --shadow-soft: 0 1px 2px rgba(72, 54, 104, 0.025), 0 10px 28px rgba(72, 54, 104, 0.055);
-  --shadow-lift: 0 12px 32px rgba(72, 54, 104, 0.085), 0 2px 8px rgba(72, 54, 104, 0.035);
-  --focus-ring: rgba(116, 86, 232, 0.22);
+  --ink: #17212b;
+  --shadow-soft: 0 1px 2px rgba(17, 70, 104, 0.025), 0 10px 28px rgba(17, 70, 104, 0.055);
+  --shadow-lift: 0 12px 32px rgba(17, 70, 104, 0.085), 0 2px 8px rgba(17, 70, 104, 0.035);
+  --focus-ring: rgba(22, 116, 189, 0.22);
   --radius-control: 13px;
   --radius-card: 20px;
   --motion-fast: 150ms;
@@ -43,8 +48,8 @@ body {
 
 body::before {
   background:
-    radial-gradient(48% 34% at 92% -4%, rgba(221, 212, 255, 0.70), transparent 70%),
-    radial-gradient(42% 34% at 3% 100%, rgba(205, 244, 230, 0.60), transparent 72%) !important;
+    radial-gradient(48% 34% at 92% -4%, rgba(85, 212, 225, 0.22), transparent 70%),
+    radial-gradient(42% 34% at 3% 100%, rgba(5, 81, 176, 0.1), transparent 72%) !important;
 }
 
 :focus-visible {
@@ -60,14 +65,14 @@ body::before {
   color: var(--ink) !important;
 }
 
-/* Beauty UI primitive overrides. Existing screens can keep their Tailwind classes while the visual system stays centralized. */
+/* Shared UI primitive overrides. Existing screens can keep their Tailwind classes while the visual system stays centralized. */
 .control {
   min-height: 42px;
   border-color: var(--line);
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
-  box-shadow: 0 1px 2px rgba(72, 54, 104, 0.025);
+  box-shadow: 0 1px 2px rgba(17, 70, 104, 0.025);
 }
 
 .control:hover:not(:disabled) {
@@ -76,7 +81,7 @@ body::before {
 }
 
 .control:focus {
-  border-color: rgba(116, 86, 232, 0.48);
+  border-color: rgba(22, 116, 189, 0.48);
   box-shadow: 0 0 0 4px var(--accent-soft);
 }
 
@@ -87,13 +92,13 @@ body::before {
 /* Primary / secondary / ghost / danger buttons from the shared Button primitive. */
 button[class~="bg-[#F3F1EE]"] {
   border-color: var(--accent) !important;
-  background: linear-gradient(135deg, var(--accent), #8b6af1) !important;
+  background: linear-gradient(135deg, var(--brand-gradient-start), var(--accent), var(--brand-gradient-end)) !important;
   color: #fff !important;
-  box-shadow: 0 7px 18px rgba(116, 86, 232, 0.16) !important;
+  box-shadow: 0 7px 18px rgba(22, 116, 189, 0.16) !important;
 }
 
 button[class~="bg-[#F3F1EE]"]:hover:not(:disabled) {
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
+  background: linear-gradient(135deg, var(--accent), var(--brand-gradient-end)) !important;
   transform: translateY(-1px);
 }
 
@@ -101,11 +106,11 @@ button[class~="bg-white/70"] {
   border: 1px solid var(--line);
   color: var(--ink);
   background: rgba(255, 255, 255, 0.88);
-  box-shadow: 0 1px 3px rgba(72, 54, 104, 0.035);
+  box-shadow: 0 1px 3px rgba(17, 70, 104, 0.035);
 }
 
 button[class~="bg-white/70"]:hover:not(:disabled) {
-  border-color: #d7d0e5;
+  border-color: var(--line-strong);
   background: #fff;
   color: var(--accent);
 }
@@ -119,7 +124,7 @@ button[class~="hover:bg-black/[0.04]"]:hover:not(:disabled) {
   color: var(--accent) !important;
 }
 
-/* Keep danger actions visibly distinct without introducing black. */
+/* Keep danger actions visibly distinct. */
 button[class~="text-[#8f3d3d]"] {
   color: var(--danger) !important;
 }
@@ -134,16 +139,16 @@ label > span:first-child {
   color: var(--muted);
 }
 
-/* Dashboard: replace the old monochrome treatment with Beauty purple/green. */
+/* Dashboard: map legacy selectors onto the VALOO cyan/blue language. */
 .dashboard-primary-action {
   border-color: var(--accent) !important;
-  background: linear-gradient(135deg, var(--accent), #8b6af1) !important;
+  background: linear-gradient(135deg, var(--brand-gradient-start), var(--accent), var(--brand-gradient-end)) !important;
   color: #fff !important;
-  box-shadow: 0 7px 18px rgba(116, 86, 232, 0.20) !important;
+  box-shadow: 0 7px 18px rgba(22, 116, 189, 0.2) !important;
 }
 
 .dashboard-primary-action:hover {
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
+  background: linear-gradient(135deg, var(--accent), var(--brand-gradient-end)) !important;
 }
 
 .dashboard-icon-button:hover,
@@ -171,7 +176,7 @@ label > span:first-child {
 
 .trend-mini.success {
   background: var(--secondary-soft) !important;
-  border-color: #d5f0e4 !important;
+  border-color: #d5eee3 !important;
 }
 
 .metric-icon.info,
@@ -201,9 +206,9 @@ label > span:first-child {
   color: var(--muted) !important;
 }
 
-/* Existing Tailwind surfaces used by the shell. */
+/* Existing Tailwind surfaces used by the shell. Legacy purple classes resolve to VALOO tokens. */
 .bg-\[\#f2edff\] { background: var(--accent-soft) !important; }
-.bg-\[\#ebe5ff\] { background: #e7defe !important; }
+.bg-\[\#ebe5ff\] { background: #dff3fb !important; }
 .bg-\[\#eee8ff\] { background: var(--accent-soft) !important; }
 .text-\[\#7657e8\] { color: var(--accent) !important; }
 .text-\[\#242332\],
@@ -222,7 +227,7 @@ label > span:first-child {
   background: var(--accent-soft) !important;
 }
 
-/* Status badges stay semantic: green = positive, purple = informational, pink/red = destructive. */
+/* Status badges stay semantic: green = positive, blue = informational, pink/red = destructive. */
 span[class~="bg-[rgba(47,122,86,0.10)]"] {
   color: var(--secondary) !important;
   background: var(--secondary-soft) !important;
@@ -230,12 +235,12 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] {
 
 /* Remove remaining monochrome utility surfaces from shared UI primitives. */
 .bg-black\/\[0\.04\] { background: var(--accent-soft) !important; }
-.bg-black\/25 { background: rgba(48, 43, 63, 0.24) !important; }
+.bg-black\/25 { background: rgba(23, 33, 43, 0.24) !important; }
 .text-\[var\(--ink\)\] { color: var(--ink) !important; }
 
 /* Modal / dialog */
 .fixed.inset-0.z-\[100\] {
-  background: rgba(48, 43, 63, 0.24) !important;
+  background: rgba(23, 33, 43, 0.24) !important;
   backdrop-filter: blur(6px);
   -webkit-backdrop-filter: blur(6px);
 }
@@ -243,35 +248,35 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] {
 .fixed.inset-0.z-\[100\] > div {
   border-color: var(--line) !important;
   border-radius: 24px;
-  box-shadow: 0 28px 90px rgba(72, 54, 104, 0.18) !important;
+  box-shadow: 0 28px 90px rgba(17, 70, 104, 0.18) !important;
 }
 
 /* Toast / alerts */
 [role="alert"] {
   border: 1px solid var(--line);
-  box-shadow: 0 8px 24px rgba(72, 54, 104, 0.055);
+  box-shadow: 0 8px 24px rgba(17, 70, 104, 0.055);
 }
 
 /* Tables */
 .data-table thead th {
   color: var(--muted);
-  background: #fcfbfe;
+  background: #f7fafc;
 }
 
 .data-table tbody tr:hover {
-  background: #faf8ff !important;
+  background: #f1f6fa !important;
 }
 
 /* Empty states and loading states */
 [role="status"] span[aria-hidden="true"] {
-  border-color: rgba(116, 86, 232, 0.14) !important;
+  border-color: rgba(22, 116, 189, 0.14) !important;
   border-top-color: var(--accent) !important;
 }
 
-/* Tooltip should be dark-purple rather than black. */
+/* Tooltip uses VALOO ink rather than pure black. */
 [role="tooltip"] {
   background: var(--ink) !important;
-  box-shadow: 0 8px 22px rgba(72, 54, 104, 0.16) !important;
+  box-shadow: 0 8px 22px rgba(17, 70, 104, 0.16) !important;
 }
 
 /* Keep the mobile/desktop shell airy and light. */
@@ -294,15 +299,15 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] {
   background: var(--surface) !important;
 }
 
-/* Brand mark: purple-to-green signature. */
+/* Legacy brand-mark selector mapped to the VALOO gradient. */
 .bg-gradient-to-br.from-\[\#b995ff\] {
-  background-image: linear-gradient(135deg, #9b7af3, var(--accent), var(--secondary)) !important;
+  background-image: linear-gradient(135deg, var(--brand-gradient-start), var(--accent), var(--brand-gradient-end)) !important;
 }
 
 @media (max-width: 767px) {
   body::before {
     background:
-      radial-gradient(70% 26% at 100% 0%, rgba(221, 212, 255, 0.60), transparent 72%),
-      radial-gradient(70% 28% at 0% 100%, rgba(205, 244, 230, 0.48), transparent 72%) !important;
+      radial-gradient(70% 26% at 100% 0%, rgba(85, 212, 225, 0.2), transparent 72%),
+      radial-gradient(70% 28% at 0% 100%, rgba(5, 81, 176, 0.08), transparent 72%) !important;
   }
 }
