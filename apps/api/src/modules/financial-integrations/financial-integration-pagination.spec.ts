@@ -3,23 +3,38 @@ import { FinancialIntegrationSyncService } from './financial-integration-sync.se
 
 describe('FinancialIntegrationSyncService paged open banking', () => {
   function createService(adapter: Record<string, any>, query?: jest.Mock) {
-    const queryMock = query ?? jest.fn().mockResolvedValueOnce([{
-      id: 'integration-bank',
-      tenantId: 'tenant-a',
-      companyId: 'company-a',
-      branchId: 'branch-a',
-      kind: 'OPEN_BANKING',
-      provider: 'TESTBANK',
-      status: 'CONNECTED',
-      authType: 'OAUTH2',
-      lastSyncAt: new Date('2026-09-09T12:00:00.000Z'),
-      metadata: { bankTransactionSyncCursor: 'sync-old' },
-    }]);
+    const queryMock =
+      query ??
+      jest
+        .fn()
+        .mockResolvedValueOnce([
+          {
+            id: 'integration-bank',
+            tenantId: 'tenant-a',
+            companyId: 'company-a',
+            branchId: 'branch-a',
+            kind: 'OPEN_BANKING',
+            provider: 'TESTBANK',
+            status: 'CONNECTED',
+            authType: 'OAUTH2',
+            lastSyncAt: new Date('2026-09-09T12:00:00.000Z'),
+            metadata: { bankTransactionSyncCursor: 'sync-old' },
+          },
+        ])
+        .mockResolvedValueOnce([]);
     const execute = jest.fn().mockResolvedValue(1);
+    const transactionClient = {
+      $queryRawUnsafe: queryMock,
+      $executeRawUnsafe: execute,
+    };
     const prisma = {
       $queryRawUnsafe: queryMock,
       $executeRawUnsafe: execute,
-      $transaction: jest.fn(async (input: unknown) => input),
+      $transaction: jest.fn(async (input: unknown) =>
+        typeof input === 'function'
+          ? (input as (tx: typeof transactionClient) => unknown)(transactionClient)
+          : input,
+      ),
     } as never;
     const providers = { get: jest.fn().mockReturnValue(adapter) } as never;
     const vault = {
@@ -34,35 +49,63 @@ describe('FinancialIntegrationSyncService paged open banking', () => {
     } as never;
     const linkage = { autoLinkOneInScope: jest.fn() } as never;
     const reconciliation = {
-      autoMatchInScope: jest.fn().mockResolvedValue({ scanned: 0, matched: 0, skipped: 0 }),
+      autoMatchInScope: jest
+        .fn()
+        .mockResolvedValue({ scanned: 0, matched: 0, skipped: 0 }),
     } as never;
 
     return {
-      service: new FinancialIntegrationSyncService(prisma, providers, vault, tenant, linkage, reconciliation),
+      service: new FinancialIntegrationSyncService(
+        prisma,
+        providers,
+        vault,
+        tenant,
+        linkage,
+        reconciliation,
+      ),
       execute,
       query: queryMock,
     };
   }
 
   it('walks account pages and deactivates only accounts missing from the completed provider snapshot', async () => {
-    const listBankAccountPage = jest.fn()
+    const listBankAccountPage = jest
+      .fn()
       .mockResolvedValueOnce({
-        items: [{
-          externalAccountId: 'acc-1', bankName: 'Test Bank', accountName: 'One', currency: 'TRY',
-        }],
+        items: [
+          {
+            externalAccountId: 'acc-1',
+            bankName: 'Test Bank',
+            accountName: 'One',
+            currency: 'TRY',
+          },
+        ],
         nextPageCursor: 'page-2',
       })
       .mockResolvedValueOnce({
-        items: [{
-          externalAccountId: 'acc-2', bankName: 'Test Bank', accountName: 'Two', currency: 'USD',
-        }],
+        items: [
+          {
+            externalAccountId: 'acc-2',
+            bankName: 'Test Bank',
+            accountName: 'Two',
+            currency: 'USD',
+          },
+        ],
       });
     const { service, execute } = createService({ listBankAccountPage });
 
     await service.syncIntegration('integration-bank');
 
-    expect(listBankAccountPage).toHaveBeenNthCalledWith(1, { accessToken: 'token' }, { pageCursor: undefined });
-    expect(listBankAccountPage).toHaveBeenNthCalledWith(2, { accessToken: 'token' }, { pageCursor: 'page-2' });
+    expect(listBankAccountPage).toHaveBeenNthCalledWith(
+      1,
+      { accessToken: 'token' },
+      { pageCursor: undefined },
+    );
+    expect(listBankAccountPage).toHaveBeenNthCalledWith(
+      2,
+      { accessToken: 'token' },
+      { pageCursor: 'page-2' },
+    );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('SET active=FALSE'),
       'integration-bank',
@@ -79,7 +122,10 @@ describe('FinancialIntegrationSyncService paged open banking', () => {
       items: [],
       nextSyncCursor: 'sync-new',
     });
-    const { service, execute } = createService({ listBankAccountPage, listBankTransactionPage });
+    const { service, execute } = createService({
+      listBankAccountPage,
+      listBankTransactionPage,
+    });
 
     await service.syncIntegration('integration-bank');
 
@@ -99,13 +145,20 @@ describe('FinancialIntegrationSyncService paged open banking', () => {
   });
 
   it('fails closed on repeating provider page cursors before stale account deactivation', async () => {
-    const listBankAccountPage = jest.fn()
+    const listBankAccountPage = jest
+      .fn()
       .mockResolvedValueOnce({ items: [], nextPageCursor: 'same-page' })
       .mockResolvedValueOnce({ items: [], nextPageCursor: 'same-page' });
     const { service, execute } = createService({ listBankAccountPage });
 
-    await expect(service.syncIntegration('integration-bank')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.syncIntegration('integration-bank')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
 
-    expect(execute.mock.calls.some((call) => String(call[0]).includes('SET active=FALSE'))).toBe(false);
+    expect(
+      execute.mock.calls.some((call) =>
+        String(call[0]).includes('SET active=FALSE'),
+      ),
+    ).toBe(false);
   });
 });
