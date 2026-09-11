@@ -116,7 +116,7 @@ describe('FinancialIntegrationSyncService paged open banking', () => {
     );
   });
 
-  it('persists the provider transaction sync cursor only after a successful paged synchronization', async () => {
+  it('uses a 48-hour overlap while preserving the provider sync cursor', async () => {
     const listBankAccountPage = jest.fn().mockResolvedValue({ items: [] });
     const listBankTransactionPage = jest.fn().mockResolvedValue({
       items: [],
@@ -132,7 +132,7 @@ describe('FinancialIntegrationSyncService paged open banking', () => {
     expect(listBankTransactionPage).toHaveBeenCalledWith(
       { accessToken: 'token' },
       {
-        since: new Date('2026-09-09T12:00:00.000Z'),
+        since: new Date('2026-09-07T12:00:00.000Z'),
         pageCursor: undefined,
         syncCursor: 'sync-old',
       },
@@ -141,6 +141,49 @@ describe('FinancialIntegrationSyncService paged open banking', () => {
       expect.stringContaining('bankTransactionSyncCursor'),
       expect.any(String),
       'sync-new',
+      null,
+      48,
+    );
+  });
+
+  it('uses the persisted transaction watermark instead of a newer last-sync timestamp', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 'integration-bank',
+          tenantId: 'tenant-a',
+          companyId: 'company-a',
+          branchId: 'branch-a',
+          kind: 'OPEN_BANKING',
+          provider: 'TESTBANK',
+          status: 'CONNECTED',
+          authType: 'OAUTH2',
+          lastSyncAt: new Date('2026-09-10T12:00:00.000Z'),
+          metadata: {
+            bankTransactionSyncCursor: 'sync-old',
+            bankTransactionWatermark: '2026-09-08T06:00:00.000Z',
+          },
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    const listBankTransactionPage = jest.fn().mockResolvedValue({ items: [] });
+    const { service } = createService(
+      {
+        listBankAccountPage: jest.fn().mockResolvedValue({ items: [] }),
+        listBankTransactionPage,
+      },
+      query,
+    );
+
+    await service.syncIntegration('integration-bank');
+
+    expect(listBankTransactionPage).toHaveBeenCalledWith(
+      { accessToken: 'token' },
+      expect.objectContaining({
+        since: new Date('2026-09-06T06:00:00.000Z'),
+        syncCursor: 'sync-old',
+      }),
     );
   });
 
