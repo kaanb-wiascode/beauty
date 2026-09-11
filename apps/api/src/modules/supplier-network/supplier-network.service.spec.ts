@@ -58,6 +58,24 @@ describe('SupplierNetworkService', () => {
     );
   });
 
+  it('lists only active connections in the current tenant and company scope', async () => {
+    queryRawUnsafe.mockResolvedValueOnce([]);
+
+    await expect(service.listConnections()).resolves.toEqual([]);
+
+    expect(queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE sc.tenant_id=$1'),
+      'tenant-1',
+      'company-1',
+    );
+
+    const sql = String(queryRawUnsafe.mock.calls[0]?.[0] ?? '');
+    expect(sql).toContain("sc.company_id=$2");
+    expect(sql).toContain("sc.status='ACTIVE'");
+    expect(sql).not.toContain('tax_number');
+    expect(sql).not.toContain('legal_name');
+  });
+
   it('enforces tenant and company context when connecting an inventory supplier', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'supplier-org-1', status: 'ACTIVE' }])

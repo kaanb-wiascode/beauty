@@ -33,6 +33,25 @@ export interface ConnectInventorySupplierInput {
   inventorySupplierId: string;
 }
 
+type SupplierConnectionListRow = {
+  id: string;
+  supplierOrganizationId: string;
+  inventorySupplierId: string;
+  status: string;
+  createdAt: Date;
+  updatedAt: Date;
+  supplier: {
+    id: string;
+    slug: string;
+    displayName: string;
+    organizationType: SupplierOrganizationType;
+    verificationStatus: string;
+    website: string | null;
+    email: string | null;
+    phone: string | null;
+  };
+};
+
 @Injectable()
 export class SupplierNetworkService {
   constructor(
@@ -121,6 +140,41 @@ export class SupplierNetworkService {
     }
 
     return rows[0];
+  }
+
+  async listConnections() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+
+    return this.prisma.$queryRawUnsafe<SupplierConnectionListRow[]>(
+      `SELECT
+         sc.id,
+         sc.supplier_organization_id AS "supplierOrganizationId",
+         sc.inventory_supplier_id AS "inventorySupplierId",
+         sc.status,
+         sc.created_at AS "createdAt",
+         sc.updated_at AS "updatedAt",
+         json_build_object(
+           'id', so.id,
+           'slug', so.slug,
+           'displayName', so.display_name,
+           'organizationType', so.organization_type,
+           'verificationStatus', so.verification_status,
+           'website', so.website,
+           'email', so.email,
+           'phone', so.phone
+         ) AS supplier
+       FROM supplier_connections sc
+       JOIN supplier_organizations so
+         ON so.id=sc.supplier_organization_id
+       WHERE sc.tenant_id=$1
+         AND sc.company_id=$2
+         AND sc.status='ACTIVE'
+         AND so.status<>'ARCHIVED'
+       ORDER BY so.display_name ASC`,
+      tenantId,
+      companyId,
+    );
   }
 
   async connectInventorySupplier(input: ConnectInventorySupplierInput) {
