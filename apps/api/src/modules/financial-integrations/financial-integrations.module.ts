@@ -35,9 +35,9 @@ import { PaytrAdapter } from './providers/paytr.adapter';
 
 @Module({
   controllers: [
+    FinancialIntegrationOperationsController,
     FinancialIntegrationsController,
     FinancialIntegrationCallbackController,
-    FinancialIntegrationOperationsController,
     PosWebhookController,
   ],
   providers: [
