@@ -7,6 +7,8 @@ import { QualityEvidenceController } from './quality-evidence.controller';
 import { QualityEvidenceService } from './quality-evidence.service';
 import { QualityFeedbackRequestController } from './quality-feedback-request.controller';
 import { QualityFeedbackRequestService } from './quality-feedback-request.service';
+import { QualityInspectionCatalogController } from './quality-inspection-catalog.controller';
+import { QualityInspectionCatalogService } from './quality-inspection-catalog.service';
 import { QualityInspectionController } from './quality-inspection.controller';
 import { QualityInspectionService } from './quality-inspection.service';
 import { QualityInspectionSchedulerController } from './quality-inspection-scheduler.controller';
@@ -32,6 +34,7 @@ import { QualityService } from './quality.service';
     QualityNotificationOutboxController,
     QualityPublicFeedbackController,
     QualityInspectionController,
+    QualityInspectionCatalogController,
     QualityCapaController,
     QualityInspectionSchedulerController,
     QualityOverdueController,
@@ -48,6 +51,7 @@ import { QualityService } from './quality.service';
     QualityNotificationWebhookProvider,
     QualityPublicFeedbackService,
     QualityInspectionService,
+    QualityInspectionCatalogService,
     QualityCapaService,
     QualityInspectionSchedulerService,
     QualityOverdueService,
@@ -63,6 +67,7 @@ import { QualityService } from './quality.service';
     QualityNotificationDispatcherService,
     QualityPublicFeedbackService,
     QualityInspectionService,
+    QualityInspectionCatalogService,
     QualityCapaService,
     QualityInspectionSchedulerService,
     QualityOverdueService,
