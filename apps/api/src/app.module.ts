@@ -29,6 +29,7 @@ import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
 import { QualityModule } from './modules/quality/quality.module';
+import { TrainingModule } from './modules/training/training.module';
 
 @Module({
   imports: [
@@ -65,6 +66,7 @@ import { QualityModule } from './modules/quality/quality.module';
     MarketplaceModule,
     SupplierNetworkModule,
     QualityModule,
+    TrainingModule,
   ],
 })
 export class AppModule {}
