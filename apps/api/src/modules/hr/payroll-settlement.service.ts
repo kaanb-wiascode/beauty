@@ -69,7 +69,7 @@ export class PayrollSettlementService {
       const due=this.round(Number(type==='TAX'?totals[0]?.tax:type==='SOCIAL_SECURITY'?totals[0]?.social:totals[0]?.other));
       const priorRows=await tx.$queryRawUnsafe<any[]>(
         `SELECT COALESCE(SUM(amount),0)::numeric AS paid FROM payroll_liability_payments
-         WHERE tenant_id=$1::text AND company_id=$2::text AND period_id=$3::text AND type=$4`,tenantId,companyId,periodId,type);
+         WHERE tenant_id=$1::text AND company_id=$2::text AND period_id=$3::text AND type=$4 AND status='PAID'`,tenantId,companyId,periodId,type);
       const prior=this.round(Number(priorRows[0]?.paid??0)); const remaining=this.round(due-prior);
       if(amount>remaining+0.01) throw new BadRequestException(`Liability settlement exceeds remaining payable amount ${remaining}.`);
       const liabilityCode=type==='TAX'?'360':type==='SOCIAL_SECURITY'?'361':'369';
@@ -79,8 +79,8 @@ export class PayrollSettlementService {
       const now=new Date(); const settlementId=randomUUID();
       const entry=await tx.journalEntry.create({data:{tenantId,companyId,branchId:periods[0].branchId??null,number:this.journalNumber(now),status:'POSTED',entryDate:now,description:`Bordro yükümlülük ödemesi ${type}`,referenceType:'PAYROLL_LIABILITY_PAYMENT',referenceId:settlementId,postedAt:now,lines:{create:[{accountId:liability.id,debit:amount,credit:0,memo:type},{accountId:payment.id,debit:0,credit:amount,memo:method}]}}});
       await tx.$executeRawUnsafe(
-        `INSERT INTO payroll_liability_payments(id,tenant_id,company_id,branch_id,period_id,type,amount,method,payment_account_code,note,journal_entry_id,created_by_user_id)
-         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11::text,$12::text)`,settlementId,tenantId,companyId,periods[0].branchId??null,periodId,type,amount,method,paymentCode,note??null,entry.id,userId);
+        `INSERT INTO payroll_liability_payments(id,tenant_id,company_id,branch_id,period_id,type,amount,method,payment_account_code,note,journal_entry_id,created_by_user_id,status)
+         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11::text,$12::text,'PAID')`,settlementId,tenantId,companyId,periods[0].branchId??null,periodId,type,amount,method,paymentCode,note??null,entry.id,userId);
       return {settlementId,periodId,type,amount,remaining:this.round(remaining-amount),journalEntryId:entry.id,status:'PAID'};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
