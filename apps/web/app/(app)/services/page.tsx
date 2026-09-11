@@ -3,6 +3,14 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import {
+  DataView,
+  DataViewMeta,
+  DataViewToolbar,
+  FilterChip,
+  SearchField,
+  ToolbarSelect,
+} from "@/components/data-view";
+import {
   Alert,
   Button,
   EmptyState,
@@ -23,17 +31,17 @@ type FormState = { name: string; description: string; durationMinutes: string; p
 type Performance = { id: string; name?: string; collected: number; appointmentCount: number };
 type PerformanceResponse = Performance[] | { data?: Performance[] };
 
+type ServiceFilter = "ALL" | "ACTIVE" | "ARCHIVED";
+type ServiceSort = "default" | "appointments" | "revenue" | "price";
+
 const emptyForm: FormState = { name: "", description: "", durationMinutes: "60", price: "" };
 
-function Icon({ name, size = 20 }: { name: "grid" | "check" | "calendar" | "money" | "search" | "filter" | "sort" | "clock" | "spark" | "more" | "edit" | "arrow"; size?: number }) {
+function Icon({ name, size = 20 }: { name: "grid" | "check" | "calendar" | "money" | "clock" | "spark" | "more" | "edit" | "arrow"; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
   if (name === "grid") return <svg {...common}><rect x="4" y="4" width="6" height="6" rx="1" /><rect x="14" y="4" width="6" height="6" rx="1" /><rect x="4" y="14" width="6" height="6" rx="1" /><rect x="14" y="14" width="6" height="6" rx="1" /></svg>;
   if (name === "check") return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="m8.5 12 2.3 2.3 4.8-5" /></svg>;
   if (name === "calendar") return <svg {...common}><rect x="4" y="5.5" width="16" height="15" rx="2" /><path d="M8 3.5v4M16 3.5v4M4 10h16" /></svg>;
   if (name === "money") return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M12 7.5v9M15 9.5c-.8-.8-1.8-1.2-3-1.2-1.7 0-2.7.8-2.7 1.9 0 1.2 1 1.7 2.8 2 1.9.3 2.9.9 2.9 2.1 0 1.2-1.1 2-3 2-1.2 0-2.3-.4-3.1-1.2" /></svg>;
-  if (name === "search") return <svg {...common}><circle cx="10.8" cy="10.8" r="6.8" /><path d="m16 16 4.2 4.2" /></svg>;
-  if (name === "filter") return <svg {...common}><path d="M4 6h16M7 12h10M10 18h4" /></svg>;
-  if (name === "sort") return <svg {...common}><path d="M8 5v14M5 8l3-3 3 3M16 19V5M13 16l3 3 3-3" /></svg>;
   if (name === "clock") return <svg {...common}><circle cx="12" cy="12" r="8.5" /><path d="M12 7v5l3.2 2" /></svg>;
   if (name === "spark") return <svg {...common}><path d="m12 3 1.4 5.6L19 10l-5.6 1.4L12 17l-1.4-5.6L5 10l5.6-1.4L12 3ZM19 16l.7 2.3L22 19l-2.3.7L19 22l-.7-2.3L16 19l2.3-.7L19 16Z" /></svg>;
   if (name === "more") return <svg {...common}><circle cx="5" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="12" cy="12" r="1" fill="currentColor" stroke="none" /><circle cx="19" cy="12" r="1" fill="currentColor" stroke="none" /></svg>;
@@ -64,8 +72,8 @@ export default function ServicesPage() {
   const [performance, setPerformance] = useState<Record<string, Performance>>({});
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState<"ALL" | "ACTIVE" | "ARCHIVED">("ALL");
-  const [sort, setSort] = useState<"default" | "appointments" | "revenue" | "price">("default");
+  const [filter, setFilter] = useState<ServiceFilter>("ALL");
+  const [sort, setSort] = useState<ServiceSort>("default");
   const [totalPages, setTotalPages] = useState(1);
   const [totalCount, setTotalCount] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -103,6 +111,11 @@ export default function ServicesPage() {
     const timer = window.setTimeout(() => void load(), 180);
     return () => window.clearTimeout(timer);
   }, [load]);
+
+  function handleSearch(value: string) {
+    setSearch(value);
+    setPage(1);
+  }
 
   function openCreate() {
     if (!canCreateService) return;
@@ -172,37 +185,53 @@ export default function ServicesPage() {
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <Kpi icon="grid" label="Toplam hizmet" value={totalCount} hint="tüm hizmetler" />
-        <Kpi icon="check" label="Aktif hizmet" value={activeCount} hint={`${totalCount ? Math.round((activeCount / totalCount) * 100) : 0}% aktif`} tone="green" />
-        <Kpi icon="calendar" label="Bugünkü randevu" value={todayAppointments} hint="toplam randevu" tone="orange" />
-        <Kpi icon="money" label="Bugünkü ciro" value={money(todayRevenue)} hint="toplam gelir" tone="purple" />
+        <Kpi icon="check" label="Aktif hizmet" value={activeCount} hint="bu sayfadaki aktif" tone="green" />
+        <Kpi icon="calendar" label="Bugünkü randevu" value={todayAppointments} hint="bu sayfadaki hizmetler" tone="orange" />
+        <Kpi icon="money" label="Bugünkü ciro" value={money(todayRevenue)} hint="bu sayfadaki hizmetler" tone="purple" />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
         <main className="min-w-0 space-y-6">
-          <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-white">
-            <div className="flex flex-col gap-4 p-4 lg:flex-row lg:items-center">
-              <div className="relative min-w-0 flex-1">
-                <span className="pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 text-[#8d8984]"><Icon name="search" size={18} /></span>
-                <TextInput value={search} placeholder="Hizmet adı veya açıklama ara..." className="h-11 pl-10" onChange={(event) => { setSearch(event.target.value); setPage(1); }} />
-              </div>
-              <div className="flex gap-2">
-                <select value={filter} onChange={(event) => setFilter(event.target.value as typeof filter)} className="control h-11 min-w-[110px]">
-                  <option value="ALL">Tümü</option><option value="ACTIVE">Aktif</option><option value="ARCHIVED">Arşiv</option>
-                </select>
-                <select value={sort} onChange={(event) => setSort(event.target.value as typeof sort)} className="control h-11 min-w-[145px]">
-                  <option value="default">Varsayılan sıra</option><option value="appointments">En çok randevu</option><option value="revenue">En yüksek ciro</option><option value="price">En yüksek fiyat</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex flex-wrap items-center gap-2 border-t border-[var(--line)] px-4 py-3">
-              {(["ALL", "ACTIVE", "ARCHIVED"] as const).map((item) => (
-                <button key={item} type="button" onClick={() => setFilter(item)} className={`rounded-full px-4 py-2 text-[13px] font-medium transition-colors ${filter === item ? "bg-[#1f1f1d] text-white" : "bg-[#f7f6f4] text-[#6f6b66] hover:bg-[#eeece9]"}`}>
-                  {item === "ALL" ? "Tümü" : item === "ACTIVE" ? `Aktif ${activeCount}` : `Arşiv ${archivedCount}`}
-                </button>
-              ))}
-              <span className="ml-auto hidden items-center gap-2 text-[12px] text-[var(--muted)] sm:flex"><Icon name="filter" size={15} /> Filtrele</span>
-            </div>
-          </section>
+          <DataView>
+            <DataViewToolbar
+              search={
+                <SearchField
+                  value={search}
+                  placeholder="Hizmet adı veya açıklama ara..."
+                  aria-label="Hizmet ara"
+                  onChange={(event) => handleSearch(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Escape" && search) {
+                      handleSearch("");
+                    }
+                  }}
+                />
+              }
+              actions={
+                <ToolbarSelect
+                  value={sort}
+                  aria-label="Hizmetleri sırala"
+                  onChange={(event) => setSort(event.target.value as ServiceSort)}
+                >
+                  <option value="default">Varsayılan sıra</option>
+                  <option value="appointments">En çok randevu</option>
+                  <option value="revenue">En yüksek ciro</option>
+                  <option value="price">En yüksek fiyat</option>
+                </ToolbarSelect>
+              }
+              filters={
+                <>
+                  <FilterChip active={filter === "ALL"} count={services.length} onClick={() => setFilter("ALL")}>Tümü</FilterChip>
+                  <FilterChip active={filter === "ACTIVE"} count={activeCount} onClick={() => setFilter("ACTIVE")}>Aktif</FilterChip>
+                  <FilterChip active={filter === "ARCHIVED"} count={archivedCount} onClick={() => setFilter("ARCHIVED")}>Arşiv</FilterChip>
+                </>
+              }
+            />
+            <DataViewMeta>
+              <span>Bu sayfada {visibleServices.length} hizmet</span>
+              <span>Toplam {totalCount} hizmet · Sıralama: {sort === "default" ? "Varsayılan" : sort === "appointments" ? "Randevu" : sort === "revenue" ? "Ciro" : "Fiyat"}</span>
+            </DataViewMeta>
+          </DataView>
 
           {loading ? <Spinner label="Hizmetler yükleniyor..." /> : visibleServices.length === 0 ? (
             <section className="rounded-[24px] border border-[var(--line)] bg-white"><EmptyState title={search.trim() ? "Eşleşen hizmet yok" : "Henüz hizmet yok"} description={search.trim() ? "Arama kriterinizi değiştirerek tekrar deneyin." : "Yeni hizmet ekleyerek başlayın."} /></section>
@@ -220,7 +249,7 @@ export default function ServicesPage() {
               <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
                 <MiniHighlight icon="spark" label="En çok randevu" value={preferred[0]?.service.name ?? "—"} meta={`${preferred[0]?.stats?.appointmentCount ?? 0} randevu`} />
                 <MiniHighlight icon="money" label="En yüksek ciro" value={ranked[0]?.service.name ?? "—"} meta={money(ranked[0]?.stats?.collected ?? 0)} />
-                <MiniHighlight icon="clock" label="Ortalama süre" value={`${services.length ? Math.round(services.reduce((sum, item) => sum + item.durationMinutes, 0) / services.length) : 0} dk`} meta="tüm hizmetler" />
+                <MiniHighlight icon="clock" label="Ortalama süre" value={`${services.length ? Math.round(services.reduce((sum, item) => sum + item.durationMinutes, 0) / services.length) : 0} dk`} meta="bu sayfadaki hizmetler" />
               </div>
             </Panel>
             <RevenueMix services={services} performance={performance} />
@@ -273,11 +302,11 @@ function Panel({ title, subtitle, children }: { title: string; subtitle: string;
 
 function PerformancePanel({ ranked }: { ranked: { service: Service; stats?: Performance }[] }) {
   const max = Math.max(...ranked.map((item) => item.stats?.collected ?? 0), 1);
-  return <Panel title="Hizmet performansı" subtitle="Bugünkü ciro dağılımı"><div className="mb-4 flex gap-1.5"><span className="rounded-full bg-[#1f1f1d] px-3 py-1.5 text-[11px] font-medium text-white">Ciro</span><span className="rounded-full bg-[#f5f4f2] px-3 py-1.5 text-[11px] text-[#77716b]">Randevu</span><span className="rounded-full bg-[#f5f4f2] px-3 py-1.5 text-[11px] text-[#77716b]">Fiyat</span></div><div className="space-y-4">{ranked.length ? ranked.map((item) => <div key={item.service.id}><div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]"><span className="truncate text-[#625d57]">{item.service.name}</span><strong className="shrink-0 text-[11px] text-[var(--ink)]">{money(item.stats?.collected ?? 0)}</strong></div><div className="h-2 overflow-hidden rounded-full bg-[#efeeec]"><div className="h-full rounded-full bg-[#7569d9]" style={{ width: `${Math.max(((item.stats?.collected ?? 0) / max) * 100, 2)}%` }} /></div></div>) : <p className="py-5 text-center text-[12px] text-[var(--muted)]">Bugün henüz hizmet performansı yok.</p>}</div><button type="button" className="mt-5 flex w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--line)] py-2.5 text-[12px] font-medium text-[#55504a] hover:bg-[#faf9f7]">Tüm performansı görüntüle <Icon name="arrow" size={15} /></button></Panel>;
+  return <Panel title="Hizmet performansı" subtitle="Bugünkü ciro dağılımı"><div className="mb-4 flex gap-1.5"><span className="rounded-full bg-[#1f1f1d] px-3 py-1.5 text-[11px] font-medium text-white">Ciro</span><span className="rounded-full bg-[#f5f4f2] px-3 py-1.5 text-[11px] text-[#77716b]">Randevu</span><span className="rounded-full bg-[#f5f4f2] px-3 py-1.5 text-[11px] text-[#77716b]">Fiyat</span></div><div className="space-y-4">{ranked.length ? ranked.map((item) => <div key={item.service.id}><div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]"><span className="truncate text-[#625d57]">{item.service.name}</span><strong className="shrink-0 text-[11px] text-[var(--ink)]">{money(item.stats?.collected ?? 0)}</strong></div><div className="h-2 overflow-hidden rounded-full bg-[#efeeec]"><div className="h-full rounded-full bg-[#7569d9]" style={{ width: `${Math.max(((item.stats?.collected ?? 0) / max) * 100, 2)}%` }} /></div></div>) : <p className="py-5 text-center text-[12px] text-[var(--muted)]">Bugün henüz hizmet performansı yok.</p>}</div></Panel>;
 }
 
 function PreferredPanel({ preferred }: { preferred: { service: Service; stats?: Performance }[] }) {
-  return <Panel title="En çok tercih edilen" subtitle="Bugünkü randevu sayısına göre"><div className="space-y-3">{preferred.map((item, index) => <div key={item.service.id} className="flex items-center gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f5f2ff] text-[11px] font-semibold text-[#7569d9]">{index + 1}</span><span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#4e4944]">{item.service.name}</span><span className="shrink-0 text-[11px] text-[#8d8881]">{item.stats?.appointmentCount ?? 0} randevu</span></div>)}</div><button type="button" className="mt-5 flex w-full items-center justify-center gap-2 rounded-[12px] border border-[var(--line)] py-2.5 text-[12px] font-medium text-[#55504a] hover:bg-[#faf9f7]">Tümünü görüntüle <Icon name="arrow" size={15} /></button></Panel>;
+  return <Panel title="En çok tercih edilen" subtitle="Bugünkü randevu sayısına göre"><div className="space-y-3">{preferred.map((item, index) => <div key={item.service.id} className="flex items-center gap-3"><span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[#f5f2ff] text-[11px] font-semibold text-[#7569d9]">{index + 1}</span><span className="min-w-0 flex-1 truncate text-[12px] font-medium text-[#4e4944]">{item.service.name}</span><span className="shrink-0 text-[11px] text-[#8d8881]">{item.stats?.appointmentCount ?? 0} randevu</span></div>)}</div></Panel>;
 }
 
 function QuickPanel({ onCreate }: { onCreate: () => void }) {
