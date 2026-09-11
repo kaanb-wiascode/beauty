@@ -2,42 +2,45 @@
 
 Last updated: 2026-09-12
 
-This document is the execution roadmap for Quality Management, Branch Inspections and the future Learning/Competency bounded context. It supplements `docs/state/CURRENT-STATE.md` and `docs/roadmap/VALOO-IMPLEMENTATION-STATUS.md` and must remain aligned with the active development branch.
+This document is the execution roadmap for Quality Management, Branch Inspections and the Learning/Competency bounded context. It supplements `docs/state/CURRENT-STATE.md` and `docs/roadmap/VALOO-IMPLEMENTATION-STATUS.md` and must remain aligned with the active development branch.
 
 ## 1. Verified baseline
 
 Active branch: `feature/core-commerce-foundation`
 
-Latest verified Quality backend baseline:
+Latest verified Quality + Training backend baseline:
 
-- `19325c64218b014f30e37acb32311a25b557a44f`
-- `feat(quality): add inspection cancel and reschedule lifecycle`
-- Monorepo quality #748 — SUCCESS
+- `d7dc33080cd540bc04b574638c99590511cad2c4`
+- `test(training): fix LMS advisory lock assertion`
+- Monorepo quality #761 — SUCCESS
 
-Immediately preceding verified increments:
+Immediately preceding verified Training increments:
 
-- `ef361283ca0b3c4a3baf69eb25008cd86010c3ef` — Branch Quality Score Engine — CI #747 SUCCESS
-- `cab8436295ff1b0324f683c06e15e00b22fdfd6e` — Evidence attachment foundation — CI #746 SUCCESS
-- `286d309b106492c1046c7f5293c6624f4caa5a9c` — CAPA rework lifecycle — CI #745 SUCCESS
-- `357e36a83784068a3994b323cd9365141d46bbd5` — inspection scheduler and overdue processing; follow-up test typing fix verified by CI #744 SUCCESS
+- `6cae1eeac26d8fa53eb01abf9293950ceb96f65c` — LMS transaction typing fix
+- `e215c7631d158bdff195b5e37555bb8554612340` — LMS assessment engine foundation
+- `d2d5778bc678a100e581cf69ec032d9b97490bad` — immutable competency profile versions — CI #758 SUCCESS
+- `0b4b202992b4d8275b249835f0d287b479a3a860` — Training RBAC and assignment lifecycle — CI #757 SUCCESS
+- `ea981c06` — Quality-driven Training rule foundation — CI #753 SUCCESS
 
-Already present in the Quality bounded context:
+Verified Quality foundation includes:
 
 - customer feedback persistence/API
 - Quality Case lifecycle and audit events
 - quality permissions and assignee-scope validation
-- SLA breach processing
+- configurable SLA policy and breach processing
 - feedback-request foundation
 - notification outbox/dispatcher foundation
 - customer-facing public feedback foundation
 - Quality Management cockpit
 - Branch Inspection templates/checklists/schedules/execution
+- standard inspection catalog foundation
 - Findings and Finding → Quality Case conversion
 - CAPA lifecycle, verification/effectiveness and rework
 - scheduler/overdue processing
 - controlled evidence metadata
 - versioned Branch Quality Score policies and calculation runs
 - planned-inspection cancellation/reschedule audit lifecycle
+- recurring finding/root-cause analytics
 
 ## 2. Branch Inspection operational foundation
 
@@ -106,16 +109,15 @@ OPEN → IN_PROGRESS → VERIFICATION → EFFECTIVE → CLOSED
 
 An ineffective CAPA can return to rework and then be re-verified. Rework clears the prior verification result and preserves the transition in `quality_capa_events`.
 
-Next CAPA extensions:
+Current analytics can surface recurring finding/category/root-cause signals. Remaining CAPA extensions:
 
-- recurring root-cause analytics
-- policy-based CAPA escalation
+- policy-based CAPA escalation beyond the existing SLA policy layer
 - branch/region trend views
 - operational UI for action ownership, verification and evidence
 
 ## 5. Branch Quality Score
 
-The score is now backed by a versioned and explainable policy engine rather than a hardcoded vanity metric.
+The score is backed by a versioned and explainable policy engine rather than a hardcoded vanity metric.
 
 Implemented persistence:
 
@@ -173,45 +175,119 @@ The database stores an opaque object key and metadata such as MIME type, filenam
 
 ## 7. Education & Development / LMS bounded context
 
-Education & Development remains a separate main module, integrated with HR and Quality rather than embedded inside either domain.
+Education & Development is implemented as a separate main module integrated with HR and Quality rather than embedded inside either domain.
 
-Planned capabilities:
+### Implemented backend foundation
 
-- training catalog/program/course/assignment
-- service, sales, customer-experience, corporate and management trainings
-- exams and question banks
-- practical assessments
-- certificates and expiry
-- recurring competency reviews
-- theoretical/practical scores
-- competency matrix
-- employee/role/branch gap analysis
-- HR employee integration
-- Quality Finding/Case/CAPA driven training assignment
+- Training course catalog with service, sales, customer-experience, corporate, management, quality and other categories
+- dedicated `training.read` / `training.manage` RBAC
+- manual and Quality-rule-driven Training assignments
+- assignment lifecycle, expiry processing and assignment event audit trail
+- immutable/versioned course releases with `DRAFT → PUBLISHED → RETIRED`
+- assignment pinning to the active published course version
+- versioned lessons/content with TEXT, VIDEO, LINK and DOCUMENT content types
+- opaque document references instead of persisting public/signed URLs
+- theory exams with ordered questions, points, pass scores and maximum attempts
+- deterministic server-side grading for single-choice, multiple-choice and true/false questions
+- answer keys excluded from learner-facing published-course reads
+- practical assessments with assessor, criteria, evidence, score and pass/fail result
+- separate theory and practical evaluation requirements
+- final Training result snapshots with explicit explanation
+- database guard preventing versioned assignments from bypassing required assessment before completion
+- immutable published/retired lesson, exam and question content
+- certificate issuance for successful staff assignments
+- certificate listing and audit events
+
+Current assessment chain:
+
+```text
+Course
+  ↓
+Immutable Course Version
+  ↓
+Lessons / Content
+  ↓
+Theory Exam(s)
+  ↓
+Practical Assessment (when required)
+  ↓
+Final Result
+  ↓
+Assignment Completion
+  ↓
+Certificate
+```
+
+### Remaining LMS capabilities
+
+- learning programs / multi-course curricula
+- reusable question-bank authoring beyond course-version questions
+- lesson completion/progress tracking
+- Training calendar and scheduled classroom sessions
+- employee development plans
+- certificate renewal/revocation workflows and expiry automation
+- learner/manager LMS UI
+- Training analytics and compliance dashboards
 
 ## 8. Competency Management
 
-Target model:
+Implemented backend foundation:
 
 ```text
-Competency
+Competency Definition
   ↕
-Role / Position Requirement
+Immutable Competency Profile Version
   ↕
-Employee Competency Profile
+Employee Profile Assignment
   ↕
-Assessment / Exam / Practical Evaluation
+Assessment / Exam / Practical / Training / Quality Evidence
   ↕
 Gap
-  ↕
-Training Assignment
 ```
 
-Competency records must be time-aware and auditable. Historical competency results must not be silently overwritten when requirements or assessment methods change.
+Implemented behaviors:
+
+- company-scoped competency definitions
+- competency profiles with required levels and weights
+- immutable/versioned profile revisions
+- effective-dated staff profile assignments
+- time-aware staff competency assessments
+- assessment source types: MANUAL, EXAM, PRACTICAL, TRAINING, QUALITY
+- current competency-gap calculation from the active profile and latest assessment
+- historical profile requirements preserved rather than overwritten
+
+Remaining competency capabilities:
+
+- explicit HR position/role → competency-profile mapping
+- competency-gap → Training assignment rule engine
+- Training completion → competency assessment mapping
+- recurring review schedules
+- employee/role/branch competency analytics and UI
+
+Competency records must remain time-aware and auditable. Historical competency results and requirements must not be silently overwritten when requirements or assessment methods change.
 
 ## 9. Quality ↔ Training rule automation
 
-Examples of future configurable rules:
+### Implemented foundation
+
+The first automation layer is rule-based and explainable, not AI-driven.
+
+Implemented Quality Finding → Training rules support:
+
+- versioned rules
+- finding category filter
+- minimum severity
+- occurrence threshold
+- lookback period
+- assignment cooldown
+- BRANCH or STAFF target scope
+- tenant/company/branch isolation
+- idempotent assignment source keys
+- rationale containing rule/version/occurrence/evidence references
+- `NO_ELIGIBLE_STAFF`, cooldown and assignment-created audit events
+- no invented employee identity when a Quality signal is not linked to staff
+
+Examples still to extend into configurable rules:
 
 - repeated hygiene finding → mandatory hygiene refresher
 - repeated service-protocol failure → practical service reassessment
@@ -219,7 +295,7 @@ Examples of future configurable rules:
 - expired certificate → employee eligibility warning
 - CAPA requiring behavioral change → assigned learning path + effectiveness recheck
 
-Rules must be configurable, versioned and explainable. No hardcoded employee penalty or disciplinary decision should be derived automatically from a single quality signal.
+Rules must remain configurable, versioned and explainable. No hardcoded employee penalty or disciplinary decision should be derived automatically from a single quality signal.
 
 ## 10. Revised execution order
 
@@ -242,8 +318,9 @@ Remaining: richer inspection/evidence UI and concrete object-storage transport.
 - CAPA lifecycle
 - verification/effectiveness
 - ineffective → rework → re-verification
+- recurring finding/root-cause analytics support
 
-Remaining: root-cause analytics, policy escalation and operational UI.
+Remaining: richer policy escalation and operational UI.
 
 ### Q4 — Branch Quality Score — BACKEND ENGINE COMPLETE
 - versioned scoring policy
@@ -253,34 +330,49 @@ Remaining: root-cause analytics, policy escalation and operational UI.
 
 Remaining: scheduled calculation, additional metric sources and branch/region cockpit.
 
-### Q5 — Quality policy/catalog hardening — NEXT
+### Q5 — Quality policy/catalog hardening — SUBSTANTIALLY COMPLETE
 - configurable severity/SLA policy
-- standard versioned inspection template catalog
+- standard versioned inspection template catalog foundation
 - recurring finding/root-cause analytics
-- Quality operational UI completion
 
-### L1 — LMS foundation
-- catalog/program/course/assignment
-- exam and practical assessment
-- certificate lifecycle
+Remaining: Quality operational UI completion and broader analytical views.
 
-### L2 — Competency Management
+### L1 — LMS foundation — BACKEND FOUNDATION COMPLETE
+- catalog/course/assignment
+- immutable course versions and lessons
+- theory exams and deterministic grading
+- practical assessment
+- final result snapshot
+- certificate issuance/listing
+- dedicated Training RBAC and assignment audit lifecycle
+
+Remaining: programs, lesson-progress tracking, calendar, certificate renewal/revocation automation and LMS UI.
+
+### L2 — Competency Management — BACKEND FOUNDATION COMPLETE
 - competency definitions
-- role requirements
-- employee matrix
-- periodic assessment
+- versioned competency profiles
+- employee profile assignment
+- time-aware assessment history
+- employee competency-gap calculation
 
-### L3 — Quality ↔ Training automation
-- rule engine integration
-- automated assignments
-- effectiveness feedback loop
+Remaining: explicit HR position mapping, recurring reviews and competency analytics/UI.
+
+### L3 — Quality ↔ Training automation — FOUNDATION COMPLETE
+- versioned Quality Finding rule engine
+- explainable automated assignments
+- cooldown/idempotency/audit behavior
+
+Next: competency-gap assignment rules, Training → competency assessment integration and effectiveness feedback loop.
 
 ## 11. Architecture invariants
 
 - Tenant/company/branch boundaries remain mandatory.
 - RBAC and scope checks apply independently from workflow rules.
-- Finding, Quality Case, CAPA, inspection lifecycle and score calculations remain auditable.
+- Finding, Quality Case, CAPA, inspection lifecycle, Training assignment and score calculations remain auditable.
 - Training/competency data is not a replacement for HR identity.
-- Historical assessment and score snapshots remain immutable/auditable.
+- Published Training content is immutable; changes require a new course version.
+- Versioned Training assignments cannot be completed without a passing finalized result when assessment is required.
+- Exam answer keys remain server-side grading data and are not returned from learner-facing published reads.
+- Historical assessment, competency requirements and score snapshots remain immutable/auditable.
 - Automation may recommend/assign workflows but must not silently invent compliance facts.
 - `main` remains untouched until an explicit release/merge decision.
