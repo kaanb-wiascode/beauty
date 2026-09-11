@@ -68,6 +68,10 @@ describe('TaxService', () => {
     const sql = String(query.mock.calls[0][0]);
     expect(sql).toContain('inventory_purchase_returns');
     expect(sql).toContain("rr.status='RECEIVED'");
+    expect(sql).toContain('s."tenantId"=$1::text');
+    expect(sql).toContain('b."companyId"=$2::text');
+    expect(sql).toContain('s."branchId"=$3::text');
+    expect(sql).toContain('s."confirmedAt"');
     expect(query.mock.calls[0].slice(1, 4)).toEqual(['tenant-a', 'company-a', 'branch-a']);
   });
 
