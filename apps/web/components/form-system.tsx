@@ -142,6 +142,43 @@ export type FormStep = {
   description?: string;
 };
 
+function StepContent({
+  step,
+  index,
+  active,
+  complete,
+}: {
+  step: FormStep;
+  index: number;
+  active: boolean;
+  complete: boolean;
+}) {
+  return (
+    <>
+      <span className="flex items-center gap-2">
+        <span
+          className={cx(
+            "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold",
+            active
+              ? "bg-[var(--accent)] text-white"
+              : complete
+                ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                : "bg-white text-[var(--muted-soft)]",
+          )}
+        >
+          {complete ? "✓" : index + 1}
+        </span>
+        <span className="truncate text-[10px] font-semibold">{step.label}</span>
+      </span>
+      {step.description ? (
+        <span className="mt-1 block truncate pl-7 text-[8px] text-[var(--muted-soft)]">
+          {step.description}
+        </span>
+      ) : null}
+    </>
+  );
+}
+
 export function FormStepper({
   steps,
   current,
@@ -159,45 +196,30 @@ export function FormStepper({
       {steps.map((step, index) => {
         const active = index === current;
         const complete = index < current;
-        const Component = onStepChange ? "button" : "div";
+        const className = cx(
+          "min-w-0 rounded-[11px] px-3 py-2.5 text-left transition",
+          active
+            ? "bg-white text-[var(--ink)] shadow-sm"
+            : "text-[var(--muted)] hover:bg-white/60",
+        );
+
+        if (onStepChange) {
+          return (
+            <button
+              key={step.key}
+              type="button"
+              onClick={() => onStepChange(index)}
+              className={className}
+            >
+              <StepContent step={step} index={index} active={active} complete={complete} />
+            </button>
+          );
+        }
 
         return (
-          <Component
-            key={step.key}
-            {...(onStepChange
-              ? {
-                  type: "button" as const,
-                  onClick: () => onStepChange(index),
-                }
-              : {})}
-            className={cx(
-              "min-w-0 rounded-[11px] px-3 py-2.5 text-left transition",
-              active
-                ? "bg-white text-[var(--ink)] shadow-sm"
-                : "text-[var(--muted)] hover:bg-white/60",
-            )}
-          >
-            <span className="flex items-center gap-2">
-              <span
-                className={cx(
-                  "flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[9px] font-semibold",
-                  active
-                    ? "bg-[var(--accent)] text-white"
-                    : complete
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "bg-white text-[var(--muted-soft)]",
-                )}
-              >
-                {complete ? "✓" : index + 1}
-              </span>
-              <span className="truncate text-[10px] font-semibold">{step.label}</span>
-            </span>
-            {step.description ? (
-              <span className="mt-1 block truncate pl-7 text-[8px] text-[var(--muted-soft)]">
-                {step.description}
-              </span>
-            ) : null}
-          </Component>
+          <div key={step.key} className={className}>
+            <StepContent step={step} index={index} active={active} complete={complete} />
+          </div>
         );
       })}
     </div>
