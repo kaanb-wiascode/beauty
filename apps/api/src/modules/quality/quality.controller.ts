@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
+import { BadRequestException, Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { QualityService } from './quality.service';
@@ -51,7 +51,7 @@ export class QualityController {
   @Post('cases/:id/transition')
   transition(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
     const status=String(b.status??'');
-    if(!['INVESTIGATING','ACTION_REQUIRED','RESOLVED','CLOSED'].includes(status)) throw new Error('Invalid quality target status.');
+    if(!['INVESTIGATING','ACTION_REQUIRED','RESOLVED','CLOSED'].includes(status)) throw new BadRequestException('Invalid quality target status.');
     return this.quality.transition(id,status as 'INVESTIGATING'|'ACTION_REQUIRED'|'RESOLVED'|'CLOSED',this.userId(req),{rootCause:b.rootCause,correctiveAction:b.correctiveAction,preventiveAction:b.preventiveAction,resolution:b.resolution,customerFollowUp:b.customerFollowUp,note:b.note});
   }
 }
