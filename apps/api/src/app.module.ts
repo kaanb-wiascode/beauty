@@ -25,6 +25,7 @@ import { AccountsPayableModule } from './modules/accounts-payable/accounts-payab
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProfitabilityModule } from './modules/profitability/profitability.module';
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
+import { TaxModule } from './modules/tax/tax.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { FinancialIntegrationsModule } from './modules/financial-integrations/fi
     ProcurementModule,
     ProfitabilityModule,
     FinancialIntegrationsModule,
+    TaxModule,
   ],
 })
 export class AppModule {}
