@@ -9,6 +9,10 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 
 import { AuthService } from './auth.service';
+import {
+  AuthPublicRateLimit,
+  AuthPublicRateLimitGuard,
+} from './auth-public-rate-limit.guard';
 import { loginSchema, LoginInput } from './dto/login.dto';
 import { registerSchema, RegisterInput } from './dto/register.dto';
 import { createTenantUserSchema } from './dto/create-tenant-user.dto';
@@ -23,6 +27,7 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 @Controller('auth')
+@UseGuards(AuthPublicRateLimitGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
@@ -31,6 +36,7 @@ export class AuthController {
   ) {}
 
   @Post('register')
+  @AuthPublicRateLimit('register', 5, 600)
   async register(@Body() body: unknown) {
     const input: RegisterInput = registerSchema.parse(body);
 
@@ -52,6 +58,7 @@ export class AuthController {
   }
 
   @Post('login')
+  @AuthPublicRateLimit('login', 12, 60)
   async login(@Body() body: unknown) {
     const input: LoginInput = loginSchema.parse(body);
 
@@ -79,7 +86,9 @@ export class AuthController {
     });
 
     if (!membership) {
-      throw new UnauthorizedException('Active organization membership is missing');
+      throw new UnauthorizedException(
+        'Active organization membership is missing',
+      );
     }
 
     const branches =
@@ -127,6 +136,7 @@ export class AuthController {
   }
 
   @Post('refresh')
+  @AuthPublicRateLimit('refresh', 30, 60)
   async refresh(@Body() body: { refreshToken: string }) {
     return this.authService.refresh(body.refreshToken);
   }
