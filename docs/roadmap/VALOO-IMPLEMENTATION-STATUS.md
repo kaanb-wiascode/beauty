@@ -13,7 +13,7 @@ Do not merge/push to `main` without explicit approval.
 
 ### Marketplace
 
-Status: **Publication + public listing foundation implemented and CI-validated**
+Status: **Publication + public listing foundation + branch publication cockpit implemented and CI-validated**
 
 Implemented:
 
@@ -29,11 +29,13 @@ Implemented:
 - unpublished/missing publication does not read branch/service data
 - public response omits internal tenant/company identifiers
 - Marketplace preview/public data-leakage regression coverage
+- `/marketplace` branch publication cockpit with public-safe preview, active-service projection and guarded publish/unpublish controls
 
 Validated commits:
 
 - `bd5f8f61b3837db08590f59ce6cd9a32e04163b3` — publication workflow foundation; CI #699 SUCCESS
 - `bbe3a41db9918d31717d87318623c72cdbb6f9b6` — published public listings; CI #700 SUCCESS
+- `8ae5b05fe50534323de8fc638aac9c64f5359054` — Marketplace publication cockpit; CI #909 SUCCESS
 
 Not yet complete:
 
@@ -46,7 +48,7 @@ Not yet complete:
 
 ### Supplier Network
 
-Status: **Core identity + administration + portal auth + membership + verification foundations implemented**
+Status: **Core identity + administration + portal auth + membership + verification foundations + tenant operations cockpit implemented**
 
 Implemented:
 
@@ -65,6 +67,8 @@ Implemented:
 - supplier portal guard revalidates ACTIVE membership and ACTIVE supplier organization on every request
 - supplier portal role authorization foundation (`OWNER` / `ADMIN` / `MEMBER`)
 - Supplier isolation/admin/audit/membership/verification/portal-auth regression tests
+- `/inventory/supplier-network` tenant/company-scoped operations cockpit
+- supplier-network cockpit exposes active connections, local supplier coverage, guarded connection upsert and append-only audit history without crossing the platform-admin boundary
 
 Validated commits:
 
@@ -76,6 +80,7 @@ Validated commits:
 - `1c89973bfbb1f9b8aacc4570bccebfa09f8955b9` — SupplierVerification foundation; CI #722 SUCCESS
 - `dc9a27d2976d43ee0c8e8730305e3273be2392b9` — Supplier Portal auth foundation; CI #726 SUCCESS
 - `f7fb06100de9b1c3f7a3b018423b23361c2b1661` — audited SupplierOrganization mutations; CI #727 SUCCESS
+- `97382d15d4af2291930c5f540bfdd6db23c6db08` — tenant Supplier Network cockpit; descendant CI #909 SUCCESS
 
 Important boundary:
 
@@ -84,6 +89,7 @@ Important boundary:
 - supplier portal identity/authorization is separate from ERP tenant membership semantics.
 - verification state is not directly editable through generic organization update; it remains controlled by the verification workflow.
 - platform audit metadata intentionally does not copy raw tax-number values.
+- the tenant cockpit does not create or globally administer SupplierOrganization records.
 
 Not yet complete:
 
@@ -165,48 +171,55 @@ Not yet implemented:
 
 ## 4. Next Execution Queue
 
+### P0 — Frontend release / operations
+
+1. Reconcile the repository AppShell/navigation with the user's latest local Cursor state before adding new ecosystem navigation items.
+2. Link `/marketplace` and `/inventory/supplier-network` into the reconciled navigation without overwriting newer local UI work.
+3. Continue operational frontend coverage for Supplier administration/verification and buyer-side procurement linkage using existing governed APIs.
+4. Add focused browser/E2E coverage for critical publish/unpublish and supplier-connection workflows after route/navigation reconciliation.
+
 ### P0 — Ecosystem reliability / identity
 
-1. Supplier membership invitation / acceptance / self-service onboarding.
-2. Supplier Portal refresh/revocation session lifecycle.
-3. Verification document object-storage upload/signing.
-4. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
-5. Public/self-service supplier registration after invitation/auth boundaries are stable.
+5. Supplier membership invitation / acceptance / self-service onboarding.
+6. Supplier Portal refresh/revocation session lifecycle.
+7. Verification document object-storage upload/signing.
+8. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+9. Public/self-service supplier registration after invitation/auth boundaries are stable.
 
 ### P0-Architecture — Healthcare parallel track
 
-6. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
-7. H1 Capability registry/evaluation contract.
-8. H2 RegulatoryProfile/versioning/rule-result model.
+10. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
+11. H1 Capability registry/evaluation contract.
+12. H2 RegulatoryProfile/versioning/rule-result model.
 
 Healthcare foundations may progress incrementally but must not weaken the main tenant/RBAC boundaries.
 
 ### P1
 
-9. Marketplace availability engine.
-10. concurrency-safe Marketplace booking orchestration.
-11. Brand + CatalogProduct + ProductVariant + identifiers.
-12. SupplierOffer.
-13. RFQ + SupplierQuote.
-14. Healthcare onboarding/capability prototype after H0-H2 validation.
+13. Marketplace availability engine.
+14. concurrency-safe Marketplace booking orchestration.
+15. Brand + CatalogProduct + ProductVariant + identifiers.
+16. SupplierOffer.
+17. RFQ + SupplierQuote.
+18. Healthcare onboarding/capability prototype after H0-H2 validation.
 
 ### P2
 
-15. Procurement conversion from selected offer/quote.
-16. ConsumerAccount/reviews/favorites.
-17. online payment/deposit/no-show.
-18. smart replenishment and contract pricing.
-19. equipment/asset/service lifecycle.
-20. VALOO Clinic foundation after regulatory/security architecture is ready.
+19. Procurement conversion from selected offer/quote.
+20. ConsumerAccount/reviews/favorites.
+21. online payment/deposit/no-show.
+22. smart replenishment and contract pricing.
+23. equipment/asset/service lifecycle.
+24. VALOO Clinic foundation after regulatory/security architecture is ready.
 
 ### P3
 
-21. compliance engine extensions.
-22. logistics/EDI/API integrations.
-23. financing/leasing.
-24. supplier intelligence.
-25. AI recommendations/concierge.
-26. Hospital Ops / Healthcare Integration Hub.
+25. compliance engine extensions.
+26. logistics/EDI/API integrations.
+27. financing/leasing.
+28. supplier intelligence.
+29. AI recommendations/concierge.
+30. Hospital Ops / Healthcare Integration Hub.
 
 ## 5. Current Risk / Release Notes
 
@@ -214,14 +227,31 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 - Supplier invitation/self-service onboarding must not weaken existing user password/authentication guarantees.
 - Verification upload must store only controlled object references/metadata in the database, not raw secrets or credentials.
 - Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
-- Core VALOO ERP UI modernization is substantially complete; remaining UI work is release cleanup/reconciliation rather than a major redesign phase.
+- `/marketplace` and `/inventory/supplier-network` are CI-validated operational routes but are intentionally not wired into AppShell yet because of that reconciliation constraint.
+- Core VALOO ERP UI modernization is substantially complete; remaining UI work is operational coverage, release cleanup/reconciliation and browser-level validation rather than a major redesign phase.
 - `main` remains untouched.
 
-## 6. CI Status Rule
+## 6. Latest Frontend Checkpoint
+
+```text
+8ae5b05fe50534323de8fc638aac9c64f5359054
+feat(marketplace-ui): add publication cockpit
+
+Monorepo quality #909 — SUCCESS
+```
+
+The successful descendant contains both:
+
+- `97382d15d4af2291930c5f540bfdd6db23c6db08` — `/inventory/supplier-network`
+- `8ae5b05fe50534323de8fc638aac9c64f5359054` — `/marketplace`
+
+Quality gate passed frozen dependency install, PostgreSQL migration deployment, database/shared/API checks, API tests, API build, web lint, web typecheck and web production build.
+
+## 7. CI Status Rule
 
 Never state that an increment has passed CI unless GitHub exposes a successful workflow for the exact relevant commit or a direct descendant containing it.
 
-## 7. Status Update Template
+## 8. Status Update Template
 
 ```text
 Feature:
