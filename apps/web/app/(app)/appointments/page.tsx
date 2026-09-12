@@ -23,8 +23,9 @@ import {
   TextArea,
   TextInput,
 } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type {
   Appointment,
   AppointmentStatus,
@@ -53,7 +54,7 @@ const statusStyles: Record<AppointmentStatus, string> = {
   CONFIRMED: "border-[#cbe8ee] bg-[#eef9fb] text-[#17718a]",
   COMPLETED: "border-[#cfe2f1] bg-[#eef6fb] text-[#236b9e]",
   CANCELLED: "border-[#f1d7dc] bg-[#fff0f2] text-[#a34658]",
-  NO_SHOW: "border-[#e4ddea] bg-[#f7f2f9] text-[#725d7a]",
+  NO_SHOW: "border-[#d6e4ee] bg-[#f1f7fb] text-[#5a7184]",
 };
 
 const dotStyles: Record<AppointmentStatus, string> = {
@@ -61,7 +62,7 @@ const dotStyles: Record<AppointmentStatus, string> = {
   CONFIRMED: "bg-[#48bdd8]",
   COMPLETED: "bg-[#2484c3]",
   CANCELLED: "bg-[#ef5b70]",
-  NO_SHOW: "bg-[#8d7297]",
+  NO_SHOW: "bg-[#7696ad]",
 };
 
 function startOfDay(date: Date) {
@@ -168,6 +169,7 @@ export default function AppointmentsPage() {
   const canUpdateAppointment = hasPermission("appointments", "update");
   const canCancelAppointment = hasPermission("appointments", "cancel");
   const canCreatePayment = hasPermission("payments", "create");
+  const { showToast } = useToast();
   const searchParams = useSearchParams();
   const customerIdFromUrl = searchParams.get("customerId");
 
@@ -213,7 +215,7 @@ export default function AppointmentsPage() {
           : result.data[0]?.id ?? null,
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Randevular yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Randevular Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -231,7 +233,7 @@ export default function AppointmentsPage() {
       setStaff(staffResult.data);
       setServices(serviceResult.data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Randevu seçenekleri yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Randevu Seçenekleri Yüklenemedi.");
     } finally {
       setLoadingRefs(false);
     }
@@ -293,6 +295,10 @@ export default function AppointmentsPage() {
 
   function openCreate(initialStart?: string) {
     if (!canCreateAppointment) return;
+    if (!hasActiveBranch()) {
+      showToast("Yeni Randevu Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.", "error");
+      return;
+    }
     const next = emptyForm();
     if (customerIdFromUrl && customers.some((item) => item.id === customerIdFromUrl)) {
       next.customerId = customerIdFromUrl;
@@ -323,8 +329,12 @@ export default function AppointmentsPage() {
 
   async function saveAppointment() {
     if (editing ? !canUpdateAppointment : !canCreateAppointment) return;
+    if (!editing && !hasActiveBranch()) {
+      setError("Yeni Randevu Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.");
+      return;
+    }
     if (!form.customerId || !form.staffId || !form.serviceId || !form.startAt || !form.endAt) {
-      setError("Lütfen randevu bilgilerini tamamlayın.");
+      setError("Lütfen Randevu Bilgilerini Tamamlayın.");
       return;
     }
     setSaving(true);
@@ -360,7 +370,7 @@ export default function AppointmentsPage() {
       setEditing(null);
       await loadAppointments();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Randevu kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Randevu Kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -376,7 +386,7 @@ export default function AppointmentsPage() {
       setPendingCancel(null);
       await loadAppointments();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Randevu iptal edilemedi.");
+      setError(err instanceof ApiError ? err.message : "Randevu İptal Edilemedi.");
     } finally {
       setSaving(false);
     }
@@ -384,6 +394,10 @@ export default function AppointmentsPage() {
 
   function openPayment() {
     if (!selected || !canCreatePayment) return;
+    if (!hasActiveBranch()) {
+      showToast("Ödeme Almak İçin Önce Çalışma Kapsamından Bir Şube Seçin.", "error");
+      return;
+    }
     const service = services.find((item) => item.id === selected.serviceId);
     setPaymentAppointment(selected);
     setPaymentAmount(selected.payment?.amount ? String(selected.payment.amount) : service ? String(service.price) : "");
@@ -393,9 +407,13 @@ export default function AppointmentsPage() {
 
   async function createPayment() {
     if (!paymentAppointment || !paymentAmount || !canCreatePayment) return;
+    if (!hasActiveBranch()) {
+      setError("Ödeme Almak İçin Önce Çalışma Kapsamından Bir Şube Seçin.");
+      return;
+    }
     const amount = Number(paymentAmount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Geçerli bir ödeme tutarı girin.");
+      setError("Geçerli Bir Ödeme Tutarı Girin.");
       return;
     }
     setPaymentSaving(true);
@@ -409,7 +427,7 @@ export default function AppointmentsPage() {
       setPaymentAppointment(null);
       await loadAppointments();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Ödeme kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Ödeme Kaydedilemedi.");
     } finally {
       setPaymentSaving(false);
     }
@@ -428,7 +446,7 @@ export default function AppointmentsPage() {
         <div>
           <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-[var(--muted-soft)]">Operasyon · Takvim</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)] sm:text-[38px]">Randevular</h1>
-          <p className="mt-1 text-[14px] text-[var(--muted)]">Günlük programı, personel dağılımını ve randevu durumlarını yönetin.</p>
+          <p className="mt-1 text-[14px] text-[var(--muted)]">Günlük Programı, Personel Dağılımını Ve Randevu Durumlarını Yönetin.</p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
           <div className="flex items-center rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-1 shadow-[0_4px_18px_rgba(17,70,104,0.04)]">
@@ -440,17 +458,17 @@ export default function AppointmentsPage() {
             <Button variant="ghost" className="h-9 min-h-9 px-2.5" onClick={() => setSelectedDate(addDays(selectedDate, 1))}>›</Button>
           </div>
           <Button variant="secondary" onClick={() => setSelectedDate(startOfDay(new Date()))}>Bugün</Button>
-          {canCreateAppointment ? <Button onClick={() => openCreate()}>＋ Yeni randevu</Button> : null}
+          {canCreateAppointment ? <Button onClick={() => openCreate()}>＋ Yeni Randevu</Button> : null}
         </div>
       </div>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Toplam" value={counts.total} detail="seçili gün" icon="calendar" />
-        <Metric label="Planlanan" value={counts.waiting} detail={`${counts.confirmed} onaylı`} icon="clock" />
-        <Metric label="Tamamlanan" value={counts.completed} detail="seçili gün" icon="check" />
-        <Metric label="İptal / Gelmedi" value={counts.cancelled + counts.noShow} detail="seçili gün" icon="x" />
+        <Metric label="Toplam" value={counts.total} detail="Seçili Gün" icon="calendar" />
+        <Metric label="Planlanan" value={counts.waiting} detail={`${counts.confirmed} Onaylı`} icon="clock" />
+        <Metric label="Tamamlanan" value={counts.completed} detail="Seçili Gün" icon="check" />
+        <Metric label="İptal / Gelmedi" value={counts.cancelled + counts.noShow} detail="Seçili Gün" icon="x" />
       </div>
 
       <div className="grid min-w-0 gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -463,18 +481,18 @@ export default function AppointmentsPage() {
                 onKeyDown={(event) => {
                   if (event.key === "Escape") setSearch("");
                 }}
-                placeholder="Müşteri, hizmet veya personel ara..."
-                aria-label="Randevu ara"
+                placeholder="Müşteri, Hizmet Veya Personel Ara..."
+                aria-label="Randevu Ara"
               />
             }
             actions={
               <>
-                <ToolbarSelect value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)} aria-label="Personel filtresi">
-                  <option value="">Tüm personel</option>
+                <ToolbarSelect value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)} aria-label="Personel Filtresi">
+                  <option value="">Tüm Personel</option>
                   {staff.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}
                 </ToolbarSelect>
-                <ToolbarSelect value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} aria-label="Hizmet filtresi">
-                  <option value="">Tüm hizmetler</option>
+                <ToolbarSelect value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} aria-label="Hizmet Filtresi">
+                  <option value="">Tüm Hizmetler</option>
                   {services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </ToolbarSelect>
                 {hasFilters ? <Button variant="ghost" className="h-10 min-h-10 px-3 text-[11px]" onClick={clearFilters}>Temizle</Button> : null}
@@ -493,12 +511,12 @@ export default function AppointmentsPage() {
           />
 
           {loading ? (
-            <Spinner label="Randevular hazırlanıyor..." />
+            <Spinner label="Randevular Hazırlanıyor..." />
           ) : filteredAppointments.length === 0 ? (
             <EmptyState
-              title={hasFilters ? "Filtrelerle eşleşen randevu yok" : "Bu gün için randevu yok"}
-              description={hasFilters ? "Filtreleri temizleyerek tekrar deneyin." : "Yeni bir randevu oluşturarak günlük programı başlatın."}
-              action={canCreateAppointment ? <Button onClick={() => openCreate()}>Yeni randevu</Button> : undefined}
+              title={hasFilters ? "Filtrelerle Eşleşen Randevu Yok" : "Bu Gün İçin Randevu Yok"}
+              description={hasFilters ? "Filtreleri Temizleyerek Tekrar Deneyin." : "Yeni Bir Randevu Oluşturarak Günlük Programı Başlatın."}
+              action={canCreateAppointment ? <Button onClick={() => openCreate()}>Yeni Randevu</Button> : undefined}
             />
           ) : (
             <div className="overflow-x-auto">
@@ -574,8 +592,8 @@ export default function AppointmentsPage() {
           )}
 
           <DataViewMeta>
-            <span>{filteredAppointments.length} gösteriliyor · {appointments.length} günlük randevu</span>
-            <span className="capitalize">{formatDay(selectedDate)} · en fazla 100 kayıt</span>
+            <span>{filteredAppointments.length} Gösteriliyor · {appointments.length} Günlük Randevu</span>
+            <span className="capitalize">{formatDay(selectedDate)} · En Fazla 100 Kayıt</span>
           </DataViewMeta>
         </DataView>
 
@@ -583,7 +601,7 @@ export default function AppointmentsPage() {
           <section className="surface overflow-hidden rounded-[22px]">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Seçili randevu</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">Seçili Randevu</p>
                 {selected ? <p className="mt-1 text-[11px] text-[var(--muted)]">{formatDay(new Date(selected.startAt))}</p> : null}
               </div>
               {selected ? <StatusBadge status={selected.status} label={appointmentStatusLabel(selected.status)} /> : null}
@@ -596,7 +614,7 @@ export default function AppointmentsPage() {
                     <Icon name="clock" className="h-5 w-5" />
                     <strong className="text-[27px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{formatTime(selected.startAt)}</strong>
                   </div>
-                  <span className="text-[10px] text-[var(--muted)]">{Math.max(0, Math.round((new Date(selected.endAt).getTime() - new Date(selected.startAt).getTime()) / 60000))} dk</span>
+                  <span className="text-[10px] text-[var(--muted)]">{Math.max(0, Math.round((new Date(selected.endAt).getTime() - new Date(selected.startAt).getTime()) / 60000))} Dk</span>
                 </div>
 
                 <div className="mt-5 flex items-center gap-3">
@@ -614,27 +632,27 @@ export default function AppointmentsPage() {
                 </div>
 
                 <div className="mt-4 grid grid-cols-2 gap-2">
-                  <Button className="col-span-2 w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Randevuyu düzenle <Icon name="chevron" className="h-4 w-4" /></Button>
+                  <Button className="col-span-2 w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Randevuyu Düzenle <Icon name="chevron" className="h-4 w-4" /></Button>
                   <Button variant="secondary" className="w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Düzenle</Button>
-                  <Button variant="secondary" className="w-full text-[#a34658]" onClick={() => { setPendingCancel(selected); setConfirmOpen(true); }} disabled={!canCancelAppointment}>İptal et</Button>
+                  <Button variant="secondary" className="w-full text-[#a34658]" onClick={() => { setPendingCancel(selected); setConfirmOpen(true); }} disabled={!canCancelAppointment}>İptal Et</Button>
                 </div>
 
                 {canCreatePayment && !selected.payment ? (
                   <button type="button" onClick={openPayment} className="mt-3 flex w-full items-center justify-between rounded-[12px] bg-[var(--accent-soft)] px-3 py-2.5 text-[11px] font-medium text-[var(--accent)] transition hover:brightness-[0.98]">
-                    <span>Bu randevudan ödeme al</span><Icon name="chevron" className="h-4 w-4" />
+                    <span>Bu Randevudan Ödeme Al</span><Icon name="chevron" className="h-4 w-4" />
                   </button>
                 ) : selected.payment ? (
-                  <div className="mt-3 rounded-[12px] bg-[#eef8f1] px-3 py-2.5 text-[11px] text-[#2f7a56]">Ödeme alındı · ₺{Number(selected.payment.amount).toLocaleString("tr-TR")}</div>
+                  <div className="mt-3 rounded-[12px] bg-[#eef8f1] px-3 py-2.5 text-[11px] text-[#2f7a56]">Ödeme Alındı · ₺{Number(selected.payment.amount).toLocaleString("tr-TR")}</div>
                 ) : null}
               </div>
             ) : (
-              <EmptyState title="Randevu seçin" description="Takvimden bir randevu seçtiğinizde detayları burada görünür." />
+              <EmptyState title="Randevu Seçin" description="Takvimden Bir Randevu Seçtiğinizde Detayları Burada Görünür." />
             )}
           </section>
 
           <section className="surface overflow-hidden rounded-[22px]">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <div><p className="text-[13px] font-semibold text-[var(--ink)]">Günlük randevular</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">Seçili tarih özeti</p></div>
+              <div><p className="text-[13px] font-semibold text-[var(--ink)]">Günlük Randevular</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">Seçili Tarih Özeti</p></div>
               <span className="rounded-full bg-[var(--surface-soft)] px-2 py-1 text-[10px] font-medium text-[var(--muted)]">{appointments.length}</span>
             </div>
             <div className="divide-y divide-[var(--line)] px-5">
@@ -653,9 +671,9 @@ export default function AppointmentsPage() {
           </section>
 
           <section className="surface rounded-[22px] p-5">
-            <div className="flex items-center justify-between"><p className="text-[13px] font-semibold text-[var(--ink)]">Günün özeti</p><Icon name="calendar" className="h-4 w-4 text-[var(--accent)]" /></div>
+            <div className="flex items-center justify-between"><p className="text-[13px] font-semibold text-[var(--ink)]">Günün Özeti</p><Icon name="calendar" className="h-4 w-4 text-[var(--accent)]" /></div>
             <div className="mt-4 space-y-3">
-              <SummaryRow label="Toplam randevu" value={counts.total} dot="bg-[var(--accent)]" />
+              <SummaryRow label="Toplam Randevu" value={counts.total} dot="bg-[var(--accent)]" />
               <SummaryRow label="Onaylandı" value={counts.confirmed} dot="bg-[#48bdd8]" />
               <SummaryRow label="Tamamlandı" value={counts.completed} dot="bg-[#2484c3]" />
               <SummaryRow label="Planlandı" value={counts.waiting} dot="bg-[#8d99a8]" />
@@ -665,29 +683,29 @@ export default function AppointmentsPage() {
         </aside>
       </div>
 
-      <Modal open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu düzenle" : "Yeni randevu"} description="Müşteri, hizmet, personel ve zaman bilgilerini girin.">
+      <Modal open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu Düzenle" : "Yeni Randevu"} description="Müşteri, Hizmet, Personel Ve Zaman Bilgilerini Girin.">
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Müşteri" required><Select value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))} disabled={loadingRefs}><option value="">Müşteri seçin</option>{customers.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
-          <Field label="Personel" required><Select value={form.staffId} onChange={(event) => setForm((current) => ({ ...current, staffId: event.target.value }))} disabled={loadingRefs}><option value="">Personel seçin</option>{staff.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
-          <Field label="Hizmet" required><Select value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))} disabled={loadingRefs}><option value="">Hizmet seçin</option>{services.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
+          <Field label="Müşteri" required><Select value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))} disabled={loadingRefs}><option value="">Müşteri Seçin</option>{customers.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
+          <Field label="Personel" required><Select value={form.staffId} onChange={(event) => setForm((current) => ({ ...current, staffId: event.target.value }))} disabled={loadingRefs}><option value="">Personel Seçin</option>{staff.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
+          <Field label="Hizmet" required><Select value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))} disabled={loadingRefs}><option value="">Hizmet Seçin</option>{services.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
           {editing ? <Field label="Durum"><Select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as AppointmentStatus }))}><option value="SCHEDULED">Planlandı</option><option value="CONFIRMED">Onaylandı</option><option value="COMPLETED">Tamamlandı</option><option value="NO_SHOW">Gelmedi</option></Select></Field> : null}
           <Field label="Başlangıç" required><TextInput type="datetime-local" value={form.startAt} onChange={(event) => setForm((current) => ({ ...current, startAt: event.target.value }))} /></Field>
           <Field label="Bitiş" required><TextInput type="datetime-local" value={form.endAt} onChange={(event) => setForm((current) => ({ ...current, endAt: event.target.value }))} /></Field>
-          <div className="sm:col-span-2"><Field label="Not"><TextArea rows={3} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Randevuya özel not..." /></Field></div>
+          <div className="sm:col-span-2"><Field label="Not"><TextArea rows={3} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Randevuya Özel Not..." /></Field></div>
         </div>
-        <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button><Button onClick={saveAppointment} disabled={saving}>{saving ? "Kaydediliyor..." : editing ? "Değişiklikleri kaydet" : "Randevuyu oluştur"}</Button></div>
+        <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button><Button onClick={saveAppointment} disabled={saving}>{saving ? "Kaydediliyor..." : editing ? "Değişiklikleri Kaydet" : "Randevuyu Oluştur"}</Button></div>
       </Modal>
 
-      <Modal open={confirmOpen} onClose={() => !saving && setConfirmOpen(false)} title="Randevuyu iptal et" description={pendingCancel ? `${customerMap.get(pendingCancel.customerId) ?? "Müşteri"} için ${formatTime(pendingCancel.startAt)} randevusu iptal edilecek.` : ""}>
-        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>Vazgeç</Button><Button variant="danger" onClick={cancelAppointment} disabled={saving || !canCancelAppointment}>İptal et</Button></div>
+      <Modal open={confirmOpen} onClose={() => !saving && setConfirmOpen(false)} title="Randevuyu İptal Et" description={pendingCancel ? `${customerMap.get(pendingCancel.customerId) ?? "Müşteri"} İçin ${formatTime(pendingCancel.startAt)} Randevusu İptal Edilecek.` : ""}>
+        <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>Vazgeç</Button><Button variant="danger" onClick={cancelAppointment} disabled={saving || !canCancelAppointment}>İptal Et</Button></div>
       </Modal>
 
-      <Modal open={paymentOpen} onClose={() => !paymentSaving && setPaymentOpen(false)} title="Ödeme al" description={paymentAppointment ? `${customerMap.get(paymentAppointment.customerId) ?? "Müşteri"} · ${serviceMap.get(paymentAppointment.serviceId) ?? "Hizmet"}` : ""}>
+      <Modal open={paymentOpen} onClose={() => !paymentSaving && setPaymentOpen(false)} title="Ödeme Al" description={paymentAppointment ? `${customerMap.get(paymentAppointment.customerId) ?? "Müşteri"} · ${serviceMap.get(paymentAppointment.serviceId) ?? "Hizmet"}` : ""}>
         <div className="space-y-4">
           <Field label="Tutar" required><TextInput type="number" min={0.01} step="0.01" inputMode="decimal" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder="0" /></Field>
-          <Field label="Ödeme yöntemi"><Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "CASH" | "CARD" | "TRANSFER")}><option value="CARD">Kart</option><option value="CASH">Nakit</option><option value="TRANSFER">Havale / EFT</option></Select></Field>
+          <Field label="Ödeme Yöntemi"><Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "CASH" | "CARD" | "TRANSFER")}><option value="CARD">Kart</option><option value="CASH">Nakit</option><option value="TRANSFER">Havale / EFT</option></Select></Field>
         </div>
-        <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setPaymentOpen(false)} disabled={paymentSaving}>Vazgeç</Button><Button onClick={createPayment} disabled={paymentSaving || !canCreatePayment}>{paymentSaving ? "Kaydediliyor..." : "Ödemeyi kaydet"}</Button></div>
+        <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setPaymentOpen(false)} disabled={paymentSaving}>Vazgeç</Button><Button onClick={createPayment} disabled={paymentSaving || !canCreatePayment}>{paymentSaving ? "Kaydediliyor..." : "Ödemeyi Kaydet"}</Button></div>
       </Modal>
     </div>
   );
