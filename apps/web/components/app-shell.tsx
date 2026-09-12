@@ -109,7 +109,14 @@ function isAllowed(item: NavItem) {
 }
 
 function isActivePath(pathname: string, href: string) {
-  if (href === "/dashboard" || href === "/crm" || href === "/finance/cfo") return pathname === href;
+  if (
+    href === "/dashboard" ||
+    href === "/crm" ||
+    href === "/finance/cfo" ||
+    href === "/inventory"
+  ) {
+    return pathname === href;
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
