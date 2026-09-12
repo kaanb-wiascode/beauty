@@ -32,7 +32,7 @@ describe('Inventory Overview Branch Scope (e2e)', () => {
     await app.close();
   });
 
-  it('scopes warehouses and expiring lots to the active branch while preserving all-branch totals', async () => {
+  it('scopes warehouses, lots and expiry metrics to the active branch', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const email = `inventory-overview-${suffix}@example.test`;
     const password = 'E2eStrongPassword!2026';
@@ -49,7 +49,6 @@ describe('Inventory Overview Branch Scope (e2e)', () => {
       })
       .expect(201);
 
-    const tenantId = register.body.tenant.id as string;
     const companyId = register.body.company.id as string;
     const branchAId = register.body.branch.id as string;
     const membershipId = register.body.membership.id as string;
@@ -133,28 +132,69 @@ describe('Inventory Overview Branch Scope (e2e)', () => {
       .expect(201);
 
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO inventory_product_lots(
-         tenant_id,company_id,product_id,warehouse_id,lot_number,expires_at,quantity,unit_cost
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6::timestamptz,1,0)`,
-      tenantId,
-      companyId,
-      productA.body.id,
-      branchAWarehouse.id,
-      `LOT-A-${suffix}`,
-      expiresAt.toISOString(),
-    );
-    await prisma.$executeRawUnsafe(
-      `INSERT INTO inventory_product_lots(
-         tenant_id,company_id,product_id,warehouse_id,lot_number,expires_at,quantity,unit_cost
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6::timestamptz,1,0)`,
-      tenantId,
-      companyId,
-      productB.body.id,
-      branchBWarehouse.id,
-      `LOT-B-${suffix}`,
-      expiresAt.toISOString(),
-    );
+    const lotAPayload = {
+      productId: productA.body.id,
+      warehouseId: branchAWarehouse.id,
+      lotNumber: `LOT-A-${suffix}`,
+      expiresAt: expiresAt.toISOString(),
+      quantity: 2,
+      unitCost: 25,
+      note: 'E2E Şube A Lot Girişi',
+    };
+
+    const lotA = await request(app.getHttpServer())
+      .post('/inventory/lots')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send(lotAPayload)
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/inventory/lots')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send(lotAPayload)
+      .expect(409);
+
+    await request(app.getHttpServer())
+      .post('/inventory/lots')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        productId: productA.body.id,
+        warehouseId: branchBWarehouse.id,
+        lotNumber: `LOT-CROSS-${suffix}`,
+        expiresAt: expiresAt.toISOString(),
+        quantity: 1,
+      })
+      .expect(400);
+
+    const lotB = await request(app.getHttpServer())
+      .post('/inventory/lots')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .send({
+        productId: productB.body.id,
+        warehouseId: branchBWarehouse.id,
+        lotNumber: `LOT-B-${suffix}`,
+        expiresAt: expiresAt.toISOString(),
+        quantity: 3,
+        unitCost: 30,
+        note: 'E2E Şube B Lot Girişi',
+      })
+      .expect(201);
+
+    const branchALots = await request(app.getHttpServer())
+      .get('/inventory/lots?expiringWithinDays=30')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+    expect(branchALots.body.map((lot: { id: string }) => lot.id)).toEqual([
+      lotA.body.id,
+    ]);
+
+    const branchBLots = await request(app.getHttpServer())
+      .get('/inventory/lots?expiringWithinDays=30')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .expect(200);
+    expect(branchBLots.body.map((lot: { id: string }) => lot.id)).toEqual([
+      lotB.body.id,
+    ]);
 
     const scopedAOverview = await request(app.getHttpServer())
       .get('/inventory/overview')
@@ -186,20 +226,25 @@ describe('Inventory Overview Branch Scope (e2e)', () => {
       .send({ membershipId, branchId: null })
       .expect(201);
 
+    const allBranchesToken = allBranchesContext.body.accessToken as string;
     const allBranchesOverview = await request(app.getHttpServer())
       .get('/inventory/overview')
-      .set(
-        'Authorization',
-        `Bearer ${allBranchesContext.body.accessToken as string}`,
-      )
+      .set('Authorization', `Bearer ${allBranchesToken}`)
       .expect(200);
 
     const branchIds = allBranchesOverview.body.warehouses.map(
       (warehouse: { branchId: string | null }) => warehouse.branchId,
     );
-
     expect(branchIds).toEqual(expect.arrayContaining([branchAId, branchB.id]));
     expect(branchIds).toContain(null);
     expect(allBranchesOverview.body.expiringLots).toBe(2);
+
+    const allLots = await request(app.getHttpServer())
+      .get('/inventory/lots?expiringWithinDays=30')
+      .set('Authorization', `Bearer ${allBranchesToken}`)
+      .expect(200);
+    expect(allLots.body.map((lot: { id: string }) => lot.id)).toEqual(
+      expect.arrayContaining([lotA.body.id, lotB.body.id]),
+    );
   });
 });
