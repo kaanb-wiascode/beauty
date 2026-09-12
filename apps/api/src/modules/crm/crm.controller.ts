@@ -15,12 +15,14 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import {
+  cancelFollowUpSchema,
   completeFollowUpSchema,
   createFollowUpSchema,
   createLeadSchema,
   leadStatusSchema,
   opportunityStageSchema,
   qualifyLeadSchema,
+  rescheduleFollowUpSchema,
   transitionOpportunitySchema,
   updateLeadSchema,
 } from './crm.schemas';
@@ -169,7 +171,38 @@ export class CrmController {
     @Body() body: unknown,
     @Req() request: { user?: { sub?: string } },
   ) {
-    const input = completeFollowUpSchema.parse(body);
-    return this.crm.completeFollowUp(id, input.outcome, this.userId(request));
+    return this.crm.completeFollowUp(
+      id,
+      completeFollowUpSchema.parse(body),
+      this.userId(request),
+    );
+  }
+
+  @Post('follow-ups/:id/reschedule')
+  @RequirePermission('crm', 'manage')
+  rescheduleFollowUp(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    return this.crm.rescheduleFollowUp(
+      id,
+      rescheduleFollowUpSchema.parse(body),
+      this.userId(request),
+    );
+  }
+
+  @Post('follow-ups/:id/cancel')
+  @RequirePermission('crm', 'manage')
+  cancelFollowUp(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    return this.crm.cancelFollowUp(
+      id,
+      cancelFollowUpSchema.parse(body),
+      this.userId(request),
+    );
   }
 }

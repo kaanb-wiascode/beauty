@@ -51,7 +51,11 @@ export type CrmFollowUp = {
   note: string | null;
   outcome: string | null;
   completedAt: string | null;
+  cancelledAt: string | null;
+  cancellationReason: string | null;
+  version: number;
   createdAt: string;
+  updatedAt: string;
 };
 
 export type CrmEvent = {

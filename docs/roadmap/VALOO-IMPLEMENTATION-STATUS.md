@@ -31,13 +31,15 @@ Implemented:
 - Lead pool/detail UI with create, search, status/owner filters, qualification and optimistic updates
 - governed Opportunity board with explicit allowed stage transitions
 - Follow-up Center with create, assignee filter and completion outcome workflow
+- optimistic-version guarded Follow-up rescheduling and reason-required cancellation
+- database cancellation timestamp/reason invariants and append-only lifecycle events
 - `crm.read`-protected minimal active-company assignee directory
 
 Not yet complete:
 
 - standalone Customer -> Opportunity workflow
 - Opportunity -> Sale linkage and commercial outcome snapshot
-- follow-up cancellation/rescheduling and notification delivery
+- follow-up notification delivery
 - campaign/segment/marketing automation
 - unified Customer 360 timeline
 

@@ -88,7 +88,23 @@ export const createFollowUpSchema = z
   );
 
 export const completeFollowUpSchema = z.object({
+  version: z.coerce.number().int().min(1),
   outcome: z.string().trim().min(1).max(2000),
+});
+
+export const rescheduleFollowUpSchema = z.object({
+  version: z.coerce.number().int().min(1),
+  dueAt: z.coerce.date(),
+  assignedUserId: z.string().uuid().optional(),
+  channel: z
+    .enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER'])
+    .optional(),
+  note: z.string().trim().max(2000).nullable().optional(),
+});
+
+export const cancelFollowUpSchema = z.object({
+  version: z.coerce.number().int().min(1),
+  reason: z.string().trim().min(1).max(1000),
 });
 
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
@@ -98,3 +114,6 @@ export type TransitionOpportunityInput = z.infer<
   typeof transitionOpportunitySchema
 >;
 export type CreateFollowUpInput = z.infer<typeof createFollowUpSchema>;
+export type CompleteFollowUpInput = z.infer<typeof completeFollowUpSchema>;
+export type RescheduleFollowUpInput = z.infer<typeof rescheduleFollowUpSchema>;
+export type CancelFollowUpInput = z.infer<typeof cancelFollowUpSchema>;

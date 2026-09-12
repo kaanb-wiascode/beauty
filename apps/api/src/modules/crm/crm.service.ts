@@ -7,9 +7,12 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import type {
+  CancelFollowUpInput,
+  CompleteFollowUpInput,
   CreateFollowUpInput,
   CreateLeadInput,
   QualifyLeadInput,
+  RescheduleFollowUpInput,
   TransitionOpportunityInput,
   UpdateLeadInput,
 } from './crm.schemas';
@@ -165,7 +168,9 @@ export class CrmService {
       ),
       this.prisma.$queryRawUnsafe<CrmRow[]>(
         `SELECT id,lead_id AS "leadId",opportunity_id AS "opportunityId",assigned_user_id AS "assignedUserId",
-                channel,status,due_at AS "dueAt",note,outcome,completed_at AS "completedAt",created_at AS "createdAt"
+                channel,status,due_at AS "dueAt",note,outcome,completed_at AS "completedAt",
+                cancelled_at AS "cancelledAt",cancellation_reason AS "cancellationReason",version,
+                created_at AS "createdAt",updated_at AS "updatedAt"
          FROM crm_follow_ups
          WHERE lead_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          ORDER BY due_at,id`,
@@ -472,7 +477,9 @@ export class CrmService {
     return this.prisma.$queryRawUnsafe<CrmRow[]>(
       `SELECT f.id,f.lead_id AS "leadId",f.opportunity_id AS "opportunityId",
               f.assigned_user_id AS "assignedUserId",f.channel,f.status,f.due_at AS "dueAt",
-              f.note,f.outcome,f.completed_at AS "completedAt",f.created_at AS "createdAt"
+              f.note,f.outcome,f.completed_at AS "completedAt",f.cancelled_at AS "cancelledAt",
+              f.cancellation_reason AS "cancellationReason",f.version,
+              f.created_at AS "createdAt",f.updated_at AS "updatedAt"
        FROM crm_follow_ups f
        WHERE f.tenant_id=$1::text AND f.company_id=$2::text
          AND ($3::text IS NULL OR f.branch_id=$3::text)
@@ -515,7 +522,7 @@ export class CrmService {
            tenant_id,company_id,branch_id,lead_id,opportunity_id,assigned_user_id,channel,due_at,note,created_by_user_id
          ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10::text)
          RETURNING id,lead_id AS "leadId",opportunity_id AS "opportunityId",assigned_user_id AS "assignedUserId",
-                   channel,status,due_at AS "dueAt",note,created_at AS "createdAt"`,
+                   channel,status,due_at AS "dueAt",note,version,created_at AS "createdAt",updated_at AS "updatedAt"`,
         context.tenantId,
         context.companyId,
         branchId,
@@ -546,19 +553,25 @@ export class CrmService {
     });
   }
 
-  async completeFollowUp(id: string, outcome: string, actorUserId: string) {
+  async completeFollowUp(
+    id: string,
+    input: CompleteFollowUpInput,
+    actorUserId: string,
+  ) {
     const context = this.context();
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<CrmRow[]>(
-        `UPDATE crm_follow_ups SET status='COMPLETED',outcome=$5,completed_at=NOW(),updated_at=NOW()
+        `UPDATE crm_follow_ups SET status='COMPLETED',outcome=$6,completed_at=NOW(),version=version+1,updated_at=NOW()
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
-           AND ($4::text IS NULL OR branch_id=$4::text) AND status='OPEN'
-         RETURNING id,lead_id AS "leadId",opportunity_id AS "opportunityId",status,outcome,completed_at AS "completedAt"`,
+           AND ($4::text IS NULL OR branch_id=$4::text) AND status='OPEN' AND version=$5
+         RETURNING id,lead_id AS "leadId",opportunity_id AS "opportunityId",status,outcome,
+                   completed_at AS "completedAt",version,updated_at AS "updatedAt"`,
         id,
         context.tenantId,
         context.companyId,
         context.branchId,
-        outcome,
+        input.version,
+        input.outcome,
       );
       if (!rows.length)
         throw new ConflictException(
@@ -570,7 +583,105 @@ export class CrmService {
          FROM crm_follow_ups WHERE id=$1::text`,
         id,
         actorUserId,
-        JSON.stringify({ outcome }),
+        JSON.stringify({ outcome: input.outcome }),
+      );
+      return rows[0];
+    });
+  }
+
+  async rescheduleFollowUp(
+    id: string,
+    input: RescheduleFollowUpInput,
+    actorUserId: string,
+  ) {
+    const context = this.context();
+    if (input.assignedUserId) {
+      await this.assertAssignableUser(input.assignedUserId);
+    }
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<CrmRow[]>(
+        `WITH current AS (
+           SELECT id,due_at,assigned_user_id,channel,note
+           FROM crm_follow_ups
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND ($4::text IS NULL OR branch_id=$4::text) AND status='OPEN' AND version=$5
+           FOR UPDATE
+         )
+         UPDATE crm_follow_ups f SET
+           due_at=$6,assigned_user_id=COALESCE($7::text,f.assigned_user_id),
+           channel=COALESCE($8,f.channel),note=CASE WHEN $9::boolean THEN $10 ELSE f.note END,
+           version=f.version+1,updated_at=NOW()
+         FROM current c WHERE f.id=c.id
+         RETURNING f.id,f.lead_id AS "leadId",f.opportunity_id AS "opportunityId",
+                   f.assigned_user_id AS "assignedUserId",f.channel,f.status,f.due_at AS "dueAt",
+                   f.note,f.version,f.updated_at AS "updatedAt",c.due_at AS "previousDueAt"`,
+        id,
+        context.tenantId,
+        context.companyId,
+        context.branchId,
+        input.version,
+        input.dueAt,
+        input.assignedUserId ?? null,
+        input.channel ?? null,
+        input.note !== undefined,
+        input.note ?? null,
+      );
+      if (!rows.length) {
+        throw new ConflictException(
+          'Follow-up changed, is closed, or is outside the active scope.',
+        );
+      }
+      const followUp = rows[0];
+      await tx.$executeRawUnsafe(
+        `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,opportunity_id,follow_up_id,event_type,actor_user_id,metadata)
+         SELECT tenant_id,company_id,branch_id,lead_id,opportunity_id,id,'FOLLOW_UP_RESCHEDULED',$2::text,$3::jsonb
+         FROM crm_follow_ups WHERE id=$1::text`,
+        id,
+        actorUserId,
+        JSON.stringify({
+          previousDueAt: followUp.previousDueAt,
+          dueAt: followUp.dueAt,
+          assignedUserId: followUp.assignedUserId,
+          channel: followUp.channel,
+        }),
+      );
+      return followUp;
+    });
+  }
+
+  async cancelFollowUp(
+    id: string,
+    input: CancelFollowUpInput,
+    actorUserId: string,
+  ) {
+    const context = this.context();
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<CrmRow[]>(
+        `UPDATE crm_follow_ups SET status='CANCELLED',cancellation_reason=$6,
+           cancelled_at=NOW(),version=version+1,updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND ($4::text IS NULL OR branch_id=$4::text) AND status='OPEN' AND version=$5
+         RETURNING id,lead_id AS "leadId",opportunity_id AS "opportunityId",status,
+                   cancellation_reason AS "cancellationReason",cancelled_at AS "cancelledAt",version`,
+        id,
+        context.tenantId,
+        context.companyId,
+        context.branchId,
+        input.version,
+        input.reason,
+      );
+      if (!rows.length) {
+        throw new ConflictException(
+          'Follow-up changed, is closed, or is outside the active scope.',
+        );
+      }
+      await tx.$executeRawUnsafe(
+        `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,opportunity_id,follow_up_id,event_type,actor_user_id,metadata)
+         SELECT tenant_id,company_id,branch_id,lead_id,opportunity_id,id,'FOLLOW_UP_CANCELLED',$2::text,$3::jsonb
+         FROM crm_follow_ups WHERE id=$1::text`,
+        id,
+        actorUserId,
+        JSON.stringify({ reason: input.reason }),
       );
       return rows[0];
     });

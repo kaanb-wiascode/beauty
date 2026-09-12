@@ -10,8 +10,7 @@ import {
  * which proxies to http://localhost:3000. Override with NEXT_PUBLIC_API_URL
  * if the API is reachable cross-origin.
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "/backend";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/backend";
 
 export class ApiError extends Error {
   status: number;
@@ -53,9 +52,17 @@ const ERROR_MESSAGES: Record<string, string> = {
   "Failed to create appointment": "Randevu oluşturulamadı.",
   "Failed to update appointment": "Randevu güncellenemedi.",
   "Failed to cancel appointment": "Randevu iptal edilemedi.",
-  "Appointment already has a payment": "Bu randevunun zaten bir ödeme kaydı var.",
-  "Cancelled or no-show appointment cannot be paid": "İptal edilmiş veya gelinmemiş randevu için ödeme alınamaz.",
+  "Appointment already has a payment":
+    "Bu randevunun zaten bir ödeme kaydı var.",
+  "Cancelled or no-show appointment cannot be paid":
+    "İptal edilmiş veya gelinmemiş randevu için ödeme alınamaz.",
   "Payment not found": "Ödeme bulunamadı.",
+  "Follow-up is not open or is outside the active scope.":
+    "Takip açık değil veya aktif çalışma kapsamının dışında.",
+  "Follow-up changed, is closed, or is outside the active scope.":
+    "Takip başka bir kullanıcı tarafından değiştirildi, kapatıldı veya aktif kapsamın dışında.",
+  "CRM assignee is not an active company member.":
+    "Seçilen CRM sorumlusu aktif şirket veya şube kapsamında değil.",
 };
 
 function mapErrorMessage(message: string) {
@@ -146,7 +153,10 @@ export async function api<T>(
     if (!accessToken) {
       clearSession();
       redirectToLogin();
-      throw new ApiError("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.", 401);
+      throw new ApiError(
+        "Oturumunuz sona erdi. Lütfen tekrar giriş yapın.",
+        401,
+      );
     }
   }
 
@@ -171,7 +181,10 @@ export async function api<T>(
     const refreshedToken = await refreshAccessToken();
 
     if (refreshedToken) {
-      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshedToken}` };
+      const retryHeaders = {
+        ...headers,
+        Authorization: `Bearer ${refreshedToken}`,
+      };
 
       try {
         response = await fetch(`${API_BASE_URL}${path}`, {

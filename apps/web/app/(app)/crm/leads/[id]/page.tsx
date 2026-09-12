@@ -34,6 +34,8 @@ const eventLabels: Record<string, string> = {
   OPPORTUNITY_STAGE_CHANGED: "Fırsat aşaması değişti",
   FOLLOW_UP_CREATED: "Takip görevi oluşturuldu",
   FOLLOW_UP_COMPLETED: "Takip tamamlandı",
+  FOLLOW_UP_RESCHEDULED: "Takip yeniden planlandı",
+  FOLLOW_UP_CANCELLED: "Takip iptal edildi",
 };
 const emptyEditForm = {
   firstName: "",
@@ -344,7 +346,9 @@ export default function CrmLeadDetailPage({
                       {followUpChannelLabels[row.channel]}
                     </span>
                     <p className="truncate text-[11px] text-[var(--muted)]">
-                      {row.outcome || row.note || "Not yok"}
+                      {row.status === "CANCELLED"
+                        ? row.cancellationReason
+                        : row.outcome || row.note || "Not yok"}
                     </p>
                     <time className="text-[10px] text-[var(--muted)] sm:text-right">
                       {formatDateTime(row.dueAt)}

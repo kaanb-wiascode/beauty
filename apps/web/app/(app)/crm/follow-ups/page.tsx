@@ -25,9 +25,15 @@ import {
   type CrmOpportunity,
 } from "@/lib/crm-types";
 
-type Filter = "OPEN" | "COMPLETED" | "ALL";
+type Filter = "OPEN" | "COMPLETED" | "CANCELLED" | "ALL";
 const emptyForm = {
   subject: "",
+  assignedUserId: "",
+  channel: "CALL" as CrmFollowUp["channel"],
+  dueAt: "",
+  note: "",
+};
+const emptyRescheduleForm = {
   assignedUserId: "",
   channel: "CALL" as CrmFollowUp["channel"],
   dueAt: "",
@@ -44,6 +50,12 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
+function toDateTimeInput(value: string) {
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 export default function CrmFollowUpsPage() {
   const canManage = hasPermission("crm", "manage");
   const { showToast } = useToast();
@@ -58,6 +70,10 @@ export default function CrmFollowUpsPage() {
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [completing, setCompleting] = useState<CrmFollowUp | null>(null);
+  const [rescheduling, setRescheduling] = useState<CrmFollowUp | null>(null);
+  const [rescheduleForm, setRescheduleForm] = useState(emptyRescheduleForm);
+  const [cancelling, setCancelling] = useState<CrmFollowUp | null>(null);
+  const [cancellationReason, setCancellationReason] = useState("");
   const [outcome, setOutcome] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [now] = useState(() => Date.now());
@@ -121,7 +137,7 @@ export default function CrmFollowUpsPage() {
           [kind === "lead" ? "leadId" : "opportunityId"]: id,
           assignedUserId: form.assignedUserId,
           channel: form.channel,
-          dueAt: form.dueAt,
+          dueAt: new Date(form.dueAt).toISOString(),
           ...(form.note.trim() ? { note: form.note.trim() } : {}),
         },
       });
@@ -151,7 +167,7 @@ export default function CrmFollowUpsPage() {
     try {
       await api(`/crm/follow-ups/${completing.id}/complete`, {
         method: "POST",
-        body: { outcome: outcome.trim() },
+        body: { version: completing.version, outcome: outcome.trim() },
       });
       setCompleting(null);
       setOutcome("");
@@ -162,6 +178,85 @@ export default function CrmFollowUpsPage() {
         requestError instanceof ApiError
           ? requestError.message
           : "Takip tamamlanamadı.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function openReschedule(row: CrmFollowUp) {
+    setError("");
+    setRescheduleForm({
+      assignedUserId: row.assignedUserId,
+      channel: row.channel,
+      dueAt: toDateTimeInput(row.dueAt),
+      note: row.note ?? "",
+    });
+    setRescheduling(row);
+  }
+
+  async function rescheduleFollowUp(event: FormEvent) {
+    event.preventDefault();
+    if (
+      !rescheduling ||
+      !rescheduleForm.assignedUserId ||
+      !rescheduleForm.dueAt
+    ) {
+      setError("Sorumlu ve yeni takip zamanı gereklidir.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await api(`/crm/follow-ups/${rescheduling.id}/reschedule`, {
+        method: "POST",
+        body: {
+          version: rescheduling.version,
+          assignedUserId: rescheduleForm.assignedUserId,
+          channel: rescheduleForm.channel,
+          dueAt: new Date(rescheduleForm.dueAt).toISOString(),
+          note: rescheduleForm.note.trim() || null,
+        },
+      });
+      setRescheduling(null);
+      showToast("Takip yeniden planlandı.", "success");
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Takip yeniden planlanamadı.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function cancelFollowUp(event: FormEvent) {
+    event.preventDefault();
+    if (!cancelling || !cancellationReason.trim()) {
+      setError("İptal nedeni gereklidir.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      await api(`/crm/follow-ups/${cancelling.id}/cancel`, {
+        method: "POST",
+        body: {
+          version: cancelling.version,
+          reason: cancellationReason.trim(),
+        },
+      });
+      setCancelling(null);
+      setCancellationReason("");
+      showToast("Takip iptal edildi.", "success");
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Takip iptal edilemedi.",
       );
     } finally {
       setSaving(false);
@@ -197,29 +292,33 @@ export default function CrmFollowUpsPage() {
           ) : undefined
         }
       />
-      {error && !createOpen && !completing ? (
+      {error && !createOpen && !completing && !rescheduling && !cancelling ? (
         <Alert onClose={() => setError("")}>{error}</Alert>
       ) : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {(["OPEN", "COMPLETED", "ALL"] as Filter[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setFilter(item)}
-              className={
-                filter === item
-                  ? "rounded-full bg-[#7358d7] px-4 py-2 text-[11px] font-semibold text-white"
-                  : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"
-              }
-            >
-              {item === "OPEN"
-                ? "Açık"
-                : item === "COMPLETED"
-                  ? "Tamamlanan"
-                  : "Tümü"}
-            </button>
-          ))}
+          {(["OPEN", "COMPLETED", "CANCELLED", "ALL"] as Filter[]).map(
+            (item) => (
+              <button
+                key={item}
+                type="button"
+                onClick={() => setFilter(item)}
+                className={
+                  filter === item
+                    ? "rounded-full bg-[#7358d7] px-4 py-2 text-[11px] font-semibold text-white"
+                    : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"
+                }
+              >
+                {item === "OPEN"
+                  ? "Açık"
+                  : item === "COMPLETED"
+                    ? "Tamamlanan"
+                    : item === "CANCELLED"
+                      ? "İptal edilen"
+                      : "Tümü"}
+              </button>
+            ),
+          )}
         </div>
         <Select
           value={assignedUserId}
@@ -263,7 +362,9 @@ export default function CrmFollowUpsPage() {
                   <p className="truncate text-[11px] text-[var(--muted)]">
                     {row.status === "COMPLETED"
                       ? row.outcome
-                      : row.note || "Not eklenmedi"}
+                      : row.status === "CANCELLED"
+                        ? row.cancellationReason
+                        : row.note || "Not eklenmedi"}
                   </p>
                   <time
                     className={
@@ -276,20 +377,50 @@ export default function CrmFollowUpsPage() {
                     {formatDateTime(row.dueAt)}
                   </time>
                   {canManage && row.status === "OPEN" ? (
-                    <Button
-                      variant="secondary"
-                      className="min-h-8 px-3 py-1 text-[11px]"
-                      onClick={() => {
-                        setError("");
-                        setOutcome("");
-                        setCompleting(row);
-                      }}
-                    >
-                      Tamamla
-                    </Button>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        variant="secondary"
+                        className="min-h-8 px-3 py-1 text-[11px]"
+                        onClick={() => {
+                          setError("");
+                          setOutcome("");
+                          setCompleting(row);
+                        }}
+                      >
+                        Tamamla
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="min-h-8 px-2 py-1 text-[11px]"
+                        onClick={() => openReschedule(row)}
+                      >
+                        Ertele
+                      </Button>
+                      <Button
+                        variant="danger"
+                        className="min-h-8 px-2 py-1 text-[11px]"
+                        onClick={() => {
+                          setError("");
+                          setCancellationReason("");
+                          setCancelling(row);
+                        }}
+                      >
+                        İptal
+                      </Button>
+                    </div>
                   ) : (
-                    <span className="text-[10px] font-medium text-[#47765b]">
-                      {row.status === "COMPLETED" ? "Tamamlandı" : row.status}
+                    <span
+                      className={
+                        row.status === "CANCELLED"
+                          ? "text-[10px] font-medium text-[#9c513f]"
+                          : "text-[10px] font-medium text-[#47765b]"
+                      }
+                    >
+                      {row.status === "COMPLETED"
+                        ? "Tamamlandı"
+                        : row.status === "CANCELLED"
+                          ? "İptal edildi"
+                          : row.status}
                     </span>
                   )}
                 </article>
@@ -427,6 +558,117 @@ export default function CrmFollowUpsPage() {
             </Button>
             <Button type="submit" disabled={saving}>
               {saving ? "Tamamlanıyor..." : "Tamamla"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={Boolean(rescheduling)}
+        onClose={() => setRescheduling(null)}
+        title="Takibi yeniden planla"
+        description="Tarih, kanal, sorumlu veya not bilgisini güncelleyin."
+      >
+        <form onSubmit={rescheduleFollowUp} className="space-y-4">
+          {error ? <Alert>{error}</Alert> : null}
+          <Field label="Sorumlu" required>
+            <Select
+              value={rescheduleForm.assignedUserId}
+              onChange={(event) =>
+                setRescheduleForm({
+                  ...rescheduleForm,
+                  assignedUserId: event.target.value,
+                })
+              }
+            >
+              {assignees.map((person) => (
+                <option key={person.id} value={person.id}>
+                  {person.firstName} {person.lastName}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Kanal">
+              <Select
+                value={rescheduleForm.channel}
+                onChange={(event) =>
+                  setRescheduleForm({
+                    ...rescheduleForm,
+                    channel: event.target.value as CrmFollowUp["channel"],
+                  })
+                }
+              >
+                {Object.entries(followUpChannelLabels).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Yeni tarih ve saat" required>
+              <TextInput
+                type="datetime-local"
+                value={rescheduleForm.dueAt}
+                onChange={(event) =>
+                  setRescheduleForm({
+                    ...rescheduleForm,
+                    dueAt: event.target.value,
+                  })
+                }
+              />
+            </Field>
+          </div>
+          <Field label="Not">
+            <TextArea
+              rows={3}
+              value={rescheduleForm.note}
+              onChange={(event) =>
+                setRescheduleForm({
+                  ...rescheduleForm,
+                  note: event.target.value,
+                })
+              }
+            />
+          </Field>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setRescheduling(null)}
+              disabled={saving}
+            >
+              Vazgeç
+            </Button>
+            <Button type="submit" disabled={saving}>
+              {saving ? "Planlanıyor..." : "Yeniden planla"}
+            </Button>
+          </div>
+        </form>
+      </Modal>
+      <Modal
+        open={Boolean(cancelling)}
+        onClose={() => setCancelling(null)}
+        title="Takibi iptal et"
+        description="İptal nedeni CRM aktivite geçmişinde saklanacaktır."
+      >
+        <form onSubmit={cancelFollowUp} className="space-y-4">
+          {error ? <Alert>{error}</Alert> : null}
+          <Field label="İptal nedeni" required>
+            <TextArea
+              rows={4}
+              value={cancellationReason}
+              onChange={(event) => setCancellationReason(event.target.value)}
+            />
+          </Field>
+          <div className="flex justify-end gap-3">
+            <Button
+              variant="secondary"
+              onClick={() => setCancelling(null)}
+              disabled={saving}
+            >
+              Vazgeç
+            </Button>
+            <Button variant="danger" type="submit" disabled={saving}>
+              {saving ? "İptal ediliyor..." : "Takibi iptal et"}
             </Button>
           </div>
         </form>

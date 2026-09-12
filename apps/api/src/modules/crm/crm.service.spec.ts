@@ -254,7 +254,84 @@ describe('CrmService', () => {
     );
 
     await expect(
-      service.completeFollowUp('follow-up-1', 'Arandı', 'user-1'),
+      service.completeFollowUp(
+        'follow-up-1',
+        { version: 1, outcome: 'Arandı' },
+        'user-1',
+      ),
     ).rejects.toBeInstanceOf(ConflictException);
+
+    const calls = query.mock.calls as unknown[][];
+    expect(String(calls[0][0])).toContain("status='OPEN' AND version=$5");
+    expect(calls[0]).toContain(1);
+  });
+
+  it('reschedules only an open follow-up at the expected version and audits it', async () => {
+    const query = jest.fn().mockResolvedValue([
+      {
+        id: 'follow-up-1',
+        leadId: 'lead-1',
+        status: 'OPEN',
+        dueAt: new Date('2026-09-20T10:00:00Z'),
+        previousDueAt: new Date('2026-09-18T10:00:00Z'),
+        version: 3,
+      },
+    ]);
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx = { $queryRawUnsafe: query, $executeRawUnsafe: execute };
+    const transaction = jest.fn(async (callback) => callback(tx));
+    const service = new CrmService(
+      { $transaction: transaction } as never,
+      tenant(),
+    );
+
+    await service.rescheduleFollowUp(
+      'follow-up-1',
+      { version: 2, dueAt: new Date('2026-09-20T10:00:00Z') },
+      'user-1',
+    );
+
+    const calls = query.mock.calls as unknown[][];
+    expect(String(calls[0][0])).toContain("status='OPEN' AND version=$5");
+    expect(String(calls[0][0])).toContain('version=f.version+1');
+    expect(
+      execute.mock.calls.some((call) =>
+        String(call[0]).includes('FOLLOW_UP_RESCHEDULED'),
+      ),
+    ).toBe(true);
+  });
+
+  it('cancels an open follow-up with a reason and audit event', async () => {
+    const query = jest.fn().mockResolvedValue([
+      {
+        id: 'follow-up-1',
+        leadId: 'lead-1',
+        status: 'CANCELLED',
+        cancellationReason: 'Müşteri istemedi',
+        version: 2,
+      },
+    ]);
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx = { $queryRawUnsafe: query, $executeRawUnsafe: execute };
+    const transaction = jest.fn(async (callback) => callback(tx));
+    const service = new CrmService(
+      { $transaction: transaction } as never,
+      tenant(),
+    );
+
+    await service.cancelFollowUp(
+      'follow-up-1',
+      { version: 1, reason: 'Müşteri istemedi' },
+      'user-1',
+    );
+
+    const calls = query.mock.calls as unknown[][];
+    expect(String(calls[0][0])).toContain("status='CANCELLED'");
+    expect(String(calls[0][0])).toContain('cancellation_reason=$6');
+    expect(
+      execute.mock.calls.some((call) =>
+        String(call[0]).includes('FOLLOW_UP_CANCELLED'),
+      ),
+    ).toBe(true);
   });
 });
