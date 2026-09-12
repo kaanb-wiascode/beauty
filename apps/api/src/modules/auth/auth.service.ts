@@ -585,7 +585,7 @@ export class AuthService {
     }
 
     const key = `auth:refresh:${refreshToken}`;
-    const sessionData = await this.redis.get(key);
+    const sessionData = await this.redis.getAndDelete(key);
 
     if (!sessionData) {
       throw new UnauthorizedException('Invalid or expired refresh token');
