@@ -178,12 +178,12 @@ export const CFO_STATUS_LABEL: Record<string, string> = {
   CRITICAL: "Kritik",
   IMPROVING: "İyileşiyor",
   DETERIORATING: "Kötüleşiyor",
-  INSUFFICIENT_HISTORY: "Yetersiz veri",
+  INSUFFICIENT_HISTORY: "Yetersiz Veri",
   OPEN: "Açık",
-  IN_PROGRESS: "Devam ediyor",
-  BLOCKED: "Bloke",
+  IN_PROGRESS: "Devam Ediyor",
+  BLOCKED: "Engellendi",
   COMPLETED: "Tamamlandı",
-  CANCELLED: "İptal",
+  CANCELLED: "İptal Edildi",
 };
 
 export function formatCfoMoney(value: unknown) {
