@@ -91,19 +91,30 @@ type DraftItem = {
   note: string;
 };
 
-const RFQ_STATUS: Record<string, string> = {
-  PUBLISHED: "Teklife açık",
+const REQUEST_STATUS: Record<string, string> = {
+  PUBLISHED: "Teklife Açık",
   CLOSED: "Kapandı",
   AWARDED: "Sonuçlandı",
-  CANCELLED: "İptal",
+  CANCELLED: "İptal Edildi",
 };
 
 const QUOTE_STATUS: Record<string, string> = {
   DRAFT: "Taslak",
   SUBMITTED: "Gönderildi",
-  WITHDRAWN: "Geri çekildi",
-  ACCEPTED: "Kabul edildi",
+  WITHDRAWN: "Geri Çekildi",
+  ACCEPTED: "Kabul Edildi",
   REJECTED: "Seçilmedi",
+};
+
+const UNIT_LABELS: Record<string, string> = {
+  UNIT: "Adet",
+  ML: "Mililitre",
+  LITER: "Litre",
+  GRAM: "Gram",
+  KG: "Kilogram",
+  METER: "Metre",
+  PAIR: "Çift",
+  BOX: "Kutu",
 };
 
 function formatDate(value: string | null) {
@@ -148,7 +159,7 @@ export default function SupplierRfqPage() {
       setRows(data);
       setSelectedId((current) => current ?? data[0]?.id ?? null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "RFQ davetleri yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Teklif Talepleri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -200,7 +211,7 @@ export default function SupplierRfqPage() {
       }));
     } catch (err) {
       setCatalogDefaults([]);
-      setError(err instanceof ApiError ? err.message : "RFQ detayı yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Teklif Talebi Detayı Yüklenemedi.");
     } finally {
       setDetailLoading(false);
     }
@@ -238,7 +249,7 @@ export default function SupplierRfqPage() {
   function nullableNonNegativeInteger(value: string, label: string) {
     if (!value.trim()) return null;
     const parsed = Number(value);
-    if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} negatif olmayan tam sayı olmalıdır.`);
+    if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} Negatif Olmayan Tam Sayı Olmalıdır.`);
     return parsed;
   }
 
@@ -252,19 +263,19 @@ export default function SupplierRfqPage() {
       note: item.note.trim() || undefined,
     }));
     if (items.some((item) => !Number.isFinite(item.unitPrice) || item.unitPrice < 0)) {
-      setError("Tüm RFQ satırları için geçerli bir birim fiyat girilmelidir.");
+      setError("Tüm Teklif Kalemleri İçin Geçerli Bir Birim Fiyat Girilmelidir.");
       return;
     }
 
     let terms: { paymentTermsDays: number | null; warrantyMonths: number | null; serviceSlaDays: number | null };
     try {
       terms = {
-        paymentTermsDays: nullableNonNegativeInteger(paymentTermsDays, "Ödeme vadesi"),
-        warrantyMonths: nullableNonNegativeInteger(warrantyMonths, "Garanti süresi"),
-        serviceSlaDays: nullableNonNegativeInteger(serviceSlaDays, "Servis SLA"),
+        paymentTermsDays: nullableNonNegativeInteger(paymentTermsDays, "Ödeme Vadesi"),
+        warrantyMonths: nullableNonNegativeInteger(warrantyMonths, "Garanti Süresi"),
+        serviceSlaDays: nullableNonNegativeInteger(serviceSlaDays, "Hizmet Süresi"),
       };
     } catch (validationError) {
-      setError(validationError instanceof Error ? validationError.message : "Ticari şartlar geçersiz.");
+      setError(validationError instanceof Error ? validationError.message : "Ticari Şartlar Geçersiz.");
       return;
     }
 
@@ -288,7 +299,7 @@ export default function SupplierRfqPage() {
       setDetail(data);
       await loadList();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Teklif taslağı kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Teklif Taslağı Kaydedilemedi.");
     } finally {
       setBusy(false);
     }
@@ -306,7 +317,7 @@ export default function SupplierRfqPage() {
       setDetail(data);
       await loadList();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Teklif gönderilemedi.");
+      setError(err instanceof ApiError ? err.message : "Teklif Gönderilemedi.");
     } finally {
       setBusy(false);
     }
@@ -324,80 +335,81 @@ export default function SupplierRfqPage() {
       setDetail(data);
       await loadList();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Teklif geri çekilemedi.");
+      setError(err instanceof ApiError ? err.message : "Teklif Geri Çekilemedi.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (loading) return <div className="py-20"><Spinner label="RFQ davetleri hazırlanıyor..." /></div>;
+  if (loading) return <div className="py-20"><Spinner label="Teklif Talepleri Hazırlanıyor..." /></div>;
 
   return (
     <div className="space-y-6">
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-[#1674bd]">RFQ VE TEKLİFLER</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-[#1674bd]">Teklif Talepleri Ve Teklifler</p>
         <h1 className="mt-2 text-[30px] font-semibold tracking-[-.035em]">Teklif Çalışma Alanı</h1>
-        <p className="mt-1 text-[14px] text-[#667482]">Fiyat, termin ve ticari şartları birlikte hazırlayın; gönderilen teklif version kontrollü ve auditable kalır.</p>
+        <p className="mt-1 text-[14px] text-[#667482]">Fiyat, Teslim Süresi Ve Ticari Şartları Birlikte Hazırlayın. Gönderilen Teklifler Değişiklik Geçmişi Korunarak Saklanır.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {!canManage ? <Alert tone="success">MEMBER rolü teklifleri görüntüleyebilir; taslak, gönderim ve geri çekme işlemleri OWNER veya ADMIN gerektirir.</Alert> : null}
+      {!canManage ? <Alert tone="success">Görüntüleme Yetkisine Sahip Kullanıcılar Teklifleri İnceleyebilir. Teklif Oluşturma, Gönderme Ve Geri Çekme İşlemleri İçin Yönetim Yetkisi Gereklidir.</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Teklife açık" value={metrics.open} />
+        <Metric label="Teklife Açık" value={metrics.open} />
         <Metric label="Taslak" value={metrics.draft} />
         <Metric label="Gönderildi" value={metrics.submitted} />
-        <Metric label="Kabul edildi" value={metrics.accepted} />
+        <Metric label="Kabul Edildi" value={metrics.accepted} />
       </section>
 
       <section className="grid gap-5 lg:grid-cols-[360px_minmax(0,1fr)]">
         <aside className="overflow-hidden rounded-[20px] border border-[#dfe7ed] bg-white">
-          <div className="border-b border-[#dfe7ed] px-4 py-3 text-[12px] font-semibold">RFQ davetleri · {rows.length}</div>
+          <div className="border-b border-[#dfe7ed] px-4 py-3 text-[12px] font-semibold">Teklif Talepleri · {rows.length}</div>
           <div className="max-h-[720px] divide-y divide-[#edf1f4] overflow-y-auto">
             {rows.map((row) => (
               <button key={row.id} type="button" onClick={() => setSelectedId(row.id)} className={`w-full px-4 py-4 text-left transition ${selectedId === row.id ? "bg-[#eef6fc]" : "hover:bg-[#f7fafc]"}`}>
                 <div className="flex items-start justify-between gap-3">
-                  <div><p className="text-[13px] font-semibold">{row.title}</p><p className="mt-1 text-[11px] text-[#667482]">{row.warehouseName} · {row.itemCount} kalem</p></div>
-                  <span className="rounded-full bg-[#f0f4f7] px-2 py-1 text-[9px] font-semibold text-[#52616d]">{QUOTE_STATUS[row.quoteStatus || ""] || "Teklif yok"}</span>
+                  <div><p className="text-[13px] font-semibold">{row.title}</p><p className="mt-1 text-[11px] text-[#667482]">{row.warehouseName} · {row.itemCount} Kalem</p></div>
+                  <span className="rounded-full bg-[#f0f4f7] px-2 py-1 text-[9px] font-semibold text-[#52616d]">{QUOTE_STATUS[row.quoteStatus || ""] || "Teklif Yok"}</span>
                 </div>
-                <p className="mt-3 text-[10px] text-[#7a8792]">Son yanıt: {formatDate(row.responseDeadline)}</p>
+                <p className="mt-3 text-[10px] text-[#7a8792]">Son Yanıt Tarihi: {formatDate(row.responseDeadline)}</p>
               </button>
             ))}
-            {!rows.length ? <div className="px-5 py-12 text-center text-[12px] text-[#7a8792]">Henüz RFQ daveti yok.</div> : null}
+            {!rows.length ? <div className="px-5 py-12 text-center text-[12px] text-[#7a8792]">Henüz Teklif Talebi Yok.</div> : null}
           </div>
         </aside>
 
         <div className="min-w-0">
-          {detailLoading ? <div className="rounded-[20px] border border-[#dfe7ed] bg-white py-20"><Spinner label="RFQ detayı yükleniyor..." /></div> : null}
+          {detailLoading ? <div className="rounded-[20px] border border-[#dfe7ed] bg-white py-20"><Spinner label="Teklif Talebi Detayı Yükleniyor..." /></div> : null}
           {!detailLoading && detail ? (
             <div className="space-y-5">
               <section className="rounded-[20px] border border-[#dfe7ed] bg-white p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#7a8792]">{RFQ_STATUS[detail.status] || detail.status}</p><h2 className="mt-1 text-[22px] font-semibold tracking-[-.03em]">{detail.title}</h2><p className="mt-2 text-[12px] text-[#667482]">{detail.warehouseName} · Son yanıt {formatDate(detail.responseDeadline)}</p></div>
-                  <div className="rounded-[14px] bg-[#f6f8fb] px-4 py-3 text-right"><p className="text-[10px] text-[#7a8792]">Teklif durumu</p><p className="mt-1 text-[13px] font-semibold">{QUOTE_STATUS[detail.quoteStatus || ""] || "Henüz oluşturulmadı"}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#7a8792]">{REQUEST_STATUS[detail.status] || "Durum Bilinmiyor"}</p><h2 className="mt-1 text-[22px] font-semibold tracking-[-.03em]">{detail.title}</h2><p className="mt-2 text-[12px] text-[#667482]">{detail.warehouseName} · Son Yanıt {formatDate(detail.responseDeadline)}</p></div>
+                  <div className="rounded-[14px] bg-[#f6f8fb] px-4 py-3 text-right"><p className="text-[10px] text-[#7a8792]">Teklif Durumu</p><p className="mt-1 text-[13px] font-semibold">{QUOTE_STATUS[detail.quoteStatus || ""] || "Henüz Oluşturulmadı"}</p></div>
                 </div>
                 {detail.note ? <p className="mt-4 rounded-[14px] bg-[#f7fafc] px-4 py-3 text-[12px] leading-5 text-[#52616d]">{detail.note}</p> : null}
               </section>
 
               <section className="overflow-hidden rounded-[20px] border border-[#dfe7ed] bg-white">
                 <div className="grid grid-cols-[minmax(220px,1.5fr)_90px_130px_130px_110px] gap-3 border-b border-[#dfe7ed] bg-[#f8fafc] px-4 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[#7a8792]">
-                  <span>Ürün</span><span>Miktar</span><span>Birim fiyat</span><span>Mevcut miktar</span><span>Termin</span>
+                  <span>Ürün</span><span>Miktar</span><span>Birim Fiyat</span><span>Mevcut Miktar</span><span>Teslim Süresi</span>
                 </div>
                 <div className="divide-y divide-[#edf1f4]">
                   {detail.items.map((item, index) => {
                     const catalogDefault = catalogDefaultByItem.get(item.rfqItemId);
                     const seededFromCatalog = !detail.quoteId && catalogDefault?.hasActiveCatalogOffer;
+                    const unitLabel = UNIT_LABELS[item.unit] ?? item.unit;
                     return (
                       <div key={item.rfqItemId} className="grid grid-cols-[minmax(220px,1.5fr)_90px_130px_130px_110px] items-center gap-3 px-4 py-4 text-[12px]">
                         <div>
                           <p className="font-semibold">{item.catalogProductName} · {item.catalogVariantName}</p>
-                          <p className="mt-1 text-[10px] text-[#7a8792]">{item.canonicalSku || "Canonical SKU yok"} · {item.unit}</p>
-                          {seededFromCatalog ? <p className="mt-1 text-[9px] font-semibold text-[#1674bd]">Aktif katalog teklifinden ön dolduruldu</p> : null}
+                          <p className="mt-1 text-[10px] text-[#7a8792]">{item.canonicalSku || "Stok Kodu Yok"} · {unitLabel}</p>
+                          {seededFromCatalog ? <p className="mt-1 text-[9px] font-semibold text-[#1674bd]">Aktif Katalog Teklifinden Otomatik Dolduruldu</p> : null}
                         </div>
-                        <span>{Number(item.quantity)} {item.unit}</span>
+                        <span>{Number(item.quantity)} {unitLabel}</span>
                         <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.unitPrice ?? ""} onChange={(event) => patchItem(index, { unitPrice: event.target.value })} placeholder="0,00" />
-                        <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.availableQuantity ?? ""} onChange={(event) => patchItem(index, { availableQuantity: event.target.value })} placeholder="Opsiyonel" />
-                        <div className="flex items-center gap-1"><TextInput disabled={!editable} inputMode="numeric" value={draftItems[index]?.leadTimeDays ?? "0"} onChange={(event) => patchItem(index, { leadTimeDays: event.target.value })} /><span className="text-[10px] text-[#7a8792]">gün</span></div>
+                        <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.availableQuantity ?? ""} onChange={(event) => patchItem(index, { availableQuantity: event.target.value })} placeholder="İsteğe Bağlı" />
+                        <div className="flex items-center gap-1"><TextInput disabled={!editable} inputMode="numeric" value={draftItems[index]?.leadTimeDays ?? "0"} onChange={(event) => patchItem(index, { leadTimeDays: event.target.value })} /><span className="text-[10px] text-[#7a8792]">Gün</span></div>
                       </div>
                     );
                   })}
@@ -407,31 +419,31 @@ export default function SupplierRfqPage() {
               <section className="grid gap-5 rounded-[20px] border border-[#dfe7ed] bg-white p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
                 <div className="space-y-5">
                   <div>
-                    <h3 className="text-[14px] font-semibold">Ticari şartlar</h3>
-                    <p className="mt-1 text-[11px] text-[#7a8792]">Bu koşullar buyer karşılaştırmasına ve kazanan teklifte immutable PO origin snapshotına taşınır.</p>
+                    <h3 className="text-[14px] font-semibold">Ticari Şartlar</h3>
+                    <p className="mt-1 text-[11px] text-[#7a8792]">Bu Koşullar Teklif Karşılaştırmasında Kullanılır Ve Kazanan Teklif Satın Alma Siparişine Aktarılır.</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                    <label className="text-[11px] font-semibold text-[#52616d]">Para birimi<TextInput disabled={!editable} value={currency} maxLength={3} onChange={(event) => setCurrency(event.target.value.toUpperCase())} className="mt-1" /></label>
-                    <label className="text-[11px] font-semibold text-[#52616d]">Geçerlilik tarihi<input disabled={!editable} type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} className="mt-1 h-10 w-full rounded-[10px] border border-[#dfe7ed] bg-white px-3 text-[12px] disabled:bg-[#f5f7f9]" /></label>
-                    <label className="text-[11px] font-semibold text-[#52616d]">Ödeme vadesi (gün)<TextInput disabled={!editable} inputMode="numeric" value={paymentTermsDays} onChange={(event) => setPaymentTermsDays(event.target.value)} placeholder="Opsiyonel" className="mt-1" /></label>
-                    <label className="text-[11px] font-semibold text-[#52616d]">Garanti (ay)<TextInput disabled={!editable} inputMode="numeric" value={warrantyMonths} onChange={(event) => setWarrantyMonths(event.target.value)} placeholder="Opsiyonel" className="mt-1" /></label>
-                    <label className="text-[11px] font-semibold text-[#52616d]">Servis SLA (gün)<TextInput disabled={!editable} inputMode="numeric" value={serviceSlaDays} onChange={(event) => setServiceSlaDays(event.target.value)} placeholder="Opsiyonel" className="mt-1" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Para Birimi<TextInput disabled={!editable} value={currency} maxLength={3} onChange={(event) => setCurrency(event.target.value.toUpperCase())} className="mt-1" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Geçerlilik Tarihi<input disabled={!editable} type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} className="mt-1 h-10 w-full rounded-[10px] border border-[#dfe7ed] bg-white px-3 text-[12px] disabled:bg-[#f5f7f9]" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Ödeme Vadesi (Gün)<TextInput disabled={!editable} inputMode="numeric" value={paymentTermsDays} onChange={(event) => setPaymentTermsDays(event.target.value)} placeholder="İsteğe Bağlı" className="mt-1" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Garanti (Ay)<TextInput disabled={!editable} inputMode="numeric" value={warrantyMonths} onChange={(event) => setWarrantyMonths(event.target.value)} placeholder="İsteğe Bağlı" className="mt-1" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Hizmet Süresi (Gün)<TextInput disabled={!editable} inputMode="numeric" value={serviceSlaDays} onChange={(event) => setServiceSlaDays(event.target.value)} placeholder="İsteğe Bağlı" className="mt-1" /></label>
                   </div>
                   <div className="grid gap-2 sm:grid-cols-3">
-                    <CommercialToggle label="Kurulum dahil" checked={installationIncluded} disabled={!editable} onChange={setInstallationIncluded} />
-                    <CommercialToggle label="Eğitim dahil" checked={trainingIncluded} disabled={!editable} onChange={setTrainingIncluded} />
-                    <CommercialToggle label="Finansman mevcut" checked={financingAvailable} disabled={!editable} onChange={setFinancingAvailable} />
+                    <CommercialToggle label="Kurulum Dahil" checked={installationIncluded} disabled={!editable} onChange={setInstallationIncluded} />
+                    <CommercialToggle label="Eğitim Dahil" checked={trainingIncluded} disabled={!editable} onChange={setTrainingIncluded} />
+                    <CommercialToggle label="Finansman Mevcut" checked={financingAvailable} disabled={!editable} onChange={setFinancingAvailable} />
                   </div>
-                  <label className="block text-[11px] font-semibold text-[#52616d]">Teklif notu<textarea disabled={!editable} value={quoteNote} onChange={(event) => setQuoteNote(event.target.value)} rows={4} className="mt-1 w-full resize-none rounded-[12px] border border-[#dfe7ed] bg-white px-3 py-2 text-[12px] outline-none focus:border-[#1674bd] disabled:bg-[#f5f7f9]" /></label>
+                  <label className="block text-[11px] font-semibold text-[#52616d]">Teklif Notu<textarea disabled={!editable} value={quoteNote} onChange={(event) => setQuoteNote(event.target.value)} rows={4} className="mt-1 w-full resize-none rounded-[12px] border border-[#dfe7ed] bg-white px-3 py-2 text-[12px] outline-none focus:border-[#1674bd] disabled:bg-[#f5f7f9]" /></label>
                 </div>
                 <div className="rounded-[16px] bg-[#f7fafc] p-4">
-                  <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#7a8792]">Teklif toplamı</p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[#7a8792]">Teklif Toplamı</p>
                   <p className="mt-2 text-[26px] font-semibold tracking-[-.04em]">{money(quoteTotal, currency || "TRY")}</p>
-                  <p className="mt-2 text-[10px] leading-4 text-[#7a8792]">Toplam, RFQ miktarı × birim fiyat üzerinden bilgilendirme amacıyla hesaplanır.</p>
-                  {editable ? <Button type="button" onClick={saveDraft} disabled={busy} className="mt-4 w-full">{busy ? "Kaydediliyor..." : "Taslağı kaydet"}</Button> : null}
-                  {canManage && detail.quoteStatus === "DRAFT" ? <Button type="button" onClick={submitQuote} disabled={busy} className="mt-2 w-full">Teklifi gönder</Button> : null}
-                  {canManage && detail.quoteStatus === "SUBMITTED" && detail.status === "PUBLISHED" ? <button type="button" onClick={withdrawQuote} disabled={busy} className="mt-2 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 py-2.5 text-[12px] font-semibold text-[#9b4a3c] hover:bg-[#fff8f6] disabled:opacity-50">Teklifi geri çek</button> : null}
-                  {detail.quoteStatus === "WITHDRAWN" ? <p className="mt-3 text-[10px] leading-4 text-[#9b4a3c]">Bu teklif geri çekildi ve buyer değerlendirmesinde aktif değildir.</p> : null}
+                  <p className="mt-2 text-[10px] leading-4 text-[#7a8792]">Toplam, Talep Miktarı İle Birim Fiyatın Çarpılmasıyla Bilgilendirme Amacıyla Hesaplanır.</p>
+                  {editable ? <Button type="button" onClick={saveDraft} disabled={busy} className="mt-4 w-full">{busy ? "Kaydediliyor..." : "Taslağı Kaydet"}</Button> : null}
+                  {canManage && detail.quoteStatus === "DRAFT" ? <Button type="button" onClick={submitQuote} disabled={busy} className="mt-2 w-full">Teklifi Gönder</Button> : null}
+                  {canManage && detail.quoteStatus === "SUBMITTED" && detail.status === "PUBLISHED" ? <button type="button" onClick={withdrawQuote} disabled={busy} className="mt-2 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 py-2.5 text-[12px] font-semibold text-[#9b4a3c] hover:bg-[#fff8f6] disabled:opacity-50">Teklifi Geri Çek</button> : null}
+                  {detail.quoteStatus === "WITHDRAWN" ? <p className="mt-3 text-[10px] leading-4 text-[#9b4a3c]">Bu Teklif Geri Çekildi Ve Değerlendirmede Aktif Değildir.</p> : null}
                 </div>
               </section>
             </div>
