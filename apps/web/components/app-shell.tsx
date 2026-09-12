@@ -53,6 +53,7 @@ const NAV_SECTIONS = [
     { href: "/reports", permission: "reports.read", label: "Raporlar", icon: "chart" },
     { href: "/reports/staff", permission: "reports.read", label: "Personel Performansı", icon: "trend" },
     { href: "/reports/services", permission: "reports.read", label: "Hizmet Performansı", icon: "chart" },
+    { href: "/quality/comparison", permissions: ["quality.read", "training.read"], label: "Kalite & Gelişim Karşılaştırma", icon: "activity" },
   ]},
   { label: "Yönetim", items: [
     { href: "/settings/roles", permission: "roles.read", label: "Roller & Yetkiler", icon: "shield" },
@@ -61,7 +62,12 @@ const NAV_SECTIONS = [
 ] as const;
 
 type NavItem = (typeof NAV_SECTIONS)[number]["items"][number];
-function isAllowed(item: NavItem) { if (!("permission" in item) || !item.permission) return true; const [resource, action] = item.permission.split("."); return hasPermission(resource, action); }
+function hasPermissionKey(permission: string) { const [resource, action] = permission.split("."); return hasPermission(resource, action); }
+function isAllowed(item: NavItem) {
+  if ("permissions" in item && item.permissions) return item.permissions.every(hasPermissionKey);
+  if ("permission" in item && item.permission) return hasPermissionKey(item.permission);
+  return true;
+}
 function isActivePath(pathname: string, href: string) { if (href === "/finance/cfo") return pathname === href; return pathname === href || (href !== "/dashboard" && pathname.startsWith(`${href}/`)); }
 
 function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
