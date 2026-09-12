@@ -20,10 +20,10 @@ const NAV_SECTIONS = [
   { label: "Genel", items: [
     { href: "/dashboard", label: "Bugün", icon: "home" },
   ]},
-  { label: "CRM", items: [
+  { label: "Müşteri İlişkileri", items: [
     { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
-    { href: "/crm/leads", permission: "crm.read", label: "Leadler", icon: "users" },
-    { href: "/crm/pipeline", permission: "crm.read", label: "Pipeline", icon: "chart" },
+    { href: "/crm/leads", permission: "crm.read", label: "Potansiyel Müşteriler", icon: "users" },
+    { href: "/crm/pipeline", permission: "crm.read", label: "Satış Süreci", icon: "chart" },
     { href: "/crm/follow-ups", permission: "crm.read", label: "Takipler", icon: "calendar" },
     { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
@@ -33,11 +33,11 @@ const NAV_SECTIONS = [
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
     { href: "/payments", permission: "payments.read", label: "Ödemeler", icon: "wallet" },
   ]},
-  { label: "Finans & CFO", items: [
-    { href: "/finance/cfo", label: "Yönetim Kokpiti", icon: "trend" },
-    { href: "/finance/cfo/treasury", label: "Canlı Treasury", icon: "activity" },
-    { href: "/finance/integrations", label: "Finansal Entegrasyonlar", icon: "wallet" },
-    { href: "/finance/integrations/operations", label: "Integration Operations", icon: "activity" },
+  { label: "Finans Yönetimi", items: [
+    { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
+    { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
+    { href: "/finance/integrations", label: "Banka Ve Ödeme Bağlantıları", icon: "wallet" },
+    { href: "/finance/integrations/operations", label: "Bağlantı İşlemleri", icon: "activity" },
     { href: "/finance/reconciliation", label: "Mutabakat Merkezi", icon: "arrows" },
     { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
   ]},
@@ -52,13 +52,13 @@ const NAV_SECTIONS = [
     { href: "/hr/sgk", label: "SGK İşlemleri", icon: "shield" },
   ]},
   { label: "Gelişim", items: [
-    { href: "/training", permission: "training.read", label: "Eğitim & Yetkinlik", icon: "chart" },
-    { href: "/training/analytics", permission: "training.read", label: "Learning Analytics", icon: "trend" },
+    { href: "/training", permission: "training.read", label: "Eğitim Ve Yetkinlik", icon: "chart" },
+    { href: "/training/analytics", permission: "training.read", label: "Eğitim Analizi", icon: "trend" },
     { href: "/training/staff", permission: "training.read", label: "Personel Gelişim Profilleri", icon: "users" },
     { href: "/training/question-bank", permission: "training.manage", label: "Soru Bankası", icon: "file" },
   ]},
   { label: "Envanter", items: [
-    { href: "/inventory", label: "Stok & Envanter", icon: "package" },
+    { href: "/inventory", label: "Stok Ve Envanter", icon: "package" },
     { href: "/inventory/purchases", label: "Satın Alma", icon: "cart" },
     { href: "/inventory/transfers", label: "Depo Transferleri", icon: "arrows" },
     { href: "/inventory/movements", label: "Stok Hareketleri", icon: "activity" },
@@ -67,10 +67,10 @@ const NAV_SECTIONS = [
     { href: "/reports", permission: "reports.read", label: "Raporlar", icon: "chart" },
     { href: "/reports/staff", permission: "reports.read", label: "Personel Performansı", icon: "trend" },
     { href: "/reports/services", permission: "reports.read", label: "Hizmet Performansı", icon: "chart" },
-    { href: "/quality/comparison", permissions: ["quality.read", "training.read"], label: "Kalite & Gelişim Karşılaştırma", icon: "activity" },
+    { href: "/quality/comparison", permissions: ["quality.read", "training.read"], label: "Kalite Ve Gelişim Karşılaştırma", icon: "activity" },
   ]},
   { label: "Yönetim", items: [
-    { href: "/settings/roles", permission: "roles.read", label: "Roller & Yetkiler", icon: "shield" },
+    { href: "/settings/roles", permission: "roles.read", label: "Roller Ve Yetkiler", icon: "shield" },
     { href: "/settings", label: "Ayarlar", icon: "settings" },
   ]},
 ] as const;
@@ -148,7 +148,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
   }, []);
 
   return (
-    <nav aria-label="Ana navigasyon" className="flex flex-1 flex-col overflow-y-auto px-3 pb-4 pt-2">
+    <nav aria-label="Ana Navigasyon" className="flex flex-1 flex-col overflow-y-auto px-3 pb-4 pt-2">
       {visibleSections.map((section) => {
         const open = collapsed || openSections.has(section.label);
         return (
@@ -240,7 +240,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         const result = await api<ContextOptions>("/auth/context/options");
         if (active) setContextOptions(result);
       } catch {
-        if (active) setBranchError("Şube bilgileri yüklenemedi.");
+        if (active) setBranchError("Şube Bilgileri Yüklenemedi.");
       }
     }
 
@@ -283,7 +283,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       window.location.reload();
     } catch {
-      setBranchError("Şube değiştirilemedi. Lütfen tekrar deneyin.");
+      setBranchError("Şube Değiştirilemedi. Lütfen Tekrar Deneyin.");
       setSwitchingBranch(false);
     }
   }
@@ -337,23 +337,23 @@ export function AppShell({ children }: { children: ReactNode }) {
             {!collapsed ? (
               <div className="min-w-0">
                 <div className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[var(--ink)]">VALOO</div>
-                <div className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{tenant?.name ?? "İşletme yönetimi"}</div>
+                <div className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{tenant?.name ?? "İşletme Yönetimi"}</div>
               </div>
             ) : null}
           </div>
           {!collapsed ? (
-            <button type="button" onClick={toggleSidebar} aria-label="Menüyü daralt" title="Menüyü daralt" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">‹</button>
+            <button type="button" onClick={toggleSidebar} aria-label="Menüyü Daralt" title="Menüyü Daralt" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">‹</button>
           ) : null}
         </div>
 
         {collapsed ? (
-          <button type="button" onClick={toggleSidebar} aria-label="Menüyü genişlet" title="Menüyü genişlet" className="mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-[12px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">›</button>
+          <button type="button" onClick={toggleSidebar} aria-label="Menüyü Genişlet" title="Menüyü Genişlet" className="mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-[12px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">›</button>
         ) : null}
 
         {!collapsed && contextOptions ? (
           <div className="px-5 pt-4">
             <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]" htmlFor="branch-context-select">
-              Çalışma kapsamı
+              Çalışma Kapsamı
             </label>
             <div className="relative mt-2">
               <select
@@ -373,7 +373,7 @@ export function AppShell({ children }: { children: ReactNode }) {
               <span aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)]">▼</span>
             </div>
             <p className="mt-1.5 truncate text-[10px] text-[var(--muted)]">
-              {switchingBranch ? "Şube değiştiriliyor…" : `Aktif: ${activeBranchName}`}
+              {switchingBranch ? "Şube Değiştiriliyor…" : `Aktif: ${activeBranchName}`}
             </p>
             {branchError ? <p className="mt-1 text-[10px] text-red-600">{branchError}</p> : null}
           </div>
@@ -403,14 +403,14 @@ export function AppShell({ children }: { children: ReactNode }) {
             onClick={() => void logout()}
             disabled={loggingOut}
             aria-busy={loggingOut}
-            title={collapsed ? "Çıkış yap" : undefined}
+            title={collapsed ? "Çıkış Yap" : undefined}
             className={cx(
               "flex items-center rounded-[13px] text-[12px] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:cursor-not-allowed disabled:opacity-40",
               collapsed ? "h-10 w-10 justify-center" : "w-full gap-3 px-3 py-2.5",
             )}
           >
             <span aria-hidden="true">↪</span>
-            {!collapsed ? (loggingOut ? "Çıkış yapılıyor…" : "Çıkış yap") : null}
+            {!collapsed ? (loggingOut ? "Çıkış Yapılıyor…" : "Çıkış Yap") : null}
           </button>
         </div>
       </aside>
