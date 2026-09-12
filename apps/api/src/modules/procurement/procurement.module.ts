@@ -12,6 +12,7 @@ import { ProcurementReceiptQueryController } from './procurement-receipt-query.c
 import { ProcurementReturnQueryService } from './procurement-return-query.service';
 import { ProcurementReturnQueryController } from './procurement-return-query.controller';
 import { ProcurementRfqController } from './procurement-rfq.controller';
+import { ProcurementRfqCommercialTermsService } from './procurement-rfq-commercial-terms.service';
 import { ProcurementRfqOptionsService } from './procurement-rfq-options.service';
 import { ProcurementRfqService } from './procurement-rfq.service';
 import { ProcurementOfferOrderController } from './procurement-offer-order.controller';
@@ -35,6 +36,7 @@ import { ProcurementOfferOrderService } from './procurement-offer-order.service'
     ProcurementOrdersQueryService,
     ProcurementReceiptQueryService,
     ProcurementReturnQueryService,
+    ProcurementRfqCommercialTermsService,
     ProcurementRfqOptionsService,
     ProcurementRfqService,
     ProcurementOfferOrderService,
@@ -49,6 +51,7 @@ import { ProcurementOfferOrderService } from './procurement-offer-order.service'
     ProcurementOrdersQueryService,
     ProcurementReceiptQueryService,
     ProcurementReturnQueryService,
+    ProcurementRfqCommercialTermsService,
     ProcurementRfqOptionsService,
     ProcurementRfqService,
     ProcurementOfferOrderService,
