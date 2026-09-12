@@ -1,5 +1,6 @@
 import {
   BadRequestException,
+  ConflictException,
   Injectable,
   InternalServerErrorException,
   NotFoundException,
@@ -183,7 +184,7 @@ export class AppointmentsService {
       });
 
     if (conflict) {
-      throw new BadRequestException(
+      throw new ConflictException(
         'Staff already has an overlapping appointment',
       );
     }
@@ -242,16 +243,22 @@ export class AppointmentsService {
       branchId,
     );
 
-    await this.ensureNoStaffOverlap(
-      tenantId,
-      branchId,
-      input.staffId,
-      input.startAt,
-      input.endAt,
-    );
-
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+          `${tenantId}:${branchId}`,
+          input.staffId,
+        );
+
+        await this.ensureNoStaffOverlap(
+          tenantId,
+          branchId,
+          input.staffId,
+          input.startAt,
+          input.endAt,
+        );
+
         if (input.sessionId) {
           const session = await tx.session.findFirst({
             where: {
@@ -307,7 +314,7 @@ export class AppointmentsService {
           });
 
           if (reserved.count !== 1) {
-            throw new BadRequestException(
+            throw new ConflictException(
               'Selected session was reserved by another operation. Please choose another session.',
             );
           }
@@ -327,7 +334,10 @@ export class AppointmentsService {
         });
       });
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
 
@@ -494,15 +504,6 @@ export class AppointmentsService {
       appointment.branchId,
     );
 
-    await this.ensureNoStaffOverlap(
-      tenantId,
-      appointment.branchId,
-      staffId,
-      startAt,
-      endAt,
-      id,
-    );
-
     if (
       appointment.session &&
       (customerId !== appointment.customerId ||
@@ -526,6 +527,21 @@ export class AppointmentsService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+          `${tenantId}:${appointment.branchId}`,
+          staffId,
+        );
+
+        await this.ensureNoStaffOverlap(
+          tenantId,
+          appointment.branchId,
+          staffId,
+          startAt,
+          endAt,
+          id,
+        );
+
         const updated = await tx.appointment.update({
           where: { id },
           data: {
@@ -619,7 +635,10 @@ export class AppointmentsService {
         });
       });
     } catch (error) {
-      if (error instanceof BadRequestException) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException
+      ) {
         throw error;
       }
 
