@@ -60,6 +60,7 @@ const NAV_SECTIONS = [
   { label: "Envanter", items: [
     { href: "/inventory", label: "Stok Ve Envanter", icon: "package" },
     { href: "/inventory/lots", label: "Lot Ve Son Kullanma", icon: "calendar" },
+    { href: "/inventory/analysis", label: "Envanter Analizi", icon: "chart" },
     { href: "/inventory/purchases", label: "Satın Alma", icon: "cart" },
     { href: "/inventory/transfers", label: "Depo Transferleri", icon: "arrows" },
     { href: "/inventory/movements", label: "Stok Hareketleri", icon: "activity" },
