@@ -6,7 +6,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 export class PositionCompetencyService {
   constructor(private readonly prisma:PrismaService,private readonly tenant:TenantContext){}
   private c(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId(),branchId:this.tenant.getBranchId()};}
-  private key(value:string){return value?.trim().toLocaleUpperCase('tr-TR').replace(/\s+/g,' ');}
+  private key(value:string){return value?.trim().toUpperCase().replace(/\s+/g,' ');}
 
   async createMapping(input:{position:string;profileId:string;effectiveFrom?:string;effectiveTo?:string|null},actor:string){
     const c=this.c(),label=input.position?.trim(),positionKey=this.key(input.position),from=input.effectiveFrom??new Date().toISOString().slice(0,10),to=input.effectiveTo??null;
