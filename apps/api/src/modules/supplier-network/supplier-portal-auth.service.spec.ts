@@ -47,7 +47,7 @@ describe('SupplierPortalAuthService', () => {
     expect(signAsync).not.toHaveBeenCalled();
   });
 
-  it('requires organization selection when the user has multiple active supplier memberships', async () => {
+  it('returns organization choices after valid credentials when multiple memberships exist', async () => {
     queryRawUnsafe.mockResolvedValue([
       {
         supplierOrganizationId: 'org-1',
@@ -69,7 +69,25 @@ describe('SupplierPortalAuthService', () => {
 
     await expect(
       service.login({ email: 'supplier@example.com', password: 'secret-123' }),
-    ).rejects.toBeInstanceOf(UnauthorizedException);
+    ).resolves.toEqual({
+      organizationSelectionRequired: true,
+      organizations: [
+        {
+          id: 'org-1',
+          slug: 'supplier-one',
+          displayName: 'Supplier One',
+          verificationStatus: 'VERIFIED',
+          role: 'OWNER',
+        },
+        {
+          id: 'org-2',
+          slug: 'supplier-two',
+          displayName: 'Supplier Two',
+          verificationStatus: 'PENDING',
+          role: 'ADMIN',
+        },
+      ],
+    });
 
     expect(signAsync).not.toHaveBeenCalled();
   });
@@ -93,6 +111,7 @@ describe('SupplierPortalAuthService', () => {
         supplierOrganizationId: 'org-1',
       }),
     ).resolves.toMatchObject({
+      organizationSelectionRequired: false,
       accessToken: 'supplier-token',
       expiresInSeconds: 900,
       supplierOrganization: {
