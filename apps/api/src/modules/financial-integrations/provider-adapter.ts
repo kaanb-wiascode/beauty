@@ -88,6 +88,7 @@ export interface ProviderPosRefundResult {
   amount: number;
   currency: string;
   occurredAt: Date;
+  feeAmount?: number;
   providerReference?: string;
 }
 
