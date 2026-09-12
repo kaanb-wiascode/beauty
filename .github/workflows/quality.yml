@@ -18,6 +18,20 @@ jobs:
   quality:
     runs-on: ubuntu-latest
     timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: beauty_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d beauty_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty_ci?schema=public
 
@@ -43,6 +57,9 @@ jobs:
 
       - name: Validate Prisma schema
         run: pnpm --filter @beauty-erp/database validate
+
+      - name: Apply database migrations
+        run: pnpm --filter @beauty-erp/database migrate:deploy
 
       - name: Generate Prisma client
         run: pnpm --filter @beauty-erp/database generate
