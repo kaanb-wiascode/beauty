@@ -188,10 +188,10 @@ export class PosWebhookService {
       }
       const upserted = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO pos_transactions(
-           id,tenant_id,company_id,branch_id,terminal_id,provider_transaction_id,status,amount,fee_amount,net_amount,currency,
+           id,tenant_id,company_id,branch_id,integration_id,terminal_id,provider_transaction_id,status,amount,fee_amount,net_amount,currency,
            installment_count,expected_settlement_at,created_at,updated_at
-         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
-         ON CONFLICT(company_id,provider_transaction_id) DO UPDATE SET
+         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,$12,$13,$14,$15,NOW())
+         ON CONFLICT(integration_id,provider_transaction_id) DO UPDATE SET
            status=EXCLUDED.status,amount=EXCLUDED.amount,fee_amount=EXCLUDED.fee_amount,net_amount=EXCLUDED.net_amount,
            currency=EXCLUDED.currency,installment_count=EXCLUDED.installment_count,
            expected_settlement_at=EXCLUDED.expected_settlement_at,updated_at=NOW()
@@ -200,6 +200,7 @@ export class PosWebhookService {
         integration.tenantId,
         integration.companyId,
         integration.branchId,
+        integration.id,
         terminalId,
         event.transaction.externalTransactionId,
         event.transaction.status,
@@ -223,6 +224,7 @@ export class PosWebhookService {
         scope,
         event.correlation.providerTransactionId,
         event.correlation.merchantReference,
+        integration.id,
       );
       const correlated = correlationResult as { posTransactionId?: string } | null;
       if (!posTransactionId && correlated?.posTransactionId) posTransactionId = correlated.posTransactionId;
@@ -236,8 +238,7 @@ export class PosWebhookService {
         const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
           `SELECT p.id
            FROM pos_transactions p
-           JOIN pos_terminals t ON t.id=p.terminal_id
-           WHERE t.integration_id=$1::text AND p.provider_transaction_id=$2
+           WHERE p.integration_id=$1::text AND p.provider_transaction_id=$2
              AND p.tenant_id=$3::text AND p.company_id=$4::text
            LIMIT 1`,
           integration.id,
