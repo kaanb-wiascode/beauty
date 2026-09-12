@@ -2,6 +2,7 @@ import { createHash, createHmac } from 'node:crypto';
 
 import { Injectable, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { managedMimeType } from './managed-upload-policy';
 
 type StorageConfig = {
   bucket: string;
@@ -210,7 +211,7 @@ export class ObjectStorageService {
   }
 
   async presignPut(key: string, contentType: string) {
-    const normalizedContentType = contentType.trim().toLowerCase();
+    const normalizedContentType = managedMimeType(contentType);
     const signed = this.presign('PUT', key, {}, normalizedContentType);
     return { ...signed, requiredHeaders: { 'content-type': normalizedContentType } };
   }
@@ -229,9 +230,10 @@ export class ObjectStorageService {
     const response = await this.signedRequest('HEAD', key);
     const length = response.headers.get('content-length');
     const lastModified = response.headers.get('last-modified');
+    const contentType = response.headers.get('content-type');
     return {
       byteSize: length == null ? null : Number(length),
-      mimeType: response.headers.get('content-type'),
+      mimeType: contentType ? managedMimeType(contentType) : null,
       etag: response.headers.get('etag')?.replace(/^"|"$/g, '') ?? null,
       lastModified: lastModified ? new Date(lastModified) : null,
     };
