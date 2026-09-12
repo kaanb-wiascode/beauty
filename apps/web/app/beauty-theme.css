@@ -121,7 +121,6 @@ label > span:first-child { color:var(--muted); }
 .schedule-row:hover,.panel-footer-link:hover { background:var(--surface-2)!important; }
 .next-meta-grid,.trend-mini { border-color:var(--line)!important; background:var(--surface-2)!important; }
 
-/* Legacy purple utility classes keep their layout role but inherit VALOO blue. */
 .bg-\[\#f2edff\],
 .bg-\[\#eee8ff\],
 .bg-\[\#eee9ff\],
@@ -159,14 +158,14 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] { color:var(--secondary)!important; bac
 
 /* One application shell: floating sidebar everywhere. */
 @media (min-width:1024px) {
-  .ambient-root > div:has(> aside.glass) {
+  .app-shell {
     min-height:100vh!important;
     padding:16px!important;
     gap:16px!important;
     align-items:start!important;
   }
 
-  .ambient-root > div:has(> aside.glass) > aside.glass {
+  .app-sidebar {
     position:sticky!important;
     top:16px!important;
     height:calc(100vh - 32px)!important;
@@ -178,12 +177,12 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] { color:var(--secondary)!important; bac
     overflow:hidden!important;
   }
 
-  .ambient-root > div:has(> aside.glass) > main {
+  .app-content {
     min-width:0!important;
     padding:0!important;
   }
 
-  .ambient-root > div:has(> aside.glass) > main > * {
+  .app-content > * {
     width:100%;
   }
 }
