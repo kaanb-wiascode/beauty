@@ -67,6 +67,9 @@ export class ProcurementController {
   @RequirePermission('inventory', 'write')
   convertPurchaseRequest(@Param('id') id: string, @Body() body: unknown) { return this.requests.convertPurchaseRequest(id, convertPurchaseRequestSchema.parse(body)); }
 
+  @Get('purchase-orders/:id')
+  getPurchaseOrder(@Param('id') id: string) { return this.service.getPurchaseOrderDetail(id); }
+
   @Post('purchase-orders/:id/submit-approval')
   @RequirePermission('inventory', 'write')
   submitPurchaseOrderApproval(@Param('id') id: string) { return this.approvals.submit(id); }
