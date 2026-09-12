@@ -26,6 +26,12 @@ export class AccountsPayableReversalsService {
     name: string,
     type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
   ) {
+    await tx.$queryRawUnsafe(
+      'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+      `account:${companyId}`,
+      code,
+    );
+
     const existing = await tx.chartOfAccount.findFirst({
       where: { tenantId, companyId, code },
       select: { id: true, active: true },
