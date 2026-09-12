@@ -11,12 +11,15 @@ import { ProcurementReceiptQueryService } from './procurement-receipt-query.serv
 import { ProcurementReceiptQueryController } from './procurement-receipt-query.controller';
 import { ProcurementReturnQueryService } from './procurement-return-query.service';
 import { ProcurementReturnQueryController } from './procurement-return-query.controller';
+import { ProcurementRfqController } from './procurement-rfq.controller';
+import { ProcurementRfqService } from './procurement-rfq.service';
 
 @Module({
   controllers: [
     ProcurementController,
     ProcurementReceiptQueryController,
     ProcurementReturnQueryController,
+    ProcurementRfqController,
   ],
   providers: [
     ProcurementService,
@@ -28,6 +31,7 @@ import { ProcurementReturnQueryController } from './procurement-return-query.con
     ProcurementOrdersQueryService,
     ProcurementReceiptQueryService,
     ProcurementReturnQueryService,
+    ProcurementRfqService,
   ],
   exports: [
     ProcurementService,
@@ -39,6 +43,7 @@ import { ProcurementReturnQueryController } from './procurement-return-query.con
     ProcurementOrdersQueryService,
     ProcurementReceiptQueryService,
     ProcurementReturnQueryService,
+    ProcurementRfqService,
   ],
 })
 export class ProcurementModule {}
