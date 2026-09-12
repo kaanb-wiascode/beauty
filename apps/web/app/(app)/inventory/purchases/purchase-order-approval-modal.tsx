@@ -68,7 +68,7 @@ export function PurchaseOrderApprovalModal({
       setError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Satın alma siparişi onay akışı yüklenemedi.",
+          : "Satın Alma Siparişi Onay Akışı Yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -108,8 +108,8 @@ export function PurchaseOrderApprovalModal({
       setState(next);
       showToast(
         decision === "approve"
-          ? `Onay seviyesi ${level} tamamlandı.`
-          : `Onay seviyesi ${level} reddedildi.`,
+          ? `Onay Seviyesi ${level} Tamamlandı.`
+          : `Onay Seviyesi ${level} Reddedildi.`,
       );
       await onChanged();
     } catch (requestError) {
@@ -117,8 +117,8 @@ export function PurchaseOrderApprovalModal({
         requestError instanceof ApiError
           ? requestError.message
           : decision === "approve"
-            ? "Onay işlemi tamamlanamadı."
-            : "Red işlemi tamamlanamadı.",
+            ? "Onay İşlemi Tamamlanamadı."
+            : "Red İşlemi Tamamlanamadı.",
       );
     } finally {
       setBusyLevel(null);
@@ -131,10 +131,10 @@ export function PurchaseOrderApprovalModal({
       onClose={() => {
         if (busyLevel === null) onClose();
       }}
-      title="Satın alma onay akışı"
+      title="Satın Alma Onay Akışı"
       description={
         order
-          ? `${order.supplierName || "Tedarikçi seçilmedi"} · ${order.warehouseName} · ${formatMoney(order.totalAmount)}`
+          ? `${order.supplierName || "Tedarikçi Seçilmedi"} · ${order.warehouseName} · ${formatMoney(order.totalAmount)}`
           : undefined
       }
     >
@@ -142,12 +142,12 @@ export function PurchaseOrderApprovalModal({
         {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
         {loading && !state ? (
-          <Spinner label="Onay akışı yükleniyor..." />
+          <Spinner label="Onay Akışı Yükleniyor..." />
         ) : state ? (
           <>
             <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3">
               <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">
-                Sipariş durumu
+                Sipariş Durumu
               </p>
               <div className="mt-2 flex items-center justify-between gap-3">
                 <span className="text-[13px] font-semibold text-[var(--ink)]">
@@ -185,8 +185,8 @@ export function PurchaseOrderApprovalModal({
                         : approval.status === "REJECTED"
                           ? `Reddedildi${approval.approvedAt ? ` · ${formatDate(approval.approvedAt)}` : ""}`
                           : actionable
-                            ? "Sıradaki aktif onay seviyesi. Backend gerekli rolü ve şube erişimini tekrar doğrular."
-                            : "Önceki onay seviyelerinin tamamlanması bekleniyor."}
+                            ? "Sıradaki Aktif Onay Seviyesi. Sistem Rol Ve Şube Yetkilerini Otomatik Olarak Doğrular."
+                            : "Önceki Onay Seviyelerinin Tamamlanması Bekleniyor."}
                     </p>
 
                     {actionable && canWrite && state.order.status === "PENDING" ? (
@@ -213,7 +213,7 @@ export function PurchaseOrderApprovalModal({
 
             {!canWrite ? (
               <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] leading-5 text-[var(--muted)]">
-                Onay seviyelerini görüntüleyebilirsiniz; karar vermek için inventory.write izni gerekir.
+                Onay Seviyelerini Görüntüleyebilirsiniz. Karar Vermek İçin Gerekli Yetkiye Sahip Olmanız Gerekir.
               </div>
             ) : null}
           </>
@@ -245,9 +245,9 @@ function ApprovalBadge({ status }: { status: ApprovalLevel["status"] }) {
 
 function statusLabel(status: string) {
   if (status === "APPROVED") return "Onaylandı";
-  if (status === "PENDING") return "Onay bekliyor";
-  if (status === "ORDERED") return "Sipariş verildi";
-  if (status === "CANCELLED") return "İptal";
+  if (status === "PENDING") return "Onay Bekliyor";
+  if (status === "ORDERED") return "Sipariş Verildi";
+  if (status === "CANCELLED") return "İptal Edildi";
   return status;
 }
 
