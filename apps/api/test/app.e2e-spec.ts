@@ -32,7 +32,7 @@ describe('Core Business Flow (e2e)', () => {
     await app.close();
   });
 
-  it('runs core operations and CRM lifecycle with branch isolation', async () => {
+  it('runs core operations, CRM and inventory lifecycle with branch isolation', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const email = `e2e-${suffix}@example.test`;
     const password = 'E2eStrongPassword!2026';
@@ -340,6 +340,30 @@ describe('Core Business Flow (e2e)', () => {
       409,
     ]);
 
+    const branchAOverview = await request(app.getHttpServer())
+      .get('/inventory/overview')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+
+    const branchAWarehouse = branchAOverview.body.warehouses.find(
+      (warehouse: { branchId: string | null }) => warehouse.branchId === branchAId,
+    );
+    expect(branchAWarehouse).toBeDefined();
+
+    const inventoryProduct = await request(app.getHttpServer())
+      .post('/inventory/products')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        name: `E2E Stok Ürünü ${suffix}`,
+        unit: 'UNIT',
+        warehouseId: branchAWarehouse.id,
+        initialQuantity: 10,
+        minimumQuantity: 2,
+        targetQuantity: 12,
+        purchasePrice: 50,
+      })
+      .expect(201);
+
     const branchB = await prisma.branch.create({
       data: {
         companyId,
@@ -356,6 +380,89 @@ describe('Core Business Flow (e2e)', () => {
       .expect(201);
 
     const branchBToken = branchBContext.body.accessToken as string;
+
+    const branchBOverview = await request(app.getHttpServer())
+      .get('/inventory/overview')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .expect(200);
+
+    const branchBWarehouse = branchBOverview.body.warehouses.find(
+      (warehouse: { branchId: string | null }) => warehouse.branchId === branchB.id,
+    );
+    expect(branchBWarehouse).toBeDefined();
+
+    await request(app.getHttpServer())
+      .post('/inventory/movements')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .send({
+        productId: inventoryProduct.body.id,
+        warehouseId: branchBWarehouse.id,
+        quantity: 3,
+        type: 'ADJUSTMENT_IN',
+        note: 'E2E Şube B Stok Girişi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/inventory/movements')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        productId: inventoryProduct.body.id,
+        warehouseId: branchBWarehouse.id,
+        quantity: 1,
+        type: 'ADJUSTMENT_IN',
+        note: 'Şube Dışı Hareket Engellenmeli',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/inventory/purchase-orders')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        warehouseId: branchBWarehouse.id,
+        items: [
+          {
+            productId: inventoryProduct.body.id,
+            quantity: 1,
+            unitCost: 50,
+          },
+        ],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/inventory/transfers')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        sourceWarehouseId: branchBWarehouse.id,
+        destinationWarehouseId: branchAWarehouse.id,
+        items: [{ productId: inventoryProduct.body.id, quantity: 1 }],
+      })
+      .expect(400);
+
+    const validTransfer = await request(app.getHttpServer())
+      .post('/inventory/transfers')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        sourceWarehouseId: branchAWarehouse.id,
+        destinationWarehouseId: branchBWarehouse.id,
+        items: [{ productId: inventoryProduct.body.id, quantity: 1 }],
+      })
+      .expect(201);
+
+    expect(validTransfer.body.status).toBe('PENDING');
+
+    const branchAMovements = await request(app.getHttpServer())
+      .get('/inventory/movements')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+
+    expect(
+      branchAMovements.body.every(
+        (movement: { warehouseName: string }) =>
+          movement.warehouseName === branchAWarehouse.name,
+      ),
+    ).toBe(true);
 
     await request(app.getHttpServer())
       .get(`/customers/${customer.body.id}`)
@@ -409,6 +516,18 @@ describe('Core Business Flow (e2e)', () => {
     const leadIds = allLeads.body.map((row: { id: string }) => row.id);
     expect(leadIds).toEqual(
       expect.arrayContaining([lead.body.id, leadB.body.id]),
+    );
+
+    const allMovements = await request(app.getHttpServer())
+      .get('/inventory/movements')
+      .set('Authorization', `Bearer ${allBranchesToken}`)
+      .expect(200);
+
+    const movementWarehouseNames = allMovements.body.map(
+      (movement: { warehouseName: string }) => movement.warehouseName,
+    );
+    expect(movementWarehouseNames).toEqual(
+      expect.arrayContaining([branchAWarehouse.name, branchBWarehouse.name]),
     );
   });
 });
