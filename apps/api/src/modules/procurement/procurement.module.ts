@@ -12,6 +12,7 @@ import { ProcurementReceiptQueryController } from './procurement-receipt-query.c
 import { ProcurementReturnQueryService } from './procurement-return-query.service';
 import { ProcurementReturnQueryController } from './procurement-return-query.controller';
 import { ProcurementRfqController } from './procurement-rfq.controller';
+import { ProcurementRfqOptionsService } from './procurement-rfq-options.service';
 import { ProcurementRfqService } from './procurement-rfq.service';
 
 @Module({
@@ -31,6 +32,7 @@ import { ProcurementRfqService } from './procurement-rfq.service';
     ProcurementOrdersQueryService,
     ProcurementReceiptQueryService,
     ProcurementReturnQueryService,
+    ProcurementRfqOptionsService,
     ProcurementRfqService,
   ],
   exports: [
@@ -43,6 +45,7 @@ import { ProcurementRfqService } from './procurement-rfq.service';
     ProcurementOrdersQueryService,
     ProcurementReceiptQueryService,
     ProcurementReturnQueryService,
+    ProcurementRfqOptionsService,
     ProcurementRfqService,
   ],
 })
