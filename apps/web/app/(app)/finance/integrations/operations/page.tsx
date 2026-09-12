@@ -6,6 +6,7 @@ import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type Integration = { id: string; displayName: string; provider: string; kind: string; status: string };
 type Health = {
@@ -86,7 +87,7 @@ export default function IntegrationOperationsPage() {
       setIntegrations(rows);
       setSelected((current) => current || rows[0]?.id || "");
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Entegrasyon listesi yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Bağlantı Listesi Yüklenemedi.");
     } finally {
       setInitialLoading(false);
     }
@@ -106,7 +107,7 @@ export default function IntegrationOperationsPage() {
       setAlerts(nextAlerts);
       setAudit(nextAudit);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Operasyon verileri yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Bağlantı Bilgileri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -128,7 +129,7 @@ export default function IntegrationOperationsPage() {
   if (initialLoading && !integrations.length) {
     return (
       <div className="mx-auto max-w-[1500px] py-20">
-        <Spinner label="Entegrasyon operasyonları hazırlanıyor..." />
+        <Spinner label="Bağlantı İşlemleri Hazırlanıyor..." />
       </div>
     );
   }
@@ -137,10 +138,10 @@ export default function IntegrationOperationsPage() {
     <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">FİNANS & CFO</p>
-          <h1 className="mt-2 text-[34px] font-semibold tracking-[-.045em] text-[var(--ink)]">Entegrasyon Operasyonları</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">Finans Yönetimi</p>
+          <h1 className="mt-2 text-[34px] font-semibold tracking-[-.045em] text-[var(--ink)]">Bağlantı İşlemleri</h1>
           <p className="mt-2 max-w-3xl text-[14px] leading-6 text-[var(--muted)]">
-            Provider health, sync heartbeat, production alert eşikleri ve audit kayıtlarını tek operasyon ekranında izleyin.
+            Banka Ve Ödeme Bağlantılarının Güncelliğini, Başarı Oranını, Uyarılarını Ve İşlem Geçmişini Tek Ekrandan İzleyin.
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
@@ -148,7 +149,7 @@ export default function IntegrationOperationsPage() {
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
             className="control h-11 min-w-[260px]"
-            aria-label="Entegrasyon seç"
+            aria-label="Bağlantı Seç"
           >
             {integrations.map((integration) => (
               <option key={integration.id} value={integration.id}>
@@ -167,117 +168,100 @@ export default function IntegrationOperationsPage() {
       {current && health && alerts ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-            <FinanceMetric label="Alert State" value={alerts.state} detail={`${alerts.alerts.length} aktif alarm`} tone={alertTone(alerts.state)} />
-            <FinanceMetric label="Sync Success" value={health.observability.successRate == null ? "—" : `%${health.observability.successRate}`} detail={`${health.observability.attempts} deneme / ${health.observability.windowHours}s`} tone={health.observability.failures ? "warning" : "success"} />
-            <FinanceMetric label="Ort. Süre" value={duration(health.observability.averageDurationMs)} detail={`${health.observability.failures} başarısız sync`} />
-            <FinanceMetric label="Stale Recovery" value={String(health.observability.staleRecoveries)} detail={health.observability.lastRecoveredAt ? dateTime(health.observability.lastRecoveredAt) : "Son pencere"} />
-            <FinanceMetric label="Unmatched Bank" value={String(health.banking?.unmatchedTransactionCount ?? 0)} detail="Mutabakat bekleyen" tone={(health.banking?.unmatchedTransactionCount ?? 0) > 0 ? "warning" : "neutral"} />
+            <FinanceMetric label="Uyarı Durumu" value={userLabel(alerts.state)} detail={`${alerts.alerts.length} Aktif Uyarı`} tone={alertTone(alerts.state)} />
+            <FinanceMetric label="Başarılı Veri Güncelleme Oranı" value={health.observability.successRate == null ? "—" : `%${health.observability.successRate}`} detail={`${health.observability.attempts} Deneme / ${health.observability.windowHours} Saat`} tone={health.observability.failures ? "warning" : "success"} />
+            <FinanceMetric label="Ortalama İşlem Süresi" value={duration(health.observability.averageDurationMs)} detail={`${health.observability.failures} Başarısız Güncelleme`} />
+            <FinanceMetric label="Kesintiden Sonra Kurtarılan" value={String(health.observability.staleRecoveries)} detail={health.observability.lastRecoveredAt ? dateTime(health.observability.lastRecoveredAt) : "Son Kontrol Dönemi"} />
+            <FinanceMetric label="Eşleştirilmemiş Banka İşlemleri" value={String(health.banking?.unmatchedTransactionCount ?? 0)} detail="Mutabakat Bekleyen" tone={(health.banking?.unmatchedTransactionCount ?? 0) > 0 ? "warning" : "neutral"} />
           </section>
 
           <section className="grid gap-5 xl:grid-cols-[1.15fr_.85fr]">
             <FinancePanel
-              title="Health & Sync Runtime"
+              title="Bağlantı Ve Veri Güncelleme Durumu"
               description={`${current.displayName} · ${current.provider}`}
               actions={<FinanceStatus status={health.healthy ? "PROCESSED" : "RETRY_PENDING"} label={health.healthy ? "HEALTHY" : "ATTENTION"} />}
             >
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                <Info label="Integration Status" value={health.status} />
-                <Info label="Runtime" value={health.runtimeReady ? "Ready" : "Partial"} />
-                <Info label="Credentials" value={health.hasCredentials ? "Configured" : "Missing"} />
-                <Info label="Last Sync" value={dateTime(health.sync.lastSyncAt)} />
-                <Info label="Last Status" value={health.sync.lastStatus ?? "—"} />
-                <Info label="Sync Stale" value={health.sync.stale ? `Evet · ${health.sync.staleAfterHours}s eşik` : "Hayır"} />
+                <Info label="Bağlantı Durumu" value={userLabel(health.status)} />
+                <Info label="Çalışma Durumu" value={health.runtimeReady ? "Hazır" : "Kısmen Hazır"} />
+                <Info label="Bağlantı Bilgileri" value={health.hasCredentials ? "Ayarlanmış" : "Eksik"} />
+                <Info label="Son Güncelleme" value={dateTime(health.sync.lastSyncAt)} />
+                <Info label="Son Durum" value={userLabel(health.sync.lastStatus)} />
+                <Info label="Veriler Güncel Mi?" value={health.sync.stale ? "Hayır" : "Evet"} />
               </div>
 
               <div className="mt-5 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4">
-                <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">Active Run</p>
+                <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">Devam Eden Güncelleme</p>
                 {health.sync.activeRun ? (
-                  <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                    <Info label="Started" value={dateTime(health.sync.activeRun.startedAt)} />
-                    <Info label="Heartbeat" value={dateTime(health.sync.activeRun.heartbeatAt)} />
-                    <Info label="State" value={health.sync.activeRun.stale ? `STALE · ${health.sync.activeRun.staleAfterMinutes} dk eşik` : "RUNNING · heartbeat fresh"} />
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                    <Info label="Başlangıç" value={dateTime(health.sync.activeRun.startedAt)} />
+                    <Info label="Durum" value={health.sync.activeRun.stale ? "Güncel Değil" : "Devam Ediyor"} />
                   </div>
                 ) : (
-                  <FinanceEmpty>Aktif sync yok.</FinanceEmpty>
+                  <FinanceEmpty>Aktif Veri Güncellemesi Yok.</FinanceEmpty>
                 )}
               </div>
 
               {health.banking ? (
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <Info label="Active Accounts" value={String(health.banking.activeAccountCount)} />
-                  <Info label="Inactive Accounts" value={String(health.banking.inactiveAccountCount)} />
-                  <Info label="Watermark" value={dateTime(health.banking.transactionWatermark)} />
-                  <Info label="Overlap" value={health.banking.transactionOverlapHours == null ? "—" : `${health.banking.transactionOverlapHours} saat`} />
+                <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                  <Info label="Aktif Hesaplar" value={String(health.banking.activeAccountCount)} />
+                  <Info label="Pasif Hesaplar" value={String(health.banking.inactiveAccountCount)} />
                 </div>
               ) : null}
 
               {health.lastError ? (
                 <div className="mt-4 rounded-[14px] border border-[rgba(180,60,60,.18)] bg-[var(--danger-soft)] p-3 text-[11px] leading-5 text-[var(--danger)]">
-                  {health.lastError}
+                  Bağlantıda Bir Sorun Algılandı. Lütfen Bağlantı Ayarlarını Kontrol Edin.
                 </div>
               ) : null}
             </FinancePanel>
 
             <FinancePanel
-              title="Production Alerts"
-              description="Eşik ihlalleri deterministik kurallardan üretilir."
+              title="Sistem Uyarıları"
+              description="Bağlantıların Sağlıklı Çalışmasını Etkileyen Durumlar Burada Gösterilir."
               actions={<FinanceStatus status={alerts.state === "HEALTHY" ? "PROCESSED" : alerts.state === "CRITICAL" ? "FAILED" : "RETRY_PENDING"} label={alerts.state} />}
             >
               <div className="space-y-2">
                 {alerts.alerts.length ? (
-                  alerts.alerts.map((alert) => (
-                    <div key={alert.code} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-3">
+                  alerts.alerts.map((alert, index) => (
+                    <div key={`${alert.code}-${index}`} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-3">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-[11px] font-semibold text-[var(--ink)]">{alert.code}</p>
+                        <p className="text-[11px] font-semibold text-[var(--ink)]">Sistem Uyarısı</p>
                         <FinanceStatus status={alert.severity === "CRITICAL" ? "FAILED" : "RETRY_PENDING"} label={alert.severity} />
                       </div>
-                      <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{alert.message}</p>
+                      <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Bağlantı Durumu Kontrol Edilmeli.</p>
                     </div>
                   ))
                 ) : (
-                  <FinanceEmpty>Aktif production alarmı yok.</FinanceEmpty>
+                  <FinanceEmpty>Aktif Sistem Uyarısı Yok.</FinanceEmpty>
                 )}
-              </div>
-
-              <div className="mt-5 border-t border-[var(--line)] pt-4">
-                <p className="text-[11px] font-semibold text-[var(--ink)]">Aktif eşikler</p>
-                <div className="mt-2 grid grid-cols-2 gap-2">
-                  {Object.entries(alerts.thresholds).map(([key, value]) => (
-                    <div key={key} className="rounded-[12px] bg-[var(--surface-2)] px-3 py-2">
-                      <p className="truncate text-[9px] text-[var(--muted-soft)]">{key}</p>
-                      <p className="mt-0.5 text-[11px] font-semibold text-[var(--ink)]">{value}</p>
-                    </div>
-                  ))}
-                </div>
               </div>
             </FinancePanel>
           </section>
 
-          <FinancePanel title="Audit Timeline" description="Bu entegrasyon için son 50 mutation kaydı; credential değerleri audit log’a yazılmaz.">
+          <FinancePanel title="İşlem Geçmişi" description="Bu Bağlantı İçin Son 50 Değişiklik Kaydı Gösterilir. Gizli Bağlantı Bilgileri İşlem Geçmişine Yazılmaz.">
             <DataView>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[900px] text-left text-xs">
+                <table className="w-full min-w-[760px] text-left text-xs">
                   <thead>
                     <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/40 text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">
-                      <th className="px-3 py-3">Zaman</th><th className="px-3 py-3">Action</th><th className="px-3 py-3">Sonuç</th><th className="px-3 py-3">Method</th><th className="px-3 py-3">Actor</th><th className="px-3 py-3">Hata</th>
+                      <th className="px-3 py-3">Zaman</th><th className="px-3 py-3">İşlem</th><th className="px-3 py-3">Sonuç</th><th className="px-3 py-3">Hata</th>
                     </tr>
                   </thead>
                   <tbody>
                     {audit.map((row) => (
                       <tr key={row.id} className="border-b border-[var(--line)] last:border-0">
                         <td className="px-3 py-3 text-[var(--muted)]">{dateTime(row.createdAt)}</td>
-                        <td className="px-3 py-3 font-medium text-[var(--ink)]">{row.action}</td>
+                        <td className="px-3 py-3 font-medium text-[var(--ink)]">{auditActionLabel(row.action)}</td>
                         <td className="px-3 py-3"><FinanceStatus status={row.outcome === "SUCCESS" ? "PROCESSED" : "FAILED"} label={row.outcome} /></td>
-                        <td className="px-3 py-3 text-[var(--muted)]">{row.method ?? "—"}</td>
-                        <td className="px-3 py-3 text-[var(--muted)]">{row.actorUserId ? row.actorUserId.slice(0, 8) : "system"}</td>
-                        <td className="max-w-[320px] truncate px-3 py-3 text-[var(--danger)]" title={row.errorMessage ?? undefined}>{row.errorMessage ?? "—"}</td>
+                        <td className="max-w-[320px] truncate px-3 py-3 text-[var(--danger)]" title={row.errorMessage ?? undefined}>{row.errorMessage ? "İşlem Tamamlanamadı" : "—"}</td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
               </div>
-              {!audit.length ? <FinanceEmpty>Audit kaydı yok.</FinanceEmpty> : null}
-              <DataViewMeta><span>{audit.length} kayıt</span><span>Son 50 mutation</span></DataViewMeta>
+              {!audit.length ? <FinanceEmpty>İşlem Geçmişi Bulunmuyor.</FinanceEmpty> : null}
+              <DataViewMeta><span>{audit.length} Kayıt</span><span>Son 50 İşlem</span></DataViewMeta>
             </DataView>
           </FinancePanel>
         </>
@@ -301,10 +285,21 @@ function dateTime(value?: string | null) {
 }
 
 function duration(ms: number) {
-  if (!ms) return "0 sn";
-  if (ms < 1000) return `${Math.round(ms)} ms`;
-  if (ms < 60000) return `${(ms / 1000).toFixed(1)} sn`;
-  return `${(ms / 60000).toFixed(1)} dk`;
+  if (!ms) return "0 Sn";
+  if (ms < 1000) return `${Math.round(ms)} Ms`;
+  if (ms < 60000) return `${(ms / 1000).toFixed(1)} Sn`;
+  return `${(ms / 60000).toFixed(1)} Dk`;
+}
+
+function auditActionLabel(action: string) {
+  const normalized = action.toUpperCase();
+  if (normalized.includes("CONNECT")) return "Bağlantı İşlemi";
+  if (normalized.includes("SYNC")) return "Veri Güncelleme İşlemi";
+  if (normalized.includes("CREDENTIAL")) return "Bağlantı Bilgisi İşlemi";
+  if (normalized.includes("CREATE")) return "Oluşturma İşlemi";
+  if (normalized.includes("UPDATE")) return "Güncelleme İşlemi";
+  if (normalized.includes("DELETE")) return "Silme İşlemi";
+  return "Sistem İşlemi";
 }
 
 function alertTone(state: AlertState["state"]): "success" | "warning" | "danger" {
