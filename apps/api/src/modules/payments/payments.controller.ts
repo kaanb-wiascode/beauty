@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   Param,
+  ParseUUIDPipe,
   Post,
   Query,
   UseGuards,
@@ -67,7 +68,7 @@ export class PaymentsController {
   @RequirePermission('payments', 'refund')
   @Post(':id/refund')
   async refund(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
   ) {
     const input = refundPaymentSchema.parse(body);
@@ -78,7 +79,9 @@ export class PaymentsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('payments', 'read')
   @Get(':id')
-  async findOne(@Param('id') id: string) {
+  async findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.paymentsService.findOne(id);
   }
 }
