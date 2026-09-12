@@ -12,6 +12,12 @@ export default function PurchasesLayout({ children }: { children: ReactNode }) {
           Talep ve siparişler
         </Link>
         <Link
+          href="/inventory/purchases/rfqs"
+          className="rounded-[12px] px-4 py-2 text-[12px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+        >
+          RFQ ve teklifler
+        </Link>
+        <Link
           href="/inventory/purchases/operations"
           className="rounded-[12px] px-4 py-2 text-[12px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
         >
