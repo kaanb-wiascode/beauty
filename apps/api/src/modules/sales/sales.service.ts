@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { AccountingService } from '../accounting/accounting.service';
@@ -246,18 +246,28 @@ export class SalesService {
       });
       if (!existing) throw new NotFoundException('Sale payment not found');
       if (existing.status !== 'COMPLETED') {
-        throw new BadRequestException('Only completed payments can be refunded.');
+        throw new ConflictException('Only completed payments can be refunded.');
       }
 
       const refundedAt = new Date();
-      const updatedPayment = await tx.salePayment.update({
-        where: { id: existing.id },
+      const claimed = await tx.salePayment.updateMany({
+        where: {
+          id: existing.id,
+          saleId,
+          tenantId,
+          branchId,
+          status: 'COMPLETED',
+        },
         data: {
           status: 'REFUNDED',
           refundedAt,
           refundReason: reason,
         },
       });
+
+      if (claimed.count !== 1) {
+        throw new ConflictException('Sale payment is no longer refundable.');
+      }
 
       await this.accountingService.recordSalePaymentRefund(
         tx,
@@ -271,7 +281,7 @@ export class SalesService {
         },
       );
 
-      return updatedPayment;
+      return tx.salePayment.findUniqueOrThrow({ where: { id: existing.id } });
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
 
     return {
@@ -300,7 +310,7 @@ export class SalesService {
         data: { status: 'CONFIRMED', confirmedAt },
       });
       if (claimed.count !== 1) {
-        throw new BadRequestException('Sale is no longer in a confirmable state.');
+        throw new ConflictException('Sale is no longer in a confirmable state.');
       }
 
       for (const line of packageItems) {
@@ -374,9 +384,24 @@ export class SalesService {
     if (sale.status !== 'DRAFT') {
       throw new BadRequestException('Only draft sales can be cancelled in v1.');
     }
-    return this.prisma.sale.update({
+
+    const cancelledAt = new Date();
+    const claimed = await this.prisma.sale.updateMany({
+      where: {
+        id: sale.id,
+        tenantId: sale.tenantId,
+        branchId: sale.branchId,
+        status: 'DRAFT',
+      },
+      data: { status: 'CANCELLED', cancelledAt },
+    });
+
+    if (claimed.count !== 1) {
+      throw new ConflictException('Sale is no longer in a cancellable state.');
+    }
+
+    return this.prisma.sale.findUniqueOrThrow({
       where: { id: sale.id },
-      data: { status: 'CANCELLED', cancelledAt: new Date() },
     });
   }
 }
