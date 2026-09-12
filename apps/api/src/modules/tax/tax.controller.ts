@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Put, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TaxService } from './tax.service';
 
@@ -16,7 +18,8 @@ const summarySchema = z.object({
 });
 
 @Controller('tax')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('accounting', 'read')
 export class TaxController {
   constructor(private readonly tax: TaxService) {}
 
@@ -24,6 +27,7 @@ export class TaxController {
   settings() { return this.tax.getSettings(); }
 
   @Put('settings')
+  @RequirePermission('accounting', 'manage')
   updateSettings(@Body() body: unknown) {
     return this.tax.updateSettings(settingsSchema.parse(body));
   }
