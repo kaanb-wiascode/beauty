@@ -153,14 +153,36 @@ export type AssetFormState = {
 export const INVENTORY_UNITS = ["UNIT", "ML", "LITER", "GRAM", "KG", "METER", "PAIR", "BOX"] as const;
 
 export const INVENTORY_UNIT_LABELS: Record<string, string> = {
-  UNIT: "adet",
-  ML: "ml",
-  LITER: "lt",
-  GRAM: "gr",
-  KG: "kg",
-  METER: "m",
-  PAIR: "çift",
-  BOX: "kutu",
+  UNIT: "Adet",
+  ML: "Mililitre",
+  LITER: "Litre",
+  GRAM: "Gram",
+  KG: "Kilogram",
+  METER: "Metre",
+  PAIR: "Çift",
+  BOX: "Kutu",
+};
+
+export const INVENTORY_ASSET_TYPE_LABELS: Record<string, string> = {
+  EQUIPMENT: "Cihaz / Ekipman",
+  FURNITURE: "Mobilya",
+  IT: "Bilgi Teknolojileri",
+  VEHICLE: "Araç",
+  OTHER: "Diğer",
+};
+
+export const INVENTORY_ASSET_STATUS_LABELS: Record<string, string> = {
+  ACTIVE: "Aktif",
+  INACTIVE: "Pasif",
+  MAINTENANCE: "Bakımda",
+  RETIRED: "Kullanımdan Kaldırıldı",
+};
+
+export const INVENTORY_ASSET_CONDITION_LABELS: Record<string, string> = {
+  GOOD: "İyi",
+  FAIR: "Orta",
+  POOR: "Yıpranmış",
+  BROKEN: "Arızalı",
 };
 
 export function formatInventoryQuantity(value: unknown) {
@@ -178,4 +200,16 @@ export function formatInventoryMoney(value: unknown, currency = "TRY") {
 
 export function inventoryUnitLabel(value: string) {
   return INVENTORY_UNIT_LABELS[value] ?? value;
+}
+
+export function inventoryAssetTypeLabel(value: string) {
+  return INVENTORY_ASSET_TYPE_LABELS[value] ?? value;
+}
+
+export function inventoryAssetStatusLabel(value: string) {
+  return INVENTORY_ASSET_STATUS_LABELS[value] ?? value;
+}
+
+export function inventoryAssetConditionLabel(value: string) {
+  return INVENTORY_ASSET_CONDITION_LABELS[value] ?? value;
 }
