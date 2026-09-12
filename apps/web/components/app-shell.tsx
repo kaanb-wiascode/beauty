@@ -15,6 +15,9 @@ const NAV_SECTIONS = [
     { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
     { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
+  { label: "Müşteri İlişkileri", items: [
+    { href: "/crm", permission: "crm.read", label: "CRM", icon: "trend" },
+  ]},
   { label: "İşletme", items: [
     { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
