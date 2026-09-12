@@ -1,9 +1,12 @@
 import { Controller, Get, Param, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CustomerLedgerService } from './customer-ledger.service';
+
+const customerIdSchema = z.string().uuid();
 
 @Controller('customer-ledger')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -13,6 +16,6 @@ export class CustomerLedgerController {
 
   @Get(':customerId')
   getCustomerLedger(@Param('customerId') customerId: string) {
-    return this.customerLedgerService.getCustomerLedger(customerId);
+    return this.customerLedgerService.getCustomerLedger(customerIdSchema.parse(customerId));
   }
 }
