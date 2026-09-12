@@ -9,8 +9,9 @@ import {
 import { FinancialIntegrationAuditService } from './financial-integration-audit.service';
 import { FinancialIntegrationAlertsService } from './financial-integration-alerts.service';
 
+const uuid = z.string().uuid();
 const auditQuerySchema = z.object({
-  entityId: z.string().uuid().optional(),
+  entityId: uuid.optional(),
   action: z.string().trim().min(1).max(120).optional(),
   outcome: z.enum(['SUCCESS', 'FAILED']).optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
@@ -32,6 +33,6 @@ export class FinancialIntegrationOperationsController {
 
   @Get(':id/alerts')
   alertsForIntegration(@Param('id') id: string) {
-    return this.alerts.get(id);
+    return this.alerts.get(uuid.parse(id));
   }
 }
