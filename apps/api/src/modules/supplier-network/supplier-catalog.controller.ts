@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PlatformAdminGuard } from '../../common/auth/platform-admin.guard';
@@ -23,6 +23,7 @@ const identifierSchema = z.object({
   type: z.enum(['GTIN','EAN','UPC','MPN','OTHER']),
   value: z.string().min(1).max(200),
 });
+const variantQuerySchema = z.object({ productId: z.string().uuid().optional() });
 
 @Controller('platform/catalog')
 @UseGuards(JwtAuthGuard, PlatformAdminGuard)
@@ -33,6 +34,10 @@ export class SupplierCatalogController {
   @Post('brands') createBrand(@Body() body: unknown) { return this.catalog.createBrand(brandSchema.parse(body)); }
   @Get('products') listProducts() { return this.catalog.listProducts(); }
   @Post('products') createProduct(@Body() body: unknown) { return this.catalog.createProduct(productSchema.parse(body)); }
+  @Get('variants') listVariants(@Query() query: unknown) {
+    const parsed = variantQuerySchema.parse(query);
+    return this.catalog.listVariants(parsed.productId);
+  }
   @Post('products/:id/variants') createVariant(@Param('id') id: string, @Body() body: unknown) {
     return this.catalog.createVariant(uuid.parse(id), variantSchema.parse(body));
   }
