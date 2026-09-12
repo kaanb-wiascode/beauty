@@ -16,6 +16,8 @@ import { createTenantUserSchema } from './dto/create-tenant-user.dto';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -35,7 +37,8 @@ export class AuthController {
     return this.authService.register(input);
   }
 
-  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'update')
   @Post('users')
   async createUser(@Body() body: unknown) {
     const input = createTenantUserSchema.parse(body);
