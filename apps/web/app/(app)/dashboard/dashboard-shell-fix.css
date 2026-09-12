@@ -1,17 +1,27 @@
-/* Dashboard must never override the global floating application shell. */
+/*
+ * Dashboard still ships legacy CSS-module selectors that target the global
+ * application shell through `.relative.min-h-screen:has(> aside.glass)`.
+ * Those selectors carry higher specificity than the normal AppShell rules and
+ * use !important, so /dashboard can turn the shared floating sidebar back into
+ * a full-height edge-attached sidebar.
+ *
+ * Keep this selector intentionally more specific than the legacy rule until
+ * that large dashboard CSS module is decomposed. This file is loaded by the
+ * authenticated layout and restores the one canonical floating AppShell.
+ */
 @media (min-width: 1024px) {
-  body .app-shell.app-shell {
+  body .app-shell.app-shell.app-shell.app-shell {
     grid-template-columns: 260px minmax(0, 1fr) !important;
     gap: 16px !important;
     padding: 16px !important;
     align-items: start !important;
   }
 
-  body .app-shell.app-shell:has(.app-sidebar.w-\[76px\]) {
+  body .app-shell.app-shell.app-shell.app-shell:has(.app-sidebar.w-\[76px\]) {
     grid-template-columns: 76px minmax(0, 1fr) !important;
   }
 
-  body .app-shell.app-shell > .app-sidebar.app-sidebar {
+  body .app-shell.app-shell.app-shell.app-shell > .app-sidebar.app-sidebar.app-sidebar.app-sidebar {
     position: sticky !important;
     top: 16px !important;
     height: calc(100vh - 32px) !important;
@@ -23,7 +33,7 @@
     overflow: hidden !important;
   }
 
-  body .app-shell.app-shell > .app-content.app-content {
+  body .app-shell.app-shell.app-shell.app-shell > .app-content.app-content.app-content {
     min-width: 0 !important;
     padding: 0 !important;
   }
