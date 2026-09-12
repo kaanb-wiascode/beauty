@@ -32,7 +32,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { optionalText } from "@/lib/format";
 import type { Customer, Paginated } from "@/lib/types";
 
@@ -280,6 +280,13 @@ export default function CustomersPage() {
 
   function openCreate() {
     if (!canCreateCustomer) return;
+    if (!hasActiveBranch()) {
+      showToast(
+        "Yeni Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "error",
+      );
+      return;
+    }
 
     setEditing(null);
     setForm(emptyForm);
@@ -369,6 +376,13 @@ export default function CustomersPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+
+    if (!editing && !hasActiveBranch()) {
+      setFormError(
+        "Yeni Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      );
+      return;
+    }
 
     if (!editing) {
       if (formStep === 1) {
