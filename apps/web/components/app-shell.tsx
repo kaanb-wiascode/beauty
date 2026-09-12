@@ -8,7 +8,6 @@ import { api } from "@/lib/api";
 import { clearSession, getRefreshToken, getStoredTenant, getStoredUser, hasPermission } from "@/lib/auth";
 import { cx, fullName } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
-import { IconButton } from "./ui";
 
 const NAV_SECTIONS = [
   { label: "Genel", items: [
@@ -41,6 +40,7 @@ const NAV_SECTIONS = [
   ]},
   { label: "Gelişim", items: [
     { href: "/training", permission: "training.read", label: "Eğitim & Yetkinlik", icon: "chart" },
+    { href: "/training/staff", permission: "training.read", label: "Personel Gelişim Profilleri", icon: "users" },
   ]},
   { label: "Envanter", items: [
     { href: "/inventory", label: "Stok & Envanter", icon: "package" },
