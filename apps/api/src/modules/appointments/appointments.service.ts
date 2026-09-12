@@ -18,10 +18,7 @@ type ReferenceClient = Pick<
   'customer' | 'staff' | 'service'
 >;
 
-type AppointmentClient = Pick<
-  Prisma.TransactionClient,
-  'appointment'
->;
+type AppointmentClient = Pick<Prisma.TransactionClient, 'appointment'>;
 
 @Injectable()
 export class AppointmentsService {
@@ -34,9 +31,7 @@ export class AppointmentsService {
     const tenantId = this.tenantContext.getTenantId();
 
     if (!tenantId) {
-      throw new InternalServerErrorException(
-        'Tenant context is missing',
-      );
+      throw new InternalServerErrorException('Tenant context is missing');
     }
 
     return tenantId;
@@ -75,17 +70,9 @@ export class AppointmentsService {
     };
   }
 
-  private validateDateRange(
-    startAt: Date,
-    endAt: Date,
-  ): void {
-    if (
-      Number.isNaN(startAt.getTime()) ||
-      Number.isNaN(endAt.getTime())
-    ) {
-      throw new BadRequestException(
-        'Invalid appointment date',
-      );
+  private validateDateRange(startAt: Date, endAt: Date): void {
+    if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
+      throw new BadRequestException('Invalid appointment date');
     }
 
     if (startAt >= endAt) {
@@ -105,39 +92,38 @@ export class AppointmentsService {
     },
     branchId: string,
   ): Promise<void> {
-    const [customer, staff, service] =
-      await Promise.all([
-        db.customer.findFirst({
-          where: {
-            id: input.customerId,
-            tenantId,
-            branchId,
-          },
-          select: { id: true },
-        }),
-        db.staff.findFirst({
-          where: {
-            id: input.staffId,
-            tenantId,
-            branchId,
-          },
-          select: {
-            id: true,
-            status: true,
-          },
-        }),
-        db.service.findFirst({
-          where: {
-            id: input.serviceId,
-            tenantId,
-            branchId,
-          },
-          select: {
-            id: true,
-            status: true,
-          },
-        }),
-      ]);
+    const [customer, staff, service] = await Promise.all([
+      db.customer.findFirst({
+        where: {
+          id: input.customerId,
+          tenantId,
+          branchId,
+        },
+        select: { id: true },
+      }),
+      db.staff.findFirst({
+        where: {
+          id: input.staffId,
+          tenantId,
+          branchId,
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      }),
+      db.service.findFirst({
+        where: {
+          id: input.serviceId,
+          tenantId,
+          branchId,
+        },
+        select: {
+          id: true,
+          status: true,
+        },
+      }),
+    ]);
 
     if (!customer) {
       throw new NotFoundException('Customer not found');
@@ -201,10 +187,7 @@ export class AppointmentsService {
     }
   }
 
-  async findEligibleSessions(
-    customerId: string,
-    serviceId: string,
-  ) {
+  async findEligibleSessions(customerId: string, serviceId: string) {
     const tenantId = this.getTenantId();
     const branchId = this.requireBranchId();
 
@@ -218,10 +201,7 @@ export class AppointmentsService {
         customerPackage: {
           customerId,
           status: 'ACTIVE',
-          OR: [
-            { expiresAt: null },
-            { expiresAt: { gt: new Date() } },
-          ],
+          OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
         },
       },
       include: {
@@ -257,8 +237,11 @@ export class AppointmentsService {
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRawUnsafe(
-          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+        await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+          `SELECT 1::int AS locked
+           FROM (
+             SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))
+           ) AS advisory_lock`,
           `${tenantId}:${branchId}`,
           input.staffId,
         );
@@ -284,10 +267,7 @@ export class AppointmentsService {
               customerPackage: {
                 customerId: input.customerId,
                 status: 'ACTIVE',
-                OR: [
-                  { expiresAt: null },
-                  { expiresAt: { gt: new Date() } },
-                ],
+                OR: [{ expiresAt: null }, { expiresAt: { gt: new Date() } }],
               },
             },
             select: { id: true },
@@ -357,28 +337,15 @@ export class AppointmentsService {
         throw error;
       }
 
-      console.error(
-        '[AppointmentsService.create] Prisma error:',
-        error,
-      );
+      console.error('[AppointmentsService.create] Prisma error:', error);
 
-      throw new InternalServerErrorException(
-        'Failed to create appointment',
-      );
+      throw new InternalServerErrorException('Failed to create appointment');
     }
   }
 
   async findAll(input: ListAppointmentsInput) {
-    const {
-      page,
-      limit,
-      status,
-      staffId,
-      customerId,
-      serviceId,
-      from,
-      to,
-    } = input;
+    const { page, limit, status, staffId, customerId, serviceId, from, to } =
+      input;
 
     if (from && to && from > to) {
       throw new BadRequestException('from must be before to');
@@ -475,16 +442,16 @@ export class AppointmentsService {
     return appointment;
   }
 
-  async update(
-    id: string,
-    input: UpdateAppointmentInput,
-  ) {
+  async update(id: string, input: UpdateAppointmentInput) {
     const tenantId = this.getTenantId();
 
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRawUnsafe(
-          'SELECT pg_advisory_xact_lock(hashtext($1))',
+        await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+          `SELECT 1::int AS locked
+           FROM (
+             SELECT pg_advisory_xact_lock(hashtext($1))
+           ) AS advisory_lock`,
           `appointment:${id}`,
         );
 
@@ -521,8 +488,7 @@ export class AppointmentsService {
           );
         }
 
-        const customerId =
-          input.customerId ?? appointment.customerId;
+        const customerId = input.customerId ?? appointment.customerId;
         const staffId = input.staffId ?? appointment.staffId;
         const serviceId = input.serviceId ?? appointment.serviceId;
         const startAt = input.startAt ?? appointment.startAt;
@@ -560,8 +526,11 @@ export class AppointmentsService {
           }
         }
 
-        await tx.$queryRawUnsafe(
-          'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+        await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+          `SELECT 1::int AS locked
+           FROM (
+             SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))
+           ) AS advisory_lock`,
           `${tenantId}:${appointment.branchId}`,
           staffId,
         );
@@ -604,10 +573,7 @@ export class AppointmentsService {
         });
 
         if (appointment.session && input.status) {
-          if (
-            input.status === 'CANCELLED' ||
-            input.status === 'NO_SHOW'
-          ) {
+          if (input.status === 'CANCELLED' || input.status === 'NO_SHOW') {
             const released = await tx.session.updateMany({
               where: {
                 id: appointment.session.id,
@@ -659,8 +625,7 @@ export class AppointmentsService {
             if (consumed.count === 1) {
               const remaining = await tx.session.count({
                 where: {
-                  customerPackageId:
-                    appointment.session.customerPackageId,
+                  customerPackageId: appointment.session.customerPackageId,
                   status: {
                     in: ['AVAILABLE', 'RESERVED'],
                   },
@@ -707,22 +672,20 @@ export class AppointmentsService {
         throw error;
       }
 
-      console.error(
-        '[AppointmentsService.update] Prisma error:',
-        error,
-      );
+      console.error('[AppointmentsService.update] Prisma error:', error);
 
-      throw new InternalServerErrorException(
-        'Failed to update appointment',
-      );
+      throw new InternalServerErrorException('Failed to update appointment');
     }
   }
 
   async remove(id: string) {
     try {
       return await this.prisma.$transaction(async (tx) => {
-        await tx.$queryRawUnsafe(
-          'SELECT pg_advisory_xact_lock(hashtext($1))',
+        await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+          `SELECT 1::int AS locked
+           FROM (
+             SELECT pg_advisory_xact_lock(hashtext($1))
+           ) AS advisory_lock`,
           `appointment:${id}`,
         );
 
@@ -741,9 +704,7 @@ export class AppointmentsService {
         }
 
         if (appointment.status === 'CANCELLED') {
-          throw new BadRequestException(
-            'Appointment is already cancelled',
-          );
+          throw new BadRequestException('Appointment is already cancelled');
         }
 
         if (appointment.status === 'COMPLETED') {
@@ -793,14 +754,9 @@ export class AppointmentsService {
         throw error;
       }
 
-      console.error(
-        '[AppointmentsService.remove] Prisma error:',
-        error,
-      );
+      console.error('[AppointmentsService.remove] Prisma error:', error);
 
-      throw new InternalServerErrorException(
-        'Failed to cancel appointment',
-      );
+      throw new InternalServerErrorException('Failed to cancel appointment');
     }
   }
 }
