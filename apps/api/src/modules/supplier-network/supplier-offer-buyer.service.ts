@@ -18,6 +18,7 @@ export class SupplierOfferBuyerService {
               so.order_multiple AS "orderMultiple",so.available_quantity AS "availableQuantity",
               so.lead_time_days AS "leadTimeDays",so.preparation_days AS "preparationDays",so.shipping_days AS "shippingDays",
               so.valid_from AS "validFrom",so.valid_to AS "validTo",so.version,
+              so.visibility_scope AS "visibilityScope",
               sc.inventory_supplier_id AS "inventorySupplierId",org.id AS "supplierOrganizationId",org.display_name AS "supplierName",
               cp.id AS "catalogProductId",cp.name AS "productName",cv.name AS "variantName",cv.canonical_sku AS "canonicalSku",
               cb.name AS "brandName",cv.unit,cv.attributes
@@ -30,6 +31,15 @@ export class SupplierOfferBuyerService {
        WHERE sc.tenant_id=$1::text AND sc.company_id=$2::text AND sc.status='ACTIVE'
          AND org.status='ACTIVE' AND org.verification_status='VERIFIED'
          AND so.status='ACTIVE'
+         AND (
+           so.visibility_scope='CONNECTED'
+           OR EXISTS (
+             SELECT 1
+             FROM supplier_offer_eligibilities eligibility
+             WHERE eligibility.supplier_offer_id=so.id
+               AND eligibility.supplier_connection_id=sc.id
+           )
+         )
          AND (so.valid_from IS NULL OR so.valid_from<=NOW())
          AND (so.valid_to IS NULL OR so.valid_to>NOW())
          AND cv.status='ACTIVE' AND cp.status='ACTIVE'
