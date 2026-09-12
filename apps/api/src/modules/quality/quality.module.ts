@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ObjectStorageModule } from '../../common/storage/object-storage.module';
+import { AuthPublicRateLimitGuard } from '../auth/auth-public-rate-limit.guard';
 import { QualityAnalyticsController } from './quality-analytics.controller';
 import { QualityAnalyticsService } from './quality-analytics.service';
 import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
@@ -72,6 +73,7 @@ import { QualityService } from './quality.service';
     QualityAnalyticsService,
     QualityBranchScoreAnalyticsService,
     QualityAssigneeScopeGuard,
+    AuthPublicRateLimitGuard,
   ],
   exports: [
     QualityService,
