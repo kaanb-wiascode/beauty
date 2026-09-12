@@ -42,6 +42,7 @@ const NAV_SECTIONS = [
     { href: "/training", permission: "training.read", label: "Eğitim & Yetkinlik", icon: "chart" },
     { href: "/training/analytics", permission: "training.read", label: "Learning Analytics", icon: "trend" },
     { href: "/training/staff", permission: "training.read", label: "Personel Gelişim Profilleri", icon: "users" },
+    { href: "/training/question-bank", permission: "training.manage", label: "Soru Bankası", icon: "file" },
   ]},
   { label: "Envanter", items: [
     { href: "/inventory", label: "Stok & Envanter", icon: "package" },
