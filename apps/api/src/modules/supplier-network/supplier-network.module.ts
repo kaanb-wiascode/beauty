@@ -5,12 +5,18 @@ import { JwtModule } from '@nestjs/jwt';
 import { PlatformAdminGuard } from '../../common/auth/platform-admin.guard';
 import { PlatformSupplierNetworkController } from './platform-supplier-network.controller';
 import { PlatformSupplierNetworkService } from './platform-supplier-network.service';
+import { SupplierCatalogController } from './supplier-catalog.controller';
+import { SupplierCatalogService } from './supplier-catalog.service';
 import { SupplierInvitationController } from './supplier-invitation.controller';
 import { SupplierInvitationService } from './supplier-invitation.service';
 import { SupplierMembershipController } from './supplier-membership.controller';
 import { SupplierMembershipService } from './supplier-membership.service';
 import { SupplierNetworkController } from './supplier-network.controller';
 import { SupplierNetworkService } from './supplier-network.service';
+import { SupplierOfferBuyerController } from './supplier-offer-buyer.controller';
+import { SupplierOfferBuyerService } from './supplier-offer-buyer.service';
+import { SupplierOfferController } from './supplier-offer.controller';
+import { SupplierOfferService } from './supplier-offer.service';
 import { SupplierPortalAuthController } from './supplier-portal-auth.controller';
 import { SupplierPortalAuthGuard } from './supplier-portal-auth.guard';
 import { SupplierPortalAuthService } from './supplier-portal-auth.service';
@@ -35,6 +41,9 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierVerificationController,
     SupplierPortalAuthController,
     SupplierInvitationController,
+    SupplierCatalogController,
+    SupplierOfferController,
+    SupplierOfferBuyerController,
   ],
   providers: [
     SupplierNetworkService,
@@ -43,12 +52,16 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierVerificationService,
     SupplierPortalAuthService,
     SupplierInvitationService,
+    SupplierCatalogService,
+    SupplierOfferService,
+    SupplierOfferBuyerService,
     SupplierPortalAuthGuard,
     SupplierPortalRoleGuard,
     PlatformAdminGuard,
   ],
   exports: [
     SupplierNetworkService,
+    SupplierOfferBuyerService,
     SupplierPortalAuthGuard,
     SupplierPortalRoleGuard,
   ],
