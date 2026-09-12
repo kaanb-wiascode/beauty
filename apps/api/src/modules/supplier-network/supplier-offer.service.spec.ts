@@ -27,6 +27,19 @@ describe('SupplierOfferService', () => {
     expect(query.mock.calls[0][1]).toBe('org-a');
   });
 
+  it('projects only active catalog variants and joins only this supplier organization offer state', async () => {
+    const query = jest.fn().mockResolvedValueOnce([]);
+    const { service } = createService(query);
+
+    await service.listCatalogVariants(principal);
+
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain("cv.status='ACTIVE'");
+    expect(sql).toContain("cp.status='ACTIVE'");
+    expect(sql).toContain('so.supplier_organization_id=$1::text');
+    expect(query.mock.calls[0][1]).toBe('org-a');
+  });
+
   it('rejects activation when the supplier organization is not verified', async () => {
     const query = jest.fn().mockResolvedValueOnce([{ id: 'offer-1', status: 'DRAFT', version: 1, verificationStatus: 'PENDING' }]);
     const { service, transaction } = createService(query);
