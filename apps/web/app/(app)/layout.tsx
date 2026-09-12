@@ -5,6 +5,7 @@ import { AppShell } from "@/components/app-shell";
 import { AuthGuard } from "@/components/auth-guard";
 import { ToastProvider } from "@/components/toast";
 import "./dashboard/sidebar-responsive.css";
+import "./dashboard/dashboard-shell-fix.css";
 
 export default function AuthenticatedLayout({
   children,
