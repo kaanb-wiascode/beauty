@@ -117,7 +117,7 @@ export default function PlatformCatalogPage() {
       <header>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">PLATFORM KATALOĞU</p>
         <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Canonical Ürün Kataloğu</h1>
-        <p className="mt-1 max-w-4xl text-[14px] text-[var(--muted)]">Marka, ürün kimliği, varyant ve barkod/üretici identifier'larını tedarikçi tekliflerinden bağımsız yönetin. Tedarikçi yalnız bu canonical varyantlara ticari teklif bağlar.</p>
+        <p className="mt-1 max-w-4xl text-[14px] text-[var(--muted)]">Marka, ürün kimliği, varyant ve barkod/üretici tanımlayıcılarını tedarikçi tekliflerinden bağımsız yönetin. Tedarikçi yalnız bu canonical varyantlara ticari teklif bağlar.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
