@@ -1,11 +1,15 @@
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './common/database/prisma-exception.filter';
 import { ZodExceptionFilter } from './common/validation/zod-exception.filter';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
 
-  app.useGlobalFilters(new ZodExceptionFilter());
+  app.useGlobalFilters(
+    new PrismaExceptionFilter(),
+    new ZodExceptionFilter(),
+  );
 
   app.enableCors({
     origin: [
