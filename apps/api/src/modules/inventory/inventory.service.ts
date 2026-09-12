@@ -559,51 +559,125 @@ export class InventoryService {
   async createAsset(input: any) {
     const tenantId = this.tenantId();
     const companyId = this.companyId();
+    const contextBranchId = this.tenantContext.getBranchId();
     if (!input.name?.trim()) throw new BadRequestException('Asset name is required');
     if (!input.assetCode?.trim()) throw new BadRequestException('Asset code is required');
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO inventory_assets(tenant_id,company_id,category_id,asset_code,name,asset_type,brand,model,serial_number,status,condition,branch_id,warehouse_id,assigned_to_staff_id,purchase_date,supplier_id,invoice_number,purchase_price,currency,warranty_start,warranty_end,maintenance_interval_days,next_maintenance_at,image_url,notes) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11,$12::text,$13::text,$14::text,$15::timestamptz,$16::text,$17,$18,$19,$20::timestamptz,$21::timestamptz,$22,$23::timestamptz,$24,$25) RETURNING id,asset_code AS "assetCode",name,asset_type AS "assetType",status,condition`,
-      tenantId,
-      companyId,
-      input.categoryId || null,
-      input.assetCode.trim(),
-      input.name.trim(),
-      input.assetType || 'EQUIPMENT',
-      input.brand || null,
-      input.model || null,
-      input.serialNumber || null,
-      input.status || 'ACTIVE',
-      input.condition || 'GOOD',
-      input.branchId || null,
-      input.warehouseId || null,
-      input.assignedToStaffId || null,
-      input.purchaseDate || null,
-      input.supplierId || null,
-      input.invoiceNumber || null,
-      Number(input.purchasePrice || 0),
-      input.currency || 'TRY',
-      input.warrantyStart || null,
-      input.warrantyEnd || null,
-      input.maintenanceIntervalDays
-        ? Number(input.maintenanceIntervalDays)
-        : null,
-      input.nextMaintenanceAt || null,
-      input.imageUrl || null,
-      input.notes || null,
-    );
-    const asset = rows[0];
+    return this.prisma.$transaction(async (tx) => {
+      if (input.categoryId) {
+        await this.requireCategory(tx, input.categoryId, companyId);
+      }
+      if (input.supplierId) {
+        await this.requireSupplier(tx, input.supplierId, companyId);
+      }
 
-    if (input.assignedToStaffId || input.branchId) {
-      await this.prisma.$executeRawUnsafe(
-        `INSERT INTO inventory_asset_assignments(asset_id,staff_id,branch_id,note) VALUES($1::text,$2::text,$3::text,$4)`,
-        asset.id,
+      let effectiveBranchId: string | null = input.branchId || null;
+
+      if (input.branchId) {
+        const branches = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id FROM branches WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
+          input.branchId,
+          companyId,
+        );
+        if (!branches.length) throw new NotFoundException('Branch not found');
+      }
+
+      if (contextBranchId) {
+        if (effectiveBranchId && effectiveBranchId !== contextBranchId) {
+          throw new BadRequestException(
+            'Asset branch must match the active branch context.',
+          );
+        }
+        effectiveBranchId = contextBranchId;
+      }
+
+      if (input.warehouseId) {
+        const warehouses = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,branch_id AS "branchId" FROM inventory_warehouses WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
+          input.warehouseId,
+          companyId,
+        );
+        if (!warehouses.length) throw new NotFoundException('Warehouse not found');
+
+        const warehouseBranchId = warehouses[0].branchId as string | null;
+        if (
+          warehouseBranchId &&
+          effectiveBranchId &&
+          warehouseBranchId !== effectiveBranchId
+        ) {
+          throw new BadRequestException(
+            'Asset warehouse must belong to the selected branch.',
+          );
+        }
+        if (!effectiveBranchId && warehouseBranchId) {
+          effectiveBranchId = warehouseBranchId;
+        }
+      }
+
+      if (input.assignedToStaffId) {
+        const staff = await tx.$queryRawUnsafe<any[]>(
+          `SELECT s.id,s.branch_id AS "branchId" FROM staff s JOIN branches b ON b.id=s.branch_id WHERE s.id=$1::text AND s.tenant_id=$2::text AND s.status='ACTIVE' AND b.company_id=$3::text AND b.status='ACTIVE' LIMIT 1`,
+          input.assignedToStaffId,
+          tenantId,
+          companyId,
+        );
+        if (!staff.length) throw new NotFoundException('Staff not found');
+
+        const staffBranchId = staff[0].branchId as string;
+        if (effectiveBranchId && staffBranchId !== effectiveBranchId) {
+          throw new BadRequestException(
+            'Assigned staff must belong to the asset branch.',
+          );
+        }
+        if (!effectiveBranchId) {
+          effectiveBranchId = staffBranchId;
+        }
+      }
+
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `INSERT INTO inventory_assets(tenant_id,company_id,category_id,asset_code,name,asset_type,brand,model,serial_number,status,condition,branch_id,warehouse_id,assigned_to_staff_id,purchase_date,supplier_id,invoice_number,purchase_price,currency,warranty_start,warranty_end,maintenance_interval_days,next_maintenance_at,image_url,notes) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11,$12::text,$13::text,$14::text,$15::timestamptz,$16::text,$17,$18,$19,$20::timestamptz,$21::timestamptz,$22,$23::timestamptz,$24,$25) RETURNING id,asset_code AS "assetCode",name,asset_type AS "assetType",status,condition`,
+        tenantId,
+        companyId,
+        input.categoryId || null,
+        input.assetCode.trim(),
+        input.name.trim(),
+        input.assetType || 'EQUIPMENT',
+        input.brand || null,
+        input.model || null,
+        input.serialNumber || null,
+        input.status || 'ACTIVE',
+        input.condition || 'GOOD',
+        effectiveBranchId,
+        input.warehouseId || null,
         input.assignedToStaffId || null,
-        input.branchId || null,
-        'İlk envanter kaydı',
+        input.purchaseDate || null,
+        input.supplierId || null,
+        input.invoiceNumber || null,
+        Number(input.purchasePrice || 0),
+        input.currency || 'TRY',
+        input.warrantyStart || null,
+        input.warrantyEnd || null,
+        input.maintenanceIntervalDays
+          ? Number(input.maintenanceIntervalDays)
+          : null,
+        input.nextMaintenanceAt || null,
+        input.imageUrl || null,
+        input.notes || null,
       );
-    }
-    return asset;
+      const asset = rows[0];
+
+      if (input.assignedToStaffId || effectiveBranchId) {
+        await tx.$executeRawUnsafe(
+          `INSERT INTO inventory_asset_assignments(asset_id,staff_id,branch_id,note) VALUES($1::text,$2::text,$3::text,$4)`,
+          asset.id,
+          input.assignedToStaffId || null,
+          effectiveBranchId,
+          'İlk envanter kaydı',
+        );
+      }
+
+      return asset;
+    });
   }
 
   async assetMaintenance(assetId?: string) {
