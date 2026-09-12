@@ -3,6 +3,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { JwtModule } from '@nestjs/jwt';
 
 import { PlatformAdminGuard } from '../../common/auth/platform-admin.guard';
+import { AuthPublicRateLimitGuard } from '../auth/auth-public-rate-limit.guard';
 import { PlatformSupplierNetworkController } from './platform-supplier-network.controller';
 import { PlatformSupplierNetworkService } from './platform-supplier-network.service';
 import { SupplierCatalogBuyerController } from './supplier-catalog-buyer.controller';
@@ -68,6 +69,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierPortalAuthGuard,
     SupplierPortalRoleGuard,
     PlatformAdminGuard,
+    AuthPublicRateLimitGuard,
   ],
   exports: [
     SupplierNetworkService,
