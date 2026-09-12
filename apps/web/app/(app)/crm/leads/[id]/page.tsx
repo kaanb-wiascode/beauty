@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
   leadSourceLabels,
@@ -98,8 +98,21 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
   }, [id]);
   useEffect(() => { void load(); }, [load]);
 
+  function requireActiveBranch(message: string) {
+    if (hasActiveBranch()) return true;
+    showToast(message, "error");
+    return false;
+  }
+
   function openEdit() {
     if (!lead) return;
+    if (
+      !requireActiveBranch(
+        "Potansiyel Müşteri Bilgilerini Düzenlemek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     setError("");
     setEditForm({
       firstName: lead.firstName,
@@ -116,6 +129,13 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
   async function updateLead(event: FormEvent) {
     event.preventDefault();
     if (!lead) return;
+    if (
+      !requireActiveBranch(
+        "Potansiyel Müşteri Bilgilerini Güncellemek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     if (!editForm.firstName.trim() || !editForm.lastName.trim() || (!editForm.phone.trim() && !editForm.email.trim())) {
       setError("Ad, Soyad Ve En Az Bir İletişim Bilgisi Gereklidir.");
       return;
@@ -149,6 +169,13 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
   async function updateStatus(event: FormEvent) {
     event.preventDefault();
     if (!lead) return;
+    if (
+      !requireActiveBranch(
+        "Potansiyel Müşteri Durumunu Güncellemek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     if (status === "LOST" && !lostReason.trim()) {
       setError("Kaybedilen Potansiyel Müşteri İçin Neden Gereklidir.");
       return;
@@ -191,7 +218,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
   const owner = assignees.find((person) => person.id === lead.ownerUserId);
   return (
     <div className="space-y-6">
-      <Link href="/crm/leads" className="inline-flex text-[11px] font-semibold text-[#7052df]">← Potansiyel Müşteri Havuzuna Dön</Link>
+      <Link href="/crm/leads" className="inline-flex text-[11px] font-semibold text-[#1674BD]">← Potansiyel Müşteri Havuzuna Dön</Link>
       <PageHeader
         title={`${lead.firstName} ${lead.lastName}`}
         description={`${leadSourceLabels[lead.source] ?? lead.source} Kaynağından · ${leadStatusLabels[lead.status as LeadStatus]}`}
@@ -200,6 +227,13 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
             <Button variant="secondary" onClick={openEdit}>Bilgileri Düzenle</Button>
             {["NEW", "CONTACTED"].includes(lead.status) ? (
               <Button variant="secondary" onClick={() => {
+                if (
+                  !requireActiveBranch(
+                    "Potansiyel Müşteri Durumunu Güncellemek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+                  )
+                ) {
+                  return;
+                }
                 setError("");
                 setStatus(lead.status === "NEW" ? "CONTACTED" : "LOST");
                 setStatusOpen(true);
@@ -235,12 +269,12 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
               <h2 className="text-[13px] font-semibold">Satış Fırsatı</h2>
-              <Link href="/crm/pipeline" className="text-[10px] font-semibold text-[#7052df]">Satış Süreci →</Link>
+              <Link href="/crm/pipeline" className="text-[10px] font-semibold text-[#1674BD]">Satış Süreci →</Link>
             </header>
             {activeOpportunity ? (
               <div className="grid gap-4 p-5 sm:grid-cols-4">
                 <div className="sm:col-span-2"><p className="text-[10px] text-[var(--muted)]">Başlık</p><strong className="mt-1 block text-[14px]">{activeOpportunity.title}</strong></div>
-                <div><p className="text-[10px] text-[var(--muted)]">Aşama</p><span className="mt-1 inline-flex rounded-full bg-[#eee9ff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">{opportunityStageLabels[activeOpportunity.stage]}</span></div>
+                <div><p className="text-[10px] text-[var(--muted)]">Aşama</p><span className="mt-1 inline-flex rounded-full bg-[#EAF5FB] px-2.5 py-1 text-[10px] font-semibold text-[#1674BD]">{opportunityStageLabels[activeOpportunity.stage]}</span></div>
                 <div><p className="text-[10px] text-[var(--muted)]">Değer / Olasılık</p><strong className="mt-1 block text-[12px]">{formatMoney(activeOpportunity.estimatedValue, activeOpportunity.currency)} · %{activeOpportunity.probability}</strong></div>
               </div>
             ) : (
@@ -250,13 +284,13 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
               <h2 className="text-[13px] font-semibold">Takipler</h2>
-              <Link href="/crm/follow-ups" className="text-[10px] font-semibold text-[#7052df]">Takip Merkezi →</Link>
+              <Link href="/crm/follow-ups" className="text-[10px] font-semibold text-[#1674BD]">Takip Merkezi →</Link>
             </header>
             {lead.followUps.length ? (
               <div className="divide-y divide-[var(--line)]">
                 {lead.followUps.map((row) => (
                   <div key={row.id} className="grid gap-2 px-5 py-3 sm:grid-cols-[120px_1fr_160px] sm:items-center">
-                    <span className="text-[10px] font-semibold text-[#7052df]">{followUpChannelLabels[row.channel]}</span>
+                    <span className="text-[10px] font-semibold text-[#1674BD]">{followUpChannelLabels[row.channel]}</span>
                     <p className="truncate text-[11px] text-[var(--muted)]">{row.status === "CANCELLED" ? row.cancellationReason : row.outcome || row.note || "Not Yok"}</p>
                     <time className="text-[10px] text-[var(--muted)] sm:text-right">{formatDateTime(row.dueAt)}</time>
                   </div>
@@ -271,8 +305,8 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
             <ol className="p-5">
               {[...lead.events].reverse().map((row, index) => (
                 <li key={row.id} className="relative flex gap-3 pb-6 last:pb-0">
-                  <span className="relative z-10 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#8067df]" />
-                  {index < lead.events.length - 1 ? <span className="absolute left-[4px] top-3 h-full w-px bg-[#e7e3ef]" /> : null}
+                  <span className="relative z-10 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#1674BD]" />
+                  {index < lead.events.length - 1 ? <span className="absolute left-[4px] top-3 h-full w-px bg-[#dcebf3]" /> : null}
                   <div>
                     <p className="text-[11px] font-semibold">{eventLabels[row.eventType] ?? "Sistem İşlemi"}</p>
                     <time className="mt-1 block text-[9px] text-[var(--muted)]">{formatDateTime(row.createdAt)}</time>
