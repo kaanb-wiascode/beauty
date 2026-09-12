@@ -67,7 +67,7 @@ const ACTION_LABELS: Record<string, string> = {
 };
 
 const ROLE_TONES = [
-  "bg-[#eeebff] text-[#6658e8]",
+  "bg-[#EAF5FB] text-[#1674BD]",
   "bg-[#eaf7ef] text-[#378a5e]",
   "bg-[#fff4e6] text-[#c47b24]",
   "bg-[#f8eaf0] text-[#b65e7d]",
@@ -398,7 +398,7 @@ export default function RolesPage() {
               const selected = role.id === selectedRoleId;
               const tone = ROLE_TONES[index % ROLE_TONES.length];
               return (
-                <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)} className={`flex w-full min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition ${selected ? "border-[#c8c1ff] bg-[#faf9ff] shadow-[0_0_0_3px_#f1efff]" : "border-[#e8e8e9] bg-white hover:border-[#d8d8da] hover:bg-[#fcfcfc]"}`}>
+                <button key={role.id} type="button" onClick={() => setSelectedRoleId(role.id)} className={`flex w-full min-w-0 items-center gap-3 rounded-xl border p-3 text-left transition ${selected ? "border-[#b9e7ee] bg-[#f4fbfd] shadow-[0_0_0_3px_#EAF5FB]" : "border-[#e8e8e9] bg-white hover:border-[#d8d8da] hover:bg-[#fcfcfc]"}`}>
                   <span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl text-sm font-bold ${tone}`}>{role.name.charAt(0).toUpperCase()}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-semibold text-[#242529]">{role.name}</span>
@@ -448,7 +448,7 @@ export default function RolesPage() {
                       return (
                         <div key={resource} className="p-3 md:grid md:grid-cols-[minmax(150px,1fr)_repeat(10,minmax(80px,1fr))] md:items-center md:gap-0">
                           <button type="button" onClick={() => toggleResource(resource)} className="mb-3 flex min-w-0 items-center gap-2 text-left md:mb-0">
-                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${allSelected ? "bg-[#eeebff] text-[#6658e8]" : "bg-[#f4f4f5] text-[#77787e]"}`}>{(RESOURCE_LABELS[resource] || "Diğer").charAt(0)}</span>
+                            <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-xs font-bold ${allSelected ? "bg-[#EAF5FB] text-[#1674BD]" : "bg-[#f4f4f5] text-[#77787e]"}`}>{(RESOURCE_LABELS[resource] || "Diğer").charAt(0)}</span>
                             <span className="min-w-0"><span className="block truncate text-sm font-semibold">{RESOURCE_LABELS[resource] || "Diğer Yetkiler"}</span><span className="block text-[10px] text-[#9a9b9f]">{resourcePermissions.length} Yetki</span></span>
                           </button>
                           {Object.keys(ACTION_LABELS).map((action) => {
@@ -458,7 +458,7 @@ export default function RolesPage() {
                               <label key={action} className="flex min-h-11 items-center justify-between gap-3 border-t border-[#f1f1f2] py-2 md:justify-center md:border-t-0 md:py-0">
                                 <span className="text-xs text-[#77787e] md:hidden">{ACTION_LABELS[action]}</span>
                                 {permission ? (
-                                  <input aria-label={`${RESOURCE_LABELS[resource] || "Diğer Yetkiler"} ${ACTION_LABELS[action]}`} type="checkbox" checked={checked} onChange={() => togglePermission(permission.id)} className="h-4 w-4 accent-[#6658e8]" />
+                                  <input aria-label={`${RESOURCE_LABELS[resource] || "Diğer Yetkiler"} ${ACTION_LABELS[action]}`} type="checkbox" checked={checked} onChange={() => togglePermission(permission.id)} className="h-4 w-4 accent-[#1674BD]" />
                                 ) : <span className="text-xs text-[#c1c1c5]">—</span>}
                               </label>
                             );
@@ -505,8 +505,8 @@ export default function RolesPage() {
           <form onSubmit={(event) => { event.preventDefault(); void createRole(); }} className="w-full max-w-md rounded-2xl border border-[#e3e3e5] bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4"><div><h2 className="text-lg font-semibold">Yeni Rol Oluştur</h2><p className="mt-1 text-xs text-[#85868c]">Ekibiniz İçin Yeni Bir Erişim Profili Oluşturun.</p></div><button type="button" onClick={() => setCreateOpen(false)} className="text-xl text-[#8b8c91]">×</button></div>
             <div className="mt-5 space-y-4">
-              <label className="block"><span className="mb-1.5 block text-xs font-medium">Rol Adı</span><input autoFocus value={newRoleName} onChange={(event) => setNewRoleName(event.target.value)} className="min-h-11 w-full rounded-xl border border-[#dfdfe1] px-3 text-sm outline-none focus:border-[#b8b0ff]" placeholder="Örn. Salon Müdürü" /></label>
-              <label className="block"><span className="mb-1.5 block text-xs font-medium">Açıklama</span><textarea value={newRoleDescription} onChange={(event) => setNewRoleDescription(event.target.value)} rows={3} className="w-full rounded-xl border border-[#dfdfe1] px-3 py-2.5 text-sm outline-none focus:border-[#b8b0ff]" placeholder="Bu Rolün Erişim Kapsamını Kısaca Açıklayın." /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-medium">Rol Adı</span><input autoFocus value={newRoleName} onChange={(event) => setNewRoleName(event.target.value)} className="min-h-11 w-full rounded-xl border border-[#dfdfe1] px-3 text-sm outline-none focus:border-[#55D4E1]" placeholder="Örn. Salon Müdürü" /></label>
+              <label className="block"><span className="mb-1.5 block text-xs font-medium">Açıklama</span><textarea value={newRoleDescription} onChange={(event) => setNewRoleDescription(event.target.value)} rows={3} className="w-full rounded-xl border border-[#dfdfe1] px-3 py-2.5 text-sm outline-none focus:border-[#55D4E1]" placeholder="Bu Rolün Erişim Kapsamını Kısaca Açıklayın." /></label>
             </div>
             <div className="mt-5 flex justify-end gap-2"><button type="button" onClick={() => setCreateOpen(false)} className="min-h-10 rounded-xl border border-[#dfdfe1] px-4 text-sm">Vazgeç</button><button type="submit" disabled={creatingRole} className="min-h-10 rounded-xl bg-[#191a1d] px-4 text-sm font-semibold text-white disabled:opacity-50">{creatingRole ? "Oluşturuluyor…" : "Rol Oluştur"}</button></div>
           </form>
