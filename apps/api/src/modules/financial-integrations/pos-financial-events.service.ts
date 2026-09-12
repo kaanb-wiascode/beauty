@@ -44,6 +44,12 @@ export class PosFinancialEventsService {
     name: string,
     type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
   ) {
+    await tx.$queryRawUnsafe(
+      'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+      `account:${companyId}`,
+      code,
+    );
+
     const existing = await tx.chartOfAccount.findFirst({ where: { tenantId, companyId, code }, select: { id: true, active: true } });
     if (existing) {
       if (!existing.active) return tx.chartOfAccount.update({ where: { id: existing.id }, data: { active: true }, select: { id: true } });
