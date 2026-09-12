@@ -85,7 +85,7 @@ export default function SupplierOfferComparisonPage() {
       setOffers(offerRows);
       setOptions(procurementOptions);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Tedarikçi teklifleri yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Tedarikçi Teklifleri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -154,7 +154,7 @@ export default function SupplierOfferComparisonPage() {
     if (!orderTarget || !canWrite || busy) return;
     const numericQuantity = Number(quantity);
     if (!warehouseId || !inventoryProductId || !Number.isFinite(numericQuantity) || numericQuantity <= 0) {
-      setError("Depo, eşlenmiş yerel ürün ve geçerli bir miktar seçilmelidir.");
+      setError("Depo, Eşleştirilmiş Ürün Ve Geçerli Bir Miktar Seçilmelidir.");
       return;
     }
 
@@ -162,7 +162,7 @@ export default function SupplierOfferComparisonPage() {
     setError("");
     setSuccess("");
     try {
-      const result = await api<DraftOrderResult>(`/procurement/supplier-offers/${orderTarget.id}/purchase-order`, {
+      await api<DraftOrderResult>(`/procurement/supplier-offers/${orderTarget.id}/purchase-order`, {
         method: "POST",
         body: {
           warehouseId,
@@ -172,20 +172,20 @@ export default function SupplierOfferComparisonPage() {
           idempotencyKey,
         },
       });
-      setSuccess(`DRAFT satın alma siparişi oluşturuldu: ${result.purchaseOrderId}. Onay akışına satın alma ekranından gönderebilirsiniz.`);
+      setSuccess("Taslak Satın Alma Siparişi Oluşturuldu. Onay Sürecini Satın Alma Ekranından Başlatabilirsiniz.");
       setOrderTarget(null);
       setWarehouseId("");
       setInventoryProductId("");
       setQuantity("");
       setIdempotencyKey("");
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Satın alma siparişi taslağı oluşturulamadı.");
+      setError(requestError instanceof ApiError ? requestError.message : "Satın Alma Siparişi Taslağı Oluşturulamadı.");
     } finally {
       setBusy(false);
     }
   }
 
-  if (loading) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Tedarikçi teklifleri hazırlanıyor..." /></div>;
+  if (loading) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Tedarikçi Teklifleri Hazırlanıyor..." /></div>;
 
   return (
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
@@ -193,24 +193,24 @@ export default function SupplierOfferComparisonPage() {
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">TEDARİKÇİ AĞI</p>
           <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Teklif Karşılaştırma</h1>
-          <p className="mt-1 max-w-3xl text-[14px] text-[var(--muted)]">Yalnız şirketinize bağlı, aktif ve doğrulanmış tedarikçi organizasyonlarının geçerli tekliflerini aynı canonical ürün varyantı altında karşılaştırın. Sipariş seçimi otomatik onay vermez; yalnız DRAFT satın alma siparişi oluşturur.</p>
+          <p className="mt-1 max-w-3xl text-[14px] text-[var(--muted)]">Şirketinize Bağlı, Aktif Ve Doğrulanmış Tedarikçilerin Geçerli Tekliflerini Aynı Ürün Altında Karşılaştırın. Seçtiğiniz Teklif Önce Taslak Sipariş Olarak Oluşturulur Ve Onay Sürecinden Geçmeden Siparişe Dönüşmez.</p>
         </div>
         <input
           value={search}
           onChange={(event) => setSearch(event.target.value)}
-          placeholder="Ürün, varyant, marka veya tedarikçi ara..."
+          placeholder="Ürün, Varyant, Marka Veya Tedarikçi Ara..."
           className="min-h-10 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-4 text-[12px] text-[var(--ink)] outline-none transition focus:border-[var(--accent)] lg:max-w-[360px]"
         />
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success} <Link href="/inventory/purchases" className="font-semibold underline">Satın almaya git</Link></Alert> : null}
-      {!canWrite ? <Alert tone="success">Bu görünüm salt okunur. Sipariş taslağı oluşturmak için inventory.write izni gerekir.</Alert> : null}
+      {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success} <Link href="/inventory/purchases" className="font-semibold underline">Satın Almaya Git</Link></Alert> : null}
+      {!canWrite ? <Alert tone="success">Bu Görünüm Salt Okunur. Sipariş Taslağı Oluşturmak İçin Satın Alma Yetkisi Gereklidir.</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-3">
-        <Metric label="Aktif teklif" value={String(offers.length)} />
-        <Metric label="Karşılaştırılan varyant" value={String(variantCount)} />
-        <Metric label="Teklif veren tedarikçi" value={String(supplierCount)} />
+        <Metric label="Aktif Teklif" value={String(offers.length)} />
+        <Metric label="Karşılaştırılan Ürün" value={String(variantCount)} />
+        <Metric label="Teklif Veren Tedarikçi" value={String(supplierCount)} />
       </section>
 
       <div className="space-y-5">
@@ -225,16 +225,16 @@ export default function SupplierOfferComparisonPage() {
                     <h2 className="text-[14px] font-semibold text-[var(--ink)]">{first.productName} · {first.variantName}</h2>
                     {first.brandName ? <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{first.brandName}</span> : null}
                   </div>
-                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Canonical SKU: {first.canonicalSku || "—"} · Birim: {first.unit}</p>
+                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Stok Kodu: {first.canonicalSku || "—"} · Birim: {first.unit}</p>
                 </div>
                 <div className="rounded-[14px] bg-[var(--success-soft)] px-3 py-2 text-right">
-                  <p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--success)]">En düşük teklif</p>
+                  <p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--success)]">En Düşük Teklif</p>
                   <p className="mt-1 text-[14px] font-semibold text-[var(--success)]">{formatMoney(best.unitPrice, best.currency)}</p>
                 </div>
               </div>
 
               <div className="hidden grid-cols-[1.25fr_.65fr_.55fr_.55fr_.55fr_.7fr_.75fr] border-b border-[var(--line)] bg-[var(--surface-2)]/45 px-5 py-3 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)] md:grid">
-                <span>Tedarikçi</span><span>Birim fiyat</span><span>MOQ</span><span>Stok</span><span>Teslim</span><span>Geçerlilik</span><span>Aksiyon</span>
+                <span>Tedarikçi</span><span>Birim Fiyat</span><span>En Az Sipariş</span><span>Stok</span><span>Teslim</span><span>Geçerlilik</span><span>İşlem</span>
               </div>
               <div className="divide-y divide-[var(--line)]">
                 {rows.map((offer, index) => {
@@ -244,21 +244,21 @@ export default function SupplierOfferComparisonPage() {
                       <div>
                         <div className="flex items-center gap-2">
                           <p className="text-[12px] font-semibold text-[var(--ink)]">{offer.supplierName}</p>
-                          {index === 0 ? <span className="rounded-full bg-[var(--success-soft)] px-2 py-0.5 text-[8px] font-semibold text-[var(--success)]">En uygun</span> : null}
+                          {index === 0 ? <span className="rounded-full bg-[var(--success-soft)] px-2 py-0.5 text-[8px] font-semibold text-[var(--success)]">En Uygun</span> : null}
                         </div>
-                        <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Tedarikçi SKU: {offer.supplierSku || "—"} · v{offer.version}</p>
+                        <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Tedarikçi Stok Kodu: {offer.supplierSku || "—"}</p>
                       </div>
-                      <Value label="Birim fiyat" value={formatMoney(offer.unitPrice, offer.currency)} strong />
-                      <Value label="MOQ" value={formatQuantity(offer.minimumOrderQuantity)} />
+                      <Value label="Birim Fiyat" value={formatMoney(offer.unitPrice, offer.currency)} strong />
+                      <Value label="En Az Sipariş" value={formatQuantity(offer.minimumOrderQuantity)} />
                       <Value label="Stok" value={offer.availableQuantity == null ? "Belirtilmedi" : formatQuantity(offer.availableQuantity)} />
-                      <Value label="Teslim" value={`${offer.leadTimeDays + offer.preparationDays + offer.shippingDays} gün`} />
+                      <Value label="Teslim" value={`${offer.leadTimeDays + offer.preparationDays + offer.shippingDays} Gün`} />
                       <Value label="Geçerlilik" value={offer.validTo ? formatDate(offer.validTo) : "Süresiz"} />
                       <div>
-                        <p className="text-[8px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)] md:hidden">Aksiyon</p>
+                        <p className="text-[8px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)] md:hidden">İşlem</p>
                         {canWrite && hasMappedProduct && options.warehouses.length ? (
-                          <button type="button" onClick={() => openOrder(offer)} className="mt-1 rounded-[10px] bg-[var(--accent-soft)] px-3 py-2 text-[10px] font-semibold text-[var(--accent)] transition hover:opacity-80 md:mt-0">Sipariş taslağı</button>
+                          <button type="button" onClick={() => openOrder(offer)} className="mt-1 rounded-[10px] bg-[var(--accent-soft)] px-3 py-2 text-[10px] font-semibold text-[var(--accent)] transition hover:opacity-80 md:mt-0">Sipariş Taslağı</button>
                         ) : (
-                          <span className="text-[9px] text-[var(--muted-soft)]">{!hasMappedProduct ? "Ürün eşlemesi gerekli" : !options.warehouses.length ? "Aktif depo yok" : "Salt okunur"}</span>
+                          <span className="text-[9px] text-[var(--muted-soft)]">{!hasMappedProduct ? "Ürün Eşleştirmesi Gerekli" : !options.warehouses.length ? "Aktif Depo Yok" : "Salt Okunur"}</span>
                         )}
                       </div>
                     </article>
@@ -271,8 +271,8 @@ export default function SupplierOfferComparisonPage() {
 
         {!productGroups.length ? (
           <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] px-6 py-14 text-center">
-            <p className="text-[13px] font-semibold text-[var(--ink)]">Karşılaştırılabilir aktif teklif yok.</p>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">Bağlı ve doğrulanmış tedarikçiler ACTIVE teklif yayınladığında burada görünecek.</p>
+            <p className="text-[13px] font-semibold text-[var(--ink)]">Karşılaştırılabilir Aktif Teklif Yok.</p>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">Bağlı Ve Doğrulanmış Tedarikçiler Aktif Teklif Yayınladığında Burada Görünecek.</p>
           </div>
         ) : null}
       </div>
@@ -280,29 +280,29 @@ export default function SupplierOfferComparisonPage() {
       <Modal
         open={Boolean(orderTarget)}
         onClose={closeOrder}
-        title="Satın alma siparişi taslağı"
-        description="Bu işlem tedarikçinin güncel ticari teklifini snapshot olarak kaydeder ve yalnız DRAFT PO üretir. Sipariş mevcut onay akışından geçmeden ORDERED olamaz."
+        title="Satın Alma Siparişi Taslağı"
+        description="Seçilen Tedarikçi Teklifi Taslak Siparişe Dönüştürülür. Sipariş, Mevcut Onay Süreci Tamamlanmadan Kesinleşmez."
       >
         {orderTarget ? (
           <form onSubmit={createDraftOrder} className="space-y-4">
             <div className="rounded-[14px] bg-[var(--surface-2)] p-4">
               <p className="text-[12px] font-semibold text-[var(--ink)]">{orderTarget.supplierName}</p>
               <p className="mt-1 text-[11px] text-[var(--muted)]">{orderTarget.productName} · {orderTarget.variantName}</p>
-              <p className="mt-2 text-[11px] text-[var(--muted)]">{formatMoney(orderTarget.unitPrice, orderTarget.currency)} · MOQ {formatQuantity(orderTarget.minimumOrderQuantity)} · Sipariş katı {formatQuantity(orderTarget.orderMultiple)}</p>
+              <p className="mt-2 text-[11px] text-[var(--muted)]">{formatMoney(orderTarget.unitPrice, orderTarget.currency)} · En Az Sipariş {formatQuantity(orderTarget.minimumOrderQuantity)} · Sipariş Katı {formatQuantity(orderTarget.orderMultiple)}</p>
             </div>
 
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold text-[var(--muted)]">Depo</span>
               <select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
-                <option value="">Depo seçin</option>
+                <option value="">Depo Seçin</option>
                 {options.warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
               </select>
             </label>
 
             <label className="block">
-              <span className="mb-1.5 block text-[11px] font-semibold text-[var(--muted)]">Yerel envanter ürünü</span>
+              <span className="mb-1.5 block text-[11px] font-semibold text-[var(--muted)]">Envanter Ürünü</span>
               <select value={inventoryProductId} onChange={(event) => setInventoryProductId(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
-                <option value="">Ürün seçin</option>
+                <option value="">Ürün Seçin</option>
                 {mappedProducts.map((product) => <option key={product.inventoryProductId} value={product.inventoryProductId}>{product.inventoryProductName}{product.sku ? ` · ${product.sku}` : ""}</option>)}
               </select>
             </label>
@@ -310,12 +310,12 @@ export default function SupplierOfferComparisonPage() {
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold text-[var(--muted)]">Miktar</span>
               <input type="number" min="0.001" step="0.001" value={quantity} onChange={(event) => setQuantity(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]" />
-              <span className="mt-1 block text-[9px] text-[var(--muted-soft)]">Backend MOQ, sipariş katı ve varsa tedarikçi stok limitini yeniden doğrular.</span>
+              <span className="mt-1 block text-[9px] text-[var(--muted-soft)]">Sistem, En Az Sipariş Miktarını, Sipariş Katını Ve Varsa Tedarikçi Stok Sınırını Yeniden Kontrol Eder.</span>
             </label>
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="secondary" onClick={closeOrder} disabled={busy}>Vazgeç</Button>
-              <Button type="submit" disabled={busy || !warehouseId || !inventoryProductId || !quantity}>{busy ? "Oluşturuluyor..." : "DRAFT PO oluştur"}</Button>
+              <Button type="submit" disabled={busy || !warehouseId || !inventoryProductId || !quantity}>{busy ? "Oluşturuluyor..." : "Taslak Sipariş Oluştur"}</Button>
             </div>
           </form>
         ) : null}
