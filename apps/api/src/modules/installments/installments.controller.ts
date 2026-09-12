@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -20,12 +20,18 @@ export class InstallmentsController {
 
   @Post()
   @RequirePermission('finance', 'manage')
-  create(@Param('saleId') saleId: string, @Body() body: unknown) {
-    return this.installmentsService.createPlan(saleId, createInstallmentPlanSchema.parse(body));
+  create(
+    @Param('saleId', new ParseUUIDPipe()) saleId: string,
+    @Body() body: unknown,
+  ) {
+    return this.installmentsService.createPlan(
+      saleId,
+      createInstallmentPlanSchema.parse(body),
+    );
   }
 
   @Get()
-  findOne(@Param('saleId') saleId: string) {
+  findOne(@Param('saleId', new ParseUUIDPipe()) saleId: string) {
     return this.installmentsService.getPlan(saleId);
   }
 }
