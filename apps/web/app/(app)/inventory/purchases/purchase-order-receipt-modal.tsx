@@ -87,7 +87,7 @@ export function PurchaseOrderReceiptModal({
       setError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Satın alma siparişi kalemleri yüklenemedi.",
+          : "Satın Alma Siparişi Kalemleri Yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -128,11 +128,11 @@ export function PurchaseOrderReceiptModal({
       .filter((item) => Number.isFinite(item.quantity) && item.quantity > 0);
 
     if (!items.length) {
-      setError("Mal kabul için en az bir kalemde sıfırdan büyük miktar girilmelidir.");
+      setError("Mal Kabul İçin En Az Bir Kalemde Sıfırdan Büyük Miktar Girilmelidir.");
       return;
     }
     if (items.some((item) => item.quantity > item.remaining)) {
-      setError("Teslim miktarı kalan sipariş miktarını aşamaz.");
+      setError("Teslim Miktarı Kalan Sipariş Miktarını Aşamaz.");
       return;
     }
 
@@ -156,8 +156,8 @@ export function PurchaseOrderReceiptModal({
       );
       showToast(
         result.purchaseOrderStatus === "RECEIVED"
-          ? `Mal kabul tamamlandı · ${formatMoney(result.total)}`
-          : `Kısmi mal kabul kaydedildi · ${formatMoney(result.total)}`,
+          ? `Mal Kabul Tamamlandı · ${formatMoney(result.total)}`
+          : `Kısmi Mal Kabul Kaydedildi · ${formatMoney(result.total)}`,
       );
       await onChanged();
       onClose();
@@ -165,7 +165,7 @@ export function PurchaseOrderReceiptModal({
       setError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Mal kabul işlemi tamamlanamadı.",
+          : "Mal Kabul İşlemi Tamamlanamadı.",
       );
     } finally {
       setSaving(false);
@@ -178,10 +178,10 @@ export function PurchaseOrderReceiptModal({
       onClose={() => {
         if (!saving) onClose();
       }}
-      title="Mal kabul"
+      title="Mal Kabul"
       description={
         order
-          ? `${order.supplierName || "Tedarikçi seçilmedi"} · ${order.warehouseName}`
+          ? `${order.supplierName || "Tedarikçi Seçilmedi"} · ${order.warehouseName}`
           : undefined
       }
     >
@@ -189,14 +189,14 @@ export function PurchaseOrderReceiptModal({
         {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
         {loading && !detail ? (
-          <Spinner label="Sipariş kalemleri yükleniyor..." />
+          <Spinner label="Sipariş Kalemleri Yükleniyor..." />
         ) : detail ? (
           <form className="space-y-5" onSubmit={submit}>
             <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3">
               <div className="flex items-center justify-between gap-4">
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">
-                    Sipariş toplamı
+                    Sipariş Toplamı
                   </p>
                   <p className="mt-1 text-[14px] font-semibold text-[var(--ink)]">
                     {formatMoney(detail.order.totalAmount)}
@@ -204,7 +204,7 @@ export function PurchaseOrderReceiptModal({
                 </div>
                 <div className="text-right">
                   <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">
-                    Bu kabul
+                    Bu Kabul
                   </p>
                   <p className="mt-1 text-[14px] font-semibold text-[var(--accent)]">
                     {formatMoney(receiptTotal)}
@@ -226,13 +226,13 @@ export function PurchaseOrderReceiptModal({
                         {item.productName}
                       </p>
                       <p className="mt-1 text-[10px] text-[var(--muted-soft)]">
-                        {item.sku ? `${item.sku} · ` : ""}Sipariş {formatQuantity(item.quantity)} · Alındı {formatQuantity(item.receivedQuantity)} · Kalan {formatQuantity(item.remainingQuantity)}
+                        {item.sku ? `Stok Kodu ${item.sku} · ` : ""}Sipariş {formatQuantity(item.quantity)} · Alındı {formatQuantity(item.receivedQuantity)} · Kalan {formatQuantity(item.remainingQuantity)}
                       </p>
                       <p className="mt-2 text-[11px] font-medium text-[var(--muted)]">
-                        Birim maliyet {formatMoney(item.unitCost)}
+                        Birim Maliyet {formatMoney(item.unitCost)}
                       </p>
                     </div>
-                    <Field label="Teslim miktarı">
+                    <Field label="Teslim Miktarı">
                       <TextInput
                         type="number"
                         min="0"
@@ -255,16 +255,16 @@ export function PurchaseOrderReceiptModal({
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Fatura numarası">
+              <Field label="Fatura Numarası">
                 <TextInput
                   value={invoiceNumber}
                   maxLength={100}
                   disabled={saving}
                   onChange={(event) => setInvoiceNumber(event.target.value)}
-                  placeholder="Opsiyonel"
+                  placeholder="İsteğe Bağlı"
                 />
               </Field>
-              <Field label="Vade tarihi">
+              <Field label="Vade Tarihi">
                 <TextInput
                   type="date"
                   value={dueAt}
@@ -274,18 +274,18 @@ export function PurchaseOrderReceiptModal({
               </Field>
             </div>
 
-            <Field label="Mal kabul notu">
+            <Field label="Mal Kabul Notu">
               <TextInput
                 value={note}
                 maxLength={500}
                 disabled={saving}
                 onChange={(event) => setNote(event.target.value)}
-                placeholder="Opsiyonel"
+                placeholder="İsteğe Bağlı"
               />
             </Field>
 
             <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] leading-5 text-[var(--muted)]">
-              Mal kabul; stok miktarını ve ağırlıklı maliyeti günceller, GOODS_RECEIPT stok hareketi üretir, tedarikçi borcunu ve muhasebe fişini aynı transaction içinde oluşturur.
+              Mal Kabul İşlemi Stok Miktarını Ve Ortalama Maliyeti Günceller, Tedarikçi Borcunu Ve İlgili Muhasebe Kaydını Otomatik Olarak Oluşturur.
             </div>
 
             <div className="flex justify-end gap-3 pt-1">
@@ -293,7 +293,7 @@ export function PurchaseOrderReceiptModal({
                 Vazgeç
               </Button>
               <Button type="submit" disabled={saving || receiptTotal <= 0}>
-                {saving ? "Kaydediliyor..." : "Mal kabulü kaydet"}
+                {saving ? "Kaydediliyor..." : "Mal Kabulü Kaydet"}
               </Button>
             </div>
           </form>
