@@ -163,11 +163,17 @@ export class PosWebhookQueueService {
         `UPDATE pos_webhook_events
          SET status='DEAD_LETTER',retry_count=$2,next_retry_at=NULL,dead_letter_at=NOW(),
              error_message=COALESCE($3,error_message),claimed_at=NULL,claim_token=NULL
-         WHERE id=$1::text AND status='PROCESSING' AND claim_token=$4`,
+         WHERE id=$1::text
+           AND (
+             (status='PROCESSING' AND claim_token=$4)
+             OR (status=$5 AND claim_token IS NULL AND retry_count=$6)
+           )`,
         eventId,
         retryCount,
         errorMessage?.slice(0, 1000) ?? null,
         claimToken,
+        pendingStatus,
+        previousRetryCount,
       );
       return 'DEAD_LETTER';
     }
@@ -177,13 +183,18 @@ export class PosWebhookQueueService {
       `UPDATE pos_webhook_events
        SET status=$2,retry_count=$3,next_retry_at=NOW()+($4::text||' minutes')::interval,
            error_message=COALESCE($5,error_message),claimed_at=NULL,claim_token=NULL
-       WHERE id=$1::text AND status='PROCESSING' AND claim_token=$6`,
+       WHERE id=$1::text
+         AND (
+           (status='PROCESSING' AND claim_token=$6)
+           OR (status=$2 AND claim_token IS NULL AND retry_count=$7)
+         )`,
       eventId,
       pendingStatus,
       retryCount,
       delayMinutes,
       errorMessage?.slice(0, 1000) ?? null,
       claimToken,
+      previousRetryCount,
     );
     return pendingStatus;
   }
