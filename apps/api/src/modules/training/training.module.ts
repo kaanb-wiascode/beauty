@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
 import { CompetencyController } from './competency.controller';
 import { CompetencyService } from './competency.service';
+import { CompetencyReviewController } from './competency-review.controller';
+import { CompetencyReviewService } from './competency-review.service';
 import { CompetencyTrainingController } from './competency-training.controller';
 import { CompetencyTrainingService } from './competency-training.service';
 import { LmsController } from './lms.controller';
@@ -21,8 +23,8 @@ import { TrainingController } from './training.controller';
 import { TrainingService } from './training.service';
 
 @Module({
-  controllers:[TrainingController,CompetencyController,CompetencyTrainingController,LmsController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingLessonProgressController,TrainingPlanningController,TrainingProgramController],
-  providers:[TrainingService,CompetencyService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
-  exports:[TrainingService,CompetencyService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
+  controllers:[TrainingController,CompetencyController,CompetencyReviewController,CompetencyTrainingController,LmsController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingLessonProgressController,TrainingPlanningController,TrainingProgramController],
+  providers:[TrainingService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
+  exports:[TrainingService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
 })
 export class TrainingModule {}
