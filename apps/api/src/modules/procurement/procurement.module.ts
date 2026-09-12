@@ -14,6 +14,8 @@ import { ProcurementReturnQueryController } from './procurement-return-query.con
 import { ProcurementRfqController } from './procurement-rfq.controller';
 import { ProcurementRfqOptionsService } from './procurement-rfq-options.service';
 import { ProcurementRfqService } from './procurement-rfq.service';
+import { ProcurementOfferOrderController } from './procurement-offer-order.controller';
+import { ProcurementOfferOrderService } from './procurement-offer-order.service';
 
 @Module({
   controllers: [
@@ -21,6 +23,7 @@ import { ProcurementRfqService } from './procurement-rfq.service';
     ProcurementReceiptQueryController,
     ProcurementReturnQueryController,
     ProcurementRfqController,
+    ProcurementOfferOrderController,
   ],
   providers: [
     ProcurementService,
@@ -34,6 +37,7 @@ import { ProcurementRfqService } from './procurement-rfq.service';
     ProcurementReturnQueryService,
     ProcurementRfqOptionsService,
     ProcurementRfqService,
+    ProcurementOfferOrderService,
   ],
   exports: [
     ProcurementService,
@@ -47,6 +51,7 @@ import { ProcurementRfqService } from './procurement-rfq.service';
     ProcurementReturnQueryService,
     ProcurementRfqOptionsService,
     ProcurementRfqService,
+    ProcurementOfferOrderService,
   ],
 })
 export class ProcurementModule {}
