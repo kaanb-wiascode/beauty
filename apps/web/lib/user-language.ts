@@ -86,6 +86,59 @@ const USER_LABELS: Record<string, string> = {
   SERVICE_PROVIDER: "Hizmet Sağlayıcı",
 };
 
+const USER_ERROR_MESSAGES: Record<string, string> = {
+  "Invalid email or password": "E-Posta Veya Şifre Hatalı.",
+  "No active tenant membership": "Aktif İşletme Üyeliği Bulunamadı.",
+  "You do not have permission to perform this action": "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor.",
+  "Staff already has an overlapping appointment": "Bu Personelin Seçilen Saatte Çakışan Bir Randevusu Var.",
+  "Appointment startAt must be before endAt": "Randevu Başlangıcı Bitişten Önce Olmalıdır.",
+  "Invalid appointment date": "Geçersiz Randevu Tarihi.",
+  "Staff is not active": "Seçilen Personel Aktif Değil.",
+  "Service is not active": "Seçilen Hizmet Aktif Değil.",
+  "Customer not found": "Müşteri Bulunamadı.",
+  "Staff not found": "Personel Bulunamadı.",
+  "Service not found": "Hizmet Bulunamadı.",
+  "Appointment not found": "Randevu Bulunamadı.",
+  "Cancelled appointment cannot be reactivated": "İptal Edilen Randevu Yeniden Aktifleştirilemez.",
+  "Appointment is already cancelled": "Randevu Zaten İptal Edilmiş.",
+  "Failed to create appointment": "Randevu Oluşturulamadı.",
+  "Failed to update appointment": "Randevu Güncellenemedi.",
+  "Failed to cancel appointment": "Randevu İptal Edilemedi.",
+  "Appointment already has a payment": "Bu Randevunun Zaten Bir Ödeme Kaydı Var.",
+  "Cancelled or no-show appointment cannot be paid": "İptal Edilmiş Veya Gerçekleşmemiş Randevu İçin Ödeme Alınamaz.",
+  "Payment not found": "Ödeme Bulunamadı.",
+  "Follow-up is not open or is outside the active scope.": "Takip Açık Değil Veya Aktif Çalışma Kapsamının Dışında.",
+  "Follow-up changed, is closed, or is outside the active scope.": "Takip Başka Bir Kullanıcı Tarafından Değiştirildi, Kapatıldı Veya Aktif Kapsamın Dışında.",
+  "CRM assignee is not an active company member.": "Seçilen Sorumlu Aktif İşletme Veya Şube Kapsamında Değil.",
+  Forbidden: "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor.",
+  Unauthorized: "Oturumunuz Geçerli Değil. Lütfen Tekrar Giriş Yapın.",
+  "Not Found": "Aradığınız Kayıt Bulunamadı.",
+  "Network Error": "Sunucuya Bağlanılamadı. Lütfen Tekrar Deneyin.",
+};
+
+const TECHNICAL_ERROR_PATTERN = /\b(?:backend|frontend|api|endpoint|prisma|postgres|postgresql|sql|constraint|stack|trace|exception|uuid|jwt|token|payload|runtime|undefined|null|database|db|foreign key|unique key|validation failed|internal server error|syntax error|query failed)\b/i;
+
+function titleCaseVisibleText(value: string): string {
+  return value
+    .trim()
+    .split(/(\s+)/)
+    .map((part) => {
+      if (!part.trim()) return part;
+      if (/^(https?:\/\/|www\.)/i.test(part)) return part;
+      const [first, ...rest] = Array.from(part);
+      return `${first?.toLocaleUpperCase("tr-TR") ?? ""}${rest.join("")}`;
+    })
+    .join("");
+}
+
+function looksTechnical(message: string): boolean {
+  if (TECHNICAL_ERROR_PATTERN.test(message)) return true;
+  if (/\b[A-Z_]{3,}\b/.test(message)) return true;
+  if (/\b[a-zA-Z]+(?:Id|At|Url|Uri|Dto|Dto\b)/.test(message)) return true;
+  if (/\/[a-z0-9_-]+(?:\/[a-z0-9_:{-]+)+/i.test(message)) return true;
+  return false;
+}
+
 export function userLabel(value: string | null | undefined): string {
   if (!value) return "—";
   return USER_LABELS[value] ?? value;
@@ -94,4 +147,30 @@ export function userLabel(value: string | null | undefined): string {
 export function userLabelOr(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
   return USER_LABELS[value] ?? value;
+}
+
+export function userNoticeMessage(message: string): string {
+  const normalized = message.trim();
+  if (!normalized) return "İşlem Tamamlandı.";
+  return titleCaseVisibleText(USER_ERROR_MESSAGES[normalized] ?? normalized);
+}
+
+export function userErrorMessage(
+  message: string | null | undefined,
+  fallback = "İşlem Tamamlanamadı. Lütfen Bilgileri Kontrol Edip Tekrar Deneyin.",
+): string {
+  const normalized = message?.trim() ?? "";
+  if (!normalized) return fallback;
+
+  const mapped = USER_ERROR_MESSAGES[normalized];
+  if (mapped) return mapped;
+
+  if (looksTechnical(normalized)) return fallback;
+
+  const hasTurkishCharacters = /[çğıöşüÇĞİÖŞÜ]/.test(normalized);
+  const commonTurkishWords = /\b(?:bir|bu|için|ile|ve|veya|değil|bulunamadı|geçersiz|gerekli|zorunlu|olmalıdır|kaydedilemedi|yüklenemedi|güncellenemedi|oluşturulamadı|silinemedi|işlem|kullanıcı|müşteri|randevu|ödeme|teklif|personel|hizmet)\b/i.test(normalized);
+
+  if (!hasTurkishCharacters && !commonTurkishWords) return fallback;
+
+  return titleCaseVisibleText(normalized);
 }
