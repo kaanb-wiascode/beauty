@@ -29,8 +29,10 @@ interface PosRefundRow {
   providerTransactionId: string;
   amount: number;
   currency: string;
-  status: 'PROCESSING' | 'PROVIDER_SUCCEEDED' | 'SUCCEEDED' | 'FAILED';
+  status: 'PROCESSING' | 'PROVIDER_SUCCEEDED' | 'SUCCEEDED' | 'FAILED' | 'REVIEW_REQUIRED';
   providerReference: string | null;
+  providerOccurredAt: Date | null;
+  providerFeeAmount: number | null;
   financialEventId: string | null;
 }
 
@@ -81,6 +83,8 @@ export class PosRefundService {
                    currency,
                    status,
                    provider_reference AS "providerReference",
+                   provider_occurred_at AS "providerOccurredAt",
+                   provider_fee_amount::float8 AS "providerFeeAmount",
                    financial_event_id AS "financialEventId"
             FROM pos_refund_requests`;
   }
@@ -102,7 +106,8 @@ export class PosRefundService {
         eventType: 'REFUND',
         externalEventId: row.externalEventId,
         amount: row.amount,
-        occurredAt: new Date(),
+        feeAmount: row.providerFeeAmount ?? 0,
+        occurredAt: row.providerOccurredAt ? new Date(row.providerOccurredAt) : new Date(),
       },
     );
 
@@ -131,11 +136,10 @@ export class PosRefundService {
                 p.amount::float8 AS amount,
                 p.currency,
                 p.branch_id AS "branchId",
-                t.integration_id AS "integrationId",
+                p.integration_id AS "integrationId",
                 i.provider
          FROM pos_transactions p
-         JOIN pos_terminals t ON t.id=p.terminal_id
-         JOIN finance_integrations i ON i.id=t.integration_id
+         JOIN finance_integrations i ON i.id=p.integration_id
          WHERE p.id=$1::text
            AND p.tenant_id=$2::text
            AND p.company_id=$3::text
@@ -171,7 +175,7 @@ export class PosRefundService {
          WHERE pos_transaction_id=$1::text
            AND tenant_id=$2::text
            AND company_id=$3::text
-           AND status IN ('PROCESSING','PROVIDER_SUCCEEDED','SUCCEEDED')`,
+           AND status IN ('PROCESSING','PROVIDER_SUCCEEDED','SUCCEEDED','REVIEW_REQUIRED')`,
         posTransactionId,
         ctx.tenantId,
         ctx.companyId,
@@ -239,7 +243,12 @@ export class PosRefundService {
       if (existing.status === 'PROCESSING') {
         throw new ConflictException('Refund request is already processing.');
       }
-      throw new ConflictException('Refund request previously failed. Use a new external event id after review.');
+      if (existing.status === 'REVIEW_REQUIRED') {
+        throw new ConflictException(
+          'Refund provider outcome is uncertain and requires manual review. Do not submit another refund until the provider result is verified.',
+        );
+      }
+      throw new ConflictException('Refund request previously failed before a confirmed provider outcome. Review the failure before retrying.');
     }
 
     const refundRequestId = reservation.created!;
@@ -273,36 +282,45 @@ export class PosRefundService {
       });
     } catch (error) {
       await this.prisma.$executeRawUnsafe(
-        `UPDATE pos_refund_requests SET status='FAILED',error_code='PROVIDER_REJECTED',updated_at=NOW() WHERE id=$1::text`,
+        `UPDATE pos_refund_requests
+         SET status='REVIEW_REQUIRED',error_code='PROVIDER_OUTCOME_UNKNOWN',updated_at=NOW()
+         WHERE id=$1::text AND status='PROCESSING'`,
         refundRequestId,
       );
       throw error;
     }
 
-    if (providerResult.providerTransactionId !== transaction.providerTransactionId) {
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE pos_refund_requests SET status='FAILED',error_code='PROVIDER_REFERENCE_MISMATCH',updated_at=NOW() WHERE id=$1::text`,
-        refundRequestId,
-      );
-      throw new ServiceUnavailableException('Provider refund reference does not match POS transaction.');
-    }
-    if (
+    const providerFeeAmount = this.round(Number(providerResult.feeAmount ?? 0));
+    const providerOccurredAt = new Date(providerResult.occurredAt);
+    const responseMismatch =
+      providerResult.providerTransactionId !== transaction.providerTransactionId ||
+      providerResult.externalEventId !== externalEventId ||
       Math.abs(providerResult.amount - amount) > 0.01 ||
-      providerResult.currency.toUpperCase() !== transaction.currency.toUpperCase()
-    ) {
+      providerResult.currency.toUpperCase() !== transaction.currency.toUpperCase() ||
+      !Number.isFinite(providerFeeAmount) ||
+      providerFeeAmount < 0 ||
+      Number.isNaN(providerOccurredAt.getTime());
+
+    if (responseMismatch) {
       await this.prisma.$executeRawUnsafe(
-        `UPDATE pos_refund_requests SET status='FAILED',error_code='PROVIDER_AMOUNT_MISMATCH',updated_at=NOW() WHERE id=$1::text`,
+        `UPDATE pos_refund_requests
+         SET status='REVIEW_REQUIRED',error_code='PROVIDER_RESPONSE_MISMATCH',provider_reference=$2,updated_at=NOW()
+         WHERE id=$1::text AND status='PROCESSING'`,
         refundRequestId,
+        providerResult.providerReference ?? null,
       );
-      throw new ServiceUnavailableException('Provider refund amount or currency does not match request.');
+      throw new ServiceUnavailableException('Provider refund response could not be safely reconciled with the request.');
     }
 
     await this.prisma.$executeRawUnsafe(
       `UPDATE pos_refund_requests
-       SET status='PROVIDER_SUCCEEDED',provider_reference=$2,provider_succeeded_at=NOW(),updated_at=NOW(),error_code=NULL
+       SET status='PROVIDER_SUCCEEDED',provider_reference=$2,provider_succeeded_at=NOW(),
+           provider_occurred_at=$3::timestamptz,provider_fee_amount=$4,updated_at=NOW(),error_code=NULL
        WHERE id=$1::text AND status='PROCESSING'`,
       refundRequestId,
       providerResult.providerReference ?? null,
+      providerOccurredAt,
+      providerFeeAmount,
     );
 
     const row = await this.loadRequest(refundRequestId);
