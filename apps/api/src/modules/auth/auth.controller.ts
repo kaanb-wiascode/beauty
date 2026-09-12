@@ -3,9 +3,10 @@ import {
   Controller,
   Get,
   Post,
-  Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { PrismaService } from '@beauty-erp/database';
 
 import { AuthService } from './auth.service';
 import { loginSchema, LoginInput } from './dto/login.dto';
@@ -18,13 +19,13 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
-import type { Request } from 'express';
 
 @Controller('auth')
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
     private readonly tenantContext: TenantContext,
+    private readonly prisma: PrismaService,
   ) {}
 
   @Post('register')
@@ -52,6 +53,61 @@ export class AuthController {
     const input: LoginInput = loginSchema.parse(body);
 
     return this.authService.login(input);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Get('context/options')
+  async contextOptions(@CurrentUser() user: JwtPayload) {
+    const context = this.tenantContext.getContext();
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId: user.sub,
+        tenantId: context.tenantId,
+        companyId: context.companyId,
+        status: 'ACTIVE',
+      },
+      include: {
+        role: true,
+        branchAccesses: {
+          include: { branch: true },
+          orderBy: { createdAt: 'asc' },
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new UnauthorizedException('Active organization membership is missing');
+    }
+
+    const branches =
+      membership.role.scope === 'CENTRAL'
+        ? await this.prisma.branch.findMany({
+            where: {
+              companyId: context.companyId,
+              status: 'ACTIVE',
+            },
+            select: {
+              id: true,
+              name: true,
+              code: true,
+            },
+            orderBy: [{ name: 'asc' }, { id: 'asc' }],
+          })
+        : membership.branchAccesses
+            .filter((access) => access.branch.status === 'ACTIVE')
+            .map((access) => ({
+              id: access.branch.id,
+              name: access.branch.name,
+              code: access.branch.code,
+            }));
+
+    return {
+      membershipId: membership.id,
+      roleScope: membership.role.scope,
+      activeBranchId: context.branchId,
+      canViewAllBranches: membership.role.scope !== 'BRANCH',
+      branches,
+    };
   }
 
   @UseGuards(JwtAuthGuard)
