@@ -16,7 +16,10 @@ const NAV_SECTIONS = [
     { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
   { label: "Müşteri İlişkileri", items: [
-    { href: "/crm", permission: "crm.read", label: "CRM", icon: "trend" },
+    { href: "/crm", permission: "crm.read", label: "CRM Genel Bakış", icon: "trend" },
+    { href: "/crm/leads", permission: "crm.read", label: "Leadler", icon: "users" },
+    { href: "/crm/pipeline", permission: "crm.read", label: "Pipeline", icon: "chart" },
+    { href: "/crm/follow-ups", permission: "crm.read", label: "Takipler", icon: "calendar" },
   ]},
   { label: "İşletme", items: [
     { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
