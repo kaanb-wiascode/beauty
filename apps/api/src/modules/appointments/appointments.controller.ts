@@ -62,7 +62,9 @@ export class AppointmentsController {
   @Get(':id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'read')
-  async findOne(@Param('id') id: string) {
+  async findOne(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.appointmentsService.findOne(id);
   }
 
@@ -70,7 +72,7 @@ export class AppointmentsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'update')
   async update(
-    @Param('id') id: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
   ) {
     const input = updateAppointmentSchema.parse(body);
@@ -81,7 +83,9 @@ export class AppointmentsController {
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'cancel')
-  async remove(@Param('id') id: string) {
+  async remove(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
     return this.appointmentsService.remove(id);
   }
 }
