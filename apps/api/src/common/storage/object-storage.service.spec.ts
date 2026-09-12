@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { ObjectStorageService } from './object-storage.service';
@@ -41,6 +41,20 @@ describe('ObjectStorageService', () => {
     expect(url.searchParams.get('X-Amz-Signature')).toMatch(/^[a-f0-9]{64}$/);
     expect(result.requiredHeaders).toEqual({ 'content-type': 'application/pdf' });
     expect(result.url).not.toContain('super-secret-signing-key');
+  });
+
+  it('rejects browser-active and executable upload types', async () => {
+    const storage = service();
+
+    await expect(storage.presignPut('unsafe/page.html', 'text/html')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(storage.presignPut('unsafe/vector.svg', 'image/svg+xml')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+    await expect(storage.presignPut('unsafe/script.js', 'application/javascript')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('encodes a download filename exactly once', async () => {
@@ -88,6 +102,22 @@ describe('ObjectStorageService', () => {
       }),
     );
     expect((init?.headers as Record<string, string>).host).toBeUndefined();
+  });
+
+  it('rejects a stored object whose verified content type is unsafe', async () => {
+    jest.spyOn(global, 'fetch').mockResolvedValue(
+      new Response(null, {
+        status: 200,
+        headers: {
+          'content-length': '12',
+          'content-type': 'text/html',
+        },
+      }),
+    );
+
+    await expect(service().head('evidence/t1/unsafe.html')).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
   });
 
   it('rejects non-success storage responses', async () => {
