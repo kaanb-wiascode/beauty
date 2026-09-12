@@ -24,6 +24,7 @@ import { SupplierPortalAuthGuard } from './supplier-portal-auth.guard';
 import { SupplierPortalAuthService } from './supplier-portal-auth.service';
 import { SupplierPortalRoleGuard } from './supplier-portal-role.guard';
 import { SupplierQuoteController } from './supplier-quote.controller';
+import { SupplierQuoteDefaultsService } from './supplier-quote-defaults.service';
 import { SupplierQuoteService } from './supplier-quote.service';
 import { SupplierVerificationController } from './supplier-verification.controller';
 import { SupplierVerificationService } from './supplier-verification.service';
@@ -63,6 +64,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierOfferService,
     SupplierOfferBuyerService,
     SupplierQuoteService,
+    SupplierQuoteDefaultsService,
     SupplierPortalAuthGuard,
     SupplierPortalRoleGuard,
     PlatformAdminGuard,
@@ -72,6 +74,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierCatalogBuyerService,
     SupplierOfferBuyerService,
     SupplierQuoteService,
+    SupplierQuoteDefaultsService,
     SupplierPortalAuthGuard,
     SupplierPortalRoleGuard,
   ],
