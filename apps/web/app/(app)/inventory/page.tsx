@@ -40,7 +40,7 @@ type ProductTab = (typeof productTabs)[number];
 type AssetTab = (typeof assetTabs)[number];
 type InventoryTab = "Tümü" | "Ürünler" | "Varlıklar" | "Kritik Stok" | "Kategoriler" | "Tedarikçiler";
 type IconName = "box" | "asset" | "alert" | "search" | "plus" | "warehouse" | "category" | "supplier" | "clock" | "truck" | "shield" | "calendar" | "spark";
-type MetricTone = "orange" | "green" | "purple" | "amber" | "blue";
+type MetricTone = "orange" | "green" | "amber" | "blue";
 
 const emptyProduct: ProductFormState = {
   name: "", sku: "", barcode: "", brand: "", manufacturer: "", model: "", description: "", categoryId: "", unit: "UNIT", packageQuantity: "", originCountry: "Türkiye", trackStock: true, trackExpiry: false, minimumQuantity: "", targetQuantity: "", initialQuantity: "", purchasePrice: "", salePrice: "", taxRate: "20", currency: "TRY", minimumOrderQuantity: "1", orderMultiple: "1", leadTimeDays: "0", preparationDays: "0", shippingDays: "0", returnable: true, supplierId: "", supplierProductCode: "", supplierUnitCost: "", supplierMinimumOrderQuantity: "1", supplierOrderMultiple: "1", supplierLeadTimeDays: "0", supplierPreparationDays: "0", supplierShippingDays: "0", lotNumber: "", manufacturedAt: "", expiresAt: "", serviceNotes: "",
@@ -266,7 +266,7 @@ export default function InventoryPage() {
       <Metric icon="box" label="Toplam Ürün" value={data?.metrics.totalProducts ?? 0}/>
       <Metric icon="alert" label="Kritik Stok" value={data?.metrics.criticalProducts ?? 0} tone="orange"/>
       <Metric icon="asset" label="Varlık" value={data?.assetCount ?? assets.length} tone="green"/>
-      <Metric icon="spark" label="Stok Değeri" value={formatInventoryMoney(data?.metrics.inventoryValue)} tone="purple"/>
+      <Metric icon="spark" label="Stok Değeri" value={formatInventoryMoney(data?.metrics.inventoryValue)} tone="blue"/>
       <Metric icon="calendar" label="Yaklaşan Son Kullanma" value={data?.expiringLots ?? 0} tone="amber"/>
       <Metric icon="clock" label="Satın Alma" value={data?.purchaseRequests?.filter((item) => ["PENDING", "APPROVED", "ORDERED"].includes(item.status)).length ?? 0} tone="blue"/>
     </div>
@@ -388,7 +388,7 @@ function QuickCard({ icon, title, text, onClick, href }: { icon: IconName; title
 }
 
 function Metric({ icon, label, value, tone }: { icon: IconName; label: string; value: ReactNode; tone?: MetricTone }) {
-  const className = tone === "orange" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : tone === "green" ? "bg-[var(--success-soft)] text-[var(--success)]" : tone === "purple" || tone === "blue" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : tone === "amber" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--surface-2)] text-[var(--muted)]";
+  const className = tone === "orange" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : tone === "green" ? "bg-[var(--success-soft)] text-[var(--success)]" : tone === "blue" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : tone === "amber" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--surface-2)] text-[var(--muted)]";
   return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-[10px] ${className}`}><Icon name={icon}/></div><p className="text-[10px] text-[var(--muted)]">{label}</p><p className="mt-1 text-[20px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p></div>;
 }
 
