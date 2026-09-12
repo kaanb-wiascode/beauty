@@ -4,13 +4,13 @@ Last verified: 2026-09-12
 
 Branch: `feature/core-commerce-foundation`
 
-This checkpoint records the verified backend state of the Quality Management, Education & Development/LMS and Competency Management chain. It complements `QUALITY-AND-LEARNING-ROADMAP.md` and is the authoritative checkpoint for continuing Training/Competency work until the next full `docs/state/CURRENT-STATE.md` synchronization.
+This checkpoint records the verified backend and operational UI state of the Quality Management, Education & Development/LMS and Competency Management chain. It complements `QUALITY-AND-LEARNING-ROADMAP.md` and is the authoritative checkpoint for continuing Training/Competency work until the next full `docs/state/CURRENT-STATE.md` synchronization.
 
 `main` remains untouched.
 
 ## 1. Verified implementation state
 
-The active branch now contains the operational backend foundation for the Quality → Training → Competency loop rather than only the original Training/LMS foundation.
+The active branch now contains the operational backend foundation for the Quality → Training → Competency loop plus the first manager-facing Learning Operations UI.
 
 Implemented Training/Competency persistence and runtime now includes:
 
@@ -31,6 +31,9 @@ Implemented Training/Competency persistence and runtime now includes:
 - recurring competency review schedules and review audit
 - HR position → competency-profile mapping
 - real Training Compliance metric source in Branch Quality Score
+- branch-scoped scheduled Branch Quality Score processing with lease/idempotency/audit
+- Learning Operations manager cockpit
+- staff development directory and staff-level competency/training drill-down
 
 Relevant migration sequence on the active branch:
 
@@ -52,15 +55,16 @@ Relevant migration sequence on the active branch:
 20260912180000_training_planning_lifecycle
 20260912190000_competency_recurring_reviews
 20260912193000_position_competency_mapping
+20260912200000_quality_score_scheduler
 ```
 
-Latest verified backend checkpoint:
+Latest verified checkpoint:
 
 ```text
-ef95fae61e070ffef752685be00c53f5b5cc6acf
-fix(training): satisfy planning transaction typecheck
+b7c08a20639561be318379cf74242d1039ab9ae2
+test(quality): cover score scheduler processor
 
-Monorepo quality #821 — SUCCESS
+Monorepo quality #835 — SUCCESS
 ```
 
 The run passed Prisma validation/client generation, database/shared typecheck+build, API typecheck/test/build and web lint/typecheck/build.
@@ -87,6 +91,8 @@ Certificate / Effectiveness Signal
 Training Compliance metric
       ↓
 Branch Quality Score
+      ↓
+Scheduled Branch Quality Score run
 ```
 
 Programs can group multiple courses. Calendar sessions can schedule classroom/operational delivery and enroll staff. Development plans can contain competency, course, program or action items.
@@ -212,9 +218,55 @@ feat(quality): score training compliance
 test(quality): cover training compliance metric
 ```
 
-## 8. Isolation and integrity hardening
+## 8. Scheduled Branch Quality Score processing
 
-The Training planning layer preserves active branch isolation and semantic assignment linkage.
+Branch Quality Score calculation can now be driven by persisted schedules instead of relying only on manual `/quality/scores/calculate` calls.
+
+Implemented scheduler behavior includes:
+
+- `quality_score_schedules`
+- `quality_score_schedule_events`
+- branch-context requirement
+- `DAILY`, `WEEKLY`, `MONTHLY` cadence
+- `PREVIOUS_DAY`, `PREVIOUS_WEEK`, `PREVIOUS_MONTH` period derivation
+- optional explicit score policy pinning
+- due schedule claiming with `FOR UPDATE SKIP LOCKED`
+- worker lease ownership and expiry
+- same-period idempotency using existing branch score state
+- successful calculation audit
+- existing-score skip audit
+- failed-run audit with lease release and retained error
+- schedule advancement after successful/duplicate processing
+
+The first scheduler increment is intentionally branch-scoped. It does not mutate request TenantContext to impersonate other branches. A future central/platform multi-branch worker must use an explicit privileged execution model rather than bypassing branch isolation.
+
+## 9. Learning Operations UI
+
+The first operational UI increment is now available under `/training` and the `Gelişim` navigation group.
+
+Implemented UI surfaces include:
+
+- Learning Operations cockpit
+- Training assignment summary
+- upcoming Training session/calendar view
+- development-plan progress
+- active LMS course catalog
+- competency profile governance summary
+- recurring competency review visibility
+- manager actions for expired assignments, Quality→Training rules and due competency reviews
+- staff development directory at `/training/staff`
+- staff drill-down at `/training/staff/[staffId]`
+- staff competency gap analysis
+- staff Training assignment lifecycle visibility
+- manager start/complete assignment actions
+- staff recurring-review history
+- staff development-plan progress
+
+The sidebar now exposes `Eğitim & Yetkinlik` and `Personel Gelişim Profilleri` under the permission-aware `Gelişim` section.
+
+## 10. Isolation and integrity hardening
+
+The Training planning and score scheduling layers preserve active branch isolation and semantic linkage.
 
 ### Calendar active-branch isolation
 
@@ -238,7 +290,11 @@ A foreign key alone is not treated as sufficient authorization/domain integrity.
 
 Material session, enrollment and development-plan transitions execute inside serializable transactions with row locking where state transitions require it.
 
-## 9. Architecture invariants
+### Score scheduler concurrency
+
+Due score schedules are leased through row-locked `SKIP LOCKED` claims. A retry after calculation but before schedule advancement detects the existing branch score for the same period and records an idempotent skip instead of creating a second scheduled score run.
+
+## 11. Architecture invariants
 
 - Tenant/company/branch isolation is mandatory on every read and mutation.
 - `Staff`/employee and authenticated `User` remain separate concepts.
@@ -251,24 +307,23 @@ Material session, enrollment and development-plan transitions execute inside ser
 - Calendar enrollment must not link a staff member to another staff/branch/course/version assignment.
 - Position mapping must not silently overwrite active employee competency-profile history.
 - Branch Quality Score must not manufacture Training compliance when the reporting period has no eligible assignments.
+- Scheduled score workers must not escape active branch scope by mutating TenantContext.
 - Future AI recommendations may sit above these explainable signals but must not replace rule/audit foundations.
 
-## 10. Correct continuation point
+## 12. Correct continuation point
 
-The previous roadmap wording that treated LMS, Competency Management, learning programs, lesson progress, certificate lifecycle, Training calendar, development plans, HR position mapping, recurring competency reviews and Training Compliance as future foundation work is stale.
+The previous roadmap wording that treated LMS, Competency Management, learning programs, lesson progress, certificate lifecycle, Training calendar, development plans, HR position mapping, recurring competency reviews, Training Compliance and scheduled Branch Quality Score calculation as future foundation work is stale.
 
-The next increments should build on the existing backend instead of recreating these foundations.
+The next increments should build on the existing backend and Learning Operations UI instead of recreating these foundations.
 
 Recommended sequence:
 
 ```text
-Learner / Manager / Training / Competency operational UI
-        ↓
 Training + Competency analytics and compliance dashboards
         ↓
-Scheduled Branch Quality Score calculation worker
-        ↓
 Branch/region Quality + Training comparison cockpit
+        ↓
+Manager workflows for assessment/profile/review actions
         ↓
 Reusable question-bank authoring
         ↓
