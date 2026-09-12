@@ -1,104 +1,76 @@
 # VALOO — Current State
 
-> Bu dosya projenin mevcut teknik ve ürün durumunun ana referansıdır.
-> Yeni bir geliştirme oturumunda önce bu dosya, ardından ilgili domain/runbook belgeleri okunmalıdır.
+> Ana teknik/ürün durum referansı. Yeni geliştirme oturumunda önce bu dosya, ardından ilgili domain checkpoint/runbook belgeleri okunmalıdır.
 
 Last updated: 2026-09-12
 
----
+## 1. Project identity
 
-## 1. Project Identity
+- **Product:** VALOO
+- **Repository:** `kaanb-wiascode/beauty`
+- **Active branch:** `feature/core-commerce-foundation`
+- **Default branch:** `main`
+- **Type:** Multi-tenant SaaS CRM + ERP
+- **Initial market:** Türkiye
 
-**Product Name:** VALOO  
-**Repository:** `kaanb-wiascode/beauty`  
-**Active Development Branch:** `feature/core-commerce-foundation`  
-**Default Branch:** `main`  
-**Product Type:** Multi-tenant SaaS CRM + ERP  
-**Initial Market:** Türkiye
+All active development remains on `feature/core-commerce-foundation`. `main` remains untouched until an explicit merge/release decision.
 
-All active development remains on `feature/core-commerce-foundation`. `main` must remain untouched until an explicit merge/release decision is made.
+## 2. Current phase
 
----
-
-## 2. Current Development Phase
-
-Current phase:
-
-> **Core ERP/finance, HR/payroll and inventory backbones are advanced. Quality Management now has an operational backend chain from feedback/inspection through Finding, Quality Case, CAPA, evidence and explainable Branch Quality Score calculations.**
+The backend is in **advanced feature-complete / final hardening** phase across the principal ERP domains. Current work should prioritize regression, isolation, constraints, migration/index review and production-readiness rather than recreating foundations.
 
 Current priorities:
 
 1. Preserve tenant/company/branch isolation.
 2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
-3. Keep Quality as one bounded context: Signal / Feedback / Inspection → Finding → Quality Case → CAPA → Verification/Rework → Score.
-4. Complete configurable Quality severity/SLA policy and standard inspection template catalog.
-5. Build recurring finding/root-cause analytics and branch/region comparison views.
-6. Complete operational Quality UI for inspections, evidence, CAPA and score explanations.
-7. Start Education & Development/LMS + Competency Management as a separate main module integrated with HR and Quality.
-8. Keep Google Review flow policy-compliant; never manufacture, deceptively gate or manipulate reviews.
-9. Finish every material milestone with a full green Monorepo quality run.
+3. Finish final migration/index/constraint and permission regression sweeps.
+4. Keep CI green with `pnpm install --frozen-lockfile`.
+5. Continue frontend/operational UX on top of the existing governed APIs.
+6. Introduce new domains such as Region only when explicitly designed; do not infer/fabricate them from existing data.
 
----
-
-## 3. Latest Verified Quality Baseline
-
-Latest verified Quality backend baseline:
+## 3. Latest verified backend checkpoint
 
 ```text
-19325c64218b014f30e37acb32311a25b557a44f
-feat(quality): add inspection cancel and reschedule lifecycle
+8b3ab0ffef14b9b3c23e0f7cd3494afc9fbc6ff6
+chore(types): align workspace lockfile
+
+Monorepo quality #900 — SUCCESS
 ```
 
-GitHub Actions:
+Verified pipeline:
 
-```text
-Monorepo quality #748 — SUCCESS
-```
+- frozen workspace dependency install
+- Prisma validation/client generation
+- database typecheck/build
+- shared contract typecheck/build
+- API typecheck
+- API tests
+- API build
+- web lint/typecheck/build
 
-Immediately preceding verified Quality increments:
+The workflow now rejects package/lockfile drift instead of silently repairing it.
 
-```text
-ef361283ca0b3c4a3baf69eb25008cd86010c3ef
-feat(quality): add branch quality score engine
-Monorepo quality #747 — SUCCESS
-
-cab8436295ff1b0324f683c06e15e00b22fdfd6e
-feat(quality): add evidence attachment foundation
-Monorepo quality #746 — SUCCESS
-
-286d309b106492c1046c7f5293c6624f4caa5a9c
-feat(quality): add CAPA rework lifecycle
-Monorepo quality #745 — SUCCESS
-```
-
-Scheduler/overdue processing and its test-typing hardening are verified by Monorepo quality #744.
-
-The workflow validates Prisma schema/client generation, database/shared packages, API typecheck/tests/build and web lint/typecheck/build. The dedicated commerce lint-debt reporting step remains non-blocking; green CI does not imply historical lint debt is zero.
-
----
-
-## 4. Architecture Invariants
+## 4. Architecture invariants
 
 The following rules must not be weakened:
 
 - Tenant is the primary isolation boundary.
-- Company/legal-entity and branch scope must be preserved where applicable.
-- Employee and User are separate concepts.
-- Authorization must be permission/scope-aware; role name alone is not sufficient.
-- Financial mutations must remain auditable and idempotent.
+- Company/legal-entity and branch scope are mandatory where applicable.
+- HR Staff/Employee and authenticated User are separate concepts.
+- Authorization is permission/scope-aware; role name alone is insufficient.
+- Financial mutations are auditable and idempotent.
 - Provider/live-bank balances never replace accounting-ledger truth.
 - Reconciliation remains explicit.
 - Secrets/API credentials are never returned after storage.
 - Internet-banking usernames/passwords are not collected.
-- External providers use the integration layer rather than business-domain embedding.
-- Historical transaction/tax/payroll snapshots remain authoritative for later reversals/adjustments.
-- Quality workflow automation must remain auditable and explainable.
-- Quality score calculations must preserve policy version and immutable calculation snapshots.
-- Training/competency history must not be silently overwritten when requirements change.
+- External providers use the integration layer rather than being embedded into business domains.
+- Historical transaction/tax/payroll snapshots remain authoritative for reversals/adjustments.
+- Quality/Training/Competency automation remains explainable and auditable.
+- Published Training content and published reusable questions are immutable/versioned.
+- Scheduled workers use concurrency controls and may not commit state after losing a fenced lease.
+- Signed object-storage URLs are temporary delivery artifacts, not persisted domain identity.
 
----
-
-## 5. Major Backend State
+## 5. Major backend state
 
 ### Core commerce / customer operations
 
@@ -132,14 +104,14 @@ Implemented at advanced level:
 - Treasury / Working Capital / DSO / DPO
 - CFO cockpit / financial health / benchmarks / alerts / management actions
 
-### Banking / Financial Integrations
+### Banking / Financial integrations
 
 Implemented at advanced level:
 
 - provider registry/adapters
 - encrypted credential vault + rotation
 - signed/idempotent webhook runtime and durable queue
-- iyzico and PayTR financial workflows
+- iyzico and PayTR workflows
 - POS settlement/accounting/reconciliation
 - Open Banking runtime and token lifecycle
 - Garanti client-credentials integration foundation
@@ -154,10 +126,10 @@ Implemented at advanced level:
 
 - stock movements and consumption accounting
 - procurement receipt/return integration
-- stock adjustments / damage / expired
+- stock adjustments / damage / expiry
 - warehouse valuation/reconciliation
 - transfer lifecycle `PENDING → APPROVED → IN_TRANSIT → RECEIVED`
-- cycle count lifecycle and accounting
+- cycle-count lifecycle and accounting
 - in-transit valuation
 
 ### HR / Payroll
@@ -168,7 +140,7 @@ Implemented at advanced level:
 - attendance / leave inputs
 - payroll periods/items lifecycle
 - payroll accounting
-- salary and liability settlement
+- salary/liability settlement
 - settlement reversal
 - payroll cancellation/reversal
 - cost-center expense split
@@ -176,364 +148,215 @@ Implemented at advanced level:
 - HR analytics
 - auditable work-input snapshots
 - configurable payroll policy engine
-- company-level payroll policy management and preview
+- company-level payroll policy management/preview
 
-Payroll preview remains decision support and does not silently overwrite payroll amounts.
+Payroll preview remains decision support and never silently rewrites payroll truth.
 
 ### Marketplace / Supplier Network
 
-Marketplace and supplier-network foundations are present on the active branch. Continue incrementally from the existing modules and current docs; do not recreate parallel supplier entities.
+Marketplace and supplier-network foundations exist on the active branch. Continue from current models/docs; do not create parallel supplier entities.
 
----
+## 6. Quality Management
 
-## 6. Customer Feedback & Quality Management
+Quality is an operational bounded context rather than a planned foundation.
 
-Base Quality persistence includes:
-
-- `customer_feedback`
-- `quality_cases`
-- `quality_case_events`
-
-Implemented capabilities:
-
-- customer feedback creation/listing
-- feedback → Quality Case escalation
-- Quality Case lifecycle and append-only events
-- explicit `quality.read` / `quality.manage` permissions
-- assignee membership/company/branch validation
-- SLA breach processing/escalation foundation
-- service-completion feedback-request foundation
-- notification outbox/dispatcher foundation
-- public feedback foundation
-- Quality Management web cockpit
-
-Quality Case lifecycle:
+Implemented chain includes:
 
 ```text
-OPEN → INVESTIGATING → ACTION_REQUIRED → RESOLVED → CLOSED
+Signal / Customer Feedback / Inspection
+        ↓
+Finding
+        ↓
+Quality Case
+        ↓
+CAPA / Rework / Verification
+        ↓
+Evidence
+        ↓
+Explainable Branch Quality Score
 ```
 
-`INVESTIGATING → RESOLVED` is also supported when no separate action-required stage is necessary.
+Capabilities include:
 
-Resolution requires root cause, corrective action and resolution. Preventive action/customer follow-up are supported.
+- customer feedback and escalation
+- Quality Case lifecycle/events
+- inspection lifecycle including cancel/reschedule
+- findings and severity/SLA processing
+- CAPA and rework lifecycle
+- evidence attachment foundation
+- private managed evidence storage
+- notification/outbox foundations
+- public-feedback foundation
+- Quality cockpit
+- policy-versioned Branch Quality Score
+- scheduled Branch Quality Score processing
+- multi-branch Quality + Training comparison
 
----
-
-## 7. Branch Inspection — Operational Backend Foundation
-
-Core persistence:
-
-- `quality_inspection_templates`
-- `quality_inspection_template_items`
-- `quality_inspection_schedules`
-- `quality_inspections`
-- `quality_inspection_results`
-- `quality_findings`
-- `quality_inspection_events`
-
-Current capabilities:
-
-- versioned checklist/template creation
-- required/optional items and weights
-- periodic schedule persistence
-- worker-ready schedule processing with lease + `FOR UPDATE SKIP LOCKED`
-- deterministic idempotent schedule occurrences
-- `PLANNED → IN_PROGRESS → COMPLETED`
-- `PLANNED → CANCELLED`
-- audited reschedule: original is cancelled, replacement is linked and remains `PLANNED`
-- result upsert per checklist item
-- finding creation from inspection result
-- required-item completion guard
-- weighted inspection score calculation
-- Finding ownership/due-date foundation
-- overdue processing
-- concurrency-safe Finding → Quality Case conversion
-- tenant/company/branch scoping
-- inspector/assignee membership-scope validation
-- `quality.read` / `quality.manage` RBAC
-- serializable transaction + row-lock protection for material transitions
-
-API foundation includes:
-
-```text
-GET  /quality/inspections/templates
-POST /quality/inspections/templates
-POST /quality/inspections/schedules
-POST /quality/inspections/schedules/process-due
-GET  /quality/inspections
-POST /quality/inspections
-POST /quality/inspections/:id/start
-POST /quality/inspections/:id/results
-POST /quality/inspections/:id/complete
-POST /quality/inspections/:id/cancel
-POST /quality/inspections/:id/reschedule
-POST /quality/inspections/findings/:findingId/case
-GET  /quality/overdue
-POST /quality/overdue/process
-```
-
-The design intentionally keeps Finding inside the existing Quality bounded context. Finding → Quality Case uses the established `quality_cases` lifecycle instead of creating a parallel case system.
-
-The same inspection engine supports service quality, cleaning/hygiene, camera/control-room, employee experience, documentation/compliance and product-use verification categories.
-
----
-
-## 8. CAPA — Backend Foundation Implemented
-
-Persistence:
-
-- `quality_capa_plans`
-- `quality_capa_events`
-
-Lifecycle:
-
-```text
-OPEN → IN_PROGRESS → VERIFICATION → EFFECTIVE → CLOSED
-                         ↓
-                    INEFFECTIVE
-                         ↓
-                    IN_PROGRESS
-```
-
-Implemented:
-
-- create CAPA from Quality Case
-- owner/due date
-- status transitions
-- verification result/effectiveness
-- ineffective → rework → re-verification
-- overdue timestamp + immutable `OVERDUE` event
-- tenant/company/branch scope
-- serializable transition protection
-
-Remaining CAPA work is primarily recurring root-cause analytics, policy escalation and richer operational UI rather than basic persistence/lifecycle.
-
----
-
-## 9. Quality Evidence — Foundation Implemented
-
-Persistence:
-
-- `quality_evidence`
-
-Evidence can attach to exactly one of:
-
-- Inspection
-- Inspection Result
-- Finding
-- Quality Case
-- CAPA
-
-Stored metadata includes evidence kind, opaque object key, original filename, MIME type, byte size, SHA-256, note, capture time and uploader.
-
-APIs:
-
-```text
-POST /quality/evidence
-GET  /quality/evidence
-```
-
-Raw file bytes/public URLs are not stored as domain truth. Concrete object-storage transport remains an infrastructure integration.
-
----
-
-## 10. Branch Quality Score — Backend Engine Implemented
-
-Persistence:
-
-- `quality_score_policies`
-- `quality_score_policy_dimensions`
-- `quality_score_penalty_rules`
-- `branch_quality_score_runs`
-- `branch_quality_score_dimension_runs`
-- `branch_quality_scores` latest summary
-
-APIs:
-
-```text
-POST /quality/scores/policies
-GET  /quality/scores/policies
-POST /quality/scores/calculate
-GET  /quality/scores
-```
-
-Implemented metric sources:
+Real Branch Quality Score sources now include:
 
 - `INSPECTION_CATEGORY`
 - `CUSTOMER_FEEDBACK`
-
-Reserved sources:
-
 - `TRAINING_COMPLIANCE`
-- `CUSTOM_METRIC`
+- `TRAINING_EFFECTIVENESS`
 
-Reserved sources remain unsupported/no-data until backed by a real integration; the engine does not invent compliance facts.
+`CUSTOM_METRIC` remains reserved until backed by a real auditable source.
 
-Scoring policies preserve:
+## 7. Education & Development / LMS
 
-- version
-- dimensions and weights
-- missing-data strategy (`EXCLUDE_AND_REWEIGHT` or `ZERO_FILL`)
-- severity penalty rules
-- penalty cap
-- immutable calculation run
-- per-dimension raw/effective/weighted snapshot
-- final calculation explanation
+LMS is **implemented at advanced backend foundation level**, not planned.
 
-This satisfies the core requirement that Branch Quality Score be explainable and historically auditable rather than a hardcoded vanity score.
+Implemented capabilities include:
 
----
+- Training RBAC
+- assignment lifecycle/audit
+- immutable course versions
+- publish/retire guards
+- lessons and learner progress
+- theory exams
+- deterministic grading
+- practical assessments
+- final result snapshots
+- reusable versioned question bank
+- immutable exam-question snapshots
+- certificate lifecycle/expiry/revocation/renewal
+- learning programs
+- Training calendar/sessions/enrollment/attendance
+- development plans
+- Training effectiveness
+- effectiveness manager follow-ups
+- Training analytics
+- private controlled LMS documents
 
-## 11. Quality Management — Remaining Roadmap
+### Managed Training documents
 
-Not yet complete:
+Private documents use server-generated scoped object keys and short-lived SigV4 URLs. Actual stored MIME/size are verified with HEAD requests.
 
-- configurable severity/SLA policy by category
-- standard versioned inspection template catalog / branch audit packs
-- recurring finding and root-cause analytics
-- additional score metric sources: SLA, CAPA effectiveness, recurring findings, Training Compliance
-- scheduled Branch Quality Score calculation worker
-- branch/region comparison cockpit
-- concrete object-storage upload/download transport
-- richer operational Quality UI
-- deeper customer follow-up automation
-- Google Review invitation workflow
-- Quality ↔ Training rule automation
+`training_managed_documents` records successful verification. A database trigger prevents a `DOCUMENT` lesson from linking a `content_ref` that is not verified for the same tenant/company/course version.
 
-Canonical execution roadmap:
+HTML, JavaScript, SVG and executable content types are rejected from managed private storage.
 
-```text
-docs/roadmap/QUALITY-AND-LEARNING-ROADMAP.md
-```
+## 8. Competency Management
 
-Google Review work must follow platform rules and customer choice. VALOO must never manufacture, deceptively gate or manipulate reviews.
+Competency Management is **implemented at advanced backend foundation level**, not planned.
 
----
+Implemented capabilities include:
 
-## 12. Education & Development / LMS + Competency Management — Planned Main Module
+- competency definitions
+- immutable/versioned competency profiles
+- effective-dated staff profile assignment
+- append-only/time-aware assessment history
+- competency-gap calculation
+- competency-gap → Training rules
+- Training-result → competency assessment bridge
+- recurring competency review schedules/reviews
+- review completion guards requiring fresh evidence
+- HR `employee_profiles.position` → competency-profile mapping
 
-This remains a separate main module, integrated with HR and Quality rather than embedded inside either domain.
+Authorization Roles and Competency Profiles remain separate concepts.
 
-Planned scope:
+Position mapping does not silently replace an employee's existing active competency-profile history.
 
-- training catalog/program/course/assignment
-- service, sales, customer-experience, corporate and management trainings
-- exams/question banks
-- practical assessment
-- certificates and expiry
-- recurring competency reviews
-- theoretical/practical scores
-- competency matrix
-- role/position competency requirements
-- employee competency profile and gap analysis
-- HR integration
-- Quality Finding/Case/CAPA driven training assignment
-- rule-based Quality ↔ Training automation
+## 9. Quality ↔ Training ↔ Competency automation
 
-No employee disciplinary/legal decision should be hardcoded from a single quality signal.
-
----
-
-## 13. Shared Frontend Systems
-
-Established shared systems:
-
-- Data View V2 — `apps/web/components/data-view.tsx`
-- Form System V2 — `apps/web/components/form-system.tsx`
-- Finance View V2 — `apps/web/components/finance-view.tsx`
-- typed CFO contracts
-- typed Inventory contracts
-- reusable Inventory form shell
-
-Modernized operational surfaces include Customers, Staff, Services, Payments, Appointments, Finance/CFO, HR/Payroll, Inventory and the Quality cockpit.
-
-User-facing product brand is **VALOO**. Legacy `Beauty ERP` wording and `beauty*` technical identifiers remain controlled technical debt. Do not bulk-rename package/database/migration/environment identifiers without dependency analysis.
-
----
-
-## 14. Documentation Protocol
-
-At each significant milestone:
-
-1. inspect the current implementation before editing;
-2. preserve existing domain/API semantics;
-3. commit only to `feature/core-commerce-foundation`;
-4. inspect the real GitHub Actions run/jobs;
-5. fix blocking lint/typecheck/build/test errors;
-6. update this file when project state materially changes;
-7. update architecture/domain/runbook docs when contracts change.
-
-Do not use an empty combined commit status as proof that CI passed.
-
----
-
-## 15. Current Next Action
+The backend integration loop is operational:
 
 ```text
-Configurable Quality severity/SLA policy
+Quality Finding / Signal
         ↓
-Versioned standard inspection template catalog
+Versioned Training Rule
         ↓
-Recurring finding/root-cause analytics
+Training Assignment
         ↓
-Branch/region comparison + score explanation UI
+Course / Assessment / Result
         ↓
-Quality operational UI completion
+Competency Evidence
         ↓
-LMS foundation
+Competency Gap / Review
         ↓
-Competency Management
+Training Effectiveness
         ↓
-Quality ↔ Training rule automation
+Training Compliance + Effectiveness metrics
+        ↓
+Branch Quality Score
 ```
 
-In parallel, continue remaining VALOO frontend consistency/brand cleanup without weakening domain integrity.
+Generated assignments retain source rule/rationale and idempotency keys where applicable.
 
----
+No disciplinary/legal HR action is automatically inferred from a single Quality or Training signal.
 
-## 16. Current Status Summary
+## 10. Scheduler / concurrency hardening
+
+Quality score scheduler supports:
+
+- due claiming with `FOR UPDATE SKIP LOCKED`
+- branch scope
+- worker owner + expiry lease
+- lease renewal before expensive calculation
+- lease-owner fencing on completion/failure
+- same-period idempotency
+- explicit calculated/skipped/failed/lost-lease outcomes
+- append-only schedule events
+
+A stale worker cannot advance or release a schedule after another worker has reclaimed it.
+
+Other Training processors use serializable transactions, row locks/advisory locks or `SKIP LOCKED` where their transition model requires it.
+
+## 11. Operational UI already consuming backend
+
+Existing application surfaces include:
+
+- `/training` — Learning Operations
+- `/training/staff` — staff development directory
+- `/training/staff/[staffId]` — staff competency/training drill-down
+- `/training/analytics` — Learning Analytics + effectiveness follow-ups
+- `/training/question-bank` — question-bank authoring
+- `/quality/comparison` — multi-branch Quality + Training comparison
+
+These should be extended incrementally; do not build parallel frontend systems or duplicate backend contracts.
+
+## 12. Object storage / security state
+
+Managed private storage is S3-compatible and dependency-light:
+
+- Node built-in `crypto` performs SigV4 signing
+- Node `fetch` performs signed HEAD/DELETE operations
+- no AWS SDK runtime dependency is required
+- bucket/access-key/secret configuration is validated as a coherent group
+- credentials are never stored in domain records
+- object keys are scoped and server-generated
+- signed PUT/GET URLs are short-lived
+- real storage metadata is verified before registration
+- oversized managed objects are rejected/removed
+- browser-active/executable MIME types are blocked
+
+## 13. CI / repository hygiene
+
+Monorepo quality now uses:
 
 ```text
-Core multi-tenant architecture       ✅ established
-Authorization foundation             ✅ established
-CRM / Customers                      ✅ active
-Appointments / Services              ✅ active
-Packages / Sessions                  ✅ advanced
-Sales / Payments                     ✅ advanced
-Accounting / AP / Procurement        ✅ advanced
-VAT / Tax                            ✅ advanced foundation
-Inventory / Warehouse                ✅ advanced
-Profitability / CFO / Treasury       ✅ advanced
-Banking / POS integrations           ✅ advanced
-HR / Payroll                         ✅ advanced
-Payroll policy engine                ✅ backend + management UI
-Marketplace / Supplier Network       🟡 active foundation
-Customer Feedback                    ✅ implemented foundation
-Quality permissions / assignee scope ✅ implemented
-Quality SLA / notification           ✅ implemented foundation
-Quality public feedback              ✅ implemented foundation
-Quality web cockpit                  ✅ implemented
-Branch Inspections                   ✅ operational backend foundation
-Inspection scheduler / overdue       ✅ implemented foundation
-Inspection cancel / reschedule       ✅ implemented + audited
-Quality Evidence                     ✅ metadata foundation
-CAPA                                 ✅ backend lifecycle + rework
-Branch Quality Score                 ✅ versioned backend engine
-Quality policy/catalog analytics     🟡 next backend increment
-LMS / Education & Development        ⏳ planned
-Competency Management                ⏳ planned
-Quality ↔ Training automation        ⏳ planned
-Google Review workflow               ⏳ pending
-Customer Portal                      ⏳ pending
-Data Migration                       ⏳ pending
-Route accessibility/consistency      ⏳ final review
-Controlled brand/docs cleanup        ⏳ ongoing
+pnpm install --frozen-lockfile
 ```
 
----
+This is intentional. Do not restore `--no-frozen-lockfile` to hide manifest drift.
 
-## 17. Release Boundary
+The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking compile/test/build contract is satisfied; it does not claim historical lint debt is zero.
 
-This remains a development-branch checkpoint, not a release declaration.
+## 14. Backend freeze status
 
-`main` remains untouched until an explicit merge/release decision is made.
+The principal backend foundations are now in final freeze/hardening rather than major feature construction.
+
+Remaining freeze work:
+
+1. cross-domain migration/index/constraint review
+2. permission and tenant/company/branch isolation regression sweep on recent endpoints
+3. final docs/checkpoint consistency review
+4. final full green frozen-lockfile regression
+
+Future product scope that should not block backend feature-complete status:
+
+- explicit Region domain + branch-to-region relationship
+- new Quality score sources without existing auditable source data
+- platform edge controls such as deployment-level/global rate limiting
+- additional external provider integrations
+
+For the Quality → Training → Competency chain specifically, the backend should now be treated as **feature-complete and entering final freeze**.
