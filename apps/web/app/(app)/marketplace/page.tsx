@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -98,6 +99,9 @@ export default function MarketplacePage() {
   const publication = preview?.publication;
   const isPublished = publication?.status === "PUBLISHED";
   const serviceCount = preview?.listing.services.length ?? 0;
+  const publicHref = preview
+    ? `/marketplace/${encodeURIComponent(preview.listing.company.slug)}/${encodeURIComponent(preview.listing.branch.code)}`
+    : null;
   const averagePrice = useMemo(() => {
     if (!preview?.listing.services.length) return 0;
     const sum = preview.listing.services.reduce(
@@ -146,21 +150,33 @@ export default function MarketplacePage() {
         title="Marketplace Yayını"
         description="Aktif şubenizin müşterilere açık olacak güvenli Marketplace görünümünü inceleyin ve yayın durumunu yönetin."
         action={
-          canManage ? (
-            <Button
-              variant={isPublished ? "danger" : "primary"}
-              disabled={saving || !preview}
-              onClick={() =>
-                void changePublication(isPublished ? "unpublish" : "publish")
-              }
-            >
-              {saving
-                ? "Güncelleniyor..."
-                : isPublished
-                  ? "Yayından kaldır"
-                  : "Yayınla"}
-            </Button>
-          ) : null
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {isPublished && publicHref ? (
+              <Link
+                href={publicHref}
+                target="_blank"
+                rel="noreferrer"
+                className="inline-flex min-h-10 items-center justify-center rounded-[14px] bg-white/70 px-4 py-2.5 text-[14px] font-medium text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-white"
+              >
+                Public sayfayı aç
+              </Link>
+            ) : null}
+            {canManage ? (
+              <Button
+                variant={isPublished ? "danger" : "primary"}
+                disabled={saving || !preview}
+                onClick={() =>
+                  void changePublication(isPublished ? "unpublish" : "publish")
+                }
+              >
+                {saving
+                  ? "Güncelleniyor..."
+                  : isPublished
+                    ? "Yayından kaldır"
+                    : "Yayınla"}
+              </Button>
+            ) : null}
+          </div>
         }
       />
 
@@ -302,6 +318,17 @@ export default function MarketplacePage() {
                     value={preview.listing.branch.code}
                   />
                 </div>
+
+                {isPublished && publicHref ? (
+                  <Link
+                    href={publicHref}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="mt-5 inline-flex min-h-10 w-full items-center justify-center rounded-[14px] bg-[var(--surface-2)] px-4 py-2.5 text-[12px] font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                  >
+                    Müşteri görünümünü kontrol et
+                  </Link>
+                ) : null}
 
                 {!canManage ? (
                   <div className="mt-5 rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] leading-5 text-[var(--muted)]">
