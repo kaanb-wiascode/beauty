@@ -29,6 +29,12 @@ const saveQuoteSchema = z.object({
   currency: z.string().regex(/^[A-Za-z]{3}$/).optional(),
   note: z.string().trim().max(2000).optional(),
   validUntil: z.coerce.date().nullable().optional(),
+  paymentTermsDays: z.coerce.number().int().min(0).nullable().optional(),
+  warrantyMonths: z.coerce.number().int().min(0).nullable().optional(),
+  installationIncluded: z.coerce.boolean().optional(),
+  trainingIncluded: z.coerce.boolean().optional(),
+  serviceSlaDays: z.coerce.number().int().min(0).nullable().optional(),
+  financingAvailable: z.coerce.boolean().optional(),
   expectedVersion: z.coerce.number().int().positive().optional(),
   items: z.array(quoteItemSchema).min(1),
 });
