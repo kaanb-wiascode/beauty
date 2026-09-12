@@ -10,9 +10,9 @@ This checkpoint records the verified backend state of the Quality Management, Ed
 
 ## 1. Verified implementation state
 
-The active branch has progressed substantially beyond the original foundation recorded by this file.
+The active branch now contains the operational backend foundation for the Quality → Training → Competency loop rather than only the original Training/LMS foundation.
 
-Implemented Training/Competency persistence now includes:
+Implemented Training/Competency persistence and runtime now includes:
 
 - Quality-driven Training rules and audited decisions
 - competency definitions, profiles and immutable profile versions
@@ -23,10 +23,14 @@ Implemented Training/Competency persistence now includes:
 - Training result snapshots and competency result bridge
 - competency-gap-driven Training assignment rules
 - Training effectiveness measurement foundation
-- certificate lifecycle and issuance audit
+- certificate lifecycle, expiry, renewal, revocation and audit
 - multi-course learning programs
 - Training calendar/session enrollment
-- employee development plans
+- Training session attendance/no-show/cancellation lifecycle and audit
+- employee development plans with item and plan lifecycle guards
+- recurring competency review schedules and review audit
+- HR position → competency-profile mapping
+- real Training Compliance metric source in Branch Quality Score
 
 Relevant migration sequence on the active branch:
 
@@ -45,7 +49,21 @@ Relevant migration sequence on the active branch:
 20260912153500_training_certificate_issue_audit
 20260912163000_training_learning_programs
 20260912173000_training_calendar_development_plans
+20260912180000_training_planning_lifecycle
+20260912190000_competency_recurring_reviews
+20260912193000_position_competency_mapping
 ```
+
+Latest verified backend checkpoint:
+
+```text
+ef95fae61e070ffef752685be00c53f5b5cc6acf
+fix(training): satisfy planning transaction typecheck
+
+Monorepo quality #821 — SUCCESS
+```
+
+The run passed Prisma validation/client generation, database/shared typecheck+build, API typecheck/test/build and web lint/typecheck/build.
 
 ## 2. Current Learning architecture
 
@@ -65,6 +83,10 @@ Final Training Result
 Assignment Completion
       ↓
 Certificate / Effectiveness Signal
+      ↓
+Training Compliance metric
+      ↓
+Branch Quality Score
 ```
 
 Programs can group multiple courses. Calendar sessions can schedule classroom/operational delivery and enroll staff. Development plans can contain competency, course, program or action items.
@@ -78,7 +100,7 @@ Competency Definition
       ↓
 Immutable Competency Profile Version
       ↓
-Effective-dated Staff Profile Assignment
+HR Position Mapping / Effective Staff Profile Assignment
       ↓
 Assessment History
       ↓
@@ -87,11 +109,17 @@ Gap Calculation
 Versioned Competency → Training Rule
       ↓
 Training Recommendation / Assignment
+      ↓
+Training Result → Competency Assessment Bridge
+      ↓
+Recurring Competency Review
 ```
 
 Competency assessment history is append-only/time-aware. Historical requirements and results must not be rewritten when a competency profile changes.
 
 Authorization Roles and Competency Profiles remain separate concepts.
+
+The existing HR source of position truth is `employee_profiles.position`; a parallel position master was intentionally not introduced. Position mappings normalize that value and bind it to an effective, versioned competency profile. Automatic processing does not overwrite an existing active staff competency profile silently.
 
 ## 4. Quality → Training automation
 
@@ -110,70 +138,107 @@ Current rule processing preserves:
 
 The system must not infer staff identity when Quality evidence does not provide a valid staff relationship. No disciplinary/legal HR action may be automated from a single Quality signal.
 
-## 5. Training calendar and development plans
+## 5. Training planning lifecycle
 
-Calendar/session persistence is implemented with:
+Calendar/session persistence and lifecycle now includes:
 
 - `training_sessions`
 - `training_session_enrollments`
+- `training_session_events`
 - capacity control
-- session lifecycle/status foundation
 - published course-version pinning when available
-- staff enrollment
+- scoped staff enrollment
+- `SCHEDULED → IN_PROGRESS → COMPLETED`
+- explicit session cancellation
+- enrollment attendance / no-show / cancellation transitions
+- append-only audit events for material session/enrollment transitions
 
-Development-plan persistence is implemented with:
+Development-plan persistence and lifecycle now includes:
 
 - `staff_development_plans`
 - `staff_development_plan_items`
 - `staff_development_plan_events`
 - competency/course/program/action plan items
-- auditable creation and item-addition events
+- item status transitions
+- plan completion guard requiring all items to be completed or cancelled
+- auditable lifecycle events
 
-## 6. Isolation and integrity hardening — 2026-09-12
+## 6. Competency review and HR position mapping
 
-The latest continuation pass identified and fixed two scope weaknesses in the newly added Training planning layer.
+Recurring competency reviews are persisted separately from competency assessments so the system can distinguish review obligation from evidence/result history.
+
+Implemented review behavior includes:
+
+- recurring schedule definitions
+- due-review processing
+- branch/company scoping
+- concurrency-safe claiming/processing
+- duplicate-open-review prevention
+- explicit review completion/cancellation
+- audit events
+- completion guard requiring fresh competency assessment evidence for profile requirements
+
+Position mapping provides:
+
+```text
+employee_profiles.position
+        ↓
+normalized Position → Competency Profile Mapping
+        ↓
+active versioned Competency Profile
+        ↓
+Staff Competency Profile Assignment
+```
+
+The processor is idempotent with respect to an employee who already has an active competency profile and records assignment/skip decisions instead of silently replacing profile history.
+
+## 7. Branch Quality Score — Training Compliance
+
+`TRAINING_COMPLIANCE` is now a real Branch Quality Score metric source rather than a reserved/unsupported source.
+
+The metric uses assignments due within the score period as its denominator. The numerator counts those assignments completed by the score period end. Assignments cancelled before the period end are excluded; a later cancellation does not rewrite the historical period semantics.
+
+Optional `sourceKey` may scope the metric to a Training course code or course category.
+
+No due assignment produces `NO_DATA` rather than an invented compliance score, allowing the configured score policy's missing-data strategy to remain authoritative.
+
+Implementation commits:
+
+```text
+47fba58a2ce7f8e63881f651ab999bd61426254a
+feat(quality): score training compliance
+
+30e258d28c02ae1d3dc6c83e1e136540f42d576c
+test(quality): cover training compliance metric
+```
+
+## 8. Isolation and integrity hardening
+
+The Training planning layer preserves active branch isolation and semantic assignment linkage.
 
 ### Calendar active-branch isolation
 
-A branch-scoped request could previously provide another `branchId` to the calendar read path. The service now rejects a requested branch that differs from the active tenant context branch before issuing the database query.
-
-Commits:
-
-```text
-640c1c3020ac61d9fc416ac751d63ef18156de42
-fix(training): enforce calendar branch scope
-
-65e007e2809988907af432b27f4cdab5bb27602e
-test(training): protect calendar branch isolation
-```
+A branch-scoped request cannot provide another branch ID to the calendar read path.
 
 ### Enrollment assignment isolation
 
-`training_session_enrollments.assignment_id` is a foreign key to `training_assignments`, but that foreign key alone does not prove that the assignment belongs to the same tenant/company/branch/staff/course as the enrollment.
-
-The enrollment service now validates an optional assignment against:
+An optional calendar enrollment assignment is validated against:
 
 - tenant
 - company
 - branch
 - staff
 - course
-- open assignment lifecycle state (`ASSIGNED` / `IN_PROGRESS`)
-- course version when the session is pinned to a published version
+- open assignment lifecycle state
+- course version when the session is pinned to a version
 
-An assignment that does not match the session enrollment scope is rejected before the enrollment insert/update.
+A foreign key alone is not treated as sufficient authorization/domain integrity.
 
-Commits:
+### Planning lifecycle concurrency
 
-```text
-fceec58f622ab5c027e204b006182d7db8c65cd0
-fix(training): validate session assignment scope
+Material session, enrollment and development-plan transitions execute inside serializable transactions with row locking where state transitions require it.
 
-f87d3ea64f4bac489a987124e07f4668ac790f9d
-test(training): cover assignment enrollment isolation
-```
-
-## 7. Architecture invariants
+## 9. Architecture invariants
 
 - Tenant/company/branch isolation is mandatory on every read and mutation.
 - `Staff`/employee and authenticated `User` remain separate concepts.
@@ -182,34 +247,34 @@ test(training): cover assignment enrollment isolation
 - Versioned assignments cannot bypass required assessment/result guards.
 - Training assignments generated from Quality or Competency rules preserve their source rule/rationale.
 - Exam answer keys remain server-side data and are not exposed in learner-facing reads.
-- Certificate, result, competency assessment and effectiveness history remain auditable.
+- Certificate, result, competency assessment, review and effectiveness history remain auditable.
 - Calendar enrollment must not link a staff member to another staff/branch/course/version assignment.
+- Position mapping must not silently overwrite active employee competency-profile history.
+- Branch Quality Score must not manufacture Training compliance when the reporting period has no eligible assignments.
 - Future AI recommendations may sit above these explainable signals but must not replace rule/audit foundations.
 
-## 8. Correct continuation point
+## 10. Correct continuation point
 
-The previous roadmap wording that treated LMS, Competency Management, learning programs, lesson progress, certificate lifecycle, Training calendar and development plans as future foundation work is stale.
+The previous roadmap wording that treated LMS, Competency Management, learning programs, lesson progress, certificate lifecycle, Training calendar, development plans, HR position mapping, recurring competency reviews and Training Compliance as future foundation work is stale.
 
-The next Training/Competency increments should build on the existing implementation rather than recreate it.
+The next increments should build on the existing backend instead of recreating these foundations.
 
 Recommended sequence:
 
 ```text
-Training calendar/session lifecycle hardening
+Learner / Manager / Training / Competency operational UI
         ↓
-Attendance / no-show / cancellation APIs and audit events
+Training + Competency analytics and compliance dashboards
         ↓
-Development-plan item/status lifecycle + completion rules
+Scheduled Branch Quality Score calculation worker
         ↓
-HR position/role → competency-profile mapping
+Branch/region Quality + Training comparison cockpit
         ↓
-Recurring competency review schedules
+Reusable question-bank authoring
         ↓
-Training compliance → Branch Quality Score real metric source
+Concrete object-storage integration for controlled documents/evidence
         ↓
-Learner / Manager / Training / Competency UI
-        ↓
-Analytics and effectiveness feedback loop expansion
+Effectiveness feedback-loop expansion and additional explainable score metrics
 ```
 
-Before broad UI expansion, session and development-plan lifecycle transitions should receive the same concurrency, idempotency, audit and branch-scope rigor already used in the rest of the platform.
+Backend lifecycle, isolation, audit and concurrency invariants remain the gate for every UI/automation increment.
