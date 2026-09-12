@@ -149,7 +149,7 @@ export default function QuestionBankPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">LMS Authoring</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Reusable Question Bank</h1>
-          <p className="mt-2 max-w-[840px] text-[13px] leading-6 text-[var(--muted)]">Tekrar kullanılabilir, versioned sınav soruları oluşturun. Published bank sorusu bir draft exam'a eklendiğinde soru içeriği sınava snapshot olarak kopyalanır; sonraki revizyonlar geçmiş sınavı değiştirmez.</p>
+          <p className="mt-2 max-w-[840px] text-[13px] leading-6 text-[var(--muted)]">Tekrar kullanılabilir, versioned sınav soruları oluşturun. Published bank sorusu bir draft exam içine eklendiğinde soru içeriği sınava snapshot olarak kopyalanır; sonraki revizyonlar geçmiş sınavı değiştirmez.</p>
         </div>
         <div className="flex gap-2">
           <Select value={status} onChange={(event) => setStatus(event.target.value)}>
