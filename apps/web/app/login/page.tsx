@@ -10,12 +10,12 @@ import { Alert, Button, TextInput } from "@/components/ui";
 function ValooMark() {
   return (
     <div
-      className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-[28px] shadow-[0_18px_45px_rgba(118,87,232,0.18)]"
-      style={{ background: "linear-gradient(135deg, #B995FF 0%, #805DF1 48%, #6847DC 100%)" }}
+      className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-[28px] shadow-[0_18px_45px_rgba(22,116,189,0.18)]"
+      style={{ background: "linear-gradient(135deg, #55D4E1 0%, #369FCB 48%, #0551B0 100%)" }}
       aria-hidden="true"
     >
       <div className="absolute inset-[7px] rounded-[22px] bg-white/95" />
-      <span className="relative bg-gradient-to-br from-[#B995FF] via-[#805DF1] to-[#6847DC] bg-clip-text text-[42px] font-semibold leading-none tracking-[-0.08em] text-transparent">
+      <span className="relative bg-gradient-to-br from-[#55D4E1] via-[#369FCB] to-[#0551B0] bg-clip-text text-[42px] font-semibold leading-none tracking-[-0.08em] text-transparent">
         V
       </span>
     </div>
@@ -65,8 +65,8 @@ export default function LoginPage() {
       <header className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between border-b border-[var(--line)] px-6 sm:px-8">
         <a href="/login" className="flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.02em]">
           <span
-            className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(118,87,232,0.18)]"
-            style={{ background: "linear-gradient(135deg, #B995FF 0%, #805DF1 48%, #6847DC 100%)" }}
+            className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(22,116,189,0.18)]"
+            style={{ background: "linear-gradient(135deg, #55D4E1 0%, #369FCB 48%, #0551B0 100%)" }}
             aria-hidden="true"
           >
             V
@@ -79,7 +79,7 @@ export default function LoginPage() {
       <section className="mx-auto flex min-h-[calc(100vh-160px)] w-full max-w-[760px] flex-col items-center px-6 pb-16 pt-20 sm:pt-24">
         <ValooMark />
         <div className="mt-8 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#8f89a2]">İşletme yönetimi</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted)]">İşletme yönetimi</p>
           <h1 className="mt-2 text-[38px] font-semibold leading-tight tracking-[-0.045em] sm:text-[46px]">VALOO</h1>
           <p className="mt-2 text-[17px] text-[var(--muted)]">Hesabınıza giriş yapın</p>
         </div>
@@ -138,7 +138,7 @@ export default function LoginPage() {
             Apple ile giriş — yakında
           </button>
 
-          <div className="mt-9 flex items-start gap-3 rounded-[16px] border border-[var(--line)] bg-[#fbfaff] px-4 py-4 text-left">
+          <div className="mt-9 flex items-start gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] px-4 py-4 text-left">
             <span className="mt-0.5 text-[18px] text-[var(--accent)]" aria-hidden="true">⌾</span>
             <div>
               <p className="text-[13px] font-medium text-[var(--ink)]">Güvenli ve korumalı</p>
