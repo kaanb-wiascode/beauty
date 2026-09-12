@@ -5,7 +5,14 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import { api } from "@/lib/api";
-import { clearSession, getRefreshToken, getStoredTenant, getStoredUser, hasPermission } from "@/lib/auth";
+import {
+  clearSession,
+  getRefreshToken,
+  getStoredTenant,
+  getStoredUser,
+  hasPermission,
+  persistSession,
+} from "@/lib/auth";
 import { cx, fullName } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
 
@@ -69,6 +76,25 @@ const NAV_SECTIONS = [
 ] as const;
 
 type NavItem = (typeof NAV_SECTIONS)[number]["items"][number];
+
+type BranchOption = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+type ContextOptions = {
+  membershipId: string;
+  roleScope: "CENTRAL" | "COMPANY" | "BRANCH";
+  activeBranchId: string | null;
+  canViewAllBranches: boolean;
+  branches: BranchOption[];
+};
+
+type SwitchContextResponse = {
+  accessToken: string;
+  refreshToken: string;
+};
 
 function hasPermissionKey(permission: string) {
   const [resource, action] = permission.split(".");
@@ -196,11 +222,32 @@ export function AppShell({ children }: { children: ReactNode }) {
   const router = useRouter();
   const [loggingOut, setLoggingOut] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
+  const [contextOptions, setContextOptions] = useState<ContextOptions | null>(null);
+  const [switchingBranch, setSwitchingBranch] = useState(false);
+  const [branchError, setBranchError] = useState("");
   const user = getStoredUser();
   const tenant = getStoredTenant();
 
   useEffect(() => {
     if (window.localStorage.getItem("beauty-erp-sidebar-collapsed") === "true") setCollapsed(true);
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadContextOptions() {
+      try {
+        const result = await api<ContextOptions>("/auth/context/options");
+        if (active) setContextOptions(result);
+      } catch {
+        if (active) setBranchError("Şube bilgileri yüklenemedi.");
+      }
+    }
+
+    void loadContextOptions();
+    return () => {
+      active = false;
+    };
   }, []);
 
   function toggleSidebar() {
@@ -209,6 +256,36 @@ export function AppShell({ children }: { children: ReactNode }) {
       window.localStorage.setItem("beauty-erp-sidebar-collapsed", String(next));
       return next;
     });
+  }
+
+  async function switchBranch(value: string) {
+    if (!contextOptions || switchingBranch) return;
+
+    const branchId = value === "__all__" ? null : value;
+    if (branchId === contextOptions.activeBranchId) return;
+
+    setSwitchingBranch(true);
+    setBranchError("");
+
+    try {
+      const result = await api<SwitchContextResponse>("/auth/context/switch", {
+        method: "POST",
+        body: {
+          membershipId: contextOptions.membershipId,
+          branchId,
+        },
+      });
+
+      persistSession({
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+      });
+
+      window.location.reload();
+    } catch {
+      setBranchError("Şube değiştirilemedi. Lütfen tekrar deneyin.");
+      setSwitchingBranch(false);
+    }
   }
 
   async function logout() {
@@ -241,6 +318,10 @@ export function AppShell({ children }: { children: ReactNode }) {
     overflow: "hidden",
   };
 
+  const activeBranchName = contextOptions?.activeBranchId
+    ? contextOptions.branches.find((branch) => branch.id === contextOptions.activeBranchId)?.name ?? "Şube"
+    : "Tüm Şubeler";
+
   return (
     <div className="app-shell relative min-h-screen lg:grid" style={shellStyle}>
       <aside
@@ -267,6 +348,35 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {collapsed ? (
           <button type="button" onClick={toggleSidebar} aria-label="Menüyü genişlet" title="Menüyü genişlet" className="mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-[12px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">›</button>
+        ) : null}
+
+        {!collapsed && contextOptions ? (
+          <div className="px-5 pt-4">
+            <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]" htmlFor="branch-context-select">
+              Çalışma kapsamı
+            </label>
+            <div className="relative mt-2">
+              <select
+                id="branch-context-select"
+                value={contextOptions.activeBranchId ?? "__all__"}
+                onChange={(event) => void switchBranch(event.target.value)}
+                disabled={switchingBranch}
+                className="h-10 w-full appearance-none rounded-[13px] border border-[var(--line)] bg-white px-3 pr-8 text-[12px] font-medium text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)] disabled:cursor-wait disabled:opacity-60"
+              >
+                {contextOptions.canViewAllBranches ? <option value="__all__">Tüm Şubeler</option> : null}
+                {contextOptions.branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </select>
+              <span aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)]">▼</span>
+            </div>
+            <p className="mt-1.5 truncate text-[10px] text-[var(--muted)]">
+              {switchingBranch ? "Şube değiştiriliyor…" : `Aktif: ${activeBranchName}`}
+            </p>
+            {branchError ? <p className="mt-1 text-[10px] text-red-600">{branchError}</p> : null}
+          </div>
         ) : null}
 
         {!collapsed ? (
