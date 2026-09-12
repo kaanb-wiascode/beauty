@@ -247,6 +247,7 @@ export class CrmService {
 
   async updateLead(id: string, input: UpdateLeadInput, actorUserId: string) {
     const context = this.context();
+    const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
     if (input.status === 'LOST' && !input.lostReason) {
       throw new BadRequestException('Lost lead requires a reason.');
@@ -267,7 +268,7 @@ export class CrmService {
         id,
         context.tenantId,
         context.companyId,
-        context.branchId,
+        branchId,
         input.firstName ?? null,
         input.lastName ?? null,
         input.phone !== undefined,
@@ -300,6 +301,7 @@ export class CrmService {
 
   async qualifyLead(id: string, input: QualifyLeadInput, actorUserId: string) {
     const context = this.context();
+    const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
     return this.prisma.$transaction(
       async (tx) => {
@@ -312,7 +314,7 @@ export class CrmService {
           id,
           context.tenantId,
           context.companyId,
-          context.branchId,
+          branchId,
         );
         const lead = leads[0];
         if (!lead) throw new NotFoundException('CRM lead not found.');
@@ -404,6 +406,7 @@ export class CrmService {
     actorUserId: string,
   ) {
     const context = this.context();
+    const branchId = this.requireBranchId();
     if (input.stage === 'LOST' && !input.lostReason) {
       throw new BadRequestException('Lost opportunity requires a reason.');
     }
@@ -433,7 +436,7 @@ export class CrmService {
         id,
         context.tenantId,
         context.companyId,
-        context.branchId,
+        branchId,
         input.stage,
         probability ?? null,
         input.estimatedValue !== undefined,
@@ -559,6 +562,7 @@ export class CrmService {
     actorUserId: string,
   ) {
     const context = this.context();
+    const branchId = this.requireBranchId();
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<CrmRow[]>(
         `UPDATE crm_follow_ups SET status='COMPLETED',outcome=$6,completed_at=NOW(),version=version+1,updated_at=NOW()
@@ -569,7 +573,7 @@ export class CrmService {
         id,
         context.tenantId,
         context.companyId,
-        context.branchId,
+        branchId,
         input.version,
         input.outcome,
       );
@@ -595,6 +599,7 @@ export class CrmService {
     actorUserId: string,
   ) {
     const context = this.context();
+    const branchId = this.requireBranchId();
     if (input.assignedUserId) {
       await this.assertAssignableUser(input.assignedUserId);
     }
@@ -618,7 +623,7 @@ export class CrmService {
         id,
         context.tenantId,
         context.companyId,
-        context.branchId,
+        branchId,
         input.version,
         input.dueAt,
         input.assignedUserId ?? null,
@@ -655,6 +660,7 @@ export class CrmService {
     actorUserId: string,
   ) {
     const context = this.context();
+    const branchId = this.requireBranchId();
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<CrmRow[]>(
         `UPDATE crm_follow_ups SET status='CANCELLED',cancellation_reason=$6,
@@ -666,7 +672,7 @@ export class CrmService {
         id,
         context.tenantId,
         context.companyId,
-        context.branchId,
+        branchId,
         input.version,
         input.reason,
       );
