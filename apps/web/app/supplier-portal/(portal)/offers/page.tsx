@@ -7,6 +7,8 @@ import { ApiError } from "@/lib/api";
 import { supplierPortalApi } from "@/lib/supplier-portal-api";
 import { getSupplierPortalSession } from "@/lib/supplier-portal-auth";
 
+type OfferVisibilityScope = "CONNECTED" | "RESTRICTED";
+
 type CatalogVariant = {
   id: string;
   catalogProductId: string;
@@ -38,12 +40,22 @@ type SupplierOffer = {
   validTo: string | null;
   status: string;
   version: number;
+  visibilityScope: OfferVisibilityScope;
+  eligibleConnectionIds: string[];
   productName: string;
   variantName: string;
   canonicalSku: string | null;
   brandName: string | null;
   createdAt: string;
   updatedAt: string;
+};
+
+type EligibilityOption = {
+  supplierConnectionId: string;
+  companyId: string;
+  companyName: string;
+  inventorySupplierId: string;
+  privateVendorName: string;
 };
 
 type OfferDraft = {
@@ -97,9 +109,12 @@ function formatMoney(value: number | string, currency: string) {
 export default function SupplierOffersPage() {
   const [variants, setVariants] = useState<CatalogVariant[]>([]);
   const [offers, setOffers] = useState<SupplierOffer[]>([]);
+  const [eligibilityOptions, setEligibilityOptions] = useState<EligibilityOption[]>([]);
   const [selectedVariantId, setSelectedVariantId] = useState("");
   const [selectedOfferId, setSelectedOfferId] = useState<string | null>(null);
   const [draft, setDraft] = useState<OfferDraft>(EMPTY_DRAFT);
+  const [visibilityScope, setVisibilityScope] = useState<OfferVisibilityScope>("CONNECTED");
+  const [eligibleConnectionIds, setEligibleConnectionIds] = useState<string[]>([]);
   const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -129,20 +144,29 @@ export default function SupplierOffersPage() {
     const query = search.trim().toLocaleLowerCase("tr-TR");
     if (!query) return offers;
     return offers.filter((offer) =>
-      [offer.productName, offer.variantName, offer.brandName ?? "", offer.canonicalSku ?? "", offer.supplierSku ?? "", STATUS_LABELS[offer.status] ?? offer.status]
-        .some((value) => value.toLocaleLowerCase("tr-TR").includes(query)),
+      [
+        offer.productName,
+        offer.variantName,
+        offer.brandName ?? "",
+        offer.canonicalSku ?? "",
+        offer.supplierSku ?? "",
+        STATUS_LABELS[offer.status] ?? offer.status,
+        offer.visibilityScope === "RESTRICTED" ? "özel sözleşmeli seçili alıcı" : "bağlı alıcı",
+      ].some((value) => value.toLocaleLowerCase("tr-TR").includes(query)),
     );
   }, [offers, search]);
 
   const load = useCallback(async () => {
     setError("");
     try {
-      const [catalogRows, offerRows] = await Promise.all([
+      const [catalogRows, offerRows, eligibilityRows] = await Promise.all([
         supplierPortalApi<CatalogVariant[]>("/supplier-portal/offers/catalog/variants"),
         supplierPortalApi<SupplierOffer[]>("/supplier-portal/offers"),
+        supplierPortalApi<EligibilityOption[]>("/supplier-portal/offers/eligibility-options"),
       ]);
       setVariants(catalogRows);
       setOffers(offerRows);
+      setEligibilityOptions(eligibilityRows);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Katalog ve teklifler yüklenemedi.");
     } finally {
@@ -150,12 +174,20 @@ export default function SupplierOffersPage() {
     }
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  function resetVisibility() {
+    setVisibilityScope("CONNECTED");
+    setEligibleConnectionIds([]);
+  }
 
   function beginCreate() {
     setSelectedOfferId(null);
     setSelectedVariantId(availableVariants[0]?.id ?? "");
     setDraft(EMPTY_DRAFT);
+    resetVisibility();
     setError("");
     setSuccess("");
   }
@@ -176,12 +208,29 @@ export default function SupplierOffersPage() {
       validFrom: toDateTimeLocal(offer.validFrom),
       validTo: toDateTimeLocal(offer.validTo),
     });
+    setVisibilityScope(offer.visibilityScope ?? "CONNECTED");
+    setEligibleConnectionIds(offer.eligibleConnectionIds ?? []);
     setError("");
     setSuccess("");
   }
 
   function patchDraft(key: keyof OfferDraft, value: string) {
     setDraft((current) => ({ ...current, [key]: value }));
+    setSuccess("");
+  }
+
+  function changeVisibility(next: OfferVisibilityScope) {
+    setVisibilityScope(next);
+    if (next === "CONNECTED") setEligibleConnectionIds([]);
+    setSuccess("");
+  }
+
+  function toggleEligibility(connectionId: string) {
+    setEligibleConnectionIds((current) =>
+      current.includes(connectionId)
+        ? current.filter((id) => id !== connectionId)
+        : [...current, connectionId],
+    );
     setSuccess("");
   }
 
@@ -199,6 +248,7 @@ export default function SupplierOffersPage() {
     if (!Number.isFinite(orderMultiple) || orderMultiple <= 0) throw new Error("Sipariş katı sıfırdan büyük olmalıdır.");
     if (availableQuantity !== null && (!Number.isFinite(availableQuantity) || availableQuantity < 0)) throw new Error("Stok miktarı negatif olamaz.");
     if (![leadTimeDays, preparationDays, shippingDays].every((value) => Number.isInteger(value) && value >= 0)) throw new Error("Termin süreleri negatif olmayan tam sayı olmalıdır.");
+    if (visibilityScope === "RESTRICTED" && eligibleConnectionIds.length === 0) throw new Error("Özel/sözleşmeli teklif için en az bir bağlı alıcı seçin.");
 
     return {
       supplierSku: draft.supplierSku.trim() || undefined,
@@ -212,6 +262,8 @@ export default function SupplierOffersPage() {
       shippingDays,
       validFrom: draft.validFrom ? new Date(draft.validFrom).toISOString() : null,
       validTo: draft.validTo ? new Date(draft.validTo).toISOString() : null,
+      visibilityScope,
+      eligibleConnectionIds: visibilityScope === "RESTRICTED" ? eligibleConnectionIds : [],
     };
   }
 
@@ -240,7 +292,7 @@ export default function SupplierOffersPage() {
           method: "PATCH",
           body: { ...commercial, expectedVersion: selectedOffer.version },
         });
-        setSuccess("Teklif bilgileri güncellendi.");
+        setSuccess("Teklif bilgileri ve görünürlük politikası güncellendi.");
       } else {
         await supplierPortalApi("/supplier-portal/offers", {
           method: "POST",
@@ -252,6 +304,7 @@ export default function SupplierOffersPage() {
       setSelectedOfferId(null);
       setSelectedVariantId("");
       setDraft(EMPTY_DRAFT);
+      resetVisibility();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Teklif kaydedilemedi.");
     } finally {
@@ -269,11 +322,12 @@ export default function SupplierOffersPage() {
         method: "POST",
         body: { expectedVersion: selectedOffer.version },
       });
-      setSuccess(action === "activate" ? "Teklif buyer ağına açıldı." : action === "deactivate" ? "Teklif pasife alındı." : "Teklif arşivlendi.");
+      setSuccess(action === "activate" ? "Teklif yetkili buyer ağına açıldı." : action === "deactivate" ? "Teklif pasife alındı." : "Teklif arşivlendi.");
       await load();
       setSelectedOfferId(null);
       setSelectedVariantId("");
       setDraft(EMPTY_DRAFT);
+      resetVisibility();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Teklif durumu değiştirilemedi.");
     } finally {
@@ -285,7 +339,7 @@ export default function SupplierOffersPage() {
 
   const activeCount = offers.filter((offer) => offer.status === "ACTIVE").length;
   const draftCount = offers.filter((offer) => offer.status === "DRAFT").length;
-  const inactiveCount = offers.filter((offer) => offer.status === "INACTIVE").length;
+  const restrictedCount = offers.filter((offer) => offer.visibilityScope === "RESTRICTED").length;
 
   return (
     <div className="space-y-6">
@@ -293,7 +347,7 @@ export default function SupplierOffersPage() {
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-[#1674bd]">KATALOG VE TİCARİ TEKLİFLER</p>
           <h1 className="mt-2 text-[30px] font-semibold tracking-[-.035em]">SupplierOffer Yönetimi</h1>
-          <p className="mt-1 text-[14px] text-[#667482]">VALOO canonical kataloğundaki varyantlara fiyat, stok, MOQ ve termin bilgilerinizi bağlayın.</p>
+          <p className="mt-1 text-[14px] text-[#667482]">Canonical kataloğa fiyat, stok, MOQ ve termin bağlayın; sözleşmeli fiyatları yalnız seçtiğiniz buyer connection’larına açın.</p>
         </div>
         {canManage ? <Button type="button" onClick={beginCreate} disabled={!availableVariants.length}>Yeni teklif</Button> : null}
       </header>
@@ -306,7 +360,7 @@ export default function SupplierOffersPage() {
       <section className="grid gap-3 sm:grid-cols-3">
         <Metric label="Aktif teklif" value={String(activeCount)} />
         <Metric label="Taslak" value={String(draftCount)} />
-        <Metric label="Pasif" value={String(inactiveCount)} />
+        <Metric label="Özel / sözleşmeli" value={String(restrictedCount)} />
       </section>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_470px]">
@@ -314,9 +368,9 @@ export default function SupplierOffersPage() {
           <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <h2 className="text-[16px] font-semibold">Teklifleriniz</h2>
-              <p className="mt-1 text-[12px] text-[#7a8792]">Aktif teklifler buyer tarafındaki tedarikçi karşılaştırmasına katılır.</p>
+              <p className="mt-1 text-[12px] text-[#7a8792]">CONNECTED teklifler tüm aktif bağlı alıcılara, RESTRICTED teklifler yalnız seçilen buyer connection’larına görünür.</p>
             </div>
-            <TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ürün, SKU veya durum ara..." className="sm:max-w-[280px]" />
+            <TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Ürün, SKU, görünürlük veya durum ara..." className="sm:max-w-[280px]" />
           </div>
           <div className="space-y-2">
             {visibleOffers.map((offer) => (
@@ -326,6 +380,7 @@ export default function SupplierOffersPage() {
                     <p className="text-[13px] font-semibold">{offer.brandName ? `${offer.brandName} · ` : ""}{offer.productName}</p>
                     <p className="mt-1 text-[12px] text-[#667482]">{offer.variantName}{offer.canonicalSku ? ` · ${offer.canonicalSku}` : ""}</p>
                     <p className="mt-2 text-[11px] text-[#7a8792]">MOQ {offer.minimumOrderQuantity} · Stok {offer.availableQuantity ?? "—"} · Termin {offer.leadTimeDays} gün</p>
+                    <p className="mt-1 text-[10px] font-semibold text-[#51606d]">{offer.visibilityScope === "RESTRICTED" ? `Özel / sözleşmeli · ${offer.eligibleConnectionIds.length} alıcı` : "Tüm aktif bağlı alıcılar"}</p>
                   </div>
                   <div className="text-right">
                     <p className="text-[14px] font-semibold text-[#1674bd]">{formatMoney(offer.unitPrice, offer.currency)}</p>
@@ -340,7 +395,7 @@ export default function SupplierOffersPage() {
 
         <section className="rounded-[20px] border border-[#dfe7ed] bg-white p-5 shadow-[0_12px_36px_rgba(36,63,84,0.05)]">
           <h2 className="text-[16px] font-semibold">{selectedOffer ? "Teklifi düzenle" : "Yeni teklif"}</h2>
-          <p className="mt-1 text-[12px] text-[#7a8792]">Fiyat güncellemeleri version kontrollüdür; eski ekran verisi yeni kaydı ezemez.</p>
+          <p className="mt-1 text-[12px] text-[#7a8792]">Fiyat ve eligibility güncellemeleri version kontrollüdür; eski ekran verisi yeni kaydı ezemez.</p>
 
           <form onSubmit={save} className="mt-5 space-y-4">
             <Field label="Canonical varyant">
@@ -363,6 +418,36 @@ export default function SupplierOffersPage() {
               <Field label="Kargo (gün)"><TextInput type="number" min="0" step="1" value={draft.shippingDays} onChange={(event) => patchDraft("shippingDays", event.target.value)} disabled={!canManage} /></Field>
             </div>
 
+            <div className="rounded-[15px] border border-[#dfe7ed] bg-[#fafcfd] p-4">
+              <Field label="Teklif görünürlüğü">
+                <select value={visibilityScope} onChange={(event) => changeVisibility(event.target.value as OfferVisibilityScope)} disabled={!canManage} className="h-11 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 text-[13px] outline-none focus:border-[#1674bd]">
+                  <option value="CONNECTED">Tüm aktif bağlı alıcılar</option>
+                  <option value="RESTRICTED">Yalnız seçili alıcılar / sözleşmeli fiyat</option>
+                </select>
+              </Field>
+              <p className="mt-2 text-[11px] leading-5 text-[#7a8792]">RESTRICTED modunda teklif buyer katalog karşılaştırmasına yalnız seçtiğiniz SupplierConnection üzerinden katılır. Buyer şirketi teklif kimliğini bilse bile sipariş oluşturma API’si aynı kuralı tekrar doğrular.</p>
+
+              {visibilityScope === "RESTRICTED" ? (
+                <div className="mt-4 space-y-2">
+                  <p className="text-[11px] font-semibold text-[#5d6b77]">Yetkili alıcı bağlantıları</p>
+                  {eligibilityOptions.map((option) => {
+                    const checked = eligibleConnectionIds.includes(option.supplierConnectionId);
+                    return (
+                      <label key={option.supplierConnectionId} className={`flex cursor-pointer items-start gap-3 rounded-[12px] border p-3 transition ${checked ? "border-[#1674bd] bg-[#f3f9fd]" : "border-[#e3eaf0] bg-white hover:border-[#c6d4df]"}`}>
+                        <input type="checkbox" checked={checked} onChange={() => toggleEligibility(option.supplierConnectionId)} disabled={!canManage} className="mt-0.5 h-4 w-4 accent-[#1674bd]" />
+                        <span className="min-w-0">
+                          <span className="block text-[12px] font-semibold text-[#27313a]">{option.companyName}</span>
+                          <span className="mt-0.5 block text-[10px] text-[#7a8792]">Buyer vendor kartı: {option.privateVendorName}</span>
+                        </span>
+                      </label>
+                    );
+                  })}
+                  {!eligibilityOptions.length ? <p className="rounded-[12px] border border-dashed border-[#d9e2e8] px-3 py-4 text-[11px] text-[#7a8792]">Aktif buyer connection bulunmuyor. Özel teklif kaydedebilmek için önce buyer tarafında aktif SupplierConnection gerekir.</p> : null}
+                  {eligibilityOptions.length > 0 && eligibleConnectionIds.length === 0 ? <p className="text-[11px] font-medium text-[#9b6a21]">Özel teklif için en az bir alıcı seçmelisiniz.</p> : null}
+                </div>
+              ) : null}
+            </div>
+
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Geçerlilik başlangıcı"><TextInput type="datetime-local" value={draft.validFrom} onChange={(event) => patchDraft("validFrom", event.target.value)} disabled={!canManage} /></Field>
               <Field label="Geçerlilik bitişi"><TextInput type="datetime-local" value={draft.validTo} onChange={(event) => patchDraft("validTo", event.target.value)} disabled={!canManage} /></Field>
@@ -380,6 +465,7 @@ export default function SupplierOffersPage() {
                 {(selectedOffer.status === "DRAFT" || selectedOffer.status === "INACTIVE") ? <Button type="button" variant="secondary" onClick={() => void transition("archive")} disabled={busy}>Arşivle</Button> : null}
               </div>
               {!verified && (selectedOffer.status === "DRAFT" || selectedOffer.status === "INACTIVE") ? <p className="mt-2 text-[11px] text-[#9b6a21]">Aktivasyon için SupplierOrganization doğrulaması gerekir.</p> : null}
+              {selectedOffer.visibilityScope === "RESTRICTED" && selectedOffer.eligibleConnectionIds.length === 0 ? <p className="mt-2 text-[11px] text-[#9b6a21]">Aktivasyon için en az bir aktif buyer connection hedefi gerekir.</p> : null}
             </div>
           ) : null}
         </section>
