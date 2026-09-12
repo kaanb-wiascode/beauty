@@ -26,7 +26,8 @@ const auditQuerySchema = z.object({
 });
 
 @Controller('supplier-network')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('inventory', 'read')
 export class SupplierNetworkController {
   constructor(
     private readonly supplierNetwork: SupplierNetworkService,
@@ -41,23 +42,18 @@ export class SupplierNetworkController {
   }
 
   @Get('connections')
-  @UseGuards(PermissionsGuard)
-  @RequirePermission('roles', 'read')
   async listConnections() {
     return this.supplierNetwork.listConnections();
   }
 
   @Get('audit')
-  @UseGuards(PermissionsGuard)
-  @RequirePermission('roles', 'read')
   async listAudit(@Query() query: unknown) {
     const input = auditQuerySchema.parse(query);
     return this.supplierNetwork.listAudit(input.limit);
   }
 
   @Post('connections')
-  @UseGuards(PermissionsGuard)
-  @RequirePermission('roles', 'update')
+  @RequirePermission('inventory', 'write')
   async connectInventorySupplier(
     @Body() body: unknown,
     @Req() req: { user?: { sub?: string } },
