@@ -31,10 +31,10 @@ const saveQuoteSchema = z.object({
   validUntil: z.coerce.date().nullable().optional(),
   paymentTermsDays: z.coerce.number().int().min(0).nullable().optional(),
   warrantyMonths: z.coerce.number().int().min(0).nullable().optional(),
-  installationIncluded: z.coerce.boolean().optional(),
-  trainingIncluded: z.coerce.boolean().optional(),
+  installationIncluded: z.boolean().optional(),
+  trainingIncluded: z.boolean().optional(),
   serviceSlaDays: z.coerce.number().int().min(0).nullable().optional(),
-  financingAvailable: z.coerce.boolean().optional(),
+  financingAvailable: z.boolean().optional(),
   expectedVersion: z.coerce.number().int().positive().optional(),
   items: z.array(quoteItemSchema).min(1),
 });
