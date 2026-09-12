@@ -83,11 +83,20 @@ export class InstallmentsService {
     const branchId = this.requireBranchId();
 
     return this.prisma.$transaction(async (tx) => {
-      const sale = await tx.sale.findFirst({
-        where: { id: saleId, tenantId, branchId },
-        select: { id: true, total: true, status: true },
-      });
-      if (!sale) throw new NotFoundException('Sale not found');
+      const sales = await tx.$queryRawUnsafe<Array<{
+        id: string;
+        total: Prisma.Decimal;
+        status: string;
+      }>>(
+        `SELECT id,total,status::text AS status FROM sales
+         WHERE id=$1::text AND tenant_id=$2::text AND branch_id=$3::text
+         FOR UPDATE`,
+        saleId,
+        tenantId,
+        branchId,
+      );
+      if (!sales.length) throw new NotFoundException('Sale not found');
+      const sale = sales[0];
       if (sale.status !== 'CONFIRMED') {
         throw new BadRequestException('Installment plans can only be created for confirmed sales.');
       }
