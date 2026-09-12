@@ -13,7 +13,7 @@ Do not merge/push to `main` without explicit approval.
 
 ### Marketplace
 
-Status: **Publication + public listing foundation + branch publication cockpit implemented and CI-validated**
+Status: **Publication + public listing foundation + authenticated publication cockpit + public storefront implemented and CI-validated**
 
 Implemented:
 
@@ -24,18 +24,24 @@ Implemented:
 - tenant/company/branch validation in service and database trigger
 - idempotent publish semantics that preserve the first `publishedAt` while already published
 - publication mutations protected by `services.update`
-- public listing route: `GET /public/marketplace/:companySlug/:branchCode`
-- public route returns data only when publication status is `PUBLISHED`
-- unpublished/missing publication does not read branch/service data
+- public listing API: `GET /public/marketplace/:companySlug/:branchCode`
+- public API returns data only when publication status is `PUBLISHED`
+- unpublished/missing publication does not expose branch/service data
 - public response omits internal tenant/company identifiers
 - Marketplace preview/public data-leakage regression coverage
-- `/marketplace` branch publication cockpit with public-safe preview, active-service projection and guarded publish/unpublish controls
+- `/marketplace` authenticated branch publication cockpit with public-safe preview, active-service projection and guarded publish/unpublish controls
+- public web storefront: `/marketplace/[companySlug]/[branchCode]`
+- public storefront consumes only the allowlisted unauthenticated Marketplace API projection
+- unpublished/missing storefront resolves to a non-listing state rather than leaking private data
+- publication cockpit links directly to the real public storefront only while the branch is published
 
 Validated commits:
 
 - `bd5f8f61b3837db08590f59ce6cd9a32e04163b3` — publication workflow foundation; CI #699 SUCCESS
 - `bbe3a41db9918d31717d87318623c72cdbb6f9b6` — published public listings; CI #700 SUCCESS
 - `8ae5b05fe50534323de8fc638aac9c64f5359054` — Marketplace publication cockpit; CI #909 SUCCESS
+- `a1aa9e04f4b62f31d2b863fcdd3e828d08c5e030` + `8350e29b9a64e68e46559c956ab6f6e467bd7b32` — public storefront + lint correction; CI #913 SUCCESS
+- `b2848708bc76429c2db76fb23d9ff56b7376eeb1` — authenticated cockpit → public storefront link; CI #914 SUCCESS
 
 Not yet complete:
 
@@ -48,7 +54,7 @@ Not yet complete:
 
 ### Supplier Network
 
-Status: **Core identity + administration + portal auth + membership + verification foundations + tenant operations cockpit implemented**
+Status: **Core identity + platform administration + portal auth + membership + verification foundations + tenant/platform operational UI implemented**
 
 Implemented:
 
@@ -69,6 +75,10 @@ Implemented:
 - Supplier isolation/admin/audit/membership/verification/portal-auth regression tests
 - `/inventory/supplier-network` tenant/company-scoped operations cockpit
 - supplier-network cockpit exposes active connections, local supplier coverage, guarded connection upsert and append-only audit history without crossing the platform-admin boundary
+- `/platform/suppliers` platform-admin SupplierOrganization administration surface
+- platform-admin UI lists/filters global organizations and supports create/metadata update through the existing `PlatformAdminGuard` protected APIs
+- generic SupplierOrganization editing does not expose `verificationStatus`; verification workflow remains the source of truth
+- platform-admin UI does not mutate tenant-private `inventory_suppliers`
 
 Validated commits:
 
@@ -81,15 +91,18 @@ Validated commits:
 - `dc9a27d2976d43ee0c8e8730305e3273be2392b9` — Supplier Portal auth foundation; CI #726 SUCCESS
 - `f7fb06100de9b1c3f7a3b018423b23361c2b1661` — audited SupplierOrganization mutations; CI #727 SUCCESS
 - `97382d15d4af2291930c5f540bfdd6db23c6db08` — tenant Supplier Network cockpit; descendant CI #909 SUCCESS
+- `65d4fd4735b66eaf077f8400bb4e784c81a0dd36` — platform SupplierOrganization administration UI; descendant CI #913/#914 SUCCESS
 
 Important boundary:
 
 - `SupplierOrganization` is platform-scoped.
 - ordinary tenant RBAC does not grant global supplier administration.
+- platform-admin UI still relies on the backend `PlatformAdminGuard`; frontend visibility is not an authorization boundary.
 - supplier portal identity/authorization is separate from ERP tenant membership semantics.
 - verification state is not directly editable through generic organization update; it remains controlled by the verification workflow.
 - platform audit metadata intentionally does not copy raw tax-number values.
 - the tenant cockpit does not create or globally administer SupplierOrganization records.
+- verification document UX must not expose a user-editable raw `storageKey`; controlled object-storage upload/signing must exist first.
 
 Not yet complete:
 
@@ -174,52 +187,53 @@ Not yet implemented:
 ### P0 — Frontend release / operations
 
 1. Reconcile the repository AppShell/navigation with the user's latest local Cursor state before adding new ecosystem navigation items.
-2. Link `/marketplace` and `/inventory/supplier-network` into the reconciled navigation without overwriting newer local UI work.
-3. Continue operational frontend coverage for Supplier administration/verification and buyer-side procurement linkage using existing governed APIs.
-4. Add focused browser/E2E coverage for critical publish/unpublish and supplier-connection workflows after route/navigation reconciliation.
+2. Link `/marketplace`, `/inventory/supplier-network` and appropriate platform-admin navigation into the reconciled shell without overwriting newer local UI work.
+3. Continue buyer-side procurement operational coverage using existing governed Purchase Request / Purchase Order / Goods Receipt APIs.
+4. Add Supplier verification status/case visibility where useful, but do not expose raw storage-key document entry; controlled upload/signing is a prerequisite for document UX.
+5. Add focused browser/E2E coverage for publish/unpublish, public storefront visibility and supplier-connection workflows after route/navigation reconciliation.
 
 ### P0 — Ecosystem reliability / identity
 
-5. Supplier membership invitation / acceptance / self-service onboarding.
-6. Supplier Portal refresh/revocation session lifecycle.
-7. Verification document object-storage upload/signing.
-8. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
-9. Public/self-service supplier registration after invitation/auth boundaries are stable.
+6. Supplier membership invitation / acceptance / self-service onboarding.
+7. Supplier Portal refresh/revocation session lifecycle.
+8. Verification document object-storage upload/signing.
+9. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+10. Public/self-service supplier registration after invitation/auth boundaries are stable.
 
 ### P0-Architecture — Healthcare parallel track
 
-10. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
-11. H1 Capability registry/evaluation contract.
-12. H2 RegulatoryProfile/versioning/rule-result model.
+11. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
+12. H1 Capability registry/evaluation contract.
+13. H2 RegulatoryProfile/versioning/rule-result model.
 
 Healthcare foundations may progress incrementally but must not weaken the main tenant/RBAC boundaries.
 
 ### P1
 
-13. Marketplace availability engine.
-14. concurrency-safe Marketplace booking orchestration.
-15. Brand + CatalogProduct + ProductVariant + identifiers.
-16. SupplierOffer.
-17. RFQ + SupplierQuote.
-18. Healthcare onboarding/capability prototype after H0-H2 validation.
+14. Marketplace availability engine.
+15. concurrency-safe Marketplace booking orchestration.
+16. Brand + CatalogProduct + ProductVariant + identifiers.
+17. SupplierOffer.
+18. RFQ + SupplierQuote.
+19. Healthcare onboarding/capability prototype after H0-H2 validation.
 
 ### P2
 
-19. Procurement conversion from selected offer/quote.
-20. ConsumerAccount/reviews/favorites.
-21. online payment/deposit/no-show.
-22. smart replenishment and contract pricing.
-23. equipment/asset/service lifecycle.
-24. VALOO Clinic foundation after regulatory/security architecture is ready.
+20. Procurement conversion from selected offer/quote.
+21. ConsumerAccount/reviews/favorites.
+22. online payment/deposit/no-show.
+23. smart replenishment and contract pricing.
+24. equipment/asset/service lifecycle.
+25. VALOO Clinic foundation after regulatory/security architecture is ready.
 
 ### P3
 
-25. compliance engine extensions.
-26. logistics/EDI/API integrations.
-27. financing/leasing.
-28. supplier intelligence.
-29. AI recommendations/concierge.
-30. Hospital Ops / Healthcare Integration Hub.
+26. compliance engine extensions.
+27. logistics/EDI/API integrations.
+28. financing/leasing.
+29. supplier intelligence.
+30. AI recommendations/concierge.
+31. Hospital Ops / Healthcare Integration Hub.
 
 ## 5. Current Risk / Release Notes
 
@@ -227,25 +241,29 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 - Supplier invitation/self-service onboarding must not weaken existing user password/authentication guarantees.
 - Verification upload must store only controlled object references/metadata in the database, not raw secrets or credentials.
 - Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
-- `/marketplace` and `/inventory/supplier-network` are CI-validated operational routes but are intentionally not wired into AppShell yet because of that reconciliation constraint.
+- `/marketplace`, `/inventory/supplier-network` and `/platform/suppliers` are CI-validated operational routes but are intentionally not wired into AppShell yet because of that reconciliation constraint.
+- the public storefront `/marketplace/[companySlug]/[branchCode]` is intentionally outside the authenticated app shell and is reachable only when the backend publication state is `PUBLISHED`.
 - Core VALOO ERP UI modernization is substantially complete; remaining UI work is operational coverage, release cleanup/reconciliation and browser-level validation rather than a major redesign phase.
 - `main` remains untouched.
 
 ## 6. Latest Frontend Checkpoint
 
 ```text
-8ae5b05fe50534323de8fc638aac9c64f5359054
-feat(marketplace-ui): add publication cockpit
+b2848708bc76429c2db76fb23d9ff56b7376eeb1
+feat(marketplace-ui): link public storefront
 
-Monorepo quality #909 — SUCCESS
+Monorepo quality #914 — SUCCESS
 ```
 
-The successful descendant contains both:
+The successful checkpoint includes:
 
-- `97382d15d4af2291930c5f540bfdd6db23c6db08` — `/inventory/supplier-network`
-- `8ae5b05fe50534323de8fc638aac9c64f5359054` — `/marketplace`
+- `97382d15d4af2291930c5f540bfdd6db23c6db08` — `/inventory/supplier-network` tenant operations cockpit
+- `8ae5b05fe50534323de8fc638aac9c64f5359054` — `/marketplace` authenticated publication cockpit
+- `65d4fd4735b66eaf077f8400bb4e784c81a0dd36` — `/platform/suppliers` platform-admin organization management
+- `a1aa9e04f4b62f31d2b863fcdd3e828d08c5e030` + `8350e29b9a64e68e46559c956ab6f6e467bd7b32` — `/marketplace/[companySlug]/[branchCode]` public storefront
+- `b2848708bc76429c2db76fb23d9ff56b7376eeb1` — publication cockpit → real public storefront link
 
-Quality gate passed frozen dependency install, PostgreSQL migration deployment, database/shared/API checks, API tests, API build, web lint, web typecheck and web production build.
+Quality gate passed frozen dependency install, fresh PostgreSQL migration deployment, database/shared/API checks, all API tests, API build, web lint, web typecheck and web production build.
 
 ## 7. CI Status Rule
 
