@@ -30,6 +30,24 @@ export class SupplierCatalogService {
     );
   }
 
+  async listVariants(productId?: string) {
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT cv.id,cv.catalog_product_id AS "catalogProductId",cp.name AS "productName",
+              cv.canonical_sku AS "canonicalSku",cv.name,cv.unit,cv.attributes,cv.status,
+              COALESCE(json_agg(json_build_object(
+                'id',cpi.id,'identifierType',cpi.identifier_type,'identifierValue',cpi.identifier_value
+              ) ORDER BY cpi.identifier_type,cpi.identifier_value) FILTER (WHERE cpi.id IS NOT NULL),'[]'::json) AS identifiers
+       FROM catalog_variants cv
+       JOIN catalog_products cp ON cp.id=cv.catalog_product_id
+       LEFT JOIN catalog_product_identifiers cpi ON cpi.catalog_variant_id=cv.id
+       WHERE cv.status<>'ARCHIVED' AND cp.status<>'ARCHIVED'
+         AND ($1::text IS NULL OR cv.catalog_product_id=$1::text)
+       GROUP BY cv.id,cp.name
+       ORDER BY cp.name,cv.name`,
+      productId ?? null,
+    );
+  }
+
   async createBrand(input: { slug: string; name: string }) {
     const slug = this.slug(input.slug);
     const name = input.name.trim();
