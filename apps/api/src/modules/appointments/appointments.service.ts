@@ -6,12 +6,22 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateAppointmentInput } from './dto/create-appointment.dto';
 import { ListAppointmentsInput } from './dto/list-appointments.dto';
 import { UpdateAppointmentInput } from './dto/update-appointment.dto';
+
+type ReferenceClient = Pick<
+  Prisma.TransactionClient,
+  'customer' | 'staff' | 'service'
+>;
+
+type AppointmentClient = Pick<
+  Prisma.TransactionClient,
+  'appointment'
+>;
 
 @Injectable()
 export class AppointmentsService {
@@ -86,6 +96,7 @@ export class AppointmentsService {
   }
 
   private async validateReferences(
+    db: ReferenceClient,
     tenantId: string,
     input: {
       customerId: string;
@@ -96,7 +107,7 @@ export class AppointmentsService {
   ): Promise<void> {
     const [customer, staff, service] =
       await Promise.all([
-        this.prisma.customer.findFirst({
+        db.customer.findFirst({
           where: {
             id: input.customerId,
             tenantId,
@@ -104,7 +115,7 @@ export class AppointmentsService {
           },
           select: { id: true },
         }),
-        this.prisma.staff.findFirst({
+        db.staff.findFirst({
           where: {
             id: input.staffId,
             tenantId,
@@ -115,7 +126,7 @@ export class AppointmentsService {
             status: true,
           },
         }),
-        this.prisma.service.findFirst({
+        db.service.findFirst({
           where: {
             id: input.serviceId,
             tenantId,
@@ -150,6 +161,7 @@ export class AppointmentsService {
   }
 
   private async ensureNoStaffOverlap(
+    db: AppointmentClient,
     tenantId: string,
     branchId: string,
     staffId: string,
@@ -157,31 +169,30 @@ export class AppointmentsService {
     endAt: Date,
     excludeId?: string,
   ): Promise<void> {
-    const conflict =
-      await this.prisma.appointment.findFirst({
-        where: {
-          tenantId,
-          branchId,
-          staffId,
-          ...(excludeId
-            ? {
-                id: {
-                  not: excludeId,
-                },
-              }
-            : {}),
-          status: {
-            notIn: ['CANCELLED', 'NO_SHOW'],
-          },
-          startAt: { lt: endAt },
-          endAt: { gt: startAt },
+    const conflict = await db.appointment.findFirst({
+      where: {
+        tenantId,
+        branchId,
+        staffId,
+        ...(excludeId
+          ? {
+              id: {
+                not: excludeId,
+              },
+            }
+          : {}),
+        status: {
+          notIn: ['CANCELLED', 'NO_SHOW'],
         },
-        select: {
-          id: true,
-          startAt: true,
-          endAt: true,
-        },
-      });
+        startAt: { lt: endAt },
+        endAt: { gt: startAt },
+      },
+      select: {
+        id: true,
+        startAt: true,
+        endAt: true,
+      },
+    });
 
     if (conflict) {
       throw new ConflictException(
@@ -234,6 +245,7 @@ export class AppointmentsService {
     this.validateDateRange(input.startAt, input.endAt);
 
     await this.validateReferences(
+      this.prisma,
       tenantId,
       {
         customerId: input.customerId,
@@ -252,6 +264,7 @@ export class AppointmentsService {
         );
 
         await this.ensureNoStaffOverlap(
+          tx,
           tenantId,
           branchId,
           input.staffId,
@@ -304,6 +317,8 @@ export class AppointmentsService {
           const reserved = await tx.session.updateMany({
             where: {
               id: input.sessionId,
+              tenantId,
+              branchId,
               status: 'AVAILABLE',
               appointmentId: null,
             },
@@ -336,7 +351,8 @@ export class AppointmentsService {
     } catch (error) {
       if (
         error instanceof BadRequestException ||
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+        error instanceof NotFoundException
       ) {
         throw error;
       }
@@ -425,33 +441,32 @@ export class AppointmentsService {
   }
 
   async findOne(id: string) {
-    const appointment =
-      await this.prisma.appointment.findFirst({
-        where: {
-          id,
-          ...this.getAppointmentScope(),
-        },
-        include: {
-          payment: {
-            select: {
-              id: true,
-              amount: true,
-              method: true,
-              paidAt: true,
-            },
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id,
+        ...this.getAppointmentScope(),
+      },
+      include: {
+        payment: {
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            paidAt: true,
           },
-          session: {
-            include: {
-              service: true,
-              customerPackage: {
-                include: {
-                  package: true,
-                },
+        },
+        session: {
+          include: {
+            service: true,
+            customerPackage: {
+              include: {
+                package: true,
               },
             },
           },
         },
-      });
+      },
+    });
 
     if (!appointment) {
       throw new NotFoundException('Appointment not found');
@@ -466,67 +481,85 @@ export class AppointmentsService {
   ) {
     const tenantId = this.getTenantId();
 
-    const appointment =
-      await this.prisma.appointment.findFirst({
-        where: {
-          id,
-          ...this.getAppointmentScope(),
-        },
-        include: {
-          session: true,
-        },
-      });
-
-    if (!appointment) {
-      throw new NotFoundException('Appointment not found');
-    }
-
-    if (
-      appointment.status === 'CANCELLED' &&
-      input.status !== 'CANCELLED'
-    ) {
-      throw new BadRequestException(
-        'Cancelled appointment cannot be reactivated',
-      );
-    }
-
-    const customerId = input.customerId ?? appointment.customerId;
-    const staffId = input.staffId ?? appointment.staffId;
-    const serviceId = input.serviceId ?? appointment.serviceId;
-    const startAt = input.startAt ?? appointment.startAt;
-    const endAt = input.endAt ?? appointment.endAt;
-
-    this.validateDateRange(startAt, endAt);
-
-    await this.validateReferences(
-      tenantId,
-      { customerId, staffId, serviceId },
-      appointment.branchId,
-    );
-
-    if (
-      appointment.session &&
-      (customerId !== appointment.customerId ||
-        serviceId !== appointment.serviceId)
-    ) {
-      const matchingSession = await this.prisma.session.findFirst({
-        where: {
-          id: appointment.session.id,
-          serviceId,
-          customerPackage: { customerId },
-        },
-        select: { id: true },
-      });
-
-      if (!matchingSession) {
-        throw new BadRequestException(
-          'Customer or service cannot be changed while the reserved package session does not match.',
-        );
-      }
-    }
-
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtext($1))',
+          `appointment:${id}`,
+        );
+
+        const appointment = await tx.appointment.findFirst({
+          where: {
+            id,
+            ...this.getAppointmentScope(),
+          },
+          include: {
+            session: true,
+          },
+        });
+
+        if (!appointment) {
+          throw new NotFoundException('Appointment not found');
+        }
+
+        if (
+          appointment.status === 'CANCELLED' &&
+          input.status !== 'CANCELLED'
+        ) {
+          throw new BadRequestException(
+            'Cancelled appointment cannot be reactivated',
+          );
+        }
+
+        if (
+          ['COMPLETED', 'NO_SHOW'].includes(appointment.status) &&
+          input.status &&
+          input.status !== appointment.status
+        ) {
+          throw new ConflictException(
+            'Terminal appointment status cannot be changed.',
+          );
+        }
+
+        const customerId =
+          input.customerId ?? appointment.customerId;
+        const staffId = input.staffId ?? appointment.staffId;
+        const serviceId = input.serviceId ?? appointment.serviceId;
+        const startAt = input.startAt ?? appointment.startAt;
+        const endAt = input.endAt ?? appointment.endAt;
+
+        this.validateDateRange(startAt, endAt);
+
+        await this.validateReferences(
+          tx,
+          tenantId,
+          { customerId, staffId, serviceId },
+          appointment.branchId,
+        );
+
+        if (
+          appointment.session &&
+          (customerId !== appointment.customerId ||
+            serviceId !== appointment.serviceId)
+        ) {
+          const matchingSession = await tx.session.findFirst({
+            where: {
+              id: appointment.session.id,
+              tenantId,
+              branchId: appointment.branchId,
+              serviceId,
+              customerPackage: { customerId },
+            },
+            select: { id: true },
+          });
+
+          if (!matchingSession) {
+            throw new BadRequestException(
+              'Customer or service cannot be changed while the reserved package session does not match.',
+            );
+          }
+        }
+
         await tx.$queryRawUnsafe(
           'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
           `${tenantId}:${appointment.branchId}`,
@@ -534,6 +567,7 @@ export class AppointmentsService {
         );
 
         await this.ensureNoStaffOverlap(
+          tx,
           tenantId,
           appointment.branchId,
           staffId,
@@ -574,48 +608,78 @@ export class AppointmentsService {
             input.status === 'CANCELLED' ||
             input.status === 'NO_SHOW'
           ) {
-            if (appointment.session.status === 'RESERVED') {
-              await tx.session.update({
-                where: { id: appointment.session.id },
-                data: {
-                  status: 'AVAILABLE',
-                  appointmentId: null,
-                },
-              });
+            const released = await tx.session.updateMany({
+              where: {
+                id: appointment.session.id,
+                tenantId,
+                branchId: appointment.branchId,
+                status: 'RESERVED',
+                appointmentId: appointment.id,
+              },
+              data: {
+                status: 'AVAILABLE',
+                appointmentId: null,
+              },
+            });
+
+            if (
+              appointment.session.status === 'RESERVED' &&
+              released.count !== 1
+            ) {
+              throw new ConflictException(
+                'Reserved package session changed during the appointment update.',
+              );
             }
           }
 
-          if (
-            input.status === 'COMPLETED' &&
-            appointment.session.status === 'RESERVED'
-          ) {
-            await tx.session.update({
-              where: { id: appointment.session.id },
+          if (input.status === 'COMPLETED') {
+            const consumed = await tx.session.updateMany({
+              where: {
+                id: appointment.session.id,
+                tenantId,
+                branchId: appointment.branchId,
+                status: 'RESERVED',
+                appointmentId: appointment.id,
+              },
               data: {
                 status: 'CONSUMED',
                 consumedAt: new Date(),
               },
             });
 
-            const remaining = await tx.session.count({
-              where: {
-                customerPackageId:
-                  appointment.session.customerPackageId,
-                status: {
-                  in: ['AVAILABLE', 'RESERVED'],
-                },
-              },
-            });
+            if (
+              appointment.session.status === 'RESERVED' &&
+              consumed.count !== 1
+            ) {
+              throw new ConflictException(
+                'Reserved package session changed during the appointment update.',
+              );
+            }
 
-            if (remaining === 0) {
-              await tx.customerPackage.update({
+            if (consumed.count === 1) {
+              const remaining = await tx.session.count({
                 where: {
-                  id: appointment.session.customerPackageId,
-                },
-                data: {
-                  status: 'COMPLETED',
+                  customerPackageId:
+                    appointment.session.customerPackageId,
+                  status: {
+                    in: ['AVAILABLE', 'RESERVED'],
+                  },
                 },
               });
+
+              if (remaining === 0) {
+                await tx.customerPackage.updateMany({
+                  where: {
+                    id: appointment.session.customerPackageId,
+                    tenantId,
+                    branchId: appointment.branchId,
+                    status: 'ACTIVE',
+                  },
+                  data: {
+                    status: 'COMPLETED',
+                  },
+                });
+              }
             }
           }
         }
@@ -637,7 +701,8 @@ export class AppointmentsService {
     } catch (error) {
       if (
         error instanceof BadRequestException ||
-        error instanceof ConflictException
+        error instanceof ConflictException ||
+        error instanceof NotFoundException
       ) {
         throw error;
       }
@@ -654,42 +719,64 @@ export class AppointmentsService {
   }
 
   async remove(id: string) {
-    const appointment =
-      await this.prisma.appointment.findFirst({
-        where: {
-          id,
-          ...this.getAppointmentScope(),
-        },
-        include: {
-          session: true,
-        },
-      });
-
-    if (!appointment) {
-      throw new NotFoundException('Appointment not found');
-    }
-
-    if (appointment.status === 'CANCELLED') {
-      throw new BadRequestException(
-        'Appointment is already cancelled',
-      );
-    }
-
     try {
       return await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRawUnsafe(
+          'SELECT pg_advisory_xact_lock(hashtext($1))',
+          `appointment:${id}`,
+        );
+
+        const appointment = await tx.appointment.findFirst({
+          where: {
+            id,
+            ...this.getAppointmentScope(),
+          },
+          include: {
+            session: true,
+          },
+        });
+
+        if (!appointment) {
+          throw new NotFoundException('Appointment not found');
+        }
+
+        if (appointment.status === 'CANCELLED') {
+          throw new BadRequestException(
+            'Appointment is already cancelled',
+          );
+        }
+
+        if (appointment.status === 'COMPLETED') {
+          throw new ConflictException(
+            'Completed appointment cannot be cancelled.',
+          );
+        }
+
         const updated = await tx.appointment.update({
           where: { id: appointment.id },
           data: { status: 'CANCELLED' },
         });
 
         if (appointment.session?.status === 'RESERVED') {
-          await tx.session.update({
-            where: { id: appointment.session.id },
+          const released = await tx.session.updateMany({
+            where: {
+              id: appointment.session.id,
+              tenantId: appointment.tenantId,
+              branchId: appointment.branchId,
+              status: 'RESERVED',
+              appointmentId: appointment.id,
+            },
             data: {
               status: 'AVAILABLE',
               appointmentId: null,
             },
           });
+
+          if (released.count !== 1) {
+            throw new ConflictException(
+              'Reserved package session changed during cancellation.',
+            );
+          }
         }
 
         return {
@@ -698,6 +785,14 @@ export class AppointmentsService {
         };
       });
     } catch (error) {
+      if (
+        error instanceof BadRequestException ||
+        error instanceof ConflictException ||
+        error instanceof NotFoundException
+      ) {
+        throw error;
+      }
+
       console.error(
         '[AppointmentsService.remove] Prisma error:',
         error,
