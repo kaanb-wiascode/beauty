@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   Query,
   Req,
@@ -25,6 +26,43 @@ export class QualityEvidenceController {
       throw new UnauthorizedException('Authenticated user id is missing.');
     }
     return id;
+  }
+
+  @Post('uploads/prepare')
+  @RequirePermission('quality', 'manage')
+  prepareUpload(@Body() body: any) {
+    return this.evidence.prepareUpload({
+      subjectType: String(body.subjectType ?? ''),
+      subjectId: String(body.subjectId ?? ''),
+      kind: String(body.kind ?? ''),
+      originalFilename: body.originalFilename ?? null,
+      mimeType: body.mimeType ?? null,
+      byteSize: body.byteSize ?? null,
+    });
+  }
+
+  @Post('uploads/finalize')
+  @RequirePermission('quality', 'manage')
+  finalizeUpload(@Body() body: any, @Req() req: { user?: { sub?: string } }) {
+    return this.evidence.finalizeUpload(
+      {
+        subjectType: String(body.subjectType ?? ''),
+        subjectId: String(body.subjectId ?? ''),
+        kind: String(body.kind ?? ''),
+        objectKey: String(body.objectKey ?? ''),
+        originalFilename: body.originalFilename ?? null,
+        note: body.note ?? null,
+        capturedAt: body.capturedAt ?? null,
+        sha256: body.sha256 ?? null,
+      },
+      this.userId(req),
+    );
+  }
+
+  @Get(':id/download')
+  @RequirePermission('quality', 'read')
+  download(@Param('id') id: string) {
+    return this.evidence.download(id);
   }
 
   @Post()
