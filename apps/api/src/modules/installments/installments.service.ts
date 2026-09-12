@@ -89,7 +89,7 @@ export class InstallmentsService {
         status: string;
       }>>(
         `SELECT id,total,status::text AS status FROM sales
-         WHERE id=$1::text AND tenant_id=$2::text AND branch_id=$3::text
+         WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text
          FOR UPDATE`,
         saleId,
         tenantId,
