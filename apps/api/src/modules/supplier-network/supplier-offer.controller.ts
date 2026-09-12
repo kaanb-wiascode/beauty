@@ -6,6 +6,7 @@ import {
   Patch,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -48,7 +49,9 @@ export class SupplierOfferController {
 
   private principal(req: SupplierPortalRequest) {
     if (!req.supplierPortalAuth) {
-      throw new Error('Supplier portal principal missing after guard.');
+      throw new UnauthorizedException(
+        'Supplier portal principal is missing.',
+      );
     }
     return req.supplierPortalAuth;
   }
