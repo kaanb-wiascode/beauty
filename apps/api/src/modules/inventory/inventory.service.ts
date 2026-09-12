@@ -154,8 +154,14 @@ export class InventoryService {
           companyId,
         ),
         this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT id,name,type,branch_id AS "branchId" FROM inventory_warehouses WHERE company_id=$1::text AND status='ACTIVE' ORDER BY type,name`,
+          `SELECT id,name,type,branch_id AS "branchId"
+           FROM inventory_warehouses
+           WHERE company_id=$1::text
+             AND status='ACTIVE'
+             AND ($2::text IS NULL OR branch_id=$2::text)
+           ORDER BY type,name`,
           companyId,
+          branchId,
         ),
         this.purchaseRequests(),
       ]);
