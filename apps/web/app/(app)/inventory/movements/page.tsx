@@ -28,26 +28,26 @@ type InventoryMovement = {
 type MovementFilter = "ALL" | "IN" | "OUT";
 
 const MOVEMENT_LABELS: Record<string, string> = {
-  PURCHASE: "Satın alma",
-  SERVICE_CONSUMPTION: "Hizmet tüketimi",
-  TRANSFER_IN: "Transfer girişi",
-  TRANSFER_OUT: "Transfer çıkışı",
-  ADJUSTMENT_IN: "Stok girişi",
-  ADJUSTMENT_OUT: "Stok çıkışı",
+  PURCHASE: "Satın Alma",
+  SERVICE_CONSUMPTION: "Hizmet Tüketimi",
+  TRANSFER_IN: "Transfer Girişi",
+  TRANSFER_OUT: "Transfer Çıkışı",
+  ADJUSTMENT_IN: "Stok Girişi",
+  ADJUSTMENT_OUT: "Stok Çıkışı",
   DAMAGE: "Hasar",
-  EXPIRED: "Son kullanma",
+  EXPIRED: "Son Kullanma",
   RETURN: "İade",
 };
 
 const UNIT_LABELS: Record<string, string> = {
-  UNIT: "adet",
-  ML: "ml",
-  LITER: "lt",
-  GRAM: "gr",
-  KG: "kg",
-  METER: "m",
-  PAIR: "çift",
-  BOX: "kutu",
+  UNIT: "Adet",
+  ML: "Ml",
+  LITER: "Lt",
+  GRAM: "Gr",
+  KG: "Kg",
+  METER: "M",
+  PAIR: "Çift",
+  BOX: "Kutu",
 };
 
 const OUT_TYPES = new Set([
@@ -70,7 +70,7 @@ export default function MovementsPage() {
     api<InventoryMovement[]>("/inventory/movements")
       .then(setRows)
       .catch((requestError) =>
-        setError(requestError instanceof ApiError ? requestError.message : "Hareketler yüklenemedi."),
+        setError(requestError instanceof ApiError ? requestError.message : "Hareketler Yüklenemedi."),
       )
       .finally(() => setLoading(false));
   }, []);
@@ -105,7 +105,7 @@ export default function MovementsPage() {
   if (loading) {
     return (
       <div className="py-16">
-        <Spinner label="Stok hareketleri hazırlanıyor..." />
+        <Spinner label="Stok Hareketleri Hazırlanıyor..." />
       </div>
     );
   }
@@ -114,13 +114,13 @@ export default function MovementsPage() {
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header>
         <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">
-          ENVANTER
+          Envanter
         </p>
         <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">
           Stok Hareketleri
         </h1>
         <p className="mt-1 text-[14px] text-[var(--muted)]">
-          Envanterde gerçekleşen tüm giriş, çıkış ve tüketimleri izleyin.
+          Envanterde Gerçekleşen Tüm Giriş, Çıkış Ve Tüketimleri İzleyin.
         </p>
       </header>
 
@@ -131,21 +131,21 @@ export default function MovementsPage() {
           search={
             <SearchField
               value={search}
-              placeholder="Ürün, lokasyon veya açıklama ara..."
+              placeholder="Ürün, Lokasyon Veya Açıklama Ara..."
               onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setSearch("");
               }}
-              aria-label="Stok hareketlerinde ara"
+              aria-label="Stok Hareketlerinde Ara"
             />
           }
           actions={
             <ToolbarSelect
               value={movementType}
               onChange={(event) => setMovementType(event.target.value)}
-              aria-label="Hareket tipi"
+              aria-label="Hareket Tipi"
             >
-              <option value="">Tüm işlem tipleri</option>
+              <option value="">Tüm İşlem Tipleri</option>
               {movementTypes.map((type) => (
                 <option key={type} value={type}>
                   {MOVEMENT_LABELS[type] ?? type}
@@ -192,16 +192,16 @@ export default function MovementsPage() {
 
         {!visibleRows.length ? (
           <div className="px-5 py-14 text-center">
-            <p className="text-[13px] font-medium text-[var(--ink)]">Eşleşen stok hareketi yok.</p>
+            <p className="text-[13px] font-medium text-[var(--ink)]">Eşleşen Stok Hareketi Yok.</p>
             <p className="mt-1 text-[11px] text-[var(--muted)]">
-              Arama veya filtreleri değiştirerek tekrar deneyin.
+              Arama Veya Filtreleri Değiştirerek Tekrar Deneyin.
             </p>
           </div>
         ) : null}
 
         <DataViewMeta>
-          <span>{visibleRows.length} kayıt gösteriliyor</span>
-          <span>Toplam {rows.length} hareket</span>
+          <span>{visibleRows.length} Kayıt Gösteriliyor</span>
+          <span>Toplam {rows.length} Hareket</span>
         </DataViewMeta>
       </DataView>
     </div>
