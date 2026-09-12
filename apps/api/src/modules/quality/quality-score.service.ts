@@ -239,6 +239,33 @@ export class QualityScoreService {
       const count = Number(rows[0]?.count ?? 0);
       return { rawScore: count ? Number(rows[0].score) : null, sourceCount: count, dataStatus: count ? 'AVAILABLE' : 'NO_DATA' };
     }
+    if (dimension.sourceKind === 'TRAINING_COMPLIANCE') {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT COUNT(*)::int AS count,
+                COUNT(*) FILTER (
+                  WHERE a.completed_at IS NOT NULL
+                    AND a.completed_at < ($5::date + INTERVAL '1 day')
+                )::int AS completed
+         FROM training_assignments a
+         JOIN training_courses course ON course.id=a.course_id
+         WHERE a.tenant_id=$1::text AND a.company_id=$2::text AND a.branch_id=$3::text
+           AND a.due_at IS NOT NULL
+           AND a.due_at >= $4::date AND a.due_at < ($5::date + INTERVAL '1 day')
+           AND a.assigned_at < ($5::date + INTERVAL '1 day')
+           AND (a.cancelled_at IS NULL OR a.cancelled_at >= ($5::date + INTERVAL '1 day'))
+           AND ($6::text IS NULL OR UPPER(course.code)=UPPER($6) OR UPPER(course.category)=UPPER($6))`,
+        c.tenantId,
+        c.companyId,
+        branchId,
+        periodStart,
+        periodEnd,
+        dimension.sourceKey ?? null,
+      );
+      const count = Number(rows[0]?.count ?? 0);
+      const completed = Number(rows[0]?.completed ?? 0);
+      const score = count ? Math.round((completed / count) * 10000) / 100 : null;
+      return { rawScore: score, sourceCount: count, dataStatus: count ? 'AVAILABLE' : 'NO_DATA' };
+    }
     return { rawScore: null, sourceCount: 0, dataStatus: 'UNSUPPORTED_SOURCE' };
   }
 
