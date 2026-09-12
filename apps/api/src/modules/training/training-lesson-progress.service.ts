@@ -10,7 +10,7 @@ export class TrainingLessonProgressService {
 
   private async assignmentLesson(tx:any,assignmentId:string,lessonId:string){
     const c=this.context();
-    const rows=await tx.$queryRawUnsafe<any[]>(
+    const rows:any[]=await tx.$queryRawUnsafe(
       `SELECT a.id AS "assignmentId",a.status,a.branch_id AS "branchId",a.staff_id AS "staffId",a.course_version_id AS "courseVersionId",l.id AS "lessonId",l.is_required AS "isRequired"
        FROM training_assignments a
        JOIN training_lessons l ON l.course_version_id=a.course_version_id
