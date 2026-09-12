@@ -1,5 +1,11 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { randomUUID } from 'node:crypto';
+import { ObjectStorageService } from '../../common/storage/object-storage.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type EvidenceSubject =
@@ -8,6 +14,8 @@ type EvidenceSubject =
   | 'FINDING'
   | 'QUALITY_CASE'
   | 'CAPA';
+
+type EvidenceKind = 'PHOTO' | 'DOCUMENT' | 'OTHER';
 
 const subjectMap: Record<
   EvidenceSubject,
@@ -45,6 +53,7 @@ export class QualityEvidenceService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
+    private readonly storage: ObjectStorageService,
   ) {}
 
   private context() {
@@ -56,6 +65,51 @@ export class QualityEvidenceService {
     const config = subjectMap[normalized];
     if (!config) throw new BadRequestException('Unsupported evidence subjectType.');
     return { type: normalized, ...config };
+  }
+
+  private kind(kind: string): EvidenceKind {
+    const normalized = kind?.trim().toUpperCase() as EvidenceKind;
+    if (!['PHOTO', 'DOCUMENT', 'OTHER'].includes(normalized)) {
+      throw new BadRequestException('Unsupported evidence kind.');
+    }
+    return normalized;
+  }
+
+  private filename(value?: string | null) {
+    const filename = value?.trim() || null;
+    if (filename && filename.length > 255) {
+      throw new BadRequestException('originalFilename is too long.');
+    }
+    return filename;
+  }
+
+  private mimeType(value?: string | null) {
+    const mimeType = value?.trim().toLowerCase() || 'application/octet-stream';
+    if (!/^[a-z0-9!#$&^_.+-]+\/[a-z0-9!#$&^_.+-]+$/.test(mimeType)) {
+      throw new BadRequestException('mimeType is invalid.');
+    }
+    return mimeType;
+  }
+
+  private keySegment(value: string) {
+    return value.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  private managedPrefix(
+    subjectType: EvidenceSubject,
+    subjectId: string,
+    branchId: string,
+  ) {
+    const c = this.context();
+    return [
+      'private',
+      'quality-evidence',
+      this.keySegment(c.tenantId),
+      this.keySegment(c.companyId),
+      this.keySegment(branchId),
+      subjectType,
+      this.keySegment(subjectId),
+    ].join('/');
   }
 
   private async assertSubjectScope(subjectType: string, subjectId: string) {
@@ -78,11 +132,134 @@ export class QualityEvidenceService {
     return { ...subject, branchId: rows[0].branchId as string };
   }
 
+  async prepareUpload(input: {
+    subjectType: string;
+    subjectId: string;
+    kind: string;
+    originalFilename?: string | null;
+    mimeType?: string | null;
+    byteSize?: number | null;
+  }) {
+    const subject = await this.assertSubjectScope(
+      input.subjectType,
+      input.subjectId,
+    );
+    const kind = this.kind(input.kind);
+    const originalFilename = this.filename(input.originalFilename);
+    const mimeType = this.mimeType(input.mimeType);
+    const maxBytes = this.storage.maxBytes();
+    if (
+      input.byteSize != null &&
+      (!Number.isSafeInteger(input.byteSize) || input.byteSize < 0)
+    ) {
+      throw new BadRequestException('byteSize must be a non-negative integer.');
+    }
+    if (input.byteSize != null && input.byteSize > maxBytes) {
+      throw new BadRequestException(`Evidence file exceeds ${maxBytes} bytes.`);
+    }
+    const objectKey = `${this.managedPrefix(subject.type, input.subjectId, subject.branchId)}/${randomUUID()}`;
+    const upload = await this.storage.presignPut(objectKey, mimeType);
+    return {
+      objectKey,
+      method: 'PUT' as const,
+      uploadUrl: upload.url,
+      expiresAt: upload.expiresAt,
+      requiredHeaders: upload.requiredHeaders,
+      maxBytes,
+      kind,
+      originalFilename,
+    };
+  }
+
+  async finalizeUpload(
+    input: {
+      subjectType: string;
+      subjectId: string;
+      kind: string;
+      objectKey: string;
+      originalFilename?: string | null;
+      note?: string | null;
+      capturedAt?: string | null;
+      sha256?: string | null;
+    },
+    actorUserId: string,
+  ) {
+    const subject = await this.assertSubjectScope(
+      input.subjectType,
+      input.subjectId,
+    );
+    const objectKey = input.objectKey?.trim();
+    const prefix = `${this.managedPrefix(subject.type, input.subjectId, subject.branchId)}/`;
+    if (!objectKey || !objectKey.startsWith(prefix)) {
+      throw new BadRequestException('objectKey is outside the managed evidence scope.');
+    }
+
+    let head: Awaited<ReturnType<ObjectStorageService['head']>>;
+    try {
+      head = await this.storage.head(objectKey);
+    } catch {
+      throw new BadRequestException('Uploaded evidence object was not found.');
+    }
+    const maxBytes = this.storage.maxBytes();
+    if (head.byteSize == null || head.byteSize < 0) {
+      throw new BadRequestException('Uploaded evidence size could not be verified.');
+    }
+    if (head.byteSize > maxBytes) {
+      await this.storage.remove(objectKey).catch(() => undefined);
+      throw new BadRequestException(`Evidence file exceeds ${maxBytes} bytes.`);
+    }
+
+    return this.add(
+      {
+        subjectType: subject.type,
+        subjectId: input.subjectId,
+        kind: this.kind(input.kind),
+        objectKey,
+        originalFilename: this.filename(input.originalFilename),
+        mimeType: head.mimeType || 'application/octet-stream',
+        byteSize: head.byteSize,
+        sha256: input.sha256 ?? null,
+        note: input.note ?? null,
+        capturedAt: input.capturedAt ?? null,
+      },
+      actorUserId,
+    );
+  }
+
+  async download(evidenceId: string) {
+    const c = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,object_key AS "objectKey",original_filename AS "originalFilename",mime_type AS "mimeType"
+       FROM quality_evidence
+       WHERE id=$1::text
+         AND tenant_id=$2::text
+         AND company_id=$3::text
+         AND ($4::text IS NULL OR branch_id=$4::text)
+       LIMIT 1`,
+      evidenceId,
+      c.tenantId,
+      c.companyId,
+      c.branchId,
+    );
+    if (!rows.length) throw new NotFoundException('Evidence not found.');
+    const signed = await this.storage.presignGet(
+      rows[0].objectKey,
+      rows[0].originalFilename,
+    );
+    return {
+      evidenceId: rows[0].id,
+      downloadUrl: signed.url,
+      expiresAt: signed.expiresAt,
+      originalFilename: rows[0].originalFilename,
+      mimeType: rows[0].mimeType,
+    };
+  }
+
   async add(
     input: {
       subjectType: string;
       subjectId: string;
-      kind: 'PHOTO' | 'DOCUMENT' | 'OTHER';
+      kind: EvidenceKind;
       objectKey: string;
       originalFilename?: string | null;
       mimeType?: string | null;
