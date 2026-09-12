@@ -95,7 +95,7 @@ export default function PublicMarketplacePage() {
       <main className="min-h-screen bg-[#f7f6f3] px-5 py-16 text-[#272521]">
         <div className="mx-auto flex min-h-[60vh] max-w-5xl items-center justify-center">
           <div className="text-center">
-            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#ded9d3] border-t-[#745ce0]" />
+            <div className="mx-auto h-8 w-8 animate-spin rounded-full border-2 border-[#ded9d3] border-t-[#1674BD]" />
             <p className="mt-4 text-sm text-[#77716b]">İşletme Hazırlanıyor...</p>
           </div>
         </div>
@@ -108,7 +108,7 @@ export default function PublicMarketplacePage() {
       <main className="min-h-screen bg-[#f7f6f3] px-5 py-16 text-[#272521]">
         <div className="mx-auto flex min-h-[60vh] max-w-2xl items-center justify-center">
           <div className="w-full rounded-[28px] border border-[#e6e1db] bg-white p-8 text-center shadow-[0_20px_60px_rgba(54,46,38,.06)] sm:p-12">
-            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#f1edff] text-[#745ce0]">V</div>
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#EAF5FB] text-[#1674BD]">V</div>
             <h1 className="mt-5 text-2xl font-semibold tracking-[-.035em]">
               {notFound ? "Bu İşletme Şu An Yayında Değil" : "Sayfa Açılamadı"}
             </h1>
@@ -130,21 +130,21 @@ export default function PublicMarketplacePage() {
       <header className="border-b border-[#e8e3dd] bg-white/90 backdrop-blur-xl">
         <div className="mx-auto flex max-w-6xl items-center justify-between gap-4 px-5 py-4 sm:px-8">
           <div className="flex min-w-0 items-center gap-3">
-            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-[#aa8cff] via-[#805df1] to-[#6847dc] text-base font-semibold text-white shadow-[0_8px_24px_rgba(118,87,232,.22)]">V</div>
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-gradient-to-br from-[#55D4E1] via-[#1674BD] to-[#0551B0] text-base font-semibold text-white shadow-[0_8px_24px_rgba(22,116,189,.22)]">V</div>
             <div className="min-w-0">
               <p className="truncate text-[13px] font-semibold tracking-[-.02em]">{company.name}</p>
               <p className="mt-0.5 truncate text-[11px] text-[#8d8881]">VALOO Pazar Yeri</p>
             </div>
           </div>
-          <span className="rounded-full bg-[#f2efff] px-3 py-1.5 text-[10px] font-semibold text-[#6f58cf]">Doğrudan İşletme Yayını</span>
+          <span className="rounded-full bg-[#EAF5FB] px-3 py-1.5 text-[10px] font-semibold text-[#1674BD]">Doğrudan İşletme Yayını</span>
         </div>
       </header>
 
       <section className="relative overflow-hidden border-b border-[#e8e3dd] bg-white">
-        <div aria-hidden="true" className="absolute -right-24 -top-32 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(128,93,241,.14),rgba(128,93,241,0)_68%)]" />
+        <div aria-hidden="true" className="absolute -right-24 -top-32 h-[360px] w-[360px] rounded-full bg-[radial-gradient(circle,rgba(85,212,225,.16),rgba(85,212,225,0)_68%)]" />
         <div className="relative mx-auto grid max-w-6xl gap-8 px-5 py-12 sm:px-8 sm:py-16 lg:grid-cols-[minmax(0,1fr)_340px] lg:items-end">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#7c68d6]">{branch.name}</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#1674BD]">{branch.name}</p>
             <h1 className="mt-3 max-w-3xl text-[38px] font-semibold leading-[1.05] tracking-[-.05em] sm:text-[52px]">Kendin İçin Doğru Hizmeti Seç.</h1>
             <p className="mt-5 max-w-2xl text-[15px] leading-7 text-[#706a64]">{company.name} · {branch.name} Tarafından Sunulan Aktif Hizmetleri, Sürelerini Ve Güncel Fiyatlarını İnceleyin.</p>
             <div className="mt-6 flex flex-wrap gap-2 text-[11px] text-[#6d6761]">
@@ -179,7 +179,7 @@ export default function PublicMarketplacePage() {
             {services.map((service) => (
               <article key={service.id} className="flex min-h-[230px] flex-col rounded-[24px] border border-[#e4dfd9] bg-white p-5 shadow-[0_12px_35px_rgba(48,42,36,.035)] transition-transform duration-200 hover:-translate-y-0.5">
                 <div className="flex items-start justify-between gap-4">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#f2efff] text-[#725bd3]">✦</div>
+                  <div className="flex h-10 w-10 items-center justify-center rounded-[13px] bg-[#EAF5FB] text-[#1674BD]">✦</div>
                   <span className="shrink-0 text-[16px] font-semibold tracking-[-.025em]">{formatMoney(service.price)}</span>
                 </div>
                 <h3 className="mt-5 text-[16px] font-semibold tracking-[-.025em]">{service.name}</h3>
