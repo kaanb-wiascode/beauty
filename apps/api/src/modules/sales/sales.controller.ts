@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -45,40 +45,43 @@ export class SalesController {
   }
 
   @Get(':id/payment-summary')
-  getPaymentSummary(@Param('id') id: string) {
+  getPaymentSummary(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesService.getPaymentSummary(id);
   }
 
   @Post(':id/payments')
   @RequirePermission('payments', 'create')
-  addPayment(@Param('id') id: string, @Body() body: unknown) {
+  addPayment(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
     return this.salesService.addPayment(id, addSalePaymentSchema.parse(body));
   }
 
   @Post(':id/payments/:paymentId/refund')
   @RequirePermission('payments', 'refund')
   refundPayment(
-    @Param('id') id: string,
-    @Param('paymentId') paymentId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
     @Body() body: unknown,
   ) {
     return this.salesService.refundPayment(id, paymentId, refundSalePaymentSchema.parse(body));
   }
 
   @Get(':id')
-  findOne(@Param('id') id: string) {
+  findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesService.findOne(id);
   }
 
   @Post(':id/confirm')
   @RequirePermission('payments', 'create')
-  confirm(@Param('id') id: string) {
+  confirm(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesService.confirm(id);
   }
 
   @Post(':id/cancel')
   @RequirePermission('payments', 'create')
-  cancel(@Param('id') id: string) {
+  cancel(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesService.cancel(id);
   }
 }
