@@ -37,6 +37,22 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['services', 'create'],
   ['services', 'update'],
   ['services', 'delete'],
+  ['inventory', 'read'],
+  ['inventory', 'write'],
+  ['crm', 'read'],
+  ['crm', 'manage'],
+  ['training', 'read'],
+  ['training', 'manage'],
+  ['quality', 'read'],
+  ['quality', 'manage'],
+  ['finance', 'read'],
+  ['finance', 'manage'],
+  ['accounting', 'read'],
+  ['accounting', 'manage'],
+  ['hr', 'read'],
+  ['hr', 'manage'],
+  ['financial_integrations', 'read'],
+  ['financial_integrations', 'manage'],
 ] as const;
 
 @Injectable()
@@ -381,10 +397,15 @@ export class AuthService {
       );
     }
 
-    const branchId =
+    const firstActiveBranchId =
       membership.branchAccesses.find(
         (access) => access.branch.status === 'ACTIVE',
       )?.branchId ?? null;
+
+    const branchId =
+      membership.role.scope === 'CENTRAL'
+        ? null
+        : firstActiveBranchId;
 
     if (
       membership.role.scope === 'BRANCH' &&
