@@ -10,6 +10,7 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
@@ -28,6 +29,25 @@ import {
 } from './crm.schemas';
 import { CrmService } from './crm.service';
 
+const uuid = z.string().uuid();
+const listLeadsSchema = z.object({
+  status: leadStatusSchema.optional(),
+  ownerUserId: uuid.optional(),
+  search: z.string().trim().min(1).max(200).optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+const listOpportunitiesSchema = z.object({
+  stage: opportunityStageSchema.optional(),
+  ownerUserId: uuid.optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+const listFollowUpsSchema = z.object({
+  status: z.enum(['OPEN', 'COMPLETED', 'CANCELLED']).optional(),
+  assignedUserId: uuid.optional(),
+  dueBefore: z.coerce.date().optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+
 @Controller('crm')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class CrmController {
@@ -35,8 +55,9 @@ export class CrmController {
 
   private userId(request: { user?: { sub?: string } }) {
     const id = request.user?.sub;
-    if (!id)
+    if (!id) {
       throw new UnauthorizedException('Authenticated user id is missing.');
+    }
     return id;
   }
 
@@ -48,24 +69,14 @@ export class CrmController {
 
   @Get('leads')
   @RequirePermission('crm', 'read')
-  listLeads(
-    @Query('status') status?: string,
-    @Query('ownerUserId') ownerUserId?: string,
-    @Query('search') search?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.crm.listLeads({
-      status: status ? leadStatusSchema.parse(status) : undefined,
-      ownerUserId,
-      search,
-      limit: limit ? Number(limit) : undefined,
-    });
+  listLeads(@Query() query: unknown) {
+    return this.crm.listLeads(listLeadsSchema.parse(query));
   }
 
   @Get('leads/:id')
   @RequirePermission('crm', 'read')
   getLead(@Param('id') id: string) {
-    return this.crm.getLead(id);
+    return this.crm.getLead(uuid.parse(id));
   }
 
   @Post('leads')
@@ -88,7 +99,7 @@ export class CrmController {
     @Req() request: { user?: { sub?: string } },
   ) {
     return this.crm.updateLead(
-      id,
+      uuid.parse(id),
       updateLeadSchema.parse(body),
       this.userId(request),
     );
@@ -102,7 +113,7 @@ export class CrmController {
     @Req() request: { user?: { sub?: string } },
   ) {
     return this.crm.qualifyLead(
-      id,
+      uuid.parse(id),
       qualifyLeadSchema.parse(body),
       this.userId(request),
     );
@@ -110,16 +121,10 @@ export class CrmController {
 
   @Get('opportunities')
   @RequirePermission('crm', 'read')
-  listOpportunities(
-    @Query('stage') stage?: string,
-    @Query('ownerUserId') ownerUserId?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.crm.listOpportunities({
-      stage: stage ? opportunityStageSchema.parse(stage) : undefined,
-      ownerUserId,
-      limit: limit ? Number(limit) : undefined,
-    });
+  listOpportunities(@Query() query: unknown) {
+    return this.crm.listOpportunities(
+      listOpportunitiesSchema.parse(query),
+    );
   }
 
   @Post('opportunities/:id/transition')
@@ -130,7 +135,7 @@ export class CrmController {
     @Req() request: { user?: { sub?: string } },
   ) {
     return this.crm.transitionOpportunity(
-      id,
+      uuid.parse(id),
       transitionOpportunitySchema.parse(body),
       this.userId(request),
     );
@@ -138,18 +143,8 @@ export class CrmController {
 
   @Get('follow-ups')
   @RequirePermission('crm', 'read')
-  listFollowUps(
-    @Query('status') status?: string,
-    @Query('assignedUserId') assignedUserId?: string,
-    @Query('dueBefore') dueBefore?: string,
-    @Query('limit') limit?: string,
-  ) {
-    return this.crm.listFollowUps({
-      status,
-      assignedUserId,
-      dueBefore: dueBefore ? new Date(dueBefore) : undefined,
-      limit: limit ? Number(limit) : undefined,
-    });
+  listFollowUps(@Query() query: unknown) {
+    return this.crm.listFollowUps(listFollowUpsSchema.parse(query));
   }
 
   @Post('follow-ups')
@@ -172,7 +167,7 @@ export class CrmController {
     @Req() request: { user?: { sub?: string } },
   ) {
     return this.crm.completeFollowUp(
-      id,
+      uuid.parse(id),
       completeFollowUpSchema.parse(body),
       this.userId(request),
     );
@@ -186,7 +181,7 @@ export class CrmController {
     @Req() request: { user?: { sub?: string } },
   ) {
     return this.crm.rescheduleFollowUp(
-      id,
+      uuid.parse(id),
       rescheduleFollowUpSchema.parse(body),
       this.userId(request),
     );
@@ -200,7 +195,7 @@ export class CrmController {
     @Req() request: { user?: { sub?: string } },
   ) {
     return this.crm.cancelFollowUp(
-      id,
+      uuid.parse(id),
       cancelFollowUpSchema.parse(body),
       this.userId(request),
     );
