@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -32,10 +36,17 @@ export class ProcurementOfferOrderService {
   ) {
     const { tenantId, companyId, branchId } = this.context();
     if (!Number.isFinite(input.quantity) || input.quantity <= 0) {
-      throw new BadRequestException('Purchase quantity must be greater than zero.');
+      throw new BadRequestException(
+        'Purchase quantity must be greater than zero.',
+      );
     }
-    if (!Number.isInteger(input.expectedOfferVersion) || input.expectedOfferVersion <= 0) {
-      throw new BadRequestException('Expected offer version must be a positive integer.');
+    if (
+      !Number.isInteger(input.expectedOfferVersion) ||
+      input.expectedOfferVersion <= 0
+    ) {
+      throw new BadRequestException(
+        'Expected offer version must be a positive integer.',
+      );
     }
     const idempotencyKey = input.idempotencyKey.trim();
     if (!idempotencyKey || idempotencyKey.length > 160) {
@@ -74,7 +85,9 @@ export class ProcurementOfferOrderService {
           branchId,
         );
         if (!warehouses.length) {
-          throw new NotFoundException('Warehouse not found in active branch scope.');
+          throw new NotFoundException(
+            'Warehouse not found in active branch scope.',
+          );
         }
 
         const offers = await tx.$queryRawUnsafe<any[]>(
@@ -82,6 +95,7 @@ export class ProcurementOfferOrderService {
                   so.unit_price AS "unitPrice",so.minimum_order_quantity AS "minimumOrderQuantity",
                   so.order_multiple AS "orderMultiple",so.available_quantity AS "availableQuantity",
                   so.valid_from AS "validFrom",so.valid_to AS "validTo",so.status,so.version,
+                  so.visibility_scope AS "visibilityScope",
                   so.supplier_organization_id AS "supplierOrganizationId",
                   sc.id AS "supplierConnectionId",sc.inventory_supplier_id AS "inventorySupplierId"
            FROM supplier_offers so
@@ -92,17 +106,30 @@ export class ProcurementOfferOrderService {
              ON sc.supplier_organization_id=so.supplier_organization_id
             AND sc.tenant_id=$2::text AND sc.company_id=$3::text AND sc.status='ACTIVE'
            WHERE so.id=$1::text
+             AND (
+               so.visibility_scope='CONNECTED'
+               OR EXISTS (
+                 SELECT 1
+                 FROM supplier_offer_eligibilities eligibility
+                 WHERE eligibility.supplier_offer_id=so.id
+                   AND eligibility.supplier_connection_id=sc.id
+               )
+             )
            FOR UPDATE OF so`,
           offerId,
           tenantId,
           companyId,
         );
         if (!offers.length) {
-          throw new NotFoundException('Connected verified supplier offer not found.');
+          throw new NotFoundException(
+            'Connected eligible verified supplier offer not found.',
+          );
         }
         const offer = offers[0];
         if (offer.status !== 'ACTIVE') {
-          throw new BadRequestException('Only active supplier offers can create purchase orders.');
+          throw new BadRequestException(
+            'Only active supplier offers can create purchase orders.',
+          );
         }
         if (Number(offer.version) !== input.expectedOfferVersion) {
           throw new BadRequestException('Supplier offer changed concurrently.');
@@ -118,16 +145,28 @@ export class ProcurementOfferOrderService {
         const quantity = Number(input.quantity);
         const minimumOrderQuantity = Number(offer.minimumOrderQuantity);
         const orderMultiple = Number(offer.orderMultiple);
-        const availableQuantity = offer.availableQuantity == null ? null : Number(offer.availableQuantity);
+        const availableQuantity =
+          offer.availableQuantity == null
+            ? null
+            : Number(offer.availableQuantity);
         if (quantity + 1e-9 < minimumOrderQuantity) {
-          throw new BadRequestException('Purchase quantity is below supplier minimum order quantity.');
+          throw new BadRequestException(
+            'Purchase quantity is below supplier minimum order quantity.',
+          );
         }
         const multipleRatio = quantity / orderMultiple;
         if (Math.abs(multipleRatio - Math.round(multipleRatio)) > 1e-9) {
-          throw new BadRequestException('Purchase quantity must respect supplier order multiple.');
+          throw new BadRequestException(
+            'Purchase quantity must respect supplier order multiple.',
+          );
         }
-        if (availableQuantity !== null && quantity - availableQuantity > 1e-9) {
-          throw new BadRequestException('Purchase quantity exceeds supplier available quantity.');
+        if (
+          availableQuantity !== null &&
+          quantity - availableQuantity > 1e-9
+        ) {
+          throw new BadRequestException(
+            'Purchase quantity exceeds supplier available quantity.',
+          );
         }
 
         const products = await tx.$queryRawUnsafe<any[]>(
@@ -146,11 +185,15 @@ export class ProcurementOfferOrderService {
           offer.catalogVariantId,
         );
         if (!products.length) {
-          throw new BadRequestException('Inventory product is not linked to the supplier offer catalog variant.');
+          throw new BadRequestException(
+            'Inventory product is not linked to the supplier offer catalog variant.',
+          );
         }
 
-        const unitCost = Math.round((Number(offer.unitPrice) + Number.EPSILON) * 100) / 100;
-        const total = Math.round((unitCost * quantity + Number.EPSILON) * 100) / 100;
+        const unitCost =
+          Math.round((Number(offer.unitPrice) + Number.EPSILON) * 100) / 100;
+        const total =
+          Math.round((unitCost * quantity + Number.EPSILON) * 100) / 100;
         const orders = await tx.$queryRawUnsafe<any[]>(
           `INSERT INTO inventory_purchase_orders(
              tenant_id,company_id,supplier_id,warehouse_id,status,total_amount,note
@@ -199,6 +242,8 @@ export class ProcurementOfferOrderService {
             minimumOrderQuantity,
             orderMultiple,
             availableQuantity,
+            visibilityScope: offer.visibilityScope,
+            supplierConnectionId: offer.supplierConnectionId,
           }),
           actorUserId,
         );
