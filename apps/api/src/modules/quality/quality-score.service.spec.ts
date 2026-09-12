@@ -121,4 +121,51 @@ describe('QualityScoreService', () => {
       ),
     ).resolves.toEqual({ rawScore: null, sourceCount: 0, dataStatus: 'NO_DATA' });
   });
+
+  it('scores only evaluable training effectiveness runs', async () => {
+    const tx = {
+      $queryRawUnsafe: jest.fn(async (sql: string) => {
+        expect(sql).toContain('FROM training_effectiveness_runs');
+        expect(sql).toContain("INSUFFICIENT_BASELINE");
+        expect(sql).toContain('post_window_end');
+        return [{ count: 4, improved: 3 }];
+      }),
+    };
+    const service = new QualityScoreService({} as any, tenant as any);
+
+    await expect(
+      (service as any).dimensionMetric(
+        tx,
+        { sourceKind: 'TRAINING_EFFECTIVENESS', sourceKey: 'QUALITY' },
+        '2026-09-01',
+        '2026-09-30',
+        'branch-1',
+      ),
+    ).resolves.toEqual({ rawScore: 75, sourceCount: 4, dataStatus: 'AVAILABLE' });
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('FROM training_effectiveness_runs'),
+      'tenant-1',
+      'company-1',
+      'branch-1',
+      '2026-09-01',
+      '2026-09-30',
+      'QUALITY',
+    );
+  });
+
+  it('reports no data when effectiveness has no evaluable baseline', async () => {
+    const tx = { $queryRawUnsafe: jest.fn(async () => [{ count: 0, improved: 0 }]) };
+    const service = new QualityScoreService({} as any, tenant as any);
+
+    await expect(
+      (service as any).dimensionMetric(
+        tx,
+        { sourceKind: 'TRAINING_EFFECTIVENESS', sourceKey: null },
+        '2026-09-01',
+        '2026-09-30',
+        'branch-1',
+      ),
+    ).resolves.toEqual({ rawScore: null, sourceCount: 0, dataStatus: 'NO_DATA' });
+  });
 });
