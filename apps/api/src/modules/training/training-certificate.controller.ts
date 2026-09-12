@@ -11,6 +11,9 @@ export class TrainingCertificateController {
   constructor(private readonly certificates:TrainingCertificateService){}
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
 
+  @Get() @RequirePermission('training','read')
+  list(@Query('staffId')staffId?:string,@Query('status')status?:string,@Query('limit')limit?:string){return this.certificates.list({staffId:staffId||undefined,status:status||undefined,limit:limit?Number(limit):undefined});}
+
   @Post('process-expired') @RequirePermission('training','manage')
   processExpired(@Query('limit')limit:string|undefined,@Req()req:{user?:{sub?:string}}){return this.certificates.processExpired(this.userId(req),limit?Number(limit):100);}
 
