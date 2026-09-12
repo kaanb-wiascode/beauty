@@ -224,15 +224,32 @@ export function AppShell({ children }: { children: ReactNode }) {
     }
   }
 
+  const shellStyle: CSSProperties = {
+    gridTemplateColumns: collapsed ? "76px minmax(0,1fr)" : "260px minmax(0,1fr)",
+    padding: 16,
+    gap: 16,
+    alignItems: "start",
+  };
+
+  const sidebarStyle: CSSProperties = {
+    position: "sticky",
+    top: 16,
+    height: "calc(100vh - 32px)",
+    borderRadius: 28,
+    margin: 0,
+    boxShadow: "0 14px 40px rgba(17,70,104,0.08)",
+    overflow: "hidden",
+  };
+
   return (
-    <div
-      className="app-shell relative min-h-screen lg:grid"
-      style={{ gridTemplateColumns: collapsed ? "76px minmax(0,1fr)" : "260px minmax(0,1fr)" } as CSSProperties}
-    >
-      <aside className={cx(
-        "app-sidebar glass hidden flex-col overflow-hidden border border-white/80 bg-white/90 backdrop-blur-2xl lg:flex",
-        collapsed ? "w-[76px]" : "w-[260px]",
-      )}>
+    <div className="app-shell relative min-h-screen lg:grid" style={shellStyle}>
+      <aside
+        className={cx(
+          "app-sidebar glass hidden flex-col border border-white/80 bg-white/90 backdrop-blur-2xl lg:flex",
+          collapsed ? "w-[76px]" : "w-[260px]",
+        )}
+        style={sidebarStyle}
+      >
         <div className={cx("flex items-center border-b border-[var(--line)] py-5", collapsed ? "justify-center px-3" : "justify-between px-5")}>
           <div className={cx("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-3")}>
             <BrandMark />
@@ -288,7 +305,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="app-content min-w-0 pb-24 lg:pb-0">{children}</main>
+      <main className="app-content min-w-0 pb-24 lg:pb-0" style={{ minWidth: 0 }}>{children}</main>
     </div>
   );
 }
