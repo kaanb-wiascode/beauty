@@ -62,6 +62,21 @@ type RfqDetail = {
   items: RfqItem[];
 };
 
+type CatalogDefault = {
+  rfqItemId: string;
+  catalogVariantId: string;
+  supplierOfferId: string | null;
+  currency: string | null;
+  unitPrice: number | string | null;
+  availableQuantity: number | string | null;
+  leadTimeDays: number | string | null;
+  minimumOrderQuantity: number | string | null;
+  orderMultiple: number | string | null;
+  validFrom: string | null;
+  validTo: string | null;
+  hasActiveCatalogOffer: boolean;
+};
+
 type DraftItem = {
   rfqItemId: string;
   unitPrice: string;
@@ -102,6 +117,7 @@ export default function SupplierRfqPage() {
   const [rows, setRows] = useState<RfqListRow[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [detail, setDetail] = useState<RfqDetail | null>(null);
+  const [catalogDefaults, setCatalogDefaults] = useState<CatalogDefault[]>([]);
   const [draftItems, setDraftItems] = useState<DraftItem[]>([]);
   const [currency, setCurrency] = useState("TRY");
   const [validUntil, setValidUntil] = useState("");
@@ -130,19 +146,42 @@ export default function SupplierRfqPage() {
     setDetailLoading(true);
     setError("");
     try {
-      const data = await supplierPortalApi<RfqDetail>(`/supplier-portal/rfqs/${id}`);
+      const [data, defaults] = await Promise.all([
+        supplierPortalApi<RfqDetail>(`/supplier-portal/rfqs/${id}`),
+        supplierPortalApi<CatalogDefault[]>(`/supplier-portal/rfqs/${id}/catalog-defaults`),
+      ]);
+      const defaultsByItem = new Map(defaults.map((item) => [item.rfqItemId, item]));
+      const firstCatalogCurrency = defaults.find((item) => item.hasActiveCatalogOffer && item.currency)?.currency;
+
       setDetail(data);
-      setCurrency(data.currency || "TRY");
+      setCatalogDefaults(defaults);
+      setCurrency(data.currency || firstCatalogCurrency || "TRY");
       setQuoteNote(data.quoteNote || "");
       setValidUntil(data.validUntil ? new Date(data.validUntil).toISOString().slice(0, 16) : "");
-      setDraftItems(data.items.map((item) => ({
-        rfqItemId: item.rfqItemId,
-        unitPrice: item.unitPrice === null || item.unitPrice === undefined ? "" : String(item.unitPrice),
-        availableQuantity: item.availableQuantity === null || item.availableQuantity === undefined ? "" : String(item.availableQuantity),
-        leadTimeDays: item.leadTimeDays === null || item.leadTimeDays === undefined ? "0" : String(item.leadTimeDays),
-        note: item.quoteItemNote || "",
-      })));
+      setDraftItems(data.items.map((item) => {
+        const catalog = defaultsByItem.get(item.rfqItemId);
+        return {
+          rfqItemId: item.rfqItemId,
+          unitPrice: item.unitPrice !== null && item.unitPrice !== undefined
+            ? String(item.unitPrice)
+            : catalog?.hasActiveCatalogOffer && catalog.unitPrice !== null && catalog.unitPrice !== undefined
+              ? String(catalog.unitPrice)
+              : "",
+          availableQuantity: item.availableQuantity !== null && item.availableQuantity !== undefined
+            ? String(item.availableQuantity)
+            : catalog?.hasActiveCatalogOffer && catalog.availableQuantity !== null && catalog.availableQuantity !== undefined
+              ? String(catalog.availableQuantity)
+              : "",
+          leadTimeDays: item.leadTimeDays !== null && item.leadTimeDays !== undefined
+            ? String(item.leadTimeDays)
+            : catalog?.hasActiveCatalogOffer && catalog.leadTimeDays !== null && catalog.leadTimeDays !== undefined
+              ? String(catalog.leadTimeDays)
+              : "0",
+          note: item.quoteItemNote || "",
+        };
+      }));
     } catch (err) {
+      setCatalogDefaults([]);
       setError(err instanceof ApiError ? err.message : "RFQ detayı yüklenemedi.");
     } finally {
       setDetailLoading(false);
@@ -166,6 +205,11 @@ export default function SupplierRfqPage() {
       return sum + Number(item.quantity) * (Number.isFinite(unitPrice) ? unitPrice : 0);
     }, 0);
   }, [detail, draftItems]);
+
+  const catalogDefaultByItem = useMemo(
+    () => new Map(catalogDefaults.map((item) => [item.rfqItemId, item])),
+    [catalogDefaults],
+  );
 
   const editable = Boolean(canManage && detail?.status === "PUBLISHED" && (!detail.quoteStatus || detail.quoteStatus === "DRAFT"));
 
@@ -299,15 +343,23 @@ export default function SupplierRfqPage() {
                   <span>Ürün</span><span>Miktar</span><span>Birim fiyat</span><span>Mevcut miktar</span><span>Termin</span>
                 </div>
                 <div className="divide-y divide-[#edf1f4]">
-                  {detail.items.map((item, index) => (
-                    <div key={item.rfqItemId} className="grid grid-cols-[minmax(220px,1.5fr)_90px_130px_130px_110px] gap-3 px-4 py-4 text-[12px] items-center">
-                      <div><p className="font-semibold">{item.catalogProductName} · {item.catalogVariantName}</p><p className="mt-1 text-[10px] text-[#7a8792]">{item.canonicalSku || "Canonical SKU yok"} · {item.unit}</p></div>
-                      <span>{Number(item.quantity)} {item.unit}</span>
-                      <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.unitPrice ?? ""} onChange={(event) => patchItem(index, { unitPrice: event.target.value })} placeholder="0,00" />
-                      <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.availableQuantity ?? ""} onChange={(event) => patchItem(index, { availableQuantity: event.target.value })} placeholder="Opsiyonel" />
-                      <div className="flex items-center gap-1"><TextInput disabled={!editable} inputMode="numeric" value={draftItems[index]?.leadTimeDays ?? "0"} onChange={(event) => patchItem(index, { leadTimeDays: event.target.value })} /><span className="text-[10px] text-[#7a8792]">gün</span></div>
-                    </div>
-                  ))}
+                  {detail.items.map((item, index) => {
+                    const catalogDefault = catalogDefaultByItem.get(item.rfqItemId);
+                    const seededFromCatalog = !detail.quoteId && catalogDefault?.hasActiveCatalogOffer;
+                    return (
+                      <div key={item.rfqItemId} className="grid grid-cols-[minmax(220px,1.5fr)_90px_130px_130px_110px] gap-3 px-4 py-4 text-[12px] items-center">
+                        <div>
+                          <p className="font-semibold">{item.catalogProductName} · {item.catalogVariantName}</p>
+                          <p className="mt-1 text-[10px] text-[#7a8792]">{item.canonicalSku || "Canonical SKU yok"} · {item.unit}</p>
+                          {seededFromCatalog ? <p className="mt-1 text-[9px] font-semibold text-[#1674bd]">Aktif katalog teklifinden ön dolduruldu</p> : null}
+                        </div>
+                        <span>{Number(item.quantity)} {item.unit}</span>
+                        <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.unitPrice ?? ""} onChange={(event) => patchItem(index, { unitPrice: event.target.value })} placeholder="0,00" />
+                        <TextInput disabled={!editable} inputMode="decimal" value={draftItems[index]?.availableQuantity ?? ""} onChange={(event) => patchItem(index, { availableQuantity: event.target.value })} placeholder="Opsiyonel" />
+                        <div className="flex items-center gap-1"><TextInput disabled={!editable} inputMode="numeric" value={draftItems[index]?.leadTimeDays ?? "0"} onChange={(event) => patchItem(index, { leadTimeDays: event.target.value })} /><span className="text-[10px] text-[#7a8792]">gün</span></div>
+                      </div>
+                    );
+                  })}
                 </div>
               </section>
 
