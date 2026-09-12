@@ -14,6 +14,7 @@ import {
 } from './supplier-portal-auth.guard';
 import { SupplierPortalRoleGuard } from './supplier-portal-role.guard';
 import { SupplierPortalRoles } from './supplier-portal-roles.decorator';
+import { SupplierQuoteDefaultsService } from './supplier-quote-defaults.service';
 import { SupplierQuoteService } from './supplier-quote.service';
 
 const uuid = z.string().uuid();
@@ -38,7 +39,10 @@ const transitionSchema = z.object({
 @Controller('supplier-portal/rfqs')
 @UseGuards(SupplierPortalAuthGuard, SupplierPortalRoleGuard)
 export class SupplierQuoteController {
-  constructor(private readonly quotes: SupplierQuoteService) {}
+  constructor(
+    private readonly quotes: SupplierQuoteService,
+    private readonly defaults: SupplierQuoteDefaultsService,
+  ) {}
 
   private principal(req: SupplierPortalRequest) {
     if (!req.supplierPortalAuth) {
@@ -51,6 +55,12 @@ export class SupplierQuoteController {
   @SupplierPortalRoles('OWNER', 'ADMIN', 'MEMBER')
   list(@Req() req: SupplierPortalRequest) {
     return this.quotes.list(this.principal(req));
+  }
+
+  @Get(':id/catalog-defaults')
+  @SupplierPortalRoles('OWNER', 'ADMIN', 'MEMBER')
+  getCatalogDefaults(@Param('id') id: string, @Req() req: SupplierPortalRequest) {
+    return this.defaults.get(this.principal(req), uuid.parse(id));
   }
 
   @Get(':id')
