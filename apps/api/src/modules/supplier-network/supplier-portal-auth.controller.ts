@@ -1,7 +1,14 @@
 import { Body, Controller, Get, Post, Req, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 
-import { SupplierPortalAuthGuard, type SupplierPortalRequest } from './supplier-portal-auth.guard';
+import {
+  AuthPublicRateLimit,
+  AuthPublicRateLimitGuard,
+} from '../auth/auth-public-rate-limit.guard';
+import {
+  SupplierPortalAuthGuard,
+  type SupplierPortalRequest,
+} from './supplier-portal-auth.guard';
 import { SupplierPortalAuthService } from './supplier-portal-auth.service';
 
 const loginSchema = z.object({
@@ -11,10 +18,12 @@ const loginSchema = z.object({
 });
 
 @Controller('supplier-portal/auth')
+@UseGuards(AuthPublicRateLimitGuard)
 export class SupplierPortalAuthController {
   constructor(private readonly auth: SupplierPortalAuthService) {}
 
   @Post('login')
+  @AuthPublicRateLimit('supplier-portal-login', 12, 60)
   async login(@Body() body: unknown) {
     return this.auth.login(loginSchema.parse(body));
   }
