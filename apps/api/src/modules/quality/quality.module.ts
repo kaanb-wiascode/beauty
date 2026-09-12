@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { ObjectStorageModule } from '../../common/storage/object-storage.module';
 import { QualityAnalyticsController } from './quality-analytics.controller';
 import { QualityAnalyticsService } from './quality-analytics.service';
 import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
@@ -34,6 +35,7 @@ import { QualitySlaService } from './quality-sla.service';
 import { QualityService } from './quality.service';
 
 @Module({
+  imports: [ObjectStorageModule],
   controllers: [
     QualityController,
     QualityFeedbackRequestController,
