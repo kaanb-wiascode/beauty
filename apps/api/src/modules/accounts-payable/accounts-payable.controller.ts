@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { AccountsPayableService } from './accounts-payable.service';
 import { AccountsPayableReversalsService } from './accounts-payable-reversals.service';
@@ -35,7 +37,8 @@ const listSchema = z.object({
 });
 
 @Controller('accounts-payable')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('finance', 'read')
 export class AccountsPayableController {
   constructor(
     private readonly service: AccountsPayableService,
@@ -44,6 +47,7 @@ export class AccountsPayableController {
   ) {}
 
   @Post('bills')
+  @RequirePermission('finance', 'manage')
   createBill(@Body() body: unknown) {
     return this.service.createBill(createBillSchema.parse(body));
   }
@@ -74,11 +78,13 @@ export class AccountsPayableController {
   }
 
   @Post('bills/:id/payments')
+  @RequirePermission('finance', 'manage')
   payBill(@Param('id') id: string, @Body() body: unknown) {
     return this.service.payBill(id, payBillSchema.parse(body));
   }
 
   @Post('bills/:id/payments/:paymentId/reverse')
+  @RequirePermission('finance', 'manage')
   reversePayment(
     @Param('id') id: string,
     @Param('paymentId') paymentId: string,
@@ -89,6 +95,7 @@ export class AccountsPayableController {
   }
 
   @Post('bills/:id/cancel')
+  @RequirePermission('finance', 'manage')
   cancelBill(@Param('id') id: string, @Body() body: unknown) {
     return this.service.cancelBill(id, cancelBillSchema.parse(body));
   }
