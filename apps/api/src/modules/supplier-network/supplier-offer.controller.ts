@@ -33,6 +33,12 @@ export class SupplierOfferController {
     return req.supplierPortalAuth;
   }
 
+  @Get('catalog/variants')
+  @SupplierPortalRoles('OWNER', 'ADMIN', 'MEMBER')
+  catalogVariants(@Req() req: SupplierPortalRequest) {
+    return this.offers.listCatalogVariants(this.principal(req));
+  }
+
   @Get()
   @SupplierPortalRoles('OWNER', 'ADMIN', 'MEMBER')
   list(@Req() req: SupplierPortalRequest) {
