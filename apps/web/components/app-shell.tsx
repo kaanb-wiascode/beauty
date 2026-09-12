@@ -182,11 +182,11 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   return (
     <div
-      className="relative min-h-screen lg:grid lg:gap-4 lg:p-4"
+      className="app-shell relative min-h-screen lg:grid"
       style={{ gridTemplateColumns: collapsed ? "76px minmax(0,1fr)" : "260px minmax(0,1fr)" } as CSSProperties}
     >
       <aside className={cx(
-        "glass sticky top-4 hidden h-[calc(100vh-32px)] flex-col overflow-hidden rounded-[28px] border border-white/80 bg-white/90 shadow-[0_14px_40px_rgba(17,70,104,0.07)] backdrop-blur-2xl lg:flex",
+        "app-sidebar glass hidden flex-col overflow-hidden border border-white/80 bg-white/90 backdrop-blur-2xl lg:flex",
         collapsed ? "w-[76px]" : "w-[260px]",
       )}>
         <div className={cx("flex items-center border-b border-[var(--line)] py-5", collapsed ? "justify-center px-3" : "justify-between px-5")}>
@@ -244,7 +244,7 @@ export function AppShell({ children }: { children: ReactNode }) {
         </div>
       </aside>
 
-      <main className="min-w-0 pb-24 lg:pb-0">{children}</main>
+      <main className="app-content min-w-0 pb-24 lg:pb-0">{children}</main>
     </div>
   );
 }
