@@ -1,6 +1,17 @@
-import { Body, Controller, Post, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Post,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 
+import {
+  AuthPublicRateLimit,
+  AuthPublicRateLimitGuard,
+} from '../auth/auth-public-rate-limit.guard';
 import { SupplierInvitationService } from './supplier-invitation.service';
 import {
   SupplierPortalAuthGuard,
@@ -23,16 +34,22 @@ const acceptInvitationSchema = z.object({
 });
 
 @Controller('supplier-portal/invitations')
+@UseGuards(AuthPublicRateLimitGuard)
 export class SupplierInvitationController {
   constructor(private readonly invitations: SupplierInvitationService) {}
 
   @Post()
   @UseGuards(SupplierPortalAuthGuard, SupplierPortalRoleGuard)
   @SupplierPortalRoles('OWNER', 'ADMIN')
-  async create(@Req() request: SupplierPortalRequest, @Body() body: unknown) {
+  async create(
+    @Req() request: SupplierPortalRequest,
+    @Body() body: unknown,
+  ) {
     const principal = request.supplierPortalAuth;
     if (!principal) {
-      throw new Error('Supplier portal principal missing after auth guard');
+      throw new UnauthorizedException(
+        'Supplier portal principal is missing.',
+      );
     }
 
     return this.invitations.createInvitation(
@@ -42,6 +59,7 @@ export class SupplierInvitationController {
   }
 
   @Post('accept')
+  @AuthPublicRateLimit('supplier-invitation-accept', 10, 60)
   async accept(@Body() body: unknown) {
     return this.invitations.acceptInvitation(
       acceptInvitationSchema.parse(body),
