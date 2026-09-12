@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { TrainingPlanningService } from './training-planning.service';
 
 describe('TrainingPlanningService',()=>{
@@ -16,5 +17,13 @@ describe('TrainingPlanningService',()=>{
     const result=await service.enroll('sess1',{staffId:'s1'},'u1');
     expect(result.status).toBe('ENROLLED');
     expect(query.mock.calls.some(call=>String(call[0]).includes('training_session_enrollments'))).toBe(true);
+  });
+
+  it('rejects calendar reads outside the active branch scope',async()=>{
+    const prisma={$queryRawUnsafe:jest.fn()};
+    const tenant={getTenantId:()=> 't1',getCompanyId:()=> 'co1',getBranchId:()=> 'b1'};
+    const service=new TrainingPlanningService(prisma as any,tenant as any);
+    await expect(service.calendar({branchId:'b2'})).rejects.toBeInstanceOf(BadRequestException);
+    expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
   });
 });
