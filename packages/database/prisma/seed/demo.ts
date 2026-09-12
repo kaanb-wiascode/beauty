@@ -26,6 +26,8 @@ const PERMISSIONS = [
   ["services", "create"],
   ["services", "update"],
   ["services", "delete"],
+  ["inventory", "read"],
+  ["inventory", "write"],
 ] as const;
 
 
