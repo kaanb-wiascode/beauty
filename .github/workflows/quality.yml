@@ -108,7 +108,7 @@ jobs:
         run: pnpm --filter api test:ci
 
       - name: Test API E2E
-        run: pnpm --filter api test:e2e -- --runInBand
+        run: pnpm --filter api exec jest --config ./test/jest-e2e.json --runInBand
 
       - name: Build API
         run: pnpm --filter api build
