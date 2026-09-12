@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -68,26 +68,31 @@ export class AccountsPayableController {
   }
 
   @Get('suppliers/:supplierId/ledger')
-  supplierLedger(@Param('supplierId') supplierId: string) {
+  supplierLedger(
+    @Param('supplierId', new ParseUUIDPipe()) supplierId: string,
+  ) {
     return this.creditAnalytics.supplierLedger(supplierId);
   }
 
   @Get('bills/:id')
-  getBill(@Param('id') id: string) {
+  getBill(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.getBill(id);
   }
 
   @Post('bills/:id/payments')
   @RequirePermission('finance', 'manage')
-  payBill(@Param('id') id: string, @Body() body: unknown) {
+  payBill(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
     return this.service.payBill(id, payBillSchema.parse(body));
   }
 
   @Post('bills/:id/payments/:paymentId/reverse')
   @RequirePermission('finance', 'manage')
   reversePayment(
-    @Param('id') id: string,
-    @Param('paymentId') paymentId: string,
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
     @Body() body: unknown,
   ) {
     const input = reversePaymentSchema.parse(body);
@@ -96,7 +101,10 @@ export class AccountsPayableController {
 
   @Post('bills/:id/cancel')
   @RequirePermission('finance', 'manage')
-  cancelBill(@Param('id') id: string, @Body() body: unknown) {
+  cancelBill(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
     return this.service.cancelBill(id, cancelBillSchema.parse(body));
   }
 }
