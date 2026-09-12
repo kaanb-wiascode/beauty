@@ -8,7 +8,7 @@ import { AppModule } from './../src/app.module';
 import { PrismaExceptionFilter } from './../src/common/database/prisma-exception.filter';
 import { ZodExceptionFilter } from './../src/common/validation/zod-exception.filter';
 
-jest.setTimeout(60_000);
+jest.setTimeout(90_000);
 
 describe('Core Business Flow (e2e)', () => {
   let app: INestApplication;
@@ -32,7 +32,7 @@ describe('Core Business Flow (e2e)', () => {
     await app.close();
   });
 
-  it('runs customer → staff → service → appointment → payment → refund with branch isolation', async () => {
+  it('runs core operations and CRM lifecycle with branch isolation', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const email = `e2e-${suffix}@example.test`;
     const password = 'E2eStrongPassword!2026';
@@ -50,6 +50,7 @@ describe('Core Business Flow (e2e)', () => {
       })
       .expect(201);
 
+    const ownerUserId = register.body.user.id as string;
     const branchAId = register.body.branch.id as string;
     const companyId = register.body.company.id as string;
     const membershipId = register.body.membership.id as string;
@@ -68,6 +69,17 @@ describe('Core Business Flow (e2e)', () => {
       .send({ firstName: 'Şubesiz', lastName: 'Kayıt' })
       .expect(400);
 
+    await request(app.getHttpServer())
+      .post('/crm/leads')
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        firstName: 'Şubesiz',
+        lastName: 'CRM',
+        phone: `+90554${suffix.slice(0, 7)}`,
+        source: 'MANUAL',
+      })
+      .expect(400);
+
     const branchAContext = await request(app.getHttpServer())
       .post('/auth/context/switch')
       .set('Authorization', `Bearer ${centralToken}`)
@@ -75,6 +87,151 @@ describe('Core Business Flow (e2e)', () => {
       .expect(201);
 
     const branchAToken = branchAContext.body.accessToken as string;
+
+    const lead = await request(app.getHttpServer())
+      .post('/crm/leads')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        firstName: 'CRM',
+        lastName: 'E2E',
+        phone: `+90553${suffix.slice(0, 7)}`,
+        source: 'MANUAL',
+        interestNote: 'E2E CRM Akışı',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/crm/leads/${lead.body.id}`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: lead.body.version,
+        interestNote: 'CENTRAL Güncelleme Engellenmeli',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/crm/leads/${lead.body.id}/qualify`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: lead.body.version,
+        title: 'CENTRAL Satış Fırsatı Engellenmeli',
+        estimatedValue: 1200,
+        probability: 35,
+      })
+      .expect(400);
+
+    const opportunity = await request(app.getHttpServer())
+      .post(`/crm/leads/${lead.body.id}/qualify`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: lead.body.version,
+        title: `E2E Satış Fırsatı ${suffix}`,
+        estimatedValue: 1200,
+        probability: 35,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: opportunity.body.version,
+        stage: 'NEEDS_ANALYSIS',
+        probability: 45,
+      })
+      .expect(400);
+
+    const transitionedOpportunity = await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: opportunity.body.version,
+        stage: 'NEEDS_ANALYSIS',
+        probability: 45,
+      })
+      .expect(201);
+
+    expect(transitionedOpportunity.body.stage).toBe('NEEDS_ANALYSIS');
+
+    const followUpDueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const followUp = await request(app.getHttpServer())
+      .post('/crm/follow-ups')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        opportunityId: opportunity.body.id,
+        assignedUserId: ownerUserId,
+        channel: 'CALL',
+        dueAt: followUpDueAt.toISOString(),
+        note: 'E2E CRM Takibi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/complete`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ version: followUp.body.version, outcome: 'Engellenmeli' })
+      .expect(400);
+
+    const rescheduledDueAt = new Date(followUpDueAt.getTime() + 60 * 60 * 1000);
+    await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/reschedule`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: followUp.body.version,
+        dueAt: rescheduledDueAt.toISOString(),
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/cancel`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ version: followUp.body.version, reason: 'Engellenmeli' })
+      .expect(400);
+
+    const rescheduledFollowUp = await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/reschedule`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: followUp.body.version,
+        dueAt: rescheduledDueAt.toISOString(),
+        channel: 'WHATSAPP',
+        note: 'E2E Yeniden Planlandı',
+      })
+      .expect(201);
+
+    const completedFollowUp = await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/complete`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: rescheduledFollowUp.body.version,
+        outcome: 'E2E Görüşme Tamamlandı',
+      })
+      .expect(201);
+
+    expect(completedFollowUp.body.status).toBe('COMPLETED');
+
+    const cancellableFollowUp = await request(app.getHttpServer())
+      .post('/crm/follow-ups')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        leadId: lead.body.id,
+        assignedUserId: ownerUserId,
+        channel: 'EMAIL',
+        dueAt: new Date(followUpDueAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+        note: 'E2E İptal Akışı',
+      })
+      .expect(201);
+
+    const cancelledFollowUp = await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${cancellableFollowUp.body.id}/cancel`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: cancellableFollowUp.body.version,
+        reason: 'E2E Plan Değişikliği',
+      })
+      .expect(201);
+
+    expect(cancelledFollowUp.body.status).toBe('CANCELLED');
 
     const customer = await request(app.getHttpServer())
       .post('/customers')
@@ -205,10 +362,26 @@ describe('Core Business Flow (e2e)', () => {
       .set('Authorization', `Bearer ${branchBToken}`)
       .expect(404);
 
+    await request(app.getHttpServer())
+      .get(`/crm/leads/${lead.body.id}`)
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .expect(404);
+
     const customerB = await request(app.getHttpServer())
       .post('/customers')
       .set('Authorization', `Bearer ${branchBToken}`)
       .send({ firstName: 'B Şubesi', lastName: 'Müşteri' })
+      .expect(201);
+
+    const leadB = await request(app.getHttpServer())
+      .post('/crm/leads')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .send({
+        firstName: 'B Şubesi',
+        lastName: 'CRM',
+        phone: `+90552${suffix.slice(0, 7)}`,
+        source: 'MANUAL',
+      })
       .expect(201);
 
     const allBranchesContext = await request(app.getHttpServer())
@@ -226,6 +399,16 @@ describe('Core Business Flow (e2e)', () => {
     const customerIds = customers.body.data.map((row: { id: string }) => row.id);
     expect(customerIds).toEqual(
       expect.arrayContaining([customer.body.id, customerB.body.id]),
+    );
+
+    const allLeads = await request(app.getHttpServer())
+      .get('/crm/leads?limit=200')
+      .set('Authorization', `Bearer ${allBranchesToken}`)
+      .expect(200);
+
+    const leadIds = allLeads.body.map((row: { id: string }) => row.id);
+    expect(leadIds).toEqual(
+      expect.arrayContaining([lead.body.id, leadB.body.id]),
     );
   });
 });
