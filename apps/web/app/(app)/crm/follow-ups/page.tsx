@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { getStoredUser, hasPermission } from "@/lib/auth";
+import { getStoredUser, hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
   type CrmAssignee,
@@ -110,9 +110,22 @@ export default function CrmFollowUpsPage() {
     return labels;
   }, [leads, opportunities]);
 
+  function requireActiveBranch(message: string) {
+    if (hasActiveBranch()) return true;
+    showToast(message, "error");
+    return false;
+  }
+
   async function createFollowUp(event: FormEvent) {
     event.preventDefault();
     setError("");
+    if (
+      !requireActiveBranch(
+        "Takip Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     if (!form.assignedUserId || !form.subject || !form.dueAt) {
       setError("Konu, Sorumlu Ve Takip Zamanı Gereklidir.");
       return;
@@ -147,6 +160,13 @@ export default function CrmFollowUpsPage() {
       setError("Görüşme Sonucu Gereklidir.");
       return;
     }
+    if (
+      !requireActiveBranch(
+        "Takibi Tamamlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     setSaving(true);
     setError("");
     try {
@@ -166,6 +186,13 @@ export default function CrmFollowUpsPage() {
   }
 
   function openReschedule(row: CrmFollowUp) {
+    if (
+      !requireActiveBranch(
+        "Takibi Yeniden Planlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     setError("");
     setRescheduleForm({
       assignedUserId: row.assignedUserId,
@@ -180,6 +207,13 @@ export default function CrmFollowUpsPage() {
     event.preventDefault();
     if (!rescheduling || !rescheduleForm.assignedUserId || !rescheduleForm.dueAt) {
       setError("Sorumlu Ve Yeni Takip Zamanı Gereklidir.");
+      return;
+    }
+    if (
+      !requireActiveBranch(
+        "Takibi Yeniden Planlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
       return;
     }
     setSaving(true);
@@ -209,6 +243,13 @@ export default function CrmFollowUpsPage() {
     event.preventDefault();
     if (!cancelling || !cancellationReason.trim()) {
       setError("İptal Nedeni Gereklidir.");
+      return;
+    }
+    if (
+      !requireActiveBranch(
+        "Takibi İptal Etmek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
       return;
     }
     setSaving(true);
@@ -241,6 +282,13 @@ export default function CrmFollowUpsPage() {
         description="Arama, Mesaj, E-Posta Ve Yüz Yüze Temas Görevlerini Zamanında Tamamlayın."
         action={canManage ? (
           <Button onClick={() => {
+            if (
+              !requireActiveBranch(
+                "Yeni Takip Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+              )
+            ) {
+              return;
+            }
             setError("");
             setForm({ ...emptyForm, assignedUserId: getStoredUser()?.id ?? "" });
             setCreateOpen(true);
@@ -255,7 +303,7 @@ export default function CrmFollowUpsPage() {
               key={item}
               type="button"
               onClick={() => setFilter(item)}
-              className={filter === item ? "rounded-full bg-[#7358d7] px-4 py-2 text-[11px] font-semibold text-white" : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"}
+              className={filter === item ? "rounded-full bg-[#1674BD] px-4 py-2 text-[11px] font-semibold text-white" : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"}
             >
               {item === "OPEN" ? "Açık" : item === "COMPLETED" ? "Tamamlanan" : item === "CANCELLED" ? "İptal Edilen" : "Tümü"}
             </button>
@@ -276,8 +324,8 @@ export default function CrmFollowUpsPage() {
               const href = row.leadId ? `/crm/leads/${row.leadId}` : "/crm/pipeline";
               return (
                 <article key={row.id} className="grid gap-3 px-5 py-4 md:grid-cols-[120px_minmax(180px,1fr)_minmax(180px,1fr)_170px_auto] md:items-center">
-                  <span className="w-fit rounded-full bg-[#f1edff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">{followUpChannelLabels[row.channel]}</span>
-                  <Link href={href} className="truncate text-[12px] font-semibold hover:text-[#7052df]">{subjectFor(row)}</Link>
+                  <span className="w-fit rounded-full bg-[#EAF5FB] px-2.5 py-1 text-[10px] font-semibold text-[#1674BD]">{followUpChannelLabels[row.channel]}</span>
+                  <Link href={href} className="truncate text-[12px] font-semibold hover:text-[#1674BD]">{subjectFor(row)}</Link>
                   <p className="truncate text-[11px] text-[var(--muted)]">
                     {row.status === "COMPLETED" ? row.outcome : row.status === "CANCELLED" ? row.cancellationReason : row.note || "Not Eklenmedi"}
                   </p>
@@ -286,9 +334,19 @@ export default function CrmFollowUpsPage() {
                   </time>
                   {canManage && row.status === "OPEN" ? (
                     <div className="flex flex-wrap gap-1.5">
-                      <Button variant="secondary" className="min-h-8 px-3 py-1 text-[11px]" onClick={() => { setError(""); setOutcome(""); setCompleting(row); }}>Tamamla</Button>
+                      <Button variant="secondary" className="min-h-8 px-3 py-1 text-[11px]" onClick={() => {
+                        if (!requireActiveBranch("Takibi Tamamlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.")) return;
+                        setError("");
+                        setOutcome("");
+                        setCompleting(row);
+                      }}>Tamamla</Button>
                       <Button variant="ghost" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => openReschedule(row)}>Ertele</Button>
-                      <Button variant="danger" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => { setError(""); setCancellationReason(""); setCancelling(row); }}>İptal Et</Button>
+                      <Button variant="danger" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => {
+                        if (!requireActiveBranch("Takibi İptal Etmek İçin Önce Çalışma Kapsamından Bir Şube Seçin.")) return;
+                        setError("");
+                        setCancellationReason("");
+                        setCancelling(row);
+                      }}>İptal Et</Button>
                     </div>
                   ) : (
                     <span className={row.status === "CANCELLED" ? "text-[10px] font-medium text-[#9c513f]" : "text-[10px] font-medium text-[#47765b]"}>
