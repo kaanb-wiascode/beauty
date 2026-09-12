@@ -92,7 +92,7 @@ export default function CrmLeadsPage() {
       setError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Lead listesi yüklenemedi.",
+          : "Potansiyel Müşteri Listesi Yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -111,7 +111,7 @@ export default function CrmLeadsPage() {
         setError(
           requestError instanceof ApiError
             ? requestError.message
-            : "CRM sorumluları yüklenemedi.",
+            : "Müşteri İlişkileri Sorumluları Yüklenemedi.",
         ),
       );
   }, []);
@@ -153,7 +153,7 @@ export default function CrmLeadsPage() {
       !leadForm.lastName.trim() ||
       (!leadForm.phone.trim() && !leadForm.email.trim())
     ) {
-      setFormError("Ad, soyad ve en az bir iletişim bilgisi gereklidir.");
+      setFormError("Ad, Soyad Ve En Az Bir İletişim Bilgisi Gereklidir.");
       return;
     }
     setSaving(true);
@@ -176,13 +176,13 @@ export default function CrmLeadsPage() {
       });
       setCreateOpen(false);
       setLeadForm(emptyLead);
-      showToast("Lead oluşturuldu.", "success");
+      showToast("Potansiyel Müşteri Oluşturuldu.", "success");
       await load();
     } catch (requestError) {
       setFormError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Lead oluşturulamadı.",
+          : "Potansiyel Müşteri Oluşturulamadı.",
       );
     } finally {
       setSaving(false);
@@ -194,7 +194,7 @@ export default function CrmLeadsPage() {
     if (!qualifying) return;
     setFormError("");
     if (!opportunityForm.title.trim()) {
-      setFormError("Fırsat başlığı gereklidir.");
+      setFormError("Satış Fırsatı Başlığı Gereklidir.");
       return;
     }
     setSaving(true);
@@ -218,13 +218,13 @@ export default function CrmLeadsPage() {
       });
       setQualifying(null);
       setOpportunityForm(emptyOpportunity);
-      showToast("Lead satış fırsatına dönüştürüldü.", "success");
+      showToast("Potansiyel Müşteri Satış Fırsatına Dönüştürüldü.", "success");
       await load();
     } catch (requestError) {
       setFormError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Lead nitelendirilemedi.",
+          : "Potansiyel Müşteri Nitelendirilemedi.",
       );
     } finally {
       setSaving(false);
@@ -234,8 +234,8 @@ export default function CrmLeadsPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Lead Havuzu"
-        description="Yeni müşteri adaylarını kaydedin, temas durumunu izleyin ve uygun lead’leri satış fırsatına dönüştürün."
+        title="Potansiyel Müşteri Havuzu"
+        description="Yeni Müşteri Adaylarını Kaydedin, Temas Durumunu İzleyin Ve Uygun Adayları Satış Fırsatına Dönüştürün."
         action={
           canManage ? (
             <Button
@@ -244,7 +244,7 @@ export default function CrmLeadsPage() {
                 setCreateOpen(true);
               }}
             >
-              + Yeni lead
+              + Yeni Potansiyel Müşteri
             </Button>
           ) : undefined
         }
@@ -253,8 +253,8 @@ export default function CrmLeadsPage() {
 
       <section className="grid gap-3 sm:grid-cols-3">
         {[
-          ["Görünen lead", counts.total],
-          ["Aksiyon bekleyen", counts.actionable],
+          ["Görünen Potansiyel Müşteri", counts.total],
+          ["İşlem Bekleyen", counts.actionable],
           ["Nitelikli", counts.qualified],
         ].map(([label, value]) => (
           <article
@@ -272,8 +272,8 @@ export default function CrmLeadsPage() {
           <TextInput
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Ad, telefon veya e-posta ara"
-            aria-label="Lead ara"
+            placeholder="Ad, Telefon Veya E-Posta Ara"
+            aria-label="Potansiyel Müşteri Ara"
             className="sm:max-w-sm"
           />
           <Select
@@ -281,22 +281,22 @@ export default function CrmLeadsPage() {
             onChange={(event) =>
               setStatus(event.target.value as LeadStatus | "ALL")
             }
-            aria-label="Duruma göre filtrele"
+            aria-label="Duruma Göre Filtrele"
             className="sm:max-w-[210px]"
           >
             {statuses.map((item) => (
               <option key={item} value={item}>
-                {item === "ALL" ? "Tüm durumlar" : leadStatusLabels[item]}
+                {item === "ALL" ? "Tüm Durumlar" : leadStatusLabels[item]}
               </option>
             ))}
           </Select>
           <Select
             value={ownerUserId}
             onChange={(event) => setOwnerUserId(event.target.value)}
-            aria-label="Sorumluya göre filtrele"
+            aria-label="Sorumluya Göre Filtrele"
             className="sm:max-w-[220px]"
           >
-            <option value="">Tüm sorumlular</option>
+            <option value="">Tüm Sorumlular</option>
             {assignees.map((person) => (
               <option key={person.id} value={person.id}>
                 {person.firstName} {person.lastName}
@@ -305,7 +305,7 @@ export default function CrmLeadsPage() {
           </Select>
         </div>
         {loading ? (
-          <Spinner label="Lead’ler yükleniyor..." />
+          <Spinner label="Potansiyel Müşteriler Yükleniyor..." />
         ) : leads.length ? (
           <div className="divide-y divide-[var(--line)]">
             {leads.map((lead) => (
@@ -336,8 +336,8 @@ export default function CrmLeadsPage() {
                   <small className="mt-1 block truncate text-[9px] text-[var(--muted-soft)]">
                     {lead.ownerUserId
                       ? (assigneeNames.get(lead.ownerUserId) ??
-                        "Atanmış kullanıcı")
-                      : "Sorumlu yok"}
+                        "Atanmış Kullanıcı")
+                      : "Sorumlu Yok"}
                   </small>
                 </span>
                 <span className="w-fit rounded-full bg-[#f1edff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">
@@ -356,7 +356,7 @@ export default function CrmLeadsPage() {
                       setFormError("");
                       setOpportunityForm({
                         ...emptyOpportunity,
-                        title: `${lead.firstName} ${lead.lastName} fırsatı`,
+                        title: `${lead.firstName} ${lead.lastName} Satış Fırsatı`,
                       });
                       setQualifying(lead);
                     }}
@@ -376,8 +376,8 @@ export default function CrmLeadsPage() {
           </div>
         ) : (
           <EmptyState
-            title="Lead bulunamadı"
-            description="Arama ve filtreleri değiştirin veya yeni bir lead oluşturun."
+            title="Potansiyel Müşteri Bulunamadı"
+            description="Arama Ve Filtreleri Değiştirin Veya Yeni Bir Potansiyel Müşteri Oluşturun."
           />
         )}
       </section>
@@ -385,8 +385,8 @@ export default function CrmLeadsPage() {
       <Modal
         open={createOpen}
         onClose={() => setCreateOpen(false)}
-        title="Yeni lead"
-        description="Müşteri adayının temel iletişim ve ilgi bilgilerini kaydedin."
+        title="Yeni Potansiyel Müşteri"
+        description="Müşteri Adayının Temel İletişim Ve İlgi Bilgilerini Kaydedin."
       >
         <form onSubmit={createLead} className="space-y-4">
           {formError ? <Alert>{formError}</Alert> : null}
@@ -417,7 +417,7 @@ export default function CrmLeadsPage() {
                 }
               />
             </Field>
-            <Field label="E-posta">
+            <Field label="E-Posta">
               <TextInput
                 type="email"
                 value={leadForm.email}
@@ -448,7 +448,7 @@ export default function CrmLeadsPage() {
                 setLeadForm({ ...leadForm, ownerUserId: e.target.value })
               }
             >
-              <option value="">Oluşturan kullanıcı</option>
+              <option value="">Oluşturan Kullanıcı</option>
               {assignees.map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.firstName} {person.lastName}
@@ -456,7 +456,7 @@ export default function CrmLeadsPage() {
               ))}
             </Select>
           </Field>
-          <Field label="İlgi / ihtiyaç notu">
+          <Field label="İlgi / İhtiyaç Notu">
             <TextArea
               rows={3}
               value={leadForm.interestNote}
@@ -474,7 +474,7 @@ export default function CrmLeadsPage() {
               Vazgeç
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Kaydediliyor..." : "Lead oluştur"}
+              {saving ? "Kaydediliyor..." : "Potansiyel Müşteri Oluştur"}
             </Button>
           </div>
         </form>
@@ -483,12 +483,12 @@ export default function CrmLeadsPage() {
       <Modal
         open={Boolean(qualifying)}
         onClose={() => setQualifying(null)}
-        title="Satış fırsatı oluştur"
-        description="Lead’i nitelikli hale getirip pipeline’a ekleyin."
+        title="Satış Fırsatı Oluştur"
+        description="Potansiyel Müşteriyi Nitelikli Hale Getirip Satış Sürecine Ekleyin."
       >
         <form onSubmit={qualifyLead} className="space-y-4">
           {formError ? <Alert>{formError}</Alert> : null}
-          <Field label="Fırsat başlığı" required>
+          <Field label="Satış Fırsatı Başlığı" required>
             <TextInput
               value={opportunityForm.title}
               onChange={(e) =>
@@ -500,7 +500,7 @@ export default function CrmLeadsPage() {
             />
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tahmini değer">
+            <Field label="Tahmini Değer">
               <TextInput
                 type="number"
                 min="0"
@@ -528,7 +528,7 @@ export default function CrmLeadsPage() {
               />
             </Field>
           </div>
-          <Field label="Beklenen kapanış">
+          <Field label="Beklenen Kapanış">
             <TextInput
               type="date"
               value={opportunityForm.expectedCloseDate}
@@ -540,7 +540,7 @@ export default function CrmLeadsPage() {
               }
             />
           </Field>
-          <Field label="Fırsat sorumlusu">
+          <Field label="Satış Fırsatı Sorumlusu">
             <Select
               value={opportunityForm.ownerUserId}
               onChange={(e) =>
@@ -550,7 +550,7 @@ export default function CrmLeadsPage() {
                 })
               }
             >
-              <option value="">Lead sorumlusunu kullan</option>
+              <option value="">Potansiyel Müşteri Sorumlusunu Kullan</option>
               {assignees.map((person) => (
                 <option key={person.id} value={person.id}>
                   {person.firstName} {person.lastName}
@@ -567,7 +567,7 @@ export default function CrmLeadsPage() {
               Vazgeç
             </Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Dönüştürülüyor..." : "Pipeline’a ekle"}
+              {saving ? "Dönüştürülüyor..." : "Satış Sürecine Ekle"}
             </Button>
           </div>
         </form>
