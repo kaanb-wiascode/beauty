@@ -83,6 +83,7 @@ export class PosSalePaymentLinkageService {
     ctx: PosScope,
     providerTransactionId: string,
     merchantReference?: string,
+    integrationId?: string,
   ) {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; salePaymentId: string | null }>>(
       `SELECT p.id,p.sale_payment_id AS "salePaymentId"
@@ -90,12 +91,14 @@ export class PosSalePaymentLinkageService {
        WHERE p.tenant_id=$1::text AND p.company_id=$2::text
          AND ($3::text IS NULL OR p.branch_id=$3::text)
          AND p.provider_transaction_id=$4
+         AND ($5::text IS NULL OR p.integration_id=$5::text)
        ORDER BY p.created_at DESC
        LIMIT 2`,
       ctx.tenantId,
       ctx.companyId,
       ctx.branchId,
       providerTransactionId,
+      integrationId ?? null,
     );
     if (rows.length !== 1) {
       return { linked: false, reason: rows.length ? 'AMBIGUOUS_POS_TRANSACTION' : 'NEEDS_ENRICHMENT' };
