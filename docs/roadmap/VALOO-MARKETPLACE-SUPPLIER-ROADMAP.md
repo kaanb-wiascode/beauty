@@ -1,7 +1,7 @@
 # VALOO — Marketplace + Supplier Network Delivery Roadmap
 
 > Status: Canonical delivery sequence
-> Current implementation checkpoint: M6, M7 and M8 feature foundations are implemented on `feature/core-commerce-foundation`; advanced commercial-policy extensions remain explicitly future work.
+> Current implementation checkpoint: M6, M7 and M8 feature foundations are implemented on `feature/core-commerce-foundation`; private/contract SupplierOffer eligibility is enforced end to end, while territory and richer commercial-policy extensions remain future work.
 > Depends on: `../VALOO-ECOSYSTEM-MASTER-PLAN.md`, `../MARKETPLACE-SUPPLIER-PROCUREMENT-ARCHITECTURE.md`
 
 ## 1. Working Principle
@@ -183,10 +183,17 @@ Implemented:
 - [x] buyer offer-comparison UI across connected verified suppliers.
 - [x] tenant-private inventory product -> global catalog variant mapping with DB scope guard.
 - [x] multiple suppliers can offer the same canonical variant without duplicating product identity.
+- [x] private/contract SupplierOffer visibility through `CONNECTED` / `RESTRICTED` policy.
+- [x] RESTRICTED offers target explicit ACTIVE `SupplierConnection` records only.
+- [x] cross-SupplierOrganization eligibility targets are rejected by service validation and database scope guard.
+- [x] ACTIVE RESTRICTED offers require at least one ACTIVE eligible connection at both service and deferred DB-constraint level.
+- [x] buyer offer discovery enforces the exact eligible `SupplierConnection.id`.
+- [x] direct SupplierOffer -> PurchaseOrder conversion revalidates the same eligibility rule, preventing ID-based bypass.
+- [x] Supplier Portal exposes buyer-connection targeting without exposing unrelated tenant data.
+- [x] offer audit metadata snapshots visibility scope and eligible connection IDs.
 
 Still future policy work:
 
-- [ ] private/contract-offer buyer eligibility policy engine.
 - [ ] territory/region eligibility metadata and enforcement.
 - [ ] richer duplicate-product matching/merge operations for catalog governance.
 - [ ] category-specific regulatory identifier policy beyond the structured identifier foundation.
@@ -197,6 +204,8 @@ Rules retained:
 - seller price/availability lives in SupplierOffer.
 - tenant inventory products remain private and map explicitly to canonical variants.
 - ACTIVE offer discovery is limited to connected, ACTIVE and VERIFIED supplier organizations.
+- CONNECTED offers are visible to active buyer connections; RESTRICTED offers are visible only to explicitly eligible active buyer connections.
+- UI visibility is not an authorization boundary; read and Offer -> PO write APIs enforce eligibility independently.
 
 ## 9. Milestone M7 — RFQ + SupplierQuote
 
@@ -261,7 +270,7 @@ Implemented:
 - [x] SupplierConnection maps global SupplierOrganization to the tenant-private `inventory_suppliers` vendor card.
 - [x] ACTIVE SupplierOffer can create an idempotent DRAFT PurchaseOrder.
 - [x] awarded SupplierQuote/RFQ creates a DRAFT PurchaseOrder.
-- [x] SupplierOffer conversion revalidates ACTIVE/VERIFIED organization, ACTIVE connection, current offer version and validity.
+- [x] SupplierOffer conversion revalidates ACTIVE/VERIFIED organization, ACTIVE connection, buyer eligibility, current offer version and validity.
 - [x] SupplierOffer conversion enforces MOQ, order multiple and available quantity.
 - [x] SupplierOffer conversion requires the buyer inventory product to map to the same canonical variant.
 - [x] branch warehouse scope is enforced before DRAFT PO creation.
@@ -290,7 +299,7 @@ SupplierOffer or SupplierQuote
 Remaining policy extensions do not block this foundation:
 
 - [ ] automatic creation of a tenant-private vendor card when no approved SupplierConnection exists; current behavior intentionally requires an existing safe mapping.
-- [ ] contract pricing / landed-cost policy layers.
+- [ ] contract pricing / landed-cost policy layers beyond restricted buyer visibility.
 - [ ] automatic ordering; explicitly out of scope until policy controls and exception handling are production-grade.
 
 ## 11. Milestone M9 — Consumer Experience Expansion
