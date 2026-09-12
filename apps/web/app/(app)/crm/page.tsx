@@ -62,7 +62,7 @@ export default function CrmOverviewPage() {
       setOpportunities(opportunityRows);
       setFollowUps(followUpRows);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "CRM verileri yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Müşteri İlişkileri Verileri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -90,30 +90,30 @@ export default function CrmOverviewPage() {
     };
   }, [followUps, leads, now, opportunities]);
 
-  if (loading) return <Spinner label="CRM görünümü hazırlanıyor..." />;
+  if (loading) return <Spinner label="Müşteri İlişkileri Görünümü Hazırlanıyor..." />;
 
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#8f89a2]">Müşteri ilişkileri</p>
-          <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)] sm:text-[38px]">CRM Yönetim Kokpiti</h1>
-          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--muted)]">Lead akışını, satış fırsatlarını ve yaklaşan müşteri temaslarını tek merkezden yönetin.</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#8f89a2]">Müşteri İlişkileri</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)] sm:text-[38px]">Müşteri İlişkileri Genel Bakışı</h1>
+          <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--muted)]">Potansiyel Müşteri Akışını, Satış Fırsatlarını Ve Yaklaşan Müşteri Temaslarını Tek Merkezden Yönetin.</p>
         </div>
         {canManage ? (
-          <Link href="/crm/leads?new=1"><Button>+ Yeni lead</Button></Link>
+          <Link href="/crm/leads?new=1"><Button>+ Yeni Potansiyel Müşteri</Button></Link>
         ) : null}
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="CRM metrikleri">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5" aria-label="Müşteri İlişkileri Metrikleri">
         {[
-          ["Yeni lead", metrics.newLeads, "İlk temas bekliyor"],
-          ["Açık fırsat", metrics.openOpportunities, "Aktif pipeline"],
-          ["Ağırlıklı değer", formatMoney(metrics.weightedPipeline), "Olasılık bazlı"],
-          ["Geciken takip", metrics.overdue, "Aksiyon gerekli"],
-          ["Kazanma oranı", `%${metrics.conversionRate}`, "Sonuçlanan fırsatlar"],
+          ["Yeni Potansiyel Müşteri", metrics.newLeads, "İlk Temas Bekliyor"],
+          ["Açık Satış Fırsatı", metrics.openOpportunities, "Aktif Satış Süreci"],
+          ["Ağırlıklı Değer", formatMoney(metrics.weightedPipeline), "Olasılık Bazlı"],
+          ["Geciken Takip", metrics.overdue, "İşlem Gerekli"],
+          ["Kazanma Oranı", `%${metrics.conversionRate}`, "Sonuçlanan Fırsatlar"],
         ].map(([label, value, detail], index) => (
           <article key={String(label)} className="relative overflow-hidden rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)]">
             <span aria-hidden="true" className={index === 3 && Number(value) > 0 ? "absolute right-3 top-3 h-2 w-2 rounded-full bg-[#b76d58]" : "absolute right-3 top-3 h-2 w-2 rounded-full bg-[#8d73e8]"} />
@@ -127,8 +127,8 @@ export default function CrmOverviewPage() {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.55fr)_minmax(320px,.7fr)]">
         <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
           <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-            <div><h2 className="text-[14px] font-semibold text-[var(--ink)]">Satış hunisi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Fırsatların mevcut aşamalara dağılımı</p></div>
-            <Link href="/crm/pipeline" className="text-[11px] font-semibold text-[#7052df]">Pipeline’ı aç →</Link>
+            <div><h2 className="text-[14px] font-semibold text-[var(--ink)]">Satış Hunisi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Satış Fırsatlarının Mevcut Aşamalara Dağılımı</p></div>
+            <Link href="/crm/pipeline" className="text-[11px] font-semibold text-[#7052df]">Satış Sürecini Aç →</Link>
           </div>
           <div className="grid gap-3 p-5 sm:grid-cols-2 lg:grid-cols-5">
             {pipelineStages.map((stage) => {
@@ -147,7 +147,7 @@ export default function CrmOverviewPage() {
 
         <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
           <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-            <div><h2 className="text-[14px] font-semibold">Yaklaşan takipler</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Öncelikli müşteri temasları</p></div>
+            <div><h2 className="text-[14px] font-semibold">Yaklaşan Takipler</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Öncelikli Müşteri Temasları</p></div>
             <Link href="/crm/follow-ups" className="text-[11px] font-semibold text-[#7052df]">Tümü →</Link>
           </div>
           {followUps.length ? (
@@ -157,32 +157,32 @@ export default function CrmOverviewPage() {
                 return (
                   <div key={row.id} className="flex items-center gap-3 px-5 py-3.5">
                     <span className={overdue ? "h-2 w-2 shrink-0 rounded-full bg-[#b76d58]" : "h-2 w-2 shrink-0 rounded-full bg-[#7f68d8]"} />
-                    <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-medium">{followUpChannelLabels[row.channel]} takibi</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{row.note || "Takip notu bulunmuyor"}</p></div>
+                    <div className="min-w-0 flex-1"><p className="truncate text-[12px] font-medium">{followUpChannelLabels[row.channel]} Takibi</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{row.note || "Takip Notu Bulunmuyor"}</p></div>
                     <time className={overdue ? "text-[10px] font-semibold text-[#9c513f]" : "text-[10px] text-[var(--muted)]"}>{formatDateTime(row.dueAt)}</time>
                   </div>
                 );
               })}
             </div>
-          ) : <EmptyState title="Takip bulunmuyor" description="Açık müşteri takipleri burada görünür." />}
+          ) : <EmptyState title="Takip Bulunmuyor" description="Açık Müşteri Takipleri Burada Görünür." />}
         </section>
       </div>
 
       <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
         <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-          <div><h2 className="text-[14px] font-semibold">Son lead hareketleri</h2><p className="mt-1 text-[10px] text-[var(--muted)]">En son güncellenen müşteri adayları</p></div>
-          <Link href="/crm/leads" className="text-[11px] font-semibold text-[#7052df]">Lead havuzu →</Link>
+          <div><h2 className="text-[14px] font-semibold">Son Potansiyel Müşteri Hareketleri</h2><p className="mt-1 text-[10px] text-[var(--muted)]">En Son Güncellenen Potansiyel Müşteriler</p></div>
+          <Link href="/crm/leads" className="text-[11px] font-semibold text-[#7052df]">Potansiyel Müşteri Havuzu →</Link>
         </div>
         {leads.length ? (
           <div className="divide-y divide-[var(--line)]">
             {leads.slice(0, 6).map((lead) => (
               <Link key={lead.id} href={`/crm/leads/${lead.id}`} className="grid gap-2 px-5 py-4 transition-colors hover:bg-[#fbfaff] sm:grid-cols-[minmax(0,1fr)_150px_160px] sm:items-center">
-                <div className="min-w-0"><p className="truncate text-[13px] font-semibold">{lead.firstName} {lead.lastName}</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{lead.phone || lead.email || "İletişim bilgisi yok"}</p></div>
+                <div className="min-w-0"><p className="truncate text-[13px] font-semibold">{lead.firstName} {lead.lastName}</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{lead.phone || lead.email || "İletişim Bilgisi Yok"}</p></div>
                 <span className="w-fit rounded-full bg-[#f1edff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">{leadStatusLabels[lead.status]}</span>
                 <time className="text-[10px] text-[var(--muted)] sm:text-right">{formatDateTime(lead.updatedAt)}</time>
               </Link>
             ))}
           </div>
-        ) : <EmptyState title="Henüz lead yok" description="İlk müşteri adayınızı oluşturarak CRM pipeline’ını başlatın." action={canManage ? <Link href="/crm/leads?new=1"><Button>Yeni lead oluştur</Button></Link> : undefined} />}
+        ) : <EmptyState title="Henüz Potansiyel Müşteri Yok" description="İlk Potansiyel Müşterinizi Oluşturarak Satış Sürecini Başlatın." action={canManage ? <Link href="/crm/leads?new=1"><Button>Yeni Potansiyel Müşteri Oluştur</Button></Link> : undefined} />}
       </section>
     </div>
   );
