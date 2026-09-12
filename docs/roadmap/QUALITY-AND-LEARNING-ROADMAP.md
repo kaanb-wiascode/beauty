@@ -10,12 +10,13 @@ Active branch: `feature/core-commerce-foundation`
 
 Latest verified Quality + Training backend baseline:
 
-- `d7dc33080cd540bc04b574638c99590511cad2c4`
-- `test(training): fix LMS advisory lock assertion`
-- Monorepo quality #761 — SUCCESS
+- `e1b62b6fd86a1661de3c14845b966383574e36a2`
+- `feat(training): assign courses from competency gaps`
+- Monorepo quality #763 — SUCCESS
 
 Immediately preceding verified Training increments:
 
+- `d7dc33080cd540bc04b574638c99590511cad2c4` — LMS assessment engine test checkpoint — CI #761 SUCCESS
 - `6cae1eeac26d8fa53eb01abf9293950ceb96f65c` — LMS transaction typing fix
 - `e215c7631d158bdff195b5e37555bb8554612340` — LMS assessment engine foundation
 - `d2d5778bc678a100e581cf69ec032d9b97490bad` — immutable competency profile versions — CI #758 SUCCESS
@@ -181,7 +182,7 @@ Education & Development is implemented as a separate main module integrated with
 
 - Training course catalog with service, sales, customer-experience, corporate, management, quality and other categories
 - dedicated `training.read` / `training.manage` RBAC
-- manual and Quality-rule-driven Training assignments
+- manual, Quality-rule-driven and competency-gap-driven Training assignments
 - assignment lifecycle, expiry processing and assignment event audit trail
 - immutable/versioned course releases with `DRAFT → PUBLISHED → RETIRED`
 - assignment pinning to the active published course version
@@ -243,6 +244,10 @@ Employee Profile Assignment
 Assessment / Exam / Practical / Training / Quality Evidence
   ↕
 Gap
+  ↓
+Versioned Competency Training Rule
+  ↓
+Training Assignment
 ```
 
 Implemented behaviors:
@@ -254,12 +259,19 @@ Implemented behaviors:
 - time-aware staff competency assessments
 - assessment source types: MANUAL, EXAM, PRACTICAL, TRAINING, QUALITY
 - current competency-gap calculation from the active profile and latest assessment
+- versioned competency-gap → Training assignment rules
+- minimum-gap threshold, priority, due-days and cooldown policy
+- read-only staff Training recommendations before execution
+- staff-level advisory locking for concurrent gap processing
+- deterministic assignment source keys derived from rule/staff/profile/latest-assessment evidence
+- no assignment when the selected course has no effective published LMS version
+- separate `competency_rule_id` so competency automation is not mixed with Quality rule identity
+- audit events for assignment-created, cooldown, missing-published-version and duplicate-source-key decisions
 - historical profile requirements preserved rather than overwritten
 
 Remaining competency capabilities:
 
 - explicit HR position/role → competency-profile mapping
-- competency-gap → Training assignment rule engine
 - Training completion → competency assessment mapping
 - recurring review schedules
 - employee/role/branch competency analytics and UI
@@ -270,7 +282,7 @@ Competency records must remain time-aware and auditable. Historical competency r
 
 ### Implemented foundation
 
-The first automation layer is rule-based and explainable, not AI-driven.
+The automation layer is rule-based and explainable, not AI-driven.
 
 Implemented Quality Finding → Training rules support:
 
@@ -286,6 +298,18 @@ Implemented Quality Finding → Training rules support:
 - rationale containing rule/version/occurrence/evidence references
 - `NO_ELIGIBLE_STAFF`, cooldown and assignment-created audit events
 - no invented employee identity when a Quality signal is not linked to staff
+
+Implemented Competency Gap → Training support:
+
+- versioned competency-to-course rules
+- minimum gap threshold and priority ordering
+- due/cooldown policy
+- recommendation preview
+- serialized staff processing
+- effective published course-version requirement
+- deterministic evidence-aware source key
+- assignment rationale snapshot of profile, competency, required/current levels, gap and assessment reference
+- independent audit stream from Quality Training rules
 
 Examples still to extend into configurable rules:
 
@@ -348,21 +372,25 @@ Remaining: Quality operational UI completion and broader analytical views.
 
 Remaining: programs, lesson-progress tracking, calendar, certificate renewal/revocation automation and LMS UI.
 
-### L2 — Competency Management — BACKEND FOUNDATION COMPLETE
+### L2 — Competency Management — BACKEND FOUNDATION + GAP ASSIGNMENT ENGINE COMPLETE
 - competency definitions
 - versioned competency profiles
 - employee profile assignment
 - time-aware assessment history
 - employee competency-gap calculation
+- versioned gap → Training rules
+- recommendation preview
+- idempotent/audited Training assignment processing
 
-Remaining: explicit HR position mapping, recurring reviews and competency analytics/UI.
+Remaining: explicit HR position mapping, Training completion → competency assessment, recurring reviews and competency analytics/UI.
 
 ### L3 — Quality ↔ Training automation — FOUNDATION COMPLETE
 - versioned Quality Finding rule engine
 - explainable automated assignments
 - cooldown/idempotency/audit behavior
+- competency-gap-driven assignments
 
-Next: competency-gap assignment rules, Training → competency assessment integration and effectiveness feedback loop.
+Next: Training → competency assessment integration and effectiveness feedback loop.
 
 ## 11. Architecture invariants
 
@@ -370,8 +398,10 @@ Next: competency-gap assignment rules, Training → competency assessment integr
 - RBAC and scope checks apply independently from workflow rules.
 - Finding, Quality Case, CAPA, inspection lifecycle, Training assignment and score calculations remain auditable.
 - Training/competency data is not a replacement for HR identity.
+- Quality Training rules and Competency Training rules keep separate rule identities and audit streams.
 - Published Training content is immutable; changes require a new course version.
 - Versioned Training assignments cannot be completed without a passing finalized result when assessment is required.
+- Automated competency-gap assignments require an effective published course version.
 - Exam answer keys remain server-side grading data and are not returned from learner-facing published reads.
 - Historical assessment, competency requirements and score snapshots remain immutable/auditable.
 - Automation may recommend/assign workflows but must not silently invent compliance facts.
