@@ -13,12 +13,14 @@ import { TrainingEffectivenessController } from './training-effectiveness.contro
 import { TrainingEffectivenessService } from './training-effectiveness.service';
 import { TrainingLessonProgressController } from './training-lesson-progress.controller';
 import { TrainingLessonProgressService } from './training-lesson-progress.service';
+import { TrainingProgramController } from './training-program.controller';
+import { TrainingProgramService } from './training-program.service';
 import { TrainingController } from './training.controller';
 import { TrainingService } from './training.service';
 
 @Module({
-  controllers:[TrainingController,CompetencyController,CompetencyTrainingController,LmsController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingLessonProgressController],
-  providers:[TrainingService,CompetencyService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService],
-  exports:[TrainingService,CompetencyService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService],
+  controllers:[TrainingController,CompetencyController,CompetencyTrainingController,LmsController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingLessonProgressController,TrainingProgramController],
+  providers:[TrainingService,CompetencyService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingProgramService],
+  exports:[TrainingService,CompetencyService,CompetencyTrainingService,LmsService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingProgramService],
 })
 export class TrainingModule {}
