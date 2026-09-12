@@ -66,7 +66,11 @@ DECLARE
   offer_status TEXT;
   offer_visibility TEXT;
 BEGIN
-  target_offer_id := COALESCE(NEW."supplier_offer_id", OLD."supplier_offer_id");
+  IF TG_OP = 'DELETE' THEN
+    target_offer_id := OLD."supplier_offer_id";
+  ELSE
+    target_offer_id := NEW."supplier_offer_id";
+  END IF;
 
   SELECT "status", "visibility_scope"
     INTO offer_status, offer_visibility
@@ -83,7 +87,10 @@ BEGIN
     RAISE EXCEPTION 'active restricted supplier offer requires at least one active eligible connection';
   END IF;
 
-  RETURN COALESCE(NEW, OLD);
+  IF TG_OP = 'DELETE' THEN
+    RETURN OLD;
+  END IF;
+  RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;
 
@@ -111,7 +118,7 @@ FOR EACH ROW
 EXECUTE FUNCTION validate_restricted_supplier_offer_eligibility_rows();
 
 CREATE CONSTRAINT TRIGGER "supplier_offers_restricted_guard"
-AFTER INSERT OR UPDATE OF "status", "visibility_scope" ON "supplier_offers"
+AFTER INSERT OR UPDATE ON "supplier_offers"
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
 EXECUTE FUNCTION validate_restricted_supplier_offer_row();
