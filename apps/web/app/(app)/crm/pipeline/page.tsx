@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   opportunityStageLabels,
   type CrmAssignee,
@@ -92,7 +92,17 @@ export default function CrmPipelinePage() {
     };
   }, [rows]);
 
+  function requireActiveBranch() {
+    if (hasActiveBranch()) return true;
+    showToast(
+      "Satış Fırsatını Güncellemek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      "error",
+    );
+    return false;
+  }
+
   function openTransition(row: CrmOpportunity) {
+    if (!requireActiveBranch()) return;
     const first = nextStages[row.stage][0] ?? "";
     setTransitioning(row);
     setTargetStage(first);
@@ -104,6 +114,7 @@ export default function CrmPipelinePage() {
   async function transition(event: FormEvent) {
     event.preventDefault();
     if (!transitioning || !targetStage) return;
+    if (!requireActiveBranch()) return;
     if (targetStage === "LOST" && !lostReason.trim()) {
       setError("Kaybedilen Satış Fırsatı İçin Neden Gereklidir.");
       return;
@@ -169,15 +180,15 @@ export default function CrmPipelinePage() {
           {stages.map((stage) => {
             const stageRows = rows.filter((row) => row.stage === stage);
             return (
-              <section key={stage} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[#f8f7fb]">
+              <section key={stage} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[#f7fbfd]">
                 <header className="flex items-center justify-between border-b border-[var(--line)] bg-white px-4 py-3">
                   <h2 className="text-[11px] font-semibold">{opportunityStageLabels[stage]}</h2>
-                  <span className="rounded-full bg-[#eee9ff] px-2 py-0.5 text-[10px] font-bold text-[#7052df]">{stageRows.length}</span>
+                  <span className="rounded-full bg-[#EAF5FB] px-2 py-0.5 text-[10px] font-bold text-[#1674BD]">{stageRows.length}</span>
                 </header>
                 <div className="space-y-3 p-3">
                   {stageRows.map((row) => (
-                    <article key={row.id} className="rounded-[16px] border border-[#e8e5ee] bg-white p-3 shadow-[0_3px_14px_rgba(42,35,60,.05)]">
-                      <Link href={row.leadId ? `/crm/leads/${row.leadId}` : "/crm/leads"} className="block text-[12px] font-semibold leading-5 hover:text-[#7052df]">
+                    <article key={row.id} className="rounded-[16px] border border-[#dfeaf1] bg-white p-3 shadow-[0_3px_14px_rgba(17,70,104,.05)]">
+                      <Link href={row.leadId ? `/crm/leads/${row.leadId}` : "/crm/leads"} className="block text-[12px] font-semibold leading-5 hover:text-[#1674BD]">
                         {row.title}
                       </Link>
                       <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
@@ -185,8 +196,8 @@ export default function CrmPipelinePage() {
                       </p>
                       <strong className="mt-4 block text-[15px]">{formatMoney(row.estimatedValue, row.currency)}</strong>
                       <div className="mt-2 flex items-center gap-2">
-                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#edeaf2]">
-                          <span className="block h-full rounded-full bg-[#8067df]" style={{ width: `${row.probability}%` }} />
+                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e5f2f7]">
+                          <span className="block h-full rounded-full bg-[#1674BD]" style={{ width: `${row.probability}%` }} />
                         </div>
                         <span className="text-[9px] text-[var(--muted)]">%{row.probability}</span>
                       </div>
