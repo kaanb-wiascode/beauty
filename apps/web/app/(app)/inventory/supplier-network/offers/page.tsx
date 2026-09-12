@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Modal } from "@/components/modal";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -70,6 +70,8 @@ export default function SupplierOfferComparisonPage() {
   const [quantity, setQuantity] = useState("");
   const [idempotencyKey, setIdempotencyKey] = useState("");
   const [busy, setBusy] = useState(false);
+  const idempotencySeed = useId();
+  const orderSequence = useRef(0);
   const canWrite = hasPermission("inventory", "write");
 
   const load = useCallback(async () => {
@@ -128,11 +130,12 @@ export default function SupplierOfferComparisonPage() {
     const minimum = Number(offer.minimumOrderQuantity || 1);
     const multiple = Number(offer.orderMultiple || 1);
     const defaultQuantity = Math.ceil((minimum - 1e-9) / multiple) * multiple;
+    orderSequence.current += 1;
     setOrderTarget(offer);
     setWarehouseId(options.warehouses[0]?.id ?? "");
     setInventoryProductId(products[0]?.inventoryProductId ?? "");
     setQuantity(String(Number(defaultQuantity.toFixed(3))));
-    setIdempotencyKey(typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `${Date.now()}-${offer.id}`);
+    setIdempotencyKey(`${idempotencySeed}-${orderSequence.current}-${offer.id}`);
     setError("");
     setSuccess("");
   }
