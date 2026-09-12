@@ -2,6 +2,8 @@ import { Module } from '@nestjs/common';
 import { QualityAnalyticsController } from './quality-analytics.controller';
 import { QualityAnalyticsService } from './quality-analytics.service';
 import { QualityAssigneeScopeGuard } from './quality-assignee-scope.guard';
+import { QualityBranchScoreAnalyticsController } from './quality-branch-score-analytics.controller';
+import { QualityBranchScoreAnalyticsService } from './quality-branch-score-analytics.service';
 import { QualityCapaController } from './quality-capa.controller';
 import { QualityCapaService } from './quality-capa.service';
 import { QualityController } from './quality.controller';
@@ -47,6 +49,7 @@ import { QualityService } from './quality.service';
     QualityScoreSchedulerController,
     QualitySlaPolicyController,
     QualityAnalyticsController,
+    QualityBranchScoreAnalyticsController,
   ],
   providers: [
     QualityService,
@@ -65,6 +68,7 @@ import { QualityService } from './quality.service';
     QualityScoreService,
     QualityScoreSchedulerService,
     QualityAnalyticsService,
+    QualityBranchScoreAnalyticsService,
     QualityAssigneeScopeGuard,
   ],
   exports: [
@@ -83,6 +87,7 @@ import { QualityService } from './quality.service';
     QualityScoreService,
     QualityScoreSchedulerService,
     QualityAnalyticsService,
+    QualityBranchScoreAnalyticsService,
   ],
 })
 export class QualityModule {}
