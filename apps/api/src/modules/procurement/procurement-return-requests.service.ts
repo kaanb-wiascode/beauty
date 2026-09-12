@@ -1,5 +1,5 @@
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { ProcurementReturnsService, PartialPurchaseReturnInput } from './procurement-returns.service';
 
@@ -63,32 +63,80 @@ export class ProcurementReturnRequestsService {
       throw new BadRequestException('Return quantities must be greater than zero.');
     }
 
-    const receipts = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,branch_id AS "branchId",reversed_at AS "reversedAt"
-       FROM inventory_goods_receipts
-       WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text)
-       LIMIT 1`,
-      goodsReceiptId,
-      companyId,
-      branchId,
-    );
-    if (!receipts.length) throw new NotFoundException('Goods receipt not found');
-    if (receipts[0].reversedAt) throw new BadRequestException('Reversed goods receipt cannot enter return approval.');
+    return this.prisma.$transaction(
+      async (tx) => {
+        const receipts = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,branch_id AS "branchId",reversed_at AS "reversedAt"
+           FROM inventory_goods_receipts
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND ($4::text IS NULL OR branch_id=$4::text)
+           FOR UPDATE`,
+          goodsReceiptId,
+          tenantId,
+          companyId,
+          branchId,
+        );
+        if (!receipts.length) throw new NotFoundException('Goods receipt not found');
+        if (receipts[0].reversedAt) throw new BadRequestException('Reversed goods receipt cannot enter return approval.');
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO inventory_purchase_return_requests(
-         tenant_id,company_id,branch_id,goods_receipt_id,reason,items,requested_by_user_id
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6::jsonb,$7::text)
-       RETURNING id,status,goods_receipt_id AS "goodsReceiptId",reason,items,created_at AS "createdAt"`,
-      tenantId,
-      companyId,
-      receipts[0].branchId,
-      goodsReceiptId,
-      reason,
-      JSON.stringify(input.items),
-      userId,
+        const receiptItems = await tx.$queryRawUnsafe<any[]>(
+          `SELECT gri.id,gri.quantity,
+                  COALESCE((
+                    SELECT SUM(pri.quantity)
+                    FROM inventory_purchase_return_items pri
+                    JOIN inventory_purchase_returns pr ON pr.id=pri.purchase_return_id
+                    WHERE pri.goods_receipt_item_id=gri.id
+                      AND pr.tenant_id=$2::text AND pr.company_id=$3::text
+                  ),0)::numeric AS "returnedQuantity",
+                  COALESCE((
+                    SELECT SUM((entry->>'quantity')::numeric)
+                    FROM inventory_purchase_return_requests rr
+                    CROSS JOIN LATERAL jsonb_array_elements(rr.items) entry
+                    WHERE rr.goods_receipt_id=$1::text
+                      AND rr.tenant_id=$2::text AND rr.company_id=$3::text
+                      AND rr.status IN ('PENDING','APPROVED')
+                      AND entry->>'goodsReceiptItemId'=gri.id
+                  ),0)::numeric AS "reservedQuantity"
+           FROM inventory_goods_receipt_items gri
+           WHERE gri.goods_receipt_id=$1::text AND gri.id=ANY($4::text[])
+           ORDER BY gri.id`,
+          goodsReceiptId,
+          tenantId,
+          companyId,
+          ids,
+        );
+        if (receiptItems.length !== input.items.length) {
+          throw new BadRequestException('One or more return items do not belong to this goods receipt.');
+        }
+
+        const byId = new Map(receiptItems.map((item) => [item.id, item]));
+        for (const requested of input.items) {
+          const item = byId.get(requested.goodsReceiptItemId);
+          const quantity = Number(requested.quantity);
+          if (!item) throw new BadRequestException('Return item not found.');
+          const available = Number(item.quantity) - Number(item.returnedQuantity) - Number(item.reservedQuantity);
+          if (quantity > available) {
+            throw new BadRequestException(`Return quantity exceeds unreserved returnable quantity for receipt item ${item.id}.`);
+          }
+        }
+
+        const rows = await tx.$queryRawUnsafe<any[]>(
+          `INSERT INTO inventory_purchase_return_requests(
+             tenant_id,company_id,branch_id,goods_receipt_id,reason,items,requested_by_user_id
+           ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6::jsonb,$7::text)
+           RETURNING id,status,goods_receipt_id AS "goodsReceiptId",reason,items,created_at AS "createdAt"`,
+          tenantId,
+          companyId,
+          receipts[0].branchId,
+          goodsReceiptId,
+          reason,
+          JSON.stringify(input.items),
+          userId,
+        );
+        return rows[0];
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    return rows[0];
   }
 
   async list(status?: 'PENDING' | 'APPROVED' | 'REJECTED' | 'EXECUTED') {
