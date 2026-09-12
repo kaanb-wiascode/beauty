@@ -69,6 +69,7 @@ describe('PosWebhookQueueService', () => {
       4,
       'temporary failure',
       'claim-1',
+      2,
     );
   });
 
@@ -88,10 +89,12 @@ describe('PosWebhookQueueService', () => {
       8,
       'still failing',
       'claim-8',
+      'RETRY_PENDING',
+      7,
     );
   });
 
-  it('keeps enrichment-required events queued instead of marking them processed', async () => {
+  it('keeps enrichment-required events queued and increments their retry count after replay clears the claim', async () => {
     const { prisma, webhooks, service } = createService();
     prisma.$queryRawUnsafe.mockResolvedValueOnce([
       { id: 'event-enrich', retryCount: 0, status: 'PROCESSING', claimToken: 'claim-enrich' },
@@ -104,13 +107,37 @@ describe('PosWebhookQueueService', () => {
       { eventId: 'event-enrich', ok: true, status: 'ENRICHMENT_PENDING' },
     ]);
     expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining('status=$2'),
+      expect.stringContaining('retry_count=$7'),
       'event-enrich',
       'ENRICHMENT_PENDING',
       1,
       1,
       null,
       'claim-enrich',
+      0,
+    );
+  });
+
+  it('dead-letters an enrichment event on the eighth unresolved replay', async () => {
+    const { prisma, webhooks, service } = createService();
+    prisma.$queryRawUnsafe.mockResolvedValueOnce([
+      { id: 'event-enrich-8', retryCount: 7, status: 'PROCESSING', claimToken: 'claim-enrich-8' },
+    ]);
+    webhooks.replayStored.mockResolvedValueOnce({ requiresEnrichment: true });
+
+    const result = await service.processDue();
+
+    expect(result).toEqual([
+      { eventId: 'event-enrich-8', ok: false, status: 'DEAD_LETTER' },
+    ]);
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining("status='DEAD_LETTER'"),
+      'event-enrich-8',
+      8,
+      null,
+      'claim-enrich-8',
+      'ENRICHMENT_PENDING',
+      7,
     );
   });
 });
