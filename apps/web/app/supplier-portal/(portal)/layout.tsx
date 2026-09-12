@@ -49,6 +49,7 @@ export default function SupplierPortalLayout({ children }: { children: ReactNode
             </Link>
             <nav className="hidden items-center gap-1 md:flex">
               <Link href="/supplier-portal/rfqs" className="rounded-[10px] px-3 py-2 text-[12px] font-semibold text-[#4f5d69] hover:bg-[#f0f4f7] hover:text-[#17212b]">RFQ ve teklifler</Link>
+              <Link href="/supplier-portal/offers" className="rounded-[10px] px-3 py-2 text-[12px] font-semibold text-[#4f5d69] hover:bg-[#f0f4f7] hover:text-[#17212b]">Katalog teklifleri</Link>
             </nav>
           </div>
           <div className="flex items-center gap-3">
@@ -59,6 +60,10 @@ export default function SupplierPortalLayout({ children }: { children: ReactNode
             <button type="button" onClick={logout} className="rounded-[10px] border border-[#dfe7ed] bg-white px-3 py-2 text-[11px] font-semibold text-[#667482] hover:text-[#17212b]">Çıkış</button>
           </div>
         </div>
+        <nav className="mx-auto flex max-w-[1380px] gap-2 overflow-x-auto border-t border-[#eef2f5] px-5 py-2 md:hidden sm:px-8">
+          <Link href="/supplier-portal/rfqs" className="whitespace-nowrap rounded-[10px] px-3 py-2 text-[12px] font-semibold text-[#4f5d69] hover:bg-[#f0f4f7]">RFQ ve teklifler</Link>
+          <Link href="/supplier-portal/offers" className="whitespace-nowrap rounded-[10px] px-3 py-2 text-[12px] font-semibold text-[#4f5d69] hover:bg-[#f0f4f7]">Katalog teklifleri</Link>
+        </nav>
       </header>
       <main className="mx-auto max-w-[1380px] px-5 py-7 sm:px-8">{children}</main>
     </div>
