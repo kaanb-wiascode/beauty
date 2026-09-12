@@ -10,7 +10,7 @@ This checkpoint records the verified backend and operational UI state of the Qua
 
 ## 1. Verified implementation state
 
-The active branch now contains the operational backend foundation for the Quality → Training → Competency loop plus the first manager-facing Learning Operations UI.
+The active branch now contains the operational backend foundation for the Quality → Training → Competency loop plus manager-facing Learning Operations, analytics, comparison and LMS authoring UI.
 
 Implemented Training/Competency persistence and runtime now includes:
 
@@ -20,6 +20,7 @@ Implemented Training/Competency persistence and runtime now includes:
 - LMS course versions with publish/retire guards
 - lessons and learner progress
 - theory exams, deterministic grading and practical assessments
+- versioned reusable question bank with immutable exam snapshots
 - Training result snapshots and competency result bridge
 - competency-gap-driven Training assignment rules
 - Training effectiveness measurement foundation
@@ -34,6 +35,10 @@ Implemented Training/Competency persistence and runtime now includes:
 - branch-scoped scheduled Branch Quality Score processing with lease/idempotency/audit
 - Learning Operations manager cockpit
 - staff development directory and staff-level competency/training drill-down
+- Training + Competency analytics dashboard and explainable staff risk ranking
+- multi-branch Quality + Training comparison cockpit
+- manager competency profile/assessment/review workflows
+- question-bank authoring UI restricted to `training.manage`
 
 Relevant migration sequence on the active branch:
 
@@ -56,18 +61,19 @@ Relevant migration sequence on the active branch:
 20260912190000_competency_recurring_reviews
 20260912193000_position_competency_mapping
 20260912200000_quality_score_scheduler
+20260912210000_training_question_bank
 ```
 
-Latest verified checkpoint:
+Latest verified code checkpoint:
 
 ```text
-b7c08a20639561be318379cf74242d1039ab9ae2
-test(quality): cover score scheduler processor
+978d62c6fa67e999b8507b7ab571251c34d9c7cf
+fix(training-ui): satisfy question bank lint
 
-Monorepo quality #835 — SUCCESS
+Monorepo quality #861 — SUCCESS
 ```
 
-The run passed Prisma validation/client generation, database/shared typecheck+build, API typecheck/test/build and web lint/typecheck/build.
+The run passed Prisma validation/client generation, database/shared typecheck+build, API typecheck, 81 API test suites / 253 tests, API build and web lint/typecheck/build.
 
 ## 2. Current Learning architecture
 
@@ -94,6 +100,24 @@ Branch Quality Score
       ↓
 Scheduled Branch Quality Score run
 ```
+
+Exam authoring additionally supports:
+
+```text
+Versioned Question Bank Item
+      ↓
+DRAFT → PUBLISHED → RETIRED
+      ↓
+Published Bank Question
+      ↓
+Copy into Draft Exam
+      ↓
+Immutable Exam Question Snapshot
+      ↓
+Source question-bank id/version retained for traceability
+```
+
+A later question-bank revision does not rewrite a previously authored exam question or grading key.
 
 Programs can group multiple courses. Calendar sessions can schedule classroom/operational delivery and enroll staff. Development plans can contain competency, course, program or action items.
 
@@ -198,9 +222,19 @@ Staff Competency Profile Assignment
 
 The processor is idempotent with respect to an employee who already has an active competency profile and records assignment/skip decisions instead of silently replacing profile history.
 
+Manager UI now exposes existing governed backend actions from the staff drill-down without bypassing backend guards:
+
+- competency-profile assignment
+- append-only manual competency assessment
+- recurring-review completion
+- recurring-review cancellation with reason
+- Training assignment start/complete
+
+Review completion remains blocked until fresh assessment evidence exists for all profile requirements after the review opened.
+
 ## 7. Branch Quality Score — Training Compliance
 
-`TRAINING_COMPLIANCE` is now a real Branch Quality Score metric source rather than a reserved/unsupported source.
+`TRAINING_COMPLIANCE` is a real Branch Quality Score metric source rather than a reserved/unsupported source.
 
 The metric uses assignments due within the score period as its denominator. The numerator counts those assignments completed by the score period end. Assignments cancelled before the period end are excluded; a later cancellation does not rewrite the historical period semantics.
 
@@ -208,19 +242,9 @@ Optional `sourceKey` may scope the metric to a Training course code or course ca
 
 No due assignment produces `NO_DATA` rather than an invented compliance score, allowing the configured score policy's missing-data strategy to remain authoritative.
 
-Implementation commits:
-
-```text
-47fba58a2ce7f8e63881f651ab999bd61426254a
-feat(quality): score training compliance
-
-30e258d28c02ae1d3dc6c83e1e136540f42d576c
-test(quality): cover training compliance metric
-```
-
 ## 8. Scheduled Branch Quality Score processing
 
-Branch Quality Score calculation can now be driven by persisted schedules instead of relying only on manual `/quality/scores/calculate` calls.
+Branch Quality Score calculation can be driven by persisted schedules instead of relying only on manual `/quality/scores/calculate` calls.
 
 Implemented scheduler behavior includes:
 
@@ -240,9 +264,9 @@ Implemented scheduler behavior includes:
 
 The first scheduler increment is intentionally branch-scoped. It does not mutate request TenantContext to impersonate other branches. A future central/platform multi-branch worker must use an explicit privileged execution model rather than bypassing branch isolation.
 
-## 9. Learning Operations UI
+## 9. Learning Operations and analytics UI
 
-The first operational UI increment is now available under `/training` and the `Gelişim` navigation group.
+Operational UI is available under `/training` and the permission-aware `Gelişim` navigation group.
 
 Implemented UI surfaces include:
 
@@ -258,15 +282,56 @@ Implemented UI surfaces include:
 - staff drill-down at `/training/staff/[staffId]`
 - staff competency gap analysis
 - staff Training assignment lifecycle visibility
-- manager start/complete assignment actions
+- manager profile assignment/manual assessment/review complete/cancel actions
 - staff recurring-review history
 - staff development-plan progress
+- Learning Analytics at `/training/analytics`
+- Training completion/overdue metrics
+- competency-gap and review-backlog metrics
+- persisted Training Compliance trend from Branch Quality Score
+- explainable staff development risk ranking
+- reusable question-bank authoring at `/training/question-bank`
 
-The sidebar now exposes `Eğitim & Yetkinlik` and `Personel Gelişim Profilleri` under the permission-aware `Gelişim` section.
+Question-bank authoring is restricted to `training.manage` because correct-answer keys are manager/server-side authoring data and must not be exposed through learner-facing reads.
 
-## 10. Isolation and integrity hardening
+## 10. Multi-branch Quality + Training comparison
 
-The Training planning and score scheduling layers preserve active branch isolation and semantic linkage.
+The company-level comparison cockpit is available at `/quality/comparison` when the user has both `quality.read` and `training.read`.
+
+The UI combines existing bounded-context branch signals by `branchId` instead of inventing a hidden aggregate score:
+
+- persisted latest Branch Quality Score
+- Training Compliance
+- average inspection score
+- high/critical finding count
+- Training completion rate
+- overdue Training assignments
+- competency-gap count
+- overdue competency reviews
+
+Quality score values are read from persisted `branch_quality_scores`; the comparison read path does not recalculate scores.
+
+A Region entity/domain does not currently exist in the repository. Region-level aggregation is intentionally not fabricated from branch names or addresses. Region comparison remains pending until an explicit Region domain and branch-to-region relationship are introduced.
+
+## 11. Reusable question-bank architecture
+
+Question-bank persistence includes `training_question_bank_questions` with tenant/company scope, stable question code, version number, `DRAFT/PUBLISHED/RETIRED` lifecycle, type/category/tags, answer key and default points.
+
+Important guarantees:
+
+- one published version per tenant/company/question code
+- new versions are created rather than rewriting published versions
+- publish retires the previous published version of the same code
+- only published bank items can be inserted into an exam
+- target exam must belong to a DRAFT course version
+- inserting a bank question copies prompt/options/correct answer/points into `training_exam_questions`
+- `question_bank_id` and `question_bank_version` preserve provenance
+- later bank revisions do not rewrite historical exam snapshots
+- bank authoring/list reads require `training.manage`; learner-facing reads do not expose answer keys
+
+## 12. Isolation and integrity hardening
+
+The Training planning, analytics, score scheduling and authoring layers preserve tenant/company/branch isolation and semantic linkage.
 
 ### Calendar active-branch isolation
 
@@ -274,15 +339,7 @@ A branch-scoped request cannot provide another branch ID to the calendar read pa
 
 ### Enrollment assignment isolation
 
-An optional calendar enrollment assignment is validated against:
-
-- tenant
-- company
-- branch
-- staff
-- course
-- open assignment lifecycle state
-- course version when the session is pinned to a version
+An optional calendar enrollment assignment is validated against tenant, company, branch, staff, course, open assignment lifecycle state and course version when the session is pinned to a version.
 
 A foreign key alone is not treated as sufficient authorization/domain integrity.
 
@@ -294,42 +351,51 @@ Material session, enrollment and development-plan transitions execute inside ser
 
 Due score schedules are leased through row-locked `SKIP LOCKED` claims. A retry after calculation but before schedule advancement detects the existing branch score for the same period and records an idempotent skip instead of creating a second scheduled score run.
 
-## 11. Architecture invariants
+### Analytics scope
+
+Learning analytics preserve active request tenant/company/branch scope. Central company context may compare branches within that company; branch context remains restricted to the active branch.
+
+### Question-bank authoring integrity
+
+Question version allocation is advisory-lock protected. Publish and exam-copy operations use serializable transactions, and exam insertion is restricted to draft course versions.
+
+## 13. Architecture invariants
 
 - Tenant/company/branch isolation is mandatory on every read and mutation.
 - `Staff`/employee and authenticated `User` remain separate concepts.
 - Authorization Role and Competency Profile remain separate concepts.
 - Published Training content is immutable; changes require a new version.
+- Published reusable questions are versioned; exam content stores an immutable snapshot.
 - Versioned assignments cannot bypass required assessment/result guards.
 - Training assignments generated from Quality or Competency rules preserve their source rule/rationale.
-- Exam answer keys remain server-side data and are not exposed in learner-facing reads.
+- Exam answer keys remain server-side/manager-authoring data and are not exposed in learner-facing reads.
 - Certificate, result, competency assessment, review and effectiveness history remain auditable.
 - Calendar enrollment must not link a staff member to another staff/branch/course/version assignment.
 - Position mapping must not silently overwrite active employee competency-profile history.
 - Branch Quality Score must not manufacture Training compliance when the reporting period has no eligible assignments.
 - Scheduled score workers must not escape active branch scope by mutating TenantContext.
+- Comparison dashboards must display explainable domain metrics instead of manufacturing opaque composite scores.
+- Region reporting must not be simulated before a real Region domain exists.
 - Future AI recommendations may sit above these explainable signals but must not replace rule/audit foundations.
 
-## 12. Correct continuation point
+## 14. Correct continuation point
 
-The previous roadmap wording that treated LMS, Competency Management, learning programs, lesson progress, certificate lifecycle, Training calendar, development plans, HR position mapping, recurring competency reviews, Training Compliance and scheduled Branch Quality Score calculation as future foundation work is stale.
+The previous roadmap wording that treated Training/Competency analytics, multi-branch Quality + Training comparison, manager competency workflows and reusable question-bank authoring as future foundation work is now stale.
 
-The next increments should build on the existing backend and Learning Operations UI instead of recreating these foundations.
+The next increments should build on the current green backend/UI checkpoint rather than recreating these foundations.
 
 Recommended sequence:
 
 ```text
-Training + Competency analytics and compliance dashboards
-        ↓
-Branch/region Quality + Training comparison cockpit
-        ↓
-Manager workflows for assessment/profile/review actions
-        ↓
-Reusable question-bank authoring
-        ↓
 Concrete object-storage integration for controlled documents/evidence
         ↓
 Effectiveness feedback-loop expansion and additional explainable score metrics
+        ↓
+Central/platform privileged worker for multi-branch scheduled Quality Score processing
+        ↓
+Explicit Region domain + branch-to-region relationship
+        ↓
+Region-level Quality + Training aggregation/comparison
 ```
 
-Backend lifecycle, isolation, audit and concurrency invariants remain the gate for every UI/automation increment.
+Backend lifecycle, isolation, audit, immutable-history and concurrency invariants remain the gate for every UI/automation increment.
