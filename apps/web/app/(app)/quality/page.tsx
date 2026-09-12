@@ -14,8 +14,6 @@ type QualityCase = {
   id: string;
   branchId: string;
   branchName?: string | null;
-  feedbackId?: string | null;
-  customerId?: string | null;
   firstName?: string | null;
   lastName?: string | null;
   category: string;
@@ -32,53 +30,40 @@ type Feedback = {
   id: string;
   branchId: string;
   branchName?: string | null;
-  customerId: string;
   firstName?: string | null;
   lastName?: string | null;
   serviceName?: string | null;
   classification: "UNCLASSIFIED" | "POSITIVE" | "NEUTRAL" | "NEGATIVE" | "CRITICAL";
   overallRating?: number | null;
   comment?: string | null;
-  submittedAt: string;
   qualityCaseId?: string | null;
   qualityCaseStatus?: QualityCaseStatus | null;
 };
 
 type SlaBreach = {
   id: string;
-  branchId: string;
   status: QualityCaseStatus;
   severity: QualitySeverity;
   title: string;
-  assignedUserId?: string | null;
-  slaDueAt?: string | null;
   slaBreachedAt?: string | null;
   slaEscalationLevel: number;
 };
 
 type NotificationOutbox = {
   id: string;
-  feedbackRequestId: string;
-  customerId: string;
-  branchId: string;
   status: "PENDING" | "CLAIMED" | "RETRY" | "SENT" | "DEAD" | "CANCELLED";
   attemptCount: number;
   nextAttemptAt?: string | null;
-  sentAt?: string | null;
   channel?: string | null;
-  providerKey?: string | null;
-  lastErrorCode?: string | null;
-  createdAt: string;
 };
 
 type Filter = "ALL" | "OPEN" | "INVESTIGATING" | "ACTION_REQUIRED" | "CRITICAL";
-
 type ActionKey = "sla" | "enqueue" | "dispatch" | string;
 
 const STATUS_LABELS: Record<QualityCaseStatus, string> = {
   OPEN: "Açık",
   INVESTIGATING: "İnceleniyor",
-  ACTION_REQUIRED: "Aksiyon gerekli",
+  ACTION_REQUIRED: "İşlem Gerekli",
   RESOLVED: "Çözüldü",
   CLOSED: "Kapandı",
 };
@@ -88,6 +73,15 @@ const SEVERITY_LABELS: Record<QualitySeverity, string> = {
   MEDIUM: "Orta",
   HIGH: "Yüksek",
   CRITICAL: "Kritik",
+};
+
+const DELIVERY_STATUS_LABELS: Record<NotificationOutbox["status"], string> = {
+  PENDING: "Bekliyor",
+  CLAIMED: "İşleme Alındı",
+  RETRY: "Yeniden Denenecek",
+  SENT: "Gönderildi",
+  DEAD: "Gönderilemedi",
+  CANCELLED: "İptal Edildi",
 };
 
 function formatDate(value?: string | null) {
@@ -147,22 +141,17 @@ export default function QualityCockpitPage() {
       setBreaches(breachRows ?? []);
       setOutbox(outboxRows ?? []);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Kalite verileri yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Kalite Verileri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
   }, []);
 
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const openCases = useMemo(() => cases.filter((item) => !["RESOLVED", "CLOSED"].includes(item.status)), [cases]);
   const criticalCases = useMemo(() => openCases.filter((item) => item.severity === "CRITICAL"), [openCases]);
-  const negativeFeedback = useMemo(
-    () => feedback.filter((item) => item.classification === "NEGATIVE" || item.classification === "CRITICAL"),
-    [feedback],
-  );
+  const negativeFeedback = useMemo(() => feedback.filter((item) => item.classification === "NEGATIVE" || item.classification === "CRITICAL"), [feedback]);
   const deliveryProblems = useMemo(() => outbox.filter((item) => item.status === "RETRY" || item.status === "DEAD"), [outbox]);
   const filteredCases = useMemo(() => {
     if (filter === "ALL") return openCases;
@@ -179,7 +168,7 @@ export default function QualityCockpitPage() {
       setSuccess(message);
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "İşlem tamamlanamadı.");
+      setError(requestError instanceof ApiError ? requestError.message : "İşlem Tamamlanamadı.");
     } finally {
       setAction(null);
     }
@@ -188,8 +177,8 @@ export default function QualityCockpitPage() {
   const transition = useCallback((item: QualityCase, target: "INVESTIGATING" | "ACTION_REQUIRED") => {
     void perform(
       `case:${item.id}:${target}`,
-      () => api(`/quality/cases/${item.id}/transition`, { method: "POST", body: { status: target, note: "Quality Cockpit üzerinden ilerletildi." } }),
-      `Vaka ${STATUS_LABELS[target].toLocaleLowerCase("tr-TR")} durumuna alındı.`,
+      () => api(`/quality/cases/${item.id}/transition`, { method: "POST", body: { status: target, note: "Kalite Merkezi Üzerinden İlerletildi." } }),
+      `Vaka ${STATUS_LABELS[target]} Durumuna Alındı.`,
     );
   }, [perform]);
 
@@ -197,32 +186,21 @@ export default function QualityCockpitPage() {
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Kalite Yönetimi & Müşteri Deneyimi</p>
-          <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Quality Control Center</h1>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Kalite Yönetimi Ve Müşteri Deneyimi</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Kalite Kontrol Merkezi</h1>
           <p className="mt-2 max-w-[780px] text-[13px] leading-6 text-[var(--muted)]">
-            Açık kalite vakalarını, SLA ihlallerini, negatif müşteri geri bildirimlerini ve bildirim teslimat sorunlarını tek operasyon ekranından yönetin.
+            Açık Kalite Vakalarını, Hizmet Süresi İhlallerini, Negatif Müşteri Geri Bildirimlerini Ve Bildirim Teslimat Sorunlarını Tek Ekrandan Yönetin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => void load()} disabled={loading || action !== null}>Yenile</Button>
-          <Button
-            variant="secondary"
-            disabled={action !== null}
-            onClick={() => void perform("sla", () => api("/quality/sla/process", { method: "POST", body: { limit: 100 } }), "SLA taraması tamamlandı.")}
-          >
-            {action === "sla" ? "Taranıyor..." : "SLA Taraması"}
+          <Button variant="secondary" disabled={action !== null} onClick={() => void perform("sla", () => api("/quality/sla/process", { method: "POST", body: { limit: 100 } }), "Hizmet Süresi Taraması Tamamlandı.")}>
+            {action === "sla" ? "Taranıyor..." : "Hizmet Süresi Taraması"}
           </Button>
-          <Button
-            variant="secondary"
-            disabled={action !== null}
-            onClick={() => void perform("enqueue", () => api("/quality/notifications/enqueue-feedback?limit=100", { method: "POST" }), "Bekleyen geri bildirim istekleri kuyruğa alındı.")}
-          >
-            {action === "enqueue" ? "Kuyruğa alınıyor..." : "Feedback Kuyruğu"}
+          <Button variant="secondary" disabled={action !== null} onClick={() => void perform("enqueue", () => api("/quality/notifications/enqueue-feedback?limit=100", { method: "POST" }), "Bekleyen Geri Bildirim İstekleri Kuyruğa Alındı.")}>
+            {action === "enqueue" ? "Kuyruğa Alınıyor..." : "Geri Bildirim Kuyruğu"}
           </Button>
-          <Button
-            disabled={action !== null}
-            onClick={() => void perform("dispatch", () => api("/quality/notifications/dispatch-feedback?limit=25", { method: "POST" }), "Feedback bildirim dağıtımı tamamlandı.")}
-          >
+          <Button disabled={action !== null} onClick={() => void perform("dispatch", () => api("/quality/notifications/dispatch-feedback?limit=25", { method: "POST" }), "Geri Bildirim Bildirimleri Gönderildi.")}>
             {action === "dispatch" ? "Gönderiliyor..." : "Bildirimleri Gönder"}
           </Button>
         </div>
@@ -232,27 +210,25 @@ export default function QualityCockpitPage() {
       {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success}</Alert> : null}
 
       {loading ? (
-        <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
-          <Spinner label="Kalite kontrol merkezi hazırlanıyor..." />
-        </div>
+        <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]"><Spinner label="Kalite Kontrol Merkezi Hazırlanıyor..." /></div>
       ) : (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <FinanceMetric label="Açık Vaka" value={openCases.length} detail={`${criticalCases.length} kritik vaka`} tone={criticalCases.length ? "danger" : "info"} />
-            <FinanceMetric label="SLA İhlali" value={breaches.length} detail="Çözülmemiş ve SLA süresi aşılmış" tone={breaches.length ? "warning" : "success"} />
-            <FinanceMetric label="Negatif Feedback" value={negativeFeedback.length} detail="Negatif + kritik geri bildirim" tone={negativeFeedback.length ? "danger" : "neutral"} />
-            <FinanceMetric label="Teslimat Sorunu" value={deliveryProblems.length} detail="Retry + dead notification" tone={deliveryProblems.length ? "warning" : "success"} />
+            <FinanceMetric label="Açık Vaka" value={openCases.length} detail={`${criticalCases.length} Kritik Vaka`} tone={criticalCases.length ? "danger" : "info"} />
+            <FinanceMetric label="Hizmet Süresi İhlali" value={breaches.length} detail="Çözülmemiş Ve Süresi Aşılmış Kayıtlar" tone={breaches.length ? "warning" : "success"} />
+            <FinanceMetric label="Negatif Geri Bildirim" value={negativeFeedback.length} detail="Negatif Ve Kritik Geri Bildirimler" tone={negativeFeedback.length ? "danger" : "neutral"} />
+            <FinanceMetric label="Teslimat Sorunu" value={deliveryProblems.length} detail="Yeniden Denenecek Veya Gönderilemeyen Bildirimler" tone={deliveryProblems.length ? "warning" : "success"} />
           </section>
 
           <FinancePanel
             title="Aktif Kalite Vakaları"
-            description="Açık vakaları önem ve süreç durumuna göre takip edin. Bu ekran yalnız güvenli ara durum geçişlerini tetikler."
+            description="Açık Vakaları Önem Ve Süreç Durumuna Göre Takip Edin."
             actions={
               <div className="flex flex-wrap gap-2">
                 <FilterChip active={filter === "ALL"} count={openCases.length} onClick={() => setFilter("ALL")}>Tümü</FilterChip>
                 <FilterChip active={filter === "OPEN"} count={openCases.filter((item) => item.status === "OPEN").length} onClick={() => setFilter("OPEN")}>Açık</FilterChip>
                 <FilterChip active={filter === "INVESTIGATING"} count={openCases.filter((item) => item.status === "INVESTIGATING").length} onClick={() => setFilter("INVESTIGATING")}>İnceleniyor</FilterChip>
-                <FilterChip active={filter === "ACTION_REQUIRED"} count={openCases.filter((item) => item.status === "ACTION_REQUIRED").length} onClick={() => setFilter("ACTION_REQUIRED")}>Aksiyon</FilterChip>
+                <FilterChip active={filter === "ACTION_REQUIRED"} count={openCases.filter((item) => item.status === "ACTION_REQUIRED").length} onClick={() => setFilter("ACTION_REQUIRED")}>İşlem Gerekli</FilterChip>
                 <FilterChip active={filter === "CRITICAL"} count={criticalCases.length} onClick={() => setFilter("CRITICAL")}>Kritik</FilterChip>
               </div>
             }
@@ -267,92 +243,48 @@ export default function QualityCockpitPage() {
                         <div className="flex flex-wrap items-center gap-2">
                           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${severityClass(item.severity)}`}>{SEVERITY_LABELS[item.severity]}</span>
                           <span className={`rounded-full px-2.5 py-1 text-[10px] font-semibold ${statusClass(item.status)}`}>{STATUS_LABELS[item.status]}</span>
-                          <span className="text-[10px] text-[var(--muted-soft)]">{item.branchName ?? item.branchId}</span>
+                          <span className="text-[10px] text-[var(--muted-soft)]">{item.branchName ?? "Şube"}</span>
                         </div>
                         <h3 className="mt-2 truncate text-[13px] font-semibold text-[var(--ink)]">{item.title}</h3>
                         <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-[var(--muted)]">{item.description || item.category}</p>
                         <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{customerName(item.firstName, item.lastName)} · Açılış {formatDate(item.createdAt)}</p>
                       </div>
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">SLA</p>
-                        <p className="mt-1 text-[11px] font-medium text-[var(--ink)]">{formatDate(item.slaDueAt)}</p>
-                      </div>
-                      <div>
-                        <p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Sorumlu</p>
-                        <p className="mt-1 truncate text-[11px] font-medium text-[var(--ink)]">{item.assignedUserId ?? "Atanmamış"}</p>
-                      </div>
+                      <div><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Çözüm Süresi</p><p className="mt-1 text-[11px] font-medium text-[var(--ink)]">{formatDate(item.slaDueAt)}</p></div>
+                      <div><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Sorumlu</p><p className="mt-1 truncate text-[11px] font-medium text-[var(--ink)]">{item.assignedUserId ? "Atandı" : "Atanmamış"}</p></div>
                       <div className="flex flex-wrap gap-2 lg:justify-end">
-                        {item.status === "OPEN" ? (
-                          <Button className="min-h-9 px-3 py-2 text-[11px]" variant="secondary" disabled={busy || action !== null} onClick={() => transition(item, "INVESTIGATING")}>{busy ? "İşleniyor..." : "İncelemeye Al"}</Button>
-                        ) : null}
-                        {item.status === "INVESTIGATING" ? (
-                          <Button className="min-h-9 px-3 py-2 text-[11px]" variant="secondary" disabled={busy || action !== null} onClick={() => transition(item, "ACTION_REQUIRED")}>{busy ? "İşleniyor..." : "Aksiyon Gerekli"}</Button>
-                        ) : null}
+                        {item.status === "OPEN" ? <Button className="min-h-9 px-3 py-2 text-[11px]" variant="secondary" disabled={busy || action !== null} onClick={() => transition(item, "INVESTIGATING")}>{busy ? "İşleniyor..." : "İncelemeye Al"}</Button> : null}
+                        {item.status === "INVESTIGATING" ? <Button className="min-h-9 px-3 py-2 text-[11px]" variant="secondary" disabled={busy || action !== null} onClick={() => transition(item, "ACTION_REQUIRED")}>{busy ? "İşleniyor..." : "İşlem Gerekli"}</Button> : null}
                       </div>
                     </article>
                   );
                 })}
               </div>
-              {!filteredCases.length ? <div className="p-5"><FinanceEmpty title="Bu filtrede aktif kalite vakası yok." description="Yeni vakalar veya mevcut vakaların durum değişiklikleri burada görünür." /></div> : null}
-              <DataViewMeta>
-                <span>{filteredCases.length} görünür vaka</span>
-                <span>{criticalCases.length} kritik</span>
-                <span>{breaches.length} SLA ihlali</span>
-              </DataViewMeta>
+              {!filteredCases.length ? <div className="p-5"><FinanceEmpty title="Bu Filtrede Aktif Kalite Vakası Yok" description="Yeni Vakalar Veya Mevcut Vakaların Durum Değişiklikleri Burada Görünür." /></div> : null}
+              <DataViewMeta><span>{filteredCases.length} Görünür Vaka</span><span>{criticalCases.length} Kritik</span><span>{breaches.length} Hizmet Süresi İhlali</span></DataViewMeta>
             </DataView>
           </FinancePanel>
 
           <div className="grid gap-6 xl:grid-cols-2">
-            <FinancePanel title="SLA İhlalleri" description="Çözülmemiş vakalarda SLA süresi aşılmış kayıtlar.">
+            <FinancePanel title="Hizmet Süresi İhlalleri" description="Çözülmemiş Vakalarda Hedef Çözüm Süresi Aşılan Kayıtlar.">
               <div className="space-y-2">
-                {breaches.slice(0, 8).map((item) => (
-                  <div key={item.id} className="flex items-start justify-between gap-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/30 px-4 py-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{item.title}</p>
-                      <p className="mt-1 text-[10px] text-[var(--muted)]">{SEVERITY_LABELS[item.severity]} · {STATUS_LABELS[item.status]} · Seviye {item.slaEscalationLevel}</p>
-                    </div>
-                    <div className="shrink-0 text-right text-[10px] text-[var(--danger)]">{formatDate(item.slaBreachedAt)}</div>
-                  </div>
-                ))}
-                {!breaches.length ? <FinanceEmpty title="Aktif SLA ihlali yok." description="SLA taraması yeni geciken vakaları işaretlediğinde burada görünür." /> : null}
+                {breaches.slice(0, 8).map((item) => <div key={item.id} className="flex items-start justify-between gap-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/30 px-4 py-3"><div className="min-w-0"><p className="truncate text-[11px] font-semibold text-[var(--ink)]">{item.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{SEVERITY_LABELS[item.severity]} · {STATUS_LABELS[item.status]} · Seviye {item.slaEscalationLevel}</p></div><div className="shrink-0 text-right text-[10px] text-[var(--danger)]">{formatDate(item.slaBreachedAt)}</div></div>)}
+                {!breaches.length ? <FinanceEmpty title="Aktif Hizmet Süresi İhlali Yok" description="Geciken Vakalar Oluştuğunda Burada Görünür." /> : null}
               </div>
             </FinancePanel>
 
-            <FinancePanel title="Negatif Müşteri Geri Bildirimleri" description="Negatif veya kritik sınıflandırılmış son geri bildirimler.">
+            <FinancePanel title="Negatif Müşteri Geri Bildirimleri" description="Negatif Veya Kritik Olarak Sınıflandırılan Son Geri Bildirimler.">
               <div className="space-y-2">
-                {negativeFeedback.slice(0, 8).map((item) => (
-                  <div key={item.id} className="rounded-[14px] border border-[var(--line)] px-4 py-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{customerName(item.firstName, item.lastName)}</p>
-                      <span className="shrink-0 rounded-full bg-[var(--danger-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--danger)]">{item.overallRating ?? "—"}/5</span>
-                    </div>
-                    <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-[var(--muted)]">{item.comment || "Yorum girilmemiş."}</p>
-                    <div className="mt-2 flex flex-wrap justify-between gap-2 text-[9px] text-[var(--muted-soft)]">
-                      <span>{item.serviceName ?? item.branchName ?? item.branchId}</span>
-                      <span>{item.qualityCaseId ? `Vaka: ${item.qualityCaseStatus ?? "OPEN"}` : "Henüz vaka yok"}</span>
-                    </div>
-                  </div>
-                ))}
-                {!negativeFeedback.length ? <FinanceEmpty title="Negatif geri bildirim yok." description="Müşteri portalı ve manuel kalite feedback kayıtları burada izlenir." /> : null}
+                {negativeFeedback.slice(0, 8).map((item) => <div key={item.id} className="rounded-[14px] border border-[var(--line)] px-4 py-3"><div className="flex items-center justify-between gap-3"><p className="truncate text-[11px] font-semibold text-[var(--ink)]">{customerName(item.firstName, item.lastName)}</p><span className="shrink-0 rounded-full bg-[var(--danger-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--danger)]">{item.overallRating ?? "—"}/5</span></div><p className="mt-1 line-clamp-2 text-[10px] leading-5 text-[var(--muted)]">{item.comment || "Yorum Girilmemiş."}</p><div className="mt-2 flex flex-wrap justify-between gap-2 text-[9px] text-[var(--muted-soft)]"><span>{item.serviceName ?? item.branchName ?? "Şube"}</span><span>{item.qualityCaseId ? `Vaka: ${item.qualityCaseStatus ? STATUS_LABELS[item.qualityCaseStatus] : "Açık"}` : "Henüz Vaka Yok"}</span></div></div>)}
+                {!negativeFeedback.length ? <FinanceEmpty title="Negatif Geri Bildirim Yok" description="Müşteri Geri Bildirimleri Burada İzlenir." /> : null}
               </div>
             </FinancePanel>
           </div>
 
-          <FinancePanel title="Notification Delivery Health" description="Feedback bildirim kuyruğunda retry veya permanent failure durumuna düşen teslimatlar.">
+          <FinancePanel title="Bildirim Teslimat Durumu" description="Yeniden Deneme Gerektiren Veya Gönderilemeyen Bildirimler.">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {deliveryProblems.slice(0, 9).map((item) => (
-                <div key={item.id} className="rounded-[14px] border border-[var(--line)] px-4 py-3">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${item.status === "DEAD" ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--warning-soft)] text-[var(--warning)]"}`}>{item.status}</span>
-                    <span className="text-[9px] text-[var(--muted-soft)]">Deneme {item.attemptCount}</span>
-                  </div>
-                  <p className="mt-3 truncate text-[11px] font-semibold text-[var(--ink)]">{item.lastErrorCode ?? "Delivery retry pending"}</p>
-                  <p className="mt-1 text-[9px] text-[var(--muted)]">{item.providerKey ?? "Provider bilinmiyor"} · {item.channel ?? "Kanal bilinmiyor"}</p>
-                  <p className="mt-2 text-[9px] text-[var(--muted-soft)]">Sonraki deneme: {formatDate(item.nextAttemptAt)}</p>
-                </div>
-              ))}
+              {deliveryProblems.slice(0, 9).map((item) => <div key={item.id} className="rounded-[14px] border border-[var(--line)] px-4 py-3"><div className="flex items-center justify-between gap-3"><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${item.status === "DEAD" ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--warning-soft)] text-[var(--warning)]"}`}>{DELIVERY_STATUS_LABELS[item.status]}</span><span className="text-[9px] text-[var(--muted-soft)]">{item.attemptCount}. Deneme</span></div><p className="mt-3 text-[11px] font-semibold text-[var(--ink)]">{item.status === "DEAD" ? "Bildirim Gönderilemedi" : "Bildirim Yeniden Denenecek"}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{item.channel ? `Kanal: ${item.channel}` : "Kanal Bilgisi Yok"}</p><p className="mt-2 text-[9px] text-[var(--muted-soft)]">Sonraki Deneme: {formatDate(item.nextAttemptAt)}</p></div>)}
             </div>
-            {!deliveryProblems.length ? <FinanceEmpty title="Bildirim teslimat sorunu yok." description="Retry veya DEAD kayıt oluştuğunda operasyon ekibi buradan görebilir." /> : null}
+            {!deliveryProblems.length ? <FinanceEmpty title="Bildirim Teslimat Sorunu Yok" description="Sorunlu Bildirimler Oluştuğunda Burada Görünür." /> : null}
           </FinancePanel>
         </>
       )}
