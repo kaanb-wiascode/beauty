@@ -719,20 +719,33 @@ export class InventoryService {
 
   async assetMaintenance(assetId?: string) {
     const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT m.id,m.asset_id AS "assetId",a.name AS "assetName",m.type,m.status,m.scheduled_at AS "scheduledAt",m.completed_at AS "completedAt",m.provider,m.cost,m.currency,m.description FROM inventory_asset_maintenance m JOIN inventory_assets a ON a.id=m.asset_id WHERE a.company_id=$1::text ${assetId ? `AND m.asset_id=$2::text` : ''} ORDER BY COALESCE(m.scheduled_at,m.created_at) DESC`,
+      `SELECT m.id,m.asset_id AS "assetId",a.name AS "assetName",m.type,m.status,m.scheduled_at AS "scheduledAt",m.completed_at AS "completedAt",m.provider,m.cost,m.currency,m.description
+       FROM inventory_asset_maintenance m
+       JOIN inventory_assets a ON a.id=m.asset_id
+       WHERE a.company_id=$1::text
+         AND ($2::text IS NULL OR a.branch_id=$2::text OR a.branch_id IS NULL)
+         AND ($3::text IS NULL OR m.asset_id=$3::text)
+       ORDER BY COALESCE(m.scheduled_at,m.created_at) DESC`,
       companyId,
-      ...(assetId ? [assetId] : []),
+      branchId,
+      assetId ?? null,
     );
   }
 
   async createAssetMaintenance(input: any) {
     if (!input.assetId) throw new BadRequestException('Asset is required');
     const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     const asset = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id FROM inventory_assets WHERE id=$1::text AND company_id=$2::text LIMIT 1`,
+      `SELECT id FROM inventory_assets
+       WHERE id=$1::text AND company_id=$2::text
+         AND ($3::text IS NULL OR branch_id=$3::text OR branch_id IS NULL)
+       LIMIT 1`,
       input.assetId,
       companyId,
+      branchId,
     );
     if (!asset.length) throw new NotFoundException('Asset not found');
 
@@ -753,9 +766,16 @@ export class InventoryService {
   }
 
   async notifications() {
+    const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,type,title,message,branch_id AS "branchId",role_target AS "roleTarget",reference_type AS "referenceType",reference_id AS "referenceId",read_at AS "readAt",created_at AS "createdAt" FROM inventory_notifications WHERE company_id=$1::text ORDER BY created_at DESC LIMIT 80`,
-      this.companyId(),
+      `SELECT id,type,title,message,branch_id AS "branchId",role_target AS "roleTarget",reference_type AS "referenceType",reference_id AS "referenceId",read_at AS "readAt",created_at AS "createdAt"
+       FROM inventory_notifications
+       WHERE company_id=$1::text
+         AND ($2::text IS NULL OR branch_id=$2::text OR branch_id IS NULL)
+       ORDER BY created_at DESC LIMIT 80`,
+      companyId,
+      branchId,
     );
   }
 
