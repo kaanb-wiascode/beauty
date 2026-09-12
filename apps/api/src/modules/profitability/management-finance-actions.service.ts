@@ -109,40 +109,49 @@ export class ManagementFinanceActionsService {
 
   async update(id: string, input: UpdateManagementFinanceActionInput) {
     const { companyId, branchId } = this.context();
-    const currentRows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT * FROM management_finance_actions
-       WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text) LIMIT 1`,
-      id, companyId, branchId,
-    );
-    const current = currentRows[0];
-    if (!current) throw new NotFoundException('Management action not found.');
-
     const assignedUserId = input.assignedUserId === undefined
-      ? current.assigned_user_id
+      ? undefined
       : await this.validateAssignee(input.assignedUserId);
-    const status = input.status ?? current.status;
-    const completedAt = status === 'COMPLETED' ? current.completed_at ?? new Date() : null;
 
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `UPDATE management_finance_actions SET
-         status=$2::text,
-         priority=$3::text,
-         assigned_user_id=$4::text,
-         due_at=$5::timestamptz,
-         resolution_note=$6,
-         completed_at=$7::timestamptz,
-         updated_at=NOW()
-       WHERE id=$1::text
-       RETURNING *`,
-      id,
-      status,
-      input.priority ?? current.priority,
-      assignedUserId,
-      input.dueAt === undefined ? current.due_at : input.dueAt,
-      input.resolutionNote === undefined ? current.resolution_note : input.resolutionNote,
-      completedAt,
-    );
-    return this.map(rows[0]);
+    return this.prisma.$transaction(async (tx) => {
+      const currentRows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT * FROM management_finance_actions
+         WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text)
+         FOR UPDATE`,
+        id,
+        companyId,
+        branchId,
+      );
+      const current = currentRows[0];
+      if (!current) throw new NotFoundException('Management action not found.');
+
+      const status = input.status ?? current.status;
+      const completedAt = status === 'COMPLETED' ? current.completed_at ?? new Date() : null;
+
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `UPDATE management_finance_actions SET
+           status=$4::text,
+           priority=$5::text,
+           assigned_user_id=$6::text,
+           due_at=$7::timestamptz,
+           resolution_note=$8,
+           completed_at=$9::timestamptz,
+           updated_at=NOW()
+         WHERE id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text)
+         RETURNING *`,
+        id,
+        companyId,
+        branchId,
+        status,
+        input.priority ?? current.priority,
+        assignedUserId === undefined ? current.assigned_user_id : assignedUserId,
+        input.dueAt === undefined ? current.due_at : input.dueAt,
+        input.resolutionNote === undefined ? current.resolution_note : input.resolutionNote,
+        completedAt,
+      );
+      if (!rows.length) throw new NotFoundException('Management action not found.');
+      return this.map(rows[0]);
+    });
   }
 
   async summary() {
