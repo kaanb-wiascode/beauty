@@ -3,6 +3,7 @@ import {
   clearSupplierPortalSession,
   getSupplierPortalSession,
 } from "./supplier-portal-auth";
+import { userErrorMessage } from "./user-language";
 
 type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
@@ -18,12 +19,19 @@ function redirectToSupplierLogin() {
   window.location.assign("/supplier-portal/login");
 }
 
-function readMessage(payload: unknown) {
-  if (!payload || typeof payload !== "object") return "İstek başarısız oldu.";
+function readMessage(payload: unknown, fallback: string) {
+  if (!payload || typeof payload !== "object") return fallback;
   const message = (payload as { message?: unknown }).message;
-  if (typeof message === "string" && message.trim()) return message;
-  if (Array.isArray(message) && message.length) return message.map(String).join(", ");
-  return "İstek başarısız oldu.";
+  if (typeof message === "string" && message.trim()) {
+    return userErrorMessage(message, fallback);
+  }
+  if (Array.isArray(message) && message.length) {
+    const safeMessages = message
+      .map((item) => userErrorMessage(String(item), ""))
+      .filter(Boolean);
+    return safeMessages.length ? safeMessages.join(" ") : fallback;
+  }
+  return fallback;
 }
 
 export async function supplierPortalApi<T>(
@@ -39,7 +47,7 @@ export async function supplierPortalApi<T>(
     const session = getSupplierPortalSession();
     if (!session) {
       redirectToSupplierLogin();
-      throw new ApiError("Tedarikçi portalı oturumunuz sona erdi.", 401);
+      throw new ApiError("Tedarikçi Portalı Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.", 401);
     }
     headers.Authorization = `Bearer ${session.accessToken}`;
   }
@@ -53,7 +61,10 @@ export async function supplierPortalApi<T>(
       credentials: "include",
     });
   } catch {
-    throw new ApiError("Sunucuya bağlanılamadı. Backend çalışıyor mu?", 0);
+    throw new ApiError(
+      "Sunucuya Bağlanılamadı. Lütfen Birkaç Dakika Sonra Tekrar Deneyin.",
+      0,
+    );
   }
 
   const text = await response.text();
@@ -71,7 +82,17 @@ export async function supplierPortalApi<T>(
       clearSupplierPortalSession();
       redirectToSupplierLogin();
     }
-    throw new ApiError(readMessage(payload), response.status);
+
+    const fallback =
+      response.status === 403
+        ? "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor."
+        : response.status === 404
+          ? "Aradığınız Kayıt Bulunamadı."
+          : response.status >= 500
+            ? "İşlem Şu Anda Tamamlanamıyor. Lütfen Birkaç Dakika Sonra Tekrar Deneyin."
+            : "İşlem Tamamlanamadı. Lütfen Bilgileri Kontrol Edip Tekrar Deneyin.";
+
+    throw new ApiError(readMessage(payload, fallback), response.status);
   }
 
   return payload as T;
