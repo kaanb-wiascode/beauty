@@ -32,8 +32,21 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     env:
+      NODE_ENV: test
       DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty_ci?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: beauty-ci-access-secret-2026-very-long
+      JWT_REFRESH_SECRET: beauty-ci-refresh-secret-2026-very-long
 
     steps:
       - name: Checkout
@@ -93,6 +106,9 @@ jobs:
 
       - name: Test API
         run: pnpm --filter api test:ci
+
+      - name: Test API E2E
+        run: pnpm --filter api test:e2e -- --runInBand
 
       - name: Build API
         run: pnpm --filter api build
