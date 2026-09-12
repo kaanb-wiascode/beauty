@@ -13,7 +13,13 @@ export class TrainingPlanningController {
   @Get('calendar') @RequirePermission('training','read') calendar(@Query('from')from?:string,@Query('to')to?:string,@Query('branchId')branchId?:string){return this.planning.calendar({from,to,branchId});}
   @Post('sessions') @RequirePermission('training','manage') session(@Body()body:any,@Req()req:{user?:{sub?:string}}){return this.planning.createSession(body,this.userId(req));}
   @Post('sessions/:id/enroll') @RequirePermission('training','manage') enroll(@Param('id')id:string,@Body()body:any,@Req()req:{user?:{sub?:string}}){return this.planning.enroll(id,body,this.userId(req));}
+  @Post('sessions/:id/start') @RequirePermission('training','manage') start(@Param('id')id:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionSession(id,'IN_PROGRESS',{},this.userId(req));}
+  @Post('sessions/:id/complete') @RequirePermission('training','manage') complete(@Param('id')id:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionSession(id,'COMPLETED',{},this.userId(req));}
+  @Post('sessions/:id/cancel') @RequirePermission('training','manage') cancel(@Param('id')id:string,@Body()body:any,@Req()req:{user?:{sub?:string}}){return this.planning.transitionSession(id,'CANCELLED',body,this.userId(req));}
+  @Post('sessions/:sessionId/enrollments/:enrollmentId/:status') @RequirePermission('training','manage') enrollmentStatus(@Param('sessionId')sessionId:string,@Param('enrollmentId')enrollmentId:string,@Param('status')status:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionEnrollment(sessionId,enrollmentId,status,this.userId(req));}
   @Get('development-plans') @RequirePermission('training','read') plans(@Query('staffId')staffId?:string){return this.planning.listPlans(staffId||undefined);}
   @Post('development-plans') @RequirePermission('training','manage') plan(@Body()body:any,@Req()req:{user?:{sub?:string}}){return this.planning.createPlan(body,this.userId(req));}
   @Post('development-plans/:id/items') @RequirePermission('training','manage') item(@Param('id')id:string,@Body()body:any,@Req()req:{user?:{sub?:string}}){return this.planning.addPlanItem(id,body,this.userId(req));}
+  @Post('development-plans/:id/items/:itemId/:status') @RequirePermission('training','manage') itemStatus(@Param('id')id:string,@Param('itemId')itemId:string,@Param('status')status:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionPlanItem(id,itemId,status,this.userId(req));}
+  @Post('development-plans/:id/:status') @RequirePermission('training','manage') planStatus(@Param('id')id:string,@Param('status')status:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionPlan(id,status,this.userId(req));}
 }
