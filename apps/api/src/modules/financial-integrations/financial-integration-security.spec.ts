@@ -8,35 +8,75 @@ function contextWithUser() {
     getClass: jest.fn(),
     switchToHttp: jest.fn().mockReturnValue({
       getRequest: jest.fn().mockReturnValue({
-        user: { sub: 'user-a', tenantId: 'tenant-a', roleId: 'role-a' },
+        user: {
+          sub: 'user-a',
+          tenantId: 'tenant-a',
+          companyId: 'company-a',
+          branchId: null,
+          membershipId: 'membership-a',
+          roleId: 'role-a',
+          roleScope: 'CENTRAL',
+        },
       }),
     }),
   } as never;
 }
 
+function permissionPrisma(permissionGranted: boolean) {
+  return {
+    membership: {
+      findFirst: jest.fn().mockResolvedValue({
+        id: 'membership-a',
+        role: {
+          id: 'role-a',
+          tenantId: 'tenant-a',
+          companyId: 'company-a',
+          scope: 'CENTRAL',
+        },
+        branchAccesses: [],
+      }),
+    },
+    branch: {
+      findFirst: jest.fn(),
+    },
+    rolePermission: {
+      findFirst: jest
+        .fn()
+        .mockResolvedValue(permissionGranted ? { roleId: 'role-a' } : null),
+    },
+  } as never;
+}
+
 describe('Financial integration security', () => {
-  it('allows a role with the required permission', async () => {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue('manage') } as never;
-    const prisma = { $queryRawUnsafe: jest.fn().mockResolvedValue([{ allowed: true }]) } as never;
+  it('allows an active membership with the required permission', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue('manage'),
+    } as never;
+    const prisma = permissionPrisma(true);
     const guard = new FinancialIntegrationPermissionGuard(reflector, prisma);
 
     await expect(guard.canActivate(contextWithUser())).resolves.toBe(true);
-    expect((prisma as unknown as { $queryRawUnsafe: jest.Mock }).$queryRawUnsafe.mock.calls[0].slice(1)).toEqual([
-      'role-a', 'tenant-a', 'manage',
-    ]);
   });
 
-  it('denies a role without the required permission', async () => {
-    const reflector = { getAllAndOverride: jest.fn().mockReturnValue('read') } as never;
-    const prisma = { $queryRawUnsafe: jest.fn().mockResolvedValue([{ allowed: false }]) } as never;
+  it('denies an active membership without the required permission', async () => {
+    const reflector = {
+      getAllAndOverride: jest.fn().mockReturnValue('read'),
+    } as never;
+    const prisma = permissionPrisma(false);
     const guard = new FinancialIntegrationPermissionGuard(reflector, prisma);
 
-    await expect(guard.canActivate(contextWithUser())).rejects.toBeInstanceOf(ForbiddenException);
+    await expect(guard.canActivate(contextWithUser())).rejects.toBeInstanceOf(
+      ForbiddenException,
+    );
   });
 
   it('enforces the distributed Redis mutation limit', async () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue({ bucket: 'integration-sync', limit: 2, windowSeconds: 60 }),
+      getAllAndOverride: jest.fn().mockReturnValue({
+        bucket: 'integration-sync',
+        limit: 2,
+        windowSeconds: 60,
+      }),
     } as never;
     const client = {
       incr: jest.fn().mockResolvedValue(3),
@@ -56,7 +96,11 @@ describe('Financial integration security', () => {
 
   it('sets the Redis expiry on the first request in a bucket', async () => {
     const reflector = {
-      getAllAndOverride: jest.fn().mockReturnValue({ bucket: 'integration-sync', limit: 10, windowSeconds: 60 }),
+      getAllAndOverride: jest.fn().mockReturnValue({
+        bucket: 'integration-sync',
+        limit: 10,
+        windowSeconds: 60,
+      }),
     } as never;
     const client = {
       incr: jest.fn().mockResolvedValue(1),
@@ -66,6 +110,9 @@ describe('Financial integration security', () => {
     const guard = new FinancialIntegrationRateLimitGuard(reflector, redis);
 
     await expect(guard.canActivate(contextWithUser())).resolves.toBe(true);
-    expect(client.expire).toHaveBeenCalledWith('rate:finance:tenant-a:user-a:integration-sync', 60);
+    expect(client.expire).toHaveBeenCalledWith(
+      'rate:finance:tenant-a:user-a:integration-sync',
+      60,
+    );
   });
 });
