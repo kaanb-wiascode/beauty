@@ -37,6 +37,15 @@ export class PaymentsService {
     return branchId;
   }
 
+  private isUniqueConstraintError(error: unknown): boolean {
+    return (
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      (error as { code?: unknown }).code === 'P2002'
+    );
+  }
+
   /**
    * CENTRAL without an active branch may see the whole company.
    * Once a branch is selected, all branch-scoped operations are
@@ -214,17 +223,26 @@ export class PaymentsService {
       );
     }
 
-    return this.prisma.payment.create({
-      data: {
-        tenantId,
-        appointmentId: appointment.id,
-        amount: input.amount,
-        method: input.method,
-        ...(input.paidAt
-          ? { paidAt: input.paidAt }
-          : {}),
-      },
-    });
+    try {
+      return await this.prisma.payment.create({
+        data: {
+          tenantId,
+          appointmentId: appointment.id,
+          amount: input.amount,
+          method: input.method,
+          ...(input.paidAt
+            ? { paidAt: input.paidAt }
+            : {}),
+        },
+      });
+    } catch (error) {
+      if (this.isUniqueConstraintError(error)) {
+        throw new ConflictException(
+          'Appointment already has a payment',
+        );
+      }
+      throw error;
+    }
   }
 
   async findAll(input: ListPaymentsInput) {
@@ -288,6 +306,10 @@ export class PaymentsService {
         id,
         ...this.getPaymentScope(),
       },
+      select: {
+        id: true,
+        status: true,
+      },
     });
 
     if (!payment) {
@@ -300,15 +322,28 @@ export class PaymentsService {
       );
     }
 
-    return this.prisma.payment.update({
+    const result = await this.prisma.payment.updateMany({
       where: {
         id: payment.id,
+        status: {
+          not: 'REFUNDED',
+        },
       },
       data: {
         status: 'REFUNDED',
         refundedAt: new Date(),
         refundReason: input.reason?.trim() || null,
       },
+    });
+
+    if (result.count !== 1) {
+      throw new ConflictException(
+        'Payment is already refunded',
+      );
+    }
+
+    return this.prisma.payment.findUniqueOrThrow({
+      where: { id: payment.id },
     });
   }
 
@@ -389,8 +424,7 @@ export class PaymentsService {
     };
   }
 
-
-    async dashboardReport(input: DashboardReportInput) {
+  async dashboardReport(input: DashboardReportInput) {
     const tenantId = this.getTenantId();
     const now = new Date();
 
