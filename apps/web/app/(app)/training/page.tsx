@@ -61,7 +61,63 @@ type DevelopmentPlan = {
   completedItemCount: number;
 };
 
-type ActionKey = "expired" | "quality-rules" | "refresh" | null;
+type CompetencyDefinition = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  category: string;
+  isActive: boolean;
+};
+
+type CompetencyProfile = {
+  id: string;
+  code: string;
+  name: string;
+  description?: string | null;
+  version: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+  requirements: Array<{
+    competencyId: string;
+    competencyCode: string;
+    competencyName: string;
+    requiredLevel: number;
+    weight: number;
+  }>;
+};
+
+type ReviewSchedule = {
+  id: string;
+  name: string;
+  branchId?: string | null;
+  cadenceDays: number;
+  dueOffsetDays: number;
+  profileId?: string | null;
+  isActive: boolean;
+  nextRunAt: string;
+  lastRunAt?: string | null;
+  profileCode?: string | null;
+  profileName?: string | null;
+  profileVersion?: number | null;
+};
+
+type CompetencyReview = {
+  id: string;
+  staffId: string;
+  profileId: string;
+  scheduleId?: string | null;
+  status: "OPEN" | "COMPLETED" | "CANCELLED";
+  openedAt: string;
+  dueAt: string;
+  completedAt?: string | null;
+  profileCode: string;
+  profileName: string;
+  profileVersion: number;
+};
+
+type ActionKey = "expired" | "quality-rules" | "reviews" | "refresh" | null;
 
 const STATUS_LABELS: Record<AssignmentStatus, string> = {
   ASSIGNED: "Atandı",
@@ -103,6 +159,10 @@ export default function TrainingOperationsPage() {
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [sessions, setSessions] = useState<TrainingSession[]>([]);
   const [plans, setPlans] = useState<DevelopmentPlan[]>([]);
+  const [definitions, setDefinitions] = useState<CompetencyDefinition[]>([]);
+  const [profiles, setProfiles] = useState<CompetencyProfile[]>([]);
+  const [reviewSchedules, setReviewSchedules] = useState<ReviewSchedule[]>([]);
+  const [reviews, setReviews] = useState<CompetencyReview[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -115,16 +175,24 @@ export default function TrainingOperationsPage() {
     try {
       const from = new Date();
       const to = new Date(from.getTime() + 30 * 86400000);
-      const [courseRows, assignmentRows, sessionRows, planRows] = await Promise.all([
+      const [courseRows, assignmentRows, sessionRows, planRows, definitionRows, profileRows, scheduleRows, reviewRows] = await Promise.all([
         api<Course[]>("/training/courses"),
         api<Assignment[]>(withQuery("/training/assignments", { limit: 100 })),
         api<TrainingSession[]>(withQuery("/training/planning/calendar", { from: from.toISOString(), to: to.toISOString() })),
         api<DevelopmentPlan[]>("/training/planning/development-plans"),
+        api<CompetencyDefinition[]>("/training/competencies/definitions"),
+        api<CompetencyProfile[]>("/training/competencies/profiles"),
+        api<ReviewSchedule[]>("/training/competency-reviews/schedules"),
+        api<CompetencyReview[]>(withQuery("/training/competency-reviews", { limit: 100 })),
       ]);
       setCourses(courseRows ?? []);
       setAssignments(assignmentRows ?? []);
       setSessions(sessionRows ?? []);
       setPlans(planRows ?? []);
+      setDefinitions(definitionRows ?? []);
+      setProfiles(profileRows ?? []);
+      setReviewSchedules(scheduleRows ?? []);
+      setReviews(reviewRows ?? []);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Eğitim ve yetkinlik verileri yüklenemedi.");
     } finally {
@@ -146,6 +214,10 @@ export default function TrainingOperationsPage() {
     () => sessions.filter((item) => item.status === "SCHEDULED" || item.status === "IN_PROGRESS"),
     [sessions],
   );
+  const openReviews = useMemo(() => reviews.filter((item) => item.status === "OPEN"), [reviews]);
+  const overdueReviews = useMemo(() => openReviews.filter((item) => new Date(item.dueAt).getTime() < Date.now()), [openReviews]);
+  const activeProfiles = useMemo(() => profiles.filter((item) => item.isActive), [profiles]);
+  const activeSchedules = useMemo(() => reviewSchedules.filter((item) => item.isActive), [reviewSchedules]);
   const dueSoon = useMemo(() => {
     const limit = Date.now() + 7 * 86400000;
     return openAssignments.filter((item) => item.dueAt && new Date(item.dueAt).getTime() <= limit).length;
@@ -173,7 +245,7 @@ export default function TrainingOperationsPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Eğitim, LMS & Yetkinlik</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Learning Operations</h1>
           <p className="mt-2 max-w-[820px] text-[13px] leading-6 text-[var(--muted)]">
-            Eğitim atamalarını, yaklaşan oturumları, gelişim planlarını ve kurs kataloğunu tek operasyon ekranından izleyin. Kalite ve yetkinlik motorlarının oluşturduğu atamalar aynı yaşam döngüsünde görünür.
+            Eğitim atamalarını, yaklaşan oturumları, gelişim planlarını ve yetkinlik değerlendirmelerini tek operasyon ekranından izleyin. Kalite ve yetkinlik motorlarının oluşturduğu atamalar aynı yaşam döngüsünde görünür.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -188,6 +260,13 @@ export default function TrainingOperationsPage() {
                 onClick={() => void run("expired", () => api("/training/assignments/process-expired", { method: "POST", body: { limit: 100 } }), "Süresi geçen eğitim atamaları işlendi.")}
               >
                 {action === "expired" ? "Taranıyor..." : "Süre Aşımı Taraması"}
+              </Button>
+              <Button
+                variant="secondary"
+                disabled={action !== null}
+                onClick={() => void run("reviews", () => api("/training/competency-reviews/schedules/process-due", { method: "POST", body: { limit: 100 } }), "Vadesi gelen yetkinlik değerlendirme planları işlendi.")}
+              >
+                {action === "reviews" ? "Açılıyor..." : "Review Planlarını İşle"}
               </Button>
               <Button
                 disabled={action !== null}
@@ -212,8 +291,8 @@ export default function TrainingOperationsPage() {
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             <FinanceMetric label="Aktif Atama" value={openAssignments.length} detail={`${dueSoon} atama 7 gün içinde vadeli`} tone={dueSoon ? "warning" : "info"} />
             <FinanceMetric label="Yaklaşan Oturum" value={upcomingSessions.length} detail="Önümüzdeki 30 gün" tone="info" />
-            <FinanceMetric label="Aktif Gelişim Planı" value={activePlans.length} detail={`${plans.length} toplam plan`} tone="neutral" />
-            <FinanceMetric label="Süresi Dolan" value={expiredAssignments.length} detail="Takip gerektiren atamalar" tone={expiredAssignments.length ? "danger" : "success"} />
+            <FinanceMetric label="Açık Yetkinlik Review" value={openReviews.length} detail={`${overdueReviews.length} değerlendirme gecikmiş`} tone={overdueReviews.length ? "danger" : "neutral"} />
+            <FinanceMetric label="Süresi Dolan Eğitim" value={expiredAssignments.length} detail="Takip gerektiren atamalar" tone={expiredAssignments.length ? "danger" : "success"} />
           </section>
 
           <div className="grid gap-6 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.85fr)]">
@@ -267,6 +346,54 @@ export default function TrainingOperationsPage() {
                   ))}
                 </div>
               ) : <FinanceEmpty title="Yaklaşan oturum yok" description="Önümüzdeki 30 gün için planlanmış eğitim oturumu bulunmuyor." />}
+            </FinancePanel>
+          </div>
+
+          <div className="grid gap-6 xl:grid-cols-2">
+            <FinancePanel title="Yetkinlik Değerlendirmeleri" description="Recurring review motorunun açtığı personel değerlendirmeleri ve vade görünümü.">
+              {openReviews.length ? (
+                <div className="space-y-3">
+                  {openReviews.slice(0, 10).map((review) => {
+                    const overdue = new Date(review.dueAt).getTime() < Date.now();
+                    return (
+                      <div key={review.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{review.profileCode} · {review.profileName}</p>
+                            <p className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">Personel {review.staffId} · Profil v{review.profileVersion}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2.5 py-1 text-[9px] font-semibold ${overdue ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--warning-soft)] text-[var(--warning)]"}`}>
+                            {overdue ? "Gecikmiş" : "Açık"}
+                          </span>
+                        </div>
+                        <div className="mt-3 flex items-center justify-between text-[10px] text-[var(--muted-soft)]">
+                          <span>Açılış {formatDate(review.openedAt)}</span>
+                          <span>Vade {formatDate(review.dueAt)}</span>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              ) : <FinanceEmpty title="Açık değerlendirme yok" description="Recurring review planları çalıştığında açık yetkinlik değerlendirmeleri burada görünür." />}
+            </FinancePanel>
+
+            <FinancePanel title="Yetkinlik Yönetişimi" description={`${definitions.filter((item) => item.isActive).length} aktif yetkinlik · ${activeProfiles.length} aktif profil · ${activeSchedules.length} aktif review planı`}>
+              {activeProfiles.length ? (
+                <div className="space-y-3">
+                  {activeProfiles.slice(0, 10).map((profile) => (
+                    <div key={profile.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-[10px] font-semibold uppercase tracking-[0.1em] text-[var(--accent)]">{profile.code} · v{profile.version}</p>
+                          <p className="mt-1 truncate text-[12px] font-semibold text-[var(--ink)]">{profile.name}</p>
+                        </div>
+                        <span className="shrink-0 rounded-full bg-[var(--surface-2)] px-2 py-1 text-[9px] font-medium text-[var(--muted)]">{profile.requirements.length} kriter</span>
+                      </div>
+                      <p className="mt-3 text-[10px] text-[var(--muted-soft)]">Geçerlilik {formatDate(profile.effectiveFrom)}{profile.effectiveTo ? ` → ${formatDate(profile.effectiveTo)}` : " → açık"}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : <FinanceEmpty title="Aktif yetkinlik profili yok" description="Yetkinlik profilleri oluşturulduğunda governance görünümü burada oluşur." />}
             </FinancePanel>
           </div>
 
