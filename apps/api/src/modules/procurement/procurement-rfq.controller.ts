@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { ProcurementRfqOptionsService } from './procurement-rfq-options.service';
 import { ProcurementRfqService } from './procurement-rfq.service';
 
 const uuid = z.string().uuid();
@@ -44,7 +45,10 @@ const createSchema = z.object({
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RequirePermission('inventory', 'read')
 export class ProcurementRfqController {
-  constructor(private readonly rfqs: ProcurementRfqService) {}
+  constructor(
+    private readonly rfqs: ProcurementRfqService,
+    private readonly options: ProcurementRfqOptionsService,
+  ) {}
 
   private userId(req: { user?: { sub?: string } }) {
     const userId = req.user?.sub;
@@ -58,6 +62,11 @@ export class ProcurementRfqController {
   list(@Query() query: unknown) {
     const parsed = listSchema.parse(query);
     return this.rfqs.list(parsed.status);
+  }
+
+  @Get('options')
+  getOptions() {
+    return this.options.get();
   }
 
   @Get(':id')
