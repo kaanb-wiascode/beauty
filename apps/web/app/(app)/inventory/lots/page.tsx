@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
   DataView,
@@ -102,6 +102,7 @@ export default function InventoryLotsPage() {
   const [formOpen, setFormOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<LotForm>(EMPTY_FORM);
+  const [currentTime, setCurrentTime] = useState<number | null>(null);
 
   async function load() {
     setLoading(true);
@@ -127,22 +128,31 @@ export default function InventoryLotsPage() {
   }
 
   useEffect(() => {
+    setCurrentTime(Date.now());
     void load();
   }, []);
 
   const visibleLots = useMemo(() => {
     const query = search.trim().toLocaleLowerCase("tr-TR");
-    const now = Date.now();
-    const threshold = now + 30 * 24 * 60 * 60 * 1000;
+    const threshold =
+      currentTime === null
+        ? null
+        : currentTime + 30 * 24 * 60 * 60 * 1000;
 
     return lots.filter((lot) => {
       const expiry = lot.expiresAt ? new Date(lot.expiresAt).getTime() : null;
-      if (expiryFilter === "EXPIRED" && (expiry === null || expiry >= now)) {
+      if (
+        expiryFilter === "EXPIRED" &&
+        currentTime !== null &&
+        (expiry === null || expiry >= currentTime)
+      ) {
         return false;
       }
       if (
         expiryFilter === "EXPIRING" &&
-        (expiry === null || expiry < now || expiry > threshold)
+        currentTime !== null &&
+        threshold !== null &&
+        (expiry === null || expiry < currentTime || expiry > threshold)
       ) {
         return false;
       }
@@ -153,25 +163,26 @@ export default function InventoryLotsPage() {
         .toLocaleLowerCase("tr-TR")
         .includes(query);
     });
-  }, [expiryFilter, lots, search]);
+  }, [currentTime, expiryFilter, lots, search]);
 
-  const expiredCount = useMemo(
-    () =>
-      lots.filter(
-        (lot) => lot.expiresAt && new Date(lot.expiresAt).getTime() < Date.now(),
-      ).length,
-    [lots],
-  );
+  const expiredCount = useMemo(() => {
+    if (currentTime === null) return 0;
+    return lots.filter(
+      (lot) =>
+        lot.expiresAt &&
+        new Date(lot.expiresAt).getTime() < currentTime,
+    ).length;
+  }, [currentTime, lots]);
 
   const expiringCount = useMemo(() => {
-    const now = Date.now();
-    const threshold = now + 30 * 24 * 60 * 60 * 1000;
+    if (currentTime === null) return 0;
+    const threshold = currentTime + 30 * 24 * 60 * 60 * 1000;
     return lots.filter((lot) => {
       if (!lot.expiresAt) return false;
       const expiry = new Date(lot.expiresAt).getTime();
-      return expiry >= now && expiry <= threshold;
+      return expiry >= currentTime && expiry <= threshold;
     }).length;
-  }, [lots]);
+  }, [currentTime, lots]);
 
   function openForm() {
     setForm({
@@ -302,14 +313,14 @@ export default function InventoryLotsPage() {
           </div>
           <div className="divide-y divide-[var(--line)]">
             {visibleLots.map((lot) => (
-              <LotRow key={lot.id} lot={lot} />
+              <LotRow key={lot.id} lot={lot} currentTime={currentTime} />
             ))}
           </div>
         </div>
 
         <div className="divide-y divide-[var(--line)] md:hidden">
           {visibleLots.map((lot) => (
-            <LotCard key={lot.id} lot={lot} />
+            <LotCard key={lot.id} lot={lot} currentTime={currentTime} />
           ))}
         </div>
 
@@ -504,7 +515,13 @@ export default function InventoryLotsPage() {
   );
 }
 
-function LotRow({ lot }: { lot: InventoryLot }) {
+function LotRow({
+  lot,
+  currentTime,
+}: {
+  lot: InventoryLot;
+  currentTime: number | null;
+}) {
   return (
     <div className="grid grid-cols-[1.35fr_1fr_1fr_.75fr_1fr_.85fr] items-center px-5 py-4">
       <div className="min-w-0">
@@ -527,12 +544,18 @@ function LotRow({ lot }: { lot: InventoryLot }) {
       <span className="text-[11px] text-[var(--muted)]">
         {lot.expiresAt ? formatDate(lot.expiresAt) : "Takip Edilmiyor"}
       </span>
-      <ExpiryBadge expiresAt={lot.expiresAt} />
+      <ExpiryBadge expiresAt={lot.expiresAt} currentTime={currentTime} />
     </div>
   );
 }
 
-function LotCard({ lot }: { lot: InventoryLot }) {
+function LotCard({
+  lot,
+  currentTime,
+}: {
+  lot: InventoryLot;
+  currentTime: number | null;
+}) {
   return (
     <article className="space-y-3 px-4 py-4">
       <div className="flex items-start justify-between gap-3">
@@ -544,7 +567,7 @@ function LotCard({ lot }: { lot: InventoryLot }) {
             {lot.lotNumber} · {lot.warehouseName}
           </p>
         </div>
-        <ExpiryBadge expiresAt={lot.expiresAt} />
+        <ExpiryBadge expiresAt={lot.expiresAt} currentTime={currentTime} />
       </div>
       <div className="flex items-center justify-between gap-3 text-[11px]">
         <span className="font-semibold text-[var(--ink)]">
@@ -558,7 +581,13 @@ function LotCard({ lot }: { lot: InventoryLot }) {
   );
 }
 
-function ExpiryBadge({ expiresAt }: { expiresAt?: string | null }) {
+function ExpiryBadge({
+  expiresAt,
+  currentTime,
+}: {
+  expiresAt?: string | null;
+  currentTime: number | null;
+}) {
   if (!expiresAt) {
     return (
       <span className="w-fit rounded-full bg-black/[0.04] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">
@@ -567,7 +596,15 @@ function ExpiryBadge({ expiresAt }: { expiresAt?: string | null }) {
     );
   }
 
-  const remaining = new Date(expiresAt).getTime() - Date.now();
+  if (currentTime === null) {
+    return (
+      <span className="w-fit rounded-full bg-black/[0.04] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">
+        Tarih Var
+      </span>
+    );
+  }
+
+  const remaining = new Date(expiresAt).getTime() - currentTime;
   if (remaining < 0) {
     return (
       <span className="w-fit rounded-full bg-[rgba(143,61,61,0.08)] px-2.5 py-1 text-[9px] font-semibold text-[#7a3333]">
