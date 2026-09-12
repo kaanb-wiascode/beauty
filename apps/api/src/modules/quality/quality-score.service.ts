@@ -6,6 +6,7 @@ type SourceKind =
   | 'INSPECTION_CATEGORY'
   | 'CUSTOMER_FEEDBACK'
   | 'TRAINING_COMPLIANCE'
+  | 'TRAINING_EFFECTIVENESS'
   | 'CUSTOM_METRIC';
 
 type DimensionInput = {
@@ -85,7 +86,7 @@ export class QualityScoreService {
       if (!code || !dimensionName) throw new BadRequestException('Dimension code and name are required.');
       if (codes.has(code)) throw new BadRequestException(`Duplicate dimension code: ${code}`);
       codes.add(code);
-      if (!['INSPECTION_CATEGORY', 'CUSTOMER_FEEDBACK', 'TRAINING_COMPLIANCE', 'CUSTOM_METRIC'].includes(item.sourceKind)) {
+      if (!['INSPECTION_CATEGORY', 'CUSTOMER_FEEDBACK', 'TRAINING_COMPLIANCE', 'TRAINING_EFFECTIVENESS', 'CUSTOM_METRIC'].includes(item.sourceKind)) {
         throw new BadRequestException(`Unsupported sourceKind for ${code}.`);
       }
       if (!Number.isFinite(item.weight) || item.weight <= 0) {
@@ -264,6 +265,28 @@ export class QualityScoreService {
       const count = Number(rows[0]?.count ?? 0);
       const completed = Number(rows[0]?.completed ?? 0);
       const score = count ? Math.round((completed / count) * 10000) / 100 : null;
+      return { rawScore: score, sourceCount: count, dataStatus: count ? 'AVAILABLE' : 'NO_DATA' };
+    }
+    if (dimension.sourceKind === 'TRAINING_EFFECTIVENESS') {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT COUNT(*) FILTER (WHERE er.outcome <> 'INSUFFICIENT_BASELINE')::int AS count,
+                COUNT(*) FILTER (WHERE er.outcome = 'IMPROVED')::int AS improved
+         FROM training_effectiveness_runs er
+         JOIN training_assignments a ON a.id=er.assignment_id
+         JOIN training_courses course ON course.id=a.course_id
+         WHERE er.tenant_id=$1::text AND er.company_id=$2::text AND er.branch_id=$3::text
+           AND er.post_window_end >= $4::date AND er.post_window_end < ($5::date + INTERVAL '1 day')
+           AND ($6::text IS NULL OR UPPER(course.code)=UPPER($6) OR UPPER(course.category)=UPPER($6))`,
+        c.tenantId,
+        c.companyId,
+        branchId,
+        periodStart,
+        periodEnd,
+        dimension.sourceKey ?? null,
+      );
+      const count = Number(rows[0]?.count ?? 0);
+      const improved = Number(rows[0]?.improved ?? 0);
+      const score = count ? Math.round((improved / count) * 10000) / 100 : null;
       return { rawScore: score, sourceCount: count, dataStatus: count ? 'AVAILABLE' : 'NO_DATA' };
     }
     return { rawScore: null, sourceCount: 0, dataStatus: 'UNSUPPORTED_SOURCE' };
