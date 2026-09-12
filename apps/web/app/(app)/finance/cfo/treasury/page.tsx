@@ -98,7 +98,7 @@ export default function TreasuryCockpitPage() {
       setReconciliation(nextReconciliation);
       setAccounts(nextAccounts);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Treasury verileri yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Nakit Yönetimi Verileri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -126,7 +126,7 @@ export default function TreasuryCockpitPage() {
   if (loading && !position) {
     return (
       <div className="mx-auto max-w-[1500px] py-20">
-        <Spinner label="Canlı treasury pozisyonu hazırlanıyor..." />
+        <Spinner label="Nakit Yönetimi Hazırlanıyor..." />
       </div>
     );
   }
@@ -135,15 +135,15 @@ export default function TreasuryCockpitPage() {
     <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
       <header className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">FİNANS & CFO / TREASURY</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">Finans Yönetimi · Nakit Yönetimi</p>
           <h1 className="mt-2 text-[36px] font-semibold tracking-[-.045em] text-[var(--ink)]">Canlı Nakit Pozisyonu</h1>
           <p className="mt-2 max-w-3xl text-[14px] leading-6 text-[var(--muted)]">
-            Defter nakdini, banka API bakiyelerini, POS near-cash pozisyonunu, beklenen settlement akışını ve mutabakat farklarını tek ekranda izleyin.
+            Kasa, Banka, POS Alacakları, Beklenen Hesaba Geçişler Ve Mutabakat Farklarını Tek Ekrandan İzleyin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href="/finance/cfo" className="inline-flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-4 text-[11px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">
-            CFO Kokpitine Dön
+            Finans Genel Bakışına Dön
           </Link>
           <Button onClick={() => void load()} disabled={loading}>{loading ? "Yükleniyor..." : "Verileri Yenile"}</Button>
         </div>
@@ -152,29 +152,29 @@ export default function TreasuryCockpitPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <FinanceMetric label="Actual Cash" value={money(position?.book.actualCash)} detail="100 Kasa + 102 Bankalar" tone="success" />
-        <FinanceMetric label="Near Cash" value={money(position?.book.nearCash)} detail="108 POS Alacakları" />
-        <FinanceMetric label="Total Liquid" value={money(position?.book.totalLiquidPosition)} detail="Actual Cash + Near Cash" tone="success" />
-        <FinanceMetric label="Live Bank" value={position?.bankVariance.comparable ? money(position.bankVariance.providerCurrentBalance, reportingCurrency) : "—"} detail={position?.bankVariance.comparable ? `${reportingCurrency} provider current balance` : "Raporlama para birimi ayarlanmalı"} />
-        <FinanceMetric label="Bank Variance" value={position?.bankVariance.comparable ? signedMoney(position.bankVariance.currentVariance, reportingCurrency) : "—"} detail="Provider − 102 defter" tone={varianceTone(position?.bankVariance.currentVariance)} />
-        <FinanceMetric label="Beklenen POS" value={money(forecastTotal?.netAmount, reportingCurrency)} detail={`${forecastTotal?.transactionCount ?? 0} işlem`} />
+        <FinanceMetric label="Mevcut Nakit" value={money(position?.book.actualCash)} detail="Kasa Ve Banka Toplamı" tone="success" />
+        <FinanceMetric label="Hesaba Geçmeyi Bekleyen" value={money(position?.book.nearCash)} detail="POS Alacakları" />
+        <FinanceMetric label="Toplam Likit Pozisyon" value={money(position?.book.totalLiquidPosition)} detail="Mevcut Nakit Ve Bekleyen POS" tone="success" />
+        <FinanceMetric label="Canlı Banka Bakiyesi" value={position?.bankVariance.comparable ? money(position.bankVariance.providerCurrentBalance, reportingCurrency) : "—"} detail={position?.bankVariance.comparable ? `${reportingCurrency} Güncel Banka Bakiyesi` : "Raporlama Para Birimi Ayarlanmalı"} />
+        <FinanceMetric label="Banka Bakiye Farkı" value={position?.bankVariance.comparable ? signedMoney(position.bankVariance.currentVariance, reportingCurrency) : "—"} detail="Canlı Banka Bakiyesi İle Muhasebe Bakiyesi Farkı" tone={varianceTone(position?.bankVariance.currentVariance)} />
+        <FinanceMetric label="Beklenen POS Geçişi" value={money(forecastTotal?.netAmount, reportingCurrency)} detail={`${forecastTotal?.transactionCount ?? 0} İşlem`} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.2fr_.8fr]">
-        <FinancePanel title="POS Settlement Forecast" description={`${reportingCurrency} beklenen net banka geçişleri`}>
+        <FinancePanel title="POS Hesaba Geçiş Tahmini" description={`${reportingCurrency} İçin Beklenen Net Banka Geçişleri`}>
           <ForecastBars days={chartDays} currency={reportingCurrency} />
         </FinancePanel>
-        <FinancePanel title="Treasury Kontrol" description="Defter, banka ve POS köprü görünümü">
+        <FinancePanel title="Nakit Kontrolü" description="Muhasebe, Banka Ve POS Görünümü">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Mini label="100 Kasa" value={money(position?.book.cashOnHand)} />
-            <Mini label="102 Bankalar" value={money(position?.book.bankBalance)} />
-            <Mini label="Provider Available" value={providerBalance ? money(providerBalance.availableBalance, providerBalance.currency) : "—"} />
+            <Mini label="Kasa" value={money(position?.book.cashOnHand)} />
+            <Mini label="Bankalar" value={money(position?.book.bankBalance)} />
+            <Mini label="Kullanılabilir Banka Bakiyesi" value={providerBalance ? money(providerBalance.availableBalance, providerBalance.currency) : "—"} />
             <Mini label="Mutabakat Oranı" value={percent(reconciliation?.matched, reconciliation?.total)} />
-            <Mini label="Zamanı Bilinmeyen POS" value={money(unknownTiming?.netAmount, reportingCurrency)} />
+            <Mini label="Geçiş Tarihi Bilinmeyen POS" value={money(unknownTiming?.netAmount, reportingCurrency)} />
             <Mini label="Mutabakatsız POS" value={`${reconciliation?.unmatched ?? 0} · ${money(reconciliation?.unmatchedAmount)}`} />
           </div>
           <div className="mt-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4 text-[11px] leading-5 text-[var(--muted)]">
-            102 defter bakiyesi ile canlı banka bakiyesi yalnız raporlama para birimi tanımlandığında kıyaslanır. Fark, banka mutabakatı için sinyal üretir; provider bakiyesi muhasebe defterinin yerine geçmez.
+            Muhasebe Banka Bakiyesi İle Canlı Banka Bakiyesi Yalnızca Raporlama Para Birimi Tanımlandığında Karşılaştırılır. Farklar Mutabakat Kontrolü İçin Kullanılır; Canlı Banka Bakiyesi Muhasebe Kayıtlarının Yerine Geçmez.
           </div>
           <Link href="/finance/reconciliation" className="mt-4 inline-flex rounded-[12px] bg-[var(--accent)] px-4 py-2.5 text-[11px] font-semibold text-white">
             Mutabakat Merkezine Git
@@ -183,46 +183,46 @@ export default function TreasuryCockpitPage() {
       </section>
 
       <section className="grid gap-5 xl:grid-cols-2">
-        <FinancePanel title="Provider Banka Bakiyeleri" description="Para birimi bazında Open Banking görünümü">
+        <FinancePanel title="Banka Bakiyeleri" description="Para Birimi Bazında Güncel Banka Görünümü">
           <div className="grid gap-3 sm:grid-cols-2">
             {(position?.provider.bankBalancesByCurrency ?? []).map((item) => (
               <div key={item.currency} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/40 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-[var(--muted)]">{item.currency}</p>
-                  <span className="text-[9px] text-[var(--muted-soft)]">{item.accountCount} hesap</span>
+                  <span className="text-[9px] text-[var(--muted-soft)]">{item.accountCount} Hesap</span>
                 </div>
                 <p className="mt-3 text-[19px] font-semibold text-[var(--ink)]">{money(item.currentBalance, item.currency)}</p>
                 <p className="mt-1 text-[10px] text-[var(--muted)]">Kullanılabilir {money(item.availableBalance, item.currency)}</p>
                 <p className="mt-2 text-[9px] text-[var(--muted-soft)]">{dateTime(item.balanceAsOf)}</p>
               </div>
             ))}
-            {!position?.provider.bankBalancesByCurrency.length ? <FinanceEmpty title="Open Banking bakiyesi bulunamadı." /> : null}
+            {!position?.provider.bankBalancesByCurrency.length ? <FinanceEmpty title="Banka Bakiyesi Bulunamadı." /> : null}
           </div>
         </FinancePanel>
 
-        <FinancePanel title="Settlement İstisnaları" description="Nakit dönüşüm zamanlaması açısından izlenecek POS tutarları">
+        <FinancePanel title="POS Geçiş İstisnaları" description="Hesaba Geçiş Zamanı Bilinmeyen POS Tutarları">
           <div className="space-y-2">
             {(position?.posSettlementForecast.unknownTiming ?? []).map((item) => (
               <div key={item.currency} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3">
                 <div>
                   <p className="text-[12px] font-semibold text-[var(--ink)]">{item.currency}</p>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">{item.transactionCount} işlemin settlement tarihi bilinmiyor</p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">{item.transactionCount} İşlemin Hesaba Geçiş Tarihi Bilinmiyor</p>
                 </div>
                 <p className="text-[14px] font-semibold text-[var(--ink)]">{money(item.netAmount, item.currency)}</p>
               </div>
             ))}
-            {!position?.posSettlementForecast.unknownTiming.length ? <FinanceEmpty title="Settlement zamanı bilinmeyen POS işlemi yok." /> : null}
+            {!position?.posSettlementForecast.unknownTiming.length ? <FinanceEmpty title="Hesaba Geçiş Tarihi Bilinmeyen POS İşlemi Yok." /> : null}
           </div>
         </FinancePanel>
       </section>
 
-      <FinancePanel title="Banka Hesapları" description="Senkronize hesapların canlı bakiye pozisyonu">
+      <FinancePanel title="Banka Hesapları" description="Bağlı Hesapların Güncel Bakiye Pozisyonu">
         <DataView>
           <div className="overflow-x-auto">
             <table className="w-full min-w-[760px] text-left text-xs">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/40 text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">
-                  <th className="px-3 py-3">Banka</th><th className="px-3 py-3">Hesap</th><th className="px-3 py-3">IBAN</th><th className="px-3 py-3">Para Birimi</th><th className="px-3 py-3">Current</th><th className="px-3 py-3">Available</th><th className="px-3 py-3">Bakiye Tarihi</th>
+                  <th className="px-3 py-3">Banka</th><th className="px-3 py-3">Hesap</th><th className="px-3 py-3">IBAN</th><th className="px-3 py-3">Para Birimi</th><th className="px-3 py-3">Mevcut Bakiye</th><th className="px-3 py-3">Kullanılabilir Bakiye</th><th className="px-3 py-3">Bakiye Tarihi</th>
                 </tr>
               </thead>
               <tbody>
@@ -240,8 +240,8 @@ export default function TreasuryCockpitPage() {
               </tbody>
             </table>
           </div>
-          {!accounts.length ? <FinanceEmpty title="Henüz senkronize banka hesabı yok." /> : null}
-          <DataViewMeta><span>{accounts.length} hesap</span><span>Canlı provider bakiyeleri</span></DataViewMeta>
+          {!accounts.length ? <FinanceEmpty title="Henüz Bağlı Banka Hesabı Yok." /> : null}
+          <DataViewMeta><span>{accounts.length} Hesap</span><span>Güncel Banka Bakiyeleri</span></DataViewMeta>
         </DataView>
       </FinancePanel>
     </div>
@@ -249,7 +249,7 @@ export default function TreasuryCockpitPage() {
 }
 
 function ForecastBars({ days, currency }: { days: SettlementDay[]; currency: string }) {
-  if (!days.length) return <FinanceEmpty title="Beklenen settlement verisi bulunamadı." />;
+  if (!days.length) return <FinanceEmpty title="Beklenen POS Geçiş Verisi Bulunamadı." />;
   const max = Math.max(1, ...days.map((day) => Number(day.netAmount)));
   return (
     <div className="overflow-x-auto">
@@ -264,7 +264,7 @@ function ForecastBars({ days, currency }: { days: SettlementDay[]; currency: str
               />
             </div>
             <span className="text-[9px] font-semibold text-[var(--muted)]">{shortDate(day.date)}</span>
-            <span className="text-[8px] text-[var(--muted-soft)]">{day.transactionCount} tx{day.overdue ? " · gecikmiş" : ""}</span>
+            <span className="text-[8px] text-[var(--muted-soft)]">{day.transactionCount} İşlem{day.overdue ? " · Gecikmiş" : ""}</span>
           </div>
         ))}
       </div>
