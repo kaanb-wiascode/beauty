@@ -75,4 +75,50 @@ describe('QualityScoreService', () => {
       service.calculate({ periodStart: '2026-09-30', periodEnd: '2026-09-01' }, 'user-1'),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('scores due training assignments by period-end completion', async () => {
+    const tx = {
+      $queryRawUnsafe: jest.fn(async (sql: string) => {
+        expect(sql).toContain('FROM training_assignments');
+        expect(sql).toContain('cancelled_at');
+        return [{ count: 4, completed: 3 }];
+      }),
+    };
+    const service = new QualityScoreService({} as any, tenant as any);
+
+    await expect(
+      (service as any).dimensionMetric(
+        tx,
+        { sourceKind: 'TRAINING_COMPLIANCE', sourceKey: null },
+        '2026-09-01',
+        '2026-09-30',
+        'branch-1',
+      ),
+    ).resolves.toEqual({ rawScore: 75, sourceCount: 4, dataStatus: 'AVAILABLE' });
+
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('FROM training_assignments'),
+      'tenant-1',
+      'company-1',
+      'branch-1',
+      '2026-09-01',
+      '2026-09-30',
+      null,
+    );
+  });
+
+  it('reports no data when no training assignments are due', async () => {
+    const tx = { $queryRawUnsafe: jest.fn(async () => [{ count: 0, completed: 0 }]) };
+    const service = new QualityScoreService({} as any, tenant as any);
+
+    await expect(
+      (service as any).dimensionMetric(
+        tx,
+        { sourceKind: 'TRAINING_COMPLIANCE', sourceKey: 'QUALITY' },
+        '2026-09-01',
+        '2026-09-30',
+        'branch-1',
+      ),
+    ).resolves.toEqual({ rawScore: null, sourceCount: 0, dataStatus: 'NO_DATA' });
+  });
 });
