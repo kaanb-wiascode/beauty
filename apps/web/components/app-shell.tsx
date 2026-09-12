@@ -12,16 +12,16 @@ import { NavIcon } from "./nav-icon";
 const NAV_SECTIONS = [
   { label: "Genel", items: [
     { href: "/dashboard", label: "Bugün", icon: "home" },
-    { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
-    { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
-  { label: "Müşteri İlişkileri", items: [
-    { href: "/crm", permission: "crm.read", label: "CRM Genel Bakış", icon: "trend" },
+  { label: "CRM", items: [
+    { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
     { href: "/crm/leads", permission: "crm.read", label: "Leadler", icon: "users" },
     { href: "/crm/pipeline", permission: "crm.read", label: "Pipeline", icon: "chart" },
     { href: "/crm/follow-ups", permission: "crm.read", label: "Takipler", icon: "calendar" },
+    { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
-  { label: "İşletme", items: [
+  { label: "Operasyon", items: [
+    { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
     { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
     { href: "/payments", permission: "payments.read", label: "Ödemeler", icon: "wallet" },
