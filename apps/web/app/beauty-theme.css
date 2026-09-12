@@ -95,7 +95,6 @@ button[class~="hover:bg-black/[0.04]"]:hover:not(:disabled) { background:var(--a
 button[class~="text-[#8f3d3d]"] { color:var(--danger)!important; }
 label > span:first-child { color:var(--muted); }
 
-/* CRM spacing/radius language, VALOO blue brand color. */
 .dashboard-primary-action {
   border-color:var(--accent)!important;
   border-radius:14px!important;
@@ -121,13 +120,15 @@ label > span:first-child { color:var(--muted); }
 .schedule-row:hover,.panel-footer-link:hover { background:var(--surface-2)!important; }
 .next-meta-grid,.trend-mini { border-color:var(--line)!important; background:var(--surface-2)!important; }
 
-/* Translate legacy purple Tailwind utilities to VALOO blue instead of changing layout. */
+/* Legacy purple utility classes keep their layout role but inherit VALOO blue. */
 .bg-\[\#f2edff\],
 .bg-\[\#eee8ff\],
 .bg-\[\#eee9ff\],
 .bg-\[\#f1edff\] { background:var(--accent-soft)!important; }
 .bg-\[\#ebe5ff\] { background:#dff3fb!important; }
 .bg-\[\#fbfaff\] { background:var(--surface-2)!important; }
+.bg-\[\#8d73e8\],
+.bg-\[\#7f68d8\] { background:var(--accent)!important; }
 .text-\[\#7657e8\],
 .text-\[\#7052df\],
 .text-\[\#7f68d8\],
