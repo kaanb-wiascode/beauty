@@ -1,5 +1,4 @@
 import {
-  BadRequestException,
   Body,
   Controller,
   Get,
@@ -10,15 +9,41 @@ import {
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { QualityNotificationDispatcherService } from './quality-notification-dispatcher.service';
-import {
-  QualityNotificationOutboxService,
-  QualityNotificationOutboxStatus,
-} from './quality-notification-outbox.service';
+import { QualityNotificationOutboxService } from './quality-notification-outbox.service';
+
+const uuid = z.string().uuid();
+const listSchema = z.object({
+  status: z
+    .enum(['PENDING', 'CLAIMED', 'RETRY', 'SENT', 'DEAD', 'CANCELLED'])
+    .optional(),
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+const limitSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+});
+const claimSchema = z.object({
+  limit: z.coerce.number().int().min(1).max(200).optional(),
+  leaseSeconds: z.coerce.number().int().min(30).max(900).optional(),
+});
+const markSentSchema = z.object({
+  claimToken: z.string().min(32).max(512),
+  providerMessageId: z.string().trim().max(200).nullable().optional(),
+});
+const markFailedSchema = z.object({
+  claimToken: z.string().min(32).max(512),
+  errorCode: z
+    .string()
+    .trim()
+    .min(1)
+    .max(80)
+    .regex(/^[A-Za-z0-9_.:-]+$/),
+});
 
 @Controller('quality/notifications')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -30,55 +55,47 @@ export class QualityNotificationOutboxController {
 
   @Get('outbox')
   @RequirePermission('quality', 'read')
-  list(@Query('status') status?: string, @Query('limit') limit?: string) {
-    let parsedStatus: QualityNotificationOutboxStatus | undefined;
-    if (status) {
-      if (!['PENDING', 'CLAIMED', 'RETRY', 'SENT', 'DEAD', 'CANCELLED'].includes(status)) {
-        throw new BadRequestException('Invalid notification outbox status');
-      }
-      parsedStatus = status as QualityNotificationOutboxStatus;
-    }
-    return this.outbox.list({
-      status: parsedStatus,
-      limit: limit === undefined ? undefined : Number(limit),
-    });
+  list(@Query() query: unknown) {
+    return this.outbox.list(listSchema.parse(query));
   }
 
   @Post('enqueue-feedback')
   @RequirePermission('quality', 'manage')
   enqueueFeedback(
-    @Query('limit') limit: string | undefined,
+    @Query() query: unknown,
     @Req() req: { user?: { sub?: string } },
   ) {
+    const input = limitSchema.parse(query);
     return this.outbox.enqueueFeedbackRequests(
       this.userId(req),
-      limit === undefined ? undefined : Number(limit),
+      input.limit,
     );
   }
 
   @Post('dispatch-feedback')
   @RequirePermission('quality', 'manage')
   dispatchFeedback(
-    @Query('limit') limit: string | undefined,
+    @Query() query: unknown,
     @Req() req: { user?: { sub?: string } },
   ) {
+    const input = limitSchema.parse(query);
     return this.dispatcher.dispatchFeedbackBatch(
       this.userId(req),
-      limit === undefined ? undefined : Number(limit),
+      input.limit,
     );
   }
 
   @Post('claim')
   @RequirePermission('quality', 'manage')
   claim(
-    @Query('limit') limit: string | undefined,
-    @Query('leaseSeconds') leaseSeconds: string | undefined,
+    @Query() query: unknown,
     @Req() req: { user?: { sub?: string } },
   ) {
+    const input = claimSchema.parse(query);
     return this.outbox.claim(
       this.userId(req),
-      limit === undefined ? undefined : Number(limit),
-      leaseSeconds === undefined ? undefined : Number(leaseSeconds),
+      input.limit,
+      input.leaseSeconds,
     );
   }
 
@@ -86,14 +103,15 @@ export class QualityNotificationOutboxController {
   @RequirePermission('quality', 'manage')
   markSent(
     @Param('id') id: string,
-    @Body() body: { claimToken?: string; providerMessageId?: string | null },
+    @Body() body: unknown,
     @Req() req: { user?: { sub?: string } },
   ) {
+    const input = markSentSchema.parse(body);
     return this.outbox.markSent(
-      id,
-      String(body?.claimToken ?? ''),
+      uuid.parse(id),
+      input.claimToken,
       this.userId(req),
-      body?.providerMessageId ?? null,
+      input.providerMessageId ?? null,
     );
   }
 
@@ -101,20 +119,23 @@ export class QualityNotificationOutboxController {
   @RequirePermission('quality', 'manage')
   markFailed(
     @Param('id') id: string,
-    @Body() body: { claimToken?: string; errorCode?: string },
+    @Body() body: unknown,
     @Req() req: { user?: { sub?: string } },
   ) {
+    const input = markFailedSchema.parse(body);
     return this.outbox.markFailed(
-      id,
-      String(body?.claimToken ?? ''),
+      uuid.parse(id),
+      input.claimToken,
       this.userId(req),
-      String(body?.errorCode ?? ''),
+      input.errorCode,
     );
   }
 
   private userId(req: { user?: { sub?: string } }): string {
     const id = req.user?.sub;
-    if (!id) throw new UnauthorizedException('Authenticated user id is missing.');
+    if (!id) {
+      throw new UnauthorizedException('Authenticated user id is missing.');
+    }
     return id;
   }
 }
