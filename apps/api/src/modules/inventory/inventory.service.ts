@@ -176,8 +176,17 @@ export class InventoryService {
     let expiringLots = 0;
     try {
       const lots = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT COUNT(*)::int AS count FROM inventory_product_lots WHERE company_id=$1::text AND expires_at IS NOT NULL AND expires_at <= NOW()+INTERVAL '30 days' AND quantity>0`,
+        `SELECT COUNT(*)::int AS count
+         FROM inventory_product_lots l
+         JOIN inventory_warehouses w
+           ON w.id=l.warehouse_id AND w.company_id=l.company_id
+         WHERE l.company_id=$1::text
+           AND ($2::text IS NULL OR w.branch_id=$2::text)
+           AND l.expires_at IS NOT NULL
+           AND l.expires_at <= NOW()+INTERVAL '30 days'
+           AND l.quantity>0`,
         companyId,
+        branchId,
       );
       expiringLots = Number(lots[0]?.count ?? 0);
     } catch (error) {
