@@ -16,7 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   leadSourceLabels,
   leadStatusLabels,
@@ -116,12 +116,25 @@ export default function CrmLeadsPage() {
       );
   }, []);
 
+  function requireActiveBranch(message: string) {
+    if (hasActiveBranch()) return true;
+    showToast(message, "error");
+    return false;
+  }
+
   useEffect(() => {
     if (
       new URLSearchParams(window.location.search).get("new") === "1" &&
       canManage
-    )
-      setCreateOpen(true);
+    ) {
+      if (
+        requireActiveBranch(
+          "Yeni Potansiyel Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        )
+      ) {
+        setCreateOpen(true);
+      }
+    }
   }, [canManage]);
 
   const counts = useMemo(
@@ -148,6 +161,13 @@ export default function CrmLeadsPage() {
   async function createLead(event: FormEvent) {
     event.preventDefault();
     setFormError("");
+    if (
+      !requireActiveBranch(
+        "Potansiyel Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     if (
       !leadForm.firstName.trim() ||
       !leadForm.lastName.trim() ||
@@ -193,6 +213,13 @@ export default function CrmLeadsPage() {
     event.preventDefault();
     if (!qualifying) return;
     setFormError("");
+    if (
+      !requireActiveBranch(
+        "Satış Fırsatı Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+      )
+    ) {
+      return;
+    }
     if (!opportunityForm.title.trim()) {
       setFormError("Satış Fırsatı Başlığı Gereklidir.");
       return;
@@ -240,6 +267,13 @@ export default function CrmLeadsPage() {
           canManage ? (
             <Button
               onClick={() => {
+                if (
+                  !requireActiveBranch(
+                    "Yeni Potansiyel Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+                  )
+                ) {
+                  return;
+                }
                 setFormError("");
                 setCreateOpen(true);
               }}
@@ -311,13 +345,13 @@ export default function CrmLeadsPage() {
             {leads.map((lead) => (
               <div
                 key={lead.id}
-                className="grid gap-3 px-4 py-4 transition-colors hover:bg-[#fbfaff] md:grid-cols-[minmax(220px,1.3fr)_minmax(150px,1fr)_130px_120px_auto] md:items-center"
+                className="grid gap-3 px-4 py-4 transition-colors hover:bg-[#f8fcfd] md:grid-cols-[minmax(220px,1.3fr)_minmax(150px,1fr)_130px_120px_auto] md:items-center"
               >
                 <Link
                   href={`/crm/leads/${lead.id}`}
                   className="flex min-w-0 items-center gap-3"
                 >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eee9ff] text-[11px] font-bold text-[#7052df]">
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EAF5FB] text-[11px] font-bold text-[#1674BD]">
                     {initials(lead)}
                   </span>
                   <span className="min-w-0">
@@ -340,7 +374,7 @@ export default function CrmLeadsPage() {
                       : "Sorumlu Yok"}
                   </small>
                 </span>
-                <span className="w-fit rounded-full bg-[#f1edff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">
+                <span className="w-fit rounded-full bg-[#EAF5FB] px-2.5 py-1 text-[10px] font-semibold text-[#1674BD]">
                   {leadStatusLabels[lead.status]}
                 </span>
                 <time className="text-[10px] text-[var(--muted)]">
@@ -353,6 +387,13 @@ export default function CrmLeadsPage() {
                     variant="secondary"
                     className="min-h-8 px-3 py-1.5 text-[11px]"
                     onClick={() => {
+                      if (
+                        !requireActiveBranch(
+                          "Potansiyel Müşteriyi Nitelendirmek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+                        )
+                      ) {
+                        return;
+                      }
                       setFormError("");
                       setOpportunityForm({
                         ...emptyOpportunity,
@@ -366,7 +407,7 @@ export default function CrmLeadsPage() {
                 ) : (
                   <Link
                     href={`/crm/leads/${lead.id}`}
-                    className="text-[11px] font-semibold text-[#7052df]"
+                    className="text-[11px] font-semibold text-[#1674BD]"
                   >
                     Detay →
                   </Link>
