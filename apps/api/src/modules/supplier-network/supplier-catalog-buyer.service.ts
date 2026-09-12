@@ -17,13 +17,17 @@ export class SupplierCatalogBuyerService {
   }
 
   async listVariants() {
+    const { tenantId, companyId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT cv.id,cv.catalog_product_id AS "catalogProductId",cv.canonical_sku AS "canonicalSku",
               cv.name AS "variantName",cv.unit,cv.attributes,
               cp.name AS "productName",cp.category_code AS "categoryCode",
               cb.name AS "brandName",
-              COUNT(so.id) FILTER (
+              COUNT(DISTINCT so.id) FILTER (
                 WHERE so.status='ACTIVE'
+                  AND sc.id IS NOT NULL
+                  AND org.status='ACTIVE'
+                  AND org.verification_status='VERIFIED'
                   AND (so.valid_from IS NULL OR so.valid_from<=NOW())
                   AND (so.valid_to IS NULL OR so.valid_to>NOW())
               )::int AS "activeOfferCount"
@@ -31,9 +35,17 @@ export class SupplierCatalogBuyerService {
        JOIN catalog_products cp ON cp.id=cv.catalog_product_id AND cp.status='ACTIVE'
        LEFT JOIN catalog_brands cb ON cb.id=cp.brand_id AND cb.status='ACTIVE'
        LEFT JOIN supplier_offers so ON so.catalog_variant_id=cv.id
+       LEFT JOIN supplier_organizations org ON org.id=so.supplier_organization_id
+       LEFT JOIN supplier_connections sc
+         ON sc.supplier_organization_id=org.id
+        AND sc.tenant_id=$1::text
+        AND sc.company_id=$2::text
+        AND sc.status='ACTIVE'
        WHERE cv.status='ACTIVE'
        GROUP BY cv.id,cp.id,cb.id,cb.name
        ORDER BY cp.name,cv.name`,
+      tenantId,
+      companyId,
     );
   }
 
