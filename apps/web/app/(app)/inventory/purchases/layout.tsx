@@ -17,6 +17,12 @@ export default function PurchasesLayout({ children }: { children: ReactNode }) {
         >
           Mal kabul ve iadeler
         </Link>
+        <Link
+          href="/inventory/purchases/replacements"
+          className="rounded-[12px] px-4 py-2 text-[12px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+        >
+          Değişim talepleri
+        </Link>
       </nav>
       {children}
     </div>
