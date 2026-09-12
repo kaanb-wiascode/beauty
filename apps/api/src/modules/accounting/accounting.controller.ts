@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { AccountingService } from './accounting.service';
 
@@ -35,11 +37,13 @@ const reportFilterSchema = z.object({
 );
 
 @Controller('accounting')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('accounting', 'read')
 export class AccountingController {
   constructor(private readonly accountingService: AccountingService) {}
 
   @Post('accounts')
+  @RequirePermission('accounting', 'manage')
   createAccount(@Body() body: unknown) {
     return this.accountingService.createAccount(createAccountSchema.parse(body));
   }
@@ -71,6 +75,7 @@ export class AccountingController {
   }
 
   @Post('journal-entries')
+  @RequirePermission('accounting', 'manage')
   createJournalEntry(@Body() body: unknown) {
     return this.accountingService.createJournalEntry(createJournalEntrySchema.parse(body));
   }
@@ -86,6 +91,7 @@ export class AccountingController {
   }
 
   @Post('journal-entries/:id/post')
+  @RequirePermission('accounting', 'manage')
   postJournalEntry(@Param('id') id: string) {
     return this.accountingService.postJournalEntry(id);
   }
