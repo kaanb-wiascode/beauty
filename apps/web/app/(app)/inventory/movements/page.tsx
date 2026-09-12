@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
   DataView,
@@ -10,7 +10,16 @@ import {
   SearchField,
   ToolbarSelect,
 } from "@/components/data-view";
-import { Alert, Spinner } from "@/components/ui";
+import {
+  Alert,
+  Button,
+  Field,
+  Modal,
+  Select,
+  Spinner,
+  TextArea,
+  TextInput,
+} from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type InventoryMovement = {
@@ -25,7 +34,42 @@ type InventoryMovement = {
   createdAt: string;
 };
 
+type Warehouse = {
+  id: string;
+  name: string;
+  type: string;
+  branchId: string | null;
+};
+
+type InventoryOverview = {
+  warehouses: Warehouse[];
+};
+
+type Product = {
+  id: string;
+  name: string;
+  sku?: string | null;
+  unit: string;
+};
+
+type StockLine = {
+  warehouseId: string;
+  productId: string;
+  quantity: number | string;
+  unitCost: number | string;
+};
+
+type AdjustmentType = "ADJUSTMENT_IN" | "ADJUSTMENT_OUT" | "DAMAGE" | "EXPIRED";
 type MovementFilter = "ALL" | "IN" | "OUT";
+
+type AdjustmentForm = {
+  warehouseId: string;
+  productId: string;
+  type: AdjustmentType;
+  quantity: string;
+  unitCost: string;
+  reason: string;
+};
 
 const MOVEMENT_LABELS: Record<string, string> = {
   PURCHASE: "Satın Alma",
@@ -37,6 +81,13 @@ const MOVEMENT_LABELS: Record<string, string> = {
   DAMAGE: "Hasar",
   EXPIRED: "Son Kullanma",
   RETURN: "İade",
+};
+
+const ADJUSTMENT_LABELS: Record<AdjustmentType, string> = {
+  ADJUSTMENT_IN: "Manuel Stok Girişi",
+  ADJUSTMENT_OUT: "Manuel Stok Çıkışı",
+  DAMAGE: "Hasarlı Ürün Çıkışı",
+  EXPIRED: "Süresi Dolan Ürün Çıkışı",
 };
 
 const UNIT_LABELS: Record<string, string> = {
@@ -58,21 +109,53 @@ const OUT_TYPES = new Set([
   "EXPIRED",
 ]);
 
+const EMPTY_ADJUSTMENT: AdjustmentForm = {
+  warehouseId: "",
+  productId: "",
+  type: "ADJUSTMENT_IN",
+  quantity: "",
+  unitCost: "",
+  reason: "",
+};
+
 export default function MovementsPage() {
   const [rows, setRows] = useState<InventoryMovement[]>([]);
+  const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [stockLines, setStockLines] = useState<StockLine[]>([]);
   const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [search, setSearch] = useState("");
   const [direction, setDirection] = useState<MovementFilter>("ALL");
   const [movementType, setMovementType] = useState("");
+  const [adjustmentOpen, setAdjustmentOpen] = useState(false);
+  const [adjustment, setAdjustment] = useState<AdjustmentForm>(EMPTY_ADJUSTMENT);
+
+  async function load() {
+    setLoading(true);
+    setError("");
+    try {
+      const [movementRows, overview, productRows, detailRows] = await Promise.all([
+        api<InventoryMovement[]>("/inventory/movements"),
+        api<InventoryOverview>("/inventory/overview"),
+        api<Product[]>("/inventory/products"),
+        api<StockLine[]>("/inventory/accounting/valuation/detail"),
+      ]);
+      setRows(movementRows);
+      setWarehouses(overview.warehouses ?? []);
+      setProducts(productRows);
+      setStockLines(detailRows);
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Stok Hareketleri Yüklenemedi.");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   useEffect(() => {
-    api<InventoryMovement[]>("/inventory/movements")
-      .then(setRows)
-      .catch((requestError) =>
-        setError(requestError instanceof ApiError ? requestError.message : "Hareketler Yüklenemedi."),
-      )
-      .finally(() => setLoading(false));
+    void load();
   }, []);
 
   const movementTypes = useMemo(
@@ -102,6 +185,85 @@ export default function MovementsPage() {
   const incomingCount = useMemo(() => rows.filter((row) => !OUT_TYPES.has(row.type)).length, [rows]);
   const outgoingCount = rows.length - incomingCount;
 
+  const selectedProduct = products.find((product) => product.id === adjustment.productId);
+  const selectedStock = stockLines.find(
+    (line) => line.warehouseId === adjustment.warehouseId && line.productId === adjustment.productId,
+  );
+  const availableQuantity = Number(selectedStock?.quantity ?? 0);
+  const currentUnitCost = Number(selectedStock?.unitCost ?? 0);
+  const outboundAdjustment = adjustment.type !== "ADJUSTMENT_IN";
+
+  function openAdjustment() {
+    setAdjustment({
+      ...EMPTY_ADJUSTMENT,
+      warehouseId: warehouses.length === 1 ? warehouses[0].id : "",
+    });
+    setError("");
+    setNotice("");
+    setAdjustmentOpen(true);
+  }
+
+  async function submitAdjustment(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (saving) return;
+
+    const quantity = Number(adjustment.quantity);
+    const unitCost = Number(adjustment.unitCost || 0);
+    if (!adjustment.warehouseId || !adjustment.productId) {
+      setError("Stok Düzeltmesi İçin Depo Ve Ürün Seçin.");
+      return;
+    }
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      setError("Miktar Sıfırdan Büyük Olmalıdır.");
+      return;
+    }
+    if (outboundAdjustment && quantity > availableQuantity) {
+      setError("Çıkış Miktarı Mevcut Stoktan Fazla Olamaz.");
+      return;
+    }
+    if (!adjustment.reason.trim()) {
+      setError("Stok Düzeltme Nedenini Yazın.");
+      return;
+    }
+    if (adjustment.type === "ADJUSTMENT_IN" && (!Number.isFinite(unitCost) || unitCost < 0)) {
+      setError("Birim Maliyet Sıfırdan Küçük Olamaz.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setNotice("");
+    try {
+      await api("/inventory/accounting/adjustments", {
+        method: "POST",
+        body: {
+          warehouseId: adjustment.warehouseId,
+          type: adjustment.type,
+          reason: adjustment.reason.trim(),
+          items: [
+            {
+              productId: adjustment.productId,
+              quantity,
+              ...(adjustment.type === "ADJUSTMENT_IN" ? { unitCost } : {}),
+            },
+          ],
+        },
+      });
+      setAdjustmentOpen(false);
+      setAdjustment(EMPTY_ADJUSTMENT);
+      setNotice("Stok Düzeltmesi Başarıyla Muhasebeleştirildi.");
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Stok Düzeltmesi Kaydedilemedi.",
+      );
+    } finally {
+      setSaving(false);
+    }
+  }
+
   if (loading) {
     return (
       <div className="py-16">
@@ -112,19 +274,23 @@ export default function MovementsPage() {
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
-      <header>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">
-          Envanter
-        </p>
-        <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">
-          Stok Hareketleri
-        </h1>
-        <p className="mt-1 text-[14px] text-[var(--muted)]">
-          Envanterde Gerçekleşen Tüm Giriş, Çıkış Ve Tüketimleri İzleyin.
-        </p>
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">
+            Envanter
+          </p>
+          <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">
+            Stok Hareketleri
+          </h1>
+          <p className="mt-1 text-[14px] text-[var(--muted)]">
+            Envanterde Gerçekleşen Tüm Giriş, Çıkış Ve Tüketimleri İzleyin.
+          </p>
+        </div>
+        <Button onClick={openAdjustment}>Yeni Stok Düzeltmesi</Button>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+      {notice ? <Alert tone="success" onClose={() => setNotice("")}>{notice}</Alert> : null}
 
       <DataView>
         <DataViewToolbar
@@ -204,6 +370,141 @@ export default function MovementsPage() {
           <span>Toplam {rows.length} Hareket</span>
         </DataViewMeta>
       </DataView>
+
+      <Modal
+        open={adjustmentOpen}
+        onClose={() => setAdjustmentOpen(false)}
+        title="Yeni Stok Düzeltmesi"
+        description="Manuel Stok Girişlerini, Çıkışlarını, Hasarlı Ve Süresi Dolan Ürünleri Muhasebe Kaydıyla Birlikte İşleyin."
+      >
+        <form className="space-y-5" onSubmit={submitAdjustment}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Depo" required>
+              <Select
+                required
+                value={adjustment.warehouseId}
+                onChange={(event) =>
+                  setAdjustment((current) => ({
+                    ...current,
+                    warehouseId: event.target.value,
+                    productId: "",
+                  }))
+                }
+              >
+                <option value="">Depo Seçin</option>
+                {warehouses.map((warehouse) => (
+                  <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="İşlem Türü" required>
+              <Select
+                required
+                value={adjustment.type}
+                onChange={(event) =>
+                  setAdjustment((current) => ({
+                    ...current,
+                    type: event.target.value as AdjustmentType,
+                  }))
+                }
+              >
+                {(Object.keys(ADJUSTMENT_LABELS) as AdjustmentType[]).map((type) => (
+                  <option key={type} value={type}>{ADJUSTMENT_LABELS[type]}</option>
+                ))}
+              </Select>
+            </Field>
+          </div>
+
+          <Field label="Ürün" required>
+            <Select
+              required
+              disabled={!adjustment.warehouseId}
+              value={adjustment.productId}
+              onChange={(event) =>
+                setAdjustment((current) => ({ ...current, productId: event.target.value }))
+              }
+            >
+              <option value="">Ürün Seçin</option>
+              {products.map((product) => (
+                <option key={product.id} value={product.id}>
+                  {product.name}{product.sku ? ` · ${product.sku}` : ""}
+                </option>
+              ))}
+            </Select>
+          </Field>
+
+          {selectedProduct ? (
+            <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] text-[var(--muted)]">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <span>Mevcut Stok</span>
+                <strong className="text-[var(--ink)]">
+                  {formatQuantity(availableQuantity)} {UNIT_LABELS[selectedProduct.unit] ?? selectedProduct.unit}
+                </strong>
+              </div>
+              {currentUnitCost > 0 ? (
+                <div className="mt-2 flex flex-wrap items-center justify-between gap-2">
+                  <span>Mevcut Birim Maliyet</span>
+                  <strong className="text-[var(--ink)]">{currentUnitCost.toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}</strong>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Miktar" required>
+              <TextInput
+                required
+                type="number"
+                min="0.001"
+                step="0.001"
+                value={adjustment.quantity}
+                onChange={(event) =>
+                  setAdjustment((current) => ({ ...current, quantity: event.target.value }))
+                }
+                placeholder="0"
+              />
+            </Field>
+
+            {adjustment.type === "ADJUSTMENT_IN" ? (
+              <Field label="Birim Maliyet">
+                <TextInput
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={adjustment.unitCost}
+                  onChange={(event) =>
+                    setAdjustment((current) => ({ ...current, unitCost: event.target.value }))
+                  }
+                  placeholder={currentUnitCost ? String(currentUnitCost) : "0,00"}
+                />
+              </Field>
+            ) : (
+              <div className="flex items-end pb-2 text-[11px] leading-5 text-[var(--muted)]">
+                Çıkış İşlemlerinde Mevcut Stok Maliyeti Otomatik Kullanılır.
+              </div>
+            )}
+          </div>
+
+          <Field label="Düzeltme Nedeni" required>
+            <TextArea
+              required
+              rows={3}
+              maxLength={500}
+              value={adjustment.reason}
+              onChange={(event) =>
+                setAdjustment((current) => ({ ...current, reason: event.target.value }))
+              }
+              placeholder="İşlemin Nedenini Açıklayın."
+            />
+          </Field>
+
+          <div className="flex justify-end gap-2">
+            <Button variant="ghost" onClick={() => setAdjustmentOpen(false)}>Vazgeç</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : "Stok Düzeltmesini Kaydet"}</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
