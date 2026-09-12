@@ -1,7 +1,7 @@
 "use client";
 
 import { useParams } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
 
@@ -86,10 +86,9 @@ export default function PublicMarketplacePage() {
   }, [branchCode, companySlug]);
 
   const services = data?.listing.services ?? [];
-  const minPrice = useMemo(() => {
-    if (!services.length) return null;
-    return Math.min(...services.map((service) => Number(service.price ?? 0)));
-  }, [services]);
+  const minPrice = services.length
+    ? Math.min(...services.map((service) => Number(service.price ?? 0)))
+    : null;
 
   if (loading) {
     return (
@@ -240,7 +239,7 @@ export default function PublicMarketplacePage() {
           <div className="rounded-[24px] border border-dashed border-[#ddd7d0] bg-white px-6 py-16 text-center">
             <h3 className="text-[16px] font-semibold">Aktif hizmet bulunmuyor</h3>
             <p className="mx-auto mt-2 max-w-md text-sm leading-6 text-[#817b74]">
-              İşletme bu şube için henüz Marketplace'te gösterilecek aktif bir hizmet yayınlamamış.
+              İşletme bu şube için henüz Marketplace üzerinde gösterilecek aktif bir hizmet yayınlamamış.
             </p>
           </div>
         )}
