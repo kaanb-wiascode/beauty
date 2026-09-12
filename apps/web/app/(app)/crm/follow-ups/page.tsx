@@ -85,39 +85,28 @@ export default function CrmFollowUpsPage() {
       const params = new URLSearchParams({ limit: "200" });
       if (filter !== "ALL") params.set("status", filter);
       if (assignedUserId) params.set("assignedUserId", assignedUserId);
-      const [followUps, leadRows, opportunityRows, assigneeRows] =
-        await Promise.all([
-          api<CrmFollowUp[]>(`/crm/follow-ups?${params}`),
-          api<CrmLead[]>("/crm/leads?limit=200"),
-          api<CrmOpportunity[]>("/crm/opportunities?limit=200"),
-          api<CrmAssignee[]>("/crm/assignees"),
-        ]);
+      const [followUps, leadRows, opportunityRows, assigneeRows] = await Promise.all([
+        api<CrmFollowUp[]>(`/crm/follow-ups?${params}`),
+        api<CrmLead[]>("/crm/leads?limit=200"),
+        api<CrmOpportunity[]>("/crm/opportunities?limit=200"),
+        api<CrmAssignee[]>("/crm/assignees"),
+      ]);
       setRows(followUps);
       setLeads(leadRows);
       setOpportunities(opportunityRows);
       setAssignees(assigneeRows);
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Takip listesi yüklenemedi.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Takip Listesi Yüklenemedi.");
     } finally {
       setLoading(false);
     }
   }, [assignedUserId, filter]);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   const subjectLabels = useMemo(() => {
     const labels = new Map<string, string>();
-    leads.forEach((lead) =>
-      labels.set(`lead:${lead.id}`, `${lead.firstName} ${lead.lastName}`),
-    );
-    opportunities.forEach((row) =>
-      labels.set(`opportunity:${row.id}`, row.title),
-    );
+    leads.forEach((lead) => labels.set(`lead:${lead.id}`, `${lead.firstName} ${lead.lastName}`));
+    opportunities.forEach((row) => labels.set(`opportunity:${row.id}`, row.title));
     return labels;
   }, [leads, opportunities]);
 
@@ -125,7 +114,7 @@ export default function CrmFollowUpsPage() {
     event.preventDefault();
     setError("");
     if (!form.assignedUserId || !form.subject || !form.dueAt) {
-      setError("Konu, sorumlu ve takip zamanı gereklidir.");
+      setError("Konu, Sorumlu Ve Takip Zamanı Gereklidir.");
       return;
     }
     const [kind, id] = form.subject.split(":");
@@ -143,14 +132,10 @@ export default function CrmFollowUpsPage() {
       });
       setCreateOpen(false);
       setForm(emptyForm);
-      showToast("Takip görevi oluşturuldu.", "success");
+      showToast("Takip Görevi Oluşturuldu.", "success");
       await load();
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Takip oluşturulamadı.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Takip Oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -159,7 +144,7 @@ export default function CrmFollowUpsPage() {
   async function completeFollowUp(event: FormEvent) {
     event.preventDefault();
     if (!completing || !outcome.trim()) {
-      setError("Görüşme sonucu gereklidir.");
+      setError("Görüşme Sonucu Gereklidir.");
       return;
     }
     setSaving(true);
@@ -171,14 +156,10 @@ export default function CrmFollowUpsPage() {
       });
       setCompleting(null);
       setOutcome("");
-      showToast("Takip tamamlandı.", "success");
+      showToast("Takip Tamamlandı.", "success");
       await load();
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Takip tamamlanamadı.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Takip Tamamlanamadı.");
     } finally {
       setSaving(false);
     }
@@ -197,12 +178,8 @@ export default function CrmFollowUpsPage() {
 
   async function rescheduleFollowUp(event: FormEvent) {
     event.preventDefault();
-    if (
-      !rescheduling ||
-      !rescheduleForm.assignedUserId ||
-      !rescheduleForm.dueAt
-    ) {
-      setError("Sorumlu ve yeni takip zamanı gereklidir.");
+    if (!rescheduling || !rescheduleForm.assignedUserId || !rescheduleForm.dueAt) {
+      setError("Sorumlu Ve Yeni Takip Zamanı Gereklidir.");
       return;
     }
     setSaving(true);
@@ -219,14 +196,10 @@ export default function CrmFollowUpsPage() {
         },
       });
       setRescheduling(null);
-      showToast("Takip yeniden planlandı.", "success");
+      showToast("Takip Yeniden Planlandı.", "success");
       await load();
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Takip yeniden planlanamadı.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Takip Yeniden Planlanamadı.");
     } finally {
       setSaving(false);
     }
@@ -235,7 +208,7 @@ export default function CrmFollowUpsPage() {
   async function cancelFollowUp(event: FormEvent) {
     event.preventDefault();
     if (!cancelling || !cancellationReason.trim()) {
-      setError("İptal nedeni gereklidir.");
+      setError("İptal Nedeni Gereklidir.");
       return;
     }
     setSaving(true);
@@ -243,434 +216,159 @@ export default function CrmFollowUpsPage() {
     try {
       await api(`/crm/follow-ups/${cancelling.id}/cancel`, {
         method: "POST",
-        body: {
-          version: cancelling.version,
-          reason: cancellationReason.trim(),
-        },
+        body: { version: cancelling.version, reason: cancellationReason.trim() },
       });
       setCancelling(null);
       setCancellationReason("");
-      showToast("Takip iptal edildi.", "success");
+      showToast("Takip İptal Edildi.", "success");
       await load();
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Takip iptal edilemedi.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Takip İptal Edilemedi.");
     } finally {
       setSaving(false);
     }
   }
 
   function subjectFor(row: CrmFollowUp) {
-    const key = row.leadId
-      ? `lead:${row.leadId}`
-      : `opportunity:${row.opportunityId}`;
-    return subjectLabels.get(key) ?? "CRM kaydı";
+    const key = row.leadId ? `lead:${row.leadId}` : `opportunity:${row.opportunityId}`;
+    return subjectLabels.get(key) ?? "Müşteri İlişkileri Kaydı";
   }
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Takip Merkezi"
-        description="Arama, mesaj, e-posta ve yüz yüze temas görevlerini zamanında tamamlayın."
-        action={
-          canManage ? (
-            <Button
-              onClick={() => {
-                setError("");
-                setForm({
-                  ...emptyForm,
-                  assignedUserId: getStoredUser()?.id ?? "",
-                });
-                setCreateOpen(true);
-              }}
-            >
-              + Yeni takip
-            </Button>
-          ) : undefined
-        }
+        description="Arama, Mesaj, E-Posta Ve Yüz Yüze Temas Görevlerini Zamanında Tamamlayın."
+        action={canManage ? (
+          <Button onClick={() => {
+            setError("");
+            setForm({ ...emptyForm, assignedUserId: getStoredUser()?.id ?? "" });
+            setCreateOpen(true);
+          }}>+ Yeni Takip</Button>
+        ) : undefined}
       />
-      {error && !createOpen && !completing && !rescheduling && !cancelling ? (
-        <Alert onClose={() => setError("")}>{error}</Alert>
-      ) : null}
+      {error && !createOpen && !completing && !rescheduling && !cancelling ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex flex-wrap gap-2">
-          {(["OPEN", "COMPLETED", "CANCELLED", "ALL"] as Filter[]).map(
-            (item) => (
-              <button
-                key={item}
-                type="button"
-                onClick={() => setFilter(item)}
-                className={
-                  filter === item
-                    ? "rounded-full bg-[#7358d7] px-4 py-2 text-[11px] font-semibold text-white"
-                    : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"
-                }
-              >
-                {item === "OPEN"
-                  ? "Açık"
-                  : item === "COMPLETED"
-                    ? "Tamamlanan"
-                    : item === "CANCELLED"
-                      ? "İptal edilen"
-                      : "Tümü"}
-              </button>
-            ),
-          )}
-        </div>
-        <Select
-          value={assignedUserId}
-          onChange={(event) => setAssignedUserId(event.target.value)}
-          aria-label="Sorumluya göre filtrele"
-          className="sm:max-w-[230px]"
-        >
-          <option value="">Tüm sorumlular</option>
-          {assignees.map((person) => (
-            <option key={person.id} value={person.id}>
-              {person.firstName} {person.lastName}
-            </option>
+          {(["OPEN", "COMPLETED", "CANCELLED", "ALL"] as Filter[]).map((item) => (
+            <button
+              key={item}
+              type="button"
+              onClick={() => setFilter(item)}
+              className={filter === item ? "rounded-full bg-[#7358d7] px-4 py-2 text-[11px] font-semibold text-white" : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"}
+            >
+              {item === "OPEN" ? "Açık" : item === "COMPLETED" ? "Tamamlanan" : item === "CANCELLED" ? "İptal Edilen" : "Tümü"}
+            </button>
           ))}
+        </div>
+        <Select value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)} aria-label="Sorumluya Göre Filtrele" className="sm:max-w-[230px]">
+          <option value="">Tüm Sorumlular</option>
+          {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
         </Select>
       </div>
       <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
         {loading ? (
-          <Spinner label="Takipler yükleniyor..." />
+          <Spinner label="Takipler Yükleniyor..." />
         ) : rows.length ? (
           <div className="divide-y divide-[var(--line)]">
             {rows.map((row) => {
-              const overdue =
-                row.status === "OPEN" && new Date(row.dueAt).getTime() < now;
-              const href = row.leadId
-                ? `/crm/leads/${row.leadId}`
-                : "/crm/pipeline";
+              const overdue = row.status === "OPEN" && new Date(row.dueAt).getTime() < now;
+              const href = row.leadId ? `/crm/leads/${row.leadId}` : "/crm/pipeline";
               return (
-                <article
-                  key={row.id}
-                  className="grid gap-3 px-5 py-4 md:grid-cols-[120px_minmax(180px,1fr)_minmax(180px,1fr)_170px_auto] md:items-center"
-                >
-                  <span className="w-fit rounded-full bg-[#f1edff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">
-                    {followUpChannelLabels[row.channel]}
-                  </span>
-                  <Link
-                    href={href}
-                    className="truncate text-[12px] font-semibold hover:text-[#7052df]"
-                  >
-                    {subjectFor(row)}
-                  </Link>
+                <article key={row.id} className="grid gap-3 px-5 py-4 md:grid-cols-[120px_minmax(180px,1fr)_minmax(180px,1fr)_170px_auto] md:items-center">
+                  <span className="w-fit rounded-full bg-[#f1edff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">{followUpChannelLabels[row.channel]}</span>
+                  <Link href={href} className="truncate text-[12px] font-semibold hover:text-[#7052df]">{subjectFor(row)}</Link>
                   <p className="truncate text-[11px] text-[var(--muted)]">
-                    {row.status === "COMPLETED"
-                      ? row.outcome
-                      : row.status === "CANCELLED"
-                        ? row.cancellationReason
-                        : row.note || "Not eklenmedi"}
+                    {row.status === "COMPLETED" ? row.outcome : row.status === "CANCELLED" ? row.cancellationReason : row.note || "Not Eklenmedi"}
                   </p>
-                  <time
-                    className={
-                      overdue
-                        ? "text-[10px] font-semibold text-[#a14f3b]"
-                        : "text-[10px] text-[var(--muted)]"
-                    }
-                  >
-                    {overdue ? "Gecikti · " : ""}
-                    {formatDateTime(row.dueAt)}
+                  <time className={overdue ? "text-[10px] font-semibold text-[#a14f3b]" : "text-[10px] text-[var(--muted)]"}>
+                    {overdue ? "Gecikti · " : ""}{formatDateTime(row.dueAt)}
                   </time>
                   {canManage && row.status === "OPEN" ? (
                     <div className="flex flex-wrap gap-1.5">
-                      <Button
-                        variant="secondary"
-                        className="min-h-8 px-3 py-1 text-[11px]"
-                        onClick={() => {
-                          setError("");
-                          setOutcome("");
-                          setCompleting(row);
-                        }}
-                      >
-                        Tamamla
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        className="min-h-8 px-2 py-1 text-[11px]"
-                        onClick={() => openReschedule(row)}
-                      >
-                        Ertele
-                      </Button>
-                      <Button
-                        variant="danger"
-                        className="min-h-8 px-2 py-1 text-[11px]"
-                        onClick={() => {
-                          setError("");
-                          setCancellationReason("");
-                          setCancelling(row);
-                        }}
-                      >
-                        İptal
-                      </Button>
+                      <Button variant="secondary" className="min-h-8 px-3 py-1 text-[11px]" onClick={() => { setError(""); setOutcome(""); setCompleting(row); }}>Tamamla</Button>
+                      <Button variant="ghost" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => openReschedule(row)}>Ertele</Button>
+                      <Button variant="danger" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => { setError(""); setCancellationReason(""); setCancelling(row); }}>İptal Et</Button>
                     </div>
                   ) : (
-                    <span
-                      className={
-                        row.status === "CANCELLED"
-                          ? "text-[10px] font-medium text-[#9c513f]"
-                          : "text-[10px] font-medium text-[#47765b]"
-                      }
-                    >
-                      {row.status === "COMPLETED"
-                        ? "Tamamlandı"
-                        : row.status === "CANCELLED"
-                          ? "İptal edildi"
-                          : row.status}
+                    <span className={row.status === "CANCELLED" ? "text-[10px] font-medium text-[#9c513f]" : "text-[10px] font-medium text-[#47765b]"}>
+                      {row.status === "COMPLETED" ? "Tamamlandı" : row.status === "CANCELLED" ? "İptal Edildi" : "Açık"}
                     </span>
                   )}
                 </article>
               );
             })}
           </div>
-        ) : (
-          <EmptyState
-            title="Takip bulunamadı"
-            description="Seçili filtreye ait müşteri teması bulunmuyor."
-          />
-        )}
+        ) : <EmptyState title="Takip Bulunamadı" description="Seçili Filtreye Ait Müşteri Teması Bulunmuyor." />}
       </section>
 
-      <Modal
-        open={createOpen}
-        onClose={() => setCreateOpen(false)}
-        title="Yeni takip görevi"
-        description="Takibi bir lead veya satış fırsatına bağlayın."
-      >
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni Takip Görevi" description="Takibi Bir Potansiyel Müşteriye Veya Satış Fırsatına Bağlayın.">
         <form onSubmit={createFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
-          <Field label="CRM kaydı" required>
-            <Select
-              value={form.subject}
-              onChange={(event) =>
-                setForm({ ...form, subject: event.target.value })
-              }
-            >
+          <Field label="Müşteri İlişkileri Kaydı" required>
+            <Select value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })}>
               <option value="">Seçin</option>
-              <optgroup label="Lead’ler">
-                {leads.map((lead) => (
-                  <option key={lead.id} value={`lead:${lead.id}`}>
-                    {lead.firstName} {lead.lastName}
-                  </option>
-                ))}
+              <optgroup label="Potansiyel Müşteriler">
+                {leads.map((lead) => <option key={lead.id} value={`lead:${lead.id}`}>{lead.firstName} {lead.lastName}</option>)}
               </optgroup>
-              <optgroup label="Fırsatlar">
-                {opportunities.map((row) => (
-                  <option key={row.id} value={`opportunity:${row.id}`}>
-                    {row.title}
-                  </option>
-                ))}
+              <optgroup label="Satış Fırsatları">
+                {opportunities.map((row) => <option key={row.id} value={`opportunity:${row.id}`}>{row.title}</option>)}
               </optgroup>
             </Select>
           </Field>
           <Field label="Sorumlu" required>
-            <Select
-              value={form.assignedUserId}
-              onChange={(event) =>
-                setForm({ ...form, assignedUserId: event.target.value })
-              }
-            >
+            <Select value={form.assignedUserId} onChange={(event) => setForm({ ...form, assignedUserId: event.target.value })}>
               <option value="">Seçin</option>
-              {assignees.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.firstName} {person.lastName}
-                </option>
-              ))}
+              {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
             </Select>
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Kanal">
-              <Select
-                value={form.channel}
-                onChange={(event) =>
-                  setForm({
-                    ...form,
-                    channel: event.target.value as CrmFollowUp["channel"],
-                  })
-                }
-              >
-                {Object.entries(followUpChannelLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
+            <Field label="İletişim Kanalı">
+              <Select value={form.channel} onChange={(event) => setForm({ ...form, channel: event.target.value as CrmFollowUp["channel"] })}>
+                {Object.entries(followUpChannelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </Field>
-            <Field label="Tarih ve saat" required>
-              <TextInput
-                type="datetime-local"
-                value={form.dueAt}
-                onChange={(event) =>
-                  setForm({ ...form, dueAt: event.target.value })
-                }
-              />
-            </Field>
+            <Field label="Tarih Ve Saat" required><TextInput type="datetime-local" value={form.dueAt} onChange={(event) => setForm({ ...form, dueAt: event.target.value })} /></Field>
           </div>
-          <Field label="Not">
-            <TextArea
-              rows={3}
-              value={form.note}
-              onChange={(event) =>
-                setForm({ ...form, note: event.target.value })
-              }
-            />
-          </Field>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setCreateOpen(false)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Kaydediliyor..." : "Takip oluştur"}
-            </Button>
-          </div>
+          <Field label="Not"><TextArea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : "Takip Oluştur"}</Button></div>
         </form>
       </Modal>
-      <Modal
-        open={Boolean(completing)}
-        onClose={() => setCompleting(null)}
-        title="Takibi tamamla"
-        description="Görüşme sonucunu CRM geçmişine kaydedin."
-      >
+
+      <Modal open={Boolean(completing)} onClose={() => setCompleting(null)} title="Takibi Tamamla" description="Görüşme Sonucunu Müşteri İlişkileri Geçmişine Kaydedin.">
         <form onSubmit={completeFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
-          <Field label="Görüşme sonucu" required>
-            <TextArea
-              rows={4}
-              value={outcome}
-              onChange={(event) => setOutcome(event.target.value)}
-            />
-          </Field>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setCompleting(null)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Tamamlanıyor..." : "Tamamla"}
-            </Button>
-          </div>
+          <Field label="Görüşme Sonucu" required><TextArea rows={4} value={outcome} onChange={(event) => setOutcome(event.target.value)} /></Field>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCompleting(null)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Tamamlanıyor..." : "Tamamla"}</Button></div>
         </form>
       </Modal>
-      <Modal
-        open={Boolean(rescheduling)}
-        onClose={() => setRescheduling(null)}
-        title="Takibi yeniden planla"
-        description="Tarih, kanal, sorumlu veya not bilgisini güncelleyin."
-      >
+
+      <Modal open={Boolean(rescheduling)} onClose={() => setRescheduling(null)} title="Takibi Yeniden Planla" description="Tarih, İletişim Kanalı, Sorumlu Veya Not Bilgisini Güncelleyin.">
         <form onSubmit={rescheduleFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
           <Field label="Sorumlu" required>
-            <Select
-              value={rescheduleForm.assignedUserId}
-              onChange={(event) =>
-                setRescheduleForm({
-                  ...rescheduleForm,
-                  assignedUserId: event.target.value,
-                })
-              }
-            >
-              {assignees.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.firstName} {person.lastName}
-                </option>
-              ))}
+            <Select value={rescheduleForm.assignedUserId} onChange={(event) => setRescheduleForm({ ...rescheduleForm, assignedUserId: event.target.value })}>
+              {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
             </Select>
           </Field>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Kanal">
-              <Select
-                value={rescheduleForm.channel}
-                onChange={(event) =>
-                  setRescheduleForm({
-                    ...rescheduleForm,
-                    channel: event.target.value as CrmFollowUp["channel"],
-                  })
-                }
-              >
-                {Object.entries(followUpChannelLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
+            <Field label="İletişim Kanalı">
+              <Select value={rescheduleForm.channel} onChange={(event) => setRescheduleForm({ ...rescheduleForm, channel: event.target.value as CrmFollowUp["channel"] })}>
+                {Object.entries(followUpChannelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </Field>
-            <Field label="Yeni tarih ve saat" required>
-              <TextInput
-                type="datetime-local"
-                value={rescheduleForm.dueAt}
-                onChange={(event) =>
-                  setRescheduleForm({
-                    ...rescheduleForm,
-                    dueAt: event.target.value,
-                  })
-                }
-              />
-            </Field>
+            <Field label="Yeni Tarih Ve Saat" required><TextInput type="datetime-local" value={rescheduleForm.dueAt} onChange={(event) => setRescheduleForm({ ...rescheduleForm, dueAt: event.target.value })} /></Field>
           </div>
-          <Field label="Not">
-            <TextArea
-              rows={3}
-              value={rescheduleForm.note}
-              onChange={(event) =>
-                setRescheduleForm({
-                  ...rescheduleForm,
-                  note: event.target.value,
-                })
-              }
-            />
-          </Field>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setRescheduling(null)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Planlanıyor..." : "Yeniden planla"}
-            </Button>
-          </div>
+          <Field label="Not"><TextArea rows={3} value={rescheduleForm.note} onChange={(event) => setRescheduleForm({ ...rescheduleForm, note: event.target.value })} /></Field>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setRescheduling(null)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Planlanıyor..." : "Yeniden Planla"}</Button></div>
         </form>
       </Modal>
-      <Modal
-        open={Boolean(cancelling)}
-        onClose={() => setCancelling(null)}
-        title="Takibi iptal et"
-        description="İptal nedeni CRM aktivite geçmişinde saklanacaktır."
-      >
+
+      <Modal open={Boolean(cancelling)} onClose={() => setCancelling(null)} title="Takibi İptal Et" description="İptal Nedeni Müşteri İlişkileri İşlem Geçmişinde Saklanacaktır.">
         <form onSubmit={cancelFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
-          <Field label="İptal nedeni" required>
-            <TextArea
-              rows={4}
-              value={cancellationReason}
-              onChange={(event) => setCancellationReason(event.target.value)}
-            />
-          </Field>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setCancelling(null)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
-            <Button variant="danger" type="submit" disabled={saving}>
-              {saving ? "İptal ediliyor..." : "Takibi iptal et"}
-            </Button>
-          </div>
+          <Field label="İptal Nedeni" required><TextArea rows={4} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} /></Field>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCancelling(null)} disabled={saving}>Vazgeç</Button><Button variant="danger" type="submit" disabled={saving}>{saving ? "İptal Ediliyor..." : "Takibi İptal Et"}</Button></div>
         </form>
       </Modal>
     </div>
