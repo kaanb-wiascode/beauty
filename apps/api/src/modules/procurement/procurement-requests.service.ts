@@ -19,11 +19,12 @@ export class ProcurementRequestsService {
     return {
       tenantId: this.tenantContext.getTenantId(),
       companyId: this.tenantContext.getCompanyId(),
+      branchId: this.tenantContext.getBranchId(),
     };
   }
 
   async listPurchaseRequests(status?: string) {
-    const { companyId } = this.context();
+    const { companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT pr.id,pr.status,pr.warehouse_id AS "warehouseId",w.name AS "warehouseName",
               pr.product_id AS "productId",p.name AS "productName",p.sku,
@@ -31,29 +32,46 @@ export class ProcurementRequestsService {
               pr.reason,pr.approved_at AS "approvedAt",pr.converted_at AS "convertedAt",
               pr.converted_purchase_order_id AS "convertedPurchaseOrderId",pr.created_at AS "createdAt"
        FROM inventory_purchase_requests pr
-       JOIN inventory_warehouses w ON w.id=pr.warehouse_id
-       JOIN inventory_products p ON p.id=pr.product_id
-       WHERE pr.company_id=$1::text AND ($2::text IS NULL OR pr.status::text=$2::text)
+       JOIN inventory_warehouses w ON w.id=pr.warehouse_id AND w.company_id=pr.company_id
+       JOIN inventory_products p ON p.id=pr.product_id AND p.company_id=pr.company_id
+       WHERE pr.company_id=$1::text
+         AND ($2::text IS NULL OR w.branch_id=$2::text)
+         AND ($3::text IS NULL OR pr.status::text=$3::text)
        ORDER BY pr.created_at DESC`,
       companyId,
+      branchId,
       status ?? null,
     );
   }
 
   async approvePurchaseRequest(id: string) {
-    const { companyId } = this.context();
+    const { companyId, branchId } = this.context();
     const updated = await this.prisma.$executeRawUnsafe(
-      `UPDATE inventory_purchase_requests
+      `UPDATE inventory_purchase_requests pr
        SET status='APPROVED',approved_at=NOW(),updated_at=NOW()
-       WHERE id=$1::text AND company_id=$2::text AND status='PENDING'`,
+       FROM inventory_warehouses w
+       WHERE pr.warehouse_id=w.id
+         AND w.company_id=pr.company_id
+         AND pr.id=$1::text
+         AND pr.company_id=$2::text
+         AND ($3::text IS NULL OR w.branch_id=$3::text)
+         AND pr.status='PENDING'`,
       id,
       companyId,
+      branchId,
     );
     if (updated !== 1) {
       const rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT id,status FROM inventory_purchase_requests WHERE id=$1::text AND company_id=$2::text LIMIT 1`,
+        `SELECT pr.id,pr.status
+         FROM inventory_purchase_requests pr
+         JOIN inventory_warehouses w ON w.id=pr.warehouse_id AND w.company_id=pr.company_id
+         WHERE pr.id=$1::text
+           AND pr.company_id=$2::text
+           AND ($3::text IS NULL OR w.branch_id=$3::text)
+         LIMIT 1`,
         id,
         companyId,
+        branchId,
       );
       if (!rows.length) throw new NotFoundException('Purchase request not found');
       throw new BadRequestException(`Purchase request cannot be approved from status ${rows[0].status}.`);
@@ -62,7 +80,7 @@ export class ProcurementRequestsService {
   }
 
   async convertPurchaseRequest(id: string, input: ConvertPurchaseRequestInput) {
-    const { tenantId, companyId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const unitCost = Math.round((Number(input.unitCost) + Number.EPSILON) * 100) / 100;
     if (!Number.isFinite(unitCost) || unitCost < 0) {
       throw new BadRequestException('Unit cost must be zero or greater.');
@@ -71,13 +89,17 @@ export class ProcurementRequestsService {
     return this.prisma.$transaction(
       async (tx) => {
         const requests = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,status,warehouse_id AS "warehouseId",product_id AS "productId",
-                  requested_quantity AS "requestedQuantity",converted_purchase_order_id AS "convertedPurchaseOrderId"
-           FROM inventory_purchase_requests
-           WHERE id=$1::text AND company_id=$2::text
-           FOR UPDATE`,
+          `SELECT pr.id,pr.status,pr.warehouse_id AS "warehouseId",pr.product_id AS "productId",
+                  pr.requested_quantity AS "requestedQuantity",pr.converted_purchase_order_id AS "convertedPurchaseOrderId"
+           FROM inventory_purchase_requests pr
+           JOIN inventory_warehouses w ON w.id=pr.warehouse_id AND w.company_id=pr.company_id
+           WHERE pr.id=$1::text
+             AND pr.company_id=$2::text
+             AND ($3::text IS NULL OR w.branch_id=$3::text)
+           FOR UPDATE OF pr`,
           id,
           companyId,
+          branchId,
         );
         if (!requests.length) throw new NotFoundException('Purchase request not found');
         const request = requests[0];
