@@ -17,38 +17,43 @@ All active development remains on `feature/core-commerce-foundation`. `main` rem
 
 ## 2. Current phase
 
-The backend is in **advanced feature-complete / final hardening** phase across the principal ERP domains. Current work should prioritize regression, isolation, constraints, migration/index review and production-readiness rather than recreating foundations.
+The principal backend foundations are now **feature-complete and frozen for the current scope**. New work should default to frontend/operational UX, deployment hardening, observability and explicitly approved new domains rather than recreating backend foundations.
 
 Current priorities:
 
-1. Preserve tenant/company/branch isolation.
+1. Preserve tenant/company/branch isolation and existing domain invariants.
 2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
-3. Finish final migration/index/constraint and permission regression sweeps.
-4. Keep CI green with `pnpm install --frozen-lockfile`.
-5. Continue frontend/operational UX on top of the existing governed APIs.
-6. Introduce new domains such as Region only when explicitly designed; do not infer/fabricate them from existing data.
+3. Keep CI green with frozen dependency installation and fresh PostgreSQL migration smoke testing.
+4. Continue frontend/operational UX on top of the governed APIs.
+5. Treat new domains such as Region or new provider integrations as separate product scope.
 
-## 3. Latest verified backend checkpoint
+## 3. Latest verified backend freeze checkpoint
 
 ```text
-8b3ab0ffef14b9b3c23e0f7cd3494afc9fbc6ff6
-chore(types): align workspace lockfile
+59f6a2f8ac9f70c0d8c68e118dc90c554a888044
+fix(supplier): align invitation id types
 
-Monorepo quality #900 — SUCCESS
+Monorepo quality #905 — SUCCESS
+Run ID: 34669479307
 ```
 
 Verified pipeline:
 
-- frozen workspace dependency install
-- Prisma validation/client generation
+- `pnpm install --frozen-lockfile`
+- PostgreSQL 16 service health
+- Prisma schema validation
+- **all 121 migrations applied successfully to a fresh database with `prisma migrate deploy`**
+- Prisma client generation
 - database typecheck/build
 - shared contract typecheck/build
 - API typecheck
-- API tests
+- **84 API test suites / 276 tests passed**
 - API build
-- web lint/typecheck/build
+- web lint
+- web typecheck
+- web production build
 
-The workflow now rejects package/lockfile drift instead of silently repairing it.
+The workflow now rejects package/lockfile drift and migration-chain regressions instead of allowing either to remain hidden.
 
 ## 4. Architecture invariants
 
@@ -154,7 +159,9 @@ Payroll preview remains decision support and never silently rewrites payroll tru
 
 ### Marketplace / Supplier Network
 
-Marketplace and supplier-network foundations exist on the active branch. Continue from current models/docs; do not create parallel supplier entities.
+Marketplace and supplier-network foundations are implemented on the active branch. Supplier invitations, memberships, verification and platform audit flows use the existing `supplier_organizations` model; no parallel supplier identity should be introduced.
+
+The fresh-database migration gate exposed and fixed a historical invitation migration type mismatch: supplier organization, invitation and user references now consistently use the repository's TEXT identity strategy.
 
 ## 6. Quality Management
 
@@ -203,7 +210,7 @@ Real Branch Quality Score sources now include:
 
 ## 7. Education & Development / LMS
 
-LMS is **implemented at advanced backend foundation level**, not planned.
+LMS is **implemented at advanced backend foundation level**.
 
 Implemented capabilities include:
 
@@ -231,13 +238,16 @@ Implemented capabilities include:
 
 Private documents use server-generated scoped object keys and short-lived SigV4 URLs. Actual stored MIME/size are verified with HEAD requests.
 
-`training_managed_documents` records successful verification. A database trigger prevents a `DOCUMENT` lesson from linking a `content_ref` that is not verified for the same tenant/company/course version.
+`training_managed_documents` records successful verification. Database invariants now enforce both:
+
+- a registry row's `course_version_id` belongs to the same tenant/company; and
+- a `DOCUMENT` lesson may only link a verified object for the same tenant/company/exact course version.
 
 HTML, JavaScript, SVG and executable content types are rejected from managed private storage.
 
 ## 8. Competency Management
 
-Competency Management is **implemented at advanced backend foundation level**, not planned.
+Competency Management is **implemented at advanced backend foundation level**.
 
 Implemented capabilities include:
 
@@ -331,32 +341,39 @@ Managed private storage is S3-compatible and dependency-light:
 
 ## 13. CI / repository hygiene
 
-Monorepo quality now uses:
+Monorepo quality now enforces both dependency and migration reproducibility:
 
 ```text
 pnpm install --frozen-lockfile
+PostgreSQL 16
+prisma migrate deploy
 ```
 
-This is intentional. Do not restore `--no-frozen-lockfile` to hide manifest drift.
+A fresh database is created in CI and the complete migration chain must deploy successfully before package/API/web checks continue.
 
-The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking compile/test/build contract is satisfied; it does not claim historical lint debt is zero.
+The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking migration/compile/test/build contract is satisfied; it does not claim historical commerce formatting debt is zero.
 
 ## 14. Backend freeze status
 
-The principal backend foundations are now in final freeze/hardening rather than major feature construction.
+**Backend freeze for the current product scope is complete.**
 
-Remaining freeze work:
+The final regression established:
 
-1. cross-domain migration/index/constraint review
-2. permission and tenant/company/branch isolation regression sweep on recent endpoints
-3. final docs/checkpoint consistency review
-4. final full green frozen-lockfile regression
+- fresh-database migration reproducibility
+- managed-document tenant/company/course-version referential scope
+- scheduler lease fencing
+- controlled object-storage security
+- API type safety and tests
+- production API build
+- frontend contract compatibility through web lint/typecheck/build
 
-Future product scope that should not block backend feature-complete status:
+Future work that does **not** block this backend freeze:
 
 - explicit Region domain + branch-to-region relationship
 - new Quality score sources without existing auditable source data
 - platform edge controls such as deployment-level/global rate limiting
 - additional external provider integrations
+- frontend/UX expansion over existing APIs
+- cleanup of historical non-blocking commerce Prettier debt
 
-For the Quality → Training → Competency chain specifically, the backend should now be treated as **feature-complete and entering final freeze**.
+For the Quality → Training → Competency chain and the current cross-domain backend scope, the branch should now be treated as **backend-frozen and ready for frontend/deployment-focused continuation**.
