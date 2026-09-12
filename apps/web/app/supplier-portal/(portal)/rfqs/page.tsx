@@ -57,6 +57,12 @@ type RfqDetail = {
   currency: string | null;
   quoteNote: string | null;
   validUntil: string | null;
+  paymentTermsDays: number | null;
+  warrantyMonths: number | null;
+  installationIncluded: boolean | null;
+  trainingIncluded: boolean | null;
+  serviceSlaDays: number | null;
+  financingAvailable: boolean | null;
   version: number | null;
   submittedAt: string | null;
   items: RfqItem[];
@@ -122,6 +128,12 @@ export default function SupplierRfqPage() {
   const [currency, setCurrency] = useState("TRY");
   const [validUntil, setValidUntil] = useState("");
   const [quoteNote, setQuoteNote] = useState("");
+  const [paymentTermsDays, setPaymentTermsDays] = useState("");
+  const [warrantyMonths, setWarrantyMonths] = useState("");
+  const [installationIncluded, setInstallationIncluded] = useState(false);
+  const [trainingIncluded, setTrainingIncluded] = useState(false);
+  const [serviceSlaDays, setServiceSlaDays] = useState("");
+  const [financingAvailable, setFinancingAvailable] = useState(false);
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
@@ -158,6 +170,12 @@ export default function SupplierRfqPage() {
       setCurrency(data.currency || firstCatalogCurrency || "TRY");
       setQuoteNote(data.quoteNote || "");
       setValidUntil(data.validUntil ? new Date(data.validUntil).toISOString().slice(0, 16) : "");
+      setPaymentTermsDays(data.paymentTermsDays == null ? "" : String(data.paymentTermsDays));
+      setWarrantyMonths(data.warrantyMonths == null ? "" : String(data.warrantyMonths));
+      setInstallationIncluded(Boolean(data.installationIncluded));
+      setTrainingIncluded(Boolean(data.trainingIncluded));
+      setServiceSlaDays(data.serviceSlaDays == null ? "" : String(data.serviceSlaDays));
+      setFinancingAvailable(Boolean(data.financingAvailable));
       setDraftItems(data.items.map((item) => {
         const catalog = defaultsByItem.get(item.rfqItemId);
         return {
@@ -217,6 +235,13 @@ export default function SupplierRfqPage() {
     setDraftItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
   }
 
+  function nullableNonNegativeInteger(value: string, label: string) {
+    if (!value.trim()) return null;
+    const parsed = Number(value);
+    if (!Number.isInteger(parsed) || parsed < 0) throw new Error(`${label} negatif olmayan tam sayı olmalıdır.`);
+    return parsed;
+  }
+
   async function saveDraft() {
     if (!detail || !editable || busy) return;
     const items = draftItems.map((item) => ({
@@ -231,6 +256,18 @@ export default function SupplierRfqPage() {
       return;
     }
 
+    let terms: { paymentTermsDays: number | null; warrantyMonths: number | null; serviceSlaDays: number | null };
+    try {
+      terms = {
+        paymentTermsDays: nullableNonNegativeInteger(paymentTermsDays, "Ödeme vadesi"),
+        warrantyMonths: nullableNonNegativeInteger(warrantyMonths, "Garanti süresi"),
+        serviceSlaDays: nullableNonNegativeInteger(serviceSlaDays, "Servis SLA"),
+      };
+    } catch (validationError) {
+      setError(validationError instanceof Error ? validationError.message : "Ticari şartlar geçersiz.");
+      return;
+    }
+
     setBusy(true);
     setError("");
     try {
@@ -240,6 +277,10 @@ export default function SupplierRfqPage() {
           currency: currency.trim().toUpperCase(),
           note: quoteNote.trim() || undefined,
           validUntil: validUntil ? new Date(validUntil).toISOString() : null,
+          ...terms,
+          installationIncluded,
+          trainingIncluded,
+          financingAvailable,
           expectedVersion: detail.quoteId ? detail.version ?? undefined : undefined,
           items,
         },
@@ -296,7 +337,7 @@ export default function SupplierRfqPage() {
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-[#1674bd]">RFQ VE TEKLİFLER</p>
         <h1 className="mt-2 text-[30px] font-semibold tracking-[-.035em]">Teklif Çalışma Alanı</h1>
-        <p className="mt-1 text-[14px] text-[#667482]">Davetleri inceleyin, fiyat ve termin bilgilerini hazırlayın, teklifinizi kontrollü şekilde gönderin.</p>
+        <p className="mt-1 text-[14px] text-[#667482]">Fiyat, termin ve ticari şartları birlikte hazırlayın; gönderilen teklif version kontrollü ve auditable kalır.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -347,7 +388,7 @@ export default function SupplierRfqPage() {
                     const catalogDefault = catalogDefaultByItem.get(item.rfqItemId);
                     const seededFromCatalog = !detail.quoteId && catalogDefault?.hasActiveCatalogOffer;
                     return (
-                      <div key={item.rfqItemId} className="grid grid-cols-[minmax(220px,1.5fr)_90px_130px_130px_110px] gap-3 px-4 py-4 text-[12px] items-center">
+                      <div key={item.rfqItemId} className="grid grid-cols-[minmax(220px,1.5fr)_90px_130px_130px_110px] items-center gap-3 px-4 py-4 text-[12px]">
                         <div>
                           <p className="font-semibold">{item.catalogProductName} · {item.catalogVariantName}</p>
                           <p className="mt-1 text-[10px] text-[#7a8792]">{item.canonicalSku || "Canonical SKU yok"} · {item.unit}</p>
@@ -363,11 +404,23 @@ export default function SupplierRfqPage() {
                 </div>
               </section>
 
-              <section className="grid gap-5 rounded-[20px] border border-[#dfe7ed] bg-white p-5 lg:grid-cols-[1fr_260px]">
-                <div className="space-y-4">
-                  <div className="grid gap-3 sm:grid-cols-2">
+              <section className="grid gap-5 rounded-[20px] border border-[#dfe7ed] bg-white p-5 xl:grid-cols-[minmax(0,1fr)_300px]">
+                <div className="space-y-5">
+                  <div>
+                    <h3 className="text-[14px] font-semibold">Ticari şartlar</h3>
+                    <p className="mt-1 text-[11px] text-[#7a8792]">Bu koşullar buyer karşılaştırmasına ve kazanan teklifte immutable PO origin snapshotına taşınır.</p>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                     <label className="text-[11px] font-semibold text-[#52616d]">Para birimi<TextInput disabled={!editable} value={currency} maxLength={3} onChange={(event) => setCurrency(event.target.value.toUpperCase())} className="mt-1" /></label>
                     <label className="text-[11px] font-semibold text-[#52616d]">Geçerlilik tarihi<input disabled={!editable} type="datetime-local" value={validUntil} onChange={(event) => setValidUntil(event.target.value)} className="mt-1 h-10 w-full rounded-[10px] border border-[#dfe7ed] bg-white px-3 text-[12px] disabled:bg-[#f5f7f9]" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Ödeme vadesi (gün)<TextInput disabled={!editable} inputMode="numeric" value={paymentTermsDays} onChange={(event) => setPaymentTermsDays(event.target.value)} placeholder="Opsiyonel" className="mt-1" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Garanti (ay)<TextInput disabled={!editable} inputMode="numeric" value={warrantyMonths} onChange={(event) => setWarrantyMonths(event.target.value)} placeholder="Opsiyonel" className="mt-1" /></label>
+                    <label className="text-[11px] font-semibold text-[#52616d]">Servis SLA (gün)<TextInput disabled={!editable} inputMode="numeric" value={serviceSlaDays} onChange={(event) => setServiceSlaDays(event.target.value)} placeholder="Opsiyonel" className="mt-1" /></label>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <CommercialToggle label="Kurulum dahil" checked={installationIncluded} disabled={!editable} onChange={setInstallationIncluded} />
+                    <CommercialToggle label="Eğitim dahil" checked={trainingIncluded} disabled={!editable} onChange={setTrainingIncluded} />
+                    <CommercialToggle label="Finansman mevcut" checked={financingAvailable} disabled={!editable} onChange={setFinancingAvailable} />
                   </div>
                   <label className="block text-[11px] font-semibold text-[#52616d]">Teklif notu<textarea disabled={!editable} value={quoteNote} onChange={(event) => setQuoteNote(event.target.value)} rows={4} className="mt-1 w-full resize-none rounded-[12px] border border-[#dfe7ed] bg-white px-3 py-2 text-[12px] outline-none focus:border-[#1674bd] disabled:bg-[#f5f7f9]" /></label>
                 </div>
@@ -378,7 +431,7 @@ export default function SupplierRfqPage() {
                   {editable ? <Button type="button" onClick={saveDraft} disabled={busy} className="mt-4 w-full">{busy ? "Kaydediliyor..." : "Taslağı kaydet"}</Button> : null}
                   {canManage && detail.quoteStatus === "DRAFT" ? <Button type="button" onClick={submitQuote} disabled={busy} className="mt-2 w-full">Teklifi gönder</Button> : null}
                   {canManage && detail.quoteStatus === "SUBMITTED" && detail.status === "PUBLISHED" ? <button type="button" onClick={withdrawQuote} disabled={busy} className="mt-2 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 py-2.5 text-[12px] font-semibold text-[#9b4a3c] hover:bg-[#fff8f6] disabled:opacity-50">Teklifi geri çek</button> : null}
-                  {detail.quoteStatus === "WITHDRAWN" ? <p className="mt-3 text-[10px] leading-4 text-[#9b4a3c]">Bu teklif geri çekildi ve artık buyer değerlendirmesinde aktif değildir.</p> : null}
+                  {detail.quoteStatus === "WITHDRAWN" ? <p className="mt-3 text-[10px] leading-4 text-[#9b4a3c]">Bu teklif geri çekildi ve buyer değerlendirmesinde aktif değildir.</p> : null}
                 </div>
               </section>
             </div>
@@ -386,6 +439,15 @@ export default function SupplierRfqPage() {
         </div>
       </section>
     </div>
+  );
+}
+
+function CommercialToggle({ label, checked, disabled, onChange }: { label: string; checked: boolean; disabled: boolean; onChange: (value: boolean) => void }) {
+  return (
+    <label className="flex items-center gap-3 rounded-[12px] border border-[#dfe7ed] bg-[#fafcfd] px-3 py-3 text-[11px] font-semibold text-[#52616d]">
+      <input type="checkbox" checked={checked} disabled={disabled} onChange={(event) => onChange(event.target.checked)} />
+      {label}
+    </label>
   );
 }
 
