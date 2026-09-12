@@ -7,6 +7,7 @@ import { DataView, DataViewMeta } from "@/components/data-view";
 import { FormActions, FormGrid, FormSection, FormSubmitButton } from "@/components/form-system";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type SectionKey = "employees" | "personnel-files" | "attendance" | "leaves" | "payroll" | "payments" | "sgk";
 type SectionConfig = { title: string; get: string; post?: string; fields: readonly string[] };
@@ -62,7 +63,7 @@ const FIELD_LABELS: Record<string, string> = {
   firstName: "Ad",
   lastName: "Soyad",
   phone: "Telefon",
-  email: "E-posta",
+  email: "E-Posta",
   personnelNumber: "Sicil No",
   identityNumber: "T.C. Kimlik No",
   position: "Pozisyon",
@@ -76,9 +77,9 @@ const FIELD_LABELS: Record<string, string> = {
   workDate: "Tarih",
   checkIn: "Giriş",
   checkOut: "Çıkış",
-  breakMinutes: "Mola dk",
-  workedMinutes: "Çalışma dk",
-  overtimeMinutes: "Fazla Mesai dk",
+  breakMinutes: "Mola Süresi (Dk)",
+  workedMinutes: "Çalışma Süresi (Dk)",
+  overtimeMinutes: "Fazla Mesai (Dk)",
   status: "Durum",
   note: "Not",
   type: "İzin Türü",
@@ -138,7 +139,7 @@ export default function HRSection() {
         setStaff(nextRows.filter(isStaffRow));
       }
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "İK verileri yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "İK Verileri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -170,7 +171,7 @@ export default function HRSection() {
       setEdit(null);
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Kayıt kaydedilemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Kayıt Kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -192,19 +193,19 @@ export default function HRSection() {
   }
 
   async function remove(id: string) {
-    if (!config || !id || !window.confirm("Bu kayıt silinsin/arşivlensin mi?")) return;
+    if (!config || !id || !window.confirm("Bu Kayıt Silinsin Veya Arşivlensin Mi?")) return;
     try {
       await api(`${config.get}/${id}`, { method: "DELETE" });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Silme işlemi başarısız.");
+      setError(requestError instanceof ApiError ? requestError.message : "Silme İşlemi Başarısız.");
     }
   }
 
   if (!section || !config) {
     return (
       <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-8 text-[13px] text-[var(--muted)]">
-        İK sayfası bulunamadı.
+        İK Sayfası Bulunamadı.
       </div>
     );
   }
@@ -214,10 +215,10 @@ export default function HRSection() {
       <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">
-            İnsan Kaynakları & Özlük
+            İnsan Kaynakları Ve Özlük
           </p>
           <h1 className="mt-1 text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">{config.title}</h1>
-          <p className="mt-1 text-xs text-[var(--muted)]">Canlı API ve veritabanı kayıt ekranı.</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Personel Kayıtlarını Görüntüleyin Ve Yönetin.</p>
         </div>
         {PERIOD_SECTIONS.has(section) ? (
           <div className="flex gap-2">
@@ -248,7 +249,7 @@ export default function HRSection() {
         <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_10px_30px_rgba(17,70,104,.045)]">
           <FormSection
             title={edit ? "Kaydı Güncelle" : "Yeni Kayıt"}
-            description="Alanları doldurun ve kaydedin. Hassas personel ve bordro verileri yalnız yetkili İK rollerince görüntülenmelidir."
+            description="Alanları Doldurun Ve Kaydedin. Hassas Personel Ve Bordro Verileri Yalnız Yetkili İK Rollerince Görüntülenmelidir."
           >
             <FormGrid columns={3} className="xl:grid-cols-4">
               {config.fields.map((field) => (
@@ -325,10 +326,10 @@ export default function HRSection() {
             </table>
           </div>
           {!rows.length ? (
-            <div className="p-10 text-center text-xs text-[var(--muted)]">Bu dönem için kayıt bulunmuyor.</div>
+            <div className="p-10 text-center text-xs text-[var(--muted)]">Bu Dönem İçin Kayıt Bulunmuyor.</div>
           ) : null}
           <DataViewMeta>
-            <span>{rows.length} kayıt</span>
+            <span>{rows.length} Kayıt</span>
             <span>{PERIOD_SECTIONS.has(section) ? `${year}/${String(month).padStart(2, "0")}` : config.title}</span>
           </DataViewMeta>
         </DataView>
@@ -354,7 +355,7 @@ function DynamicField({
       <span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">{label}</span>
       {field === "staffId" ? (
         <select className="control h-11 w-full" value={value} onChange={(event) => onChange(event.target.value)}>
-          <option value="">Personel seçin</option>
+          <option value="">Personel Seçin</option>
           {staff.map((employee) => (
             <option key={employee.id} value={employee.id}>
               {employee.firstName ?? ""} {employee.lastName ?? ""}
@@ -364,7 +365,7 @@ function DynamicField({
       ) : SELECT_VALUES[field] ? (
         <select className="control h-11 w-full" value={value} onChange={(event) => onChange(event.target.value)}>
           <option value="">Seçin</option>
-          {SELECT_VALUES[field].map((option) => <option key={option} value={option}>{option}</option>)}
+          {SELECT_VALUES[field].map((option) => <option key={option} value={option}>{userLabel(option)}</option>)}
         </select>
       ) : (
         <input
@@ -424,5 +425,6 @@ function displayValue(value: unknown) {
     const parsed = new Date(value);
     if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString("tr-TR");
   }
+  if (typeof value === "string") return userLabel(value);
   return String(value);
 }
