@@ -15,7 +15,10 @@ const settingsSchema = z.object({
 const summarySchema = z.object({
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
-});
+}).refine(
+  (value) => !value.from || !value.to || value.from <= value.to,
+  { message: 'from must be before or equal to to' },
+);
 
 @Controller('tax')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
