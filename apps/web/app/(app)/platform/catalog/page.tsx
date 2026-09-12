@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
@@ -190,7 +190,7 @@ function Metric({ label, value }: { label: string; value: number }) {
   return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
 }
 
-function FormCard({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
+function FormCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
   return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><h2 className="text-[13px] font-semibold text-[var(--ink)]">{title}</h2><p className="mb-4 mt-1 text-[10px] text-[var(--muted)]">{description}</p>{children}</div>;
 }
 
