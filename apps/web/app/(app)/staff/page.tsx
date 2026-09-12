@@ -21,7 +21,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { optionalText, staffStatusLabel } from "@/lib/format";
 import type { CreateStaffInput, Paginated, Staff, StaffProfile } from "@/lib/types";
 
@@ -116,6 +116,10 @@ export default function StaffPage() {
 
   function openCreate() {
     if (!canCreateStaff) return;
+    if (!hasActiveBranch()) {
+      showToast("Yeni Personel Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.", "error");
+      return;
+    }
     setEditing(null); setForm({ ...emptyForm, profile: {} }); setFormError(""); setStep(0); setModalOpen(true);
   }
 
@@ -132,6 +136,10 @@ export default function StaffPage() {
 
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
+    if (!editing && !hasActiveBranch()) {
+      setFormError("Yeni Personel Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.");
+      return;
+    }
     if (!form.firstName.trim() || !form.lastName.trim()) { setStep(0); setFormError("Ad Ve Soyad Gereklidir."); return; }
     setSaving(true); setFormError("");
     try {
