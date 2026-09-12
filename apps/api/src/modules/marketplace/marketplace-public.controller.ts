@@ -1,7 +1,18 @@
-import { Body, Controller, Get, Param, Post } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 
 import { MarketplaceBookingService } from './marketplace-booking.service';
+import {
+  MarketplacePublicRateLimit,
+  MarketplacePublicRateLimitGuard,
+} from './marketplace-public-rate-limit.guard';
 import { MarketplaceService } from './marketplace.service';
 
 const publicListingParamsSchema = z.object({
@@ -19,19 +30,22 @@ const publicListingParamsSchema = z.object({
     .regex(/^[A-Za-z0-9_-]+$/),
 });
 
-const bookingSchema = z.object({
-  serviceId: z.string().uuid(),
-  startAt: z.coerce.date(),
-  idempotencyKey: z.string().trim().min(8).max(160),
-  firstName: z.string().trim().min(1).max(120),
-  lastName: z.string().trim().min(1).max(120),
-  email: z.string().trim().email().max(320).optional(),
-  phone: z.string().trim().min(5).max(40).optional(),
-}).refine((value) => Boolean(value.email || value.phone), {
-  message: 'Email or phone is required.',
-});
+const bookingSchema = z
+  .object({
+    serviceId: z.string().uuid(),
+    startAt: z.coerce.date(),
+    idempotencyKey: z.string().trim().min(8).max(160),
+    firstName: z.string().trim().min(1).max(120),
+    lastName: z.string().trim().min(1).max(120),
+    email: z.string().trim().email().max(320).optional(),
+    phone: z.string().trim().min(5).max(40).optional(),
+  })
+  .refine((value) => Boolean(value.email || value.phone), {
+    message: 'Email or phone is required.',
+  });
 
 @Controller('public/marketplace')
+@UseGuards(MarketplacePublicRateLimitGuard)
 export class MarketplacePublicController {
   constructor(
     private readonly marketplaceService: MarketplaceService,
@@ -39,6 +53,7 @@ export class MarketplacePublicController {
   ) {}
 
   @Get(':companySlug/:branchCode')
+  @MarketplacePublicRateLimit('listing', 120, 60)
   async listing(
     @Param('companySlug') companySlug: string,
     @Param('branchCode') branchCode: string,
@@ -54,12 +69,16 @@ export class MarketplacePublicController {
   }
 
   @Post(':companySlug/:branchCode/bookings')
+  @MarketplacePublicRateLimit('booking', 12, 60)
   async book(
     @Param('companySlug') companySlug: string,
     @Param('branchCode') branchCode: string,
     @Body() body: unknown,
   ) {
-    const scope = publicListingParamsSchema.parse({ companySlug, branchCode });
+    const scope = publicListingParamsSchema.parse({
+      companySlug,
+      branchCode,
+    });
     const input = bookingSchema.parse(body);
     return this.bookingService.create({
       ...input,
