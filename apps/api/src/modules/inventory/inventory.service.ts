@@ -44,6 +44,29 @@ export class InventoryService {
     if (!rows.length) throw new NotFoundException('Warehouse not found');
   }
 
+  private async requireWarehouseInActiveScope(
+    db: RawDb,
+    warehouseId: string,
+    companyId = this.companyId(),
+  ) {
+    const branchId = this.tenantContext.getBranchId();
+    const rows = await db.$queryRawUnsafe<any[]>(
+      `SELECT id,branch_id AS "branchId" FROM inventory_warehouses
+       WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE'
+         AND ($3::text IS NULL OR branch_id=$3::text)
+       LIMIT 1`,
+      warehouseId,
+      companyId,
+      branchId,
+    );
+    if (!rows.length) {
+      throw new BadRequestException(
+        'Warehouse is outside the active branch scope.',
+      );
+    }
+    return rows[0];
+  }
+
   private async requireProduct(
     db: RawDb,
     productId: string,
@@ -230,7 +253,7 @@ export class InventoryService {
     const initial = Number(input.initialQuantity || 0);
 
     return this.prisma.$transaction(async (tx) => {
-      await this.requireWarehouse(tx, warehouseId, companyId);
+      await this.requireWarehouseInActiveScope(tx, warehouseId, companyId);
       if (input.categoryId) {
         await this.requireCategory(tx, input.categoryId, companyId);
       }
@@ -394,7 +417,7 @@ export class InventoryService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.requireProduct(tx, productId, companyId);
-      await this.requireWarehouse(tx, warehouseId, companyId);
+      await this.requireWarehouseInActiveScope(tx, warehouseId, companyId);
 
       if (outbound) {
         const stock = await tx.$queryRawUnsafe<any[]>(
@@ -443,9 +466,16 @@ export class InventoryService {
 
   async movements(limit = 80) {
     const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT m.id,m.type,m.quantity,m.unit_cost AS "unitCost",m.note,m.created_at AS "createdAt",p.name AS "productName",p.unit,w.name AS "warehouseName" FROM inventory_movements m JOIN inventory_products p ON p.id=m.product_id JOIN inventory_warehouses w ON w.id=m.warehouse_id WHERE m.company_id=$1::text ORDER BY m.created_at DESC LIMIT $2`,
+      `SELECT m.id,m.type,m.quantity,m.unit_cost AS "unitCost",m.note,m.created_at AS "createdAt",p.name AS "productName",p.unit,w.name AS "warehouseName"
+       FROM inventory_movements m
+       JOIN inventory_products p ON p.id=m.product_id
+       JOIN inventory_warehouses w ON w.id=m.warehouse_id
+       WHERE m.company_id=$1::text AND ($2::text IS NULL OR w.branch_id=$2::text)
+       ORDER BY m.created_at DESC LIMIT $3`,
       companyId,
+      branchId,
       Math.min(limit, 200),
     );
   }
@@ -506,9 +536,16 @@ export class InventoryService {
 
   async purchaseRequests() {
     const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT pr.id,p.name AS "productName",w.name AS "warehouseName",pr.current_quantity AS "currentQuantity",pr.requested_quantity AS "requestedQuantity",pr.status,pr.reason,pr.created_at AS "createdAt" FROM inventory_purchase_requests pr JOIN inventory_products p ON p.id=pr.product_id JOIN inventory_warehouses w ON w.id=pr.warehouse_id WHERE pr.company_id=$1::text ORDER BY pr.created_at DESC`,
+      `SELECT pr.id,p.name AS "productName",w.name AS "warehouseName",pr.current_quantity AS "currentQuantity",pr.requested_quantity AS "requestedQuantity",pr.status,pr.reason,pr.created_at AS "createdAt"
+       FROM inventory_purchase_requests pr
+       JOIN inventory_products p ON p.id=pr.product_id
+       JOIN inventory_warehouses w ON w.id=pr.warehouse_id
+       WHERE pr.company_id=$1::text AND ($2::text IS NULL OR w.branch_id=$2::text)
+       ORDER BY pr.created_at DESC`,
       companyId,
+      branchId,
     );
   }
 
@@ -723,9 +760,18 @@ export class InventoryService {
   }
 
   async purchaseOrders() {
+    const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT po.id,po.status,po.total_amount AS "totalAmount",po.ordered_at AS "orderedAt",po.received_at AS "receivedAt",s.name AS "supplierName",w.name AS "warehouseName",COUNT(i.id)::int AS "itemCount" FROM inventory_purchase_orders po LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id JOIN inventory_warehouses w ON w.id=po.warehouse_id LEFT JOIN inventory_purchase_order_items i ON i.purchase_order_id=po.id WHERE po.company_id=$1::text GROUP BY po.id,s.name,w.name ORDER BY po.created_at DESC`,
-      this.companyId(),
+      `SELECT po.id,po.status,po.total_amount AS "totalAmount",po.ordered_at AS "orderedAt",po.received_at AS "receivedAt",s.name AS "supplierName",w.name AS "warehouseName",COUNT(i.id)::int AS "itemCount"
+       FROM inventory_purchase_orders po
+       LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id
+       JOIN inventory_warehouses w ON w.id=po.warehouse_id
+       LEFT JOIN inventory_purchase_order_items i ON i.purchase_order_id=po.id
+       WHERE po.company_id=$1::text AND ($2::text IS NULL OR w.branch_id=$2::text)
+       GROUP BY po.id,s.name,w.name ORDER BY po.created_at DESC`,
+      companyId,
+      branchId,
     );
   }
 
@@ -739,7 +785,7 @@ export class InventoryService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await this.requireWarehouse(tx, input.warehouseId, companyId);
+      await this.requireWarehouseInActiveScope(tx, input.warehouseId, companyId);
       if (input.supplierId) {
         await this.requireSupplier(tx, input.supplierId, companyId);
       }
@@ -787,9 +833,19 @@ export class InventoryService {
   }
 
   async transfers() {
+    const companyId = this.companyId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT t.id,t.status,t.note,t.created_at AS "createdAt",s.name AS "sourceName",d.name AS "destinationName",COUNT(i.id)::int AS "itemCount" FROM inventory_transfers t JOIN inventory_warehouses s ON s.id=t.source_warehouse_id JOIN inventory_warehouses d ON d.id=t.destination_warehouse_id LEFT JOIN inventory_transfer_items i ON i.transfer_id=t.id WHERE t.company_id=$1::text GROUP BY t.id,s.name,d.name ORDER BY t.created_at DESC`,
-      this.companyId(),
+      `SELECT t.id,t.status,t.note,t.created_at AS "createdAt",s.name AS "sourceName",d.name AS "destinationName",COUNT(i.id)::int AS "itemCount"
+       FROM inventory_transfers t
+       JOIN inventory_warehouses s ON s.id=t.source_warehouse_id
+       JOIN inventory_warehouses d ON d.id=t.destination_warehouse_id
+       LEFT JOIN inventory_transfer_items i ON i.transfer_id=t.id
+       WHERE t.company_id=$1::text
+         AND ($2::text IS NULL OR s.branch_id=$2::text OR d.branch_id=$2::text)
+       GROUP BY t.id,s.name,d.name ORDER BY t.created_at DESC`,
+      companyId,
+      branchId,
     );
   }
 
@@ -812,7 +868,11 @@ export class InventoryService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      await this.requireWarehouse(tx, input.sourceWarehouseId, companyId);
+      await this.requireWarehouseInActiveScope(
+        tx,
+        input.sourceWarehouseId,
+        companyId,
+      );
       await this.requireWarehouse(tx, input.destinationWarehouseId, companyId);
 
       for (const item of input.items) {
