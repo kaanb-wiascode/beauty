@@ -5,7 +5,6 @@ import {
   ServiceStatus,
   StaffStatus,
 } from "@prisma/client";
-import { randomUUID } from "node:crypto";
 
 const prisma = new PrismaClient();
 
@@ -492,36 +491,6 @@ async function main() {
 
   await ensureCrmTables();
 
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM crm_events
-     WHERE tenant_id=$1::text AND lead_id IN (
-       SELECT id FROM crm_leads WHERE tenant_id=$1::text AND source=$2
-     )`,
-    tenant.id,
-    DEMO_CRM_SOURCE,
-  );
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM crm_follow_ups
-     WHERE tenant_id=$1::text AND lead_id IN (
-       SELECT id FROM crm_leads WHERE tenant_id=$1::text AND source=$2
-     )`,
-    tenant.id,
-    DEMO_CRM_SOURCE,
-  );
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM crm_opportunities
-     WHERE tenant_id=$1::text AND lead_id IN (
-       SELECT id FROM crm_leads WHERE tenant_id=$1::text AND source=$2
-     )`,
-    tenant.id,
-    DEMO_CRM_SOURCE,
-  );
-  await prisma.$executeRawUnsafe(
-    `DELETE FROM crm_leads WHERE tenant_id=$1::text AND source=$2`,
-    tenant.id,
-    DEMO_CRM_SOURCE,
-  );
-
   const leadFixtures = [
     ["Eylül", "Acar", "+905532220001", "eylul.acar@valoo-demo.local", "NEW", "Hydrafacial ve leke bakımıyla ilgileniyor."],
     ["İlayda", "Gür", "+905532220002", "ilayda.gur@valoo-demo.local", "CONTACTED", "Düğün öncesi bakım paketi soruyor."],
@@ -536,7 +505,7 @@ async function main() {
   const leadIds: string[] = [];
   for (let i = 0; i < leadFixtures.length; i += 1) {
     const [firstName, lastName, phone, email, status, note] = leadFixtures[i];
-    const id = randomUUID();
+    const id = `valoo-demo-lead-${i + 1}`;
     const branchId = i < 6 ? nisantasi.id : atasehir.id;
     await prisma.$executeRawUnsafe(
       `INSERT INTO crm_leads(
@@ -545,7 +514,19 @@ async function main() {
        ) VALUES(
          $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13,$5::text,1,
          NOW() - ($14::int * INTERVAL '1 day'),NOW() - ($14::int * INTERVAL '1 day')
-       )`,
+       )
+       ON CONFLICT (id) DO UPDATE SET
+         branch_id=EXCLUDED.branch_id,
+         owner_user_id=EXCLUDED.owner_user_id,
+         first_name=EXCLUDED.first_name,
+         last_name=EXCLUDED.last_name,
+         phone=EXCLUDED.phone,
+         email=EXCLUDED.email,
+         source=EXCLUDED.source,
+         status=EXCLUDED.status,
+         interest_note=EXCLUDED.interest_note,
+         lost_reason=EXCLUDED.lost_reason,
+         updated_at=NOW()`,
       id,
       tenant.id,
       company.id,
@@ -566,8 +547,9 @@ async function main() {
     await prisma.$executeRawUnsafe(
       `INSERT INTO crm_events(
          id,tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata,created_at
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'LEAD_CREATED',$6::text,$7::jsonb,NOW() - INTERVAL '2 day')`,
-      randomUUID(),
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'LEAD_CREATED',$6::text,$7::jsonb,NOW() - INTERVAL '2 day')
+       ON CONFLICT (id) DO NOTHING`,
+      `valoo-demo-event-lead-created-${i + 1}`,
       tenant.id,
       company.id,
       branchId,
@@ -583,8 +565,9 @@ async function main() {
     [4, "VIP Yıllık Beauty Plan", 26500, "NEEDS_ANALYSIS", 40, 18],
   ] as const;
   const opportunityIds: string[] = [];
-  for (const [leadIndex, title, value, stage, probability, closeInDays] of opportunityFixtures) {
-    const id = randomUUID();
+  for (let i = 0; i < opportunityFixtures.length; i += 1) {
+    const [leadIndex, title, value, stage, probability, closeInDays] = opportunityFixtures[i];
+    const id = `valoo-demo-opportunity-${i + 1}`;
     const leadBranch = leadIndex < 6 ? nisantasi.id : atasehir.id;
     await prisma.$executeRawUnsafe(
       `INSERT INTO crm_opportunities(
@@ -593,7 +576,17 @@ async function main() {
        ) VALUES(
          $1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'TRY',$9,$10,
          NOW() + ($11::int * INTERVAL '1 day'),$6::text,1,NOW(),NOW()
-       )`,
+       )
+       ON CONFLICT (id) DO UPDATE SET
+         branch_id=EXCLUDED.branch_id,
+         owner_user_id=EXCLUDED.owner_user_id,
+         title=EXCLUDED.title,
+         estimated_value=EXCLUDED.estimated_value,
+         currency=EXCLUDED.currency,
+         stage=EXCLUDED.stage,
+         probability=EXCLUDED.probability,
+         expected_close_date=EXCLUDED.expected_close_date,
+         updated_at=NOW()`,
       id,
       tenant.id,
       company.id,
@@ -618,7 +611,8 @@ async function main() {
     [null, opportunityIds[2], "EMAIL", 4, 12, "VIP plan teklif PDF'i takip edilecek."],
   ] as const;
 
-  for (const [leadId, opportunityId, channel, dayOffset, hour, note] of followUps) {
+  for (let i = 0; i < followUps.length; i += 1) {
+    const [leadId, opportunityId, channel, dayOffset, hour, note] = followUps[i];
     const subjectLeadIndex = leadId ? leadIds.indexOf(leadId) : 2;
     const branchId = subjectLeadIndex >= 6 ? atasehir.id : nisantasi.id;
     await prisma.$executeRawUnsafe(
@@ -627,8 +621,17 @@ async function main() {
          created_by_user_id,version,created_at,updated_at
        ) VALUES(
          $1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8,$9,$10,$7::text,1,NOW(),NOW()
-       )`,
-      randomUUID(),
+       )
+       ON CONFLICT (id) DO UPDATE SET
+         branch_id=EXCLUDED.branch_id,
+         lead_id=EXCLUDED.lead_id,
+         opportunity_id=EXCLUDED.opportunity_id,
+         assigned_user_id=EXCLUDED.assigned_user_id,
+         channel=EXCLUDED.channel,
+         due_at=EXCLUDED.due_at,
+         note=EXCLUDED.note,
+         updated_at=NOW()`,
+      `valoo-demo-follow-up-${i + 1}`,
       tenant.id,
       company.id,
       branchId,
