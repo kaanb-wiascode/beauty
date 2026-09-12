@@ -117,7 +117,7 @@ Not yet complete:
 
 ### Procurement
 
-Status: **Buyer-side foundation + governed request/order operations UI implemented and CI-validated; Supplier Network commercial integration pending**
+Status: **Buyer-side request/order + approval + goods receipt + return/replacement operations UI implemented and CI-validated; Supplier Network commercial integration pending**
 
 Implemented:
 
@@ -137,10 +137,29 @@ Implemented:
   - approving a `PENDING` purchase request
   - converting an `APPROVED` request into a Purchase Order with tenant-private supplier and explicit unit cost
   - submitting a `DRAFT` Purchase Order into the approval workflow
+  - viewing the multi-level Purchase Order approval state and governed level approve/reject actions
   - moving an `APPROVED` Purchase Order to `ORDERED`
+  - performing partial/final Goods Receipt against `ORDERED` Purchase Orders with invoice number, due date and note
+- `/inventory/purchases/operations` Goods Receipt + return operations surface
+  - branch-scoped Goods Receipt history and item detail
+  - per-item received/returned/returnable quantity projection
+  - controlled return request creation rather than direct stock mutation from UI
+  - `PENDING` return request manager approval/rejection
+  - `APPROVED` return execution through the existing stock, SupplierBill, credit-note and journal transaction flow
+- `/inventory/purchases/replacements` supplier replacement operations surface
+  - purchase-return item detail with already-requested and remaining replacement quantities
+  - replacement request creation
+  - governed approve/reject lifecycle
+  - approved replacement receipt through existing stock, Purchase Order receipt, AP and journal restoration flow
+- purchase sub-navigation now exposes request/order, Goods Receipt/return and replacement surfaces without changing the unreconciled global AppShell
+- Purchase Order list/detail, approval, ordering, Goods Receipt, return and replacement query paths enforce active branch scope through `warehouse.branch_id` / persisted branch identity
+- Purchase Order approval runtime query corrected to derive branch from the warehouse relation rather than a non-existent Purchase Order `branch_id` column
+- dedicated branch-safe Procurement Purchase Order query replaces the company-wide Inventory PO list inside the buyer cockpit
+- receipt and purchase-return query services provide UI-safe item detail without bypassing mutation services
+- regression tests cover approval branch scope, purchase-request branch scope, Purchase Order list branch scope, Goods Receipt detail scope and replacement-quantity scope
 - all mutation controls are hidden for users without `inventory.write`
-- `ProcurementController` now enforces `inventory.read` at controller scope and `inventory.write` on mutations
-- `InventoryController` now enforces the same read/write boundary across stock, supplier, transfer, accounting-adjustment, asset and cycle-count surfaces
+- `ProcurementController` enforces `inventory.read` at controller scope and `inventory.write` on mutations
+- `InventoryController` enforces the same read/write boundary across stock, supplier, transfer, accounting-adjustment, asset and cycle-count surfaces
 - migration `20260912220000_inventory_procurement_rbac` creates `inventory.read` / `inventory.write` idempotently and grants both to existing `owner` roles
 - demo seed includes the same inventory permissions for fresh owner setup
 
@@ -152,23 +171,31 @@ Validated commits:
 - `8874335602f4092c66c7e279e2dac473136da38c` — demo seed owner inventory grants; CI #919 SUCCESS
 - `d6dbc82499edb8cf9521f2e01c3b418f24413be3` — Inventory controller permission enforcement; descendant CI #921 SUCCESS
 - `5dc742820e45159559d82c14cb9c0235b8f9b5c8` — governed purchase actions UI; CI #921 SUCCESS
+- `7783740932fe856cf2b60af7caf2de3ee50cfe74` + `08c22e29e3196b5ea127902e4aebfafbc475236f` — warehouse-derived approval branch scope + regression coverage; descendant CI #950 SUCCESS
+- `51593bba36c4c8e1d241731520d11e80fe1f76b7` + `f1ff86a25c82dbf2aac4634950f0f38c98fae32b` — Purchase Request branch scope + regression coverage; descendant CI #950 SUCCESS
+- `5096d4c7bf106eccd1fbbdeeebb29f77b935f87d` — Purchase Order detail / Goods Receipt scope regression coverage; descendant CI #950 SUCCESS
+- `9b331dcd462d2391e51d49e7a6542f9a0c347523` + `da76999083362f9f1741c09ad4dc22a84ec96791` — Goods Receipt modal + scoped Purchase Order query wiring; descendant CI #950 SUCCESS
+- `13493ec8287203d6d259a23556444ba46d0c39b6` — Goods Receipt history + controlled return operations UI; descendant CI #950 SUCCESS
+- `ae2d9db16e0a90e806c5a336306155ac53a1fdf4` — supplier replacement workflow UI; Monorepo quality #950 SUCCESS
 
 Important boundary:
 
 - `inventory.read` and `inventory.write` are application RBAC permissions; tenant/company/branch scope checks remain separately enforced by JWT/TenantContext and service/database invariants.
 - request-to-order conversion accepts only tenant/company-private active `inventory_suppliers`; it does not silently substitute a platform SupplierOrganization.
 - request conversion remains SERIALIZABLE and locks the purchase request before creating the Purchase Order.
+- Purchase Order branch identity is derived from its warehouse; the PO table itself does not own a `branch_id` column.
+- Goods Receipt and purchase-return detail APIs are read projections only; stock/AP/accounting mutations remain in existing transaction services.
+- return UI creates a governed return request first; approval-role constraints remain backend-authoritative before execution.
+- replacement quantity availability subtracts non-rejected replacement requests so overlapping active replacement demand is not presented as available.
 - UI permission checks are convenience only; backend `PermissionsGuard` remains authoritative.
-- approval-role constraints remain enforced inside `ProcurementApprovalsService` in addition to `inventory.write`.
+- approval-role constraints remain enforced inside `ProcurementApprovalsService`, return-request service and replacement service in addition to `inventory.write`.
 
 Not yet complete:
 
-- approval-state drill-down and level actions in buyer UI
-- goods receipt operational UI
-- return/replacement operational UI
 - Supplier Network offer/quote → buyer procurement conversion
 - SupplierOffer
 - RFQ/SupplierQuote
+- focused browser/E2E coverage for the complete procurement lifecycle
 
 ### Healthcare / Dynamic Organization Profiles
 
@@ -223,55 +250,54 @@ Not yet implemented:
 
 ### P0 — Frontend release / operations
 
-1. Add Purchase Order approval-state drill-down and governed level approve/reject actions using the existing approval APIs and role checks.
-2. Add Goods Receipt operational UI for `ORDERED` Purchase Orders using existing idempotent/concurrency-safe procurement services.
-3. Reconcile the repository AppShell/navigation with the user's latest local Cursor state before adding new ecosystem navigation items.
-4. Link `/marketplace`, `/inventory/supplier-network` and appropriate platform-admin navigation into the reconciled shell without overwriting newer local UI work.
+1. Reconcile the repository AppShell/navigation with the user's latest local Cursor state before adding new global ecosystem navigation items.
+2. Link `/marketplace`, `/inventory/supplier-network` and appropriate platform-admin navigation into the reconciled shell without overwriting newer local UI work.
+3. Add focused browser/E2E coverage for Purchase Request → approval → order → Goods Receipt → return/replacement lifecycle, including branch-scope denial cases.
+4. Add focused browser/E2E coverage for publish/unpublish, public storefront visibility and supplier-connection workflows after route/navigation reconciliation.
 5. Add Supplier verification status/case visibility where useful, but do not expose raw storage-key document entry; controlled upload/signing is a prerequisite for document UX.
-6. Add focused browser/E2E coverage for publish/unpublish, public storefront visibility, supplier-connection and procurement workflows after route/navigation reconciliation.
 
 ### P0 — Ecosystem reliability / identity
 
-7. Supplier membership invitation / acceptance / self-service onboarding.
-8. Supplier Portal refresh/revocation session lifecycle.
-9. Verification document object-storage upload/signing.
-10. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
-11. Public/self-service supplier registration after invitation/auth boundaries are stable.
+6. Supplier membership invitation / acceptance / self-service onboarding.
+7. Supplier Portal refresh/revocation session lifecycle.
+8. Verification document object-storage upload/signing.
+9. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+10. Public/self-service supplier registration after invitation/auth boundaries are stable.
 
 ### P0-Architecture — Healthcare parallel track
 
-12. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
-13. H1 Capability registry/evaluation contract.
-14. H2 RegulatoryProfile/versioning/rule-result model.
+11. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
+12. H1 Capability registry/evaluation contract.
+13. H2 RegulatoryProfile/versioning/rule-result model.
 
 Healthcare foundations may progress incrementally but must not weaken the main tenant/RBAC boundaries.
 
 ### P1
 
-15. Marketplace availability engine.
-16. concurrency-safe Marketplace booking orchestration.
-17. Brand + CatalogProduct + ProductVariant + identifiers.
-18. SupplierOffer.
-19. RFQ + SupplierQuote.
-20. Healthcare onboarding/capability prototype after H0-H2 validation.
+14. Marketplace availability engine.
+15. concurrency-safe Marketplace booking orchestration.
+16. Brand + CatalogProduct + ProductVariant + identifiers.
+17. SupplierOffer.
+18. RFQ + SupplierQuote.
+19. Healthcare onboarding/capability prototype after H0-H2 validation.
 
 ### P2
 
-21. Procurement conversion from selected offer/quote.
-22. ConsumerAccount/reviews/favorites.
-23. online payment/deposit/no-show.
-24. smart replenishment and contract pricing.
-25. equipment/asset/service lifecycle.
-26. VALOO Clinic foundation after regulatory/security architecture is ready.
+20. Procurement conversion from selected offer/quote.
+21. ConsumerAccount/reviews/favorites.
+22. online payment/deposit/no-show.
+23. smart replenishment and contract pricing.
+24. equipment/asset/service lifecycle.
+25. VALOO Clinic foundation after regulatory/security architecture is ready.
 
 ### P3
 
-27. compliance engine extensions.
-28. logistics/EDI/API integrations.
-29. financing/leasing.
-30. supplier intelligence.
-31. AI recommendations/concierge.
-32. Hospital Ops / Healthcare Integration Hub.
+26. compliance engine extensions.
+27. logistics/EDI/API integrations.
+28. financing/leasing.
+29. supplier intelligence.
+30. AI recommendations/concierge.
+31. Hospital Ops / Healthcare Integration Hub.
 
 ## 5. Current Risk / Release Notes
 
@@ -280,6 +306,7 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 - Verification upload must store only controlled object references/metadata in the database, not raw secrets or credentials.
 - Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
 - `/marketplace`, `/inventory/supplier-network` and `/platform/suppliers` are CI-validated operational routes but are intentionally not wired into AppShell yet because of that reconciliation constraint.
+- Procurement sub-navigation is intentionally local to `/inventory/purchases`; it adds the new operational surfaces without rewriting the unreconciled global AppShell.
 - the public storefront `/marketplace/[companySlug]/[branchCode]` is intentionally outside the authenticated app shell and is reachable only when the backend publication state is `PUBLISHED`.
 - non-owner roles that require Inventory/Procurement access must be granted `inventory.read` and, where appropriate, `inventory.write` through Roles & Permissions; lack of a grant now correctly returns `403` rather than inheriting access implicitly.
 - Core VALOO ERP UI modernization is substantially complete; remaining UI work is operational coverage, release cleanup/reconciliation and browser-level validation rather than a major redesign phase.
@@ -288,21 +315,27 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 ## 6. Latest Frontend / Procurement Checkpoint
 
 ```text
-5dc742820e45159559d82c14cb9c0235b8f9b5c8
-feat(procurement-ui): add governed purchase actions
+ae2d9db16e0a90e806c5a336306155ac53a1fdf4
+feat(procurement-ui): add supplier replacement workflow
 
-Monorepo quality #921 — SUCCESS
+Monorepo quality #950 — SUCCESS
 ```
 
 The successful descendant includes:
 
-- `d6d47f80710f6934bfb773dcb7ccaddf88a583fb` — `inventory.read` / `inventory.write` permission migration
-- `8570516d6f53e0fe60246465f8c60a3e086afe16` — Procurement controller RBAC enforcement
-- `8874335602f4092c66c7e279e2dac473136da38c` — owner seed inventory grants
-- `d6dbc82499edb8cf9521f2e01c3b418f24413be3` — Inventory controller RBAC enforcement
-- `5dc742820e45159559d82c14cb9c0235b8f9b5c8` — governed Purchase Request / Purchase Order actions
+- inventory/Procurement `inventory.read` / `inventory.write` RBAC hardening
+- Purchase Request branch-scope enforcement and regression coverage
+- warehouse-derived Purchase Order approval branch scope
+- multi-level Purchase Order approval drill-down/actions
+- branch-safe Procurement Purchase Order list/detail queries
+- Goods Receipt modal with partial receipt quantities, invoice metadata and existing transactional posting
+- Goods Receipt history + item-level returnable quantity projection
+- governed return request create/approve/reject/execute UI
+- purchase-return item replacement-availability projection
+- governed replacement create/approve/reject/receive UI
+- purchase-local navigation for request/order, receipt/return and replacement surfaces
 
-Quality gate passed frozen dependency install, fresh PostgreSQL migration deployment, database/shared/API checks, all API tests, API build, web lint, web typecheck and web production build.
+Quality gate passed dependency install, fresh PostgreSQL migration deployment, database/shared/API checks, all API tests, API build, web lint, web typecheck and web production build.
 
 ## 7. CI Status Rule
 
