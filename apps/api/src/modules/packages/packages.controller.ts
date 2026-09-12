@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { PackagesService } from './packages.service';
 
@@ -23,11 +25,13 @@ const updatePackageSchema = createPackageSchema.partial().refine(
 );
 
 @Controller('packages')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('services', 'read')
 export class PackagesController {
   constructor(private readonly packagesService: PackagesService) {}
 
   @Post()
+  @RequirePermission('services', 'create')
   create(@Body() body: unknown) {
     return this.packagesService.create(createPackageSchema.parse(body));
   }
@@ -43,11 +47,13 @@ export class PackagesController {
   }
 
   @Patch(':id')
+  @RequirePermission('services', 'update')
   update(@Param('id') id: string, @Body() body: unknown) {
     return this.packagesService.update(id, updatePackageSchema.parse(body));
   }
 
   @Post(':id/archive')
+  @RequirePermission('services', 'update')
   archive(@Param('id') id: string) {
     return this.packagesService.archive(id);
   }
