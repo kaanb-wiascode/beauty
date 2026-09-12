@@ -35,6 +35,25 @@ describe('CrmService', () => {
     ]);
   });
 
+  it('lists only active assignees from the active tenant and company', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const service = new CrmService(
+      { $queryRawUnsafe: query } as never,
+      tenant(),
+    );
+
+    await service.listAssignees();
+
+    const calls = query.mock.calls as unknown[][];
+    const sql = String(calls[0][0]);
+    expect(sql).toContain('m."tenantId"=$1::text');
+    expect(sql).toContain('m."companyId"=$2::text');
+    expect(sql).toContain("m.status='ACTIVE'");
+    expect(sql).toContain("r.scope<>'BRANCH'");
+    expect(sql).toContain('membership_branch_access');
+    expect(calls[0].slice(1)).toEqual(['tenant-a', 'company-a', 'branch-a']);
+  });
+
   it('requires an active branch for lead creation', async () => {
     const service = new CrmService({} as never, tenant(null));
 
@@ -49,6 +68,36 @@ describe('CrmService', () => {
         'user-1',
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('rejects assignees without access to the active branch', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const service = new CrmService(
+      { $queryRawUnsafe: query } as never,
+      tenant(),
+    );
+
+    await expect(
+      service.createLead(
+        {
+          firstName: 'Ada',
+          lastName: 'Lovelace',
+          email: 'ada@example.com',
+          source: 'MANUAL',
+          ownerUserId: 'user-outside-branch',
+        },
+        'user-1',
+      ),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    const calls = query.mock.calls as unknown[][];
+    expect(String(calls[0][0])).toContain('membership_branch_access');
+    expect(calls[0].slice(1)).toEqual([
+      'user-outside-branch',
+      'tenant-a',
+      'company-a',
+      'branch-a',
+    ]);
   });
 
   it('qualifies a lead exactly once inside a serializable transaction', async () => {

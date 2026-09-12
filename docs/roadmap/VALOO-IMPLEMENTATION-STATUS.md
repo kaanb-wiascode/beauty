@@ -13,7 +13,7 @@ Do not merge/push to `main` without explicit approval.
 
 ### CRM Pipeline
 
-Status: **Lead + Opportunity + Follow-up backend foundation implemented; operational UI and Sale linkage pending**
+Status: **Lead + Opportunity + Follow-up foundation and operational web UI implemented; Sale linkage pending**
 
 Implemented:
 
@@ -27,10 +27,14 @@ Implemented:
 - append-only CRM event history
 - database tenant/company/branch/customer/subject scope guards
 - explicit `crm.read` / `crm.manage` RBAC permissions and demo owner grants
+- CRM cockpit with pipeline, weighted value, conversion and overdue Follow-up metrics
+- Lead pool/detail UI with create, search, status/owner filters, qualification and optimistic updates
+- governed Opportunity board with explicit allowed stage transitions
+- Follow-up Center with create, assignee filter and completion outcome workflow
+- `crm.read`-protected minimal active-company assignee directory
 
 Not yet complete:
 
-- CRM pipeline/cockpit UI
 - standalone Customer -> Opportunity workflow
 - Opportunity -> Sale linkage and commercial outcome snapshot
 - follow-up cancellation/rescheduling and notification delivery

@@ -1,12 +1,8 @@
-export type LeadStatus = "NEW" | "CONTACTED" | "QUALIFIED" | "LOST" | "CONVERTED";
+export type LeadStatus =
+  "NEW" | "CONTACTED" | "QUALIFIED" | "LOST" | "CONVERTED";
 
 export type OpportunityStage =
-  | "QUALIFIED"
-  | "NEEDS_ANALYSIS"
-  | "PROPOSAL"
-  | "NEGOTIATION"
-  | "WON"
-  | "LOST";
+  "QUALIFIED" | "NEEDS_ANALYSIS" | "PROPOSAL" | "NEGOTIATION" | "WON" | "LOST";
 
 export type CrmLead = {
   id: string;
@@ -64,6 +60,13 @@ export type CrmEvent = {
   actorUserId: string;
   metadata: Record<string, unknown> | null;
   createdAt: string;
+};
+
+export type CrmAssignee = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
 };
 
 export type CrmLeadDetail = CrmLead & {

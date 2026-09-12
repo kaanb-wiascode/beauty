@@ -38,6 +38,12 @@ export class CrmController {
     return id;
   }
 
+  @Get('assignees')
+  @RequirePermission('crm', 'read')
+  listAssignees() {
+    return this.crm.listAssignees();
+  }
+
   @Get('leads')
   @RequirePermission('crm', 'read')
   listLeads(

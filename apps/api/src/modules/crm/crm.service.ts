@@ -62,18 +62,44 @@ export class CrmService {
       `SELECT u.id
        FROM users u
        JOIN memberships m ON m."userId"=u.id
+       JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
        WHERE u.id=$1::text AND m."tenantId"=$2::text
          AND m."companyId"=$3::text AND m.status='ACTIVE'
+         AND ($4::text IS NULL OR r.scope<>'BRANCH' OR EXISTS(
+           SELECT 1 FROM membership_branch_access mba
+           WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text
+         ))
        LIMIT 1`,
       userId,
       context.tenantId,
       context.companyId,
+      context.branchId,
     );
     if (!rows.length) {
       throw new BadRequestException(
         'CRM assignee is not an active company member.',
       );
     }
+  }
+
+  async listAssignees() {
+    const context = this.context();
+    return this.prisma.$queryRawUnsafe<CrmRow[]>(
+      `SELECT DISTINCT u.id,u."firstName",u."lastName",u.email
+       FROM users u
+       JOIN memberships m ON m."userId"=u.id
+       JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
+       WHERE m."tenantId"=$1::text AND m."companyId"=$2::text
+         AND m.status='ACTIVE'
+         AND ($3::text IS NULL OR r.scope<>'BRANCH' OR EXISTS(
+           SELECT 1 FROM membership_branch_access mba
+           WHERE mba."membershipId"=m.id AND mba."branchId"=$3::text
+         ))
+       ORDER BY u."firstName",u."lastName",u.id`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+    );
   }
 
   async listLeads(filters: {

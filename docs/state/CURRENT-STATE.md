@@ -103,8 +103,11 @@ The first governed CRM pipeline foundation is implemented:
 - append-only CRM events
 - database-enforced tenant/company/branch and subject scope guards
 - explicit `crm.read` / `crm.manage` permissions
+- CRM cockpit, Lead pool/detail, governed Pipeline and Follow-up Center web routes
+- minimal active-company assignee directory for CRM-owned assignment controls
+- Lead editing, owner filtering and Follow-up assignee selection
 
-Frontend pipeline/cockpit, standalone Customer -> Opportunity creation and Opportunity -> Sale linkage remain future increments.
+Standalone Customer -> Opportunity creation, Follow-up rescheduling/cancellation and Opportunity -> Sale linkage remain future increments.
 
 ### Accounting / Finance
 
