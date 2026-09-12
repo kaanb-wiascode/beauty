@@ -50,6 +50,8 @@ const policySchema = z.object({
   escalationGraceHours: z.coerce.number().int().min(1).max(8760).optional(),
 });
 
+const actionIdSchema = z.string().uuid();
+
 @Controller('profitability/cfo')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RequirePermission('finance', 'read')
@@ -92,7 +94,7 @@ export class FinancialGovernanceController {
   @Patch('actions/:id')
   @RequirePermission('finance', 'manage')
   updateAction(@Param('id') id: string, @Body() body: unknown) {
-    return this.actions.update(id, updateActionSchema.parse(body));
+    return this.actions.update(actionIdSchema.parse(id), updateActionSchema.parse(body));
   }
 
   @Get('actions/policy')
