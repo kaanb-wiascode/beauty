@@ -9,6 +9,21 @@ describe('SupplierCatalogBuyerService', () => {
     } as never;
   }
 
+  it('scopes canonical variant offer counts through company supplier connections', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const prisma = { $queryRawUnsafe: query } as never;
+    const service = new SupplierCatalogBuyerService(prisma, tenant());
+
+    await service.listVariants();
+
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('sc.tenant_id=$1::text');
+    expect(sql).toContain('sc.company_id=$2::text');
+    expect(sql).toContain("sc.status='ACTIVE'");
+    expect(sql).toContain("org.verification_status='VERIFIED'");
+    expect(query.mock.calls[0].slice(1)).toEqual(['tenant-a', 'company-a']);
+  });
+
   it('scopes local catalog links by tenant and company', async () => {
     const query = jest.fn().mockResolvedValue([]);
     const prisma = { $queryRawUnsafe: query } as never;
