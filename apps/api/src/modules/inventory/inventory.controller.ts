@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, Query, Req, UnauthorizedException, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { InventoryService } from './inventory.service';
 import { WarehouseAccountingService } from './warehouse-accounting.service';
@@ -39,7 +41,8 @@ const movementReportSchema = z.object({
 });
 
 @Controller('inventory')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('inventory', 'read')
 export class InventoryController {
   constructor(
     private readonly inventory: InventoryService,
@@ -57,33 +60,78 @@ export class InventoryController {
 
   @Get('overview') overview(){ return this.inventory.overview(); }
   @Get('products') products(@Query('search') search?:string){ return this.inventory.products(search); }
-  @Post('products') createProduct(@Body() body:any){ return this.inventory.createProduct(body); }
+
+  @Post('products')
+  @RequirePermission('inventory', 'write')
+  createProduct(@Body() body:any){ return this.inventory.createProduct(body); }
+
   @Get('categories') categories(){ return this.inventory.categories(); }
-  @Post('categories') createCategory(@Body() body:any){ return this.inventory.createCategory(body); }
-  @Post('movements') movement(@Body() body:any){ return this.inventory.addMovement(body.productId,body.warehouseId,Number(body.quantity),body.type,body.unitCost!==undefined?Number(body.unitCost):undefined,body.referenceId,body.note); }
+
+  @Post('categories')
+  @RequirePermission('inventory', 'write')
+  createCategory(@Body() body:any){ return this.inventory.createCategory(body); }
+
+  @Post('movements')
+  @RequirePermission('inventory', 'write')
+  movement(@Body() body:any){ return this.inventory.addMovement(body.productId,body.warehouseId,Number(body.quantity),body.type,body.unitCost!==undefined?Number(body.unitCost):undefined,body.referenceId,body.note); }
+
   @Get('movements') movements(@Query('limit') limit?:string){ return this.inventory.movements(Number(limit||80)); }
   @Get('services/:serviceId/materials') serviceMaterials(@Param('serviceId') id:string){ return this.inventory.serviceMaterials(id); }
-  @Post('services/:serviceId/materials') setServiceMaterials(@Param('serviceId') id:string,@Body() body:any){ return this.inventory.setServiceMaterials(id,Array.isArray(body.materials)?body.materials:[]); }
+
+  @Post('services/:serviceId/materials')
+  @RequirePermission('inventory', 'write')
+  setServiceMaterials(@Param('serviceId') id:string,@Body() body:any){ return this.inventory.setServiceMaterials(id,Array.isArray(body.materials)?body.materials:[]); }
+
   @Get('purchase-requests') purchaseRequests(){ return this.inventory.purchaseRequests(); }
   @Get('suppliers') suppliers(){ return this.inventory.suppliers(); }
-  @Post('suppliers') createSupplier(@Body() body:any){ return this.inventory.createSupplier(body); }
+
+  @Post('suppliers')
+  @RequirePermission('inventory', 'write')
+  createSupplier(@Body() body:any){ return this.inventory.createSupplier(body); }
+
   @Get('purchase-orders') purchaseOrders(){ return this.inventory.purchaseOrders(); }
-  @Post('purchase-orders') createPurchaseOrder(@Body() body:any){ return this.inventory.createPurchaseOrder(body); }
+
+  @Post('purchase-orders')
+  @RequirePermission('inventory', 'write')
+  createPurchaseOrder(@Body() body:any){ return this.inventory.createPurchaseOrder(body); }
+
   @Get('assets') assets(){ return this.inventory.assets(); }
-  @Post('assets') createAsset(@Body() body:any){ return this.inventory.createAsset(body); }
+
+  @Post('assets')
+  @RequirePermission('inventory', 'write')
+  createAsset(@Body() body:any){ return this.inventory.createAsset(body); }
+
   @Get('assets/maintenance') assetMaintenance(){ return this.inventory.assetMaintenance(); }
-  @Post('assets/maintenance') createAssetMaintenance(@Body() body:any){ return this.inventory.createAssetMaintenance(body); }
+
+  @Post('assets/maintenance')
+  @RequirePermission('inventory', 'write')
+  createAssetMaintenance(@Body() body:any){ return this.inventory.createAssetMaintenance(body); }
+
   @Get('notifications') notifications(){ return this.inventory.notifications(); }
 
   @Get('transfers') transfers(){ return this.inventory.transfers(); }
-  @Post('transfers') createTransfer(@Body() body:any){ return this.inventory.createTransfer(body); }
-  @Post('transfers/:id/approve') approveTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.approveTransfer(id,this.userId(req)); }
-  @Post('transfers/:id/dispatch') dispatchTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.dispatchTransfer(id,this.userId(req)); }
-  @Post('transfers/:id/receive') receiveTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.transferReceipt.receive(id,this.userId(req)); }
+
+  @Post('transfers')
+  @RequirePermission('inventory', 'write')
+  createTransfer(@Body() body:any){ return this.inventory.createTransfer(body); }
+
+  @Post('transfers/:id/approve')
+  @RequirePermission('inventory', 'write')
+  approveTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.approveTransfer(id,this.userId(req)); }
+
+  @Post('transfers/:id/dispatch')
+  @RequirePermission('inventory', 'write')
+  dispatchTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.dispatchTransfer(id,this.userId(req)); }
+
+  @Post('transfers/:id/receive')
+  @RequirePermission('inventory', 'write')
+  receiveTransfer(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.transferReceipt.receive(id,this.userId(req)); }
 
   @Get('accounting/valuation') valuation(){ return this.warehouseAccounting.valuation(); }
   @Get('accounting/reconciliation') reconciliation(){ return this.warehouseAccounting.reconciliation(); }
+
   @Post('accounting/adjustments')
+  @RequirePermission('inventory', 'write')
   postAdjustment(@Body() body:unknown,@Req() req:{user?:{sub?:string}}){
     const parsed=adjustmentSchema.parse(body);
     return this.warehouseAccounting.postAdjustment({...parsed,userId:this.userId(req)});
@@ -91,22 +139,37 @@ export class InventoryController {
 
   @Get('accounting/valuation/detail')
   valuationDetail(@Query() query:unknown){ const parsed=valuationQuerySchema.parse(query); return this.valuationReports.detail(parsed.warehouseId); }
+
   @Get('accounting/movement-summary')
   movementSummary(@Query() query:unknown){ const parsed=movementReportSchema.parse(query); return this.valuationReports.movementSummary(parsed.from,parsed.to,parsed.warehouseId); }
+
   @Get('accounting/in-transit') inTransit(){ return this.valuationReports.inTransit(); }
 
   @Post('cycle-counts')
+  @RequirePermission('inventory', 'write')
   createCycleCount(@Body() body:unknown,@Req() req:{user?:{sub?:string}}){
     const parsed=cycleCountSchema.parse(body);
     return this.governance.createCycleCount({...parsed,userId:this.userId(req)});
   }
+
   @Get('cycle-counts')
   listCycleCounts(@Query() query:unknown){ const parsed=cycleCountListSchema.parse(query); return this.governance.listCycleCounts(parsed.status); }
-  @Post('cycle-counts/:id/submit') submitCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.submitCycleCount(id,this.userId(req)); }
-  @Post('cycle-counts/:id/approve') approveCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.approveCycleCount(id,this.userId(req)); }
+
+  @Post('cycle-counts/:id/submit')
+  @RequirePermission('inventory', 'write')
+  submitCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.submitCycleCount(id,this.userId(req)); }
+
+  @Post('cycle-counts/:id/approve')
+  @RequirePermission('inventory', 'write')
+  approveCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.approveCycleCount(id,this.userId(req)); }
+
   @Post('cycle-counts/:id/reject')
+  @RequirePermission('inventory', 'write')
   rejectCycleCount(@Param('id') id:string,@Body() body:unknown,@Req() req:{user?:{sub?:string}}){
     return this.governance.rejectCycleCount(id,this.userId(req),rejectCycleCountSchema.parse(body).reason);
   }
-  @Post('cycle-counts/:id/post') postCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.postCycleCount(id,this.userId(req)); }
+
+  @Post('cycle-counts/:id/post')
+  @RequirePermission('inventory', 'write')
+  postCycleCount(@Param('id') id:string,@Req() req:{user?:{sub?:string}}){ return this.governance.postCycleCount(id,this.userId(req)); }
 }
