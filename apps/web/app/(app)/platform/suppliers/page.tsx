@@ -78,7 +78,7 @@ const typeLabels: Record<OrganizationType, string> = {
   IMPORTER: "İthalatçı",
   WHOLESALER: "Toptancı",
   RETAILER: "Perakendeci",
-  SERVICE_PROVIDER: "Hizmet sağlayıcı",
+  SERVICE_PROVIDER: "Hizmet Sağlayıcı",
   OTHER: "Diğer",
 };
 
@@ -88,6 +88,13 @@ const verificationLabels: Record<string, string> = {
   VERIFIED: "Doğrulandı",
   REJECTED: "Reddedildi",
   SUSPENDED: "Askıda",
+};
+
+const statusLabels: Record<OrganizationStatus, string> = {
+  ACTIVE: "Aktif",
+  INACTIVE: "Pasif",
+  SUSPENDED: "Askıda",
+  ARCHIVED: "Arşivlendi",
 };
 
 function normalizeSlug(value: string) {
@@ -135,7 +142,7 @@ export default function PlatformSuppliersPage() {
       setError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Platform tedarikçileri yüklenemedi.",
+          : "Tedarikçiler Yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -148,10 +155,8 @@ export default function PlatformSuppliersPage() {
 
   const counts = useMemo(
     () => ({
-      verified: organizations.filter((item) => item.verificationStatus === "VERIFIED")
-        .length,
-      pending: organizations.filter((item) => item.verificationStatus === "PENDING")
-        .length,
+      verified: organizations.filter((item) => item.verificationStatus === "VERIFIED").length,
+      pending: organizations.filter((item) => item.verificationStatus === "PENDING").length,
       active: organizations.filter((item) => item.status === "ACTIVE").length,
     }),
     [organizations],
@@ -170,10 +175,7 @@ export default function PlatformSuppliersPage() {
       legalName: item.legalName,
       displayName: item.displayName,
       organizationType: item.organizationType,
-      status:
-        item.status === "ARCHIVED"
-          ? "INACTIVE"
-          : item.status,
+      status: item.status === "ARCHIVED" ? "INACTIVE" : item.status,
       website: item.website ?? "",
       email: item.email ?? "",
       phone: item.phone ?? "",
@@ -192,11 +194,11 @@ export default function PlatformSuppliersPage() {
     const hasTaxNumber = Boolean(form.taxNumber.trim());
 
     if (!legalName || !displayName || (!editing && !slug)) {
-      setError("Firma ünvanı, görünen ad ve slug zorunludur.");
+      setError("Firma Ünvanı, Görünen Ad Ve Yayın Adı Zorunludur.");
       return;
     }
     if (hasTaxCountry !== hasTaxNumber) {
-      setError("Vergi ülkesi ve vergi numarası birlikte girilmelidir.");
+      setError("Vergi Ülkesi Ve Vergi Numarası Birlikte Girilmelidir.");
       return;
     }
 
@@ -220,13 +222,13 @@ export default function PlatformSuppliersPage() {
           method: "PATCH",
           body: payload,
         });
-        showToast("Tedarikçi organizasyonu güncellendi.");
+        showToast("Tedarikçi Güncellendi.");
       } else {
         await api("/platform/supplier-network/organizations", {
           method: "POST",
           body: { ...payload, slug },
         });
-        showToast("Tedarikçi organizasyonu oluşturuldu.");
+        showToast("Tedarikçi Oluşturuldu.");
       }
 
       setModalOpen(false);
@@ -237,7 +239,7 @@ export default function PlatformSuppliersPage() {
       setError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Tedarikçi organizasyonu kaydedilemedi.",
+          : "Tedarikçi Kaydedilemedi.",
       );
     } finally {
       setSaving(false);
@@ -247,15 +249,15 @@ export default function PlatformSuppliersPage() {
   return (
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
       <PageHeader
-        title="Platform Tedarikçileri"
-        description="VALOO genelindeki SupplierOrganization kimliklerini platform-admin sınırında yönetin. Tenant içi özel tedarikçi kartları bu ekrandan değiştirilmez."
-        action={<Button onClick={openCreate}>Yeni organizasyon</Button>}
+        title="Tedarikçi Yönetimi"
+        description="VALOO Genelinde Kullanılacak Tedarikçi Kayıtlarını Oluşturun, Güncelleyin Ve Doğrulama Durumlarını İzleyin."
+        action={<Button onClick={openCreate}>Yeni Tedarikçi</Button>}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Görünen kayıt" value={organizations.length} />
+        <Metric label="Görünen Kayıt" value={organizations.length} />
         <Metric label="Aktif" value={counts.active} />
         <Metric label="Doğrulanmış" value={counts.verified} />
         <Metric label="İncelemede" value={counts.pending} />
@@ -264,41 +266,35 @@ export default function PlatformSuppliersPage() {
       <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
         <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-[15px] font-semibold text-[var(--ink)]">
-              SupplierOrganization kayıtları
-            </h2>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">
-              Global kimlik ve doğrulama durumları
-            </p>
+            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Tedarikçi Kayıtları</h2>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">Firma Bilgileri Ve Doğrulama Durumları</p>
           </div>
           <div className="flex flex-wrap gap-2">
-            {(["ALL", "ACTIVE", "SUSPENDED", "ARCHIVED"] as FilterStatus[]).map(
-              (value) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setFilter(value)}
-                  className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition ${
-                    filter === value
-                      ? "bg-[var(--accent-soft)] text-[var(--accent)]"
-                      : "bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--ink)]"
-                  }`}
-                >
-                  {value === "ALL"
-                    ? "Tümü"
-                    : value === "ACTIVE"
-                      ? "Aktif"
-                      : value === "SUSPENDED"
-                        ? "Askıda"
-                        : "Arşiv"}
-                </button>
-              ),
-            )}
+            {(["ALL", "ACTIVE", "SUSPENDED", "ARCHIVED"] as FilterStatus[]).map((value) => (
+              <button
+                key={value}
+                type="button"
+                onClick={() => setFilter(value)}
+                className={`rounded-full px-3 py-1.5 text-[11px] font-medium transition ${
+                  filter === value
+                    ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+                    : "bg-[var(--surface-2)] text-[var(--muted)] hover:text-[var(--ink)]"
+                }`}
+              >
+                {value === "ALL"
+                  ? "Tümü"
+                  : value === "ACTIVE"
+                    ? "Aktif"
+                    : value === "SUSPENDED"
+                      ? "Askıda"
+                      : "Arşiv"}
+              </button>
+            ))}
           </div>
         </div>
 
         {loading ? (
-          <Spinner label="Platform tedarikçileri yükleniyor..." />
+          <Spinner label="Tedarikçiler Yükleniyor..." />
         ) : organizations.length ? (
           <div className="divide-y divide-[var(--line)]">
             {organizations.map((item) => (
@@ -308,65 +304,42 @@ export default function PlatformSuppliersPage() {
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <h3 className="truncate text-[14px] font-semibold text-[var(--ink)]">
-                      {item.displayName}
-                    </h3>
-                    <StatusBadge
-                      status={item.status}
-                      label={item.status === "ACTIVE" ? "Aktif" : item.status}
-                    />
+                    <h3 className="truncate text-[14px] font-semibold text-[var(--ink)]">{item.displayName}</h3>
+                    <StatusBadge status={item.status} label={statusLabels[item.status]} />
                   </div>
-                  <p className="mt-1 truncate text-[11px] text-[var(--muted)]">
-                    {item.legalName} · {item.slug}
-                  </p>
-                  <p className="mt-2 text-[10px] text-[var(--muted-soft)]">
-                    {item.email || item.phone || item.website || "İletişim bilgisi yok"}
-                  </p>
+                  <p className="mt-1 truncate text-[11px] text-[var(--muted)]">{item.legalName}</p>
+                  <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{item.email || item.phone || item.website || "İletişim Bilgisi Yok"}</p>
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">
-                    Organizasyon tipi
-                  </p>
-                  <p className="mt-1 text-[12px] font-medium text-[var(--ink)]">
-                    {typeLabels[item.organizationType]}
-                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">Tedarikçi Türü</p>
+                  <p className="mt-1 text-[12px] font-medium text-[var(--ink)]">{typeLabels[item.organizationType]}</p>
                 </div>
 
                 <div>
-                  <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">
-                    Doğrulama
-                  </p>
-                  <p className="mt-1 text-[12px] font-medium text-[var(--ink)]">
-                    {verificationLabels[item.verificationStatus] ?? item.verificationStatus}
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">
-                    {formatDate(item.updatedAt)}
-                  </p>
+                  <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">Doğrulama Durumu</p>
+                  <p className="mt-1 text-[12px] font-medium text-[var(--ink)]">{verificationLabels[item.verificationStatus] ?? "Kontrol Ediliyor"}</p>
+                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{formatDate(item.updatedAt)}</p>
                 </div>
 
-                <Button variant="secondary" onClick={() => openEdit(item)}>
-                  Düzenle
-                </Button>
+                <Button variant="secondary" onClick={() => openEdit(item)}>Düzenle</Button>
               </article>
             ))}
           </div>
         ) : (
           <EmptyState
-            title="SupplierOrganization bulunamadı"
-            description="Seçili durum filtresinde platform tedarikçi kaydı bulunmuyor."
+            title="Tedarikçi Bulunamadı"
+            description="Seçili Durum Filtresinde Tedarikçi Kaydı Bulunmuyor."
           />
         )}
       </section>
 
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-        <h2 className="text-[15px] font-semibold text-[var(--ink)]">
-          Yönetim sınırı
-        </h2>
+        <h2 className="text-[15px] font-semibold text-[var(--ink)]">Yönetim Bilgisi</h2>
         <div className="mt-4 grid gap-3 text-[11px] leading-5 text-[var(--muted)] md:grid-cols-3">
-          <Boundary text="Bu sayfa yalnız ACTIVE platform_admin_users üyeleri için çalışır; tenant rolü tek başına erişim sağlamaz." />
-          <Boundary text="Verification status generic organizasyon düzenleme formunda değiştirilemez; doğrulama workflow'u kaynak gerçektir." />
-          <Boundary text="Tenant/private inventory supplier kayıtları ayrı bounded context'te kalır ve SupplierConnection ile bağlanır." />
+          <Boundary text="Bu Alan Yalnızca Yetkili Platform Yöneticileri Tarafından Kullanılabilir." />
+          <Boundary text="Doğrulama Durumu Bu Formdan Değiştirilemez Ve Ayrı Bir Kontrol Süreciyle Yönetilir." />
+          <Boundary text="İşletmelerin Kendi Tedarikçi Kartları Ayrı Tutulur Ve Gerektiğinde Bu Kayıtlarla Eşleştirilir." />
         </div>
       </section>
 
@@ -375,62 +348,50 @@ export default function PlatformSuppliersPage() {
         onClose={() => {
           if (!saving) setModalOpen(false);
         }}
-        title={editing ? "Tedarikçi organizasyonunu düzenle" : "Yeni platform tedarikçisi"}
-        description="Global SupplierOrganization kaydını yönetin. Doğrulama kararı bu formun dışında tutulur."
+        title={editing ? "Tedarikçiyi Düzenle" : "Yeni Tedarikçi"}
+        description="Tedarikçinin Temel Firma Bilgilerini Yönetin. Doğrulama Kararı Bu Formun Dışında Tutulur."
       >
         <form className="space-y-5" onSubmit={submit}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Görünen ad" required>
+            <Field label="Görünen Ad" required>
               <TextInput
                 value={form.displayName}
                 onChange={(event) =>
                   setForm((current) => ({
                     ...current,
                     displayName: event.target.value,
-                    ...(!editing && !current.slug
-                      ? { slug: normalizeSlug(event.target.value) }
-                      : {}),
+                    ...(!editing && !current.slug ? { slug: normalizeSlug(event.target.value) } : {}),
                   }))
                 }
                 required
               />
             </Field>
-            <Field label="Yasal ünvan" required>
+            <Field label="Yasal Ünvan" required>
               <TextInput
                 value={form.legalName}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, legalName: event.target.value }))
-                }
+                onChange={(event) => setForm((current) => ({ ...current, legalName: event.target.value }))}
                 required
               />
             </Field>
-            <Field label="Slug" required={!editing}>
+            <Field label="Yayın Adı" required={!editing}>
               <TextInput
                 value={form.slug}
                 disabled={Boolean(editing)}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    slug: normalizeSlug(event.target.value),
-                  }))
+                  setForm((current) => ({ ...current, slug: normalizeSlug(event.target.value) }))
                 }
                 required={!editing}
               />
             </Field>
-            <Field label="Organizasyon tipi">
+            <Field label="Tedarikçi Türü">
               <Select
                 value={form.organizationType}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    organizationType: event.target.value as OrganizationType,
-                  }))
+                  setForm((current) => ({ ...current, organizationType: event.target.value as OrganizationType }))
                 }
               >
                 {Object.entries(typeLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
+                  <option key={value} value={value}>{label}</option>
                 ))}
               </Select>
             </Field>
@@ -438,10 +399,7 @@ export default function PlatformSuppliersPage() {
               <Select
                 value={form.status}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    status: event.target.value as FormState["status"],
-                  }))
+                  setForm((current) => ({ ...current, status: event.target.value as FormState["status"] }))
                 }
               >
                 <option value="ACTIVE">Aktif</option>
@@ -449,70 +407,53 @@ export default function PlatformSuppliersPage() {
                 <option value="SUSPENDED">Askıda</option>
               </Select>
             </Field>
-            <Field label="Web sitesi">
+            <Field label="Web Sitesi">
               <TextInput
                 type="url"
                 value={form.website}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, website: event.target.value }))
-                }
+                onChange={(event) => setForm((current) => ({ ...current, website: event.target.value }))}
                 placeholder="https://..."
               />
             </Field>
-            <Field label="E-posta">
+            <Field label="E-Posta">
               <TextInput
                 type="email"
                 value={form.email}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, email: event.target.value }))
-                }
+                onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))}
               />
             </Field>
             <Field label="Telefon">
               <TextInput
                 value={form.phone}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, phone: event.target.value }))
-                }
+                onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))}
               />
             </Field>
-            <Field label="Vergi ülkesi">
+            <Field label="Vergi Ülkesi">
               <TextInput
                 maxLength={2}
                 value={form.taxCountry}
                 onChange={(event) =>
-                  setForm((current) => ({
-                    ...current,
-                    taxCountry: event.target.value.toUpperCase(),
-                  }))
+                  setForm((current) => ({ ...current, taxCountry: event.target.value.toUpperCase() }))
                 }
                 placeholder="TR"
               />
             </Field>
-            <Field label="Vergi numarası">
+            <Field label="Vergi Numarası">
               <TextInput
                 value={form.taxNumber}
-                onChange={(event) =>
-                  setForm((current) => ({ ...current, taxNumber: event.target.value }))
-                }
+                onChange={(event) => setForm((current) => ({ ...current, taxNumber: event.target.value }))}
               />
             </Field>
           </div>
 
           <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] leading-5 text-[var(--muted)]">
-            Verification status bu formdan değiştirilemez. Arşivleme gibi geri dönüşü yüksek etkili durumlar da ayrı kontrollü workflow olarak ele alınmalıdır.
+            Doğrulama Durumu Bu Formdan Değiştirilemez. Arşivleme Gibi Yüksek Etkili İşlemler Ayrı Bir Kontrol Süreciyle Yönetilir.
           </div>
 
           <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
-            <Button
-              variant="secondary"
-              onClick={() => setModalOpen(false)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button>
             <Button type="submit" disabled={saving}>
-              {saving ? "Kaydediliyor..." : editing ? "Değişiklikleri kaydet" : "Organizasyonu oluştur"}
+              {saving ? "Kaydediliyor..." : editing ? "Değişiklikleri Kaydet" : "Tedarikçiyi Oluştur"}
             </Button>
           </div>
         </form>
@@ -524,12 +465,8 @@ export default function PlatformSuppliersPage() {
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">
-        {label}
-      </p>
-      <p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">
-        {value.toLocaleString("tr-TR")}
-      </p>
+      <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+      <p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value.toLocaleString("tr-TR")}</p>
     </div>
   );
 }
@@ -537,10 +474,7 @@ function Metric({ label, value }: { label: string; value: number }) {
 function Boundary({ text }: { text: string }) {
   return (
     <div className="flex gap-3 rounded-[16px] bg-[var(--surface-2)] px-4 py-3">
-      <span
-        aria-hidden="true"
-        className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]"
-      />
+      <span aria-hidden="true" className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[var(--accent)]" />
       <p>{text}</p>
     </div>
   );
