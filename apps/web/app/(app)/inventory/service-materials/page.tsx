@@ -302,7 +302,7 @@ export default function ServiceMaterialsPage() {
                   const selectedProduct = products.find((product) => product.id === line.productId);
                   return (
                     <div key={line.key} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_160px_90px] md:items-end">
-                      <Field label="Ürün" className="md:[&>label]:sr-only">
+                      <Field label="Ürün">
                         <Select
                           value={line.productId}
                           disabled={!activeBranch}
@@ -323,7 +323,6 @@ export default function ServiceMaterialsPage() {
 
                       <Field
                         label={`Miktar${selectedProduct ? ` (${UNIT_LABELS[selectedProduct.unit] ?? selectedProduct.unit})` : ""}`}
-                        className="md:[&>label]:sr-only"
                       >
                         <TextInput
                           type="number"
