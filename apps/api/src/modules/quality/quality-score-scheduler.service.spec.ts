@@ -22,7 +22,7 @@ describe('QualityScoreSchedulerService', () => {
     expect(prisma.$queryRawUnsafe).not.toHaveBeenCalled();
   });
 
-  it('calculates a claimed schedule and advances it', async () => {
+  it('calculates a claimed schedule, renews its lease and advances it', async () => {
     const tx = {
       $queryRawUnsafe: jest.fn().mockResolvedValueOnce([
         {
@@ -38,6 +38,7 @@ describe('QualityScoreSchedulerService', () => {
     const prisma = {
       $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
       $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(1),
     } as any;
     const scores = {
       calculate: jest.fn().mockResolvedValue({ runId: 'run-1', finalScore: 91.25 }),
@@ -46,14 +47,52 @@ describe('QualityScoreSchedulerService', () => {
 
     const result = await service.processDue('user-1', { workerId: 'worker-1' });
 
+    expect(prisma.$executeRawUnsafe).toHaveBeenCalledWith(
+      expect.stringContaining('lease_owner=$5'),
+      'schedule-1',
+      'tenant-1',
+      'company-1',
+      'branch-1',
+      'worker-1',
+    );
     expect(scores.calculate).toHaveBeenCalledWith(
       expect.objectContaining({ policyId: 'policy-1' }),
       'user-1',
     );
     expect(result).toEqual(
-      expect.objectContaining({ claimed: 1, calculated: 1, skippedExisting: 0, failed: 0 }),
+      expect.objectContaining({ claimed: 1, calculated: 1, skippedExisting: 0, failed: 0, leaseLost: 0 }),
     );
     expect(tx.$executeRawUnsafe).toHaveBeenCalledTimes(2);
+  });
+
+  it('does not calculate after the worker loses its lease', async () => {
+    const tx = {
+      $queryRawUnsafe: jest.fn().mockResolvedValueOnce([
+        {
+          id: 'schedule-1',
+          cadence: 'MONTHLY',
+          periodMode: 'PREVIOUS_MONTH',
+          policyId: null,
+          nextRunAt: new Date('2026-09-01T00:00:00.000Z'),
+        },
+      ]),
+      $executeRawUnsafe: jest.fn(),
+    };
+    const prisma = {
+      $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
+      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      $executeRawUnsafe: jest.fn().mockResolvedValue(0),
+    } as any;
+    const scores = { calculate: jest.fn() } as any;
+    const service = new QualityScoreSchedulerService(prisma, tenant(), scores);
+
+    const result = await service.processDue('user-1', { workerId: 'worker-1' });
+
+    expect(scores.calculate).not.toHaveBeenCalled();
+    expect(result).toEqual(
+      expect.objectContaining({ claimed: 1, calculated: 0, failed: 0, leaseLost: 1 }),
+    );
+    expect(result.results[0]).toEqual(expect.objectContaining({ status: 'LEASE_LOST' }));
   });
 
   it('skips calculation when the period already has a branch score', async () => {
@@ -72,15 +111,16 @@ describe('QualityScoreSchedulerService', () => {
     const prisma = {
       $transaction: jest.fn(async (callback: (client: typeof tx) => Promise<unknown>) => callback(tx)),
       $queryRawUnsafe: jest.fn().mockResolvedValue([{ latestRunId: 'run-existing' }]),
+      $executeRawUnsafe: jest.fn(),
     } as any;
     const scores = { calculate: jest.fn() } as any;
     const service = new QualityScoreSchedulerService(prisma, tenant(), scores);
 
-    const result = await service.processDue('user-1');
+    const result = await service.processDue('user-1', { workerId: 'worker-1' });
 
     expect(scores.calculate).not.toHaveBeenCalled();
     expect(result).toEqual(
-      expect.objectContaining({ claimed: 1, calculated: 0, skippedExisting: 1, failed: 0 }),
+      expect.objectContaining({ claimed: 1, calculated: 0, skippedExisting: 1, failed: 0, leaseLost: 0 }),
     );
     expect(tx.$executeRawUnsafe).toHaveBeenCalledTimes(2);
   });
