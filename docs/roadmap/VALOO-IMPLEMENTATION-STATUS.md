@@ -117,12 +117,13 @@ Not yet complete:
 
 ### Procurement
 
-Status: **Existing mature buyer-side foundation; Supplier Network integration pending**
+Status: **Buyer-side foundation + governed request/order operations UI implemented and CI-validated; Supplier Network commercial integration pending**
 
-Existing buyer-side capabilities include:
+Implemented:
 
 - private `inventory_suppliers`
 - purchase requests
+- purchase-request approve + serializable request-to-order conversion
 - purchase-order approval lifecycle
 - purchase orders/items
 - goods receipts
@@ -130,8 +131,44 @@ Existing buyer-side capabilities include:
 - inventory movements and stock posting
 - SupplierBill / accounts-payable linkage
 - accounting guards/reversals
+- `/inventory/purchases` buyer operations cockpit with Purchase Request and Purchase Order views
+- purchase cockpit metrics for open requests, open orders and open order value
+- governed UI actions for:
+  - approving a `PENDING` purchase request
+  - converting an `APPROVED` request into a Purchase Order with tenant-private supplier and explicit unit cost
+  - submitting a `DRAFT` Purchase Order into the approval workflow
+  - moving an `APPROVED` Purchase Order to `ORDERED`
+- all mutation controls are hidden for users without `inventory.write`
+- `ProcurementController` now enforces `inventory.read` at controller scope and `inventory.write` on mutations
+- `InventoryController` now enforces the same read/write boundary across stock, supplier, transfer, accounting-adjustment, asset and cycle-count surfaces
+- migration `20260912220000_inventory_procurement_rbac` creates `inventory.read` / `inventory.write` idempotently and grants both to existing `owner` roles
+- demo seed includes the same inventory permissions for fresh owner setup
 
-Supplier Network must integrate into this domain without replacing it.
+Validated commits:
+
+- `d8bbdfdb0a8dba1c649eb4ef4f8736005d388bfe` — purchase request + Purchase Order cockpit; CI #916 SUCCESS
+- `d6d47f80710f6934bfb773dcb7ccaddf88a583fb` — inventory RBAC permission migration; descendant CI #919/#921 SUCCESS
+- `8570516d6f53e0fe60246465f8c60a3e086afe16` — Procurement controller permission enforcement; descendant CI #919/#921 SUCCESS
+- `8874335602f4092c66c7e279e2dac473136da38c` — demo seed owner inventory grants; CI #919 SUCCESS
+- `d6dbc82499edb8cf9521f2e01c3b418f24413be3` — Inventory controller permission enforcement; descendant CI #921 SUCCESS
+- `5dc742820e45159559d82c14cb9c0235b8f9b5c8` — governed purchase actions UI; CI #921 SUCCESS
+
+Important boundary:
+
+- `inventory.read` and `inventory.write` are application RBAC permissions; tenant/company/branch scope checks remain separately enforced by JWT/TenantContext and service/database invariants.
+- request-to-order conversion accepts only tenant/company-private active `inventory_suppliers`; it does not silently substitute a platform SupplierOrganization.
+- request conversion remains SERIALIZABLE and locks the purchase request before creating the Purchase Order.
+- UI permission checks are convenience only; backend `PermissionsGuard` remains authoritative.
+- approval-role constraints remain enforced inside `ProcurementApprovalsService` in addition to `inventory.write`.
+
+Not yet complete:
+
+- approval-state drill-down and level actions in buyer UI
+- goods receipt operational UI
+- return/replacement operational UI
+- Supplier Network offer/quote → buyer procurement conversion
+- SupplierOffer
+- RFQ/SupplierQuote
 
 ### Healthcare / Dynamic Organization Profiles
 
@@ -186,54 +223,55 @@ Not yet implemented:
 
 ### P0 — Frontend release / operations
 
-1. Reconcile the repository AppShell/navigation with the user's latest local Cursor state before adding new ecosystem navigation items.
-2. Link `/marketplace`, `/inventory/supplier-network` and appropriate platform-admin navigation into the reconciled shell without overwriting newer local UI work.
-3. Continue buyer-side procurement operational coverage using existing governed Purchase Request / Purchase Order / Goods Receipt APIs.
-4. Add Supplier verification status/case visibility where useful, but do not expose raw storage-key document entry; controlled upload/signing is a prerequisite for document UX.
-5. Add focused browser/E2E coverage for publish/unpublish, public storefront visibility and supplier-connection workflows after route/navigation reconciliation.
+1. Add Purchase Order approval-state drill-down and governed level approve/reject actions using the existing approval APIs and role checks.
+2. Add Goods Receipt operational UI for `ORDERED` Purchase Orders using existing idempotent/concurrency-safe procurement services.
+3. Reconcile the repository AppShell/navigation with the user's latest local Cursor state before adding new ecosystem navigation items.
+4. Link `/marketplace`, `/inventory/supplier-network` and appropriate platform-admin navigation into the reconciled shell without overwriting newer local UI work.
+5. Add Supplier verification status/case visibility where useful, but do not expose raw storage-key document entry; controlled upload/signing is a prerequisite for document UX.
+6. Add focused browser/E2E coverage for publish/unpublish, public storefront visibility, supplier-connection and procurement workflows after route/navigation reconciliation.
 
 ### P0 — Ecosystem reliability / identity
 
-6. Supplier membership invitation / acceptance / self-service onboarding.
-7. Supplier Portal refresh/revocation session lifecycle.
-8. Verification document object-storage upload/signing.
-9. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
-10. Public/self-service supplier registration after invitation/auth boundaries are stable.
+7. Supplier membership invitation / acceptance / self-service onboarding.
+8. Supplier Portal refresh/revocation session lifecycle.
+9. Verification document object-storage upload/signing.
+10. Public Marketplace operational hardening: rate limiting, caching and abuse controls.
+11. Public/self-service supplier registration after invitation/auth boundaries are stable.
 
 ### P0-Architecture — Healthcare parallel track
 
-11. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
-12. H1 Capability registry/evaluation contract.
-13. H2 RegulatoryProfile/versioning/rule-result model.
+12. H0 OrganizationProfile schema/design review against Tenant/Company/Branch.
+13. H1 Capability registry/evaluation contract.
+14. H2 RegulatoryProfile/versioning/rule-result model.
 
 Healthcare foundations may progress incrementally but must not weaken the main tenant/RBAC boundaries.
 
 ### P1
 
-14. Marketplace availability engine.
-15. concurrency-safe Marketplace booking orchestration.
-16. Brand + CatalogProduct + ProductVariant + identifiers.
-17. SupplierOffer.
-18. RFQ + SupplierQuote.
-19. Healthcare onboarding/capability prototype after H0-H2 validation.
+15. Marketplace availability engine.
+16. concurrency-safe Marketplace booking orchestration.
+17. Brand + CatalogProduct + ProductVariant + identifiers.
+18. SupplierOffer.
+19. RFQ + SupplierQuote.
+20. Healthcare onboarding/capability prototype after H0-H2 validation.
 
 ### P2
 
-20. Procurement conversion from selected offer/quote.
-21. ConsumerAccount/reviews/favorites.
-22. online payment/deposit/no-show.
-23. smart replenishment and contract pricing.
-24. equipment/asset/service lifecycle.
-25. VALOO Clinic foundation after regulatory/security architecture is ready.
+21. Procurement conversion from selected offer/quote.
+22. ConsumerAccount/reviews/favorites.
+23. online payment/deposit/no-show.
+24. smart replenishment and contract pricing.
+25. equipment/asset/service lifecycle.
+26. VALOO Clinic foundation after regulatory/security architecture is ready.
 
 ### P3
 
-26. compliance engine extensions.
-27. logistics/EDI/API integrations.
-28. financing/leasing.
-29. supplier intelligence.
-30. AI recommendations/concierge.
-31. Hospital Ops / Healthcare Integration Hub.
+27. compliance engine extensions.
+28. logistics/EDI/API integrations.
+29. financing/leasing.
+30. supplier intelligence.
+31. AI recommendations/concierge.
+32. Hospital Ops / Healthcare Integration Hub.
 
 ## 5. Current Risk / Release Notes
 
@@ -243,25 +281,26 @@ Healthcare foundations may progress incrementally but must not weaken the main t
 - Dashboard/AppShell remote files are not to be blindly rewritten until the user's newer local Cursor changes are reconciled.
 - `/marketplace`, `/inventory/supplier-network` and `/platform/suppliers` are CI-validated operational routes but are intentionally not wired into AppShell yet because of that reconciliation constraint.
 - the public storefront `/marketplace/[companySlug]/[branchCode]` is intentionally outside the authenticated app shell and is reachable only when the backend publication state is `PUBLISHED`.
+- non-owner roles that require Inventory/Procurement access must be granted `inventory.read` and, where appropriate, `inventory.write` through Roles & Permissions; lack of a grant now correctly returns `403` rather than inheriting access implicitly.
 - Core VALOO ERP UI modernization is substantially complete; remaining UI work is operational coverage, release cleanup/reconciliation and browser-level validation rather than a major redesign phase.
 - `main` remains untouched.
 
-## 6. Latest Frontend Checkpoint
+## 6. Latest Frontend / Procurement Checkpoint
 
 ```text
-b2848708bc76429c2db76fb23d9ff56b7376eeb1
-feat(marketplace-ui): link public storefront
+5dc742820e45159559d82c14cb9c0235b8f9b5c8
+feat(procurement-ui): add governed purchase actions
 
-Monorepo quality #914 — SUCCESS
+Monorepo quality #921 — SUCCESS
 ```
 
-The successful checkpoint includes:
+The successful descendant includes:
 
-- `97382d15d4af2291930c5f540bfdd6db23c6db08` — `/inventory/supplier-network` tenant operations cockpit
-- `8ae5b05fe50534323de8fc638aac9c64f5359054` — `/marketplace` authenticated publication cockpit
-- `65d4fd4735b66eaf077f8400bb4e784c81a0dd36` — `/platform/suppliers` platform-admin organization management
-- `a1aa9e04f4b62f31d2b863fcdd3e828d08c5e030` + `8350e29b9a64e68e46559c956ab6f6e467bd7b32` — `/marketplace/[companySlug]/[branchCode]` public storefront
-- `b2848708bc76429c2db76fb23d9ff56b7376eeb1` — publication cockpit → real public storefront link
+- `d6d47f80710f6934bfb773dcb7ccaddf88a583fb` — `inventory.read` / `inventory.write` permission migration
+- `8570516d6f53e0fe60246465f8c60a3e086afe16` — Procurement controller RBAC enforcement
+- `8874335602f4092c66c7e279e2dac473136da38c` — owner seed inventory grants
+- `d6dbc82499edb8cf9521f2e01c3b418f24413be3` — Inventory controller RBAC enforcement
+- `5dc742820e45159559d82c14cb9c0235b8f9b5c8` — governed Purchase Request / Purchase Order actions
 
 Quality gate passed frozen dependency install, fresh PostgreSQL migration deployment, database/shared/API checks, all API tests, API build, web lint, web typecheck and web production build.
 
