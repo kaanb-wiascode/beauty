@@ -82,16 +82,19 @@ export class ProcurementApprovalsService {
     orderBranchId: string | null,
   ) {
     const { tenantId, companyId, branchId: activeBranchId } = this.context();
-    if (activeBranchId && orderBranchId && activeBranchId !== orderBranchId) {
+    if (activeBranchId && activeBranchId !== orderBranchId) {
       throw new ForbiddenException('Purchase order is outside the active branch scope.');
     }
 
     const rows = await tx.$queryRawUnsafe<any[]>(
       `SELECT m.id AS "membershipId",r.slug AS "roleSlug",r.name AS "roleName",r.scope AS "roleScope",
-              EXISTS(
-                SELECT 1 FROM membership_branch_access mba
-                WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text
-              ) AS "hasBranchAccess"
+              CASE
+                WHEN $4::text IS NULL THEN FALSE
+                ELSE EXISTS(
+                  SELECT 1 FROM membership_branch_access mba
+                  WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text
+                )
+              END AS "hasBranchAccess"
        FROM memberships m
        JOIN roles r ON r.id=m."roleId"
        WHERE m."userId"=$1::text
@@ -111,8 +114,15 @@ export class ProcurementApprovalsService {
 
     if (
       actor.roleScope === 'BRANCH' &&
+      (!orderBranchId || !actor.hasBranchAccess)
+    ) {
+      throw new ForbiddenException('Approver has no access to the purchase order branch.');
+    }
+
+    if (
+      actor.roleScope === 'COMPANY' &&
       orderBranchId &&
-      !actor.hasBranchAccess &&
+      activeBranchId &&
       activeBranchId !== orderBranchId
     ) {
       throw new ForbiddenException('Approver has no access to the purchase order branch.');
@@ -126,16 +136,20 @@ export class ProcurementApprovalsService {
   }
 
   async submit(id: string) {
-    const companyId = this.companyId();
+    const { companyId, branchId } = this.context();
     return this.prisma.$transaction(
       async (tx) => {
         const rows = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,status,total_amount AS "totalAmount"
-           FROM inventory_purchase_orders
-           WHERE id=$1::text AND company_id=$2::text
-           FOR UPDATE`,
+          `SELECT po.id,po.status,po.total_amount AS "totalAmount",w.branch_id AS "branchId"
+           FROM inventory_purchase_orders po
+           JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+           WHERE po.id=$1::text
+             AND po.company_id=$2::text
+             AND ($3::text IS NULL OR w.branch_id=$3::text)
+           FOR UPDATE OF po`,
           id,
           companyId,
+          branchId,
         );
         if (!rows.length) throw new NotFoundException('Purchase order not found');
         const order = rows[0];
@@ -189,18 +203,25 @@ export class ProcurementApprovalsService {
   }
 
   async getState(id: string) {
-    const companyId = this.companyId();
+    const { companyId, branchId } = this.context();
     const exists = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id FROM inventory_purchase_orders WHERE id=$1::text AND company_id=$2::text LIMIT 1`,
+      `SELECT po.id
+       FROM inventory_purchase_orders po
+       JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+       WHERE po.id=$1::text
+         AND po.company_id=$2::text
+         AND ($3::text IS NULL OR w.branch_id=$3::text)
+       LIMIT 1`,
       id,
       companyId,
+      branchId,
     );
     if (!exists.length) throw new NotFoundException('Purchase order not found');
     return this.getApprovalStateTx(this.prisma, id);
   }
 
   async approve(id: string, level: number, userId: string) {
-    const companyId = this.companyId();
+    const { companyId, branchId } = this.context();
     if (!Number.isInteger(level) || level <= 0) {
       throw new BadRequestException('Approval level must be a positive integer.');
     }
@@ -208,10 +229,16 @@ export class ProcurementApprovalsService {
     return this.prisma.$transaction(
       async (tx) => {
         const orders = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,status,branch_id AS "branchId" FROM inventory_purchase_orders
-           WHERE id=$1::text AND company_id=$2::text FOR UPDATE`,
+          `SELECT po.id,po.status,w.branch_id AS "branchId"
+           FROM inventory_purchase_orders po
+           JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+           WHERE po.id=$1::text
+             AND po.company_id=$2::text
+             AND ($3::text IS NULL OR w.branch_id=$3::text)
+           FOR UPDATE OF po`,
           id,
           companyId,
+          branchId,
         );
         if (!orders.length) throw new NotFoundException('Purchase order not found');
         if (orders[0].status !== 'PENDING') {
@@ -275,7 +302,7 @@ export class ProcurementApprovalsService {
   }
 
   async reject(id: string, level: number, userId: string) {
-    const companyId = this.companyId();
+    const { companyId, branchId } = this.context();
     if (!Number.isInteger(level) || level <= 0) {
       throw new BadRequestException('Approval level must be a positive integer.');
     }
@@ -283,10 +310,16 @@ export class ProcurementApprovalsService {
     return this.prisma.$transaction(
       async (tx) => {
         const rows = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,status,branch_id AS "branchId" FROM inventory_purchase_orders
-           WHERE id=$1::text AND company_id=$2::text FOR UPDATE`,
+          `SELECT po.id,po.status,w.branch_id AS "branchId"
+           FROM inventory_purchase_orders po
+           JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+           WHERE po.id=$1::text
+             AND po.company_id=$2::text
+             AND ($3::text IS NULL OR w.branch_id=$3::text)
+           FOR UPDATE OF po`,
           id,
           companyId,
+          branchId,
         );
         if (!rows.length) throw new NotFoundException('Purchase order not found');
         if (rows[0].status !== 'PENDING') {
