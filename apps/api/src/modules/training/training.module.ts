@@ -9,6 +9,8 @@ import { LmsController } from './lms.controller';
 import { LmsService } from './lms.service';
 import { PositionCompetencyController } from './position-competency.controller';
 import { PositionCompetencyService } from './position-competency.service';
+import { TrainingAnalyticsController } from './training-analytics.controller';
+import { TrainingAnalyticsService } from './training-analytics.service';
 import { TrainingCertificateController } from './training-certificate.controller';
 import { TrainingCertificateService } from './training-certificate.service';
 import { TrainingCompetencyBridgeController } from './training-competency-bridge.controller';
@@ -25,8 +27,8 @@ import { TrainingController } from './training.controller';
 import { TrainingService } from './training.service';
 
 @Module({
-  controllers:[TrainingController,CompetencyController,CompetencyReviewController,CompetencyTrainingController,LmsController,PositionCompetencyController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingLessonProgressController,TrainingPlanningController,TrainingProgramController],
-  providers:[TrainingService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,PositionCompetencyService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
-  exports:[TrainingService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,PositionCompetencyService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
+  controllers:[TrainingController,TrainingAnalyticsController,CompetencyController,CompetencyReviewController,CompetencyTrainingController,LmsController,PositionCompetencyController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingLessonProgressController,TrainingPlanningController,TrainingProgramController],
+  providers:[TrainingService,TrainingAnalyticsService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,PositionCompetencyService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
+  exports:[TrainingService,TrainingAnalyticsService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,PositionCompetencyService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
 })
 export class TrainingModule {}
