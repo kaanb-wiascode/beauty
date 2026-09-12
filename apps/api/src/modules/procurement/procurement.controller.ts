@@ -10,6 +10,7 @@ import { ProcurementApprovalsService } from './procurement-approvals.service';
 import { ProcurementReturnsService } from './procurement-returns.service';
 import { ProcurementReturnRequestsService } from './procurement-return-requests.service';
 import { ProcurementReplacementsService } from './procurement-replacements.service';
+import { ProcurementOrdersQueryService } from './procurement-orders-query.service';
 
 const receiveSchema = z.object({
   items: z.array(z.object({ purchaseOrderItemId: z.string().uuid(), quantity: z.coerce.number().positive() })).min(1),
@@ -48,6 +49,7 @@ export class ProcurementController {
     private readonly returns: ProcurementReturnsService,
     private readonly returnRequests: ProcurementReturnRequestsService,
     private readonly replacements: ProcurementReplacementsService,
+    private readonly orders: ProcurementOrdersQueryService,
   ) {}
 
   private userId(req: { user?: { sub?: string } }) {
@@ -66,6 +68,9 @@ export class ProcurementController {
   @Post('purchase-requests/:id/convert')
   @RequirePermission('inventory', 'write')
   convertPurchaseRequest(@Param('id') id: string, @Body() body: unknown) { return this.requests.convertPurchaseRequest(id, convertPurchaseRequestSchema.parse(body)); }
+
+  @Get('purchase-orders')
+  listPurchaseOrders() { return this.orders.list(); }
 
   @Get('purchase-orders/:id')
   getPurchaseOrder(@Param('id') id: string) { return this.service.getPurchaseOrderDetail(id); }
