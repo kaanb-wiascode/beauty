@@ -24,6 +24,8 @@ import { QualityOverdueService } from './quality-overdue.service';
 import { QualityPublicFeedbackController } from './quality-public-feedback.controller';
 import { QualityPublicFeedbackService } from './quality-public-feedback.service';
 import { QualityScoreController } from './quality-score.controller';
+import { QualityScoreSchedulerController } from './quality-score-scheduler.controller';
+import { QualityScoreSchedulerService } from './quality-score-scheduler.service';
 import { QualityScoreService } from './quality-score.service';
 import { QualitySlaPolicyController } from './quality-sla-policy.controller';
 import { QualitySlaService } from './quality-sla.service';
@@ -42,6 +44,7 @@ import { QualityService } from './quality.service';
     QualityOverdueController,
     QualityEvidenceController,
     QualityScoreController,
+    QualityScoreSchedulerController,
     QualitySlaPolicyController,
     QualityAnalyticsController,
   ],
@@ -60,6 +63,7 @@ import { QualityService } from './quality.service';
     QualityOverdueService,
     QualityEvidenceService,
     QualityScoreService,
+    QualityScoreSchedulerService,
     QualityAnalyticsService,
     QualityAssigneeScopeGuard,
   ],
@@ -77,6 +81,7 @@ import { QualityService } from './quality.service';
     QualityOverdueService,
     QualityEvidenceService,
     QualityScoreService,
+    QualityScoreSchedulerService,
     QualityAnalyticsService,
   ],
 })
