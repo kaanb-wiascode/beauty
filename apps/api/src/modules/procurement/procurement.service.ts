@@ -30,6 +30,7 @@ export class ProcurementService {
     return {
       tenantId: this.tenantContext.getTenantId(),
       companyId: this.tenantContext.getCompanyId(),
+      branchId: this.tenantContext.getBranchId(),
     };
   }
 
@@ -69,20 +70,70 @@ export class ProcurementService {
     return `JE-${date.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  async orderPurchaseOrder(id: string) {
-    const { companyId } = this.context();
-    const updated = await this.prisma.$executeRawUnsafe(
-      `UPDATE inventory_purchase_orders
-       SET status='ORDERED',ordered_at=COALESCE(ordered_at,NOW()),updated_at=NOW()
-       WHERE id=$1::text AND company_id=$2::text AND status='APPROVED'`,
+  async getPurchaseOrderDetail(id: string) {
+    const { companyId, branchId } = this.context();
+    const orders = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT po.id,po.status,po.total_amount AS "totalAmount",po.ordered_at AS "orderedAt",
+              po.received_at AS "receivedAt",po.note,po.supplier_id AS "supplierId",
+              s.name AS "supplierName",po.warehouse_id AS "warehouseId",w.name AS "warehouseName",
+              w.branch_id AS "branchId"
+       FROM inventory_purchase_orders po
+       JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+       LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id AND s.company_id=po.company_id
+       WHERE po.id=$1::text
+         AND po.company_id=$2::text
+         AND ($3::text IS NULL OR w.branch_id=$3::text)
+       LIMIT 1`,
+      id,
+      companyId,
+      branchId,
+    );
+    if (!orders.length) throw new NotFoundException('Purchase order not found');
+
+    const items = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT i.id,i.product_id AS "productId",p.name AS "productName",p.sku,
+              i.quantity,i.received_quantity AS "receivedQuantity",i.unit_cost AS "unitCost",
+              GREATEST(i.quantity-i.received_quantity,0)::numeric AS "remainingQuantity",
+              (i.quantity*i.unit_cost)::numeric AS "lineTotal"
+       FROM inventory_purchase_order_items i
+       JOIN inventory_products p ON p.id=i.product_id AND p.company_id=$2::text
+       WHERE i.purchase_order_id=$1::text
+       ORDER BY p.name,i.id`,
       id,
       companyId,
     );
+
+    return { order: orders[0], items };
+  }
+
+  async orderPurchaseOrder(id: string) {
+    const { companyId, branchId } = this.context();
+    const updated = await this.prisma.$executeRawUnsafe(
+      `UPDATE inventory_purchase_orders po
+       SET status='ORDERED',ordered_at=COALESCE(po.ordered_at,NOW()),updated_at=NOW()
+       FROM inventory_warehouses w
+       WHERE po.warehouse_id=w.id
+         AND w.company_id=po.company_id
+         AND po.id=$1::text
+         AND po.company_id=$2::text
+         AND ($3::text IS NULL OR w.branch_id=$3::text)
+         AND po.status='APPROVED'`,
+      id,
+      companyId,
+      branchId,
+    );
     if (updated !== 1) {
       const rows = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT id,status FROM inventory_purchase_orders WHERE id=$1::text AND company_id=$2::text LIMIT 1`,
+        `SELECT po.id,po.status
+         FROM inventory_purchase_orders po
+         JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+         WHERE po.id=$1::text
+           AND po.company_id=$2::text
+           AND ($3::text IS NULL OR w.branch_id=$3::text)
+         LIMIT 1`,
         id,
         companyId,
+        branchId,
       );
       if (!rows.length) throw new NotFoundException('Purchase order not found');
       throw new BadRequestException(`Purchase order cannot be ordered from status ${rows[0].status}. Approval must be completed first.`);
@@ -91,7 +142,7 @@ export class ProcurementService {
   }
 
   async receivePurchaseOrder(id: string, input: ReceivePurchaseOrderInput) {
-    const { tenantId, companyId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     if (!input.items.length) throw new BadRequestException('At least one receipt item is required.');
     const ids = input.items.map((item) => item.purchaseOrderItemId);
     if (new Set(ids).size !== ids.length) {
@@ -104,11 +155,14 @@ export class ProcurementService {
           `SELECT po.id,po.status,po.supplier_id AS "supplierId",po.warehouse_id AS "warehouseId",
                   w.branch_id AS "branchId"
            FROM inventory_purchase_orders po
-           JOIN inventory_warehouses w ON w.id=po.warehouse_id
-           WHERE po.id=$1::text AND po.company_id=$2::text
-           FOR UPDATE`,
+           JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+           WHERE po.id=$1::text
+             AND po.company_id=$2::text
+             AND ($3::text IS NULL OR w.branch_id=$3::text)
+           FOR UPDATE OF po`,
           id,
           companyId,
+          branchId,
         );
         if (!orders.length) throw new NotFoundException('Purchase order not found');
         const order = orders[0];
@@ -293,7 +347,7 @@ export class ProcurementService {
   }
 
   async reverseGoodsReceipt(receiptId: string, input: ReverseGoodsReceiptInput) {
-    const { tenantId, companyId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const reason = input.reason.trim();
     if (!reason) throw new BadRequestException('Return reason is required.');
 
@@ -303,11 +357,14 @@ export class ProcurementService {
           `SELECT gr.id,gr.purchase_order_id AS "purchaseOrderId",gr.supplier_bill_id AS "supplierBillId",
                   gr.branch_id AS "branchId",gr.reversed_at AS "reversedAt",po.warehouse_id AS "warehouseId"
            FROM inventory_goods_receipts gr
-           JOIN inventory_purchase_orders po ON po.id=gr.purchase_order_id
-           WHERE gr.id=$1::text AND gr.company_id=$2::text
-           FOR UPDATE`,
+           JOIN inventory_purchase_orders po ON po.id=gr.purchase_order_id AND po.company_id=gr.company_id
+           WHERE gr.id=$1::text
+             AND gr.company_id=$2::text
+             AND ($3::text IS NULL OR gr.branch_id=$3::text)
+           FOR UPDATE OF gr`,
           receiptId,
           companyId,
+          branchId,
         );
         if (!receipts.length) throw new NotFoundException('Goods receipt not found');
         const receipt = receipts[0];
@@ -443,7 +500,7 @@ export class ProcurementService {
   }
 
   async listGoodsReceipts(purchaseOrderId?: string) {
-    const { companyId } = this.context();
+    const { companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT gr.id,gr.purchase_order_id AS "purchaseOrderId",gr.supplier_bill_id AS "supplierBillId",
               gr.branch_id AS "branchId",gr.received_at AS "receivedAt",gr.reversed_at AS "reversedAt",
@@ -452,9 +509,12 @@ export class ProcurementService {
               COUNT(i.id)::int AS "itemCount"
        FROM inventory_goods_receipts gr
        LEFT JOIN inventory_goods_receipt_items i ON i.goods_receipt_id=gr.id
-       WHERE gr.company_id=$1::text AND ($2::text IS NULL OR gr.purchase_order_id=$2::text)
+       WHERE gr.company_id=$1::text
+         AND ($2::text IS NULL OR gr.branch_id=$2::text)
+         AND ($3::text IS NULL OR gr.purchase_order_id=$3::text)
        GROUP BY gr.id ORDER BY gr.received_at DESC`,
       companyId,
+      branchId,
       purchaseOrderId ?? null,
     );
   }
