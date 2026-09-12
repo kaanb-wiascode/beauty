@@ -17,6 +17,7 @@ import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { PurchaseOrderApprovalModal } from "./purchase-order-approval-modal";
+import { PurchaseOrderReceiptModal } from "./purchase-order-receipt-modal";
 
 type PurchaseRequest = {
   id: string;
@@ -87,6 +88,7 @@ export default function PurchasesPage() {
   const [busyId, setBusyId] = useState<string | null>(null);
   const [convertTarget, setConvertTarget] = useState<PurchaseRequest | null>(null);
   const [approvalTarget, setApprovalTarget] = useState<PurchaseOrder | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<PurchaseOrder | null>(null);
   const [supplierId, setSupplierId] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [note, setNote] = useState("");
@@ -323,7 +325,7 @@ export default function PurchasesPage() {
             Satın Alma Operasyonu
           </h1>
           <p className="mt-1 text-[14px] text-[var(--muted)]">
-            Stok ihtiyaçlarını talepten siparişe kadar aynı operasyon yüzeyinde izleyin.
+            Stok ihtiyaçlarını talepten siparişe ve mal kabule kadar aynı operasyon yüzeyinde izleyin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -455,6 +457,7 @@ export default function PurchasesPage() {
             onSubmitApproval={submitApproval}
             onOrder={orderPurchaseOrder}
             onOpenApproval={setApprovalTarget}
+            onOpenReceipt={setReceiptTarget}
           />
         )}
 
@@ -479,6 +482,12 @@ export default function PurchasesPage() {
         order={approvalTarget}
         canWrite={canWrite}
         onClose={() => setApprovalTarget(null)}
+        onChanged={() => load()}
+      />
+
+      <PurchaseOrderReceiptModal
+        order={receiptTarget}
+        onClose={() => setReceiptTarget(null)}
         onChanged={() => load()}
       />
 
@@ -701,6 +710,7 @@ function OrderList({
   onSubmitApproval,
   onOrder,
   onOpenApproval,
+  onOpenReceipt,
 }: {
   rows: PurchaseOrder[];
   canWrite: boolean;
@@ -708,6 +718,7 @@ function OrderList({
   onSubmitApproval: (id: string) => Promise<void>;
   onOrder: (id: string) => Promise<void>;
   onOpenApproval: (order: PurchaseOrder) => void;
+  onOpenReceipt: (order: PurchaseOrder) => void;
 }) {
   return (
     <>
@@ -761,6 +772,7 @@ function OrderList({
                 onSubmitApproval={onSubmitApproval}
                 onOrder={onOrder}
                 onOpenApproval={onOpenApproval}
+                onOpenReceipt={onOpenReceipt}
               />
             </div>
           ))}
@@ -814,6 +826,7 @@ function OrderList({
               onSubmitApproval={onSubmitApproval}
               onOrder={onOrder}
               onOpenApproval={onOpenApproval}
+              onOpenReceipt={onOpenReceipt}
             />
           </article>
         ))}
@@ -830,6 +843,7 @@ function OrderAction({
   onSubmitApproval,
   onOrder,
   onOpenApproval,
+  onOpenReceipt,
 }: {
   order: PurchaseOrder;
   canWrite: boolean;
@@ -838,6 +852,7 @@ function OrderAction({
   onSubmitApproval: (id: string) => Promise<void>;
   onOrder: (id: string) => Promise<void>;
   onOpenApproval: (order: PurchaseOrder) => void;
+  onOpenReceipt: (order: PurchaseOrder) => void;
 }) {
   if (!canWrite) {
     if (order.status === "PENDING") {
@@ -885,6 +900,17 @@ function OrderAction({
         onClick={() => void onOrder(order.id)}
       >
         {busy ? "İşleniyor..." : "Sipariş ver"}
+      </Button>
+    );
+  }
+  if (order.status === "ORDERED") {
+    return (
+      <Button
+        className="min-h-8 px-3 py-1.5 text-[11px]"
+        disabled={busy || disabled}
+        onClick={() => onOpenReceipt(order)}
+      >
+        Mal kabul
       </Button>
     );
   }
