@@ -21,9 +21,12 @@ Implemented Training/Competency persistence and runtime now includes:
 - lessons and learner progress
 - theory exams, deterministic grading and practical assessments
 - versioned reusable question bank with immutable exam snapshots
+- private S3-compatible object storage abstraction for controlled Quality evidence and LMS documents
 - Training result snapshots and competency result bridge
 - competency-gap-driven Training assignment rules
 - Training effectiveness measurement foundation
+- auditable Training effectiveness manager follow-up lifecycle
+- explainable `TRAINING_EFFECTIVENESS` Branch Quality Score metric
 - certificate lifecycle, expiry, renewal, revocation and audit
 - multi-course learning programs
 - Training calendar/session enrollment
@@ -62,18 +65,22 @@ Relevant migration sequence on the active branch:
 20260912193000_position_competency_mapping
 20260912200000_quality_score_scheduler
 20260912210000_training_question_bank
+20260912220000_training_effectiveness_followups
+20260912223000_quality_training_effectiveness_metric
 ```
 
 Latest verified code checkpoint:
 
 ```text
-978d62c6fa67e999b8507b7ab571251c34d9c7cf
-fix(training-ui): satisfy question bank lint
+9178103b375800081a22b8086549f807182d626a
+feat(quality): allow training effectiveness score source
 
-Monorepo quality #861 — SUCCESS
+Monorepo quality #882 — SUCCESS
 ```
 
-The run passed Prisma validation/client generation, database/shared typecheck+build, API typecheck, 81 API test suites / 253 tests, API build and web lint/typecheck/build.
+The run passed dependency installation, Prisma validation/client generation, database/shared typecheck+build, API typecheck/tests/build and web lint/typecheck/build.
+
+Earlier verified checkpoints in the same sequence include private object storage + Quality/LMS managed documents (`Monorepo quality #874 — SUCCESS`) and effectiveness follow-up lifecycle (`Monorepo quality #879 — SUCCESS`).
 
 ## 2. Current Learning architecture
 
@@ -84,7 +91,7 @@ Training Course
       ↓
 Immutable Published Course Version
       ↓
-Lessons / Content / Progress
+Lessons / Private Controlled Content / Progress
       ↓
 Theory Exam + Practical Assessment
       ↓
@@ -94,7 +101,7 @@ Assignment Completion
       ↓
 Certificate / Effectiveness Signal
       ↓
-Training Compliance metric
+Training Compliance + Training Effectiveness metrics
       ↓
 Branch Quality Score
       ↓
@@ -168,7 +175,55 @@ Current rule processing preserves:
 
 The system must not infer staff identity when Quality evidence does not provide a valid staff relationship. No disciplinary/legal HR action may be automated from a single Quality signal.
 
-## 5. Training planning lifecycle
+## 5. Private controlled document and evidence storage
+
+Quality Evidence and LMS document content now share a private, S3-compatible storage abstraction rather than storing public/signed URLs in domain tables.
+
+The storage adapter supports AWS S3 and compatible private object stores through environment configuration. Credentials remain runtime configuration and are never stored in evidence/content rows or returned in API responses.
+
+### Quality Evidence
+
+Managed Quality Evidence upload flow is:
+
+```text
+Scoped Quality Subject
+      ↓
+Server-generated private object key
+      ↓
+Short-lived signed PUT
+      ↓
+Object upload
+      ↓
+HEAD verification
+      ↓
+Verified size/MIME + opaque object_key persisted
+      ↓
+Scoped short-lived signed GET when requested
+```
+
+The generated object-key namespace contains tenant/company/branch/subject scope. Finalization rejects an object key outside the expected subject prefix, verifies that the object exists, uses storage metadata rather than client-declared size/MIME, and removes an oversized managed object before refusing registration.
+
+Quality Evidence APIs include:
+
+- `POST /quality/evidence/uploads/prepare` — `quality.manage`
+- `POST /quality/evidence/uploads/finalize` — `quality.manage`
+- `GET /quality/evidence/:id/download` — `quality.read`
+
+Existing opaque-key evidence registration remains available for compatible internal integrations; HTTP(S) URLs remain forbidden as `objectKey` values.
+
+### LMS controlled documents
+
+Draft course versions can request managed private document uploads under a course/version-scoped namespace. Uploaded content can be HEAD-verified before its opaque `contentRef` is linked to a `DOCUMENT` lesson. Learner/manager download requests resolve by lesson ID and return a short-lived signed URL only after tenant/company/content-type and managed-prefix checks.
+
+LMS document APIs include:
+
+- `POST /training/content/versions/:versionId/documents/prepare` — `training.manage`
+- `POST /training/content/versions/:versionId/documents/verify` — `training.manage`
+- `GET /training/content/lessons/:lessonId/document` — `training.read`
+
+Published content immutability remains authoritative. Storage URLs are delivery artifacts, not persisted domain identity.
+
+## 6. Training planning lifecycle
 
 Calendar/session persistence and lifecycle now includes:
 
@@ -193,7 +248,7 @@ Development-plan persistence and lifecycle now includes:
 - plan completion guard requiring all items to be completed or cancelled
 - auditable lifecycle events
 
-## 6. Competency review and HR position mapping
+## 7. Competency review and HR position mapping
 
 Recurring competency reviews are persisted separately from competency assessments so the system can distinguish review obligation from evidence/result history.
 
@@ -222,7 +277,7 @@ Staff Competency Profile Assignment
 
 The processor is idempotent with respect to an employee who already has an active competency profile and records assignment/skip decisions instead of silently replacing profile history.
 
-Manager UI now exposes existing governed backend actions from the staff drill-down without bypassing backend guards:
+Manager UI exposes governed backend actions from the staff drill-down without bypassing backend guards:
 
 - competency-profile assignment
 - append-only manual competency assessment
@@ -232,7 +287,7 @@ Manager UI now exposes existing governed backend actions from the staff drill-do
 
 Review completion remains blocked until fresh assessment evidence exists for all profile requirements after the review opened.
 
-## 7. Branch Quality Score — Training Compliance
+## 8. Branch Quality Score — Training Compliance
 
 `TRAINING_COMPLIANCE` is a real Branch Quality Score metric source rather than a reserved/unsupported source.
 
@@ -242,7 +297,38 @@ Optional `sourceKey` may scope the metric to a Training course code or course ca
 
 No due assignment produces `NO_DATA` rather than an invented compliance score, allowing the configured score policy's missing-data strategy to remain authoritative.
 
-## 8. Scheduled Branch Quality Score processing
+## 9. Training Effectiveness feedback loop and Quality Score
+
+Training effectiveness remains evidence-based: completed assignments can be evaluated against before/after Quality finding windows and produce `IMPROVED`, `STABLE`, `WORSE` or `INSUFFICIENT_BASELINE` outcomes.
+
+Non-improving or data-insufficient outcomes can now be converted into auditable manager follow-ups without creating disciplinary or legal HR actions automatically:
+
+```text
+WORSE
+  → HIGH / INVESTIGATE_ROOT_CAUSE
+
+STABLE
+  → NORMAL / REASSESS_COMPETENCY
+
+INSUFFICIENT_BASELINE
+  → NORMAL / REVIEW_BASELINE_DATA
+```
+
+Follow-ups use `OPEN → ACKNOWLEDGED → RESOLVED` lifecycle, with explicit cancellation, row locking, serializable transitions, actor/timestamp history and append-only events. Resolution and cancellation require a note/reason. The persisted rationale explicitly marks `automaticDecision=false` and `managerReviewRequired=true`.
+
+`TRAINING_EFFECTIVENESS` is also a valid Branch Quality Score source. For a reporting period:
+
+- effectiveness runs are selected by `post_window_end`
+- tenant/company/branch scope is mandatory
+- optional `sourceKey` filters by Training course code or category
+- `INSUFFICIENT_BASELINE` is excluded from the evaluable denominator
+- numerator is `IMPROVED`
+- score is `IMPROVED / evaluable × 100`
+- no evaluable runs returns `NO_DATA` instead of fabricating a score
+
+This metric measures effectiveness evidence; manager follow-up task status does not alter the historical effectiveness score.
+
+## 10. Scheduled Branch Quality Score processing
 
 Branch Quality Score calculation can be driven by persisted schedules instead of relying only on manual `/quality/scores/calculate` calls.
 
@@ -264,7 +350,7 @@ Implemented scheduler behavior includes:
 
 The first scheduler increment is intentionally branch-scoped. It does not mutate request TenantContext to impersonate other branches. A future central/platform multi-branch worker must use an explicit privileged execution model rather than bypassing branch isolation.
 
-## 9. Learning Operations and analytics UI
+## 11. Learning Operations and analytics UI
 
 Operational UI is available under `/training` and the permission-aware `Gelişim` navigation group.
 
@@ -294,7 +380,7 @@ Implemented UI surfaces include:
 
 Question-bank authoring is restricted to `training.manage` because correct-answer keys are manager/server-side authoring data and must not be exposed through learner-facing reads.
 
-## 10. Multi-branch Quality + Training comparison
+## 12. Multi-branch Quality + Training comparison
 
 The company-level comparison cockpit is available at `/quality/comparison` when the user has both `quality.read` and `training.read`.
 
@@ -313,7 +399,7 @@ Quality score values are read from persisted `branch_quality_scores`; the compar
 
 A Region entity/domain does not currently exist in the repository. Region-level aggregation is intentionally not fabricated from branch names or addresses. Region comparison remains pending until an explicit Region domain and branch-to-region relationship are introduced.
 
-## 11. Reusable question-bank architecture
+## 13. Reusable question-bank architecture
 
 Question-bank persistence includes `training_question_bank_questions` with tenant/company scope, stable question code, version number, `DRAFT/PUBLISHED/RETIRED` lifecycle, type/category/tags, answer key and default points.
 
@@ -329,9 +415,9 @@ Important guarantees:
 - later bank revisions do not rewrite historical exam snapshots
 - bank authoring/list reads require `training.manage`; learner-facing reads do not expose answer keys
 
-## 12. Isolation and integrity hardening
+## 14. Isolation and integrity hardening
 
-The Training planning, analytics, score scheduling and authoring layers preserve tenant/company/branch isolation and semantic linkage.
+The Training planning, analytics, storage, score scheduling, effectiveness and authoring layers preserve tenant/company/branch isolation and semantic linkage.
 
 ### Calendar active-branch isolation
 
@@ -355,11 +441,19 @@ Due score schedules are leased through row-locked `SKIP LOCKED` claims. A retry 
 
 Learning analytics preserve active request tenant/company/branch scope. Central company context may compare branches within that company; branch context remains restricted to the active branch.
 
+### Controlled storage integrity
+
+Managed object keys are server generated under scoped namespaces. Finalization/verification checks expected prefixes and storage metadata before registration/use. Signed URLs are short-lived delivery artifacts and are never persisted as evidence/content identity. Credentials remain runtime configuration.
+
+### Effectiveness follow-up concurrency
+
+Due effectiveness results are claimed with `FOR UPDATE ... SKIP LOCKED`; one follow-up is allowed per tenant/company/effectiveness run. Lifecycle transitions row-lock the follow-up inside serializable transactions and append audit events.
+
 ### Question-bank authoring integrity
 
 Question version allocation is advisory-lock protected. Publish and exam-copy operations use serializable transactions, and exam insertion is restricted to draft course versions.
 
-## 13. Architecture invariants
+## 15. Architecture invariants
 
 - Tenant/company/branch isolation is mandatory on every read and mutation.
 - `Staff`/employee and authenticated `User` remain separate concepts.
@@ -369,33 +463,36 @@ Question version allocation is advisory-lock protected. Publish and exam-copy op
 - Versioned assignments cannot bypass required assessment/result guards.
 - Training assignments generated from Quality or Competency rules preserve their source rule/rationale.
 - Exam answer keys remain server-side/manager-authoring data and are not exposed in learner-facing reads.
-- Certificate, result, competency assessment, review and effectiveness history remain auditable.
+- Private evidence/content stores opaque object keys, not public or signed URLs.
+- Storage credentials must remain runtime secrets and must never be persisted in domain rows or API payloads.
+- Certificate, result, competency assessment, review, effectiveness and follow-up history remain auditable.
+- Effectiveness results may create manager-review obligations but must not automatically create disciplinary/legal HR decisions.
 - Calendar enrollment must not link a staff member to another staff/branch/course/version assignment.
 - Position mapping must not silently overwrite active employee competency-profile history.
-- Branch Quality Score must not manufacture Training compliance when the reporting period has no eligible assignments.
+- Branch Quality Score must not manufacture Training compliance or effectiveness when the reporting period has no eligible/evaluable evidence.
 - Scheduled score workers must not escape active branch scope by mutating TenantContext.
 - Comparison dashboards must display explainable domain metrics instead of manufacturing opaque composite scores.
 - Region reporting must not be simulated before a real Region domain exists.
 - Future AI recommendations may sit above these explainable signals but must not replace rule/audit foundations.
 
-## 14. Correct continuation point
+## 16. Correct continuation point
 
-The previous roadmap wording that treated Training/Competency analytics, multi-branch Quality + Training comparison, manager competency workflows and reusable question-bank authoring as future foundation work is now stale.
+The previous roadmap wording that treated LMS, Competency Management, learning programs, lesson progress, certificate lifecycle, Training calendar, development plans, HR position mapping, recurring competency reviews, Training Compliance, Learning Analytics, comparison cockpit, reusable question-bank authoring, controlled Quality/LMS object storage and first effectiveness feedback-loop foundation as future work is stale.
 
-The next increments should build on the current green backend/UI checkpoint rather than recreating these foundations.
+The next increments should build on the verified foundations instead of recreating them.
 
 Recommended sequence:
 
 ```text
-Concrete object-storage integration for controlled documents/evidence
+Manager UI for effectiveness follow-ups and controlled evidence/document upload
         ↓
-Effectiveness feedback-loop expansion and additional explainable score metrics
+Strict managed-storage linkage for LMS DOCUMENT authoring flows
         ↓
-Central/platform privileged worker for multi-branch scheduled Quality Score processing
+Additional explainable Quality/Training metrics and analytics trends
         ↓
-Explicit Region domain + branch-to-region relationship
+Explicit Region domain + branch-to-region relationship before region reporting
         ↓
-Region-level Quality + Training aggregation/comparison
+Full docs/state and roadmap synchronization
 ```
 
-Backend lifecycle, isolation, audit, immutable-history and concurrency invariants remain the gate for every UI/automation increment.
+Backend lifecycle, isolation, audit, storage and concurrency invariants remain the gate for every UI/automation increment.
