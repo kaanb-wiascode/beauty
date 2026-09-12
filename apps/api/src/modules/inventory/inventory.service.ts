@@ -496,10 +496,20 @@ export class InventoryService {
   }
 
   async serviceMaterials(serviceId: string) {
+    const tenantId = this.tenantId();
+    const branchId = this.tenantContext.getBranchId();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT ism.id,ism.product_id AS "productId",p.name AS "productName",p.unit,ism.quantity FROM inventory_service_materials ism JOIN inventory_products p ON p.id=ism.product_id JOIN services s ON s.id=ism.service_id WHERE ism.service_id=$1::text AND s.tenant_id=$2::text ORDER BY p.name`,
+      `SELECT ism.id,ism.product_id AS "productId",p.name AS "productName",p.unit,ism.quantity
+       FROM inventory_service_materials ism
+       JOIN inventory_products p ON p.id=ism.product_id
+       JOIN services s ON s.id=ism.service_id
+       WHERE ism.service_id=$1::text
+         AND s."tenantId"=$2::text
+         AND ($3::text IS NULL OR s."branchId"=$3::text)
+       ORDER BY p.name`,
       serviceId,
-      this.tenantId(),
+      tenantId,
+      branchId,
     );
   }
 
@@ -518,7 +528,7 @@ export class InventoryService {
 
     return this.prisma.$transaction(async (tx) => {
       const service = await tx.$queryRawUnsafe<any[]>(
-        `SELECT id FROM services WHERE id=$1::text AND tenant_id=$2::text AND branch_id=$3::text LIMIT 1`,
+        `SELECT id FROM services WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text LIMIT 1`,
         serviceId,
         tenantId,
         branchId,
