@@ -4,7 +4,7 @@ import {
   ExceptionFilter,
   HttpStatus,
 } from '@nestjs/common';
-import { Prisma } from '@prisma/client';
+import { Prisma } from '@beauty-erp/database';
 
 @Catch(Prisma.PrismaClientKnownRequestError)
 export class PrismaExceptionFilter implements ExceptionFilter {
