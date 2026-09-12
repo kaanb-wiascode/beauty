@@ -89,6 +89,15 @@ const USER_LABELS: Record<string, string> = {
 const USER_ERROR_MESSAGES: Record<string, string> = {
   "Invalid email or password": "E-Posta Veya Şifre Hatalı.",
   "No active tenant membership": "Aktif İşletme Üyeliği Bulunamadı.",
+  "No active organization membership": "Aktif İşletme Üyeliği Bulunamadı.",
+  "Membership organization context is missing": "İşletme Bilgileri Yüklenemedi. Lütfen Tekrar Giriş Yapın.",
+  "A branch must be selected for this operation.": "Bu İşlem İçin Önce Bir Şube Seçin.",
+  "A branch is required for this role": "Bu Kullanıcı Rolü İçin Bir Şube Seçilmelidir.",
+  "A branch is required for a branch-scoped role": "Bu Kullanıcı Rolü İçin Bir Şube Seçilmelidir.",
+  "No active branch access is assigned": "Kullanabileceğiniz Aktif Bir Şube Bulunamadı.",
+  "Branch not found": "Seçilen Şube Bulunamadı.",
+  "Branch does not belong to this company": "Seçilen Şube Bu İşletmeye Ait Değil.",
+  "You do not have access to this branch": "Bu Şubeye Erişim Yetkiniz Bulunmuyor.",
   "You do not have permission to perform this action": "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor.",
   "Staff already has an overlapping appointment": "Bu Personelin Seçilen Saatte Çakışan Bir Randevusu Var.",
   "Appointment startAt must be before endAt": "Randevu Başlangıcı Bitişten Önce Olmalıdır.",
@@ -168,7 +177,7 @@ export function userErrorMessage(
   if (looksTechnical(normalized)) return fallback;
 
   const hasTurkishCharacters = /[çğıöşüÇĞİÖŞÜ]/.test(normalized);
-  const commonTurkishWords = /\b(?:bir|bu|için|ile|ve|veya|değil|bulunamadı|geçersiz|gerekli|zorunlu|olmalıdır|kaydedilemedi|yüklenemedi|güncellenemedi|oluşturulamadı|silinemedi|işlem|kullanıcı|müşteri|randevu|ödeme|teklif|personel|hizmet)\b/i.test(normalized);
+  const commonTurkishWords = /\b(?:bir|bu|için|ile|ve|veya|değil|bulunamadı|geçersiz|gerekli|zorunlu|olmalıdır|kaydedilemedi|yüklenemedi|güncellenemedi|oluşturulamadı|silinemedi|işlem|kullanıcı|müşteri|randevu|ödeme|teklif|personel|hizmet|şube)\b/i.test(normalized);
 
   if (!hasTurkishCharacters && !commonTurkishWords) return fallback;
 
