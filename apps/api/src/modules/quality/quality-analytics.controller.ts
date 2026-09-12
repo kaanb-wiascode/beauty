@@ -1,30 +1,44 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { QualityAnalyticsService } from './quality-analytics.service';
 
+const recurringQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(3650).optional(),
+  minOccurrences: z.coerce.number().int().min(1).max(10000).optional(),
+  limit: z.coerce.number().int().min(1).max(500).optional(),
+});
+
+const branchSignalsQuerySchema = z.object({
+  days: z.coerce.number().int().min(1).max(3650).optional(),
+});
+
 @Controller('quality/analytics')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('quality', 'read')
 export class QualityAnalyticsController {
   constructor(private readonly analytics: QualityAnalyticsService) {}
 
   @Get('recurring-findings')
-  @RequirePermission('quality', 'read')
-  recurring(@Query('days') days?: string, @Query('minOccurrences') min?: string, @Query('limit') limit?: string) {
-    return this.analytics.recurringFindings({ days: days ? Number(days) : undefined, minOccurrences: min ? Number(min) : undefined, limit: limit ? Number(limit) : undefined });
+  recurring(@Query() query: unknown) {
+    return this.analytics.recurringFindings(
+      recurringQuerySchema.parse(query),
+    );
   }
 
   @Get('root-causes')
-  @RequirePermission('quality', 'read')
-  rootCauses(@Query('days') days?: string, @Query('minOccurrences') min?: string, @Query('limit') limit?: string) {
-    return this.analytics.rootCausePatterns({ days: days ? Number(days) : undefined, minOccurrences: min ? Number(min) : undefined, limit: limit ? Number(limit) : undefined });
+  rootCauses(@Query() query: unknown) {
+    return this.analytics.rootCausePatterns(
+      recurringQuerySchema.parse(query),
+    );
   }
 
   @Get('branch-signals')
-  @RequirePermission('quality', 'read')
-  branchSignals(@Query('days') days?: string) {
-    return this.analytics.branchSignals(days ? Number(days) : undefined);
+  branchSignals(@Query() query: unknown) {
+    const parsed = branchSignalsQuerySchema.parse(query);
+    return this.analytics.branchSignals(parsed.days);
   }
 }
