@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DataView } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Modal, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 
@@ -30,6 +30,23 @@ type Gap = {
   latestSource?: string | null;
   lastAssessedAt?: string | null;
   weight: number;
+};
+
+type CompetencyProfile = {
+  id: string;
+  code: string;
+  name: string;
+  version: number;
+  effectiveFrom: string;
+  effectiveTo?: string | null;
+  isActive: boolean;
+  requirements: Array<{
+    competencyId: string;
+    competencyCode: string;
+    competencyName: string;
+    requiredLevel: number;
+    weight: number;
+  }>;
 };
 
 type AssignmentStatus = "ASSIGNED" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED" | "EXPIRED";
@@ -92,6 +109,7 @@ export default function StaffTrainingPage() {
   const staffId = params.staffId;
   const [staff, setStaff] = useState<StaffMember | null>(null);
   const [gaps, setGaps] = useState<Gap[]>([]);
+  const [profiles, setProfiles] = useState<CompetencyProfile[]>([]);
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [plans, setPlans] = useState<DevelopmentPlan[]>([]);
   const [reviews, setReviews] = useState<Review[]>([]);
@@ -99,6 +117,12 @@ export default function StaffTrainingPage() {
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [action, setAction] = useState<string | null>(null);
+  const [selectedProfileId, setSelectedProfileId] = useState("");
+  const [assessmentGap, setAssessmentGap] = useState<Gap | null>(null);
+  const [assessmentScore, setAssessmentScore] = useState("");
+  const [assessmentNote, setAssessmentNote] = useState("");
+  const [cancelReview, setCancelReview] = useState<Review | null>(null);
+  const [cancelReason, setCancelReason] = useState("");
   const canManage = hasPermission("training", "manage");
 
   const load = useCallback(async () => {
@@ -106,15 +130,17 @@ export default function StaffTrainingPage() {
     setLoading(true);
     setError("");
     try {
-      const [staffRow, gapRows, assignmentRows, planRows, reviewRows] = await Promise.all([
+      const [staffRow, gapRows, profileRows, assignmentRows, planRows, reviewRows] = await Promise.all([
         api<StaffMember>(`/staff/${staffId}`),
         api<Gap[]>(`/training/competencies/staff/${staffId}/gaps`),
+        api<CompetencyProfile[]>("/training/competencies/profiles"),
         api<Assignment[]>(withQuery("/training/assignments", { staffId, limit: 100 })),
         api<DevelopmentPlan[]>(withQuery("/training/planning/development-plans", { staffId })),
         api<Review[]>(withQuery("/training/competency-reviews", { staffId, limit: 100 })),
       ]);
       setStaff(staffRow);
       setGaps(gapRows ?? []);
+      setProfiles(profileRows ?? []);
       setAssignments(assignmentRows ?? []);
       setPlans(planRows ?? []);
       setReviews(reviewRows ?? []);
@@ -134,6 +160,7 @@ export default function StaffTrainingPage() {
     [assignments],
   );
   const openReviews = useMemo(() => reviews.filter((item) => item.status === "OPEN"), [reviews]);
+  const activeProfiles = useMemo(() => profiles.filter((item) => item.isActive), [profiles]);
   const criticalGaps = useMemo(() => gaps.filter((item) => Number(item.gap) >= 20), [gaps]);
   const averageGap = useMemo(() => {
     if (!gaps.length) return 0;
@@ -155,6 +182,53 @@ export default function StaffTrainingPage() {
     }
   }, [load]);
 
+  const assignProfile = useCallback(() => {
+    if (!selectedProfileId) {
+      setError("Atanacak aktif competency profilini seçin.");
+      return;
+    }
+    void perform(
+      "assign-profile",
+      () => api(`/training/competencies/staff/${staffId}/profile`, { method: "POST", body: { profileId: selectedProfileId } }),
+      "Competency profili personele atandı.",
+    );
+  }, [perform, selectedProfileId, staffId]);
+
+  const saveAssessment = useCallback(() => {
+    if (!assessmentGap) return;
+    const score = Number(assessmentScore);
+    if (!Number.isFinite(score) || score < 0 || score > 100) {
+      setError("Assessment skoru 0 ile 100 arasında olmalı.");
+      return;
+    }
+    const competencyId = assessmentGap.competencyId;
+    void perform(
+      `assess:${competencyId}`,
+      () => api(`/training/competencies/staff/${staffId}/assessments`, {
+        method: "POST",
+        body: { competencyId, sourceType: "MANUAL", score, note: assessmentNote.trim() || null },
+      }),
+      `${assessmentGap.competencyName} assessment kaydı eklendi.`,
+    ).then(() => {
+      setAssessmentGap(null);
+      setAssessmentScore("");
+      setAssessmentNote("");
+    });
+  }, [assessmentGap, assessmentNote, assessmentScore, perform, staffId]);
+
+  const cancelOpenReview = useCallback(() => {
+    if (!cancelReview) return;
+    const reviewId = cancelReview.id;
+    void perform(
+      `cancel-review:${reviewId}`,
+      () => api(`/training/competency-reviews/${reviewId}/cancel`, { method: "POST", body: { reason: cancelReason.trim() || null } }),
+      "Competency review iptal edildi.",
+    ).then(() => {
+      setCancelReview(null);
+      setCancelReason("");
+    });
+  }, [cancelReason, cancelReview, perform]);
+
   if (loading) {
     return <div className="flex min-h-[420px] items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]"><Spinner label="Personel gelişim profili hazırlanıyor..." /></div>;
   }
@@ -174,9 +248,7 @@ export default function StaffTrainingPage() {
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">{name}</h1>
           <p className="mt-2 max-w-[780px] text-[13px] leading-6 text-[var(--muted)]">Yetkinlik açıkları, eğitim atamaları, gelişim planları ve recurring review geçmişini aynı personel kapsamında izleyin.</p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="secondary" onClick={() => void load()} disabled={action !== null}>Yenile</Button>
-        </div>
+        <Button variant="secondary" onClick={() => void load()} disabled={action !== null}>Yenile</Button>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -188,6 +260,22 @@ export default function StaffTrainingPage() {
         <FinanceMetric label="Açık Review" value={openReviews.length} detail={`${reviews.length} toplam değerlendirme`} tone={openReviews.length ? "warning" : "success"} />
         <FinanceMetric label="Gelişim Planı" value={plans.filter((item) => item.status === "ACTIVE" || item.status === "DRAFT").length} detail={`${plans.length} toplam plan`} tone="neutral" />
       </section>
+
+      {canManage ? (
+        <FinancePanel title="Manager Actions" description="Profil atama ve manuel competency assessment işlemleri mevcut Training RBAC ve audit kurallarına tabidir.">
+          <div className="grid gap-3 lg:grid-cols-[minmax(280px,1fr)_auto] lg:items-end">
+            <label className="block">
+              <span className="mb-2 block text-[11px] font-medium text-[var(--muted)]">Aktif Competency Profili</span>
+              <Select value={selectedProfileId} onChange={(event) => setSelectedProfileId(event.target.value)}>
+                <option value="">Profil seçin</option>
+                {activeProfiles.map((profile) => <option key={profile.id} value={profile.id}>{profile.code} · {profile.name} · v{profile.version}</option>)}
+              </Select>
+            </label>
+            <Button disabled={action !== null || !selectedProfileId} onClick={assignProfile}>{action === "assign-profile" ? "Atanıyor..." : "Profili Ata"}</Button>
+          </div>
+          <p className="mt-3 text-[10px] leading-5 text-[var(--muted-soft)]">Yeni profil ataması, backend tarafından mevcut aktif profil tarihçesini güvenli şekilde kapatır; geçmiş competency kanıtları değiştirilmez.</p>
+        </FinancePanel>
+      ) : null}
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1.2fr)_minmax(360px,0.8fr)]">
         <FinancePanel title="Yetkinlik Gap Analizi" description="Aktif competency profile gereksinimlerine karşı son ölçülen seviye.">
@@ -206,9 +294,12 @@ export default function StaffTrainingPage() {
                           <h3 className="mt-1 text-[13px] font-semibold text-[var(--ink)]">{gap.competencyName}</h3>
                           <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Kaynak: {gap.latestSource || "Henüz ölçüm yok"} · Son ölçüm: {formatDate(gap.lastAssessedAt)}</p>
                         </div>
-                        <div className="shrink-0 text-right">
-                          <p className="text-[18px] font-semibold text-[var(--ink)]">{current} / {required}</p>
-                          <p className={`mt-1 text-[10px] font-semibold ${Number(gap.gap) >= 20 ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>Gap {Number(gap.gap)}</p>
+                        <div className="flex shrink-0 items-center gap-3">
+                          <div className="text-right">
+                            <p className="text-[18px] font-semibold text-[var(--ink)]">{current} / {required}</p>
+                            <p className={`mt-1 text-[10px] font-semibold ${Number(gap.gap) >= 20 ? "text-[var(--danger)]" : "text-[var(--muted)]"}`}>Gap {Number(gap.gap)}</p>
+                          </div>
+                          {canManage ? <Button variant="secondary" disabled={action !== null} onClick={() => { setAssessmentGap(gap); setAssessmentScore(gap.currentLevel == null ? "" : String(gap.currentLevel)); setAssessmentNote(""); }}>Değerlendir</Button> : null}
                         </div>
                       </div>
                       <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${percent}%` }} /></div>
@@ -259,14 +350,75 @@ export default function StaffTrainingPage() {
       </FinancePanel>
 
       <div className="grid gap-6 xl:grid-cols-2">
-        <FinancePanel title="Recurring Reviews" description="Açık ve tamamlanmış competency review kayıtları.">
-          {reviews.length ? <div className="space-y-3">{reviews.map((review) => <div key={review.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">{review.profileCode} · {review.profileName}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">Profil v{review.profileVersion} · Açılış {formatDate(review.openedAt)}</p></div><span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{review.status}</span></div><p className="mt-3 text-[10px] text-[var(--muted)]">Vade {formatDate(review.dueAt)}</p></div>)}</div> : <FinanceEmpty title="Review kaydı yok" description="Recurring review motoru bu personel için henüz değerlendirme açmamış." />}
+        <FinancePanel title="Recurring Reviews" description="Açık review tamamlanmadan önce profilin tüm competency gereksinimleri için review açılışından sonra fresh assessment gerekir.">
+          {reviews.length ? (
+            <div className="space-y-3">
+              {reviews.map((review) => (
+                <div key={review.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-[12px] font-semibold text-[var(--ink)]">{review.profileCode} · {review.profileName}</p>
+                      <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Profil v{review.profileVersion} · Açılış {formatDate(review.openedAt)}</p>
+                      <p className="mt-2 text-[10px] text-[var(--muted)]">Vade {formatDate(review.dueAt)}</p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+                      <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{review.status}</span>
+                      {canManage && review.status === "OPEN" ? (
+                        <>
+                          <Button variant="secondary" disabled={action !== null} onClick={() => void perform(`complete-review:${review.id}`, () => api(`/training/competency-reviews/${review.id}/complete`, { method: "POST" }), "Competency review tamamlandı.")}>{action === `complete-review:${review.id}` ? "Tamamlanıyor..." : "Review Tamamla"}</Button>
+                          <Button variant="danger" disabled={action !== null} onClick={() => { setCancelReview(review); setCancelReason(""); }}>İptal</Button>
+                        </>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <FinanceEmpty title="Review kaydı yok" description="Recurring review motoru bu personel için henüz değerlendirme açmamış." />}
         </FinancePanel>
 
         <FinancePanel title="Gelişim Planları" description="Personel bazlı öğrenme ve gelişim planı ilerlemesi.">
-          {plans.length ? <div className="space-y-3">{plans.map((plan) => { const percent = plan.itemCount > 0 ? Math.round((plan.completedItemCount / plan.itemCount) * 100) : 0; return <div key={plan.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[var(--ink)]">{plan.title}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{plan.completedItemCount}/{plan.itemCount} öğe · {plan.status}</p></div><span className="text-[12px] font-semibold text-[var(--ink)]">%{percent}</span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(percent, 100)}%` }} /></div></div>; })}</div> : <FinanceEmpty title="Gelişim planı yok" description="Bu personel için henüz gelişim planı oluşturulmamış." />}
+          {plans.length ? (
+            <div className="space-y-3">
+              {plans.map((plan) => {
+                const percent = plan.itemCount > 0 ? Math.round((plan.completedItemCount / plan.itemCount) * 100) : 0;
+                return <div key={plan.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[var(--ink)]">{plan.title}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{plan.completedItemCount}/{plan.itemCount} öğe · {plan.status}</p></div><span className="text-[12px] font-semibold text-[var(--ink)]">%{percent}</span></div><div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.min(percent, 100)}%` }} /></div></div>;
+              })}
+            </div>
+          ) : <FinanceEmpty title="Gelişim planı yok" description="Bu personel için henüz gelişim planı oluşturulmamış." />}
         </FinancePanel>
       </div>
+
+      <Modal open={assessmentGap !== null} onClose={() => { setAssessmentGap(null); setAssessmentScore(""); setAssessmentNote(""); }} title="Manuel Competency Assessment" description={assessmentGap ? `${assessmentGap.competencyCode} · ${assessmentGap.competencyName}` : undefined}>
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-medium text-[var(--muted)]">Skor (0–100)</span>
+            <TextInput type="number" min={0} max={100} step="0.01" value={assessmentScore} onChange={(event) => setAssessmentScore(event.target.value)} />
+          </label>
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-medium text-[var(--muted)]">Değerlendirme Notu</span>
+            <TextArea rows={4} value={assessmentNote} onChange={(event) => setAssessmentNote(event.target.value)} placeholder="Gözlem, doğrulama veya gelişim notu..." />
+          </label>
+          <p className="text-[10px] leading-5 text-[var(--muted-soft)]">Bu kayıt append-only assessment history’ye MANUAL kaynak tipiyle eklenir; önceki ölçümler değiştirilmez.</p>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setAssessmentGap(null)} disabled={action !== null}>Vazgeç</Button>
+            <Button onClick={saveAssessment} disabled={action !== null || !assessmentScore}>{action?.startsWith("assess:") ? "Kaydediliyor..." : "Assessment Kaydet"}</Button>
+          </div>
+        </div>
+      </Modal>
+
+      <Modal open={cancelReview !== null} onClose={() => { setCancelReview(null); setCancelReason(""); }} title="Competency Review İptali" description="İptal kararı audit event olarak saklanır.">
+        <div className="space-y-4">
+          <label className="block">
+            <span className="mb-2 block text-[11px] font-medium text-[var(--muted)]">İptal Nedeni</span>
+            <TextArea rows={4} value={cancelReason} onChange={(event) => setCancelReason(event.target.value)} placeholder="İptal gerekçesi..." />
+          </label>
+          <div className="flex justify-end gap-2">
+            <Button variant="secondary" onClick={() => setCancelReview(null)} disabled={action !== null}>Vazgeç</Button>
+            <Button variant="danger" onClick={cancelOpenReview} disabled={action !== null}>{action?.startsWith("cancel-review:") ? "İptal ediliyor..." : "Review İptal Et"}</Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 }
