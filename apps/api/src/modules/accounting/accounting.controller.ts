@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -65,7 +65,7 @@ export class AccountingController {
 
   @Get('reports/accounts/:accountId/ledger')
   accountLedger(
-    @Param('accountId') accountId: string,
+    @Param('accountId', new ParseUUIDPipe()) accountId: string,
     @Query() query: unknown,
   ) {
     return this.accountingService.accountLedger(
@@ -86,13 +86,13 @@ export class AccountingController {
   }
 
   @Get('journal-entries/:id')
-  getJournalEntry(@Param('id') id: string) {
+  getJournalEntry(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.accountingService.getJournalEntry(id);
   }
 
   @Post('journal-entries/:id/post')
   @RequirePermission('accounting', 'manage')
-  postJournalEntry(@Param('id') id: string) {
+  postJournalEntry(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.accountingService.postJournalEntry(id);
   }
 }
