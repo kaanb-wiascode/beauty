@@ -28,14 +28,14 @@ import {
 } from "@/lib/crm-types";
 
 const eventLabels: Record<string, string> = {
-  LEAD_CREATED: "Lead oluşturuldu",
-  LEAD_UPDATED: "Lead güncellendi",
-  LEAD_QUALIFIED: "Satış fırsatı oluşturuldu",
-  OPPORTUNITY_STAGE_CHANGED: "Fırsat aşaması değişti",
-  FOLLOW_UP_CREATED: "Takip görevi oluşturuldu",
-  FOLLOW_UP_COMPLETED: "Takip tamamlandı",
-  FOLLOW_UP_RESCHEDULED: "Takip yeniden planlandı",
-  FOLLOW_UP_CANCELLED: "Takip iptal edildi",
+  LEAD_CREATED: "Potansiyel Müşteri Oluşturuldu",
+  LEAD_UPDATED: "Potansiyel Müşteri Güncellendi",
+  LEAD_QUALIFIED: "Satış Fırsatı Oluşturuldu",
+  OPPORTUNITY_STAGE_CHANGED: "Satış Fırsatı Aşaması Değişti",
+  FOLLOW_UP_CREATED: "Takip Görevi Oluşturuldu",
+  FOLLOW_UP_COMPLETED: "Takip Tamamlandı",
+  FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı",
+  FOLLOW_UP_CANCELLED: "Takip İptal Edildi",
 };
 const emptyEditForm = {
   firstName: "",
@@ -65,11 +65,7 @@ function formatMoney(value: string | number | null, currency: string) {
   }).format(Number(value ?? 0));
 }
 
-export default function CrmLeadDetailPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
+export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
   const canManage = hasPermission("crm", "manage");
   const { showToast } = useToast();
@@ -95,18 +91,12 @@ export default function CrmLeadDetailPage({
       setLead(leadRow);
       setAssignees(assigneeRows);
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Lead detayı yüklenemedi.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Potansiyel Müşteri Detayı Yüklenemedi.");
     } finally {
       setLoading(false);
     }
   }, [id]);
-  useEffect(() => {
-    void load();
-  }, [load]);
+  useEffect(() => { void load(); }, [load]);
 
   function openEdit() {
     if (!lead) return;
@@ -126,12 +116,8 @@ export default function CrmLeadDetailPage({
   async function updateLead(event: FormEvent) {
     event.preventDefault();
     if (!lead) return;
-    if (
-      !editForm.firstName.trim() ||
-      !editForm.lastName.trim() ||
-      (!editForm.phone.trim() && !editForm.email.trim())
-    ) {
-      setError("Ad, soyad ve en az bir iletişim bilgisi gereklidir.");
+    if (!editForm.firstName.trim() || !editForm.lastName.trim() || (!editForm.phone.trim() && !editForm.email.trim())) {
+      setError("Ad, Soyad Ve En Az Bir İletişim Bilgisi Gereklidir.");
       return;
     }
     setSaving(true);
@@ -151,14 +137,10 @@ export default function CrmLeadDetailPage({
         },
       });
       setEditOpen(false);
-      showToast("Lead bilgileri güncellendi.", "success");
+      showToast("Potansiyel Müşteri Bilgileri Güncellendi.", "success");
       await load();
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Lead güncellenemedi.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Potansiyel Müşteri Güncellenemedi.");
     } finally {
       setSaving(false);
     }
@@ -168,7 +150,7 @@ export default function CrmLeadDetailPage({
     event.preventDefault();
     if (!lead) return;
     if (status === "LOST" && !lostReason.trim()) {
-      setError("Kaybedilen lead için neden gereklidir.");
+      setError("Kaybedilen Potansiyel Müşteri İçin Neden Gereklidir.");
       return;
     }
     setSaving(true);
@@ -183,32 +165,24 @@ export default function CrmLeadDetailPage({
         },
       });
       setStatusOpen(false);
-      showToast("Lead durumu güncellendi.", "success");
+      showToast("Potansiyel Müşteri Durumu Güncellendi.", "success");
       await load();
     } catch (requestError) {
-      setError(
-        requestError instanceof ApiError
-          ? requestError.message
-          : "Lead güncellenemedi.",
-      );
+      setError(requestError instanceof ApiError ? requestError.message : "Potansiyel Müşteri Güncellenemedi.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (loading) return <Spinner label="Lead detayı hazırlanıyor..." />;
+  if (loading) return <Spinner label="Potansiyel Müşteri Detayı Hazırlanıyor..." />;
   if (!lead)
     return (
       <div className="space-y-4">
         {error ? <Alert>{error}</Alert> : null}
         <EmptyState
-          title="Lead bulunamadı"
-          description="Kayıt silinmiş veya aktif çalışma kapsamının dışında olabilir."
-          action={
-            <Link href="/crm/leads">
-              <Button>Lead havuzuna dön</Button>
-            </Link>
-          }
+          title="Potansiyel Müşteri Bulunamadı"
+          description="Kayıt Silinmiş Veya Aktif Çalışma Kapsamının Dışında Olabilir."
+          action={<Link href="/crm/leads"><Button>Potansiyel Müşteri Havuzuna Dön</Button></Link>}
         />
       </div>
     );
@@ -217,53 +191,34 @@ export default function CrmLeadDetailPage({
   const owner = assignees.find((person) => person.id === lead.ownerUserId);
   return (
     <div className="space-y-6">
-      <Link
-        href="/crm/leads"
-        className="inline-flex text-[11px] font-semibold text-[#7052df]"
-      >
-        ← Lead havuzuna dön
-      </Link>
+      <Link href="/crm/leads" className="inline-flex text-[11px] font-semibold text-[#7052df]">← Potansiyel Müşteri Havuzuna Dön</Link>
       <PageHeader
         title={`${lead.firstName} ${lead.lastName}`}
-        description={`${leadSourceLabels[lead.source] ?? lead.source} kaynağından · ${leadStatusLabels[lead.status as LeadStatus]}`}
-        action={
-          canManage ? (
-            <div className="flex gap-2">
-              <Button variant="secondary" onClick={openEdit}>
-                Bilgileri düzenle
-              </Button>
-              {["NEW", "CONTACTED"].includes(lead.status) ? (
-                <Button
-                  variant="secondary"
-                  onClick={() => {
-                    setError("");
-                    setStatus(lead.status === "NEW" ? "CONTACTED" : "LOST");
-                    setStatusOpen(true);
-                  }}
-                >
-                  Durumu güncelle
-                </Button>
-              ) : null}
-            </div>
-          ) : undefined
-        }
+        description={`${leadSourceLabels[lead.source] ?? lead.source} Kaynağından · ${leadStatusLabels[lead.status as LeadStatus]}`}
+        action={canManage ? (
+          <div className="flex gap-2">
+            <Button variant="secondary" onClick={openEdit}>Bilgileri Düzenle</Button>
+            {["NEW", "CONTACTED"].includes(lead.status) ? (
+              <Button variant="secondary" onClick={() => {
+                setError("");
+                setStatus(lead.status === "NEW" ? "CONTACTED" : "LOST");
+                setStatusOpen(true);
+              }}>Durumu Güncelle</Button>
+            ) : null}
+          </div>
+        ) : undefined}
       />
-      {error && !statusOpen && !editOpen ? (
-        <Alert onClose={() => setError("")}>{error}</Alert>
-      ) : null}
+      {error && !statusOpen && !editOpen ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,.7fr)]">
         <div className="space-y-5">
           <section className="rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)]">
-            <h2 className="text-[13px] font-semibold">İletişim ve ihtiyaç</h2>
+            <h2 className="text-[13px] font-semibold">İletişim Ve İhtiyaç</h2>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
               {[
                 ["Telefon", lead.phone || "—"],
-                ["E-posta", lead.email || "—"],
+                ["E-Posta", lead.email || "—"],
                 ["Kaynak", leadSourceLabels[lead.source] ?? lead.source],
-                [
-                  "Sorumlu",
-                  owner ? `${owner.firstName} ${owner.lastName}` : "Atanmamış",
-                ],
+                ["Sorumlu", owner ? `${owner.firstName} ${owner.lastName}` : "Atanmamış"],
                 ["Oluşturulma", formatDateTime(lead.createdAt)],
               ].map(([label, value]) => (
                 <div key={label}>
@@ -273,267 +228,100 @@ export default function CrmLeadDetailPage({
               ))}
             </dl>
             <div className="mt-5 border-t border-[var(--line)] pt-4">
-              <p className="text-[10px] text-[var(--muted)]">
-                İlgi / ihtiyaç notu
-              </p>
-              <p className="mt-2 whitespace-pre-wrap text-[12px] leading-6">
-                {lead.interestNote || "Not eklenmemiş."}
-              </p>
+              <p className="text-[10px] text-[var(--muted)]">İlgi / İhtiyaç Notu</p>
+              <p className="mt-2 whitespace-pre-wrap text-[12px] leading-6">{lead.interestNote || "Not Eklenmemiş."}</p>
             </div>
           </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <h2 className="text-[13px] font-semibold">Satış fırsatı</h2>
-              <Link
-                href="/crm/pipeline"
-                className="text-[10px] font-semibold text-[#7052df]"
-              >
-                Pipeline →
-              </Link>
+              <h2 className="text-[13px] font-semibold">Satış Fırsatı</h2>
+              <Link href="/crm/pipeline" className="text-[10px] font-semibold text-[#7052df]">Satış Süreci →</Link>
             </header>
             {activeOpportunity ? (
               <div className="grid gap-4 p-5 sm:grid-cols-4">
-                <div className="sm:col-span-2">
-                  <p className="text-[10px] text-[var(--muted)]">Başlık</p>
-                  <strong className="mt-1 block text-[14px]">
-                    {activeOpportunity.title}
-                  </strong>
-                </div>
-                <div>
-                  <p className="text-[10px] text-[var(--muted)]">Aşama</p>
-                  <span className="mt-1 inline-flex rounded-full bg-[#eee9ff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">
-                    {opportunityStageLabels[activeOpportunity.stage]}
-                  </span>
-                </div>
-                <div>
-                  <p className="text-[10px] text-[var(--muted)]">
-                    Değer / olasılık
-                  </p>
-                  <strong className="mt-1 block text-[12px]">
-                    {formatMoney(
-                      activeOpportunity.estimatedValue,
-                      activeOpportunity.currency,
-                    )}{" "}
-                    · %{activeOpportunity.probability}
-                  </strong>
-                </div>
+                <div className="sm:col-span-2"><p className="text-[10px] text-[var(--muted)]">Başlık</p><strong className="mt-1 block text-[14px]">{activeOpportunity.title}</strong></div>
+                <div><p className="text-[10px] text-[var(--muted)]">Aşama</p><span className="mt-1 inline-flex rounded-full bg-[#eee9ff] px-2.5 py-1 text-[10px] font-semibold text-[#7052df]">{opportunityStageLabels[activeOpportunity.stage]}</span></div>
+                <div><p className="text-[10px] text-[var(--muted)]">Değer / Olasılık</p><strong className="mt-1 block text-[12px]">{formatMoney(activeOpportunity.estimatedValue, activeOpportunity.currency)} · %{activeOpportunity.probability}</strong></div>
               </div>
             ) : (
-              <EmptyState
-                title="Henüz fırsat yok"
-                description="Lead havuzundaki Nitelendir işlemiyle bu adayı pipeline’a ekleyebilirsiniz."
-              />
+              <EmptyState title="Henüz Satış Fırsatı Yok" description="Potansiyel Müşteri Havuzundaki Nitelendir İşlemiyle Bu Adayı Satış Sürecine Ekleyebilirsiniz." />
             )}
           </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
               <h2 className="text-[13px] font-semibold">Takipler</h2>
-              <Link
-                href="/crm/follow-ups"
-                className="text-[10px] font-semibold text-[#7052df]"
-              >
-                Takip merkezi →
-              </Link>
+              <Link href="/crm/follow-ups" className="text-[10px] font-semibold text-[#7052df]">Takip Merkezi →</Link>
             </header>
             {lead.followUps.length ? (
               <div className="divide-y divide-[var(--line)]">
                 {lead.followUps.map((row) => (
-                  <div
-                    key={row.id}
-                    className="grid gap-2 px-5 py-3 sm:grid-cols-[120px_1fr_160px] sm:items-center"
-                  >
-                    <span className="text-[10px] font-semibold text-[#7052df]">
-                      {followUpChannelLabels[row.channel]}
-                    </span>
-                    <p className="truncate text-[11px] text-[var(--muted)]">
-                      {row.status === "CANCELLED"
-                        ? row.cancellationReason
-                        : row.outcome || row.note || "Not yok"}
-                    </p>
-                    <time className="text-[10px] text-[var(--muted)] sm:text-right">
-                      {formatDateTime(row.dueAt)}
-                    </time>
+                  <div key={row.id} className="grid gap-2 px-5 py-3 sm:grid-cols-[120px_1fr_160px] sm:items-center">
+                    <span className="text-[10px] font-semibold text-[#7052df]">{followUpChannelLabels[row.channel]}</span>
+                    <p className="truncate text-[11px] text-[var(--muted)]">{row.status === "CANCELLED" ? row.cancellationReason : row.outcome || row.note || "Not Yok"}</p>
+                    <time className="text-[10px] text-[var(--muted)] sm:text-right">{formatDateTime(row.dueAt)}</time>
                   </div>
                 ))}
               </div>
-            ) : (
-              <EmptyState
-                title="Takip bulunmuyor"
-                description="Bu lead’e bağlı görevler burada görünür."
-              />
-            )}
+            ) : <EmptyState title="Takip Bulunmuyor" description="Bu Potansiyel Müşteriye Bağlı Görevler Burada Görünür." />}
           </section>
         </div>
         <section className="h-fit overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
-          <header className="border-b border-[var(--line)] px-5 py-4">
-            <h2 className="text-[13px] font-semibold">Aktivite geçmişi</h2>
-          </header>
+          <header className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[13px] font-semibold">İşlem Geçmişi</h2></header>
           {lead.events.length ? (
             <ol className="p-5">
               {[...lead.events].reverse().map((row, index) => (
                 <li key={row.id} className="relative flex gap-3 pb-6 last:pb-0">
                   <span className="relative z-10 mt-1 h-2.5 w-2.5 shrink-0 rounded-full bg-[#8067df]" />
-                  {index < lead.events.length - 1 ? (
-                    <span className="absolute left-[4px] top-3 h-full w-px bg-[#e7e3ef]" />
-                  ) : null}
+                  {index < lead.events.length - 1 ? <span className="absolute left-[4px] top-3 h-full w-px bg-[#e7e3ef]" /> : null}
                   <div>
-                    <p className="text-[11px] font-semibold">
-                      {eventLabels[row.eventType] ?? row.eventType}
-                    </p>
-                    <time className="mt-1 block text-[9px] text-[var(--muted)]">
-                      {formatDateTime(row.createdAt)}
-                    </time>
+                    <p className="text-[11px] font-semibold">{eventLabels[row.eventType] ?? "Sistem İşlemi"}</p>
+                    <time className="mt-1 block text-[9px] text-[var(--muted)]">{formatDateTime(row.createdAt)}</time>
                   </div>
                 </li>
               ))}
             </ol>
-          ) : (
-            <EmptyState
-              title="Aktivite yok"
-              description="CRM hareketleri burada denetlenebilir bir geçmiş oluşturur."
-            />
-          )}
+          ) : <EmptyState title="İşlem Geçmişi Bulunmuyor" description="Müşteri İlişkileri Hareketleri Burada Geçmiş Oluşturur." />}
         </section>
       </div>
-      <Modal
-        open={editOpen}
-        onClose={() => setEditOpen(false)}
-        title="Lead bilgilerini düzenle"
-        description="İletişim, kaynak, ihtiyaç ve sorumlu bilgisini güncelleyin."
-      >
+      <Modal open={editOpen} onClose={() => setEditOpen(false)} title="Potansiyel Müşteri Bilgilerini Düzenle" description="İletişim, Kaynak, İhtiyaç Ve Sorumlu Bilgisini Güncelleyin.">
         <form onSubmit={updateLead} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Ad" required>
-              <TextInput
-                value={editForm.firstName}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, firstName: event.target.value })
-                }
-              />
-            </Field>
-            <Field label="Soyad" required>
-              <TextInput
-                value={editForm.lastName}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, lastName: event.target.value })
-                }
-              />
-            </Field>
+            <Field label="Ad" required><TextInput value={editForm.firstName} onChange={(event) => setEditForm({ ...editForm, firstName: event.target.value })} /></Field>
+            <Field label="Soyad" required><TextInput value={editForm.lastName} onChange={(event) => setEditForm({ ...editForm, lastName: event.target.value })} /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Telefon">
-              <TextInput
-                value={editForm.phone}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, phone: event.target.value })
-                }
-              />
-            </Field>
-            <Field label="E-posta">
-              <TextInput
-                type="email"
-                value={editForm.email}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, email: event.target.value })
-                }
-              />
-            </Field>
+            <Field label="Telefon"><TextInput value={editForm.phone} onChange={(event) => setEditForm({ ...editForm, phone: event.target.value })} /></Field>
+            <Field label="E-Posta"><TextInput type="email" value={editForm.email} onChange={(event) => setEditForm({ ...editForm, email: event.target.value })} /></Field>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Kaynak">
-              <Select
-                value={editForm.source}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, source: event.target.value })
-                }
-              >
-                {Object.entries(leadSourceLabels).map(([value, label]) => (
-                  <option key={value} value={value}>
-                    {label}
-                  </option>
-                ))}
+              <Select value={editForm.source} onChange={(event) => setEditForm({ ...editForm, source: event.target.value })}>
+                {Object.entries(leadSourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </Field>
             <Field label="Sorumlu">
-              <Select
-                value={editForm.ownerUserId}
-                onChange={(event) =>
-                  setEditForm({ ...editForm, ownerUserId: event.target.value })
-                }
-              >
+              <Select value={editForm.ownerUserId} onChange={(event) => setEditForm({ ...editForm, ownerUserId: event.target.value })}>
                 <option value="">Atanmamış</option>
-                {assignees.map((person) => (
-                  <option key={person.id} value={person.id}>
-                    {person.firstName} {person.lastName}
-                  </option>
-                ))}
+                {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
               </Select>
             </Field>
           </div>
-          <Field label="İlgi / ihtiyaç notu">
-            <TextArea
-              rows={3}
-              value={editForm.interestNote}
-              onChange={(event) =>
-                setEditForm({ ...editForm, interestNote: event.target.value })
-              }
-            />
-          </Field>
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setEditOpen(false)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Güncelleniyor..." : "Değişiklikleri kaydet"}
-            </Button>
-          </div>
+          <Field label="İlgi / İhtiyaç Notu"><TextArea rows={3} value={editForm.interestNote} onChange={(event) => setEditForm({ ...editForm, interestNote: event.target.value })} /></Field>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setEditOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Güncelleniyor..." : "Değişiklikleri Kaydet"}</Button></div>
         </form>
       </Modal>
-      <Modal
-        open={statusOpen}
-        onClose={() => setStatusOpen(false)}
-        title="Lead durumunu güncelle"
-        description="Durum değişikliği CRM aktivite geçmişine kaydedilir."
-      >
+      <Modal open={statusOpen} onClose={() => setStatusOpen(false)} title="Potansiyel Müşteri Durumunu Güncelle" description="Durum Değişikliği Müşteri İlişkileri İşlem Geçmişine Kaydedilir.">
         <form onSubmit={updateStatus} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
-          <Field label="Yeni durum">
-            <Select
-              value={status}
-              onChange={(event) =>
-                setStatus(event.target.value as "CONTACTED" | "LOST")
-              }
-            >
-              <option value="CONTACTED">İletişime geçildi</option>
+          <Field label="Yeni Durum">
+            <Select value={status} onChange={(event) => setStatus(event.target.value as "CONTACTED" | "LOST")}>
+              <option value="CONTACTED">İletişime Geçildi</option>
               <option value="LOST">Kaybedildi</option>
             </Select>
           </Field>
-          {status === "LOST" ? (
-            <Field label="Kaybetme nedeni" required>
-              <TextArea
-                rows={3}
-                value={lostReason}
-                onChange={(event) => setLostReason(event.target.value)}
-              />
-            </Field>
-          ) : null}
-          <div className="flex justify-end gap-3">
-            <Button
-              variant="secondary"
-              onClick={() => setStatusOpen(false)}
-              disabled={saving}
-            >
-              Vazgeç
-            </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Güncelleniyor..." : "Kaydet"}
-            </Button>
-          </div>
+          {status === "LOST" ? <Field label="Kaybetme Nedeni" required><TextArea rows={3} value={lostReason} onChange={(event) => setLostReason(event.target.value)} /></Field> : null}
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setStatusOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Güncelleniyor..." : "Kaydet"}</Button></div>
         </form>
       </Modal>
     </div>
