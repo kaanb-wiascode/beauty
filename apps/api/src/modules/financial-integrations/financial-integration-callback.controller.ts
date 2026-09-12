@@ -1,12 +1,15 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { FinancialIntegrationConnectionService } from './financial-integration-connection.service';
-import { PublicFinancialRateLimit, PublicFinancialRateLimitGuard } from './public-financial-rate-limit.guard';
+import {
+  PublicFinancialRateLimit,
+  PublicFinancialRateLimitGuard,
+} from './public-financial-rate-limit.guard';
 import { FinancialIntegrationTelemetryService } from './financial-integration-telemetry.service';
 
 const callbackSchema = z.object({
-  state: z.string().min(10),
-  code: z.string().min(1),
+  state: z.string().min(10).max(2048),
+  code: z.string().min(1).max(8192),
 });
 
 @Controller('financial-integrations')
@@ -18,7 +21,11 @@ export class FinancialIntegrationCallbackController {
   ) {}
 
   @Get('callback')
-  @PublicFinancialRateLimit({ bucket: 'oauth-callback', limit: 60, windowSeconds: 300 })
+  @PublicFinancialRateLimit({
+    bucket: 'oauth-callback',
+    limit: 60,
+    windowSeconds: 300,
+  })
   async callback(@Query() query: unknown) {
     const parsed = callbackSchema.parse(query);
     try {
