@@ -1,6 +1,8 @@
 import { Controller, Get, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { FinancialHealthHistoryService } from './financial-health-history.service';
 
@@ -16,11 +18,13 @@ const historyQuerySchema = z.object({
 });
 
 @Controller('profitability/cfo/health')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('finance', 'read')
 export class FinancialHealthHistoryController {
   constructor(private readonly historyService: FinancialHealthHistoryService) {}
 
   @Post('snapshots')
+  @RequirePermission('finance', 'manage')
   capture(@Query() query: unknown) {
     return this.historyService.capture(snapshotQuerySchema.parse(query));
   }
