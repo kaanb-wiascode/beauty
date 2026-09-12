@@ -103,7 +103,8 @@ label > span:first-child { color:var(--muted); }
   box-shadow:0 7px 18px rgba(22,116,189,.18)!important;
 }
 .dashboard-primary-action:hover { background:linear-gradient(135deg,var(--accent),var(--brand-gradient-end))!important; }
-.dashboard-topbar { border-color:var(--line)!important; }
+.dashboard-topbar { display:none!important; }
+.dashboard-topbar + .grid { padding-top:14px; }
 .dashboard-search { border-color:var(--line)!important; background:rgba(255,255,255,.82)!important; }
 .dashboard-icon-button:hover,.panel-link-button:hover,.panel-footer-link:hover,.panel-action-button:hover { color:var(--accent)!important; }
 .metric-card,.dashboard-panel {
@@ -155,6 +156,37 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] { color:var(--secondary)!important; bac
 .glass,.glass-elevated,.surface,.dashboard-panel,.metric-card { border-color:var(--line)!important; }
 .glass,.glass-elevated { background:var(--glass)!important; }
 .surface,.dashboard-panel,.metric-card { background:var(--surface)!important; }
+
+/* One application shell: floating sidebar everywhere. */
+@media (min-width:1024px) {
+  .ambient-root > div:has(> aside.glass) {
+    min-height:100vh!important;
+    padding:16px!important;
+    gap:16px!important;
+    align-items:start!important;
+  }
+
+  .ambient-root > div:has(> aside.glass) > aside.glass {
+    position:sticky!important;
+    top:16px!important;
+    height:calc(100vh - 32px)!important;
+    margin:0!important;
+    border:1px solid rgba(255,255,255,.86)!important;
+    border-radius:28px!important;
+    background:rgba(255,255,255,.92)!important;
+    box-shadow:0 14px 40px rgba(17,70,104,.08)!important;
+    overflow:hidden!important;
+  }
+
+  .ambient-root > div:has(> aside.glass) > main {
+    min-width:0!important;
+    padding:0!important;
+  }
+
+  .ambient-root > div:has(> aside.glass) > main > * {
+    width:100%;
+  }
+}
 
 @media (max-width:767px) {
   body::before {
