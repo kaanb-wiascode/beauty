@@ -16,6 +16,7 @@ import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/u
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { PurchaseOrderApprovalModal } from "./purchase-order-approval-modal";
 
 type PurchaseRequest = {
   id: string;
@@ -85,6 +86,7 @@ export default function PurchasesPage() {
   const [status, setStatus] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const [convertTarget, setConvertTarget] = useState<PurchaseRequest | null>(null);
+  const [approvalTarget, setApprovalTarget] = useState<PurchaseOrder | null>(null);
   const [supplierId, setSupplierId] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [note, setNote] = useState("");
@@ -452,6 +454,7 @@ export default function PurchasesPage() {
             busyId={busyId}
             onSubmitApproval={submitApproval}
             onOrder={orderPurchaseOrder}
+            onOpenApproval={setApprovalTarget}
           />
         )}
 
@@ -471,6 +474,13 @@ export default function PurchasesPage() {
           <span>Toplam {totalCount} kayıt</span>
         </DataViewMeta>
       </DataView>
+
+      <PurchaseOrderApprovalModal
+        order={approvalTarget}
+        canWrite={canWrite}
+        onClose={() => setApprovalTarget(null)}
+        onChanged={() => load()}
+      />
 
       <Modal
         open={Boolean(convertTarget)}
@@ -690,12 +700,14 @@ function OrderList({
   busyId,
   onSubmitApproval,
   onOrder,
+  onOpenApproval,
 }: {
   rows: PurchaseOrder[];
   canWrite: boolean;
   busyId: string | null;
   onSubmitApproval: (id: string) => Promise<void>;
   onOrder: (id: string) => Promise<void>;
+  onOpenApproval: (order: PurchaseOrder) => void;
 }) {
   return (
     <>
@@ -748,6 +760,7 @@ function OrderList({
                 disabled={Boolean(busyId) && busyId !== order.id}
                 onSubmitApproval={onSubmitApproval}
                 onOrder={onOrder}
+                onOpenApproval={onOpenApproval}
               />
             </div>
           ))}
@@ -800,6 +813,7 @@ function OrderList({
               disabled={Boolean(busyId) && busyId !== order.id}
               onSubmitApproval={onSubmitApproval}
               onOrder={onOrder}
+              onOpenApproval={onOpenApproval}
             />
           </article>
         ))}
@@ -815,6 +829,7 @@ function OrderAction({
   disabled,
   onSubmitApproval,
   onOrder,
+  onOpenApproval,
 }: {
   order: PurchaseOrder;
   canWrite: boolean;
@@ -822,8 +837,22 @@ function OrderAction({
   disabled: boolean;
   onSubmitApproval: (id: string) => Promise<void>;
   onOrder: (id: string) => Promise<void>;
+  onOpenApproval: (order: PurchaseOrder) => void;
 }) {
-  if (!canWrite) return <span className="text-[10px] text-[var(--muted-soft)]">Salt okunur</span>;
+  if (!canWrite) {
+    if (order.status === "PENDING") {
+      return (
+        <Button
+          variant="ghost"
+          className="min-h-8 px-3 py-1.5 text-[11px]"
+          onClick={() => onOpenApproval(order)}
+        >
+          Onay akışı
+        </Button>
+      );
+    }
+    return <span className="text-[10px] text-[var(--muted-soft)]">Salt okunur</span>;
+  }
   if (order.status === "DRAFT") {
     return (
       <Button
@@ -833,6 +862,18 @@ function OrderAction({
         onClick={() => void onSubmitApproval(order.id)}
       >
         {busy ? "Gönderiliyor..." : "Onaya gönder"}
+      </Button>
+    );
+  }
+  if (order.status === "PENDING") {
+    return (
+      <Button
+        variant="secondary"
+        className="min-h-8 px-3 py-1.5 text-[11px]"
+        disabled={busy || disabled}
+        onClick={() => onOpenApproval(order)}
+      >
+        Onay akışı
       </Button>
     );
   }
