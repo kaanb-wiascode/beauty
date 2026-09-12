@@ -3,6 +3,7 @@
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
 import { cx } from "@/lib/format";
+import { userLabel } from "@/lib/user-language";
 
 export function FinanceMetric({
   label,
@@ -107,7 +108,9 @@ export function FinanceStatus({
           ? "bg-[var(--warning-soft)] text-[var(--warning)]"
           : "bg-[var(--surface-2)] text-[var(--muted)]";
 
-  return <span className={cx("inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold", tone)}>{children ?? label ?? status}</span>;
+  const visibleLabel = children ?? (typeof label === "string" ? userLabel(label) : label) ?? userLabel(status);
+
+  return <span className={cx("inline-flex rounded-full px-2.5 py-1 text-[10px] font-semibold", tone)}>{visibleLabel}</span>;
 }
 
 export function FinanceEmpty({
@@ -121,7 +124,7 @@ export function FinanceEmpty({
 }) {
   return (
     <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface-2)]/35 px-5 py-8 text-center">
-      <p className="text-[12px] font-semibold text-[var(--ink)]">{children ?? title ?? "Kayıt bulunamadı."}</p>
+      <p className="text-[12px] font-semibold text-[var(--ink)]">{children ?? title ?? "Kayıt Bulunamadı."}</p>
       {description ? <p className="mx-auto mt-1 max-w-md text-[10px] leading-5 text-[var(--muted)]">{description}</p> : null}
     </div>
   );
