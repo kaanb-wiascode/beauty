@@ -14,6 +14,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { ProcurementRfqCommercialTermsService } from './procurement-rfq-commercial-terms.service';
 import { ProcurementRfqOptionsService } from './procurement-rfq-options.service';
 import { ProcurementRfqService } from './procurement-rfq.service';
 
@@ -48,6 +49,7 @@ export class ProcurementRfqController {
   constructor(
     private readonly rfqs: ProcurementRfqService,
     private readonly options: ProcurementRfqOptionsService,
+    private readonly commercialTerms: ProcurementRfqCommercialTermsService,
   ) {}
 
   private userId(req: { user?: { sub?: string } }) {
@@ -67,6 +69,11 @@ export class ProcurementRfqController {
   @Get('options')
   getOptions() {
     return this.options.get();
+  }
+
+  @Get(':id/commercial-terms')
+  getCommercialTerms(@Param('id') id: string) {
+    return this.commercialTerms.list(uuid.parse(id));
   }
 
   @Get(':id')
