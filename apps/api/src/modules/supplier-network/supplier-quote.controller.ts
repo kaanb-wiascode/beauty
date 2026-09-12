@@ -5,6 +5,7 @@ import {
   Param,
   Post,
   Req,
+  UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { z } from 'zod';
@@ -52,7 +53,9 @@ export class SupplierQuoteController {
 
   private principal(req: SupplierPortalRequest) {
     if (!req.supplierPortalAuth) {
-      throw new Error('Supplier portal principal missing after guard.');
+      throw new UnauthorizedException(
+        'Supplier portal principal is missing.',
+      );
     }
     return req.supplierPortalAuth;
   }
@@ -65,7 +68,10 @@ export class SupplierQuoteController {
 
   @Get(':id/catalog-defaults')
   @SupplierPortalRoles('OWNER', 'ADMIN', 'MEMBER')
-  getCatalogDefaults(@Param('id') id: string, @Req() req: SupplierPortalRequest) {
+  getCatalogDefaults(
+    @Param('id') id: string,
+    @Req() req: SupplierPortalRequest,
+  ) {
     return this.defaults.get(this.principal(req), uuid.parse(id));
   }
 
