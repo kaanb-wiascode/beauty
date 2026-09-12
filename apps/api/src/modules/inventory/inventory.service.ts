@@ -119,7 +119,7 @@ export class InventoryService {
 
     if (branchId) {
       const branches = await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT id,name FROM branches WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
+        `SELECT id,name FROM branches WHERE id=$1::text AND "companyId"=$2::text AND status='ACTIVE' LIMIT 1`,
         branchId,
         companyId,
       );
@@ -612,7 +612,7 @@ export class InventoryService {
 
       if (input.branchId) {
         const branches = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id FROM branches WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
+          `SELECT id FROM branches WHERE id=$1::text AND "companyId"=$2::text AND status='ACTIVE' LIMIT 1`,
           input.branchId,
           companyId,
         );
@@ -653,7 +653,7 @@ export class InventoryService {
 
       if (input.assignedToStaffId) {
         const staff = await tx.$queryRawUnsafe<any[]>(
-          `SELECT s.id,s.branch_id AS "branchId" FROM staff s JOIN branches b ON b.id=s.branch_id WHERE s.id=$1::text AND s.tenant_id=$2::text AND s.status='ACTIVE' AND b.company_id=$3::text AND b.status='ACTIVE' LIMIT 1`,
+          `SELECT s.id,s.branch_id AS "branchId" FROM staff s JOIN branches b ON b.id=s.branch_id WHERE s.id=$1::text AND s.tenant_id=$2::text AND s.status='ACTIVE' AND b."companyId"=$3::text AND b.status='ACTIVE' LIMIT 1`,
           input.assignedToStaffId,
           tenantId,
           companyId,
