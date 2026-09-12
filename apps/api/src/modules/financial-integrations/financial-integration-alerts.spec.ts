@@ -9,6 +9,7 @@ describe('FinancialIntegrationAlertsService', () => {
       sync: { stale: false, activeRun: null },
       observability: { attempts: 10, failures: 0, staleRecoveries: 0 },
       banking: { unmatchedTransactionCount: 0 },
+      pos: null,
       ...overrides,
     };
   }
@@ -49,13 +50,41 @@ describe('FinancialIntegrationAlertsService', () => {
 
   it('warns when unmatched bank transactions exceed the threshold', async () => {
     const dependency = {
-      get: jest.fn().mockResolvedValue(health({ banking: { unmatchedTransactionCount: 25 } })),
+      get: jest.fn().mockResolvedValue(
+        health({ banking: { unmatchedTransactionCount: 25 } }),
+      ),
     } as never;
     const service = new FinancialIntegrationAlertsService(dependency);
 
     const result = await service.get('integration-a');
 
     expect(result.state).toBe('WARNING');
-    expect(result.alerts[0]).toMatchObject({ code: 'UNMATCHED_BANK_TRANSACTIONS_HIGH' });
+    expect(result.alerts[0]).toMatchObject({
+      code: 'UNMATCHED_BANK_TRANSACTIONS_HIGH',
+    });
+  });
+
+  it('raises a critical alert when a POS refund requires manual review', async () => {
+    const dependency = {
+      get: jest.fn().mockResolvedValue(
+        health({
+          banking: null,
+          pos: { refundReviewRequiredCount: 2 },
+        }),
+      ),
+    } as never;
+    const service = new FinancialIntegrationAlertsService(dependency);
+
+    const result = await service.get('integration-pos');
+
+    expect(result.state).toBe('CRITICAL');
+    expect(result.alerts).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          code: 'POS_REFUND_REVIEW_REQUIRED',
+          severity: 'CRITICAL',
+        }),
+      ]),
+    );
   });
 });
