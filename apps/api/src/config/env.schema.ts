@@ -25,6 +25,15 @@ export const envSchema = z.object({
   QUALITY_NOTIFICATION_WEBHOOK_SECRET: z.string().min(32).optional(),
   QUALITY_NOTIFICATION_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(5000),
   QUALITY_FEEDBACK_PUBLIC_TOKEN_SECRET: z.string().min(32).optional(),
+
+  OBJECT_STORAGE_BUCKET: z.string().trim().min(1).optional(),
+  OBJECT_STORAGE_REGION: z.string().trim().min(1).optional(),
+  OBJECT_STORAGE_ENDPOINT: z.string().url().optional(),
+  OBJECT_STORAGE_FORCE_PATH_STYLE: z.enum(['true', 'false']).optional(),
+  OBJECT_STORAGE_ACCESS_KEY_ID: z.string().trim().min(1).optional(),
+  OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
+  OBJECT_STORAGE_PRESIGN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).optional(),
+  OBJECT_STORAGE_MAX_BYTES: z.coerce.number().int().min(1_048_576).max(104_857_600).optional(),
 }).superRefine((env, ctx) => {
   const hasUrl = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_URL);
   const hasSecret = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_SECRET);
@@ -33,6 +42,20 @@ export const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: 'QUALITY_NOTIFICATION_WEBHOOK_URL and QUALITY_NOTIFICATION_WEBHOOK_SECRET must be configured together',
       path: ['QUALITY_NOTIFICATION_WEBHOOK_URL'],
+    });
+  }
+
+  const storageFields = [
+    env.OBJECT_STORAGE_BUCKET,
+    env.OBJECT_STORAGE_ACCESS_KEY_ID,
+    env.OBJECT_STORAGE_SECRET_ACCESS_KEY,
+  ];
+  const configuredStorageFields = storageFields.filter(Boolean).length;
+  if (configuredStorageFields > 0 && configuredStorageFields < storageFields.length) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_ACCESS_KEY_ID and OBJECT_STORAGE_SECRET_ACCESS_KEY must be configured together',
+      path: ['OBJECT_STORAGE_BUCKET'],
     });
   }
 });
