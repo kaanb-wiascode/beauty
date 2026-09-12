@@ -59,14 +59,14 @@ ON "supplier_offer_eligibilities"
 FOR EACH ROW
 EXECUTE FUNCTION validate_supplier_offer_eligibility_scope();
 
-CREATE OR REPLACE FUNCTION validate_restricted_supplier_offer_targets()
+CREATE OR REPLACE FUNCTION validate_restricted_supplier_offer_eligibility_rows()
 RETURNS TRIGGER AS $$
 DECLARE
   target_offer_id TEXT;
   offer_status TEXT;
   offer_visibility TEXT;
 BEGIN
-  target_offer_id := COALESCE(NEW."supplier_offer_id", OLD."supplier_offer_id", NEW."id", OLD."id");
+  target_offer_id := COALESCE(NEW."supplier_offer_id", OLD."supplier_offer_id");
 
   SELECT "status", "visibility_scope"
     INTO offer_status, offer_visibility
@@ -87,14 +87,31 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
+CREATE OR REPLACE FUNCTION validate_restricted_supplier_offer_row()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF NEW."status" = 'ACTIVE' AND NEW."visibility_scope" = 'RESTRICTED' AND NOT EXISTS (
+    SELECT 1
+    FROM "supplier_offer_eligibilities" e
+    JOIN "supplier_connections" sc ON sc."id" = e."supplier_connection_id"
+    WHERE e."supplier_offer_id" = NEW."id"
+      AND sc."status" = 'ACTIVE'
+  ) THEN
+    RAISE EXCEPTION 'active restricted supplier offer requires at least one active eligible connection';
+  END IF;
+
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
 CREATE CONSTRAINT TRIGGER "supplier_offer_eligibilities_restricted_guard"
 AFTER INSERT OR UPDATE OR DELETE ON "supplier_offer_eligibilities"
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
-EXECUTE FUNCTION validate_restricted_supplier_offer_targets();
+EXECUTE FUNCTION validate_restricted_supplier_offer_eligibility_rows();
 
 CREATE CONSTRAINT TRIGGER "supplier_offers_restricted_guard"
 AFTER INSERT OR UPDATE OF "status", "visibility_scope" ON "supplier_offers"
 DEFERRABLE INITIALLY DEFERRED
 FOR EACH ROW
-EXECUTE FUNCTION validate_restricted_supplier_offer_targets();
+EXECUTE FUNCTION validate_restricted_supplier_offer_row();
