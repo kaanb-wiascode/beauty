@@ -1,6 +1,8 @@
 import { Controller, Get, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { ExecutiveFinanceService } from './executive-finance.service';
 
@@ -14,7 +16,8 @@ const rankingSchema = z.object({
 });
 
 @Controller('profitability/cfo')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('finance', 'read')
 export class ExecutiveFinanceController {
   constructor(private readonly executive: ExecutiveFinanceService) {}
 
