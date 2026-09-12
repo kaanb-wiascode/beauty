@@ -11,6 +11,32 @@ Do not merge/push to `main` without explicit approval.
 
 ## 2. Current Implemented Foundations
 
+### CRM Pipeline
+
+Status: **Lead + Opportunity + Follow-up backend foundation implemented; operational UI and Sale linkage pending**
+
+Implemented:
+
+- branch-scoped Lead create/read/update lifecycle
+- controlled Lead qualification that creates at most one Opportunity
+- SERIALIZABLE qualification transaction with optimistic Lead version checks
+- governed Opportunity stage transitions and terminal probability rules
+- Opportunity win converts the originating Lead without creating duplicate financial truth
+- Lead/Opportunity Follow-up create/list/complete workflow
+- active-company-member assignee validation
+- append-only CRM event history
+- database tenant/company/branch/customer/subject scope guards
+- explicit `crm.read` / `crm.manage` RBAC permissions and demo owner grants
+
+Not yet complete:
+
+- CRM pipeline/cockpit UI
+- standalone Customer -> Opportunity workflow
+- Opportunity -> Sale linkage and commercial outcome snapshot
+- follow-up cancellation/rescheduling and notification delivery
+- campaign/segment/marketing automation
+- unified Customer 360 timeline
+
 ### Marketplace
 
 Status: **Publication + public listing foundation + authenticated publication cockpit + public storefront implemented and CI-validated**

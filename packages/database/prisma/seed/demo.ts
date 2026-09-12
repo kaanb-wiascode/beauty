@@ -28,6 +28,8 @@ const PERMISSIONS = [
   ["services", "delete"],
   ["inventory", "read"],
   ["inventory", "write"],
+  ["crm", "read"],
+  ["crm", "manage"],
 ] as const;
 
 

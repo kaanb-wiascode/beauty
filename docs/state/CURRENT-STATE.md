@@ -92,6 +92,20 @@ Implemented and substantially hardened:
 - refunds and payment reversals
 - accounting links from operational source documents
 
+### CRM pipeline
+
+The first governed CRM pipeline foundation is implemented:
+
+- branch-scoped Lead lifecycle (`NEW`, `CONTACTED`, `QUALIFIED`, `LOST`, `CONVERTED`)
+- idempotent Lead -> Opportunity qualification under a serializable transaction
+- governed Opportunity stage progression with optimistic version checks
+- Lead/Opportunity Follow-up tasks with assignee, channel, due date and completion outcome
+- append-only CRM events
+- database-enforced tenant/company/branch and subject scope guards
+- explicit `crm.read` / `crm.manage` permissions
+
+Frontend pipeline/cockpit, standalone Customer -> Opportunity creation and Opportunity -> Sale linkage remain future increments.
+
 ### Accounting / Finance
 
 Implemented at advanced level:

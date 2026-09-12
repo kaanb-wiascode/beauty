@@ -30,6 +30,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
 import { QualityModule } from './modules/quality/quality.module';
 import { TrainingModule } from './modules/training/training.module';
+import { CrmModule } from './modules/crm/crm.module';
 
 @Module({
   imports: [
@@ -67,6 +68,7 @@ import { TrainingModule } from './modules/training/training.module';
     SupplierNetworkModule,
     QualityModule,
     TrainingModule,
+    CrmModule,
   ],
 })
 export class AppModule {}
