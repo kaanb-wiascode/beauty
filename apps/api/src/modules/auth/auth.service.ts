@@ -382,9 +382,9 @@ export class AuthService {
     }
 
     const branchId =
-      membership.role.scope === 'BRANCH'
-        ? membership.branchAccesses[0]?.branchId ?? null
-        : null;
+      membership.branchAccesses.find(
+        (access) => access.branch.status === 'ACTIVE',
+      )?.branchId ?? null;
 
     if (
       membership.role.scope === 'BRANCH' &&
@@ -629,17 +629,34 @@ export class AuthService {
       );
     }
 
-    const branchId =
-      membership.role.scope === 'BRANCH'
-        ? (
-            session.branchId &&
-            membership.branchAccesses.some(
-              (access) => access.branchId === session.branchId,
-            )
-              ? session.branchId
-              : membership.branchAccesses[0]?.branchId ?? null
-          )
-        : null;
+    let branchId = session.branchId ?? null;
+
+    if (branchId) {
+      const activeBranch = await this.prisma.branch.findFirst({
+        where: {
+          id: branchId,
+          companyId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      const hasBranchAccess =
+        membership.role.scope === 'CENTRAL' ||
+        membership.branchAccesses.some(
+          (access) => access.branchId === branchId,
+        );
+
+      if (!activeBranch || !hasBranchAccess) {
+        branchId = null;
+      }
+    }
+
+    if (membership.role.scope === 'BRANCH' && !branchId) {
+      branchId =
+        membership.branchAccesses.find(
+          (access) => access.branch.status === 'ACTIVE',
+        )?.branchId ?? null;
+    }
 
     if (
       membership.role.scope === 'BRANCH' &&
