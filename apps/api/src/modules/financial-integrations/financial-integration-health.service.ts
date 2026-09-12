@@ -64,7 +64,13 @@ export class FinancialIntegrationHealthService {
               (SELECT COUNT(*)::int
                FROM bank_transactions t
                JOIN bank_accounts a ON a.id=t.bank_account_id
-               WHERE a.integration_id=i.id AND t.reconciliation_status='UNMATCHED') AS "unmatchedBankTransactionCount"
+               WHERE a.integration_id=i.id AND t.reconciliation_status='UNMATCHED') AS "unmatchedBankTransactionCount",
+              (SELECT COUNT(*)::int
+               FROM pos_refund_requests rr
+               WHERE rr.integration_id=i.id
+                 AND rr.tenant_id=i.tenant_id
+                 AND rr.company_id=i.company_id
+                 AND rr.status='REVIEW_REQUIRED') AS "refundReviewRequiredCount"
        FROM finance_integrations i
        WHERE i.id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
          AND ($4::text IS NULL OR i.branch_id=$4::text)
@@ -186,6 +192,12 @@ export class FinancialIntegrationHealthService {
               unmatchedTransactionCount: Number(row.unmatchedBankTransactionCount ?? 0),
               transactionWatermark,
               transactionOverlapHours,
+            }
+          : null,
+      pos:
+        row.kind === 'VIRTUAL_POS'
+          ? {
+              refundReviewRequiredCount: Number(row.refundReviewRequiredCount ?? 0),
             }
           : null,
       lastError: row.lastError ?? null,
