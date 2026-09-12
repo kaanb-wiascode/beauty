@@ -19,6 +19,7 @@ import {
 } from "@/components/form-system";
 import { Alert, Button, Modal, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getActiveBranchId } from "@/lib/auth";
 
 type Transfer = {
   id: string;
@@ -29,19 +30,20 @@ type Transfer = {
   createdAt: string;
 };
 
-type Warehouse = { id: string; name: string; type: string };
+type Warehouse = { id: string; name: string; type: string; branchId?: string | null };
 type Product = { id: string; name: string; unit: string };
 type InventoryOverview = { warehouses?: Warehouse[] };
 
 const STATUS_LABELS: Record<string, string> = {
-  PENDING: "Onay bekliyor",
+  PENDING: "Onay Bekliyor",
   APPROVED: "Onaylandı",
   IN_TRANSIT: "Yolda",
-  RECEIVED: "Teslim alındı",
-  CANCELLED: "İptal",
+  RECEIVED: "Teslim Alındı",
+  CANCELLED: "İptal Edildi",
 };
 
 export default function TransfersPage() {
+  const activeBranchId = getActiveBranchId();
   const [rows, setRows] = useState<Transfer[]>([]);
   const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
   const [products, setProducts] = useState<Product[]>([]);
@@ -67,7 +69,7 @@ export default function TransfersPage() {
       setProducts(productRows);
       setRows(transfers);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Transferler yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Transferler Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -76,6 +78,14 @@ export default function TransfersPage() {
   useEffect(() => {
     void load();
   }, []);
+
+  const sourceWarehouses = useMemo(
+    () =>
+      activeBranchId
+        ? warehouses.filter((warehouse) => warehouse.branchId === activeBranchId)
+        : warehouses,
+    [activeBranchId, warehouses],
+  );
 
   const statuses = useMemo(
     () => Array.from(new Set(rows.map((row) => row.status))).sort(),
@@ -107,11 +117,11 @@ export default function TransfersPage() {
     setError("");
 
     if (!source || !destination || !product || Number(quantity) <= 0) {
-      setError("Çıkış, varış, ürün ve pozitif miktar seçilmelidir.");
+      setError("Çıkış, Varış, Ürün Ve Pozitif Miktar Seçilmelidir.");
       return;
     }
     if (source === destination) {
-      setError("Çıkış ve varış deposu aynı olamaz.");
+      setError("Çıkış Ve Varış Deposu Aynı Olamaz.");
       return;
     }
 
@@ -129,7 +139,7 @@ export default function TransfersPage() {
       resetForm();
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Transfer oluşturulamadı.");
+      setError(requestError instanceof ApiError ? requestError.message : "Transfer Oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -151,7 +161,7 @@ export default function TransfersPage() {
   if (loading) {
     return (
       <div className="py-16">
-        <Spinner label="Transferler hazırlanıyor..." />
+        <Spinner label="Transferler Hazırlanıyor..." />
       </div>
     );
   }
@@ -161,16 +171,16 @@ export default function TransfersPage() {
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">
-            ENVANTER
+            Envanter
           </p>
           <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">
             Depo Transferleri
           </h1>
           <p className="mt-1 text-[14px] text-[var(--muted)]">
-            Ana depo ve şubeler arasındaki stok transferlerini takip edin.
+            Ana Depo Ve Şubeler Arasındaki Stok Transferlerini Takip Edin.
           </p>
         </div>
-        <Button onClick={() => setOpen(true)}>+ Transfer oluştur</Button>
+        <Button onClick={() => setOpen(true)}>+ Transfer Oluştur</Button>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -180,21 +190,21 @@ export default function TransfersPage() {
           search={
             <SearchField
               value={search}
-              placeholder="Çıkış veya varış lokasyonu ara..."
+              placeholder="Çıkış Veya Varış Lokasyonu Ara..."
               onChange={(event) => setSearch(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") setSearch("");
               }}
-              aria-label="Transferlerde ara"
+              aria-label="Transferlerde Ara"
             />
           }
           actions={
             <ToolbarSelect
               value={status}
               onChange={(event) => setStatus(event.target.value)}
-              aria-label="Transfer durumu"
+              aria-label="Transfer Durumu"
             >
-              <option value="">Tüm durumlar</option>
+              <option value="">Tüm Durumlar</option>
               {statuses.map((value) => (
                 <option key={value} value={value}>
                   {STATUS_LABELS[value] ?? value}
@@ -208,7 +218,7 @@ export default function TransfersPage() {
                 Tümü
               </FilterChip>
               <FilterChip active={status === "PENDING"} count={pendingCount} onClick={() => setStatus("PENDING")}>
-                Onay bekleyen
+                Onay Bekleyen
               </FilterChip>
               <FilterChip active={status === "IN_TRANSIT"} count={transitCount} onClick={() => setStatus("IN_TRANSIT")}>
                 Yolda
@@ -233,7 +243,7 @@ export default function TransfersPage() {
               >
                 <span className="text-[12px] font-semibold text-[var(--ink)]">{transfer.sourceName}</span>
                 <span className="text-[12px] text-[var(--muted)]">→ {transfer.destinationName}</span>
-                <span className="text-[12px] text-[var(--muted)]">{transfer.itemCount} ürün</span>
+                <span className="text-[12px] text-[var(--muted)]">{transfer.itemCount} Ürün</span>
                 <TransferStatus status={transfer.status} />
                 <span className="text-[10px] text-[var(--muted-soft)]">{formatDateTime(transfer.createdAt)}</span>
               </div>
@@ -252,7 +262,7 @@ export default function TransfersPage() {
                 <TransferStatus status={transfer.status} />
               </div>
               <div className="flex items-center justify-between text-[10px] text-[var(--muted-soft)]">
-                <span>{transfer.itemCount} ürün</span>
+                <span>{transfer.itemCount} Ürün</span>
                 <span>{formatDateTime(transfer.createdAt)}</span>
               </div>
             </article>
@@ -261,33 +271,33 @@ export default function TransfersPage() {
 
         {!visibleRows.length ? (
           <div className="px-5 py-14 text-center">
-            <p className="text-[13px] font-medium text-[var(--ink)]">Eşleşen transfer yok.</p>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">Arama veya durum filtresini değiştirin.</p>
+            <p className="text-[13px] font-medium text-[var(--ink)]">Eşleşen Transfer Yok.</p>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">Arama Veya Durum Filtresini Değiştirin.</p>
           </div>
         ) : null}
 
         <DataViewMeta>
-          <span>{visibleRows.length} kayıt gösteriliyor</span>
-          <span>Toplam {rows.length} transfer</span>
+          <span>{visibleRows.length} Kayıt Gösteriliyor</span>
+          <span>Toplam {rows.length} Transfer</span>
         </DataViewMeta>
       </DataView>
 
       <Modal open={open} onClose={closeModal} title="Yeni Transfer">
         <form onSubmit={submit}>
           <FormSection
-            title="Transfer bilgileri"
-            description="Transfer, onay bekleyen kayıt olarak oluşturulur; stok hareketi sonraki operasyon adımlarında gerçekleşir."
+            title="Transfer Bilgileri"
+            description="Transfer, Onay Bekleyen Kayıt Olarak Oluşturulur; Stok Hareketi Sonraki Operasyon Adımlarında Gerçekleşir."
           >
             <FormGrid>
-              <SelectField label="Çıkış deposu" value={source} onChange={setSource}>
+              <SelectField label="Çıkış Deposu" value={source} onChange={setSource}>
                 <option value="">Seçin</option>
-                {warehouses.map((warehouse) => (
+                {sourceWarehouses.map((warehouse) => (
                   <option key={warehouse.id} value={warehouse.id}>
                     {warehouse.name}
                   </option>
                 ))}
               </SelectField>
-              <SelectField label="Varış deposu" value={destination} onChange={setDestination}>
+              <SelectField label="Varış Deposu" value={destination} onChange={setDestination}>
                 <option value="">Seçin</option>
                 {warehouses
                   .filter((warehouse) => warehouse.id !== source)
@@ -318,15 +328,15 @@ export default function TransfersPage() {
                 />
               </label>
             </FormGrid>
-            <FormHint tone="info" title="Stok bütünlüğü">
-              Kaynak ve hedef depo birbirinden farklı olmalıdır. Bu form yalnız transfer talebini oluşturur; onay, sevk ve teslim alma durumları backend governance akışı tarafından yönetilir.
+            <FormHint tone="info" title="Stok Bütünlüğü">
+              Aktif Şube Seçiliyken Çıkış Deposu O Şubeye Ait Olmalıdır. Varış Deposu Başka Bir Şube Veya Ana Depo Olabilir. Transfer Talebi Onay, Sevk Ve Teslim Alma Adımlarıyla Yönetilir.
             </FormHint>
           </FormSection>
           <FormActions>
             <Button type="button" variant="secondary" onClick={closeModal} disabled={saving}>
               Vazgeç
             </Button>
-            <FormSubmitButton saving={saving} idleLabel="Transfer talebi oluştur" savingLabel="Oluşturuluyor..." />
+            <FormSubmitButton saving={saving} idleLabel="Transfer Talebi Oluştur" savingLabel="Oluşturuluyor..." />
           </FormActions>
         </form>
       </Modal>
