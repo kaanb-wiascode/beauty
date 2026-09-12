@@ -10,6 +10,12 @@ export interface SaveSupplierQuoteInput {
   currency?: string;
   note?: string;
   validUntil?: Date | null;
+  paymentTermsDays?: number | null;
+  warrantyMonths?: number | null;
+  installationIncluded?: boolean;
+  trainingIncluded?: boolean;
+  serviceSlaDays?: number | null;
+  financingAvailable?: boolean;
   expectedVersion?: number;
   items: Array<{
     rfqItemId: string;
@@ -24,6 +30,17 @@ export interface SaveSupplierQuoteInput {
 export class SupplierQuoteService {
   constructor(private readonly prisma: PrismaService) {}
 
+  private commercialTerms(input: SaveSupplierQuoteInput) {
+    return {
+      paymentTermsDays: input.paymentTermsDays ?? null,
+      warrantyMonths: input.warrantyMonths ?? null,
+      installationIncluded: input.installationIncluded ?? false,
+      trainingIncluded: input.trainingIncluded ?? false,
+      serviceSlaDays: input.serviceSlaDays ?? null,
+      financingAvailable: input.financingAvailable ?? false,
+    };
+  }
+
   async list(principal: SupplierPortalPrincipal) {
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT r.id,r.title,r.note,r.status,r.response_deadline AS "responseDeadline",
@@ -32,6 +49,9 @@ export class SupplierQuoteService {
               rs.id AS "rfqSupplierId",rs.status AS "invitationStatus",
               sq.id AS "quoteId",sq.status AS "quoteStatus",sq.currency,
               sq.valid_until AS "validUntil",sq.version,sq.submitted_at AS "submittedAt",
+              sq.payment_terms_days AS "paymentTermsDays",sq.warranty_months AS "warrantyMonths",
+              sq.installation_included AS "installationIncluded",sq.training_included AS "trainingIncluded",
+              sq.service_sla_days AS "serviceSlaDays",sq.financing_available AS "financingAvailable",
               COUNT(DISTINCT ri.id)::int AS "itemCount"
        FROM procurement_rfq_suppliers rs
        JOIN procurement_rfqs r ON r.id=rs.rfq_id
@@ -62,6 +82,9 @@ export class SupplierQuoteService {
               rs.id AS "rfqSupplierId",rs.status AS "invitationStatus",
               sq.id AS "quoteId",sq.status AS "quoteStatus",sq.currency,
               sq.note AS "quoteNote",sq.valid_until AS "validUntil",
+              sq.payment_terms_days AS "paymentTermsDays",sq.warranty_months AS "warrantyMonths",
+              sq.installation_included AS "installationIncluded",sq.training_included AS "trainingIncluded",
+              sq.service_sla_days AS "serviceSlaDays",sq.financing_available AS "financingAvailable",
               sq.version,sq.submitted_at AS "submittedAt"
        FROM procurement_rfq_suppliers rs
        JOIN procurement_rfqs r ON r.id=rs.rfq_id
@@ -109,6 +132,12 @@ export class SupplierQuoteService {
     if (new Set(input.items.map((item) => item.rfqItemId)).size !== input.items.length) {
       throw new BadRequestException('Each RFQ item can appear only once in a supplier quote.');
     }
+    for (const value of [input.paymentTermsDays, input.warrantyMonths, input.serviceSlaDays]) {
+      if (value !== undefined && value !== null && (!Number.isInteger(value) || value < 0)) {
+        throw new BadRequestException('Commercial term durations must be non-negative integers.');
+      }
+    }
+    const terms = this.commercialTerms(input);
 
     return this.prisma.$transaction(
       async (tx) => {
@@ -177,8 +206,10 @@ export class SupplierQuoteService {
           const created = await tx.$queryRawUnsafe<any[]>(
             `INSERT INTO supplier_quotes(
                rfq_id,rfq_supplier_id,supplier_organization_id,currency,note,valid_until,
+               payment_terms_days,warranty_months,installation_included,training_included,
+               service_sla_days,financing_available,
                created_by_supplier_membership_id,updated_by_supplier_membership_id
-             ) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7::text,$7::text)
+             ) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::text,$13::text)
              RETURNING id,version`,
             rfqId,
             invitation.rfqSupplierId,
@@ -186,6 +217,12 @@ export class SupplierQuoteService {
             (input.currency ?? 'TRY').trim().toUpperCase(),
             input.note?.trim() || null,
             input.validUntil ?? null,
+            terms.paymentTermsDays,
+            terms.warrantyMonths,
+            terms.installationIncluded,
+            terms.trainingIncluded,
+            terms.serviceSlaDays,
+            terms.financingAvailable,
             principal.supplierMembershipId,
           );
           quoteId = created[0].id;
@@ -193,12 +230,13 @@ export class SupplierQuoteService {
           await tx.$executeRawUnsafe(
             `INSERT INTO supplier_quote_events(
                supplier_quote_id,supplier_organization_id,actor_supplier_membership_id,
-               event_type,to_status,to_version
-             ) VALUES($1::text,$2::text,$3::text,'CREATED','DRAFT',$4)`,
+               event_type,to_status,to_version,metadata
+             ) VALUES($1::text,$2::text,$3::text,'CREATED','DRAFT',$4,$5::jsonb)`,
             quoteId,
             principal.supplierOrganizationId,
             principal.supplierMembershipId,
             newVersion,
+            JSON.stringify({ commercialTerms: terms }),
           );
         } else {
           const quote = existing[0];
@@ -212,13 +250,21 @@ export class SupplierQuoteService {
           newVersion = Number(quote.version) + 1;
           const updated = await tx.$executeRawUnsafe(
             `UPDATE supplier_quotes
-             SET currency=$2,note=$3,valid_until=$4,version=version+1,
-                 updated_by_supplier_membership_id=$5::text,updated_at=NOW()
-             WHERE id=$1::text AND version=$6 AND status='DRAFT'`,
+             SET currency=$2,note=$3,valid_until=$4,
+                 payment_terms_days=$5,warranty_months=$6,installation_included=$7,training_included=$8,
+                 service_sla_days=$9,financing_available=$10,version=version+1,
+                 updated_by_supplier_membership_id=$11::text,updated_at=NOW()
+             WHERE id=$1::text AND version=$12 AND status='DRAFT'`,
             quoteId,
             (input.currency ?? 'TRY').trim().toUpperCase(),
             input.note?.trim() || null,
             input.validUntil ?? null,
+            terms.paymentTermsDays,
+            terms.warrantyMonths,
+            terms.installationIncluded,
+            terms.trainingIncluded,
+            terms.serviceSlaDays,
+            terms.financingAvailable,
             principal.supplierMembershipId,
             Number(quote.version),
           );
@@ -232,13 +278,14 @@ export class SupplierQuoteService {
           await tx.$executeRawUnsafe(
             `INSERT INTO supplier_quote_events(
                supplier_quote_id,supplier_organization_id,actor_supplier_membership_id,
-               event_type,from_status,to_status,from_version,to_version
-             ) VALUES($1::text,$2::text,$3::text,'UPDATED','DRAFT','DRAFT',$4,$5)`,
+               event_type,from_status,to_status,from_version,to_version,metadata
+             ) VALUES($1::text,$2::text,$3::text,'UPDATED','DRAFT','DRAFT',$4,$5,$6::jsonb)`,
             quoteId,
             principal.supplierOrganizationId,
             principal.supplierMembershipId,
             Number(quote.version),
             newVersion,
+            JSON.stringify({ commercialTerms: terms }),
           );
         }
 
