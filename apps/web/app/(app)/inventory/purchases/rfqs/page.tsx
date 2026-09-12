@@ -3,15 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
-import {
-  Alert,
-  Button,
-  Field,
-  Select,
-  Spinner,
-  StatusBadge,
-  TextInput,
-} from "@/components/ui";
+import { Alert, Button, Field, Select, Spinner, StatusBadge, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -35,11 +27,7 @@ type SupplierOption = {
   supplierName: string;
   organizationType: string;
 };
-type RfqOptions = {
-  warehouses: Warehouse[];
-  products: LinkedProduct[];
-  suppliers: SupplierOption[];
-};
+type RfqOptions = { warehouses: Warehouse[]; products: LinkedProduct[]; suppliers: SupplierOption[] };
 type RfqListRow = {
   id: string;
   title: string;
@@ -58,6 +46,29 @@ type RfqListRow = {
   itemCount: number;
   supplierCount: number;
   submittedQuoteCount: number;
+};
+type QuoteCommercialTerms = {
+  quoteId: string;
+  paymentTermsDays: number | null;
+  warrantyMonths: number | null;
+  installationIncluded: boolean;
+  trainingIncluded: boolean;
+  serviceSlaDays: number | null;
+  financingAvailable: boolean;
+};
+type RfqQuote = QuoteCommercialTerms & {
+  id: string;
+  rfqSupplierId: string;
+  supplierOrganizationId: string;
+  supplierName: string;
+  currency: string;
+  status: string;
+  note: string | null;
+  validUntil: string | null;
+  version: number;
+  submittedAt: string | null;
+  quotedTotal: number | string;
+  maxLeadTimeDays: number | null;
 };
 type RfqDetail = RfqListRow & {
   items: Array<{
@@ -81,22 +92,8 @@ type RfqDetail = RfqListRow & {
     invitedAt: string;
     respondedAt: string | null;
   }>;
-  quotes: Array<{
-    id: string;
-    rfqSupplierId: string;
-    supplierOrganizationId: string;
-    supplierName: string;
-    currency: string;
-    status: string;
-    note: string | null;
-    validUntil: string | null;
-    version: number;
-    submittedAt: string | null;
-    quotedTotal: number | string;
-    maxLeadTimeDays: number | null;
-  }>;
+  quotes: RfqQuote[];
 };
-
 type DraftItem = { inventoryProductId: string; quantity: string };
 
 const statusLabels: Record<string, string> = {
@@ -109,6 +106,15 @@ const statusLabels: Record<string, string> = {
   ACCEPTED: "Kabul edildi",
   REJECTED: "Reddedildi",
   WITHDRAWN: "Geri çekildi",
+};
+
+const EMPTY_TERMS: Omit<QuoteCommercialTerms, "quoteId"> = {
+  paymentTermsDays: null,
+  warrantyMonths: null,
+  installationIncluded: false,
+  trainingIncluded: false,
+  serviceSlaDays: null,
+  financingAvailable: false,
 };
 
 export default function RfqPage() {
@@ -151,7 +157,20 @@ export default function RfqPage() {
     setDetailLoading(true);
     setError("");
     try {
-      setDetail(await api<RfqDetail>(`/procurement/rfqs/${id}`));
+      const [rfq, terms] = await Promise.all([
+        api<Omit<RfqDetail, "quotes"> & { quotes: Array<Omit<RfqQuote, keyof QuoteCommercialTerms>> }>(`/procurement/rfqs/${id}`),
+        api<QuoteCommercialTerms[]>(`/procurement/rfqs/${id}/commercial-terms`),
+      ]);
+      const termsByQuote = new Map(terms.map((row) => [row.quoteId, row]));
+      setDetail({
+        ...rfq,
+        quotes: rfq.quotes.map((quote) => ({
+          ...EMPTY_TERMS,
+          ...quote,
+          ...(termsByQuote.get(quote.id) ?? {}),
+          quoteId: quote.id,
+        })),
+      });
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "RFQ detayı yüklenemedi.");
     } finally {
@@ -237,10 +256,10 @@ export default function RfqPage() {
     setBusy(true);
     setError("");
     try {
-      const updated = await api<RfqDetail>(`/procurement/rfqs/${detail.id}/${action}`, { method: "POST" });
-      setDetail(updated);
+      await api(`/procurement/rfqs/${detail.id}/${action}`, { method: "POST" });
       showToast(action === "publish" ? "RFQ tedarikçilere yayınlandı." : action === "close" ? "RFQ teklif alımına kapatıldı." : "RFQ iptal edildi.");
       await load();
+      await loadDetail(detail.id);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "RFQ durumu değiştirilemedi.");
     } finally {
@@ -275,7 +294,7 @@ export default function RfqPage() {
         <div>
           <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">SATIN ALMA · RFQ</p>
           <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Teklif Toplama ve Karşılaştırma</h1>
-          <p className="mt-1 max-w-3xl text-[14px] text-[var(--muted)]">Canonical ürün kimliği üzerinden doğrulanmış tedarikçilerden teklif toplayın; kazanan teklif DRAFT satın alma siparişine dönüşür ve mevcut onay zincirine girer.</p>
+          <p className="mt-1 max-w-3xl text-[14px] text-[var(--muted)]">Fiyatın yanında vade, garanti, kurulum, eğitim, SLA ve finansman koşullarını karşılaştırın; kazanan teklif yalnız DRAFT satın alma siparişine dönüşür.</p>
         </div>
         <Link href="/inventory/supplier-network/catalog" className="inline-flex min-h-10 items-center justify-center rounded-[14px] bg-white/70 px-4 py-2.5 text-[13px] font-medium text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-white">Ürün-katalog eşleme</Link>
       </header>
@@ -312,10 +331,10 @@ export default function RfqPage() {
                   <span className="text-[11px] font-medium text-[var(--ink)]">{row.supplierName}</span>
                 </label>
               ))}
-              {!options.suppliers.length ? <p className="px-2 py-3 text-[10px] text-[var(--muted)]">Aktif ve doğrulanmış supplier connection bulunmuyor.</p> : null}
+              {!options.suppliers.length ? <p className="px-2 py-4 text-[10px] text-[var(--warning)]">Aktif ve doğrulanmış SupplierConnection bulunamadı.</p> : null}
             </div>
           </div>
-          <Button type="submit" className="w-full" disabled={!canWrite || busy || !title.trim() || !warehouseId || !supplierIds.length}>RFQ taslağı oluştur</Button>
+          {canWrite ? <Button type="submit" disabled={busy}>RFQ taslağı oluştur</Button> : null}
         </form>
 
         <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
@@ -337,14 +356,32 @@ export default function RfqPage() {
         <section className="space-y-5 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
             <div><div className="flex flex-wrap items-center gap-2"><h2 className="text-[18px] font-semibold text-[var(--ink)]">{detail.title}</h2><StatusBadge status={detail.status} label={statusLabels[detail.status] ?? detail.status} /></div><p className="mt-1 text-[11px] text-[var(--muted)]">{detail.warehouseName}{detail.responseDeadline ? ` · Son teklif ${formatDate(detail.responseDeadline)}` : ""}</p></div>
-            {canWrite ? <div className="flex flex-wrap gap-2">{detail.status === "DRAFT" ? <Button onClick={() => void transition("publish")} disabled={busy}>Yayınla</Button> : null}{detail.status === "PUBLISHED" ? <Button variant="secondary" onClick={() => void transition("close")} disabled={busy}>Teklif alımını kapat</Button> : null}{["DRAFT","PUBLISHED","CLOSED"].includes(detail.status) ? <Button variant="secondary" onClick={() => void transition("cancel")} disabled={busy}>İptal et</Button> : null}</div> : null}
+            {canWrite ? <div className="flex flex-wrap gap-2">{detail.status === "DRAFT" ? <Button onClick={() => void transition("publish")} disabled={busy}>Yayınla</Button> : null}{detail.status === "PUBLISHED" ? <Button variant="secondary" onClick={() => void transition("close")} disabled={busy}>Teklif alımını kapat</Button> : null}{["DRAFT", "PUBLISHED", "CLOSED"].includes(detail.status) ? <Button variant="secondary" onClick={() => void transition("cancel")} disabled={busy}>İptal et</Button> : null}</div> : null}
           </div>
 
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">{detail.items.map((item) => <div key={item.id} className="rounded-[16px] bg-[var(--surface-2)] p-4"><p className="text-[12px] font-semibold text-[var(--ink)]">{item.inventoryProductName}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{item.catalogProductName} · {item.catalogVariantName}</p><p className="mt-2 text-[11px] text-[var(--ink)]">Talep: {Number(item.quantity).toLocaleString("tr-TR")}</p></div>)}</div>
 
           <div>
-            <div className="mb-3 flex items-end justify-between"><div><h3 className="text-[14px] font-semibold text-[var(--ink)]">Tedarikçi teklifleri</h3><p className="mt-1 text-[10px] text-[var(--muted)]">Yalnız SUBMITTED teklifler kazanan olarak seçilebilir.</p></div><span className="text-[10px] text-[var(--muted)]">{submittedQuotes.length} değerlendirilebilir teklif</span></div>
-            <div className="overflow-x-auto rounded-[16px] border border-[var(--line)]"><table className="min-w-full text-left text-[11px]"><thead className="bg-[var(--surface-2)] text-[var(--muted)]"><tr><th className="px-4 py-3">Tedarikçi</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3">Toplam</th><th className="px-4 py-3">Lead time</th><th className="px-4 py-3">Geçerlilik</th><th className="px-4 py-3"></th></tr></thead><tbody className="divide-y divide-[var(--line)]">{detail.quotes.map((quote) => <tr key={quote.id}><td className="px-4 py-3 font-medium text-[var(--ink)]">{quote.supplierName}</td><td className="px-4 py-3"><StatusBadge status={quote.status} label={statusLabels[quote.status] ?? quote.status} /></td><td className="px-4 py-3 font-semibold text-[var(--ink)]">{formatMoney(Number(quote.quotedTotal), quote.currency)}</td><td className="px-4 py-3 text-[var(--muted)]">{quote.maxLeadTimeDays ?? 0} gün</td><td className="px-4 py-3 text-[var(--muted)]">{quote.validUntil ? formatDate(quote.validUntil) : "Süresiz"}</td><td className="px-4 py-3 text-right">{canWrite && quote.status === "SUBMITTED" && ["PUBLISHED","CLOSED"].includes(detail.status) ? <Button onClick={() => void award(quote.id)} disabled={busy}>Kazanan seç</Button> : null}</td></tr>)}{!detail.quotes.length ? <tr><td colSpan={6} className="px-4 py-10 text-center text-[var(--muted)]">Henüz tedarikçi teklifi yok.</td></tr> : null}</tbody></table></div>
+            <div className="mb-3 flex items-end justify-between"><div><h3 className="text-[14px] font-semibold text-[var(--ink)]">Tedarikçi teklifleri</h3><p className="mt-1 text-[10px] text-[var(--muted)]">Fiyat ve ticari şartlar birlikte gösterilir; yalnız SUBMITTED teklifler seçilebilir.</p></div><span className="text-[10px] text-[var(--muted)]">{submittedQuotes.length} değerlendirilebilir teklif</span></div>
+            <div className="space-y-3">
+              {detail.quotes.map((quote) => (
+                <article key={quote.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div><div className="flex flex-wrap items-center gap-2"><h4 className="text-[13px] font-semibold text-[var(--ink)]">{quote.supplierName}</h4><StatusBadge status={quote.status} label={statusLabels[quote.status] ?? quote.status} /></div><p className="mt-2 text-[18px] font-semibold text-[var(--ink)]">{formatMoney(Number(quote.quotedTotal), quote.currency)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Lead time: {quote.maxLeadTimeDays ?? 0} gün · Geçerlilik: {quote.validUntil ? formatDate(quote.validUntil) : "Süresiz"}</p></div>
+                    {canWrite && quote.status === "SUBMITTED" && ["PUBLISHED", "CLOSED"].includes(detail.status) ? <Button onClick={() => void award(quote.id)} disabled={busy}>Kazanan seç</Button> : null}
+                  </div>
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+                    <Term label="Ödeme vadesi" value={quote.paymentTermsDays == null ? "Belirtilmedi" : `${quote.paymentTermsDays} gün`} />
+                    <Term label="Garanti" value={quote.warrantyMonths == null ? "Belirtilmedi" : `${quote.warrantyMonths} ay`} />
+                    <Term label="Kurulum" value={quote.installationIncluded ? "Dahil" : "Dahil değil"} />
+                    <Term label="Eğitim" value={quote.trainingIncluded ? "Dahil" : "Dahil değil"} />
+                    <Term label="Servis SLA" value={quote.serviceSlaDays == null ? "Belirtilmedi" : `${quote.serviceSlaDays} gün`} />
+                    <Term label="Finansman" value={quote.financingAvailable ? "Mevcut" : "Yok"} />
+                  </div>
+                </article>
+              ))}
+              {!detail.quotes.length ? <div className="rounded-[16px] border border-dashed border-[var(--line)] px-4 py-10 text-center text-[var(--muted)]">Henüz tedarikçi teklifi yok.</div> : null}
+            </div>
           </div>
 
           {detail.status === "AWARDED" && detail.convertedPurchaseOrderId ? <Alert tone="success">Kazanan teklif DRAFT satın alma siparişine dönüştürüldü. <Link className="font-semibold underline" href="/inventory/purchases">Siparişler ekranından onay akışına gönderin.</Link></Alert> : null}
@@ -352,6 +389,10 @@ export default function RfqPage() {
       ) : null}
     </div>
   );
+}
+
+function Term({ label, value }: { label: string; value: string }) {
+  return <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2.5"><p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1 text-[11px] font-semibold text-[var(--ink)]">{value}</p></div>;
 }
 
 function formatDate(value: string) {
