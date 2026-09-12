@@ -1,6 +1,7 @@
 # VALOO — Marketplace + Supplier Network Delivery Roadmap
 
 > Status: Canonical delivery sequence
+> Current implementation checkpoint: M6, M7 and M8 feature foundations are implemented on `feature/core-commerce-foundation`; advanced commercial-policy extensions remain explicitly future work.
 > Depends on: `../VALOO-ECOSYSTEM-MASTER-PLAN.md`, `../MARKETPLACE-SUPPLIER-PROCUREMENT-ARCHITECTURE.md`
 
 ## 1. Working Principle
@@ -163,87 +164,134 @@ occurs exactly once for a given idempotent request.
 
 Goal: establish the B2B marketplace product model.
 
-Target entities:
+Implementation status: **foundation implemented**.
 
-- Brand.
-- CatalogProduct.
-- ProductVariant.
-- ProductIdentifier.
-- SupplierOffer.
-- offer validity.
-- MOQ.
-- lead time.
-- currency.
-- availability.
-- territory/eligibility metadata.
+Implemented:
 
-Rules:
+- [x] platform-wide Brand model.
+- [x] canonical CatalogProduct model.
+- [x] canonical ProductVariant model.
+- [x] structured ProductIdentifier foundation.
+- [x] seller-owned SupplierOffer model separated from canonical product identity.
+- [x] offer validity window.
+- [x] MOQ and order-multiple fields.
+- [x] lead/preparation/shipping timing fields.
+- [x] currency, unit price and available quantity.
+- [x] optimistic offer versioning, row locking and append-only offer events.
+- [x] VERIFIED SupplierOrganization required before an offer can become ACTIVE.
+- [x] Supplier Portal catalog/offer management UI.
+- [x] buyer offer-comparison UI across connected verified suppliers.
+- [x] tenant-private inventory product -> global catalog variant mapping with DB scope guard.
+- [x] multiple suppliers can offer the same canonical variant without duplicating product identity.
+
+Still future policy work:
+
+- [ ] private/contract-offer buyer eligibility policy engine.
+- [ ] territory/region eligibility metadata and enforcement.
+- [ ] richer duplicate-product matching/merge operations for catalog governance.
+- [ ] category-specific regulatory identifier policy beyond the structured identifier foundation.
+
+Rules retained:
 
 - canonical product identity is seller-independent.
 - seller price/availability lives in SupplierOffer.
-- duplicate product prevention/matching strategy is required.
-- regulated identifiers remain structured fields, not free-text only.
-
-Acceptance criteria:
-
-- multiple suppliers can offer the same canonical item.
-- buyer can compare offers without duplicated product identity.
-- private/contract offers can be hidden from unauthorized buyers.
+- tenant inventory products remain private and map explicitly to canonical variants.
+- ACTIVE offer discovery is limited to connected, ACTIVE and VERIFIED supplier organizations.
 
 ## 9. Milestone M7 — RFQ + SupplierQuote
 
 Goal: support negotiated/high-value B2B procurement.
 
-Target flow:
+Implementation status: **foundation implemented**.
+
+Implemented flow:
 
 ```text
-PurchaseRequest -> RFQ -> Suppliers -> Quotes -> Comparison -> Award
+Canonical-linked inventory need
+ -> RFQ
+ -> connected invited suppliers
+ -> SupplierQuote
+ -> buyer comparison
+ -> award
+ -> DRAFT PurchaseOrder
 ```
 
-Target comparison fields:
+Implemented:
+
+- [x] RFQ tenant/company/branch scoping.
+- [x] branch-safe warehouse and canonical-linked product options.
+- [x] invited supplier set restricted to ACTIVE SupplierConnection + ACTIVE/VERIFIED SupplierOrganization.
+- [x] supplier-side RFQ organization isolation.
+- [x] SupplierQuote DRAFT / SUBMITTED / WITHDRAWN / ACCEPTED / REJECTED lifecycle.
+- [x] quote optimistic version checks, row locks and SERIALIZABLE transaction boundaries.
+- [x] append-only RFQ and quote events.
+- [x] Supplier Portal RFQ inbox and quote workspace.
+- [x] OWNER/ADMIN quote mutation and MEMBER read-only role boundary.
+- [x] buyer RFQ cockpit with publish/close/cancel, quote comparison and award.
+- [x] winning quote creates only a DRAFT PurchaseOrder; existing procurement approval is never bypassed.
+- [x] repeated award of the same winning quote resolves to the existing conversion instead of duplicating the order.
+- [x] competing submitted quotes are rejected when a winner is awarded.
+
+Current comparison fields:
 
 - price/currency,
-- delivery,
-- warranty,
-- installation,
-- training,
-- payment terms,
-- financing option,
-- service SLA,
-- quote validity.
+- available quantity,
+- lead time,
+- quote validity,
+- supplier identity.
 
-Acceptance criteria:
+Still future commercial expansion:
 
-- RFQ can be scoped to invited or eligible suppliers.
-- supplier sees only RFQs it is authorized to access.
-- competing supplier private quotes are isolated.
-- buyer can award one or more lines according to approved policy.
+- [ ] warranty.
+- [ ] installation.
+- [ ] training.
+- [ ] payment terms.
+- [ ] financing option.
+- [ ] service SLA.
+- [ ] line-split / multi-winner award policy.
 
 ## 10. Milestone M8 — Procurement Integration
 
-Goal: turn a selected Marketplace/Supplier transaction into existing buyer-side procurement records.
+Goal: turn a selected Supplier transaction into existing buyer-side procurement records without creating a parallel purchasing/accounting model.
 
-Required work:
+Implementation status: **end-to-end foundation implemented**.
 
-- SupplierOffer/Quote -> private vendor card mapping.
-- create/connect `inventory_suppliers` safely when policy allows.
-- PurchaseOrder stores snapshot facts needed for audit.
-- GoodsReceipt continues to post inventory.
-- SupplierBill/AP continues to post financial obligation.
-- accounting integrity remains unchanged.
+Implemented:
 
-Acceptance criteria:
+- [x] SupplierConnection maps global SupplierOrganization to the tenant-private `inventory_suppliers` vendor card.
+- [x] ACTIVE SupplierOffer can create an idempotent DRAFT PurchaseOrder.
+- [x] awarded SupplierQuote/RFQ creates a DRAFT PurchaseOrder.
+- [x] SupplierOffer conversion revalidates ACTIVE/VERIFIED organization, ACTIVE connection, current offer version and validity.
+- [x] SupplierOffer conversion enforces MOQ, order multiple and available quantity.
+- [x] SupplierOffer conversion requires the buyer inventory product to map to the same canonical variant.
+- [x] branch warehouse scope is enforced before DRAFT PO creation.
+- [x] existing PO approval workflow remains mandatory; supplier-marketplace selection never produces APPROVED/ORDERED directly.
+- [x] `procurement_purchase_order_origins` stores immutable source facts for SupplierOffer and SupplierQuote origins.
+- [x] origin DB guard verifies PO tenant/company, SupplierConnection/private vendor and source SupplierOrganization consistency.
+- [x] SupplierQuote/RFQ awards are bridged into the same origin model through a DB trigger.
+- [x] source version and high-precision commercial source values remain preserved in JSONB snapshot even where PO accounting unit cost is normalized to two decimals.
+- [x] buyer-side commercial-origin audit endpoint and cockpit expose SupplierOffer / RFQ provenance without mutating the snapshot.
+- [x] GoodsReceipt, inventory, supplier bill/AP and accounting continue through the existing procurement/accounting chain.
+
+Verified chain:
 
 ```text
-SupplierQuote/Offer
- -> PurchaseOrder
+SupplierOffer or SupplierQuote
+ -> tenant-private vendor via SupplierConnection
+ -> DRAFT PurchaseOrder
+ -> Procurement approval
+ -> ORDERED
  -> GoodsReceipt
  -> Inventory
- -> AP
+ -> SupplierBill / AP
  -> Accounting
 ```
 
-is traceable end to end.
+Remaining policy extensions do not block this foundation:
+
+- [ ] automatic creation of a tenant-private vendor card when no approved SupplierConnection exists; current behavior intentionally requires an existing safe mapping.
+- [ ] contract pricing / landed-cost policy layers.
+- [ ] automatic ordering; explicitly out of scope until policy controls and exception handling are production-grade.
 
 ## 11. Milestone M9 — Consumer Experience Expansion
 
