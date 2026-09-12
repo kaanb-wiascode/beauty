@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { FinancialBenchmarkService } from './financial-benchmark.service';
 import { FinancialManagementCockpitService } from './financial-management-cockpit.service';
@@ -49,7 +51,8 @@ const policySchema = z.object({
 });
 
 @Controller('profitability/cfo')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('finance', 'read')
 export class FinancialGovernanceController {
   constructor(
     private readonly benchmark: FinancialBenchmarkService,
@@ -70,6 +73,7 @@ export class FinancialGovernanceController {
   }
 
   @Post('actions')
+  @RequirePermission('finance', 'manage')
   createAction(@Body() body: unknown) {
     return this.actions.create(createActionSchema.parse(body));
   }
@@ -86,6 +90,7 @@ export class FinancialGovernanceController {
   }
 
   @Patch('actions/:id')
+  @RequirePermission('finance', 'manage')
   updateAction(@Param('id') id: string, @Body() body: unknown) {
     return this.actions.update(id, updateActionSchema.parse(body));
   }
@@ -96,16 +101,19 @@ export class FinancialGovernanceController {
   }
 
   @Post('actions/policy')
+  @RequirePermission('finance', 'manage')
   setActionPolicy(@Body() body: unknown) {
     return this.automation.setPolicy(policySchema.parse(body));
   }
 
   @Post('actions/sync-recommendations')
+  @RequirePermission('finance', 'manage')
   syncRecommendations(@Query() query: unknown) {
     return this.automation.syncRecommendations(cfoSchema.parse(query));
   }
 
   @Post('actions/escalate')
+  @RequirePermission('finance', 'manage')
   escalateActions(@Query() query: unknown) {
     const parsed = cfoSchema.parse(query);
     return this.automation.escalateOverdue(parsed.asOf ?? new Date());
