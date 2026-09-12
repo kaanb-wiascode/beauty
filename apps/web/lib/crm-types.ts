@@ -98,13 +98,13 @@ export const leadSourceLabels: Record<string, string> = {
   GOOGLE: "Google",
   REFERRAL: "Tavsiye",
   WALK_IN: "Doğrudan",
-  WEBSITE: "Web sitesi",
+  WEBSITE: "Web Sitesi",
   OTHER: "Diğer",
 };
 
 export const leadStatusLabels: Record<LeadStatus, string> = {
   NEW: "Yeni",
-  CONTACTED: "İletişime geçildi",
+  CONTACTED: "İletişime Geçildi",
   QUALIFIED: "Nitelikli",
   LOST: "Kaybedildi",
   CONVERTED: "Dönüştü",
@@ -112,7 +112,7 @@ export const leadStatusLabels: Record<LeadStatus, string> = {
 
 export const opportunityStageLabels: Record<OpportunityStage, string> = {
   QUALIFIED: "Nitelikli",
-  NEEDS_ANALYSIS: "İhtiyaç analizi",
+  NEEDS_ANALYSIS: "İhtiyaç Analizi",
   PROPOSAL: "Teklif",
   NEGOTIATION: "Görüşme",
   WON: "Kazanıldı",
@@ -122,8 +122,8 @@ export const opportunityStageLabels: Record<OpportunityStage, string> = {
 export const followUpChannelLabels: Record<CrmFollowUp["channel"], string> = {
   CALL: "Telefon",
   SMS: "SMS",
-  EMAIL: "E-posta",
+  EMAIL: "E-Posta",
   WHATSAPP: "WhatsApp",
-  IN_PERSON: "Yüz yüze",
+  IN_PERSON: "Yüz Yüze",
   OTHER: "Diğer",
 };
