@@ -53,6 +53,10 @@ function dateStamp(date: Date) {
   return amzDate(date).slice(0, 8);
 }
 
+function compareLexical(left: string, right: string) {
+  return left < right ? -1 : left > right ? 1 : 0;
+}
+
 @Injectable()
 export class ObjectStorageService {
   private cached?: StorageConfig;
@@ -120,10 +124,12 @@ export class ObjectStorageService {
 
   private canonicalQuery(params: URLSearchParams) {
     return [...params.entries()]
-      .sort(([leftKey, leftValue], [rightKey, rightValue]) =>
-        leftKey === rightKey ? leftValue.localeCompare(rightValue) : leftKey.localeCompare(rightKey),
-      )
-      .map(([key, value]) => `${awsEncode(key)}=${awsEncode(value)}`)
+      .map(([key, value]) => [awsEncode(key), awsEncode(value)] as const)
+      .sort(([leftKey, leftValue], [rightKey, rightValue]) => {
+        const keyOrder = compareLexical(leftKey, rightKey);
+        return keyOrder === 0 ? compareLexical(leftValue, rightValue) : keyOrder;
+      })
+      .map(([key, value]) => `${key}=${value}`)
       .join('&');
   }
 
@@ -189,7 +195,6 @@ export class ObjectStorageService {
       method,
       headers: {
         authorization,
-        host: request.host,
         'x-amz-content-sha256': payloadHash,
         'x-amz-date': timestamp,
       },
@@ -205,8 +210,9 @@ export class ObjectStorageService {
   }
 
   async presignPut(key: string, contentType: string) {
-    const signed = this.presign('PUT', key, {}, contentType);
-    return { ...signed, requiredHeaders: { 'content-type': contentType } };
+    const normalizedContentType = contentType.trim().toLowerCase();
+    const signed = this.presign('PUT', key, {}, normalizedContentType);
+    return { ...signed, requiredHeaders: { 'content-type': normalizedContentType } };
   }
 
   async presignGet(key: string, downloadName?: string | null) {
@@ -214,7 +220,7 @@ export class ObjectStorageService {
       'GET',
       key,
       downloadName
-        ? { 'response-content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(downloadName)}` }
+        ? { 'response-content-disposition': `attachment; filename*=UTF-8''${downloadName}` }
         : {},
     );
   }
