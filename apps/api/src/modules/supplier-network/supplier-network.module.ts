@@ -5,6 +5,8 @@ import { JwtModule } from '@nestjs/jwt';
 import { PlatformAdminGuard } from '../../common/auth/platform-admin.guard';
 import { PlatformSupplierNetworkController } from './platform-supplier-network.controller';
 import { PlatformSupplierNetworkService } from './platform-supplier-network.service';
+import { SupplierCatalogBuyerController } from './supplier-catalog-buyer.controller';
+import { SupplierCatalogBuyerService } from './supplier-catalog-buyer.service';
 import { SupplierCatalogController } from './supplier-catalog.controller';
 import { SupplierCatalogService } from './supplier-catalog.service';
 import { SupplierInvitationController } from './supplier-invitation.controller';
@@ -44,6 +46,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierPortalAuthController,
     SupplierInvitationController,
     SupplierCatalogController,
+    SupplierCatalogBuyerController,
     SupplierOfferController,
     SupplierOfferBuyerController,
     SupplierQuoteController,
@@ -56,6 +59,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
     SupplierPortalAuthService,
     SupplierInvitationService,
     SupplierCatalogService,
+    SupplierCatalogBuyerService,
     SupplierOfferService,
     SupplierOfferBuyerService,
     SupplierQuoteService,
@@ -65,6 +69,7 @@ import { SupplierVerificationService } from './supplier-verification.service';
   ],
   exports: [
     SupplierNetworkService,
+    SupplierCatalogBuyerService,
     SupplierOfferBuyerService,
     SupplierQuoteService,
     SupplierPortalAuthGuard,
