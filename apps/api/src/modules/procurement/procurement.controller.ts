@@ -72,6 +72,9 @@ export class ProcurementController {
   @Get('purchase-orders')
   listPurchaseOrders() { return this.orders.list(); }
 
+  @Get('purchase-orders/:id/origin')
+  getPurchaseOrderOrigin(@Param('id') id: string) { return this.orders.getOrigin(id); }
+
   @Get('purchase-orders/:id')
   getPurchaseOrder(@Param('id') id: string) { return this.service.getPurchaseOrderDetail(id); }
 
