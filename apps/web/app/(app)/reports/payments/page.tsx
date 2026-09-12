@@ -112,7 +112,7 @@ export default function PaymentReportsPage() {
       {loading ? <div className="flex min-h-[360px] items-center justify-center"><Spinner label="Ödeme Raporu Hazırlanıyor..." /></div> : summary ? (
         <>
           <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-            <MetricCard label="Net Tahsilat" value={formatMoney(summary.net)} detail="Brüt Tahsilat − İadeler" accent="purple" />
+            <MetricCard label="Net Tahsilat" value={formatMoney(summary.net)} detail="Brüt Tahsilat − İadeler" accent="cyan" />
             <MetricCard label="Brüt Tahsilat" value={formatMoney(summary.gross)} detail={`${summary.paymentCount} İşlem`} accent="green" />
             <MetricCard label="İadeler" value={formatMoney(summary.refunds)} detail={`${summary.refundCount} İade`} accent="rose" />
             <MetricCard label="Ortalama İşlem" value={formatMoney(averagePayment)} detail="Tahsilat Başına" accent="amber" />
@@ -147,8 +147,8 @@ export default function PaymentReportsPage() {
   );
 }
 
-function MetricCard({ label, value, detail, accent }: { label: string; value: string; detail: string; accent: "purple" | "green" | "rose" | "amber" | "blue" }) {
-  const accents = { purple: "bg-[#f1edff] text-[#7357d9]", green: "bg-[#eaf7ef] text-[#4a9665]", rose: "bg-[#fff0f1] text-[#d76a73]", amber: "bg-[#fff5e8] text-[#c8872d]", blue: "bg-[#edf4fb] text-[#5b87b4]" };
+function MetricCard({ label, value, detail, accent }: { label: string; value: string; detail: string; accent: "cyan" | "green" | "rose" | "amber" | "blue" }) {
+  const accents = { cyan: "bg-[#EAF5FB] text-[#1674BD]", green: "bg-[#eaf7ef] text-[#4a9665]", rose: "bg-[#fff0f1] text-[#d76a73]", amber: "bg-[#fff5e8] text-[#c8872d]", blue: "bg-[#edf4fb] text-[#5b87b4]" };
   return <GlassCard className="min-w-0 p-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--muted-soft)]">{label}</p><p className="mt-2 truncate text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p></div><span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] text-[15px] ${accents[accent]}`}>₺</span></div><p className="mt-2 truncate text-[11px] text-[var(--muted)]">{detail}</p></GlassCard>;
 }
 
