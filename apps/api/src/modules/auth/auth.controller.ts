@@ -7,6 +7,7 @@ import {
   UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { z } from 'zod';
 
 import { AuthService } from './auth.service';
 import {
@@ -25,6 +26,15 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
+
+const switchContextSchema = z.object({
+  membershipId: z.string().uuid(),
+  branchId: z.string().uuid().nullable(),
+});
+
+const refreshTokenSchema = z.object({
+  refreshToken: z.string().uuid(),
+});
 
 @Controller('auth')
 @UseGuards(AuthPublicRateLimitGuard)
@@ -126,24 +136,27 @@ export class AuthController {
   @Post('context/switch')
   async switchContext(
     @CurrentUser() user: JwtPayload,
-    @Body() body: { membershipId: string; branchId: string | null },
+    @Body() body: unknown,
   ) {
+    const input = switchContextSchema.parse(body);
     return this.authService.switchContext(
-      body.membershipId,
-      body.branchId ?? null,
+      input.membershipId,
+      input.branchId,
       user.sub,
     );
   }
 
   @Post('refresh')
   @AuthPublicRateLimit('refresh', 30, 60)
-  async refresh(@Body() body: { refreshToken: string }) {
-    return this.authService.refresh(body.refreshToken);
+  async refresh(@Body() body: unknown) {
+    const input = refreshTokenSchema.parse(body);
+    return this.authService.refresh(input.refreshToken);
   }
 
   @Post('logout')
-  async logout(@Body() body: { refreshToken: string }) {
-    return this.authService.logout(body.refreshToken);
+  async logout(@Body() body: unknown) {
+    const input = refreshTokenSchema.parse(body);
+    return this.authService.logout(input.refreshToken);
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
