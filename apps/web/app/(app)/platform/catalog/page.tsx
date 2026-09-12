@@ -11,6 +11,25 @@ type Product = { id: string; brandId: string | null; brandName: string | null; s
 type Identifier = { id: string; identifierType: string; identifierValue: string };
 type Variant = { id: string; catalogProductId: string; productName: string; canonicalSku: string | null; name: string; unit: string; attributes: Record<string, unknown>; status: string; identifiers: Identifier[] };
 
+const unitLabels: Record<string, string> = {
+  UNIT: "Adet",
+  ML: "Mililitre",
+  LITER: "Litre",
+  GRAM: "Gram",
+  KG: "Kilogram",
+  METER: "Metre",
+  PAIR: "Çift",
+  BOX: "Kutu",
+};
+
+const identifierLabels: Record<string, string> = {
+  EAN: "EAN Barkodu",
+  GTIN: "GTIN Barkodu",
+  UPC: "UPC Barkodu",
+  MPN: "Üretici Parça Numarası",
+  OTHER: "Diğer Tanımlayıcı",
+};
+
 export default function PlatformCatalogPage() {
   const { showToast } = useToast();
   const [brands, setBrands] = useState<Brand[]>([]);
@@ -47,7 +66,7 @@ export default function PlatformCatalogPage() {
       setProducts(productRows);
       setVariants(variantRows);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Canonical katalog yüklenemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Ürün Kataloğu Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -66,7 +85,7 @@ export default function PlatformCatalogPage() {
       showToast(success);
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Katalog işlemi tamamlanamadı.");
+      setError(requestError instanceof ApiError ? requestError.message : "Katalog İşlemi Tamamlanamadı.");
     } finally {
       setSaving(false);
     }
@@ -76,7 +95,7 @@ export default function PlatformCatalogPage() {
     event.preventDefault();
     await run(
       () => api("/platform/catalog/brands", { method: "POST", body: { name: brandName.trim(), slug: brandSlug.trim() || slugify(brandName) } }),
-      "Marka oluşturuldu.",
+      "Marka Oluşturuldu.",
     );
     setBrandName(""); setBrandSlug("");
   }
@@ -85,7 +104,7 @@ export default function PlatformCatalogPage() {
     event.preventDefault();
     await run(
       () => api("/platform/catalog/products", { method: "POST", body: { name: productName.trim(), slug: productSlug.trim() || slugify(productName), brandId: productBrandId || undefined, categoryCode: categoryCode.trim() || undefined } }),
-      "Canonical ürün oluşturuldu.",
+      "Ürün Oluşturuldu.",
     );
     setProductName(""); setProductSlug(""); setProductBrandId(""); setCategoryCode("");
   }
@@ -95,7 +114,7 @@ export default function PlatformCatalogPage() {
     if (!variantProductId) return;
     await run(
       () => api(`/platform/catalog/products/${variantProductId}/variants`, { method: "POST", body: { name: variantName.trim(), canonicalSku: canonicalSku.trim() || undefined, unit: variantUnit } }),
-      "Ürün varyantı oluşturuldu.",
+      "Ürün Seçeneği Oluşturuldu.",
     );
     setVariantName(""); setCanonicalSku("");
   }
@@ -105,63 +124,63 @@ export default function PlatformCatalogPage() {
     if (!identifierVariantId) return;
     await run(
       () => api(`/platform/catalog/variants/${identifierVariantId}/identifiers`, { method: "POST", body: { type: identifierType, value: identifierValue.trim() } }),
-      "Ürün identifier'ı eklendi.",
+      "Ürün Tanımlayıcısı Eklendi.",
     );
     setIdentifierValue("");
   }
 
-  if (loading) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Canonical katalog hazırlanıyor..." /></div>;
+  if (loading) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Ürün Kataloğu Hazırlanıyor..." /></div>;
 
   return (
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
       <header>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">PLATFORM KATALOĞU</p>
-        <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Canonical Ürün Kataloğu</h1>
-        <p className="mt-1 max-w-4xl text-[14px] text-[var(--muted)]">Marka, ürün kimliği, varyant ve barkod/üretici tanımlayıcılarını tedarikçi tekliflerinden bağımsız yönetin. Tedarikçi yalnız bu canonical varyantlara ticari teklif bağlar.</p>
+        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">Platform Kataloğu</p>
+        <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Ürün Kataloğu</h1>
+        <p className="mt-1 max-w-4xl text-[14px] text-[var(--muted)]">Markaları, Ürünleri, Ürün Seçeneklerini Ve Barkod Bilgilerini Tek Merkezden Yönetin.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Marka" value={brands.length} />
-        <Metric label="Canonical ürün" value={products.length} />
-        <Metric label="Varyant" value={variants.length} />
-        <Metric label="Identifier" value={identifierCount} />
+        <Metric label="Ürün" value={products.length} />
+        <Metric label="Ürün Seçeneği" value={variants.length} />
+        <Metric label="Ürün Tanımlayıcısı" value={identifierCount} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-4">
-        <FormCard title="Marka oluştur" description="Global marka kimliği">
+        <FormCard title="Marka Oluştur" description="Yeni Marka Kaydı Oluşturun.">
           <form className="space-y-3" onSubmit={createBrand}>
-            <Field label="Marka adı" required><TextInput value={brandName} onChange={(e) => setBrandName(e.target.value)} required /></Field>
-            <Field label="Slug"><TextInput value={brandSlug} onChange={(e) => setBrandSlug(e.target.value)} placeholder={slugify(brandName) || "marka-slug"} /></Field>
+            <Field label="Marka Adı" required><TextInput value={brandName} onChange={(e) => setBrandName(e.target.value)} required /></Field>
+            <Field label="Yayın Adı"><TextInput value={brandSlug} onChange={(e) => setBrandSlug(e.target.value)} placeholder={slugify(brandName) || "marka-adi"} /></Field>
             <Button className="w-full" type="submit" disabled={saving || !brandName.trim()}>Kaydet</Button>
           </form>
         </FormCard>
 
-        <FormCard title="Ürün oluştur" description="Tedarikçiden bağımsız ürün">
+        <FormCard title="Ürün Oluştur" description="Tedarikçilerden Bağımsız Ana Ürün Kaydı Oluşturun.">
           <form className="space-y-3" onSubmit={createProduct}>
-            <Field label="Ürün adı" required><TextInput value={productName} onChange={(e) => setProductName(e.target.value)} required /></Field>
+            <Field label="Ürün Adı" required><TextInput value={productName} onChange={(e) => setProductName(e.target.value)} required /></Field>
             <Field label="Marka"><Select value={productBrandId} onChange={(e) => setProductBrandId(e.target.value)}><option value="">Markasız</option>{brands.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select></Field>
-            <Field label="Kategori kodu"><TextInput value={categoryCode} onChange={(e) => setCategoryCode(e.target.value)} /></Field>
-            <Field label="Slug"><TextInput value={productSlug} onChange={(e) => setProductSlug(e.target.value)} placeholder={slugify(productName) || "urun-slug"} /></Field>
+            <Field label="Kategori Kodu"><TextInput value={categoryCode} onChange={(e) => setCategoryCode(e.target.value)} /></Field>
+            <Field label="Yayın Adı"><TextInput value={productSlug} onChange={(e) => setProductSlug(e.target.value)} placeholder={slugify(productName) || "urun-adi"} /></Field>
             <Button className="w-full" type="submit" disabled={saving || !productName.trim()}>Kaydet</Button>
           </form>
         </FormCard>
 
-        <FormCard title="Varyant oluştur" description="Satılabilir canonical varyant">
+        <FormCard title="Ürün Seçeneği Oluştur" description="Ürünün Satılabilir Ölçü Veya Paket Seçeneğini Tanımlayın.">
           <form className="space-y-3" onSubmit={createVariant}>
-            <Field label="Ürün" required><Select value={variantProductId} onChange={(e) => setVariantProductId(e.target.value)} required><option value="">Ürün seçin</option>{products.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select></Field>
-            <Field label="Varyant adı" required><TextInput value={variantName} onChange={(e) => setVariantName(e.target.value)} required /></Field>
-            <Field label="Canonical SKU"><TextInput value={canonicalSku} onChange={(e) => setCanonicalSku(e.target.value)} /></Field>
-            <Field label="Birim"><Select value={variantUnit} onChange={(e) => setVariantUnit(e.target.value)}>{["UNIT","ML","LITER","GRAM","KG","METER","PAIR","BOX"].map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+            <Field label="Ürün" required><Select value={variantProductId} onChange={(e) => setVariantProductId(e.target.value)} required><option value="">Ürün Seçin</option>{products.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</Select></Field>
+            <Field label="Seçenek Adı" required><TextInput value={variantName} onChange={(e) => setVariantName(e.target.value)} required /></Field>
+            <Field label="Stok Kodu"><TextInput value={canonicalSku} onChange={(e) => setCanonicalSku(e.target.value)} /></Field>
+            <Field label="Birim"><Select value={variantUnit} onChange={(e) => setVariantUnit(e.target.value)}>{Object.entries(unitLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
             <Button className="w-full" type="submit" disabled={saving || !variantProductId || !variantName.trim()}>Kaydet</Button>
           </form>
         </FormCard>
 
-        <FormCard title="Identifier ekle" description="EAN / GTIN / UPC / MPN">
+        <FormCard title="Ürün Tanımlayıcısı Ekle" description="Barkod Veya Üretici Numarası Ekleyin.">
           <form className="space-y-3" onSubmit={createIdentifier}>
-            <Field label="Varyant" required><Select value={identifierVariantId} onChange={(e) => setIdentifierVariantId(e.target.value)} required><option value="">Varyant seçin</option>{variants.map((row) => <option key={row.id} value={row.id}>{row.productName} · {row.name}</option>)}</Select></Field>
-            <Field label="Tip"><Select value={identifierType} onChange={(e) => setIdentifierType(e.target.value)}>{["EAN","GTIN","UPC","MPN","OTHER"].map((value) => <option key={value} value={value}>{value}</option>)}</Select></Field>
+            <Field label="Ürün Seçeneği" required><Select value={identifierVariantId} onChange={(e) => setIdentifierVariantId(e.target.value)} required><option value="">Ürün Seçeneği Seçin</option>{variants.map((row) => <option key={row.id} value={row.id}>{row.productName} · {row.name}</option>)}</Select></Field>
+            <Field label="Tanımlayıcı Türü"><Select value={identifierType} onChange={(e) => setIdentifierType(e.target.value)}>{Object.entries(identifierLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</Select></Field>
             <Field label="Değer" required><TextInput value={identifierValue} onChange={(e) => setIdentifierValue(e.target.value)} required /></Field>
             <Button className="w-full" type="submit" disabled={saving || !identifierVariantId || !identifierValue.trim()}>Ekle</Button>
           </form>
@@ -169,17 +188,17 @@ export default function PlatformCatalogPage() {
       </section>
 
       <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
-        <div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[14px] font-semibold text-[var(--ink)]">Canonical varyantlar</h2><p className="mt-1 text-[11px] text-[var(--muted)]">SupplierOffer bu kimliklere bağlanır; fiyat ve stok canonical kayda yazılmaz.</p></div>
+        <div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[14px] font-semibold text-[var(--ink)]">Ürün Seçenekleri</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Tedarikçi Teklifleri Bu Ürün Seçenekleriyle Eşleştirilir.</p></div>
         <div className="divide-y divide-[var(--line)]">
           {variants.map((row) => (
             <article key={row.id} className="grid gap-3 px-5 py-4 md:grid-cols-[1.2fr_.8fr_.5fr_1fr] md:items-center">
-              <div><p className="text-[12px] font-semibold text-[var(--ink)]">{row.productName} · {row.name}</p><p className="mt-1 text-[9px] text-[var(--muted-soft)]">{row.canonicalSku || "Canonical SKU yok"}</p></div>
-              <div className="text-[11px] text-[var(--muted)]">Birim: {row.unit}</div>
-              <div className="text-[11px] text-[var(--muted)]">{row.identifiers.length} identifier</div>
-              <div className="flex flex-wrap gap-1.5">{row.identifiers.map((identifier) => <span key={identifier.id} className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] text-[var(--muted)]">{identifier.identifierType}: {identifier.identifierValue}</span>)}</div>
+              <div><p className="text-[12px] font-semibold text-[var(--ink)]">{row.productName} · {row.name}</p><p className="mt-1 text-[9px] text-[var(--muted-soft)]">{row.canonicalSku || "Stok Kodu Yok"}</p></div>
+              <div className="text-[11px] text-[var(--muted)]">Birim: {unitLabels[row.unit] ?? row.unit}</div>
+              <div className="text-[11px] text-[var(--muted)]">{row.identifiers.length} Tanımlayıcı</div>
+              <div className="flex flex-wrap gap-1.5">{row.identifiers.map((identifier) => <span key={identifier.id} className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] text-[var(--muted)]">{identifierLabels[identifier.identifierType] ?? "Tanımlayıcı"}: {identifier.identifierValue}</span>)}</div>
             </article>
           ))}
-          {!variants.length ? <div className="px-5 py-12 text-center text-[11px] text-[var(--muted)]">Henüz canonical varyant yok.</div> : null}
+          {!variants.length ? <div className="px-5 py-12 text-center text-[11px] text-[var(--muted)]">Henüz Ürün Seçeneği Yok.</div> : null}
         </div>
       </section>
     </div>
