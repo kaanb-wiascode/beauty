@@ -36,6 +36,25 @@ export class SupplierOfferService {
     if (input.validFrom && input.validTo && input.validTo <= input.validFrom) throw new BadRequestException('Offer validity end must be after start.');
   }
 
+  async listCatalogVariants(principal: SupplierPortalPrincipal) {
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT cv.id,cv.catalog_product_id AS "catalogProductId",cv.canonical_sku AS "canonicalSku",
+              cv.name AS "variantName",cv.unit,cv.attributes,
+              cp.name AS "productName",cp.category_code AS "categoryCode",cb.name AS "brandName",
+              so.id AS "offerId",so.status AS "offerStatus",so.version AS "offerVersion"
+       FROM catalog_variants cv
+       JOIN catalog_products cp ON cp.id=cv.catalog_product_id AND cp.status='ACTIVE'
+       LEFT JOIN catalog_brands cb ON cb.id=cp.brand_id AND cb.status='ACTIVE'
+       LEFT JOIN supplier_offers so
+         ON so.catalog_variant_id=cv.id
+        AND so.supplier_organization_id=$1::text
+        AND so.status<>'ARCHIVED'
+       WHERE cv.status='ACTIVE'
+       ORDER BY cp.name,cv.name`,
+      principal.supplierOrganizationId,
+    );
+  }
+
   async list(principal: SupplierPortalPrincipal) {
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT so.id,so.catalog_variant_id AS "catalogVariantId",so.supplier_sku AS "supplierSku",
