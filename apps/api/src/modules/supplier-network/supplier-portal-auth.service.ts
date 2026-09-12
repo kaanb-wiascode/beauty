@@ -81,7 +81,16 @@ export class SupplierPortalAuthService {
     }
 
     if (!input.supplierOrganizationId && memberships.length > 1) {
-      throw new UnauthorizedException('Supplier organization selection is required');
+      return {
+        organizationSelectionRequired: true as const,
+        organizations: memberships.map((membership) => ({
+          id: membership.supplierOrganizationId,
+          slug: membership.organizationSlug,
+          displayName: membership.organizationDisplayName,
+          verificationStatus: membership.verificationStatus,
+          role: membership.supplierRole,
+        })),
+      };
     }
 
     const membership = memberships[0];
@@ -99,6 +108,7 @@ export class SupplierPortalAuthService {
     });
 
     return {
+      organizationSelectionRequired: false as const,
       accessToken,
       expiresInSeconds: 900,
       user: {
