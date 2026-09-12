@@ -9,6 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { cx } from "@/lib/format";
+import { userErrorMessage, userNoticeMessage } from "@/lib/user-language";
 
 type Tone = "success" | "error";
 
@@ -29,7 +30,12 @@ export function ToastProvider({ children }: { children: ReactNode }) {
 
   const showToast = useCallback((message: string, tone: Tone = "success") => {
     const id = Date.now();
-    setToasts((current) => [...current, { id, message, tone }]);
+    const safeMessage =
+      tone === "error"
+        ? userErrorMessage(message)
+        : userNoticeMessage(message);
+
+    setToasts((current) => [...current, { id, message: safeMessage, tone }]);
     window.setTimeout(() => {
       setToasts((current) => current.filter((toast) => toast.id !== id));
     }, 2800);
