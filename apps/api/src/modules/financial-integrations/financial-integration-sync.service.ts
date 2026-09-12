@@ -541,10 +541,10 @@ export class FinancialIntegrationSyncService {
             Array<{ id: string }>
           >(
             `INSERT INTO pos_transactions(
-               id,tenant_id,company_id,branch_id,terminal_id,provider_transaction_id,status,amount,
+               id,tenant_id,company_id,branch_id,integration_id,terminal_id,provider_transaction_id,status,amount,
                fee_amount,net_amount,currency,expected_settlement_at,created_at,updated_at
-             ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13,NOW())
-             ON CONFLICT(company_id,provider_transaction_id) DO UPDATE SET
+             ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,$12,$13,$14,NOW())
+             ON CONFLICT(integration_id,provider_transaction_id) DO UPDATE SET
                status=EXCLUDED.status,amount=EXCLUDED.amount,fee_amount=EXCLUDED.fee_amount,
                net_amount=EXCLUDED.net_amount,currency=EXCLUDED.currency,
                expected_settlement_at=EXCLUDED.expected_settlement_at,updated_at=NOW()
@@ -553,6 +553,7 @@ export class FinancialIntegrationSyncService {
             integration.tenantId,
             integration.companyId,
             integration.branchId,
+            integrationId,
             terminalId,
             transaction.externalTransactionId,
             transaction.status,
