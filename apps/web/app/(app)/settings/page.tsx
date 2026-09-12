@@ -5,8 +5,8 @@ import Link from "next/link";
 const sections = [
   {
     href: "/settings/roles",
-    title: "Roller ve Yetkiler",
-    description: "Ekibinizin erişim seviyelerini, rollerini ve sistem yetkilerini yönetin.",
+    title: "Roller Ve Yetkiler",
+    description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.",
     glyph: "◇",
   },
 ];
@@ -16,23 +16,23 @@ export default function SettingsPage() {
     <main className="mx-auto w-full max-w-[1240px] space-y-6 pb-10">
       <header className="border-b border-[var(--line)] pb-5">
         <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
-          YÖNETİM
+          Yönetim
         </div>
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
           Ayarlar
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
-          Beauty ERP çalışma alanınızı ve ekip erişimini yönetin.
+          VALOO Çalışma Alanınızı Ve Ekip Erişimini Yönetin.
         </p>
       </header>
 
       <section aria-labelledby="settings-sections" className="space-y-3">
         <div>
           <h2 id="settings-sections" className="text-sm font-semibold text-[var(--ink)]">
-            Yönetim araçları
+            Yönetim Araçları
           </h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Kullanmak istediğiniz ayar alanını seçin.
+            Kullanmak İstediğiniz Ayar Alanını Seçin.
           </p>
         </div>
 
