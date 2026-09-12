@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import { PermissionsGuard } from '../../common/auth/permissions.guard';
+import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { SalesService } from './sales.service';
 
@@ -26,11 +28,13 @@ const refundSalePaymentSchema = z.object({
 });
 
 @Controller('sales')
-@UseGuards(JwtAuthGuard, TenantAuthGuard)
+@UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RequirePermission('payments', 'read')
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Post()
+  @RequirePermission('payments', 'create')
   create(@Body() body: unknown) {
     return this.salesService.create(createSaleSchema.parse(body));
   }
@@ -46,11 +50,13 @@ export class SalesController {
   }
 
   @Post(':id/payments')
+  @RequirePermission('payments', 'create')
   addPayment(@Param('id') id: string, @Body() body: unknown) {
     return this.salesService.addPayment(id, addSalePaymentSchema.parse(body));
   }
 
   @Post(':id/payments/:paymentId/refund')
+  @RequirePermission('payments', 'refund')
   refundPayment(
     @Param('id') id: string,
     @Param('paymentId') paymentId: string,
@@ -65,11 +71,13 @@ export class SalesController {
   }
 
   @Post(':id/confirm')
+  @RequirePermission('payments', 'create')
   confirm(@Param('id') id: string) {
     return this.salesService.confirm(id);
   }
 
   @Post(':id/cancel')
+  @RequirePermission('payments', 'create')
   cancel(@Param('id') id: string) {
     return this.salesService.cancel(id);
   }
