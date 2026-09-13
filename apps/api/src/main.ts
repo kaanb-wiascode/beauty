@@ -27,6 +27,7 @@ async function bootstrap() {
       incomingRequestId && incomingRequestId.length <= 128
         ? incomingRequestId
         : randomUUID();
+    const startedAt = process.hrtime.bigint();
 
     response.setHeader('x-request-id', requestId);
     response.setHeader('x-content-type-options', 'nosniff');
@@ -36,6 +37,24 @@ async function bootstrap() {
       'permissions-policy',
       'camera=(), microphone=(), geolocation=()',
     );
+
+    if (process.env.NODE_ENV !== 'test') {
+      response.on('finish', () => {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        process.stdout.write(
+          `${JSON.stringify({
+            type: 'http_request',
+            requestId,
+            method: request.method,
+            path: request.path,
+            statusCode: response.statusCode,
+            durationMs: Math.round(durationMs * 100) / 100,
+            timestamp: new Date().toISOString(),
+          })}\n`,
+        );
+      });
+    }
+
     next();
   });
 
