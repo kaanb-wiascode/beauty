@@ -208,6 +208,15 @@ export default function PurchaseReplacementsPage() {
 
   if (loading) return <div className="py-16"><Spinner label="Değişim talepleri hazırlanıyor..." /></div>;
 
+  if (error && !returns.length && !requests.length) {
+    return (
+      <div className="mx-auto max-w-[760px] space-y-4 py-16">
+        <Alert>{error}</Alert>
+        <div className="flex justify-center"><Button onClick={() => { setLoading(true); void load(); }}>Tekrar Dene</Button></div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header>
