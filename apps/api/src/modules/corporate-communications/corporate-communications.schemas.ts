@@ -171,6 +171,86 @@ export const createRoutingRuleSchema = z.object({
   conditions: routingConditionsSchema,
 });
 
+export const contentPlatformSchema = z.enum([
+  'INSTAGRAM',
+  'FACEBOOK',
+  'TIKTOK',
+  'YOUTUBE',
+  'LINKEDIN',
+  'WEBSITE',
+  'EMAIL',
+  'SMS',
+  'WHATSAPP',
+  'OTHER',
+]);
+
+export const contentFormatSchema = z.enum([
+  'POST',
+  'REEL',
+  'STORY',
+  'VIDEO',
+  'ARTICLE',
+  'EMAIL',
+  'SMS',
+  'BANNER',
+  'OTHER',
+]);
+
+export const contentStatusSchema = z.enum([
+  'IDEA',
+  'BRIEF',
+  'PRODUCTION',
+  'REVIEW',
+  'APPROVED',
+  'SCHEDULED',
+  'PUBLISHED',
+  'ARCHIVED',
+]);
+
+export const createContentItemSchema = z.object({
+  title: z.string().trim().min(2).max(240),
+  platform: contentPlatformSchema,
+  format: contentFormatSchema,
+  branchId: z.string().uuid().nullable().optional(),
+  campaignId: z.string().uuid().nullable().optional(),
+  caption: z.string().trim().max(10000).nullable().optional(),
+  cta: z.string().trim().max(1000).nullable().optional(),
+  ownerUserId: z.string().uuid().nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).default({}),
+});
+
+export const updateContentDraftSchema = z.object({
+  title: z.string().trim().min(2).max(240).optional(),
+  platform: contentPlatformSchema.optional(),
+  format: contentFormatSchema.optional(),
+  campaignId: z.string().uuid().nullable().optional(),
+  caption: z.string().trim().max(10000).nullable().optional(),
+  cta: z.string().trim().max(1000).nullable().optional(),
+  ownerUserId: z.string().uuid().nullable().optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const listContentItemsSchema = z.object({
+  status: contentStatusSchema.optional(),
+  platform: contentPlatformSchema.optional(),
+  campaignId: z.string().uuid().optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(100),
+});
+
+export const contentDecisionSchema = z.object({
+  note: z.string().trim().min(1).max(3000),
+});
+
+export const scheduleContentSchema = z.object({
+  scheduledAt: z.coerce.date(),
+});
+
+export const publishContentSchema = z.object({
+  publishedAt: z.coerce.date().optional(),
+});
+
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 export type CreateMarketingLeadInput = z.infer<
   typeof createMarketingLeadSchema
@@ -184,3 +264,8 @@ export type CreateProviderConnectionInput = z.infer<
 >;
 export type CreateRoutingRuleInput = z.infer<typeof createRoutingRuleSchema>;
 export type RoutingConditionsInput = z.infer<typeof routingConditionsSchema>;
+export type CreateContentItemInput = z.infer<typeof createContentItemSchema>;
+export type UpdateContentDraftInput = z.infer<typeof updateContentDraftSchema>;
+export type ContentDecisionInput = z.infer<typeof contentDecisionSchema>;
+export type ScheduleContentInput = z.infer<typeof scheduleContentSchema>;
+export type PublishContentInput = z.infer<typeof publishContentSchema>;
