@@ -270,6 +270,15 @@ export default function RfqPage() {
 
   if (loading) return <div className="py-16"><Spinner label="Teklif Talepleri Hazırlanıyor..." /></div>;
 
+  if (error && !rfqs.length && !options.warehouses.length && !options.products.length && !options.suppliers.length) {
+    return (
+      <div className="mx-auto max-w-[760px] space-y-4 py-16">
+        <Alert>{error}</Alert>
+        <div className="flex justify-center"><Button onClick={() => { setLoading(true); void load(); }}>Tekrar Dene</Button></div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
