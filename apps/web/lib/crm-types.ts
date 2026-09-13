@@ -37,6 +37,8 @@ export type CrmOpportunity = {
   version: number;
   leadFirstName: string | null;
   leadLastName: string | null;
+  customerFirstName: string | null;
+  customerLastName: string | null;
   updatedAt: string;
 };
 
