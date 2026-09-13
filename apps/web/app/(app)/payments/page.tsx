@@ -221,6 +221,8 @@ export default function PaymentsPage() {
   const [staff, setStaff] = useState<Staff[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [method, setMethod] = useState<Method | "">("");
@@ -258,6 +260,7 @@ export default function PaymentsPage() {
           setCustomers(c.data);
           setStaff(s.data);
           setServices(sv.data);
+          setHasLoaded(true);
         }
       } catch (err) {
         if (!cancelled) {
@@ -272,7 +275,7 @@ export default function PaymentsPage() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [loadAttempt]);
 
   const customerMap = useMemo(
     () => new Map(customers.map((customer) => [customer.id, fullName(customer.firstName, customer.lastName)])),
@@ -409,6 +412,40 @@ export default function PaymentsPage() {
   const completedCount = filtered.filter((payment) => payment.status === "COMPLETED").length;
   const refundedCount = filtered.filter((payment) => payment.status === "REFUNDED").length;
   const maxTrend = Math.max(...trend.map((item) => item.value), 1);
+
+  if (loading && !hasLoaded) {
+    return (
+      <div className="mx-auto w-full max-w-[1320px] space-y-6 pb-10">
+        <PageHeader
+          title="Ödemeler"
+          description="Tahsilat, iade ve ödeme hareketlerinizi tek ekrandan yönetin."
+        />
+        <div className="flex h-64 items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
+          <Spinner label="Ödemeler yükleniyor..." />
+        </div>
+      </div>
+    );
+  }
+
+  if (!loading && error && !hasLoaded) {
+    return (
+      <div className="mx-auto w-full max-w-[1320px] space-y-6 pb-10">
+        <PageHeader
+          title="Ödemeler"
+          description="Tahsilat, iade ve ödeme hareketlerinizi tek ekrandan yönetin."
+        />
+        <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6">
+          <Alert>{error}</Alert>
+          <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--muted)]">
+            Tahsilat verileri doğrulanamadığı için net tahsilat, iade ve ödeme yöntemi tutarları sıfır olarak gösterilmiyor.
+          </p>
+          <Button className="mt-4" onClick={() => setLoadAttempt((current) => current + 1)}>
+            Tekrar Dene
+          </Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto w-full max-w-[1320px] space-y-6 pb-10">
