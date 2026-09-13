@@ -5,6 +5,10 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import {
+  routingConditionsSchema,
+  type RoutingConditionsInput,
+} from './corporate-communications.schemas';
 
 type MarketingLeadRow = {
   id: string;
@@ -26,6 +30,7 @@ type RoutingRuleRow = {
   strategy: 'FIXED' | 'ROUND_ROBIN' | 'LEAST_LOADED';
   targetBranchId: string | null;
   targetUserId: string | null;
+  conditions: unknown;
 };
 
 type AssigneeRow = {
@@ -51,7 +56,7 @@ export class MarketingLeadCrmBridgeService {
   ) {
     const context = this.context();
     const [rule] = await tx.$queryRawUnsafe<RoutingRuleRow[]>(
-      `SELECT id,strategy,target_branch_id AS "targetBranchId",target_user_id AS "targetUserId"
+      `SELECT id,strategy,target_branch_id AS "targetBranchId",target_user_id AS "targetUserId",conditions
        FROM corporate_lead_routing_rules
        WHERE tenant_id=$1::text AND company_id=$2::text AND active=TRUE
          AND (provider IS NULL OR provider=$3::text)
@@ -213,6 +218,75 @@ export class MarketingLeadCrmBridgeService {
     return ownerUserId;
   }
 
+  private followUpPolicy(rule: RoutingRuleRow | null): RoutingConditionsInput {
+    return routingConditionsSchema.parse(rule?.conditions ?? {});
+  }
+
+  private async createInitialFollowUp(
+    tx: Prisma.TransactionClient,
+    input: {
+      crmLeadId: string;
+      branchId: string;
+      ownerUserId: string | null;
+      actorUserId: string;
+      marketingLeadId: string;
+      provider: string;
+      campaignId: string | null;
+      rule: RoutingRuleRow | null;
+    },
+  ) {
+    if (!input.ownerUserId) return null;
+    const policy = this.followUpPolicy(input.rule);
+    if (!policy.autoFollowUp) return null;
+
+    const context = this.context();
+    const dueAt = new Date(Date.now() + policy.followUpSlaMinutes * 60_000);
+    const [followUp] = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO crm_follow_ups(
+         tenant_id,company_id,branch_id,lead_id,assigned_user_id,channel,due_at,note,created_by_user_id
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9::text)
+       RETURNING id`,
+      context.tenantId,
+      context.companyId,
+      input.branchId,
+      input.crmLeadId,
+      input.ownerUserId,
+      policy.followUpChannel,
+      dueAt,
+      `Marketing lead ilk temas · ${input.provider}`,
+      input.actorUserId,
+    );
+    if (!followUp) return null;
+
+    await tx.$executeRawUnsafe(
+      `INSERT INTO crm_events(
+         tenant_id,company_id,branch_id,lead_id,follow_up_id,event_type,actor_user_id,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'FOLLOW_UP_CREATED',$6::text,$7::jsonb)`,
+      context.tenantId,
+      context.companyId,
+      input.branchId,
+      input.crmLeadId,
+      followUp.id,
+      input.actorUserId,
+      JSON.stringify({
+        source: 'CORPORATE_COMMUNICATIONS',
+        marketingLeadId: input.marketingLeadId,
+        campaignId: input.campaignId,
+        routingRuleId: input.rule?.id ?? null,
+        channel: policy.followUpChannel,
+        dueAt: dueAt.toISOString(),
+        slaMinutes: policy.followUpSlaMinutes,
+      }),
+    );
+
+    return {
+      id: followUp.id,
+      dueAt,
+      channel: policy.followUpChannel,
+      slaMinutes: policy.followUpSlaMinutes,
+    };
+  }
+
   async convertToCrm(marketingLeadId: string, actorUserId: string) {
     const context = this.context();
 
@@ -294,12 +368,27 @@ export class MarketingLeadCrmBridgeService {
           }),
         );
 
+        const followUp = await this.createInitialFollowUp(tx, {
+          crmLeadId: crmLead.id,
+          branchId,
+          ownerUserId,
+          actorUserId,
+          marketingLeadId: lead.id,
+          provider: lead.provider,
+          campaignId: lead.campaignId,
+          rule,
+        });
+
         return {
           crmLeadId: crmLead.id,
           branchId,
           ownerUserId,
           routingRuleId: rule?.id ?? null,
           routingStrategy: rule?.strategy ?? null,
+          followUpId: followUp?.id ?? null,
+          followUpDueAt: followUp?.dueAt ?? null,
+          followUpChannel: followUp?.channel ?? null,
+          followUpSlaMinutes: followUp?.slaMinutes ?? null,
           idempotent: false,
         };
       },
