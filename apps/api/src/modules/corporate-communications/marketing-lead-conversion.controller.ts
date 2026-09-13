@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Param,
   ParseUUIDPipe,
@@ -11,6 +12,8 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { createMarketingAppointmentSchema } from './corporate-communications.schemas';
+import { MarketingLeadAppointmentService } from './marketing-lead-appointment.service';
 import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.service';
 import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-bridge.service';
 
@@ -20,6 +23,7 @@ export class MarketingLeadConversionController {
   constructor(
     private readonly leadConversionService: MarketingLeadCrmBridgeService,
     private readonly customerBridgeService: MarketingLeadCustomerBridgeService,
+    private readonly appointmentService: MarketingLeadAppointmentService,
   ) {}
 
   @Post(':id/convert-to-crm')
@@ -38,5 +42,19 @@ export class MarketingLeadConversionController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.customerBridgeService.convertToCustomer(id, user.sub);
+  }
+
+  @Post(':id/create-appointment')
+  @RequirePermission('appointments', 'create')
+  createAppointment(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.appointmentService.createAppointment(
+      id,
+      createMarketingAppointmentSchema.parse(body),
+      user.sub,
+    );
   }
 }
