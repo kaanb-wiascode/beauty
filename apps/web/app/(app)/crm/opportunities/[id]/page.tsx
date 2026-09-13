@@ -18,7 +18,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
   opportunityStageLabels,
@@ -68,6 +68,15 @@ const emptyFollowUp: FollowUpForm = {
   channel: "CALL",
   dueAt: "",
   note: "",
+};
+
+const nextStages: Record<OpportunityStage, OpportunityStage[]> = {
+  QUALIFIED: ["NEEDS_ANALYSIS", "LOST"],
+  NEEDS_ANALYSIS: ["PROPOSAL", "LOST"],
+  PROPOSAL: ["NEGOTIATION", "WON", "LOST"],
+  NEGOTIATION: ["PROPOSAL", "WON", "LOST"],
+  WON: [],
+  LOST: [],
 };
 
 function formatMoney(value: string | number | null, currency: string) {
@@ -127,6 +136,11 @@ function nextLocalHour() {
   return local.toISOString().slice(0, 16);
 }
 
+function dateInputValue(value: string | null) {
+  if (!value) return "";
+  return new Date(value).toISOString().slice(0, 10);
+}
+
 export default function OpportunityDetailPage({
   params,
 }: {
@@ -138,6 +152,16 @@ export default function OpportunityDetailPage({
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+
+  const [transitionOpen, setTransitionOpen] = useState(false);
+  const [transitionSaving, setTransitionSaving] = useState(false);
+  const [transitionError, setTransitionError] = useState("");
+  const [targetStage, setTargetStage] = useState<OpportunityStage | "">("");
+  const [probability, setProbability] = useState("");
+  const [estimatedValue, setEstimatedValue] = useState("");
+  const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [lostReason, setLostReason] = useState("");
+
   const [followUpOpen, setFollowUpOpen] = useState(false);
   const [followUpSaving, setFollowUpSaving] = useState(false);
   const [followUpError, setFollowUpError] = useState("");
@@ -214,6 +238,84 @@ export default function OpportunityDetailPage({
     }
     return null;
   }, [opportunity]);
+
+  function openTransition() {
+    if (!opportunity || !canManage || !nextStages[opportunity.stage].length) return;
+    if (!hasActiveBranch()) {
+      showToast("Satış fırsatını güncellemek için aktif bir şube seçin.", "error");
+      return;
+    }
+    const firstStage = nextStages[opportunity.stage][0];
+    setTargetStage(firstStage);
+    setProbability(
+      firstStage === "WON"
+        ? "100"
+        : firstStage === "LOST"
+          ? "0"
+          : String(opportunity.probability),
+    );
+    setEstimatedValue(
+      opportunity.estimatedValue == null ? "" : String(opportunity.estimatedValue),
+    );
+    setExpectedCloseDate(dateInputValue(opportunity.expectedCloseDate));
+    setLostReason("");
+    setTransitionError("");
+    setTransitionOpen(true);
+  }
+
+  function closeTransition() {
+    if (transitionSaving) return;
+    setTransitionOpen(false);
+    setTransitionError("");
+  }
+
+  async function transitionOpportunity(event: FormEvent) {
+    event.preventDefault();
+    if (!opportunity || !targetStage) return;
+    if (targetStage === "LOST" && !lostReason.trim()) {
+      setTransitionError("Kaybedilen fırsat için neden gereklidir.");
+      return;
+    }
+    const parsedProbability = Number(probability);
+    if (!Number.isFinite(parsedProbability) || parsedProbability < 0 || parsedProbability > 100) {
+      setTransitionError("Kazanma olasılığı 0 ile 100 arasında olmalıdır.");
+      return;
+    }
+    const parsedValue = estimatedValue.trim() === "" ? null : Number(estimatedValue);
+    if (parsedValue !== null && (!Number.isFinite(parsedValue) || parsedValue < 0)) {
+      setTransitionError("Tahmini değer sıfır veya pozitif olmalıdır.");
+      return;
+    }
+
+    setTransitionSaving(true);
+    setTransitionError("");
+    try {
+      await api(`/crm/opportunities/${opportunity.id}/transition`, {
+        method: "POST",
+        body: {
+          version: opportunity.version,
+          stage: targetStage,
+          probability: parsedProbability,
+          estimatedValue: parsedValue,
+          expectedCloseDate: expectedCloseDate
+            ? new Date(`${expectedCloseDate}T12:00:00`).toISOString()
+            : null,
+          ...(targetStage === "LOST" ? { lostReason: lostReason.trim() } : {}),
+        },
+      });
+      await refreshOpportunity(opportunity.id);
+      setTransitionOpen(false);
+      showToast("Satış fırsatı güncellendi.", "success");
+    } catch (requestError) {
+      setTransitionError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Satış fırsatı güncellenemedi.",
+      );
+    } finally {
+      setTransitionSaving(false);
+    }
+  }
 
   function openFollowUp() {
     if (!opportunity || !canManage) return;
@@ -302,6 +404,9 @@ export default function OpportunityDetailPage({
         description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda izleyin."
         action={
           <div className="flex flex-wrap gap-2">
+            {canManage && nextStages[opportunity.stage].length ? (
+              <Button variant="secondary" onClick={openTransition}>Fırsatı Güncelle</Button>
+            ) : null}
             {canManage ? (
               <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button>
             ) : null}
@@ -453,6 +558,78 @@ export default function OpportunityDetailPage({
           )}
         </GlassCard>
       </section>
+
+      <Modal
+        open={transitionOpen}
+        onClose={closeTransition}
+        title="Satış Fırsatını Güncelle"
+        description="Aşama geçişi ile birlikte ticari tahminleri güncelleyin."
+      >
+        <form onSubmit={transitionOpportunity} className="space-y-4">
+          {transitionError ? <Alert>{transitionError}</Alert> : null}
+          <Field label="Yeni Aşama" required>
+            <Select
+              value={targetStage}
+              onChange={(event) => {
+                const value = event.target.value as OpportunityStage;
+                setTargetStage(value);
+                if (value === "WON") setProbability("100");
+                else if (value === "LOST") setProbability("0");
+                else setProbability(String(opportunity.probability));
+              }}
+            >
+              {nextStages[opportunity.stage].map((stage) => (
+                <option key={stage} value={stage}>{opportunityStageLabels[stage]}</option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Kazanma Olasılığı (%)" required>
+              <TextInput
+                type="number"
+                min="0"
+                max="100"
+                value={probability}
+                disabled={["WON", "LOST"].includes(targetStage)}
+                onChange={(event) => setProbability(event.target.value)}
+              />
+            </Field>
+            <Field label={`Tahmini Değer (${opportunity.currency})`}>
+              <TextInput
+                type="number"
+                min="0"
+                step="0.01"
+                value={estimatedValue}
+                onChange={(event) => setEstimatedValue(event.target.value)}
+              />
+            </Field>
+          </div>
+          <Field label="Beklenen Kapanış Tarihi">
+            <TextInput
+              type="date"
+              value={expectedCloseDate}
+              onChange={(event) => setExpectedCloseDate(event.target.value)}
+            />
+          </Field>
+          {targetStage === "LOST" ? (
+            <Field label="Kaybetme Nedeni" required>
+              <TextArea
+                rows={4}
+                maxLength={1000}
+                value={lostReason}
+                onChange={(event) => setLostReason(event.target.value)}
+              />
+            </Field>
+          ) : null}
+          <Alert tone="success">
+            Güncelleme mevcut optimistic version kontrolünü kullanır; eşzamanlı değişiklik varsa işlem güvenli biçimde reddedilir.
+          </Alert>
+          <div className="flex justify-end gap-3 border-t border-[var(--line)] pt-4">
+            <Button type="button" variant="secondary" onClick={closeTransition} disabled={transitionSaving}>Vazgeç</Button>
+            <Button type="submit" disabled={transitionSaving}>{transitionSaving ? "Güncelleniyor..." : "Fırsatı Güncelle"}</Button>
+          </div>
+        </form>
+      </Modal>
 
       <Modal
         open={followUpOpen}
