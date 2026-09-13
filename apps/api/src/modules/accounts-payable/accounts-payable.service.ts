@@ -9,6 +9,10 @@ interface CreateBillInput {
   description: string;
   amount: number;
   dueAt?: Date;
+  sourceType?: string;
+  sourceId?: string;
+  expenseAccountCode?: string;
+  expenseAccountName?: string;
 }
 
 interface PayBillInput {
@@ -153,6 +157,9 @@ export class AccountsPayableService {
     if (!Number.isFinite(amount) || amount <= 0) {
       throw new BadRequestException('Bill amount must be greater than zero.');
     }
+    if ((input.sourceType && !input.sourceId) || (!input.sourceType && input.sourceId)) {
+      throw new BadRequestException('Bill source type and source id must be provided together.');
+    }
 
     return this.prisma.$transaction(
       async (tx) => {
@@ -164,11 +171,31 @@ export class AccountsPayableService {
         );
         if (!suppliers.length) throw new NotFoundException('Supplier not found');
 
+        if (input.sourceType && input.sourceId) {
+          await this.acquireTransactionLock(
+            tx,
+            `supplier-bill-source:${companyId}`,
+            `${input.sourceType}:${input.sourceId}`,
+          );
+          const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id FROM supplier_bills
+             WHERE company_id=$1::text AND source_type=$2 AND source_id=$3::text LIMIT 1`,
+            companyId,
+            input.sourceType,
+            input.sourceId,
+          );
+          if (existing.length) {
+            return { id: existing[0].id, idempotent: true };
+          }
+        }
+
         const billId = randomUUID();
         const rows = await tx.$queryRawUnsafe<any[]>(
-          `INSERT INTO supplier_bills(id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at)
-           VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9)
-           RETURNING id,supplier_id AS "supplierId",invoice_number AS "invoiceNumber",description,amount,due_at AS "dueAt",status,created_at AS "createdAt"`,
+          `INSERT INTO supplier_bills(
+             id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at,source_type,source_id
+           ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11::text)
+           RETURNING id,supplier_id AS "supplierId",invoice_number AS "invoiceNumber",description,amount,due_at AS "dueAt",status,
+                     source_type AS "sourceType",source_id AS "sourceId",created_at AS "createdAt"`,
           billId,
           tenantId,
           companyId,
@@ -178,14 +205,16 @@ export class AccountsPayableService {
           input.description.trim(),
           amount,
           input.dueAt ?? null,
+          input.sourceType ?? null,
+          input.sourceId ?? null,
         );
 
         const expense = await this.ensureAccount(
           tx,
           tenantId,
           companyId,
-          '770',
-          'Genel Yönetim Giderleri',
+          input.expenseAccountCode ?? '770',
+          input.expenseAccountName ?? 'Genel Yönetim Giderleri',
           'EXPENSE',
         );
         const payable = await this.ensureAccount(
@@ -209,7 +238,7 @@ export class AccountsPayableService {
           amount,
         });
 
-        return rows[0];
+        return { ...rows[0], idempotent: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
@@ -219,7 +248,8 @@ export class AccountsPayableService {
     const { companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT b.id,b.supplier_id AS "supplierId",s.name AS "supplierName",b.invoice_number AS "invoiceNumber",
-              b.description,b.amount,b.due_at AS "dueAt",b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",b.created_at AS "createdAt",
+              b.description,b.amount,b.due_at AS "dueAt",b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",
+              b.source_type AS "sourceType",b.source_id AS "sourceId",b.created_at AS "createdAt",
               COALESCE(SUM(p.amount),0)::numeric AS paid,
               (b.amount-COALESCE(SUM(p.amount),0))::numeric AS balance
        FROM supplier_bills b
@@ -242,7 +272,8 @@ export class AccountsPayableService {
     const { companyId, branchId } = this.context();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT b.id,b.supplier_id AS "supplierId",s.name AS "supplierName",b.invoice_number AS "invoiceNumber",
-              b.description,b.amount,b.due_at AS "dueAt",b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",b.created_at AS "createdAt",
+              b.description,b.amount,b.due_at AS "dueAt",b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",
+              b.source_type AS "sourceType",b.source_id AS "sourceId",b.created_at AS "createdAt",
               COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid,
               (b.amount-COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0))::numeric AS balance
        FROM supplier_bills b JOIN inventory_suppliers s ON s.id=b.supplier_id
@@ -387,14 +418,23 @@ export class AccountsPayableService {
           throw new BadRequestException('Supplier bill is no longer cancellable.');
         }
 
-        const expense = await this.ensureAccount(
-          tx,
-          tenantId,
-          companyId,
-          '770',
-          'Genel Yönetim Giderleri',
-          'EXPENSE',
+        const originalJournal = await tx.journalEntry.findFirst({
+          where: { companyId, referenceType: 'SUPPLIER_BILL', referenceId: id },
+          include: { lines: { include: { account: true } } },
+        });
+        const originalExpenseLine = originalJournal?.lines.find(
+          (line) => Number(line.debit) > 0 && line.account.type === 'EXPENSE',
         );
+        const expense = originalExpenseLine
+          ? { id: originalExpenseLine.accountId }
+          : await this.ensureAccount(
+              tx,
+              tenantId,
+              companyId,
+              '770',
+              'Genel Yönetim Giderleri',
+              'EXPENSE',
+            );
         const payable = await this.ensureAccount(
           tx,
           tenantId,
