@@ -248,6 +248,7 @@ export default function InventoryPage() {
   }
 
   if (loading && !data) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Envanter Hazırlanıyor..."/></div>;
+  if (error && !data) return <div className="mx-auto max-w-[760px] space-y-4 py-16"><Alert>{error}</Alert><div className="flex justify-center"><Button onClick={() => void load()}>Tekrar Dene</Button></div></div>;
 
   return <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
     <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
