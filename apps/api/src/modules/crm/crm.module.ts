@@ -1,11 +1,12 @@
 import { Module } from '@nestjs/common';
 import { CrmController } from './crm.controller';
+import { CrmOperationsController } from './crm-operations.controller';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmService } from './crm.service';
 
 @Module({
-  controllers: [CrmController],
+  controllers: [CrmController, CrmOperationsController],
   providers: [CrmService, CrmOpportunityService, CrmOperationsService],
   exports: [CrmService, CrmOpportunityService, CrmOperationsService],
 })
