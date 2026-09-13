@@ -2,7 +2,7 @@
 
 > Ana teknik/ürün durum referansı. Yeni geliştirme oturumunda önce bu dosya, ardından ilgili domain checkpoint/runbook belgeleri okunmalıdır.
 
-Last updated: 2026-09-12
+Last updated: 2026-09-13
 
 ## 1. Project identity
 
@@ -30,11 +30,11 @@ Current priorities:
 ## 3. Latest verified backend freeze checkpoint
 
 ```text
-59f6a2f8ac9f70c0d8c68e118dc90c554a888044
-fix(supplier): align invitation id types
+d586befd212319dd2983ee9ae7b6e4dfee21e0bf
+test(crm): cover opportunity detail scope
 
-Monorepo quality #905 — SUCCESS
-Run ID: 34669479307
+Monorepo quality #1520 — SUCCESS
+Run ID: 34782496896
 ```
 
 Verified pipeline:
@@ -42,12 +42,13 @@ Verified pipeline:
 - `pnpm install --frozen-lockfile`
 - PostgreSQL 16 service health
 - Prisma schema validation
-- **all 121 migrations applied successfully to a fresh database with `prisma migrate deploy`**
+- complete migration chain applied successfully to a fresh database with `prisma migrate deploy`
 - Prisma client generation
 - database typecheck/build
 - shared contract typecheck/build
 - API typecheck
-- **84 API test suites / 276 tests passed**
+- API unit tests
+- API E2E tests
 - API build
 - web lint
 - web typecheck
@@ -94,22 +95,28 @@ Implemented and substantially hardened:
 
 ### CRM pipeline
 
-The first governed CRM pipeline foundation is implemented:
+The governed CRM pipeline is operational across Lead, Customer, Opportunity, Follow-up and Sale handoff flows:
 
 - branch-scoped Lead lifecycle (`NEW`, `CONTACTED`, `QUALIFIED`, `LOST`, `CONVERTED`)
 - idempotent Lead -> Opportunity qualification under a serializable transaction
+- standalone Customer -> Opportunity creation with tenant/company/branch validation
 - governed Opportunity stage progression with optimistic version checks
+- branch-scoped Opportunity detail read model with Lead/Customer identity, commercial state, Follow-ups and CRM event timeline
 - Lead/Opportunity Follow-up tasks with assignee, channel, due date and completion outcome
 - append-only CRM events
 - database-enforced tenant/company/branch and subject scope guards
 - explicit `crm.read` / `crm.manage` permissions
-- CRM cockpit, Lead pool/detail, governed Pipeline and Follow-up Center web routes
+- CRM cockpit, Lead pool/detail, governed Pipeline, Opportunity create/detail and Follow-up Center web routes
 - minimal active-company assignee directory for CRM-owned assignment controls
 - Lead editing, owner filtering and Follow-up assignee selection
 - version-guarded Follow-up completion, rescheduling and reason-required cancellation
 - append-only Follow-up lifecycle events for completion, rescheduling and cancellation
+- Customer profile -> Opportunity creation flow
+- Pipeline cards resolve Lead/Customer subjects and expose Opportunity detail drill-down
+- governed Opportunity -> Sale draft conversion for won opportunities
+- idempotent Opportunity/Sale linkage with persisted commercial snapshot and database scope guards
 
-Standalone Customer -> Opportunity creation, notification delivery and Opportunity -> Sale linkage remain future increments.
+CRM notification delivery remains a future increment. Existing Customer -> Opportunity and Opportunity -> Sale paths should be extended rather than recreated.
 
 ### Accounting / Finance
 
@@ -334,6 +341,14 @@ Other Training processors use serializable transactions, row locks/advisory lock
 
 Existing application surfaces include:
 
+- `/crm` — CRM cockpit
+- `/crm/leads` — Lead pool
+- `/crm/leads/[id]` — Lead detail
+- `/crm/pipeline` — governed Opportunity pipeline
+- `/crm/opportunities/new` — standalone Customer -> Opportunity creation
+- `/crm/opportunities/[id]` — Opportunity commercial detail, Follow-ups and event timeline
+- `/crm/follow-ups` — Follow-up Center
+- `/customers/[id]` — Customer profile with CRM opportunity handoff
 - `/training` — Learning Operations
 - `/training/staff` — staff development directory
 - `/training/staff/[staffId]` — staff competency/training drill-down
@@ -372,6 +387,8 @@ A fresh database is created in CI and the complete migration chain must deploy s
 
 The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking migration/compile/test/build contract is satisfied; it does not claim historical commerce formatting debt is zero.
 
+The latest verified CRM Opportunity detail increment (`d586befd212319dd2983ee9ae7b6e4dfee21e0bf`) passed the complete Monorepo quality pipeline in run `34782496896` / #1520.
+
 ## 14. Backend freeze status
 
 **Backend freeze for the current product scope is complete.**
@@ -385,6 +402,7 @@ The final regression established:
 - API type safety and tests
 - production API build
 - frontend contract compatibility through web lint/typecheck/build
+- CRM Customer -> Opportunity -> governed Pipeline -> Sale handoff compatibility
 
 Future work that does **not** block this backend freeze:
 
@@ -392,6 +410,7 @@ Future work that does **not** block this backend freeze:
 - new Quality score sources without existing auditable source data
 - platform edge controls such as deployment-level/global rate limiting
 - additional external provider integrations
+- CRM notification delivery and additional operational automation
 - frontend/UX expansion over existing APIs
 - cleanup of historical non-blocking commerce Prettier debt
 
