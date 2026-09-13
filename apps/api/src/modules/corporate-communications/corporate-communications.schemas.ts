@@ -38,20 +38,22 @@ export const createCampaignSchema = z
     serviceId: z.string().uuid().nullable().optional(),
     plannedBudget: z.coerce.number().min(0).default(0),
     spentAmount: z.coerce.number().min(0).default(0),
-    currency: z.string().trim().length(3).transform((value) => value.toUpperCase()).default('TRY'),
+    currency: z
+      .string()
+      .trim()
+      .length(3)
+      .transform((value) => value.toUpperCase())
+      .default('TRY'),
     startsAt: z.coerce.date().nullable().optional(),
     endsAt: z.coerce.date().nullable().optional(),
     ownerUserId: z.string().uuid().nullable().optional(),
     notes: z.string().trim().max(3000).nullable().optional(),
   })
   .refine(
-    (value) => !value.startsAt || !value.endsAt || value.endsAt >= value.startsAt,
+    (value) =>
+      !value.startsAt || !value.endsAt || value.endsAt >= value.startsAt,
     { message: 'Campaign end date must be after the start date.' },
   );
-
-export const updateCampaignSchema = createCampaignSchema.partial().extend({
-  status: campaignStatusSchema.optional(),
-});
 
 export const listCampaignsSchema = z.object({
   status: campaignStatusSchema.optional(),
@@ -92,7 +94,9 @@ export const createMarketingLeadSchema = z
 
 export const listMarketingLeadsSchema = z.object({
   provider: marketingProviderSchema.optional(),
-  status: z.enum(['NEW', 'ROUTED', 'IN_CRM', 'APPOINTMENT', 'WON', 'LOST']).optional(),
+  status: z
+    .enum(['NEW', 'ROUTED', 'IN_CRM', 'APPOINTMENT', 'WON', 'LOST'])
+    .optional(),
   campaignId: z.string().uuid().optional(),
   search: z.string().trim().max(150).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
@@ -101,7 +105,16 @@ export const listMarketingLeadsSchema = z.object({
 export const createBrandAssetSchema = z
   .object({
     name: z.string().trim().min(2).max(180),
-    assetType: z.enum(['LOGO', 'COLOR_PALETTE', 'FONT', 'GUIDELINE', 'TEMPLATE', 'PHOTO', 'VIDEO', 'OTHER']),
+    assetType: z.enum([
+      'LOGO',
+      'COLOR_PALETTE',
+      'FONT',
+      'GUIDELINE',
+      'TEMPLATE',
+      'PHOTO',
+      'VIDEO',
+      'OTHER',
+    ]),
     storageKey: z.string().trim().max(800).optional(),
     externalUrl: z.string().trim().url().max(1200).optional(),
     version: z.string().trim().max(80).optional(),
@@ -124,13 +137,18 @@ export const createRoutingRuleSchema = z.object({
   campaignId: z.string().uuid().optional(),
   targetBranchId: z.string().uuid().optional(),
   targetUserId: z.string().uuid().optional(),
-  strategy: z.enum(['FIXED', 'ROUND_ROBIN', 'LEAST_LOADED']).default('FIXED'),
+  strategy: z
+    .enum(['FIXED', 'ROUND_ROBIN', 'LEAST_LOADED'])
+    .default('FIXED'),
   conditions: z.record(z.string(), z.unknown()).default({}),
 });
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
-export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
-export type CreateMarketingLeadInput = z.infer<typeof createMarketingLeadSchema>;
+export type CreateMarketingLeadInput = z.infer<
+  typeof createMarketingLeadSchema
+>;
 export type CreateBrandAssetInput = z.infer<typeof createBrandAssetSchema>;
-export type CreateProviderConnectionInput = z.infer<typeof createProviderConnectionSchema>;
+export type CreateProviderConnectionInput = z.infer<
+  typeof createProviderConnectionSchema
+>;
 export type CreateRoutingRuleInput = z.infer<typeof createRoutingRuleSchema>;
