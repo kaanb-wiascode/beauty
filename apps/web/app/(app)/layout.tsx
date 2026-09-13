@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { AppShell } from "@/components/app-shell";
 import { AuthGuard } from "@/components/auth-guard";
+import { MobileNav } from "@/components/mobile-nav";
 import { ToastProvider } from "@/components/toast";
 import "./dashboard/sidebar-responsive.css";
 import "./dashboard/dashboard-shell-fix.css";
@@ -16,6 +17,7 @@ export default function AuthenticatedLayout({
     <ToastProvider>
       <AuthGuard>
         <AppShell>{children}</AppShell>
+        <MobileNav />
       </AuthGuard>
     </ToastProvider>
   );
