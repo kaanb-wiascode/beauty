@@ -127,9 +127,7 @@ export class CrmController {
   @Get('opportunities')
   @RequirePermission('crm', 'read')
   listOpportunities(@Query() query: unknown) {
-    return this.crm.listOpportunities(
-      listOpportunitiesSchema.parse(query),
-    );
+    return this.opportunities.list(listOpportunitiesSchema.parse(query));
   }
 
   @Get('opportunities/:id')
