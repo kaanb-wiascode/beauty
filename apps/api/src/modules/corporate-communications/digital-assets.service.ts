@@ -45,7 +45,7 @@ export class DigitalAssetsService {
     return this.prisma.$queryRawUnsafe<AssetRow[]>(
       `SELECT a.id,a.branch_id AS "branchId",b.name AS "branchName",a.name,a.asset_type AS "assetType",
               a.storage_key AS "storageKey",a.external_url AS "externalUrl",a.version,a.usage_rules AS "usageRules",
-              a.mime_type AS "mimeType",a.file_size_bytes AS "fileSizeBytes",a.width_px AS "widthPx",
+              a.mime_type AS "mimeType",a.file_size_bytes::text AS "fileSizeBytes",a.width_px AS "widthPx",
               a.height_px AS "heightPx",a.duration_seconds AS "durationSeconds",a.checksum_sha256 AS "checksumSha256",
               a.rights_owner AS "rightsOwner",a.license_expires_at AS "licenseExpiresAt",a.tags,a.metadata,a.active,
               CASE
@@ -120,7 +120,7 @@ export class DigitalAssetsService {
          )
          RETURNING id,branch_id AS "branchId",name,asset_type AS "assetType",storage_key AS "storageKey",
                    external_url AS "externalUrl",version,usage_rules AS "usageRules",mime_type AS "mimeType",
-                   file_size_bytes AS "fileSizeBytes",width_px AS "widthPx",height_px AS "heightPx",
+                   file_size_bytes::text AS "fileSizeBytes",width_px AS "widthPx",height_px AS "heightPx",
                    duration_seconds AS "durationSeconds",checksum_sha256 AS "checksumSha256",rights_owner AS "rightsOwner",
                    license_expires_at AS "licenseExpiresAt",tags,metadata,active,created_at AS "createdAt"`,
         context.tenantId,
