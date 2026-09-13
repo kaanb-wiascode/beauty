@@ -264,6 +264,92 @@ describe('Core Business Flow (e2e)', () => {
       })
       .expect(201);
 
+    const proposalOpportunity = await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: transitionedOpportunity.body.version,
+        stage: 'PROPOSAL',
+        probability: 75,
+      })
+      .expect(201);
+
+    const wonOpportunity = await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: proposalOpportunity.body.version,
+        stage: 'WON',
+        probability: 100,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/sales/from-opportunity/${opportunity.body.id}`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: wonOpportunity.body.version,
+        customerId: customer.body.id,
+        discountTotal: 50,
+        items: [{ type: 'SERVICE', referenceId: service.body.id, quantity: 2 }],
+      })
+      .expect(400);
+
+    const opportunitySale = await request(app.getHttpServer())
+      .post(`/sales/from-opportunity/${opportunity.body.id}`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: wonOpportunity.body.version,
+        customerId: customer.body.id,
+        discountTotal: 50,
+        items: [{ type: 'SERVICE', referenceId: service.body.id, quantity: 2 }],
+      })
+      .expect(201);
+
+    expect(opportunitySale.body.idempotent).toBe(false);
+    expect(opportunitySale.body.sale.status).toBe('DRAFT');
+    expect(Number(opportunitySale.body.sale.total)).toBe(650);
+
+    const repeatedOpportunitySale = await request(app.getHttpServer())
+      .post(`/sales/from-opportunity/${opportunity.body.id}`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: wonOpportunity.body.version,
+        customerId: customer.body.id,
+        discountTotal: 0,
+        items: [{ type: 'SERVICE', referenceId: service.body.id, quantity: 1 }],
+      })
+      .expect(201);
+
+    expect(repeatedOpportunitySale.body.idempotent).toBe(true);
+    expect(repeatedOpportunitySale.body.sale.id).toBe(opportunitySale.body.sale.id);
+    expect(Number(repeatedOpportunitySale.body.sale.total)).toBe(650);
+
+    const confirmedOpportunitySale = await request(app.getHttpServer())
+      .post(`/sales/${opportunitySale.body.sale.id}/confirm`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(201);
+
+    expect(confirmedOpportunitySale.body.status).toBe('CONFIRMED');
+
+    const opportunitySalePayment = await request(app.getHttpServer())
+      .post(`/sales/${opportunitySale.body.sale.id}/payments`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({ amount: 650, method: 'CARD', reference: `CRM-E2E-${suffix}` })
+      .expect(201);
+
+    expect(opportunitySalePayment.body.summary.paymentStatus).toBe('PAID');
+    expect(opportunitySalePayment.body.summary.balance).toBe(0);
+
+    const opportunitySaleSummary = await request(app.getHttpServer())
+      .get(`/sales/${opportunitySale.body.sale.id}/payment-summary`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+
+    expect(opportunitySaleSummary.body.paymentStatus).toBe('PAID');
+    expect(opportunitySaleSummary.body.paid).toBe(650);
+    expect(opportunitySaleSummary.body.balance).toBe(0);
+
     const startAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
     startAt.setUTCMinutes(0, 0, 0);
     const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
