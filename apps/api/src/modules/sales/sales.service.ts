@@ -310,7 +310,9 @@ export class SalesService {
         customer: true,
         items: true,
         payments: { orderBy: { paidAt: 'desc' } },
-        installmentPlan: { include: { installments: { orderBy: { sequence: 'asc' } } },
+        installmentPlan: {
+          include: { installments: { orderBy: { sequence: 'asc' } } },
+        },
         customerPackages: { include: { sessions: true, package: true } },
       },
     });
