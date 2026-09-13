@@ -27,7 +27,7 @@ describe('Corporate marketing finance handoff (e2e)', () => {
 
   afterAll(async () => app.close());
 
-  it('moves an agency fee from communications into AP and accounting exactly once', async () => {
+  it('moves an agency fee into AP/accounting once and reverses the original expense account', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const tenant = await prisma.tenant.create({ data: { name: `Mkt Finance ${suffix}`, slug: `mkt-fin-${suffix}` } });
     const company = await prisma.company.create({ data: { tenantId: tenant.id, name: `Mkt Finance Co ${suffix}`, slug: `mkt-fin-co-${suffix}` } });
@@ -57,6 +57,7 @@ describe('Corporate marketing finance handoff (e2e)', () => {
     expect(expense).toBeDefined();
     expect(Number(expense.amount)).toBe(60000);
     expect(expense.category).toBe('AGENCY_FEE');
+    expect(expense.expenseAccountCode).toBe('760.04');
 
     const supplierId = randomUUID();
     await prisma.$executeRawUnsafe(
@@ -87,10 +88,13 @@ describe('Corporate marketing finance handoff (e2e)', () => {
 
     const journal = await prisma.journalEntry.findFirst({
       where: { companyId: company.id, referenceType: 'SUPPLIER_BILL', referenceId: bills[0].id },
-      include: { lines: true },
+      include: { lines: { include: { account: true } } },
     });
     expect(journal?.status).toBe('POSTED');
     expect(journal?.lines).toHaveLength(2);
+    const expenseDebit = journal?.lines.find((line) => Number(line.debit) > 0);
+    expect(expenseDebit?.account.code).toBe('760.04');
+    expect(Number(expenseDebit?.debit)).toBe(60000);
 
     const repeat = await request(app.getHttpServer())
       .post(`/marketing-finance/expenses/${expense.id}/account`)
@@ -99,6 +103,25 @@ describe('Corporate marketing finance handoff (e2e)', () => {
       .expect(201);
     expect(repeat.body.idempotent).toBe(true);
     expect(repeat.body.supplierBillId).toBe(bills[0].id);
+
+    await request(app.getHttpServer())
+      .post(`/accounts-payable/bills/${bills[0].id}/cancel`)
+      .set('Authorization', finance)
+      .send({ reason: 'Integration reversal verification' })
+      .expect(201);
+
+    const reversal = await prisma.journalEntry.findFirst({
+      where: {
+        companyId: company.id,
+        referenceType: 'SUPPLIER_BILL_CANCELLATION',
+        referenceId: bills[0].id,
+      },
+      include: { lines: { include: { account: true } } },
+    });
+    expect(reversal?.status).toBe('POSTED');
+    const expenseCredit = reversal?.lines.find((line) => Number(line.credit) > 0 && line.account.type === 'EXPENSE');
+    expect(expenseCredit?.account.code).toBe('760.04');
+    expect(Number(expenseCredit?.credit)).toBe(60000);
 
     async function actor(label: string, permissions: string[]) {
       const role = await prisma.role.create({
