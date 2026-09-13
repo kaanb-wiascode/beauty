@@ -300,8 +300,10 @@ export default function MarketplacePage() {
         </>
       ) : (
         <EmptyState
-          title="Pazar Yeri Önizlemesi Bulunamadı"
-          description="Aktif Bir Şube Seçili Olduğundan Ve Şubenin Erişilebilir Olduğundan Emin Olun."
+          title={error ? "Pazar Yeri Önizlemesi Yüklenemedi" : "Pazar Yeri Önizlemesi Bulunamadı"}
+          description={error
+            ? "Pazar Yeri Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin."
+            : "Aktif Bir Şube Seçili Olduğundan Ve Şubenin Erişilebilir Olduğundan Emin Olun."}
           action={
             <Button variant="secondary" onClick={() => void load()}>
               Yeniden Dene
