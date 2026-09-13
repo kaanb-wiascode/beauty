@@ -105,16 +105,16 @@ export default function MarketingLeadsPage() {
       ];
       if (canScheduleFromInbox) {
         referenceRequests.push(
-          api<Paginated<StaffOption>>("/staff?page=1&limit=200"),
-          api<Paginated<ServiceOption>>("/services?page=1&limit=200"),
+          api<Paginated<StaffOption>>("/staff?page=1&limit=100"),
+          api<Paginated<ServiceOption>>("/services?page=1&limit=100"),
         );
       }
       const results = await Promise.all(referenceRequests);
       setLeads(results[0] as Lead[]);
       setCampaigns(results[1] as Campaign[]);
       if (canScheduleFromInbox) {
-        setStaff((results[2] as Paginated<StaffOption>).data.filter((item) => item.status !== "INACTIVE"));
-        setServices((results[3] as Paginated<ServiceOption>).data.filter((item) => item.status !== "INACTIVE"));
+        setStaff((results[2] as Paginated<StaffOption>).data.filter((item) => item.status === "ACTIVE"));
+        setServices((results[3] as Paginated<ServiceOption>).data.filter((item) => item.status === "ACTIVE"));
       }
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Marketing lead verileri yüklenemedi.");
