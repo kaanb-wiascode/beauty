@@ -59,6 +59,7 @@ export default function TransfersPage() {
   const [status, setStatus] = useState("");
 
   async function load() {
+    setError("");
     try {
       const [overview, productRows, transfers] = await Promise.all([
         api<InventoryOverview>("/inventory/overview"),
@@ -170,7 +171,7 @@ export default function TransfersPage() {
     return (
       <div className="mx-auto max-w-[760px] space-y-4 py-16">
         <Alert>{error}</Alert>
-        <div className="flex justify-center"><Button onClick={() => void load()}>Tekrar Dene</Button></div>
+        <div className="flex justify-center"><Button onClick={() => { setLoading(true); void load(); }}>Tekrar Dene</Button></div>
       </div>
     );
   }
