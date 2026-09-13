@@ -5,14 +5,12 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
-import { MarketingLeadConversionService } from './marketing-lead-conversion.service';
+import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.service';
 
 @Controller('corporate-communications/leads')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class MarketingLeadConversionController {
-  constructor(
-    private readonly leadConversionService: MarketingLeadConversionService,
-  ) {}
+  constructor(private readonly leadConversionService: MarketingLeadCrmBridgeService) {}
 
   @Post(':id/convert-to-crm')
   @RequirePermission('communications', 'manage')
