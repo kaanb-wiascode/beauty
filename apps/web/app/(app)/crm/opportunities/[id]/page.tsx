@@ -148,7 +148,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
   async function submitAction(event: FormEvent) {
     event.preventDefault(); if (!opportunity || !selectedFollowUp || !followUpAction) return;
-    let endpoint = followUpAction; let body: Record<string, unknown> = { version: selectedFollowUp.version };
+    const endpoint = followUpAction; const body: Record<string, unknown> = { version: selectedFollowUp.version };
     if (followUpAction === "complete") { if (!outcome.trim()) return setActionError("Takip sonucu gereklidir."); body.outcome = outcome.trim(); }
     if (followUpAction === "reschedule") { if (!rescheduledAt) return setActionError("Yeni takip tarihi gereklidir."); body.dueAt = new Date(rescheduledAt).toISOString(); }
     if (followUpAction === "cancel") { if (!cancelReason.trim()) return setActionError("İptal nedeni gereklidir."); body.reason = cancelReason.trim(); }
