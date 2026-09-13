@@ -6,6 +6,7 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CorporateCommunicationsService } from './corporate-communications.service';
+import { MarketingExpenseSyncService } from './marketing-expense-sync.service';
 import {
   createBrandAssetSchema,
   createCampaignSchema,
@@ -20,7 +21,10 @@ import {
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RequirePermission('communications', 'read')
 export class CorporateCommunicationsController {
-  constructor(private readonly service: CorporateCommunicationsService) {}
+  constructor(
+    private readonly service: CorporateCommunicationsService,
+    private readonly expenseSync: MarketingExpenseSyncService,
+  ) {}
 
   @Get('dashboard')
   dashboard() {
@@ -39,8 +43,10 @@ export class CorporateCommunicationsController {
 
   @Post('campaigns')
   @RequirePermission('communications', 'manage')
-  createCampaign(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
-    return this.service.createCampaign(createCampaignSchema.parse(body), user.sub);
+  async createCampaign(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
+    const campaign = await this.service.createCampaign(createCampaignSchema.parse(body), user.sub);
+    await this.expenseSync.syncCampaign(campaign.id);
+    return campaign;
   }
 
   @Get('leads')
