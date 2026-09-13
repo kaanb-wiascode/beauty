@@ -37,6 +37,7 @@ Do not merge to `main` until the explicit release decision.
 The GitHub `Monorepo quality` workflow must be fully green on the exact candidate SHA. At minimum it must pass:
 
 - frozen workspace dependency installation
+- release shell script syntax validation
 - Prisma schema validation
 - all migrations against a fresh PostgreSQL database
 - Prisma client generation
@@ -81,6 +82,25 @@ Before every production/staging schema deployment:
 For managed PostgreSQL, prefer provider snapshot/PITR. If a logical backup is used, use the provider-approved `pg_dump` procedure and encrypt the resulting artifact.
 
 A backup that has never been restore-tested does not count as a complete recovery plan.
+
+The repository includes a logical backup/restore verification helper:
+
+```bash
+DATABASE_URL='postgresql://<source>' \
+RESTORE_TEST_DATABASE_URL='postgresql://<disposable-restore-db>' \
+bash scripts/release/verify-postgres-backup-restore.sh
+```
+
+Safety rules for this script:
+
+- `DATABASE_URL` and `RESTORE_TEST_DATABASE_URL` must be different
+- the restore target must be disposable because its `public` schema is dropped and recreated
+- never point `RESTORE_TEST_DATABASE_URL` at production or a shared environment
+- by default the local dump file is deleted after verification
+- set `KEEP_BACKUP=1` only when the resulting dump is stored according to the organization's encryption/retention policy
+- a successful run must restore Prisma migration history and query core tenant/company/branch tables
+
+For managed PostgreSQL, this script supplements provider snapshot/PITR verification; it does not replace provider recovery procedures.
 
 ## 5. Migration deployment
 
@@ -128,10 +148,17 @@ Use `/health/live` only to determine whether the API process is alive.
 
 Use `/health/ready` for load-balancer/readiness traffic gating. Readiness includes required dependencies such as PostgreSQL and Redis and must not receive production traffic while unhealthy.
 
-After deployment verify:
+After deployment run:
 
-- `/health/live` succeeds
-- `/health/ready` succeeds
+```bash
+API_BASE_URL='https://<api-domain>' \
+bash scripts/release/verify-api-health.sh
+```
+
+The command must succeed for both `/health/live` and `/health/ready` before traffic is considered healthy.
+
+Also verify:
+
 - PostgreSQL dependency is ready
 - Redis dependency is ready
 - application logs show no startup configuration errors
