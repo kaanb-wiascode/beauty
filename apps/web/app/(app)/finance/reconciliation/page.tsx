@@ -160,6 +160,7 @@ export default function ReconciliationPage() {
   );
   const interventionCount = useMemo(() => events.filter((item) => item.status === "DEAD_LETTER").length, [events]);
   const processingCount = useMemo(() => events.filter((item) => item.status === "PROCESSING").length, [events]);
+  const hasLoadedData = Boolean(summary) || settlements.length > 0 || transactions.length > 0 || events.length > 0;
 
   async function openSuggestions(settlement: Settlement) {
     setSelected(settlement);
@@ -241,6 +242,29 @@ export default function ReconciliationPage() {
     } finally {
       setBusy("");
     }
+  }
+
+  if (!loading && error && !hasLoadedData) {
+    return (
+      <div className="mx-auto max-w-[1500px] space-y-5 pb-10">
+        <div>
+          <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-[var(--muted-soft)]">Finans Yönetimi · Mutabakat</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)] sm:text-[38px]">Mutabakat Merkezi</h1>
+          <p className="mt-1 max-w-3xl text-[14px] leading-6 text-[var(--muted)]">
+            POS Geçişlerini Banka Hareketleriyle Eşleştirin, Bekleyen Farkları İnceleyin Ve Yeniden İşlenmesi Gereken Kayıtları Yönetin.
+          </p>
+        </div>
+        <Alert>{error}</Alert>
+        <FinancePanel title="Mutabakat Verileri Yüklenemedi" description="Finansal Durum Bilinmiyor; Sıfır Kayıt Veya Temiz Kuyruk Olarak Yorumlanmadı.">
+          <div className="py-8 text-center">
+            <p className="text-[12px] leading-6 text-[var(--muted)]">
+              POS Geçişleri, Banka Hareketleri Ve İşlem İzleme Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.
+            </p>
+            <Button className="mt-5" onClick={() => void load()}>Tekrar Dene</Button>
+          </div>
+        </FinancePanel>
+      </div>
+    );
   }
 
   return (
