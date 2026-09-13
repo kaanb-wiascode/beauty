@@ -132,6 +132,12 @@ export class CrmController {
     );
   }
 
+  @Get('opportunities/:id')
+  @RequirePermission('crm', 'read')
+  getOpportunity(@Param('id') id: string) {
+    return this.opportunities.getDetail(uuid.parse(id));
+  }
+
   @Post('opportunities')
   @RequirePermission('crm', 'manage')
   createOpportunity(
