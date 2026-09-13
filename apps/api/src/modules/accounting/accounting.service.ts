@@ -73,6 +73,19 @@ export class AccountingService {
       : {};
   }
 
+  private async acquireTransactionLock(
+    tx: Prisma.TransactionClient,
+    namespace: string,
+    key: string,
+  ): Promise<void> {
+    await tx.$queryRawUnsafe<Array<{ locked: number }>>(
+      `SELECT 1::int AS locked
+       FROM (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) AS lock_call`,
+      namespace,
+      key,
+    );
+  }
+
   private async ensureSystemAccount(
     tx: Prisma.TransactionClient,
     tenantId: string,
@@ -81,11 +94,7 @@ export class AccountingService {
     name: string,
     type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
   ) {
-    await tx.$queryRawUnsafe(
-      'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
-      `account:${companyId}`,
-      code,
-    );
+    await this.acquireTransactionLock(tx, `account:${companyId}`, code);
 
     const existing = await tx.chartOfAccount.findFirst({
       where: { tenantId, companyId, code },
@@ -122,8 +131,8 @@ export class AccountingService {
       lines: AutomaticJournalLine[];
     },
   ) {
-    await tx.$queryRawUnsafe(
-      'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
+    await this.acquireTransactionLock(
+      tx,
       `journal:${input.companyId}`,
       `${input.referenceType}:${input.referenceId}`,
     );
