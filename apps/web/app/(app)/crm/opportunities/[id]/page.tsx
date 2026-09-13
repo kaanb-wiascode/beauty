@@ -1,20 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { Modal } from "@/components/modal";
 import {
   Alert,
   Button,
   EmptyState,
+  Field,
   GlassCard,
   PageHeader,
+  Select,
   Spinner,
+  TextArea,
+  TextInput,
 } from "@/components/ui";
+import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
   opportunityStageLabels,
+  type CrmAssignee,
   type CrmEvent,
   type CrmFollowUp,
   type OpportunityStage,
@@ -44,6 +52,22 @@ type OpportunityDetail = {
   customerLastName: string | null;
   followUps: CrmFollowUp[];
   events: CrmEvent[];
+};
+
+type FollowUpChannel = CrmFollowUp["channel"];
+
+type FollowUpForm = {
+  assignedUserId: string;
+  channel: FollowUpChannel;
+  dueAt: string;
+  note: string;
+};
+
+const emptyFollowUp: FollowUpForm = {
+  assignedUserId: "",
+  channel: "CALL",
+  dueAt: "",
+  note: "",
 };
 
 function formatMoney(value: string | number | null, currency: string) {
@@ -95,14 +119,35 @@ function metadataSummary(metadata: Record<string, unknown> | null) {
     .join(" · ");
 }
 
+function nextLocalHour() {
+  const date = new Date();
+  date.setMinutes(0, 0, 0);
+  date.setHours(date.getHours() + 1);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000);
+  return local.toISOString().slice(0, 16);
+}
+
 export default function OpportunityDetailPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const canManage = hasPermission("crm", "manage");
+  const { showToast } = useToast();
   const [opportunity, setOpportunity] = useState<OpportunityDetail | null>(null);
+  const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [followUpError, setFollowUpError] = useState("");
+  const [followUpForm, setFollowUpForm] = useState<FollowUpForm>(emptyFollowUp);
+
+  async function refreshOpportunity(id: string) {
+    const result = await api<OpportunityDetail>(`/crm/opportunities/${id}`);
+    setOpportunity(result);
+    return result;
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -112,8 +157,16 @@ export default function OpportunityDetailPage({
       setError("");
       try {
         const { id } = await params;
-        const result = await api<OpportunityDetail>(`/crm/opportunities/${id}`);
-        if (!cancelled) setOpportunity(result);
+        const [result, assigneeRows] = await Promise.all([
+          api<OpportunityDetail>(`/crm/opportunities/${id}`),
+          canManage
+            ? api<CrmAssignee[]>("/crm/assignees")
+            : Promise.resolve([] as CrmAssignee[]),
+        ]);
+        if (!cancelled) {
+          setOpportunity(result);
+          setAssignees(assigneeRows);
+        }
       } catch (requestError) {
         if (!cancelled) {
           setError(
@@ -131,7 +184,7 @@ export default function OpportunityDetailPage({
     return () => {
       cancelled = true;
     };
-  }, [params]);
+  }, [canManage, params]);
 
   const subject = useMemo(() => {
     if (!opportunity) return null;
@@ -161,6 +214,63 @@ export default function OpportunityDetailPage({
     }
     return null;
   }, [opportunity]);
+
+  function openFollowUp() {
+    if (!opportunity || !canManage) return;
+    setFollowUpError("");
+    setFollowUpForm({
+      assignedUserId: opportunity.ownerUserId ?? assignees[0]?.id ?? "",
+      channel: "CALL",
+      dueAt: nextLocalHour(),
+      note: "",
+    });
+    setFollowUpOpen(true);
+  }
+
+  function closeFollowUp() {
+    if (followUpSaving) return;
+    setFollowUpOpen(false);
+    setFollowUpError("");
+  }
+
+  async function createFollowUp(event: FormEvent) {
+    event.preventDefault();
+    if (!opportunity) return;
+    if (!followUpForm.assignedUserId) {
+      setFollowUpError("Takip sorumlusu seçilmelidir.");
+      return;
+    }
+    if (!followUpForm.dueAt) {
+      setFollowUpError("Takip tarihi seçilmelidir.");
+      return;
+    }
+
+    setFollowUpSaving(true);
+    setFollowUpError("");
+    try {
+      await api<CrmFollowUp>("/crm/follow-ups", {
+        method: "POST",
+        body: {
+          opportunityId: opportunity.id,
+          assignedUserId: followUpForm.assignedUserId,
+          channel: followUpForm.channel,
+          dueAt: new Date(followUpForm.dueAt).toISOString(),
+          ...(followUpForm.note.trim() ? { note: followUpForm.note.trim() } : {}),
+        },
+      });
+      await refreshOpportunity(opportunity.id);
+      setFollowUpOpen(false);
+      showToast("Satış fırsatı için takip oluşturuldu.", "success");
+    } catch (requestError) {
+      setFollowUpError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Takip oluşturulamadı.",
+      );
+    } finally {
+      setFollowUpSaving(false);
+    }
+  }
 
   if (loading) {
     return (
@@ -192,6 +302,9 @@ export default function OpportunityDetailPage({
         description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda izleyin."
         action={
           <div className="flex flex-wrap gap-2">
+            {canManage ? (
+              <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button>
+            ) : null}
             {subject ? (
               <Link href={subject.href}>
                 <Button variant="secondary">{subject.label}</Button>
@@ -278,9 +391,14 @@ export default function OpportunityDetailPage({
 
       <section className="grid gap-5 xl:grid-cols-2">
         <GlassCard className="p-0">
-          <div className="border-b border-[var(--line)] px-5 py-4">
-            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Takipler</h2>
-            <p className="mt-1 text-[10px] text-[var(--muted)]">Bu fırsata bağlı müşteri temasları</p>
+          <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+            <div>
+              <h2 className="text-[15px] font-semibold text-[var(--ink)]">Takipler</h2>
+              <p className="mt-1 text-[10px] text-[var(--muted)]">Bu fırsata bağlı müşteri temasları</p>
+            </div>
+            {canManage ? (
+              <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openFollowUp}>+ Yeni Takip</Button>
+            ) : null}
           </div>
           {opportunity.followUps.length ? (
             <div className="divide-y divide-[var(--line)]">
@@ -299,7 +417,11 @@ export default function OpportunityDetailPage({
               ))}
             </div>
           ) : (
-            <EmptyState title="Takip Bulunmuyor" description="Bu fırsata bağlı takip kaydı henüz yok." />
+            <EmptyState
+              title="Takip Bulunmuyor"
+              description="Bu fırsata bağlı takip kaydı henüz yok."
+              action={canManage ? <Button onClick={openFollowUp}>İlk Takibi Oluştur</Button> : undefined}
+            />
           )}
         </GlassCard>
 
@@ -331,6 +453,62 @@ export default function OpportunityDetailPage({
           )}
         </GlassCard>
       </section>
+
+      <Modal
+        open={followUpOpen}
+        onClose={closeFollowUp}
+        title="Satış Fırsatı Takibi Oluştur"
+        description={opportunity.title}
+      >
+        <form onSubmit={createFollowUp} className="space-y-4">
+          {followUpError ? <Alert>{followUpError}</Alert> : null}
+          <Field label="Sorumlu" required>
+            <Select
+              value={followUpForm.assignedUserId}
+              onChange={(event) => setFollowUpForm((current) => ({ ...current, assignedUserId: event.target.value }))}
+            >
+              <option value="">Sorumlu Seçin</option>
+              {assignees.map((assignee) => (
+                <option key={assignee.id} value={assignee.id}>
+                  {assignee.firstName} {assignee.lastName} · {assignee.email}
+                </option>
+              ))}
+            </Select>
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Kanal" required>
+              <Select
+                value={followUpForm.channel}
+                onChange={(event) => setFollowUpForm((current) => ({ ...current, channel: event.target.value as FollowUpChannel }))}
+              >
+                {Object.entries(followUpChannelLabels).map(([value, label]) => (
+                  <option key={value} value={value}>{label}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Takip Tarihi" required>
+              <TextInput
+                type="datetime-local"
+                value={followUpForm.dueAt}
+                onChange={(event) => setFollowUpForm((current) => ({ ...current, dueAt: event.target.value }))}
+              />
+            </Field>
+          </div>
+          <Field label="Not">
+            <TextArea
+              rows={4}
+              maxLength={2000}
+              value={followUpForm.note}
+              onChange={(event) => setFollowUpForm((current) => ({ ...current, note: event.target.value }))}
+              placeholder="Örn. Teklif detaylarını görüşmek için müşteriyi arayın."
+            />
+          </Field>
+          <div className="flex justify-end gap-3 border-t border-[var(--line)] pt-4">
+            <Button type="button" variant="secondary" onClick={closeFollowUp} disabled={followUpSaving}>Vazgeç</Button>
+            <Button type="submit" disabled={followUpSaving}>{followUpSaving ? "Oluşturuluyor..." : "Takibi Oluştur"}</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
