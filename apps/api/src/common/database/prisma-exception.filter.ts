@@ -18,6 +18,16 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       };
     }>();
 
+    if (process.env.NODE_ENV === 'test') {
+      console.error(
+        JSON.stringify({
+          event: 'prisma_test_diagnostic',
+          code: exception.code,
+          meta: exception.meta ?? null,
+        }),
+      );
+    }
+
     if (exception.code === 'P2002') {
       return response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
