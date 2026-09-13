@@ -131,11 +131,19 @@ export default function PayrollDashboardPage() {
         </div>
       </header>
 
-      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+      {error && data ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       {loading ? (
         <div className="flex h-64 items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
           <Spinner label="Bordro kontrol merkezi hazırlanıyor..." />
+        </div>
+      ) : error && !data ? (
+        <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6">
+          <Alert>{error}</Alert>
+          <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--muted)]">
+            Bordro verileri doğrulanamadığı için ücret, yükümlülük ve maliyet merkezi tutarları sıfır olarak gösterilmiyor.
+          </p>
+          <Button className="mt-4" onClick={() => void load()}>Tekrar Dene</Button>
         </div>
       ) : (
         <>
