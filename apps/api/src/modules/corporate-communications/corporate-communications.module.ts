@@ -8,6 +8,7 @@ import { CorporateCommunicationsController } from './corporate-communications.co
 import { CorporateCommunicationsService } from './corporate-communications.service';
 import { DigitalAssetsController } from './digital-assets.controller';
 import { DigitalAssetsService } from './digital-assets.service';
+import { MarketingExpenseSyncService } from './marketing-expense-sync.service';
 import { MarketingFinanceController } from './marketing-finance.controller';
 import { MarketingFinanceHandoffService } from './marketing-finance-handoff.service';
 import { MarketingLeadConversionController } from './marketing-lead-conversion.controller';
@@ -30,6 +31,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
     BrandGovernanceService,
     ContentOperationsService,
     DigitalAssetsService,
+    MarketingExpenseSyncService,
     MarketingFinanceHandoffService,
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
@@ -40,6 +42,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
     BrandGovernanceService,
     ContentOperationsService,
     DigitalAssetsService,
+    MarketingExpenseSyncService,
     MarketingFinanceHandoffService,
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
