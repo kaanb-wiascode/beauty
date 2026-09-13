@@ -48,10 +48,13 @@ export class MarketingFinanceHandoffService {
         description: string;
         amount: unknown;
         currency: string;
+        expenseAccountCode: string;
+        expenseAccountName: string;
         status: string;
       }>
     >(
-      `SELECT id,vendor_id AS "vendorId",supplier_bill_id AS "supplierBillId",description,amount,currency,status
+      `SELECT id,vendor_id AS "vendorId",supplier_bill_id AS "supplierBillId",description,amount,currency,
+              expense_account_code AS "expenseAccountCode",expense_account_name AS "expenseAccountName",status
        FROM corporate_marketing_expenses
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          AND ($4::text IS NULL OR branch_id IS NULL OR branch_id=$4::text) LIMIT 1`,
@@ -89,19 +92,18 @@ export class MarketingFinanceHandoffService {
       description: expense.description,
       amount: Number(expense.amount),
       dueAt: input.dueAt,
+      sourceType: 'MARKETING_EXPENSE',
+      sourceId: expenseId,
+      expenseAccountCode: expense.expenseAccountCode,
+      expenseAccountName: expense.expenseAccountName,
     });
 
     await this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRawUnsafe(
-          `UPDATE supplier_bills SET source_type='MARKETING_EXPENSE',source_id=$2::text WHERE id=$1::text`,
-          bill.id,
-          expenseId,
-        );
-        await tx.$executeRawUnsafe(
           `UPDATE corporate_marketing_expenses
            SET supplier_id=$2::text,supplier_bill_id=$3::text,invoice_number=$4,due_on=$5::date,
-               status='POSTED',approved_by_user_id=$6::text,approved_at=NOW(),posted_at=NOW(),updated_at=NOW()
+               status='POSTED',approved_by_user_id=$6::text,approved_at=COALESCE(approved_at,NOW()),posted_at=COALESCE(posted_at,NOW()),updated_at=NOW()
            WHERE id=$1::text`,
           expenseId,
           input.supplierId,
@@ -121,6 +123,6 @@ export class MarketingFinanceHandoffService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-    return { expenseId, supplierBillId: bill.id, idempotent: false };
+    return { expenseId, supplierBillId: bill.id, idempotent: bill.idempotent };
   }
 }
