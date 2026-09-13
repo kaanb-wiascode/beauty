@@ -8,10 +8,30 @@ import { hasPermission } from "@/lib/auth";
 import { cx } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
 
+type MobileIconName =
+  | "home"
+  | "calendar"
+  | "users"
+  | "sparkles"
+  | "user"
+  | "wallet"
+  | "briefcase"
+  | "file"
+  | "clock"
+  | "receipt"
+  | "shield"
+  | "package"
+  | "cart"
+  | "arrows"
+  | "activity"
+  | "chart"
+  | "trend"
+  | "settings";
+
 type MobileNavItem = {
   href: string;
   label: string;
-  icon: string;
+  icon: MobileIconName;
   permission?: string;
   permissions?: readonly string[];
 };
@@ -173,6 +193,7 @@ export function MobileNav() {
             onClick={() => setOpen(false)}
           />
           <section
+            id="mobile-navigation-menu"
             role="dialog"
             aria-modal="true"
             aria-label="Mobil Navigasyon"
