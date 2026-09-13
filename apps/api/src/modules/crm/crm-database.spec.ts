@@ -16,6 +16,13 @@ describe('CRM database invariants', () => {
     ),
     'utf8',
   );
+  const saleLinkageMigration = readFileSync(
+    resolve(
+      __dirname,
+      '../../../../../packages/database/prisma/migrations/20260913163000_crm_opportunity_sale_linkage/migration.sql',
+    ),
+    'utf8',
+  );
 
   it('locks organization and subject scope at database level', () => {
     expect(migration).toContain('validate_crm_scope');
@@ -51,5 +58,14 @@ describe('CRM database invariants', () => {
     expect(followUpLifecycleMigration).toContain(
       '"cancellation_reason" IS NOT NULL',
     );
+  });
+
+  it('keeps opportunity to sale linkage unique, scoped and snapshotted', () => {
+    expect(saleLinkageMigration).toContain('crm_opportunities_sale_id_key');
+    expect(saleLinkageMigration).toContain('crm_opportunities_sale_id_fkey');
+    expect(saleLinkageMigration).toContain('crm_opportunities_sale_scope_guard');
+    expect(saleLinkageMigration).toContain('commercial_snapshot');
+    expect(saleLinkageMigration).toContain('converted_at');
+    expect(saleLinkageMigration).toContain('crm opportunity sale scope mismatch');
   });
 });
