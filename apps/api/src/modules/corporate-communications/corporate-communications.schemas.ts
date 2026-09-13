@@ -130,6 +130,21 @@ export const createProviderConnectionSchema = z.object({
   displayName: z.string().trim().min(2).max(180),
 });
 
+export const routingConditionsSchema = z
+  .object({
+    autoFollowUp: z.boolean().default(true),
+    followUpSlaMinutes: z.coerce.number().int().min(1).max(10080).default(15),
+    followUpChannel: z
+      .enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER'])
+      .default('CALL'),
+  })
+  .catchall(z.unknown())
+  .default({
+    autoFollowUp: true,
+    followUpSlaMinutes: 15,
+    followUpChannel: 'CALL',
+  });
+
 export const createRoutingRuleSchema = z.object({
   name: z.string().trim().min(2).max(180),
   priority: z.coerce.number().int().min(1).max(10000).default(100),
@@ -140,7 +155,7 @@ export const createRoutingRuleSchema = z.object({
   strategy: z
     .enum(['FIXED', 'ROUND_ROBIN', 'LEAST_LOADED'])
     .default('FIXED'),
-  conditions: z.record(z.string(), z.unknown()).default({}),
+  conditions: routingConditionsSchema,
 });
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
@@ -152,3 +167,4 @@ export type CreateProviderConnectionInput = z.infer<
   typeof createProviderConnectionSchema
 >;
 export type CreateRoutingRuleInput = z.infer<typeof createRoutingRuleSchema>;
+export type RoutingConditionsInput = z.infer<typeof routingConditionsSchema>;
