@@ -31,6 +31,8 @@ const NAV_SECTIONS = [
     { href: "/communications", permission: "communications.read", label: "Genel Bakış", icon: "trend" },
     { href: "/communications/campaigns", permission: "communications.read", label: "Kampanyalar", icon: "chart" },
     { href: "/communications/leads", permission: "communications.read", label: "Lead & Dönüşüm", icon: "users" },
+    { href: "/communications/content", permission: "communications.read", label: "İçerik Operasyonu", icon: "calendar" },
+    { href: "/communications/approvals", permission: "communications.read", label: "Onay Merkezi", icon: "shield" },
     { href: "/communications/brand", permission: "communications.read", label: "Marka Merkezi", icon: "sparkles" },
     { href: "/communications/integrations", permission: "communications.read", label: "Reklam Hesapları", icon: "activity" },
     { href: "/communications/routing", permission: "communications.manage", label: "Lead Routing", icon: "arrows" },
