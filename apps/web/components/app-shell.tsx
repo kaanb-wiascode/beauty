@@ -34,6 +34,7 @@ const NAV_SECTIONS = [
     { href: "/communications/content", permission: "communications.read", label: "İçerik Operasyonu", icon: "calendar" },
     { href: "/communications/approvals", permission: "communications.read", label: "Onay Merkezi", icon: "shield" },
     { href: "/communications/brand", permission: "communications.read", label: "Marka Merkezi", icon: "sparkles" },
+    { href: "/communications/assets", permission: "communications.read", label: "Dijital Varlıklar", icon: "file" },
     { href: "/communications/integrations", permission: "communications.read", label: "Reklam Hesapları", icon: "activity" },
     { href: "/communications/routing", permission: "communications.manage", label: "Lead Routing", icon: "arrows" },
   ]},
