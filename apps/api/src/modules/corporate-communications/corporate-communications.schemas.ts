@@ -92,6 +92,19 @@ export const createMarketingLeadSchema = z
     message: 'Marketing lead requires phone or email.',
   });
 
+export const createMarketingAppointmentSchema = z
+  .object({
+    staffId: z.string().uuid(),
+    serviceId: z.string().uuid(),
+    sessionId: z.string().uuid().optional(),
+    startAt: z.coerce.date(),
+    endAt: z.coerce.date(),
+    notes: z.string().trim().max(2000).optional(),
+  })
+  .refine((value) => value.endAt > value.startAt, {
+    message: 'Appointment end date must be after the start date.',
+  });
+
 export const listMarketingLeadsSchema = z.object({
   provider: marketingProviderSchema.optional(),
   status: z
@@ -161,6 +174,9 @@ export const createRoutingRuleSchema = z.object({
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
 export type CreateMarketingLeadInput = z.infer<
   typeof createMarketingLeadSchema
+>;
+export type CreateMarketingAppointmentInput = z.infer<
+  typeof createMarketingAppointmentSchema
 >;
 export type CreateBrandAssetInput = z.infer<typeof createBrandAssetSchema>;
 export type CreateProviderConnectionInput = z.infer<
