@@ -5,30 +5,30 @@ DECLARE
   stock_row RECORD;
   warehouse UUID;
   target_qty NUMERIC;
-  branch_uuid UUID;
+  branch_id_value TEXT;
 BEGIN
   IF OLD.status = NEW.status OR NEW.status <> 'COMPLETED' THEN
     RETURN NEW;
   END IF;
 
-  branch_uuid := NEW."branchId"::uuid;
+  branch_id_value := NEW."branchId";
 
   SELECT id
     INTO warehouse
   FROM inventory_warehouses
-  WHERE branch_id = branch_uuid
+  WHERE branch_id::text = branch_id_value
     AND type = 'BRANCH'
     AND status = 'ACTIVE'
   LIMIT 1;
 
   IF warehouse IS NULL THEN
-    RAISE EXCEPTION 'Inventory warehouse not found for branch %', branch_uuid;
+    RAISE EXCEPTION 'Inventory warehouse not found for branch %', branch_id_value;
   END IF;
 
   FOR material IN
     SELECT ism.product_id, ism.quantity
     FROM inventory_service_materials ism
-    WHERE ism.service_id = NEW."serviceId"::uuid
+    WHERE ism.service_id::text = NEW."serviceId"
   LOOP
     SELECT *
       INTO stock_row
@@ -72,7 +72,7 @@ BEGIN
       NEW.id::uuid,
       'Hizmet tamamlandı: otomatik stok tüketimi'
     FROM branches b
-    WHERE b.id = NEW."branchId";
+    WHERE b.id = branch_id_value;
 
     IF stock_row.quantity - material.quantity <= stock_row.minimum_quantity THEN
       target_qty := GREATEST(
@@ -105,7 +105,7 @@ BEGIN
           target_qty,
           'Minimum stok seviyesinin altına düştü'
         FROM branches b
-        WHERE b.id = NEW."branchId";
+        WHERE b.id = branch_id_value;
 
         INSERT INTO inventory_notifications(
           tenant_id,
@@ -121,7 +121,7 @@ BEGIN
         SELECT
           NEW."tenantId"::uuid,
           b."companyId"::uuid,
-          branch_uuid,
+          branch_id_value,
           targets.role_target,
           'LOW_STOCK',
           'Kritik stok uyarısı',
@@ -132,7 +132,7 @@ BEGIN
         CROSS JOIN LATERAL (
           VALUES ('MANAGER'), ('PURCHASING'), ('FINANCE')
         ) AS targets(role_target)
-        WHERE b.id = NEW."branchId";
+        WHERE b.id = branch_id_value;
       END IF;
     END IF;
   END LOOP;
