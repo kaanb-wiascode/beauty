@@ -40,6 +40,32 @@ type OwnerWorkloadRow = {
   overdueFollowUpCount: number;
 };
 
+type ActionFollowUpRow = {
+  id: string;
+  leadId: string | null;
+  opportunityId: string | null;
+  assignedUserId: string;
+  channel: string;
+  dueAt: Date;
+  note: string | null;
+  version: number;
+  subjectLabel: string;
+};
+
+type ActionOpportunityRow = {
+  id: string;
+  leadId: string | null;
+  customerId: string | null;
+  ownerUserId: string | null;
+  title: string;
+  stage: string;
+  estimatedValue: number | null;
+  currency: string;
+  probability: number;
+  updatedAt: Date;
+  subjectLabel: string;
+};
+
 @Injectable()
 export class CrmOperationsService {
   constructor(
@@ -49,6 +75,81 @@ export class CrmOperationsService {
 
   private context() {
     return this.tenantContext.getContext();
+  }
+
+  async listActionFollowUps(filters: {
+    mode: 'OVERDUE' | 'TODAY';
+    dayStart: Date;
+    dayEnd: Date;
+    assignedUserId?: string;
+    limit?: number;
+  }) {
+    const context = this.context();
+    const limit = Math.min(Math.max(filters.limit ?? 100, 1), 200);
+    return this.prisma.$queryRawUnsafe<ActionFollowUpRow[]>(
+      `SELECT f.id,f.lead_id AS "leadId",f.opportunity_id AS "opportunityId",
+              f.assigned_user_id AS "assignedUserId",f.channel,f.due_at AS "dueAt",
+              f.note,f.version,
+              COALESCE(NULLIF(trim(concat_ws(' ',l.first_name,l.last_name)),''),o.title,'Müşteri İlişkileri Kaydı') AS "subjectLabel"
+         FROM crm_follow_ups f
+         LEFT JOIN crm_leads l
+           ON l.id=f.lead_id AND l.tenant_id=f.tenant_id AND l.company_id=f.company_id AND l.branch_id=f.branch_id
+         LEFT JOIN crm_opportunities o
+           ON o.id=f.opportunity_id AND o.tenant_id=f.tenant_id AND o.company_id=f.company_id AND o.branch_id=f.branch_id
+        WHERE f.tenant_id=$1::text AND f.company_id=$2::text
+          AND ($3::text IS NULL OR f.branch_id=$3::text)
+          AND f.status='OPEN'
+          AND ($4::text IS NULL OR f.assigned_user_id=$4::text)
+          AND (
+            ($5::text='OVERDUE' AND f.due_at < NOW()) OR
+            ($5::text='TODAY' AND f.due_at >= $6::timestamptz AND f.due_at < $7::timestamptz)
+          )
+        ORDER BY f.due_at,f.id
+        LIMIT $8`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      filters.assignedUserId ?? null,
+      filters.mode,
+      filters.dayStart,
+      filters.dayEnd,
+      limit,
+    );
+  }
+
+  async listStaleOpportunities(filters: {
+    ownerUserId?: string;
+    staleBefore: Date;
+    limit?: number;
+  }) {
+    const context = this.context();
+    const limit = Math.min(Math.max(filters.limit ?? 100, 1), 200);
+    return this.prisma.$queryRawUnsafe<ActionOpportunityRow[]>(
+      `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",o.owner_user_id AS "ownerUserId",
+              o.title,o.stage,o.estimated_value AS "estimatedValue",o.currency,o.probability,
+              o.updated_at AS "updatedAt",
+              COALESCE(NULLIF(trim(concat_ws(' ',l.first_name,l.last_name)),''),
+                       NULLIF(trim(concat_ws(' ',c."firstName",c."lastName")),''),
+                       'Müşteri Bağlantısı Yok') AS "subjectLabel"
+         FROM crm_opportunities o
+         LEFT JOIN crm_leads l
+           ON l.id=o.lead_id AND l.tenant_id=o.tenant_id AND l.company_id=o.company_id AND l.branch_id=o.branch_id
+         LEFT JOIN customers c
+           ON c.id=o.customer_id AND c."tenantId"=o.tenant_id AND c."branchId"=o.branch_id
+        WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+          AND ($3::text IS NULL OR o.branch_id=$3::text)
+          AND ($4::text IS NULL OR o.owner_user_id=$4::text)
+          AND o.stage NOT IN ('WON','LOST')
+          AND o.updated_at < $5::timestamptz
+        ORDER BY o.updated_at,o.id
+        LIMIT $6`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      filters.ownerUserId ?? null,
+      filters.staleBefore,
+      limit,
+    );
   }
 
   async getSummary(dayStart: Date, dayEnd: Date) {
