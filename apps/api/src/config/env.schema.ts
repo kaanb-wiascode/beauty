@@ -6,6 +6,8 @@ export const envSchema = z.object({
     .default('development'),
 
   PORT: z.coerce.number().int().positive().default(3000),
+  CORS_ORIGINS: z.string().trim().min(1).optional(),
+  TRUST_PROXY: z.enum(['true', 'false']).default('false'),
 
   DATABASE_URL: z.string().url(),
 
@@ -35,6 +37,25 @@ export const envSchema = z.object({
   OBJECT_STORAGE_PRESIGN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).optional(),
   OBJECT_STORAGE_MAX_BYTES: z.coerce.number().int().min(1_048_576).max(104_857_600).optional(),
 }).superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && !env.CORS_ORIGINS) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'CORS_ORIGINS must be configured in production',
+      path: ['CORS_ORIGINS'],
+    });
+  }
+
+  if (env.CORS_ORIGINS) {
+    const origins = env.CORS_ORIGINS.split(',').map((value) => value.trim());
+    if (origins.some((origin) => !origin || !URL.canParse(origin))) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CORS_ORIGINS must contain comma-separated absolute URLs',
+        path: ['CORS_ORIGINS'],
+      });
+    }
+  }
+
   const hasUrl = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_URL);
   const hasSecret = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_SECRET);
   if (hasUrl !== hasSecret) {
