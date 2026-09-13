@@ -45,6 +45,12 @@ type Customer = { id: string; firstName: string; lastName: string };
 type Service = { id: string; name: string; price: string | number };
 type ServicePackage = { id: string; name: string; price: string | number; active: boolean };
 type SaleReferenceType = "SERVICE" | "PACKAGE";
+type DraftSaleItem = {
+  key: string;
+  type: SaleReferenceType;
+  referenceId: string;
+  quantity: string;
+};
 type SaleConversionResponse = {
   idempotent: boolean;
   sale: { id: string; status: string; total: string | number };
@@ -56,6 +62,10 @@ function formatMoney(value: string | number | null, currency: string) {
     currency,
     maximumFractionDigits: 0,
   }).format(Number(value ?? 0));
+}
+
+function newSaleItem(index: number): DraftSaleItem {
+  return { key: `sale-item-${index}`, type: "SERVICE", referenceId: "", quantity: "1" };
 }
 
 export default function CrmPipelinePage() {
@@ -82,9 +92,8 @@ export default function CrmPipelinePage() {
   const [packages, setPackages] = useState<ServicePackage[]>([]);
   const [saleReferencesLoading, setSaleReferencesLoading] = useState(false);
   const [saleCustomerId, setSaleCustomerId] = useState("");
-  const [saleReferenceType, setSaleReferenceType] = useState<SaleReferenceType>("SERVICE");
-  const [saleReferenceId, setSaleReferenceId] = useState("");
-  const [saleQuantity, setSaleQuantity] = useState("1");
+  const [saleItems, setSaleItems] = useState<DraftSaleItem[]>([newSaleItem(1)]);
+  const [saleItemSequence, setSaleItemSequence] = useState(1);
   const [saleDiscount, setSaleDiscount] = useState("0");
 
   const load = useCallback(async () => {
@@ -116,9 +125,11 @@ export default function CrmPipelinePage() {
     };
   }, [rows]);
 
-  const saleReferences = saleReferenceType === "SERVICE"
-    ? services.map((item) => ({ id: item.id, label: item.name, price: item.price }))
-    : packages.filter((item) => item.active).map((item) => ({ id: item.id, label: item.name, price: item.price }));
+  function referencesFor(type: SaleReferenceType) {
+    return type === "SERVICE"
+      ? services.map((item) => ({ id: item.id, label: item.name, price: item.price }))
+      : packages.filter((item) => item.active).map((item) => ({ id: item.id, label: item.name, price: item.price }));
+  }
 
   function requireActiveBranch() {
     if (hasActiveBranch()) return true;
@@ -173,9 +184,8 @@ export default function CrmPipelinePage() {
     if (!requireActiveBranch()) return;
     setSaleOpportunity(row);
     setSaleCustomerId(row.customerId ?? "");
-    setSaleReferenceType("SERVICE");
-    setSaleReferenceId("");
-    setSaleQuantity("1");
+    setSaleItems([newSaleItem(1)]);
+    setSaleItemSequence(1);
     setSaleDiscount("0");
     setError("");
     setSaleReferencesLoading(true);
@@ -195,16 +205,38 @@ export default function CrmPipelinePage() {
     }
   }
 
+  function updateSaleItem(key: string, patch: Partial<Omit<DraftSaleItem, "key">>) {
+    setSaleItems((current) => current.map((item) => item.key === key ? { ...item, ...patch } : item));
+  }
+
+  function addSaleItem() {
+    const next = saleItemSequence + 1;
+    setSaleItemSequence(next);
+    setSaleItems((current) => [...current, newSaleItem(next)]);
+  }
+
+  function removeSaleItem(key: string) {
+    setSaleItems((current) => current.length > 1 ? current.filter((item) => item.key !== key) : current);
+  }
+
   async function createSale(event: FormEvent) {
     event.preventDefault();
-    if (!saleOpportunity || !saleCustomerId || !saleReferenceId) {
-      setError("Müşteri ve satış kalemi seçilmelidir.");
+    if (!saleOpportunity || !saleCustomerId) {
+      setError("Müşteri seçilmelidir.");
       return;
     }
-    const quantity = Number(saleQuantity);
+    const normalizedItems = saleItems.map((item) => ({
+      type: item.type,
+      referenceId: item.referenceId,
+      quantity: Number(item.quantity),
+    }));
+    if (normalizedItems.some((item) => !item.referenceId || !Number.isInteger(item.quantity) || item.quantity <= 0)) {
+      setError("Her satış kalemi için ürün/hizmet ve pozitif tam sayı miktar seçilmelidir.");
+      return;
+    }
     const discountTotal = Number(saleDiscount);
-    if (!Number.isInteger(quantity) || quantity <= 0 || !Number.isFinite(discountTotal) || discountTotal < 0) {
-      setError("Miktar pozitif tam sayı, indirim ise sıfır veya pozitif olmalıdır.");
+    if (!Number.isFinite(discountTotal) || discountTotal < 0) {
+      setError("İndirim sıfır veya pozitif olmalıdır.");
       return;
     }
 
@@ -217,7 +249,7 @@ export default function CrmPipelinePage() {
           version: saleOpportunity.version,
           customerId: saleCustomerId,
           discountTotal,
-          items: [{ type: saleReferenceType, referenceId: saleReferenceId, quantity }],
+          items: normalizedItems,
         },
       });
       setSaleOpportunity(null);
@@ -378,28 +410,52 @@ export default function CrmPipelinePage() {
                 ))}
               </Select>
             </Field>
-            <Field label="Satış Kalemi Türü" required>
-              <Select value={saleReferenceType} onChange={(event) => { setSaleReferenceType(event.target.value as SaleReferenceType); setSaleReferenceId(""); }}>
-                <option value="SERVICE">Hizmet</option>
-                <option value="PACKAGE">Paket</option>
-              </Select>
-            </Field>
-            <Field label={saleReferenceType === "SERVICE" ? "Hizmet" : "Paket"} required>
-              <Select value={saleReferenceId} onChange={(event) => setSaleReferenceId(event.target.value)}>
-                <option value="">Seçin</option>
-                {saleReferences.map((reference) => (
-                  <option key={reference.id} value={reference.id}>{reference.label} · {formatMoney(reference.price, "TRY")}</option>
-                ))}
-              </Select>
-            </Field>
-            <div className="grid gap-4 sm:grid-cols-2">
-              <Field label="Miktar" required>
-                <TextInput type="number" min="1" step="1" value={saleQuantity} onChange={(event) => setSaleQuantity(event.target.value)} />
-              </Field>
-              <Field label="İndirim (₺)">
-                <TextInput type="number" min="0" step="0.01" value={saleDiscount} onChange={(event) => setSaleDiscount(event.target.value)} />
-              </Field>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[12px] font-semibold text-[var(--ink)]">Satış Kalemleri</p>
+                <Button type="button" variant="secondary" className="min-h-8 px-3 py-1 text-[10px]" onClick={addSaleItem}>+ Kalem Ekle</Button>
+              </div>
+              {saleItems.map((item, index) => {
+                const references = referencesFor(item.type);
+                return (
+                  <div key={item.key} className="space-y-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/40 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-[10px] font-semibold text-[var(--muted)]">Kalem {index + 1}</span>
+                      {saleItems.length > 1 ? (
+                        <Button type="button" variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => removeSaleItem(item.key)}>Kaldır</Button>
+                      ) : null}
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[.8fr_1.4fr_.5fr]">
+                      <Field label="Tür" required>
+                        <Select
+                          value={item.type}
+                          onChange={(event) => updateSaleItem(item.key, { type: event.target.value as SaleReferenceType, referenceId: "" })}
+                        >
+                          <option value="SERVICE">Hizmet</option>
+                          <option value="PACKAGE">Paket</option>
+                        </Select>
+                      </Field>
+                      <Field label={item.type === "SERVICE" ? "Hizmet" : "Paket"} required>
+                        <Select value={item.referenceId} onChange={(event) => updateSaleItem(item.key, { referenceId: event.target.value })}>
+                          <option value="">Seçin</option>
+                          {references.map((reference) => (
+                            <option key={reference.id} value={reference.id}>{reference.label} · {formatMoney(reference.price, "TRY")}</option>
+                          ))}
+                        </Select>
+                      </Field>
+                      <Field label="Miktar" required>
+                        <TextInput type="number" min="1" step="1" value={item.quantity} onChange={(event) => updateSaleItem(item.key, { quantity: event.target.value })} />
+                      </Field>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
+
+            <Field label="Toplam İndirim (₺)">
+              <TextInput type="number" min="0" step="0.01" value={saleDiscount} onChange={(event) => setSaleDiscount(event.target.value)} />
+            </Field>
             <Alert tone="success">Bu işlem muhasebe kaydı oluşturmaz. Önce satış taslağı oluşur; mevcut satış onay ve ödeme akışı daha sonra kullanılır.</Alert>
             <div className="flex justify-end gap-3">
               <Button variant="secondary" onClick={() => setSaleOpportunity(null)} disabled={saving}>Vazgeç</Button>
