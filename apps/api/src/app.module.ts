@@ -31,6 +31,7 @@ import { SupplierNetworkModule } from './modules/supplier-network/supplier-netwo
 import { QualityModule } from './modules/quality/quality.module';
 import { TrainingModule } from './modules/training/training.module';
 import { CrmModule } from './modules/crm/crm.module';
+import { CorporateCommunicationsModule } from './modules/corporate-communications/corporate-communications.module';
 
 @Module({
   imports: [
@@ -69,6 +70,7 @@ import { CrmModule } from './modules/crm/crm.module';
     QualityModule,
     TrainingModule,
     CrmModule,
+    CorporateCommunicationsModule,
   ],
 })
 export class AppModule {}
