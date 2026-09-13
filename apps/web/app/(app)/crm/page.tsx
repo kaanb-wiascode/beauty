@@ -92,6 +92,19 @@ export default function CrmOverviewPage() {
 
   if (loading) return <Spinner label="Müşteri İlişkileri Görünümü Hazırlanıyor..." />;
 
+  if (error && !leads.length && !opportunities.length && !followUps.length) {
+    return (
+      <div className="mx-auto max-w-[900px] space-y-4 py-10">
+        <Alert>{error}</Alert>
+        <EmptyState
+          title="Müşteri İlişkileri Verileri Yüklenemedi"
+          description="Bu durum boş bir müşteri havuzu anlamına gelmez. Bağlantıyı veya çalışma kapsamını kontrol edip verileri yeniden yükleyin."
+          action={<Button onClick={() => void load()}>Tekrar Dene</Button>}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
