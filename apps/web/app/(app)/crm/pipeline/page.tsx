@@ -334,7 +334,7 @@ export default function CrmPipelinePage() {
 
                     return (
                       <article key={row.id} className="rounded-[16px] border border-[#dfeaf1] bg-white p-3 shadow-[0_3px_14px_rgba(17,70,104,.05)]">
-                        <Link href={subjectHref} className="block text-[12px] font-semibold leading-5 hover:text-[#1674BD]">
+                        <Link href={`/crm/opportunities/${row.id}`} className="block text-[12px] font-semibold leading-5 hover:text-[#1674BD]">
                           {row.title}
                         </Link>
                         <Link href={subjectHref} className="mt-1 block truncate text-[10px] text-[var(--muted)] hover:text-[#1674BD]">
