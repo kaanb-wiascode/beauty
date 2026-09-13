@@ -60,6 +60,21 @@ export const qualifyLeadSchema = z.object({
   ownerUserId: z.string().uuid().optional(),
 });
 
+export const createOpportunitySchema = z.object({
+  customerId: z.string().uuid(),
+  title: z.string().trim().min(1).max(200),
+  estimatedValue: z.coerce.number().min(0).optional(),
+  currency: z
+    .string()
+    .trim()
+    .length(3)
+    .transform((value) => value.toUpperCase())
+    .default('TRY'),
+  probability: z.coerce.number().int().min(0).max(100).default(25),
+  expectedCloseDate: z.coerce.date().optional(),
+  ownerUserId: z.string().uuid().optional(),
+});
+
 export const transitionOpportunitySchema = z.object({
   version: z.coerce.number().int().min(1),
   stage: opportunityStageSchema,
@@ -110,6 +125,7 @@ export const cancelFollowUpSchema = z.object({
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 export type QualifyLeadInput = z.infer<typeof qualifyLeadSchema>;
+export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>;
 export type TransitionOpportunityInput = z.infer<
   typeof transitionOpportunitySchema
 >;
