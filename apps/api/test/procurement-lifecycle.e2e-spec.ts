@@ -140,17 +140,34 @@ describe('Procurement Lifecycle (e2e)', () => {
 
     const purchaseOrderId = converted.body.purchaseOrderId as string;
 
-    const detailBeforeOrder = await request(app.getHttpServer())
+    const detailBeforeApproval = await request(app.getHttpServer())
       .get(`/procurement/purchase-orders/${purchaseOrderId}`)
       .set('Authorization', `Bearer ${branchToken}`)
       .expect(200);
 
-    expect(detailBeforeOrder.body.order.status).toBe('APPROVED');
-    expect(detailBeforeOrder.body.items).toHaveLength(1);
-    expect(Number(detailBeforeOrder.body.items[0].quantity)).toBe(4);
-    expect(Number(detailBeforeOrder.body.items[0].unitCost)).toBe(50);
+    expect(detailBeforeApproval.body.order.status).toBe('APPROVED');
+    expect(detailBeforeApproval.body.items).toHaveLength(1);
+    expect(Number(detailBeforeApproval.body.items[0].quantity)).toBe(4);
+    expect(Number(detailBeforeApproval.body.items[0].unitCost)).toBe(50);
 
-    const purchaseOrderItemId = detailBeforeOrder.body.items[0].id as string;
+    const purchaseOrderItemId = detailBeforeApproval.body.items[0].id as string;
+
+    const submittedApproval = await request(app.getHttpServer())
+      .post(`/procurement/purchase-orders/${purchaseOrderId}/submit-approval`)
+      .set('Authorization', `Bearer ${branchToken}`)
+      .expect(201);
+
+    expect(submittedApproval.body.order.status).toBe('PENDING');
+    expect(submittedApproval.body.approvals).toHaveLength(1);
+    expect(submittedApproval.body.approvals[0].requiredRole).toBe('MANAGER');
+
+    const approved = await request(app.getHttpServer())
+      .post(`/procurement/purchase-orders/${purchaseOrderId}/approvals/1/approve`)
+      .set('Authorization', `Bearer ${branchToken}`)
+      .expect(201);
+
+    expect(approved.body.order.status).toBe('APPROVED');
+    expect(approved.body.approvals[0].status).toBe('APPROVED');
 
     await request(app.getHttpServer())
       .post(`/procurement/purchase-orders/${purchaseOrderId}/order`)
@@ -170,10 +187,10 @@ describe('Procurement Lifecycle (e2e)', () => {
       })
       .expect(201);
 
-    expect(received.body.goodsReceiptId).toBeDefined();
+    expect(received.body.receiptId).toBeDefined();
     expect(received.body.supplierBillId).toBeDefined();
     expect(received.body.purchaseOrderStatus).toBe('RECEIVED');
-    expect(Number(received.body.receiptTotal)).toBe(200);
+    expect(Number(received.body.total)).toBe(200);
 
     const stockRows = await prisma.$queryRawUnsafe<
       Array<{ quantity: number | string; costPerUnit: number | string }>
@@ -208,7 +225,7 @@ describe('Procurement Lifecycle (e2e)', () => {
       .expect(200);
 
     expect(receipts.body).toHaveLength(1);
-    expect(receipts.body[0].id).toBe(received.body.goodsReceiptId);
+    expect(receipts.body[0].id).toBe(received.body.receiptId);
     expect(receipts.body[0].supplierBillId).toBe(received.body.supplierBillId);
 
     const bills = await prisma.$queryRawUnsafe<
@@ -224,7 +241,7 @@ describe('Procurement Lifecycle (e2e)', () => {
 
     expect(bills).toHaveLength(1);
     expect(Number(bills[0].amount)).toBe(200);
-    expect(bills[0].sourceId).toBe(received.body.goodsReceiptId);
+    expect(bills[0].sourceId).toBe(received.body.receiptId);
 
     const journals = await prisma.$queryRawUnsafe<
       Array<{ status: string; debit: number | string; credit: number | string }>
@@ -241,7 +258,7 @@ describe('Procurement Lifecycle (e2e)', () => {
        GROUP BY je.id,je.status`,
       companyId,
       branchId,
-      received.body.goodsReceiptId,
+      received.body.receiptId,
     );
 
     expect(journals).toHaveLength(1);
