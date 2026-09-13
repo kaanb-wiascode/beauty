@@ -213,6 +213,25 @@ export default function InventoryAnalysisPage() {
     return <Spinner label="Envanter Analizi Hazırlanıyor..." />;
   }
 
+  if (error && !valuations.length && !reconciliation && !details.length && !movementSummary.length && !inTransit.length) {
+    return (
+      <div className="mx-auto max-w-[1500px] space-y-6 pb-10">
+        <PageHeader
+          title="Envanter Analizi"
+          description="Stok Değerini, Muhasebe Mutabakatını, Hareket Yoğunluğunu Ve Transferdeki Stokları Aktif Şube Kapsamında İzleyin."
+        />
+        <Alert onClose={() => setError("")}>{error}</Alert>
+        <Panel>
+          <div className="px-6 py-14 text-center">
+            <p className="text-[15px] font-semibold text-[var(--ink)]">Envanter Analizi Yüklenemedi</p>
+            <p className="mx-auto mt-2 max-w-xl text-[12px] leading-5 text-[var(--muted)]">Stok Değeri, Muhasebe Mutabakatı Ve Hareket Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.</p>
+            <Button className="mt-5" onClick={() => void load(filters, true)}>Tekrar Dene</Button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 pb-10">
       <PageHeader
