@@ -77,11 +77,13 @@ export default function ServiceMaterialsPage() {
   const [loading, setLoading] = useState(true);
   const [materialsLoading, setMaterialsLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [baseError, setBaseError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
 
   const loadBase = useCallback(async () => {
     setLoading(true);
+    setBaseError("");
     setError("");
     try {
       const [serviceResponse, productRows] = await Promise.all([
@@ -94,10 +96,10 @@ export default function ServiceMaterialsPage() {
       setProducts(activeProducts);
       setSelectedServiceId((current) => current || activeServices[0]?.id || "");
     } catch (requestError) {
-      setError(
+      setBaseError(
         requestError instanceof ApiError
           ? requestError.message
-          : "Hizmet Malzemeleri Yüklenemedi.",
+          : "Hizmet Ve Ürün Verileri Yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -222,6 +224,26 @@ export default function ServiceMaterialsPage() {
     return <Spinner label="Hizmet Malzemeleri Hazırlanıyor..." />;
   }
 
+  if (baseError) {
+    return (
+      <div className="mx-auto max-w-[1380px] space-y-6 pb-10">
+        <PageHeader
+          title="Hizmet Malzemeleri"
+          description="Her Hizmette Kullanılan Sarf Ürünlerini Ve Miktarlarını Tanımlayın. Hizmet Tamamlandığında Stok Tüketimi Otomatik Oluşur."
+        />
+        <Panel>
+          <div className="flex min-h-[260px] flex-col items-center justify-center gap-4 px-6 py-10 text-center">
+            <div>
+              <h2 className="text-[17px] font-semibold text-[var(--ink)]">Hizmet Malzemeleri Yüklenemedi</h2>
+              <p className="mt-2 max-w-xl text-[12px] leading-5 text-[var(--muted)]">{baseError}</p>
+            </div>
+            <Button variant="secondary" onClick={() => void loadBase()}>Tekrar Dene</Button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1380px] space-y-6 pb-10">
       <PageHeader
@@ -257,7 +279,6 @@ export default function ServiceMaterialsPage() {
                 </Select>
               </Field>
             </div>
-
             {selectedService ? (
               <div className="mt-5 rounded-[18px] bg-[var(--surface-2)] p-4">
                 <p className="text-[13px] font-semibold text-[var(--ink)]">{selectedService.name}</p>
