@@ -251,6 +251,27 @@ export default function PurchasesPage() {
 
   if (loading) return <div className="py-16"><Spinner label="Satın Alma Hazırlanıyor..." /></div>;
 
+  if (error && !requests.length && !orders.length && !suppliers.length) {
+    return (
+      <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">Satın Alma</p>
+            <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Satın Alma Yönetimi</h1>
+            <p className="mt-1 text-[14px] text-[var(--muted)]">Stok İhtiyaçlarını Talepten Siparişe Ve Mal Kabule Kadar Tek Ekrandan Yönetin.</p>
+          </div>
+          <Link href="/inventory" className="inline-flex min-h-10 items-center justify-center rounded-[14px] bg-[var(--surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">Envantere Dön</Link>
+        </header>
+        <Alert onClose={() => setError("")}>{error}</Alert>
+        <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] px-6 py-14 text-center">
+          <p className="text-[15px] font-semibold text-[var(--ink)]">Satın Alma Kayıtları Yüklenemedi</p>
+          <p className="mx-auto mt-2 max-w-xl text-[12px] leading-5 text-[var(--muted)]">Satın Alma Ve Tedarikçi Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.</p>
+          <Button className="mt-5" onClick={() => void load(true)}>Tekrar Dene</Button>
+        </div>
+      </div>
+    );
+  }
+
   const visibleCount = view === "requests" ? visibleRequests.length : visibleOrders.length;
   const totalCount = view === "requests" ? requests.length : orders.length;
 
