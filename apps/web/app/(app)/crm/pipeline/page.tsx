@@ -103,28 +103,19 @@ export default function CrmPipelinePage() {
     try {
       const params = new URLSearchParams({ limit: "200" });
       if (ownerUserId) params.set("ownerUserId", ownerUserId);
-      const [opportunityRows, assigneeRows, customerResult] = await Promise.all([
+      const [opportunityRows, assigneeRows] = await Promise.all([
         api<CrmOpportunity[]>(`/crm/opportunities?${params}`),
         api<CrmAssignee[]>("/crm/assignees"),
-        canReadCustomers
-          ? api<{ data: Customer[] }>(withQuery("/customers", { page: 1, limit: 200 }))
-          : Promise.resolve({ data: [] as Customer[] }),
       ]);
       setRows(opportunityRows);
       setAssignees(assigneeRows);
-      setCustomers(customerResult.data);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Satış Süreci Yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  }, [canReadCustomers, ownerUserId]);
+  }, [ownerUserId]);
   useEffect(() => { void load(); }, [load]);
-
-  const customerNameById = useMemo(
-    () => new Map(customers.map((customer) => [customer.id, `${customer.firstName} ${customer.lastName}`.trim()])),
-    [customers],
-  );
 
   const totals = useMemo(() => {
     const open = rows.filter((row) => !["WON", "LOST"].includes(row.stage));
@@ -192,20 +183,34 @@ export default function CrmPipelinePage() {
 
   async function openSale(row: CrmOpportunity) {
     if (!requireActiveBranch()) return;
+    const linkedCustomer = row.customerId
+      ? [{
+          id: row.customerId,
+          firstName: row.customerFirstName ?? "",
+          lastName: row.customerLastName ?? "",
+        }]
+      : [];
+
     setSaleOpportunity(row);
     setSaleCustomerId(row.customerId ?? "");
+    setCustomers(linkedCustomer);
     setSaleItems([newSaleItem(1)]);
     setSaleItemSequence(1);
     setSaleDiscount("0");
     setError("");
     setSaleReferencesLoading(true);
     try {
-      const [serviceResult, packageResult] = await Promise.all([
+      const customerRequest = row.customerId
+        ? Promise.resolve({ data: linkedCustomer })
+        : api<{ data: Customer[] }>(withQuery("/customers", { page: 1, limit: 200 }));
+      const [serviceResult, packageResult, customerResult] = await Promise.all([
         api<{ data: Service[] }>(withQuery("/services", { page: 1, limit: 200 })),
         api<ServicePackage[]>("/packages"),
+        customerRequest,
       ]);
       setServices(serviceResult.data);
       setPackages(packageResult);
+      setCustomers(customerResult.data);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Satış seçenekleri yüklenemedi.");
     } finally {
@@ -321,7 +326,7 @@ export default function CrmPipelinePage() {
                 </header>
                 <div className="space-y-3 p-3">
                   {stageRows.map((row) => {
-                    const customerName = row.customerId ? customerNameById.get(row.customerId) : undefined;
+                    const customerName = [row.customerFirstName, row.customerLastName].filter(Boolean).join(" ");
                     const subjectName =
                       [row.leadFirstName, row.leadLastName].filter(Boolean).join(" ") ||
                       customerName ||
