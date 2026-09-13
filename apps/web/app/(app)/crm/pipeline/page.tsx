@@ -70,9 +70,10 @@ function newSaleItem(index: number): DraftSaleItem {
 
 export default function CrmPipelinePage() {
   const canManage = hasPermission("crm", "manage");
+  const canReadCustomers = hasPermission("customers", "read");
   const canCreateSale =
     hasPermission("payments", "create") &&
-    hasPermission("customers", "read") &&
+    canReadCustomers &&
     hasPermission("services", "read");
   const { showToast } = useToast();
   const [rows, setRows] = useState<CrmOpportunity[]>([]);
@@ -102,19 +103,28 @@ export default function CrmPipelinePage() {
     try {
       const params = new URLSearchParams({ limit: "200" });
       if (ownerUserId) params.set("ownerUserId", ownerUserId);
-      const [opportunityRows, assigneeRows] = await Promise.all([
+      const [opportunityRows, assigneeRows, customerResult] = await Promise.all([
         api<CrmOpportunity[]>(`/crm/opportunities?${params}`),
         api<CrmAssignee[]>("/crm/assignees"),
+        canReadCustomers
+          ? api<{ data: Customer[] }>(withQuery("/customers", { page: 1, limit: 200 }))
+          : Promise.resolve({ data: [] as Customer[] }),
       ]);
       setRows(opportunityRows);
       setAssignees(assigneeRows);
+      setCustomers(customerResult.data);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Satış Süreci Yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  }, [ownerUserId]);
+  }, [canReadCustomers, ownerUserId]);
   useEffect(() => { void load(); }, [load]);
+
+  const customerNameById = useMemo(
+    () => new Map(customers.map((customer) => [customer.id, `${customer.firstName} ${customer.lastName}`.trim()])),
+    [customers],
+  );
 
   const totals = useMemo(() => {
     const open = rows.filter((row) => !["WON", "LOST"].includes(row.stage));
@@ -190,12 +200,10 @@ export default function CrmPipelinePage() {
     setError("");
     setSaleReferencesLoading(true);
     try {
-      const [customerResult, serviceResult, packageResult] = await Promise.all([
-        api<{ data: Customer[] }>(withQuery("/customers", { page: 1, limit: 200 })),
+      const [serviceResult, packageResult] = await Promise.all([
         api<{ data: Service[] }>(withQuery("/services", { page: 1, limit: 200 })),
         api<ServicePackage[]>("/packages"),
       ]);
-      setCustomers(customerResult.data);
       setServices(serviceResult.data);
       setPackages(packageResult);
     } catch (requestError) {
@@ -312,33 +320,46 @@ export default function CrmPipelinePage() {
                   <span className="rounded-full bg-[#EAF5FB] px-2 py-0.5 text-[10px] font-bold text-[#1674BD]">{stageRows.length}</span>
                 </header>
                 <div className="space-y-3 p-3">
-                  {stageRows.map((row) => (
-                    <article key={row.id} className="rounded-[16px] border border-[#dfeaf1] bg-white p-3 shadow-[0_3px_14px_rgba(17,70,104,.05)]">
-                      <Link href={row.leadId ? `/crm/leads/${row.leadId}` : "/crm/leads"} className="block text-[12px] font-semibold leading-5 hover:text-[#1674BD]">
-                        {row.title}
-                      </Link>
-                      <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
-                        {[row.leadFirstName, row.leadLastName].filter(Boolean).join(" ") || "Müşteri Bağlantısı"}
-                      </p>
-                      <strong className="mt-4 block text-[15px]">{formatMoney(row.estimatedValue, row.currency)}</strong>
-                      <div className="mt-2 flex items-center gap-2">
-                        <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e5f2f7]">
-                          <span className="block h-full rounded-full bg-[#1674BD]" style={{ width: `${row.probability}%` }} />
+                  {stageRows.map((row) => {
+                    const customerName = row.customerId ? customerNameById.get(row.customerId) : undefined;
+                    const subjectName =
+                      [row.leadFirstName, row.leadLastName].filter(Boolean).join(" ") ||
+                      customerName ||
+                      "Müşteri Bağlantısı Yok";
+                    const subjectHref = row.leadId
+                      ? `/crm/leads/${row.leadId}`
+                      : row.customerId && canReadCustomers
+                        ? `/customers/${row.customerId}`
+                        : "/crm";
+
+                    return (
+                      <article key={row.id} className="rounded-[16px] border border-[#dfeaf1] bg-white p-3 shadow-[0_3px_14px_rgba(17,70,104,.05)]">
+                        <Link href={subjectHref} className="block text-[12px] font-semibold leading-5 hover:text-[#1674BD]">
+                          {row.title}
+                        </Link>
+                        <Link href={subjectHref} className="mt-1 block truncate text-[10px] text-[var(--muted)] hover:text-[#1674BD]">
+                          {subjectName}
+                        </Link>
+                        <strong className="mt-4 block text-[15px]">{formatMoney(row.estimatedValue, row.currency)}</strong>
+                        <div className="mt-2 flex items-center gap-2">
+                          <div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e5f2f7]">
+                            <span className="block h-full rounded-full bg-[#1674BD]" style={{ width: `${row.probability}%` }} />
+                          </div>
+                          <span className="text-[9px] text-[var(--muted)]">%{row.probability}</span>
                         </div>
-                        <span className="text-[9px] text-[var(--muted)]">%{row.probability}</span>
-                      </div>
-                      {canManage && nextStages[row.stage].length ? (
-                        <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => openTransition(row)}>
-                          Aşamayı İlerlet
-                        </Button>
-                      ) : null}
-                      {canCreateSale && row.stage === "WON" ? (
-                        <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => void openSale(row)}>
-                          Satış Taslağını Oluştur / Aç
-                        </Button>
-                      ) : null}
-                    </article>
-                  ))}
+                        {canManage && nextStages[row.stage].length ? (
+                          <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => openTransition(row)}>
+                            Aşamayı İlerlet
+                          </Button>
+                        ) : null}
+                        {canCreateSale && row.stage === "WON" ? (
+                          <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => void openSale(row)}>
+                            Satış Taslağını Oluştur / Aç
+                          </Button>
+                        ) : null}
+                      </article>
+                    );
+                  })}
                   {!stageRows.length ? <p className="py-7 text-center text-[10px] text-[var(--muted-soft)]">Bu Aşamada Satış Fırsatı Yok</p> : null}
                 </div>
               </section>
