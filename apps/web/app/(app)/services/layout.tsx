@@ -12,7 +12,8 @@ export default function ServicesLayout({ children }: { children: ReactNode }) {
       >
         <Link
           href="/services"
-          className="rounded-[12px] px-4 py-2 text-[12px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+          aria-current="page"
+          className="rounded-[12px] bg-[var(--accent-soft)] px-4 py-2 text-[12px] font-semibold text-[var(--accent)]"
         >
           Hizmetler
         </Link>
