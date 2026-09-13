@@ -5,14 +5,23 @@ import { AccountingService } from '../accounting/accounting.service';
 import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
 import { InstallmentsService } from '../installments/installments.service';
 
+interface SaleItemInput {
+  type: 'SERVICE' | 'PACKAGE';
+  referenceId: string;
+  quantity: number;
+}
+
 interface CreateSaleInput {
   customerId: string;
   discountTotal: number;
-  items: Array<{
-    type: 'SERVICE' | 'PACKAGE';
-    referenceId: string;
-    quantity: number;
-  }>;
+  items: SaleItemInput[];
+}
+
+interface CreateSaleFromOpportunityInput {
+  version: number;
+  customerId?: string;
+  discountTotal: number;
+  items: SaleItemInput[];
 }
 
 interface AddSalePaymentInput {
@@ -25,6 +34,15 @@ interface AddSalePaymentInput {
 interface RefundSalePaymentInput {
   reason: string;
 }
+
+type SaleLine = {
+  type: 'SERVICE' | 'PACKAGE';
+  serviceId: string | null;
+  packageId: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+};
 
 @Injectable()
 export class SalesService {
@@ -39,6 +57,84 @@ export class SalesService {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
     return branchId;
+  }
+
+  private async resolveSaleLines(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    branchId: string,
+    items: SaleItemInput[],
+  ): Promise<SaleLine[]> {
+    return Promise.all(items.map(async (item) => {
+      if (item.type === 'SERVICE') {
+        const service = await tx.service.findFirst({
+          where: { id: item.referenceId, tenantId, branchId, status: 'ACTIVE' },
+        });
+        if (!service) throw new BadRequestException('One or more sale services are invalid.');
+        return {
+          type: 'SERVICE' as const,
+          serviceId: service.id,
+          packageId: null,
+          description: service.name,
+          quantity: item.quantity,
+          unitPrice: Number(service.price),
+        };
+      }
+
+      const servicePackage = await tx.servicePackage.findFirst({
+        where: { id: item.referenceId, tenantId, branchId, active: true },
+      });
+      if (!servicePackage) throw new BadRequestException('One or more sale packages are invalid.');
+      return {
+        type: 'PACKAGE' as const,
+        serviceId: null,
+        packageId: servicePackage.id,
+        description: servicePackage.name,
+        quantity: item.quantity,
+        unitPrice: Number(servicePackage.price),
+      };
+    }));
+  }
+
+  private async createSaleRecord(
+    tx: Prisma.TransactionClient,
+    input: CreateSaleInput,
+    tenantId: string,
+    branchId: string,
+  ) {
+    const customer = await tx.customer.findFirst({
+      where: { id: input.customerId, tenantId, branchId },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const lines = await this.resolveSaleLines(tx, tenantId, branchId, input.items);
+    const totals = calculateSaleTotals(lines, input.discountTotal);
+
+    const sale = await tx.sale.create({
+      data: {
+        tenantId,
+        branchId,
+        customerId: input.customerId,
+        subtotal: totals.subtotal,
+        discountTotal: totals.discountTotal,
+        total: totals.total,
+        items: {
+          create: lines.map((line) => ({
+            type: line.type,
+            serviceId: line.serviceId,
+            packageId: line.packageId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: line.quantity * line.unitPrice,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    return { sale, lines, totals };
   }
 
   private async paymentSummary(saleId: string, tenantId: string, branchId: string) {
@@ -71,63 +167,128 @@ export class SalesService {
     const tenantId = this.tenantContext.getTenantId();
     const branchId = this.requireBranchId();
 
-    const customer = await this.prisma.customer.findFirst({ where: { id: input.customerId, tenantId, branchId } });
-    if (!customer) throw new NotFoundException('Customer not found');
+    return this.prisma.$transaction(async (tx) => {
+      const { sale } = await this.createSaleRecord(tx, input, tenantId, branchId);
+      return sale;
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
 
-    const lines = await Promise.all(input.items.map(async (item) => {
-      if (item.type === 'SERVICE') {
-        const service = await this.prisma.service.findFirst({
-          where: { id: item.referenceId, tenantId, branchId, status: 'ACTIVE' },
+  async createFromOpportunity(
+    opportunityId: string,
+    input: CreateSaleFromOpportunityInput,
+    actorUserId: string,
+  ) {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.requireBranchId();
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<Array<{
+        id: string;
+        title: string;
+        stage: string;
+        version: number;
+        customerId: string | null;
+        saleId: string | null;
+        estimatedValue: Prisma.Decimal | null;
+        currency: string;
+      }>>(
+        `SELECT id,title,stage,version,customer_id AS "customerId",sale_id AS "saleId",
+                estimated_value AS "estimatedValue",currency
+         FROM crm_opportunities
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+         FOR UPDATE`,
+        opportunityId,
+        tenantId,
+        companyId,
+        branchId,
+      );
+
+      const opportunity = rows[0];
+      if (!opportunity) throw new NotFoundException('CRM opportunity not found.');
+
+      if (opportunity.saleId) {
+        const sale = await tx.sale.findFirst({
+          where: { id: opportunity.saleId, tenantId, branchId },
+          include: { items: true },
         });
-        if (!service) throw new BadRequestException('One or more sale services are invalid.');
-        return {
-          type: 'SERVICE' as const,
-          serviceId: service.id,
-          packageId: null,
-          description: service.name,
-          quantity: item.quantity,
-          unitPrice: Number(service.price),
-        };
+        if (!sale) throw new ConflictException('Linked sale is missing.');
+        return { sale, idempotent: true };
       }
 
-      const servicePackage = await this.prisma.servicePackage.findFirst({
-        where: { id: item.referenceId, tenantId, branchId, active: true },
-      });
-      if (!servicePackage) throw new BadRequestException('One or more sale packages are invalid.');
-      return {
-        type: 'PACKAGE' as const,
-        serviceId: null,
-        packageId: servicePackage.id,
-        description: servicePackage.name,
-        quantity: item.quantity,
-        unitPrice: Number(servicePackage.price),
-      };
-    }));
+      if (opportunity.stage !== 'WON') {
+        throw new BadRequestException('Only won opportunities can be converted to a sale.');
+      }
+      if (opportunity.version !== input.version) {
+        throw new ConflictException('Opportunity version is stale.');
+      }
 
-    const totals = calculateSaleTotals(lines, input.discountTotal);
+      const customerId = input.customerId ?? opportunity.customerId;
+      if (!customerId) {
+        throw new BadRequestException('A customer must be linked before creating the sale.');
+      }
 
-    return this.prisma.sale.create({
-      data: {
+      const { sale, lines, totals } = await this.createSaleRecord(
+        tx,
+        {
+          customerId,
+          discountTotal: input.discountTotal,
+          items: input.items,
+        },
         tenantId,
         branchId,
-        customerId: input.customerId,
-        subtotal: totals.subtotal,
-        discountTotal: totals.discountTotal,
-        total: totals.total,
-        items: {
-          create: lines.map((line) => ({
-            type: line.type,
-            serviceId: line.serviceId,
-            packageId: line.packageId,
-            description: line.description,
-            quantity: line.quantity,
-            unitPrice: line.unitPrice,
-            lineTotal: line.quantity * line.unitPrice,
-          })),
-        },
-      },
-      include: { items: true },
-    });
+      );
+
+      const convertedAt = new Date();
+      const snapshot = {
+        opportunityId: opportunity.id,
+        opportunityTitle: opportunity.title,
+        estimatedValue: opportunity.estimatedValue == null ? null : Number(opportunity.estimatedValue),
+        currency: opportunity.currency,
+        customerId,
+        saleId: sale.id,
+        subtotal: Number(totals.subtotal),
+        discountTotal: Number(totals.discountTotal),
+        total: Number(totals.total),
+        items: lines.map((line) => ({
+          type: line.type,
+          referenceId: line.serviceId ?? line.packageId,
+          description: line.description,
+          quantity: line.quantity,
+          unitPrice: line.unitPrice,
+          lineTotal: line.quantity * line.unitPrice,
+        })),
+      };
+
+      await tx.$executeRawUnsafe(
+        `UPDATE crm_opportunities
+         SET customer_id=$5::text,sale_id=$6::text,commercial_snapshot=$7::jsonb,
+             converted_at=$8::timestamptz,version=version+1,updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+        opportunity.id,
+        tenantId,
+        companyId,
+        branchId,
+        customerId,
+        sale.id,
+        JSON.stringify(snapshot),
+        convertedAt,
+      );
+
+      await tx.$executeRawUnsafe(
+        `INSERT INTO crm_events(
+           tenant_id,company_id,branch_id,opportunity_id,event_type,actor_user_id,metadata
+         ) VALUES($1::text,$2::text,$3::text,$4::text,'OPPORTUNITY_SALE_CREATED',$5::text,$6::jsonb)`,
+        tenantId,
+        companyId,
+        branchId,
+        opportunity.id,
+        actorUserId,
+        JSON.stringify({ saleId: sale.id, total: Number(totals.total) }),
+      );
+
+      return { sale, idempotent: false };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async findAll() {
@@ -149,7 +310,7 @@ export class SalesService {
         customer: true,
         items: true,
         payments: { orderBy: { paidAt: 'desc' } },
-        installmentPlan: { include: { installments: { orderBy: { sequence: 'asc' } } } },
+        installmentPlan: { include: { installments: { orderBy: { sequence: 'asc' } } },
         customerPackages: { include: { sessions: true, package: true } },
       },
     });
