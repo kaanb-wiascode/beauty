@@ -121,6 +121,8 @@ export default function QualityCockpitPage() {
   const [breaches, setBreaches] = useState<SlaBreach[]>([]);
   const [outbox, setOutbox] = useState<NotificationOutbox[]>([]);
   const [loading, setLoading] = useState(true);
+  const [hasLoaded, setHasLoaded] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [filter, setFilter] = useState<Filter>("ALL");
@@ -128,7 +130,7 @@ export default function QualityCockpitPage() {
 
   const load = useCallback(async () => {
     setLoading(true);
-    setError("");
+    setLoadError("");
     try {
       const [caseRows, feedbackRows, breachRows, outboxRows] = await Promise.all([
         api<QualityCase[]>(withQuery("/quality/cases", { limit: 100 })),
@@ -140,8 +142,9 @@ export default function QualityCockpitPage() {
       setFeedback(feedbackRows ?? []);
       setBreaches(breachRows ?? []);
       setOutbox(outboxRows ?? []);
+      setHasLoaded(true);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Kalite Verileri Yüklenemedi.");
+      setLoadError(requestError instanceof ApiError ? requestError.message : "Kalite Verileri Yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -182,6 +185,27 @@ export default function QualityCockpitPage() {
     );
   }, [perform]);
 
+  if (!loading && loadError && !hasLoaded) {
+    return (
+      <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
+        <header>
+          <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Kalite Yönetimi Ve Müşteri Deneyimi</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Kalite Kontrol Merkezi</h1>
+          <p className="mt-2 max-w-[780px] text-[13px] leading-6 text-[var(--muted)]">
+            Açık Kalite Vakalarını, Hizmet Süresi İhlallerini, Negatif Müşteri Geri Bildirimlerini Ve Bildirim Teslimat Sorunlarını Tek Ekrandan Yönetin.
+          </p>
+        </header>
+        <div className="flex min-h-[320px] flex-col items-center justify-center gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] px-6 py-10 text-center">
+          <div>
+            <h2 className="text-[17px] font-semibold text-[var(--ink)]">Kalite Verileri Yüklenemedi</h2>
+            <p className="mt-2 max-w-xl text-[12px] leading-5 text-[var(--muted)]">{loadError}</p>
+          </div>
+          <Button variant="secondary" onClick={() => void load()}>Tekrar Dene</Button>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -206,10 +230,11 @@ export default function QualityCockpitPage() {
         </div>
       </header>
 
+      {loadError ? <Alert onClose={() => setLoadError("")}>{loadError}</Alert> : null}
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success}</Alert> : null}
 
-      {loading ? (
+      {loading && !hasLoaded ? (
         <div className="flex min-h-[320px] items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]"><Spinner label="Kalite Kontrol Merkezi Hazırlanıyor..." /></div>
       ) : (
         <>
