@@ -181,6 +181,15 @@ export default function SupplierNetworkPage() {
     );
   }
 
+  if (error && !connections.length && !inventorySuppliers.length && !audit.length) {
+    return (
+      <div className="mx-auto max-w-[760px] space-y-4 py-16">
+        <Alert>{error}</Alert>
+        <div className="flex justify-center"><Button onClick={() => void load()}>Tekrar Dene</Button></div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
       <PageHeader
