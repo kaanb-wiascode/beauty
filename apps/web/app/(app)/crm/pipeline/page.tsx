@@ -15,7 +15,7 @@ import {
   TextInput,
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   opportunityStageLabels,
@@ -41,6 +41,15 @@ const nextStages: Record<OpportunityStage, OpportunityStage[]> = {
   LOST: [],
 };
 
+type Customer = { id: string; firstName: string; lastName: string };
+type Service = { id: string; name: string; price: string | number };
+type ServicePackage = { id: string; name: string; price: string | number; active: boolean };
+type SaleReferenceType = "SERVICE" | "PACKAGE";
+type SaleConversionResponse = {
+  idempotent: boolean;
+  sale: { id: string; status: string; total: string | number };
+};
+
 function formatMoney(value: string | number | null, currency: string) {
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -51,6 +60,10 @@ function formatMoney(value: string | number | null, currency: string) {
 
 export default function CrmPipelinePage() {
   const canManage = hasPermission("crm", "manage");
+  const canCreateSale =
+    hasPermission("payments", "create") &&
+    hasPermission("customers", "read") &&
+    hasPermission("services", "read");
   const { showToast } = useToast();
   const [rows, setRows] = useState<CrmOpportunity[]>([]);
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
@@ -62,6 +75,17 @@ export default function CrmPipelinePage() {
   const [targetStage, setTargetStage] = useState<OpportunityStage | "">("");
   const [probability, setProbability] = useState("");
   const [lostReason, setLostReason] = useState("");
+
+  const [saleOpportunity, setSaleOpportunity] = useState<CrmOpportunity | null>(null);
+  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [packages, setPackages] = useState<ServicePackage[]>([]);
+  const [saleReferencesLoading, setSaleReferencesLoading] = useState(false);
+  const [saleCustomerId, setSaleCustomerId] = useState("");
+  const [saleReferenceType, setSaleReferenceType] = useState<SaleReferenceType>("SERVICE");
+  const [saleReferenceId, setSaleReferenceId] = useState("");
+  const [saleQuantity, setSaleQuantity] = useState("1");
+  const [saleDiscount, setSaleDiscount] = useState("0");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -91,6 +115,10 @@ export default function CrmPipelinePage() {
       weighted: open.reduce((sum, row) => sum + (Number(row.estimatedValue ?? 0) * row.probability) / 100, 0),
     };
   }, [rows]);
+
+  const saleReferences = saleReferenceType === "SERVICE"
+    ? services.map((item) => ({ id: item.id, label: item.name, price: item.price }))
+    : packages.filter((item) => item.active).map((item) => ({ id: item.id, label: item.name, price: item.price }));
 
   function requireActiveBranch() {
     if (hasActiveBranch()) return true;
@@ -141,13 +169,79 @@ export default function CrmPipelinePage() {
     }
   }
 
+  async function openSale(row: CrmOpportunity) {
+    if (!requireActiveBranch()) return;
+    setSaleOpportunity(row);
+    setSaleCustomerId(row.customerId ?? "");
+    setSaleReferenceType("SERVICE");
+    setSaleReferenceId("");
+    setSaleQuantity("1");
+    setSaleDiscount("0");
+    setError("");
+    setSaleReferencesLoading(true);
+    try {
+      const [customerResult, serviceResult, packageResult] = await Promise.all([
+        api<{ data: Customer[] }>(withQuery("/customers", { page: 1, limit: 200 })),
+        api<{ data: Service[] }>(withQuery("/services", { page: 1, limit: 200 })),
+        api<ServicePackage[]>("/packages"),
+      ]);
+      setCustomers(customerResult.data);
+      setServices(serviceResult.data);
+      setPackages(packageResult);
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Satış seçenekleri yüklenemedi.");
+    } finally {
+      setSaleReferencesLoading(false);
+    }
+  }
+
+  async function createSale(event: FormEvent) {
+    event.preventDefault();
+    if (!saleOpportunity || !saleCustomerId || !saleReferenceId) {
+      setError("Müşteri ve satış kalemi seçilmelidir.");
+      return;
+    }
+    const quantity = Number(saleQuantity);
+    const discountTotal = Number(saleDiscount);
+    if (!Number.isInteger(quantity) || quantity <= 0 || !Number.isFinite(discountTotal) || discountTotal < 0) {
+      setError("Miktar pozitif tam sayı, indirim ise sıfır veya pozitif olmalıdır.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    try {
+      const result = await api<SaleConversionResponse>(`/sales/from-opportunity/${saleOpportunity.id}`, {
+        method: "POST",
+        body: {
+          version: saleOpportunity.version,
+          customerId: saleCustomerId,
+          discountTotal,
+          items: [{ type: saleReferenceType, referenceId: saleReferenceId, quantity }],
+        },
+      });
+      setSaleOpportunity(null);
+      showToast(
+        result.idempotent
+          ? `Bu fırsat için satış taslağı zaten mevcut (${String(result.sale.id).slice(0, 8)}…).`
+          : `Satış taslağı oluşturuldu: ${formatMoney(result.sale.total, "TRY")}.`,
+        "success",
+      );
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Satış taslağı oluşturulamadı.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
         title="Satış Süreci"
         description="Satış Fırsatlarını Kontrollü Aşama Geçişleriyle İlerletin; Değer Ve Kazanma Olasılığını Birlikte İzleyin."
       />
-      {error && !transitioning ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+      {error && !transitioning && !saleOpportunity ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       <div className="flex justify-end">
         <Select
           value={ownerUserId}
@@ -206,6 +300,11 @@ export default function CrmPipelinePage() {
                           Aşamayı İlerlet
                         </Button>
                       ) : null}
+                      {canCreateSale && row.stage === "WON" ? (
+                        <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => void openSale(row)}>
+                          Satış Taslağını Oluştur / Aç
+                        </Button>
+                      ) : null}
                     </article>
                   ))}
                   {!stageRows.length ? <p className="py-7 text-center text-[10px] text-[var(--muted-soft)]">Bu Aşamada Satış Fırsatı Yok</p> : null}
@@ -258,6 +357,56 @@ export default function CrmPipelinePage() {
             <Button type="submit" disabled={saving}>{saving ? "Güncelleniyor..." : "Aşamayı Güncelle"}</Button>
           </div>
         </form>
+      </Modal>
+
+      <Modal
+        open={Boolean(saleOpportunity)}
+        onClose={() => { if (!saving) setSaleOpportunity(null); }}
+        title="Satış Taslağı Oluştur"
+        description={saleOpportunity?.title}
+      >
+        {saleReferencesLoading ? (
+          <Spinner label="Satış Seçenekleri Hazırlanıyor..." />
+        ) : (
+          <form onSubmit={createSale} className="space-y-4">
+            {error ? <Alert>{error}</Alert> : null}
+            <Field label="Müşteri" required>
+              <Select value={saleCustomerId} onChange={(event) => setSaleCustomerId(event.target.value)}>
+                <option value="">Müşteri Seçin</option>
+                {customers.map((customer) => (
+                  <option key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</option>
+                ))}
+              </Select>
+            </Field>
+            <Field label="Satış Kalemi Türü" required>
+              <Select value={saleReferenceType} onChange={(event) => { setSaleReferenceType(event.target.value as SaleReferenceType); setSaleReferenceId(""); }}>
+                <option value="SERVICE">Hizmet</option>
+                <option value="PACKAGE">Paket</option>
+              </Select>
+            </Field>
+            <Field label={saleReferenceType === "SERVICE" ? "Hizmet" : "Paket"} required>
+              <Select value={saleReferenceId} onChange={(event) => setSaleReferenceId(event.target.value)}>
+                <option value="">Seçin</option>
+                {saleReferences.map((reference) => (
+                  <option key={reference.id} value={reference.id}>{reference.label} · {formatMoney(reference.price, "TRY")}</option>
+                ))}
+              </Select>
+            </Field>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Miktar" required>
+                <TextInput type="number" min="1" step="1" value={saleQuantity} onChange={(event) => setSaleQuantity(event.target.value)} />
+              </Field>
+              <Field label="İndirim (₺)">
+                <TextInput type="number" min="0" step="0.01" value={saleDiscount} onChange={(event) => setSaleDiscount(event.target.value)} />
+              </Field>
+            </div>
+            <Alert tone="success">Bu işlem muhasebe kaydı oluşturmaz. Önce satış taslağı oluşur; mevcut satış onay ve ödeme akışı daha sonra kullanılır.</Alert>
+            <div className="flex justify-end gap-3">
+              <Button variant="secondary" onClick={() => setSaleOpportunity(null)} disabled={saving}>Vazgeç</Button>
+              <Button type="submit" disabled={saving}>{saving ? "Oluşturuluyor..." : "Satış Taslağı Oluştur"}</Button>
+            </div>
+          </form>
+        )}
       </Modal>
     </div>
   );
