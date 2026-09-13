@@ -20,6 +20,16 @@ export interface OpportunityRow {
   version: number;
 }
 
+type OpportunityListRow = Omit<OpportunityRow, 'customerId'> & {
+  leadId: string | null;
+  customerId: string | null;
+  leadFirstName: string | null;
+  leadLastName: string | null;
+  customerFirstName: string | null;
+  customerLastName: string | null;
+  updatedAt: Date;
+};
+
 type OpportunityDetailRow = OpportunityRow & {
   leadId: string | null;
   lostReason: string | null;
@@ -103,6 +113,45 @@ export class CrmOpportunityService {
         'CRM assignee is not an active company member.',
       );
     }
+  }
+
+  async list(filters: {
+    stage?: string;
+    ownerUserId?: string;
+    limit?: number;
+  }) {
+    const context = this.context();
+    const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    return this.prisma.$queryRawUnsafe<OpportunityListRow[]>(
+      `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",o.title,o.stage,
+              o.estimated_value AS "estimatedValue",o.currency,o.probability,
+              o.expected_close_date AS "expectedCloseDate",o.owner_user_id AS "ownerUserId",o.version,
+              l.first_name AS "leadFirstName",l.last_name AS "leadLastName",
+              c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName",
+              o.updated_at AS "updatedAt"
+       FROM crm_opportunities o
+       LEFT JOIN crm_leads l
+         ON l.id=o.lead_id
+        AND l.tenant_id=o.tenant_id
+        AND l.company_id=o.company_id
+        AND l.branch_id=o.branch_id
+       LEFT JOIN customers c
+         ON c.id=o.customer_id
+        AND c."tenantId"=o.tenant_id
+        AND c."branchId"=o.branch_id
+       WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+         AND ($3::text IS NULL OR o.branch_id=$3::text)
+         AND ($4::text IS NULL OR o.stage=$4::text)
+         AND ($5::text IS NULL OR o.owner_user_id=$5::text)
+       ORDER BY o.updated_at DESC,o.id
+       LIMIT $6`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      filters.stage ?? null,
+      filters.ownerUserId ?? null,
+      limit,
+    );
   }
 
   async getDetail(id: string) {
