@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { FormActions, FormGrid, FormHint, FormSection } from "@/components/form-system";
-import { Alert, Button, TextInput } from "@/components/ui";
+import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
 
@@ -53,11 +53,13 @@ export default function FinancialIntegrationsPage() {
   const [expanded, setExpanded] = useState<string | null>(null);
   const [details, setDetails] = useState<Record<string, DetailsState>>({});
   const [credentialValues, setCredentialValues] = useState<Record<string, Record<string, string>>>({});
+  const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
 
   const refresh = useCallback(async () => {
+    setLoading(true);
     try {
       const [providerRows, integrationRows, liquidityData, transactionRows, posData] = await Promise.all([
         api<Provider[]>("/financial-integrations/providers"),
@@ -74,12 +76,20 @@ export default function FinancialIntegrationsPage() {
       setError(null);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Banka Ve Ödeme Bağlantıları Yüklenemedi.");
+    } finally {
+      setLoading(false);
     }
   }, []);
 
   useEffect(() => { void refresh(); }, [refresh]);
   const kindProviders = useMemo(() => providers.filter((item) => item.kind === kind), [providers, kind]);
   const totals = useMemo(() => Object.entries(liquidity?.byCurrency ?? {}), [liquidity]);
+  const hasLoadedData =
+    providers.length > 0 ||
+    integrations.length > 0 ||
+    Boolean(liquidity) ||
+    transactions.length > 0 ||
+    Boolean(posSummary);
   useEffect(() => {
     setProvider(kindProviders[0]?.provider ?? "");
     setDisplayName(kind === "OPEN_BANKING" ? "Ana Banka Bağlantısı" : "Online POS");
@@ -162,8 +172,35 @@ export default function FinancialIntegrationsPage() {
     finally { setBusy(null); }
   }
 
+  if (loading && !hasLoadedData) {
+    return (
+      <div className="mx-auto max-w-[1500px] py-20">
+        <Spinner label="Banka Ve Ödeme Bağlantıları Hazırlanıyor..." />
+      </div>
+    );
+  }
+
+  if (!loading && error && !hasLoadedData) {
+    return (
+      <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
+        <header>
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">Finans Yönetimi</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Banka Ve Ödeme Bağlantıları</h1>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Banka Ve Sanal POS Bağlantılarını, Bağlantı İzinlerini, Güncellik Durumunu Ve Veri Güncellemelerini Tek Merkezden Yönetin.</p>
+        </header>
+        <Alert>{error}</Alert>
+        <FinancePanel title="Finansal Bağlantı Verileri Yüklenemedi" description="Bağlantı, Bakiye Ve POS Pozisyonu Bilinmiyor; Sıfır Olarak Yorumlanmadı.">
+          <div className="py-8 text-center">
+            <p className="text-[12px] leading-6 text-[var(--muted)]">Banka Hesapları, Kullanılabilir Bakiye, POS Pozisyonu Ve Son Hareketlere Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.</p>
+            <Button className="mt-5" onClick={() => void refresh()}>Tekrar Dene</Button>
+          </div>
+        </FinancePanel>
+      </div>
+    );
+  }
+
   return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">Finans Yönetimi</p><h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Banka Ve Ödeme Bağlantıları</h1><p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Banka Ve Sanal POS Bağlantılarını, Bağlantı İzinlerini, Güncellik Durumunu Ve Veri Güncellemelerini Tek Merkezden Yönetin.</p></div><Button variant="secondary" onClick={() => void refresh()} disabled={busy !== null}>Verileri Yenile</Button></header>
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted-soft)]">Finans Yönetimi</p><h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Banka Ve Ödeme Bağlantıları</h1><p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Banka Ve Sanal POS Bağlantılarını, Bağlantı İzinlerini, Güncellik Durumunu Ve Veri Güncellemelerini Tek Merkezden Yönetin.</p></div><Button variant="secondary" onClick={() => void refresh()} disabled={busy !== null || loading}>{loading ? "Yenileniyor..." : "Verileri Yenile"}</Button></header>
     {error ? <Alert onClose={() => setError(null)}>{error}</Alert> : null}
     {notice ? <Alert tone="success" onClose={() => setNotice(null)}>{notice}</Alert> : null}
 
