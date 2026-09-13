@@ -1,19 +1,30 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { SalesService } from './sales.service';
 
+const saleItemSchema = z.object({
+  type: z.enum(['SERVICE', 'PACKAGE']),
+  referenceId: z.string().uuid(),
+  quantity: z.coerce.number().int().positive().default(1),
+});
+
 const createSaleSchema = z.object({
   customerId: z.string().uuid(),
   discountTotal: z.coerce.number().min(0).default(0),
-  items: z.array(z.object({
-    type: z.enum(['SERVICE', 'PACKAGE']),
-    referenceId: z.string().uuid(),
-    quantity: z.coerce.number().int().positive().default(1),
-  })).min(1),
+  items: z.array(saleItemSchema).min(1),
+});
+
+const createSaleFromOpportunitySchema = z.object({
+  version: z.coerce.number().int().positive(),
+  customerId: z.string().uuid().optional(),
+  discountTotal: z.coerce.number().min(0).default(0),
+  items: z.array(saleItemSchema).min(1),
 });
 
 const addSalePaymentSchema = z.object({
@@ -37,6 +48,20 @@ export class SalesController {
   @RequirePermission('payments', 'create')
   create(@Body() body: unknown) {
     return this.salesService.create(createSaleSchema.parse(body));
+  }
+
+  @Post('from-opportunity/:opportunityId')
+  @RequirePermission('payments', 'create')
+  createFromOpportunity(
+    @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.salesService.createFromOpportunity(
+      opportunityId,
+      createSaleFromOpportunitySchema.parse(body),
+      user.sub,
+    );
   }
 
   @Get()
