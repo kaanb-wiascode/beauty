@@ -32,6 +32,8 @@ import { QualityModule } from './modules/quality/quality.module';
 import { TrainingModule } from './modules/training/training.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { CorporateCommunicationsModule } from './modules/corporate-communications/corporate-communications.module';
+import { MarketingVendorsController } from './modules/corporate-communications/marketing-vendors.controller';
+import { MarketingVendorsService } from './modules/corporate-communications/marketing-vendors.service';
 
 @Module({
   imports: [
@@ -72,5 +74,7 @@ import { CorporateCommunicationsModule } from './modules/corporate-communication
     CrmModule,
     CorporateCommunicationsModule,
   ],
+  controllers: [MarketingVendorsController],
+  providers: [MarketingVendorsService],
 })
 export class AppModule {}
