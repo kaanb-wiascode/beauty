@@ -28,7 +28,10 @@ Backend and web foundation currently includes:
 - dashboard KPIs for spend, leads, appointments, won leads, attributed revenue, CPL, CAC and ROAS
 - tenant/company/branch scope enforcement
 - communications permissions foundation
-- web routes for Overview, Campaigns, Lead & Conversion, Brand Center, Ad Accounts and Routing
+- Content Operations lifecycle
+- governed Approval Center
+- content event audit trail
+- web routes for Overview, Campaigns, Lead & Conversion, Content Operations, Approval Center, Brand Center, Ad Accounts and Routing
 
 ## Operational marketing-to-commerce flow
 
@@ -200,7 +203,40 @@ Payment +100       -> revenue 350
 Refund first 250   -> revenue 100
 ```
 
-The communications dashboard and campaign metrics already aggregate `revenue_amount`, so ROAS and attributed revenue now consume actual collected SalePayment truth instead of opportunity estimates.
+The communications dashboard and campaign metrics already aggregate `revenue_amount`, so ROAS and attributed revenue consume actual collected SalePayment truth instead of opportunity estimates.
+
+## Content Operations + Approval Center
+
+Content lifecycle foundation is implemented as a governed workflow rather than a free-form status field:
+
+```text
+IDEA -> BRIEF -> PRODUCTION -> REVIEW -> APPROVED -> SCHEDULED -> PUBLISHED -> ARCHIVED
+```
+
+Primary tables:
+
+- `corporate_content_items`
+- `corporate_content_approvals`
+- `corporate_content_events`
+
+Runtime rules:
+
+- content creation/edit/review/schedule/publish requires `communications.manage`;
+- approval decisions require separate `communications.approve`;
+- a content manager without approve permission receives `403` when attempting to approve;
+- an approval-only actor cannot schedule/publish content;
+- content cannot be scheduled before approval;
+- publishing is limited to approved or scheduled content;
+- repeated review submission returns the same pending approval id and is idempotent;
+- approval decisions and lifecycle actions append auditable content events;
+- content, approval and event rows preserve tenant/company/branch scope.
+
+The original heterogeneous content scope trigger exposed a runtime PostgreSQL defect because one trigger function referenced fields not present on every table. Corrective migration `20260913211500_fix_corporate_content_scope_triggers` replaces that function with table-specific item/approval/event scope guards. Event scope also validates that a referenced approval belongs to the same content and scope.
+
+The web workspace now exposes:
+
+- `Kurumsal İletişim -> İçerik Operasyonu`
+- `Kurumsal İletişim -> Onay Merkezi`
 
 ## Verified E2E coverage
 
@@ -225,21 +261,28 @@ Coverage now includes:
 - multiple-payment revenue accumulation
 - refund-aware revenue recalculation
 - append-only sale/payment/refund marketing touchpoints
+- content creation and lifecycle scope guards
+- pre-approval scheduling denial
+- review-submission idempotency
+- `communications.manage` / `communications.approve` separation of duties
+- approval-only scheduling denial
+- approved content scheduling and publishing
+- approved decision listing
 
 ## Latest verified quality gate
 
 Code checkpoint:
 
 ```text
-3ae46c9ac7f3a2a0e4860c3d759a92779b06d69e
-refactor(communications): remove duplicate attribution service
+6404321361053c7936658b4f369681137ace2ef6
+fix(communications): make content review submission idempotent
 ```
 
 Monorepo quality:
 
 ```text
-Run #1426
-Run ID: 34775137177
+Run #1438
+Run ID: 34776579445
 SUCCESS
 ```
 
@@ -248,13 +291,13 @@ Verified blocking gates:
 - frozen dependency installation
 - release shell validation
 - Prisma validation
-- full fresh-database migration deployment
+- full fresh-database deployment of all 144 migrations
 - Prisma generation
 - database typecheck/build
 - shared contracts typecheck/build
 - API typecheck
-- API unit tests
-- API E2E including communications routing, SLA, customer, appointment and revenue-attribution coverage
+- 107 API unit suites / 358 unit tests
+- API E2E including communications routing, SLA, customer, appointment, revenue-attribution and content-governance coverage
 - API production build
 - web lint
 - web typecheck
@@ -264,20 +307,19 @@ The commerce lint-debt report remains historical non-blocking debt reporting; a 
 
 ## Next implementation sequence
 
-With the marketing-to-commerce operational spine in place, the next active Kurumsal İletişim increment should broaden the department workspace rather than duplicate CRM/Sales logic.
+The verified marketing-to-commerce spine and Content Operations / Approval Center are now in place. Phase 3 should be completed before moving into the external-network phase.
 
 Priority sequence:
 
-1. Content Operations + Content Calendar lifecycle
-2. Approval Center and governed content/campaign approval
-3. Digital Asset Library / Brand Governance expansion
-4. Agency / Marketing Vendor management
-5. Influencer / Creator CRM
-6. PR / Media / Sponsorship workspace
-7. campaign/channel/creative analytics and anomaly detection
-8. Meta provider OAuth + webhook + campaign/ad/lead sync
-9. Google Ads provider adapter
-10. TikTok provider adapter
-11. offline conversion feedback and multi-touch attribution models
+1. Brand Governance expansion: tone of voice, allowed/forbidden language, hashtag rules, color/font tokens, logo usage and branch variants
+2. Digital Asset Library metadata and rights/licensing lifecycle
+3. Agency / Marketing Vendor management
+4. Influencer / Creator CRM
+5. PR / Media / Sponsorship workspace
+6. campaign/channel/creative analytics and anomaly detection
+7. Meta provider OAuth + webhook + campaign/ad/lead sync
+8. Google Ads provider adapter
+9. TikTok provider adapter
+10. offline conversion feedback and multi-touch attribution models
 
 Provider credentials must use OAuth/encrypted credential infrastructure. Password collection and plaintext credential storage remain prohibited.
