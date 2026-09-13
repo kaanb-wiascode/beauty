@@ -177,7 +177,7 @@ export default function NewCustomerOpportunityPage() {
           ...(form.ownerUserId ? { ownerUserId: form.ownerUserId } : {}),
         },
       });
-      router.push(`/crm/pipeline?opportunityId=${encodeURIComponent(opportunity.id)}`);
+      router.push(`/crm/opportunities/${opportunity.id}`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Satış fırsatı oluşturulamadı.");
     } finally {
