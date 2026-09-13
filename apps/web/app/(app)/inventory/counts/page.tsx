@@ -289,6 +289,25 @@ export default function InventoryCountsPage() {
     return <Spinner label="Stok Sayımları Hazırlanıyor..." />;
   }
 
+  if (error && !counts.length && !warehouses.length && !stockLines.length) {
+    return (
+      <div className="mx-auto max-w-[1450px] space-y-6 pb-10">
+        <PageHeader
+          title="Stok Sayımları"
+          description="Fiziksel Sayım Sonuçlarını Sistem Stoğuyla Karşılaştırın, Yetkili Onayından Geçirin Ve Farkları Kontrollü Olarak Stoğa İşleyin."
+        />
+        <Alert onClose={() => setError("")}>{error}</Alert>
+        <Panel>
+          <div className="px-6 py-14 text-center">
+            <p className="text-[15px] font-semibold text-[var(--ink)]">Stok Sayımları Yüklenemedi</p>
+            <p className="mx-auto mt-2 max-w-xl text-[12px] leading-5 text-[var(--muted)]">Sayım, Depo Ve Stok Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.</p>
+            <Button className="mt-5" onClick={() => void load()}>Tekrar Dene</Button>
+          </div>
+        </Panel>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1450px] space-y-6 pb-10">
       <PageHeader
