@@ -156,7 +156,7 @@ export class DigitalAssetsService {
         `SELECT id,branch_id AS "branchId",name,asset_type AS "assetType",active
          FROM corporate_brand_assets
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
-           AND ($4::text IS NULL OR branch_id IS NULL OR branch_id=$4::text)
+           AND ($4::text IS NULL OR branch_id=$4::text)
          FOR UPDATE`,
         id,
         context.tenantId,
@@ -183,6 +183,10 @@ export class DigitalAssetsService {
     eventType: string,
   ) {
     const { tenantId, companyId } = this.context();
+    const snapshot = JSON.stringify(
+      asset,
+      (_key, value: unknown) => typeof value === 'bigint' ? value.toString() : value,
+    );
     await tx.$executeRawUnsafe(
       `INSERT INTO corporate_digital_asset_events(
          tenant_id,company_id,branch_id,asset_id,event_type,actor_user_id,snapshot
@@ -193,7 +197,7 @@ export class DigitalAssetsService {
       asset.id,
       eventType,
       actorUserId,
-      JSON.stringify(asset),
+      snapshot,
     );
   }
 }
