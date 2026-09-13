@@ -79,6 +79,13 @@ export default function CfoCockpitPage() {
     () => actions.filter((action) => !["COMPLETED", "CANCELLED"].includes(action.status)),
     [actions],
   );
+  const hasLoadedData =
+    Boolean(cockpit) ||
+    Boolean(benchmark) ||
+    Boolean(anomalies) ||
+    Boolean(cashFlow) ||
+    actions.length > 0 ||
+    history.length > 0;
 
   async function syncRecommendations() {
     setBusy(true);
@@ -126,6 +133,29 @@ export default function CfoCockpitPage() {
     return (
       <div className="mx-auto max-w-[1500px] py-20">
         <Spinner label="Finans Genel Bakışı Hazırlanıyor..." />
+      </div>
+    );
+  }
+
+  if (!loading && error && !hasLoadedData) {
+    return (
+      <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
+        <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_12px_36px_rgba(17,70,104,0.04)]">
+          <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Finans Yönetimi</p>
+          <h1 className="text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Finans Genel Bakışı</h1>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">
+            Likidite, Çalışma Sermayesi, Finansal Sağlık, Nakit Gelişimi, Şube Karşılaştırması Ve Yönetim Görevlerini Tek Ekrandan Yönetin.
+          </p>
+        </header>
+        <Alert>{error}</Alert>
+        <FinancePanel title="Finansal Durum Yüklenemedi" description="Finansal Veriler Bilinmiyor; Sıfır Risk, Sıfır Görev Veya Sağlıklı Likidite Olarak Yorumlanmadı.">
+          <div className="py-8 text-center">
+            <p className="text-[12px] leading-6 text-[var(--muted)]">
+              Finansal Sağlık, Likidite, Çalışma Sermayesi, Anomali Ve Nakit Akışı Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.
+            </p>
+            <Button className="mt-5" onClick={() => void load()}>Tekrar Dene</Button>
+          </div>
+        </FinancePanel>
       </div>
     );
   }
