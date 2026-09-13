@@ -87,7 +87,7 @@ export default function MarketingLeadsPage() {
   return (
     <div className="space-y-6 pb-12">
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 md:flex-row md:items-end md:justify-between">
-        <div><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Lead & Dönüşüm Inbox</h1><p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Meta, Google Ads, TikTok, web sitesi ve manuel kaynaklardan gelen talepler için merkezi pazarlama inbox'ı.</p></div>
+        <div><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Lead & Dönüşüm Inbox</h1><p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Meta, Google Ads, TikTok, web sitesi ve manuel kaynaklardan gelen talepler için merkezi pazarlama inbox alanı.</p></div>
         {canManage ? <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Formu Kapat" : "Lead Ekle"}</Button> : null}
       </header>
       {error ? <Alert>{error}</Alert> : null}
