@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import type { CreateOpportunityInput } from './crm.schemas';
@@ -15,6 +19,46 @@ export interface OpportunityRow {
   expectedCloseDate: Date | null;
   version: number;
 }
+
+type OpportunityDetailRow = OpportunityRow & {
+  leadId: string | null;
+  lostReason: string | null;
+  saleId: string | null;
+  commercialSnapshot: unknown;
+  convertedAt: Date | null;
+  createdAt: Date;
+  updatedAt: Date;
+  leadFirstName: string | null;
+  leadLastName: string | null;
+  customerFirstName: string | null;
+  customerLastName: string | null;
+};
+
+type FollowUpRow = {
+  id: string;
+  leadId: string | null;
+  opportunityId: string | null;
+  assignedUserId: string;
+  channel: string;
+  status: string;
+  dueAt: Date;
+  note: string | null;
+  outcome: string | null;
+  completedAt: Date | null;
+  cancelledAt: Date | null;
+  cancellationReason: string | null;
+  version: number;
+  createdAt: Date;
+  updatedAt: Date;
+};
+
+type EventRow = {
+  id: string;
+  eventType: string;
+  actorUserId: string;
+  metadata: unknown;
+  createdAt: Date;
+};
 
 @Injectable()
 export class CrmOpportunityService {
@@ -59,6 +103,63 @@ export class CrmOpportunityService {
         'CRM assignee is not an active company member.',
       );
     }
+  }
+
+  async getDetail(id: string) {
+    const context = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<OpportunityDetailRow[]>(
+      `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",
+              o.owner_user_id AS "ownerUserId",o.title,o.stage,
+              o.estimated_value AS "estimatedValue",o.currency,o.probability,
+              o.expected_close_date AS "expectedCloseDate",o.lost_reason AS "lostReason",
+              o.sale_id AS "saleId",o.commercial_snapshot AS "commercialSnapshot",
+              o.converted_at AS "convertedAt",o.version,
+              o.created_at AS "createdAt",o.updated_at AS "updatedAt",
+              l.first_name AS "leadFirstName",l.last_name AS "leadLastName",
+              c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName"
+       FROM crm_opportunities o
+       LEFT JOIN crm_leads l ON l.id=o.lead_id
+       LEFT JOIN customers c ON c.id=o.customer_id AND c."tenantId"=o.tenant_id
+       WHERE o.id=$1::text AND o.tenant_id=$2::text AND o.company_id=$3::text
+         AND ($4::text IS NULL OR o.branch_id=$4::text)
+       LIMIT 1`,
+      id,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+    );
+    const opportunity = rows[0];
+    if (!opportunity) {
+      throw new NotFoundException('CRM opportunity not found.');
+    }
+
+    const [followUps, events] = await Promise.all([
+      this.prisma.$queryRawUnsafe<FollowUpRow[]>(
+        `SELECT id,lead_id AS "leadId",opportunity_id AS "opportunityId",
+                assigned_user_id AS "assignedUserId",channel,status,due_at AS "dueAt",
+                note,outcome,completed_at AS "completedAt",cancelled_at AS "cancelledAt",
+                cancellation_reason AS "cancellationReason",version,
+                created_at AS "createdAt",updated_at AS "updatedAt"
+         FROM crm_follow_ups
+         WHERE opportunity_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         ORDER BY due_at,id`,
+        id,
+        context.tenantId,
+        context.companyId,
+      ),
+      this.prisma.$queryRawUnsafe<EventRow[]>(
+        `SELECT id,event_type AS "eventType",actor_user_id AS "actorUserId",
+                metadata,created_at AS "createdAt"
+         FROM crm_events
+         WHERE opportunity_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         ORDER BY created_at DESC,id DESC`,
+        id,
+        context.tenantId,
+        context.companyId,
+      ),
+    ]);
+
+    return { ...opportunity, followUps, events };
   }
 
   async createFromCustomer(input: CreateOpportunityInput, actorUserId: string) {
