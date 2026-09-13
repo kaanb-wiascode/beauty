@@ -27,6 +27,14 @@ const NAV_SECTIONS = [
     { href: "/crm/follow-ups", permission: "crm.read", label: "Takipler", icon: "calendar" },
     { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
+  { label: "Kurumsal İletişim", items: [
+    { href: "/communications", permission: "communications.read", label: "Genel Bakış", icon: "trend" },
+    { href: "/communications/campaigns", permission: "communications.read", label: "Kampanyalar", icon: "chart" },
+    { href: "/communications/leads", permission: "communications.read", label: "Lead & Dönüşüm", icon: "users" },
+    { href: "/communications/brand", permission: "communications.read", label: "Marka Merkezi", icon: "sparkles" },
+    { href: "/communications/integrations", permission: "communications.read", label: "Reklam Hesapları", icon: "activity" },
+    { href: "/communications/routing", permission: "communications.manage", label: "Lead Routing", icon: "arrows" },
+  ]},
   { label: "Operasyon", items: [
     { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
     { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
@@ -115,6 +123,7 @@ function isActivePath(pathname: string, href: string) {
   if (
     href === "/dashboard" ||
     href === "/crm" ||
+    href === "/communications" ||
     href === "/finance/cfo" ||
     href === "/inventory"
   ) {
