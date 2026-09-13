@@ -36,6 +36,8 @@ import { MarketingVendorsController } from './modules/corporate-communications/m
 import { MarketingVendorsService } from './modules/corporate-communications/marketing-vendors.service';
 import { CreatorsController } from './modules/corporate-communications/creators.controller';
 import { CreatorsService } from './modules/corporate-communications/creators.service';
+import { PrMediaController } from './modules/corporate-communications/pr-media.controller';
+import { PrMediaService } from './modules/corporate-communications/pr-media.service';
 
 @Module({
   imports: [
@@ -76,7 +78,7 @@ import { CreatorsService } from './modules/corporate-communications/creators.ser
     CrmModule,
     CorporateCommunicationsModule,
   ],
-  controllers: [MarketingVendorsController, CreatorsController],
-  providers: [MarketingVendorsService, CreatorsService],
+  controllers: [MarketingVendorsController, CreatorsController, PrMediaController],
+  providers: [MarketingVendorsService, CreatorsService, PrMediaService],
 })
 export class AppModule {}
