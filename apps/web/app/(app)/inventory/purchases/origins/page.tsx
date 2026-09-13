@@ -121,6 +121,15 @@ export default function PurchaseOrderOriginsPage() {
 
   if (loading) return <div className="mx-auto max-w-[1440px] py-16"><Spinner label="Ticari kaynak izleri hazırlanıyor..." /></div>;
 
+  if (error && !orders.length) {
+    return (
+      <div className="mx-auto max-w-[760px] space-y-4 py-16">
+        <Alert>{error}</Alert>
+        <div className="flex justify-center"><Button onClick={() => void load()}>Tekrar Dene</Button></div>
+      </div>
+    );
+  }
+
   return (
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header>
