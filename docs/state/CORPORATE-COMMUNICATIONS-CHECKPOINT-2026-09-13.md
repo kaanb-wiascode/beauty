@@ -5,9 +5,11 @@ Branch: `feature/core-commerce-foundation`
 
 ## Scope position
 
-Kurumsal İletişim is a standalone Brand & Growth Operations domain. It is not a CRM submodule. The domain is designed to integrate with CRM, Customers, Appointments, Sales, Payments, Finance and managed files/assets.
+Kurumsal İletişim is a standalone Brand & Growth Operations domain. It is not a CRM submodule. The domain integrates with CRM, Customers, Appointments, Sales, Payments, Finance and managed files/assets.
 
 The complete target scope remains documented in `docs/24-CORPORATE-COMMUNICATIONS.md`.
+
+Staging/deployment remains intentionally parked. Supplier Network and Marketplace remain outside the active communications scope.
 
 ## Implemented foundation
 
@@ -28,25 +30,39 @@ Backend and web foundation currently includes:
 - communications permissions foundation
 - web routes for Overview, Campaigns, Lead & Conversion, Brand Center, Ad Accounts and Routing
 
-## Marketing Lead -> CRM bridge
+## Operational marketing-to-commerce flow
 
-The operational CRM bridge is implemented.
-
-Flow:
+The currently implemented and tested flow is:
 
 ```text
 Marketing Lead
     ↓
 Routing Rule Resolution
     ↓
-Branch Resolution
-    ↓
-Owner Resolution
+Branch + CRM Owner
     ↓
 CRM Lead
     ↓
-CRM Audit Event
+Automatic First-Contact Follow-up / SLA
+    ↓
+Customer Link / Idempotent Customer Conversion
+    ↓
+Service + Staff + Time Selection
+    ↓
+Appointment
+    ↓
+CRM Opportunity
+    ↓
+Sale
+    ↓
+Sale Payment
+    ↓
+Collected Revenue Attribution
+    ↓
+Refund-aware Revenue Recalculation
 ```
+
+## Marketing Lead -> CRM bridge
 
 Runtime guarantees:
 
@@ -59,25 +75,17 @@ Runtime guarantees:
 - cross-branch routing is rejected when an active branch is selected
 - CRM event records provider, campaign and routing decision metadata
 
-## Dynamic routing
+### Dynamic routing
 
-### FIXED
+`FIXED` routes to an explicitly configured branch and/or user.
 
-Routes to an explicitly configured branch and/or user.
+`LEAST_LOADED` selects the eligible branch user with the fewest open CRM leads.
 
-### LEAST_LOADED
-
-Selects the eligible branch user with the fewest open CRM leads.
-
-Open workload is based on active CRM lead states rather than arbitrary user ordering.
-
-### ROUND_ROBIN
-
-Uses prior routed marketing-lead counts to select the least-used eligible assignee, with stable ordering as a deterministic tie breaker.
+`ROUND_ROBIN` uses prior routed marketing-lead counts to select the least-used eligible assignee, with stable ordering as a deterministic tie breaker.
 
 ## Automatic first-contact SLA
 
-Routing rule `conditions` now acts as an operational policy contract:
+Routing rule `conditions` acts as an operational policy contract:
 
 ```json
 {
@@ -87,7 +95,7 @@ Routing rule `conditions` now acts as an operational policy contract:
 }
 ```
 
-Supported first-contact channels:
+Supported channels:
 
 - `CALL`
 - `WHATSAPP`
@@ -96,72 +104,149 @@ Supported first-contact channels:
 - `IN_PERSON`
 - `OTHER`
 
-When a marketing lead is converted to CRM and an owner is resolved:
+When enabled and an owner is resolved, the initial CRM follow-up and audit event are created in the same CRM import transaction. Existing empty conditions use safe defaults: enabled, 15 minutes, CALL.
 
-1. the CRM lead is created;
-2. the marketing lead is linked to the CRM lead;
-3. the import audit event is written;
-4. when `autoFollowUp=true`, the initial CRM follow-up is created in the same transaction;
-5. follow-up due time is calculated from the configured SLA;
-6. the follow-up creation event stores marketing lead, campaign, routing rule, channel and SLA metadata.
+## Marketing Lead -> Customer bridge
 
-If automatic follow-up is disabled, no task is silently created.
+Implemented customer conversion guarantees:
 
-Existing routing rules with empty conditions use safe defaults:
+- serializable transaction and row lock
+- idempotent repeat conversion
+- same-branch existing-customer matching by phone/email
+- CRM lead and marketing lead share the resolved `customerId`
+- new customer creation only when an existing match is unavailable
+- no consent is silently accepted
+- new customers receive the eight customer-consent records as `DECLINED`
+- CRM audit event `MARKETING_CUSTOMER_LINKED`
 
-- automatic first-contact task: enabled
-- SLA: 15 minutes
-- channel: CALL
+Marketing, KVKK, health-data and explicit-consent flags are never inferred from an ad submission.
 
-## Web routing UX
+## Marketing Lead -> Appointment bridge
 
-The Lead Routing screen now supports configuration of:
+Endpoint:
 
-- routing strategy
-- provider
-- campaign
-- target branch
-- target user
-- automatic first-contact task toggle
-- first-contact SLA minutes
-- first-contact channel
+```text
+POST /corporate-communications/leads/:id/create-appointment
+```
 
-Existing rules display their first-contact policy.
+Important authorization boundary:
 
-## Verified tests
+- `communications.manage` does not grant appointment creation;
+- the endpoint requires `appointments.create`;
+- the inbox additionally requires staff/service read access before offering the scheduling UI.
 
-Coverage includes:
+Runtime guarantees:
+
+- active branch is required
+- marketing lead must already resolve to a customer
+- marketing lead row is locked
+- repeat appointment request is idempotent after linkage
+- customer, staff and service must belong to the active tenant/branch
+- staff and service must be ACTIVE
+- the same transaction-scoped advisory lock strategy as the appointment domain is used
+- staff-overlap conflicts are rejected
+- optional package-session availability/reservation rules are preserved
+- marketing lead is updated with `appointment_id` and `APPOINTMENT` status
+- CRM audit event `MARKETING_APPOINTMENT_CREATED` is appended when a CRM lead exists
+
+The Lead Inbox now exposes the operational sequence:
+
+```text
+CRM'e Aktar -> Müşteriye Dönüştür -> Randevu Oluştur
+```
+
+## Sale and collected-revenue attribution
+
+Migration:
+
+```text
+20260913203000_corporate_marketing_revenue_attribution
+```
+
+Attribution is database-authoritative rather than dependent on one application service path.
+
+### Sale attribution
+
+When a CRM Opportunity receives a new `sale_id`:
+
+- the matching marketing lead is found through `crm_lead_id = opportunity.lead_id`;
+- tenant/company/branch scope must match;
+- the marketing lead receives the Sale id;
+- marketing lead status becomes `WON`;
+- a `SALE_CREATED` marketing touchpoint is appended.
+
+This works with the existing governed Opportunity -> Sale flow and does not bypass Sales or Accounting.
+
+### Revenue attribution
+
+`sale_payments` is the source of collected-revenue truth.
+
+After completed/refunded SalePayment mutations:
+
+- attributed revenue is recomputed as the sum of `COMPLETED` SalePayments for that Sale;
+- `REFUNDED` payments no longer count toward marketing revenue;
+- the resulting amount updates `corporate_marketing_leads.revenue_amount`;
+- `PAYMENT_COMPLETED` or `PAYMENT_REFUNDED` touchpoints are appended;
+- all changes participate in the same database transaction as the payment mutation, so a rolled-back financial transaction cannot leave marketing revenue committed.
+
+The migration also backfills existing Opportunity -> Sale links and existing completed SalePayment totals.
+
+Example verified sequence:
+
+```text
+Sale created       -> revenue 0
+Payment +250       -> revenue 250
+Payment +100       -> revenue 350
+Refund first 250   -> revenue 100
+```
+
+The communications dashboard and campaign metrics already aggregate `revenue_amount`, so ROAS and attributed revenue now consume actual collected SalePayment truth instead of opportunity estimates.
+
+## Verified E2E coverage
+
+Coverage now includes:
 
 - Marketing Lead -> CRM idempotency
-- cross-branch routing denial
+- cross-branch CRM routing denial
 - FIXED routing
 - LEAST_LOADED routing
 - ROUND_ROBIN routing
 - automatic CRM follow-up creation
-- configured channel propagation
-- configured SLA propagation
+- configured channel/SLA propagation
 - disabling automatic follow-up
+- new Customer conversion with declined consents
+- existing Customer reuse
+- Customer conversion idempotency
+- marketing Appointment creation and repeat idempotency
+- staff-overlap denial
+- appointment permission denial without `appointments.create`
+- CRM Opportunity -> Sale marketing linkage at DB invariant level
+- completed SalePayment revenue attribution
+- multiple-payment revenue accumulation
+- refund-aware revenue recalculation
+- append-only sale/payment/refund marketing touchpoints
 
 ## Latest verified quality gate
 
 Code checkpoint:
 
 ```text
-e07f072c4f092243cd581e44eedba668196aecc0
-test(communications): cover automatic crm follow-up sla
+3ae46c9ac7f3a2a0e4860c3d759a92779b06d69e
+refactor(communications): remove duplicate attribution service
 ```
 
 Monorepo quality:
 
 ```text
-Run #1406
-Run ID: 34773697777
+Run #1426
+Run ID: 34775137177
 SUCCESS
 ```
 
 Verified blocking gates:
 
 - frozen dependency installation
+- release shell validation
 - Prisma validation
 - full fresh-database migration deployment
 - Prisma generation
@@ -169,42 +254,30 @@ Verified blocking gates:
 - shared contracts typecheck/build
 - API typecheck
 - API unit tests
-- API E2E tests, including communications routing/SLA coverage
+- API E2E including communications routing, SLA, customer, appointment and revenue-attribution coverage
 - API production build
 - web lint
 - web typecheck
 - web production build
 
+The commerce lint-debt report remains historical non-blocking debt reporting; a green run does not claim that debt is zero.
+
 ## Next implementation sequence
 
-The next operational bridge should preserve existing Customer and Appointment invariants rather than bypass them.
+With the marketing-to-commerce operational spine in place, the next active Kurumsal İletişim increment should broaden the department workspace rather than duplicate CRM/Sales logic.
 
-Target flow:
+Priority sequence:
 
-```text
-Marketing Lead
-    ↓
-CRM Lead
-    ↓
-Customer Link / Idempotent Customer Conversion
-    ↓
-Service + Staff + Slot Resolution
-    ↓
-Appointment
-    ↓
-Marketing Lead appointment linkage
-    ↓
-CRM / Attribution audit trail
-```
+1. Content Operations + Content Calendar lifecycle
+2. Approval Center and governed content/campaign approval
+3. Digital Asset Library / Brand Governance expansion
+4. Agency / Marketing Vendor management
+5. Influencer / Creator CRM
+6. PR / Media / Sponsorship workspace
+7. campaign/channel/creative analytics and anomaly detection
+8. Meta provider OAuth + webhook + campaign/ad/lead sync
+9. Google Ads provider adapter
+10. TikTok provider adapter
+11. offline conversion feedback and multi-touch attribution models
 
-Rules for the next increment:
-
-- do not auto-accept KVKK, health-data or marketing permissions;
-- customer conversion must be idempotent;
-- appointment creation must preserve active branch/customer/staff/service checks;
-- appointment creation must preserve staff-overlap concurrency protection;
-- no appointment may be created without an explicit valid service, staff and time range;
-- marketing attribution must retain campaign/provider linkage through appointment, sale and payment stages;
-- repeated orchestration requests must not create duplicate customers or appointments.
-
-After this bridge, the provider integration sequence remains Meta first, followed by Google Ads and TikTok, while the broader Content Ops / Approval / Vendor / Creator / PR / Digital Asset scope remains part of the documented domain roadmap.
+Provider credentials must use OAuth/encrypted credential infrastructure. Password collection and plaintext credential storage remain prohibited.
