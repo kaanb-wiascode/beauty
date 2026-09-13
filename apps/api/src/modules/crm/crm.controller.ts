@@ -20,6 +20,7 @@ import {
   completeFollowUpSchema,
   createFollowUpSchema,
   createLeadSchema,
+  createOpportunitySchema,
   leadStatusSchema,
   opportunityStageSchema,
   qualifyLeadSchema,
@@ -27,6 +28,7 @@ import {
   transitionOpportunitySchema,
   updateLeadSchema,
 } from './crm.schemas';
+import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmService } from './crm.service';
 
 const uuid = z.string().uuid();
@@ -51,7 +53,10 @@ const listFollowUpsSchema = z.object({
 @Controller('crm')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class CrmController {
-  constructor(private readonly crm: CrmService) {}
+  constructor(
+    private readonly crm: CrmService,
+    private readonly opportunities: CrmOpportunityService,
+  ) {}
 
   private userId(request: { user?: { sub?: string } }) {
     const id = request.user?.sub;
@@ -124,6 +129,18 @@ export class CrmController {
   listOpportunities(@Query() query: unknown) {
     return this.crm.listOpportunities(
       listOpportunitiesSchema.parse(query),
+    );
+  }
+
+  @Post('opportunities')
+  @RequirePermission('crm', 'manage')
+  createOpportunity(
+    @Body() body: unknown,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    return this.opportunities.createFromCustomer(
+      createOpportunitySchema.parse(body),
+      this.userId(request),
     );
   }
 
