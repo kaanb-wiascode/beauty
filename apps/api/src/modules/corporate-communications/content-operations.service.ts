@@ -206,14 +206,21 @@ export class ContentOperationsService {
     const context = this.context();
     return this.prisma.$transaction(async (tx) => {
       const content = await this.lockContent(tx, id);
+      const pending = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM corporate_content_approvals
+         WHERE content_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND branch_id IS NOT DISTINCT FROM $4::text AND status='PENDING'
+         LIMIT 1`,
+        id,
+        context.tenantId,
+        context.companyId,
+        content.branchId,
+      );
+      if (pending.length) return { approvalId: pending[0].id, idempotent: true };
+
       if (!['IDEA', 'BRIEF', 'PRODUCTION'].includes(content.status)) {
         throw new ConflictException('Content is not in a reviewable state.');
       }
-      const pending = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id FROM corporate_content_approvals WHERE content_id=$1::text AND status='PENDING' LIMIT 1`,
-        id,
-      );
-      if (pending.length) return { approvalId: pending[0].id, idempotent: true };
 
       await tx.$executeRawUnsafe(
         `UPDATE corporate_content_items SET status='REVIEW',updated_at=NOW() WHERE id=$1::text`,
