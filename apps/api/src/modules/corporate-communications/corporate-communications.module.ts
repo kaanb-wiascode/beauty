@@ -3,13 +3,22 @@ import { CorporateCommunicationsController } from './corporate-communications.co
 import { CorporateCommunicationsService } from './corporate-communications.service';
 import { MarketingLeadConversionController } from './marketing-lead-conversion.controller';
 import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.service';
+import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-bridge.service';
 
 @Module({
   controllers: [
     CorporateCommunicationsController,
     MarketingLeadConversionController,
   ],
-  providers: [CorporateCommunicationsService, MarketingLeadCrmBridgeService],
-  exports: [CorporateCommunicationsService, MarketingLeadCrmBridgeService],
+  providers: [
+    CorporateCommunicationsService,
+    MarketingLeadCrmBridgeService,
+    MarketingLeadCustomerBridgeService,
+  ],
+  exports: [
+    CorporateCommunicationsService,
+    MarketingLeadCrmBridgeService,
+    MarketingLeadCustomerBridgeService,
+  ],
 })
 export class CorporateCommunicationsModule {}
