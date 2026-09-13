@@ -3,7 +3,7 @@ RETURNS TRIGGER AS $$
 DECLARE
   material RECORD;
   stock_row RECORD;
-  warehouse UUID;
+  warehouse TEXT;
   target_qty NUMERIC;
   branch_id_value TEXT;
 BEGIN
@@ -16,7 +16,7 @@ BEGIN
   SELECT id
     INTO warehouse
   FROM inventory_warehouses
-  WHERE branch_id::text = branch_id_value
+  WHERE branch_id = branch_id_value
     AND type = 'BRANCH'
     AND status = 'ACTIVE'
   LIMIT 1;
@@ -28,7 +28,7 @@ BEGIN
   FOR material IN
     SELECT ism.product_id, ism.quantity
     FROM inventory_service_materials ism
-    WHERE ism.service_id::text = NEW."serviceId"
+    WHERE ism.service_id = NEW."serviceId"
   LOOP
     SELECT *
       INTO stock_row
@@ -62,14 +62,14 @@ BEGIN
       note
     )
     SELECT
-      NEW."tenantId"::uuid,
-      b."companyId"::uuid,
+      NEW."tenantId",
+      b."companyId",
       material.product_id,
       warehouse,
       'SERVICE_CONSUMPTION',
       material.quantity,
       'APPOINTMENT',
-      NEW.id::uuid,
+      NEW.id,
       'Hizmet tamamlandı: otomatik stok tüketimi'
     FROM branches b
     WHERE b.id = branch_id_value;
@@ -97,8 +97,8 @@ BEGIN
           reason
         )
         SELECT
-          NEW."tenantId"::uuid,
-          b."companyId"::uuid,
+          NEW."tenantId",
+          b."companyId",
           warehouse,
           material.product_id,
           stock_row.quantity - material.quantity,
@@ -119,8 +119,8 @@ BEGIN
           reference_id
         )
         SELECT
-          NEW."tenantId"::uuid,
-          b."companyId"::uuid,
+          NEW."tenantId",
+          b."companyId",
           branch_id_value,
           targets.role_target,
           'LOW_STOCK',
