@@ -27,7 +27,7 @@ describe('Corporate marketing finance handoff (e2e)', () => {
 
   afterAll(async () => app.close());
 
-  it('moves an agency fee into AP/accounting once and reverses the original expense account', async () => {
+  it('moves campaign and agency costs into governed finance and accounting flows', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const tenant = await prisma.tenant.create({ data: { name: `Mkt Finance ${suffix}`, slug: `mkt-fin-${suffix}` } });
     const company = await prisma.company.create({ data: { tenantId: tenant.id, name: `Mkt Finance Co ${suffix}`, slug: `mkt-fin-co-${suffix}` } });
@@ -35,6 +35,37 @@ describe('Corporate marketing finance handoff (e2e)', () => {
 
     const communications = await actor('communications', ['communications.read', 'communications.manage']);
     const finance = await actor('finance', ['finance.read', 'finance.manage']);
+
+    const campaign = await request(app.getHttpServer())
+      .post('/corporate-communications/campaigns')
+      .set('Authorization', communications)
+      .send({
+        name: `Integrated Campaign ${suffix}`,
+        branchId: branch.id,
+        objective: 'LEAD_GENERATION',
+        status: 'ACTIVE',
+        channel: 'META',
+        plannedBudget: 50000,
+        spentAmount: 42000,
+        currency: 'TRY',
+      })
+      .expect(201);
+
+    const campaignExpenses = await prisma.$queryRawUnsafe<
+      Array<{ amount: unknown; accountCode: string; status: string; category: string }>
+    >(
+      `SELECT amount,expense_account_code AS "accountCode",status,category
+       FROM corporate_marketing_expenses
+       WHERE tenant_id=$1::text AND company_id=$2::text AND source_type='CAMPAIGN' AND source_id=$3::text`,
+      tenant.id,
+      company.id,
+      campaign.body.id,
+    );
+    expect(campaignExpenses).toHaveLength(1);
+    expect(Number(campaignExpenses[0].amount)).toBe(42000);
+    expect(campaignExpenses[0].accountCode).toBe('760.01');
+    expect(campaignExpenses[0].category).toBe('AD_SPEND');
+    expect(campaignExpenses[0].status).toBe('PENDING_FINANCE');
 
     const vendor = await request(app.getHttpServer())
       .post('/corporate-communications/vendors')
