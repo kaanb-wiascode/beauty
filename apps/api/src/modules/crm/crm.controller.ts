@@ -28,6 +28,7 @@ import {
   transitionOpportunitySchema,
   updateLeadSchema,
 } from './crm.schemas';
+import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmService } from './crm.service';
 
@@ -49,6 +50,15 @@ const listFollowUpsSchema = z.object({
   dueBefore: z.coerce.date().optional(),
   limit: z.coerce.number().int().min(1).max(200).optional(),
 });
+const operationsSummarySchema = z
+  .object({
+    dayStart: z.coerce.date(),
+    dayEnd: z.coerce.date(),
+  })
+  .refine((value) => value.dayEnd > value.dayStart, {
+    message: 'dayEnd must be after dayStart.',
+    path: ['dayEnd'],
+  });
 
 @Controller('crm')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -56,6 +66,7 @@ export class CrmController {
   constructor(
     private readonly crm: CrmService,
     private readonly opportunities: CrmOpportunityService,
+    private readonly operations: CrmOperationsService,
   ) {}
 
   private userId(request: { user?: { sub?: string } }) {
@@ -64,6 +75,13 @@ export class CrmController {
       throw new UnauthorizedException('Authenticated user id is missing.');
     }
     return id;
+  }
+
+  @Get('operations-summary')
+  @RequirePermission('crm', 'read')
+  getOperationsSummary(@Query() query: unknown) {
+    const filters = operationsSummarySchema.parse(query);
+    return this.operations.getSummary(filters.dayStart, filters.dayEnd);
   }
 
   @Get('assignees')
