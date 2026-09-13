@@ -34,6 +34,8 @@ import { CrmModule } from './modules/crm/crm.module';
 import { CorporateCommunicationsModule } from './modules/corporate-communications/corporate-communications.module';
 import { MarketingVendorsController } from './modules/corporate-communications/marketing-vendors.controller';
 import { MarketingVendorsService } from './modules/corporate-communications/marketing-vendors.service';
+import { CreatorsController } from './modules/corporate-communications/creators.controller';
+import { CreatorsService } from './modules/corporate-communications/creators.service';
 
 @Module({
   imports: [
@@ -74,7 +76,7 @@ import { MarketingVendorsService } from './modules/corporate-communications/mark
     CrmModule,
     CorporateCommunicationsModule,
   ],
-  controllers: [MarketingVendorsController],
-  providers: [MarketingVendorsService],
+  controllers: [MarketingVendorsController, CreatorsController],
+  providers: [MarketingVendorsService, CreatorsService],
 })
 export class AppModule {}
