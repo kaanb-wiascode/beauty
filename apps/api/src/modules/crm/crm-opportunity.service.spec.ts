@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CrmOpportunityService } from './crm-opportunity.service';
 
 describe('CrmOpportunityService', () => {
@@ -136,5 +136,91 @@ describe('CrmOpportunityService', () => {
       'company-a',
       'branch-a',
     ]);
+  });
+
+  it('returns a branch-scoped opportunity with follow-ups and event timeline', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 'opportunity-1',
+          leadId: null,
+          customerId: 'customer-1',
+          ownerUserId: 'user-1',
+          title: 'Premium paket',
+          stage: 'PROPOSAL',
+          estimatedValue: '12500.00',
+          currency: 'TRY',
+          probability: 60,
+          expectedCloseDate: null,
+          lostReason: null,
+          saleId: null,
+          commercialSnapshot: null,
+          convertedAt: null,
+          version: 3,
+          createdAt: new Date('2026-09-13T10:00:00.000Z'),
+          updatedAt: new Date('2026-09-13T12:00:00.000Z'),
+          leadFirstName: null,
+          leadLastName: null,
+          customerFirstName: 'Ada',
+          customerLastName: 'Yılmaz',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'follow-up-1',
+          opportunityId: 'opportunity-1',
+          status: 'OPEN',
+        },
+      ])
+      .mockResolvedValueOnce([
+        {
+          id: 'event-1',
+          eventType: 'OPPORTUNITY_CREATED',
+        },
+      ]);
+    const service = new CrmOpportunityService(
+      { $queryRawUnsafe: query } as never,
+      tenant(),
+    );
+
+    await expect(service.getDetail('opportunity-1')).resolves.toMatchObject({
+      id: 'opportunity-1',
+      customerId: 'customer-1',
+      customerFirstName: 'Ada',
+      followUps: [{ id: 'follow-up-1' }],
+      events: [{ id: 'event-1' }],
+    });
+
+    expect(String(query.mock.calls[0][0])).toContain(
+      'o.tenant_id=$2::text AND o.company_id=$3::text',
+    );
+    expect(String(query.mock.calls[0][0])).toContain(
+      'o.branch_id=$4::text',
+    );
+    expect(query.mock.calls[0].slice(1)).toEqual([
+      'opportunity-1',
+      'tenant-a',
+      'company-a',
+      'branch-a',
+    ]);
+    expect(String(query.mock.calls[1][0])).toContain(
+      'WHERE opportunity_id=$1::text',
+    );
+    expect(String(query.mock.calls[2][0])).toContain(
+      'WHERE opportunity_id=$1::text',
+    );
+  });
+
+  it('does not expose an opportunity outside the active scope', async () => {
+    const query = jest.fn().mockResolvedValue([]);
+    const service = new CrmOpportunityService(
+      { $queryRawUnsafe: query } as never,
+      tenant(),
+    );
+
+    await expect(service.getDetail('opportunity-outside')).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
   });
 });
