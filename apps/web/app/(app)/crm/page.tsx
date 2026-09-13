@@ -114,7 +114,10 @@ export default function CrmOverviewPage() {
           <p className="mt-2 max-w-2xl text-[13px] leading-6 text-[var(--muted)]">Potansiyel Müşteri Akışını, Satış Fırsatlarını Ve Yaklaşan Müşteri Temaslarını Tek Merkezden Yönetin.</p>
         </div>
         {canManage ? (
-          <Link href="/crm/leads?new=1"><Button>+ Yeni Potansiyel Müşteri</Button></Link>
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <Link href="/crm/opportunities/new"><Button variant="secondary">+ Yeni Satış Fırsatı</Button></Link>
+            <Link href="/crm/leads?new=1"><Button>+ Yeni Potansiyel Müşteri</Button></Link>
+          </div>
         ) : null}
       </header>
 
