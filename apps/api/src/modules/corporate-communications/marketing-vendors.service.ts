@@ -38,6 +38,28 @@ export class MarketingVendorsService {
     }
   }
 
+  private async syncFinanceHandoff(vendorId: string) {
+    const { tenantId, companyId } = this.context();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO corporate_marketing_expenses(
+         tenant_id,company_id,branch_id,source_type,source_id,period_key,vendor_id,supplier_id,
+         category,description,amount,currency,incurred_on,status,expense_account_code,expense_account_name,metadata
+       )
+       SELECT v.tenant_id,v.company_id,v.branch_id,'VENDOR',v.id,to_char(CURRENT_DATE,'YYYY-MM'),v.id,v.supplier_id,
+              'AGENCY_FEE',v.name || ' aylık ajans/hizmet bedeli',v.monthly_fee,v.currency,CURRENT_DATE,'PENDING_FINANCE',
+              '760.04','Ajans ve Pazarlama Hizmet Giderleri',jsonb_build_object('autoSynced',true,'paymentModel',v.payment_model)
+       FROM corporate_marketing_vendors v
+       WHERE v.id=$1::text AND v.tenant_id=$2::text AND v.company_id=$3::text AND v.status='ACTIVE' AND v.monthly_fee>0
+       ON CONFLICT (tenant_id,company_id,source_type,source_id,period_key)
+       DO UPDATE SET amount=EXCLUDED.amount,currency=EXCLUDED.currency,branch_id=EXCLUDED.branch_id,
+                     supplier_id=EXCLUDED.supplier_id,description=EXCLUDED.description,metadata=EXCLUDED.metadata,updated_at=NOW()
+       WHERE corporate_marketing_expenses.status='PENDING_FINANCE'`,
+      vendorId,
+      tenantId,
+      companyId,
+    );
+  }
+
   async list(filters: {
     status?: string;
     vendorType?: string;
@@ -52,7 +74,7 @@ export class MarketingVendorsService {
               v.service_scope AS "serviceScope",v.monthly_fee AS "monthlyFee",v.currency,
               v.payment_model AS "paymentModel",v.kpi_commitments AS "kpiCommitments",
               v.performance_notes AS "performanceNotes",v.attributed_revenue AS "attributedRevenue",
-              v.metadata,v.created_at AS "createdAt",v.updated_at AS "updatedAt"
+              v.supplier_id AS "supplierId",v.metadata,v.created_at AS "createdAt",v.updated_at AS "updatedAt"
        FROM corporate_marketing_vendors v
        WHERE v.tenant_id=$1::text AND v.company_id=$2::text
          AND ($3::text IS NULL OR v.branch_id IS NULL OR v.branch_id=$3::text)
@@ -95,7 +117,7 @@ export class MarketingVendorsService {
                  service_scope AS "serviceScope",monthly_fee AS "monthlyFee",currency,
                  payment_model AS "paymentModel",kpi_commitments AS "kpiCommitments",
                  performance_notes AS "performanceNotes",attributed_revenue AS "attributedRevenue",
-                 metadata,created_at AS "createdAt",updated_at AS "updatedAt"`,
+                 supplier_id AS "supplierId",metadata,created_at AS "createdAt",updated_at AS "updatedAt"`,
       context.tenantId,
       context.companyId,
       branchId ?? null,
@@ -116,6 +138,7 @@ export class MarketingVendorsService {
       JSON.stringify(input.metadata),
       actorUserId,
     );
+    await this.syncFinanceHandoff(rows[0].id);
     return rows[0];
   }
 
@@ -151,7 +174,7 @@ export class MarketingVendorsService {
                  service_scope AS "serviceScope",monthly_fee AS "monthlyFee",currency,
                  payment_model AS "paymentModel",kpi_commitments AS "kpiCommitments",
                  performance_notes AS "performanceNotes",attributed_revenue AS "attributedRevenue",
-                 metadata,created_at AS "createdAt",updated_at AS "updatedAt"`,
+                 supplier_id AS "supplierId",metadata,created_at AS "createdAt",updated_at AS "updatedAt"`,
       id,
       context.tenantId,
       context.companyId,
@@ -185,6 +208,7 @@ export class MarketingVendorsService {
     );
 
     if (!rows.length) throw new NotFoundException('Marketing vendor not found.');
+    await this.syncFinanceHandoff(rows[0].id);
     return rows[0];
   }
 
