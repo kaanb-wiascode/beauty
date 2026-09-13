@@ -3,7 +3,7 @@ import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import type { CreateOpportunityInput } from './crm.schemas';
 
-interface OpportunityRow {
+export interface OpportunityRow {
   id: string;
   customerId: string;
   ownerUserId: string | null;
