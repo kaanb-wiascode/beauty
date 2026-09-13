@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { BrandGovernanceController } from './brand-governance.controller';
+import { BrandGovernanceService } from './brand-governance.service';
 import { ContentOperationsController } from './content-operations.controller';
 import { ContentOperationsService } from './content-operations.service';
 import { CorporateCommunicationsController } from './corporate-communications.controller';
@@ -11,11 +13,13 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
 @Module({
   controllers: [
     CorporateCommunicationsController,
+    BrandGovernanceController,
     ContentOperationsController,
     MarketingLeadConversionController,
   ],
   providers: [
     CorporateCommunicationsService,
+    BrandGovernanceService,
     ContentOperationsService,
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
@@ -23,6 +27,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
   ],
   exports: [
     CorporateCommunicationsService,
+    BrandGovernanceService,
     ContentOperationsService,
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
