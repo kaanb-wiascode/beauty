@@ -5,6 +5,8 @@ import { ContentOperationsController } from './content-operations.controller';
 import { ContentOperationsService } from './content-operations.service';
 import { CorporateCommunicationsController } from './corporate-communications.controller';
 import { CorporateCommunicationsService } from './corporate-communications.service';
+import { DigitalAssetsController } from './digital-assets.controller';
+import { DigitalAssetsService } from './digital-assets.service';
 import { MarketingLeadConversionController } from './marketing-lead-conversion.controller';
 import { MarketingLeadAppointmentService } from './marketing-lead-appointment.service';
 import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.service';
@@ -15,12 +17,14 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
     CorporateCommunicationsController,
     BrandGovernanceController,
     ContentOperationsController,
+    DigitalAssetsController,
     MarketingLeadConversionController,
   ],
   providers: [
     CorporateCommunicationsService,
     BrandGovernanceService,
     ContentOperationsService,
+    DigitalAssetsService,
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
     MarketingLeadCustomerBridgeService,
@@ -29,6 +33,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
     CorporateCommunicationsService,
     BrandGovernanceService,
     ContentOperationsService,
+    DigitalAssetsService,
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
     MarketingLeadCustomerBridgeService,
