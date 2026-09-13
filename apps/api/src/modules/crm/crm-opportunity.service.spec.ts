@@ -138,6 +138,46 @@ describe('CrmOpportunityService', () => {
     ]);
   });
 
+  it('lists opportunities with customer identity inside tenant/company/branch scope', async () => {
+    const query = jest.fn().mockResolvedValue([
+      {
+        id: 'opportunity-1',
+        customerId: 'customer-1',
+        customerFirstName: 'Ada',
+        customerLastName: 'Yılmaz',
+      },
+    ]);
+    const service = new CrmOpportunityService(
+      { $queryRawUnsafe: query } as never,
+      tenant(),
+    );
+
+    await expect(
+      service.list({ ownerUserId: 'user-1', limit: 25 }),
+    ).resolves.toEqual([
+      expect.objectContaining({
+        id: 'opportunity-1',
+        customerFirstName: 'Ada',
+        customerLastName: 'Yılmaz',
+      }),
+    ]);
+
+    const sql = String(query.mock.calls[0][0]);
+    expect(sql).toContain('LEFT JOIN customers c');
+    expect(sql).toContain('c."tenantId"=o.tenant_id');
+    expect(sql).toContain('c."branchId"=o.branch_id');
+    expect(sql).toContain('o.tenant_id=$1::text AND o.company_id=$2::text');
+    expect(sql).toContain('o.branch_id=$3::text');
+    expect(query.mock.calls[0].slice(1)).toEqual([
+      'tenant-a',
+      'company-a',
+      'branch-a',
+      null,
+      'user-1',
+      25,
+    ]);
+  });
+
   it('returns a branch-scoped opportunity with follow-ups and event timeline', async () => {
     const query = jest
       .fn()
