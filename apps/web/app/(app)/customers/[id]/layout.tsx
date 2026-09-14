@@ -1,4 +1,5 @@
 import "../customers-beauty.css";
+import { CustomerCommunications } from "@/components/customer-communications";
 import { CustomerCrm360 } from "@/components/customer-crm-360";
 
 export default async function CustomerDetailLayout({
@@ -12,8 +13,9 @@ export default async function CustomerDetailLayout({
   return (
     <>
       {children}
-      <div className="mx-auto mt-7 max-w-6xl pb-8">
+      <div className="mx-auto mt-7 max-w-6xl space-y-8 pb-8">
         <CustomerCrm360 customerId={id} />
+        <CustomerCommunications customerId={id} />
       </div>
     </>
   );
