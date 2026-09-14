@@ -11,6 +11,8 @@ import { CrmMessageController } from './crm-message.controller';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
 import { CrmMessageService } from './crm-message.service';
 import { CrmMessageWebhookController } from './crm-message-webhook.controller';
+import { CrmMessageWebhookHistoryController } from './crm-message-webhook-history.controller';
+import { CrmMessageWebhookHistoryService } from './crm-message-webhook-history.service';
 import { CrmMessageWebhookService } from './crm-message-webhook.service';
 import { CrmOperationsController } from './crm-operations.controller';
 import { CrmOperationsService } from './crm-operations.service';
@@ -27,6 +29,7 @@ import { CrmService } from './crm.service';
     CrmAutomationRulesController,
     CrmMessageController,
     CrmMessageWebhookController,
+    CrmMessageWebhookHistoryController,
   ],
   providers: [
     CrmService,
@@ -42,6 +45,7 @@ import { CrmService } from './crm.service';
     CrmMessageProviderRegistryService,
     CrmMessageService,
     CrmMessageWebhookService,
+    CrmMessageWebhookHistoryService,
   ],
   exports: [CrmService, CrmOpportunityService, CrmOperationsService, CrmMessageService],
 })
