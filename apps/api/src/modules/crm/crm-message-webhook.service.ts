@@ -97,6 +97,9 @@ export class CrmMessageWebhookService {
            provider_key,recipient,subject,body,external_message_id,created_by_user_id,sent_at,delivered_at
          ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,'INBOUND',$7,'DELIVERED',
            $8,$9,$10,$11,$12,NULL,NOW(),NOW())
+         ON CONFLICT(tenant_id,company_id,branch_id,provider_key,external_message_id)
+           WHERE provider_key IS NOT NULL AND external_message_id IS NOT NULL
+         DO NOTHING
          RETURNING id`,
         event.tenantId,
         event.companyId,
@@ -111,12 +114,20 @@ export class CrmMessageWebhookService {
         event.body.trim(),
         event.externalMessageId,
       );
+
+      const messageId = messages[0]?.id ?? await this.findExistingProviderMessage(tx, event, provider.key);
       await tx.$executeRawUnsafe(
-        `UPDATE crm_message_webhook_events SET message_id=$2::text WHERE id=$1::uuid`,
+        `UPDATE crm_message_webhook_events SET message_id=$2::text,outcome=$3,error_message=$4 WHERE id=$1::uuid`,
         claimed[0].id,
-        messages[0].id,
+        messageId,
+        messages[0] ? 'PROCESSED' : 'IGNORED',
+        messages[0] ? null : 'Inbound message already exists',
       );
-      return { idempotent: false, outcome: 'PROCESSED' as const, messageId: messages[0].id };
+      return {
+        idempotent: false,
+        outcome: messages[0] ? 'PROCESSED' as const : 'IGNORED' as const,
+        messageId,
+      };
     });
   }
 
@@ -150,5 +161,25 @@ export class CrmMessageWebhookService {
       event.errorMessage?.slice(0, 1000) ?? null,
     );
     return Boolean(rows[0]);
+  }
+
+  private async findExistingProviderMessage(
+    tx: Prisma.TransactionClient,
+    event: Extract<CrmProviderWebhookEvent, { type: 'INBOUND' }>,
+    providerKey: string,
+  ) {
+    const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM crm_messages
+       WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+         AND provider_key=$4 AND external_message_id=$5
+       LIMIT 1`,
+      event.tenantId,
+      event.companyId,
+      event.branchId,
+      providerKey,
+      event.externalMessageId,
+    );
+    if (!rows[0]) throw new BadRequestException('Existing provider message could not be resolved.');
+    return rows[0].id;
   }
 }
