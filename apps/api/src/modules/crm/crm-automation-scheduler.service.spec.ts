@@ -24,32 +24,38 @@ describe('CrmAutomationSchedulerService', () => {
       staleDays: 9,
       staleBefore: new Date(),
     });
+    const observe = jest.fn(
+      async (_scope: unknown, _input: unknown, work: () => Promise<unknown>) => work(),
+    );
 
     const service = new CrmAutomationSchedulerService(
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
       { processPendingEvents, runStaleOpportunitySweep } as never,
+      { execute: observe } as never,
     );
     return {
       service,
       query,
       execute,
+      observe,
       processPendingEvents,
       runStaleOpportunitySweep,
     };
   }
 
   it('does not process scopes when another instance owns the lease', async () => {
-    const { service, processPendingEvents, runStaleOpportunitySweep } =
+    const { service, processPendingEvents, runStaleOpportunitySweep, observe } =
       createService(false);
 
     await (service as any).run();
 
+    expect(observe).not.toHaveBeenCalled();
     expect(processPendingEvents).not.toHaveBeenCalled();
     expect(runStaleOpportunitySweep).not.toHaveBeenCalled();
   });
 
-  it('discovers configured stale scopes, processes them, and releases its lease', async () => {
-    const { service, query, execute, processPendingEvents, runStaleOpportunitySweep } =
+  it('records both scheduled operations and releases its lease', async () => {
+    const { service, query, execute, observe, processPendingEvents, runStaleOpportunitySweep } =
       createService(true);
 
     await (service as any).run();
@@ -61,6 +67,18 @@ describe('CrmAutomationSchedulerService', () => {
     };
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("r.rule_key='STALE_OPPORTUNITY_FOLLOW_UP'"),
+    );
+    expect(observe).toHaveBeenNthCalledWith(
+      1,
+      scope,
+      { origin: 'SCHEDULER', operation: 'EVENT_PROCESSOR' },
+      expect.any(Function),
+    );
+    expect(observe).toHaveBeenNthCalledWith(
+      2,
+      scope,
+      { origin: 'SCHEDULER', operation: 'STALE_SWEEP' },
+      expect.any(Function),
     );
     expect(processPendingEvents).toHaveBeenCalledWith(scope);
     expect(runStaleOpportunitySweep).toHaveBeenCalledWith(scope);
