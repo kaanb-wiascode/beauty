@@ -60,7 +60,7 @@ const reminderFeedSchema = z
   });
 
 const staleSweepSchema = z.object({
-  staleDays: z.coerce.number().int().min(1).max(90).default(14),
+  staleDays: z.coerce.number().int().min(1).max(90).optional(),
 });
 
 @Controller('crm/operations')
