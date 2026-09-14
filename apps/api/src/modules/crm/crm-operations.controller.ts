@@ -2,6 +2,7 @@ import {
   Controller,
   Get,
   Param,
+  Post,
   Query,
   Req,
   UnauthorizedException,
@@ -12,6 +13,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { CrmAutomationService } from './crm-automation.service';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmReminderService } from './crm-reminder.service';
@@ -56,6 +58,10 @@ const reminderFeedSchema = z
     path: ['closeThrough'],
   });
 
+const staleSweepSchema = z.object({
+  staleDays: z.coerce.number().int().min(1).max(90).default(14),
+});
+
 @Controller('crm/operations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class CrmOperationsController {
@@ -63,6 +69,7 @@ export class CrmOperationsController {
     private readonly operations: CrmOperationsService,
     private readonly customer360: CrmCustomer360Service,
     private readonly reminders: CrmReminderService,
+    private readonly automations: CrmAutomationService,
   ) {}
 
   private userId(request: { user?: { sub?: string } }) {
@@ -96,6 +103,25 @@ export class CrmOperationsController {
       ...filters,
       userId: this.userId(request),
     });
+  }
+
+  @Post('automations/process-events')
+  @RequirePermission('crm', 'manage')
+  processAutomationEvents(@Req() request: { user?: { sub?: string } }) {
+    return this.automations.processPendingEvents(this.userId(request));
+  }
+
+  @Post('automations/stale-sweep')
+  @RequirePermission('crm', 'manage')
+  runStaleSweep(
+    @Query() query: unknown,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    const { staleDays } = staleSweepSchema.parse(query);
+    return this.automations.runStaleOpportunitySweep(
+      this.userId(request),
+      staleDays,
+    );
   }
 
   @Get('customer-360/:customerId')
