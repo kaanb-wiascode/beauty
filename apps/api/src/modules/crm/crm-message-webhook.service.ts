@@ -37,7 +37,7 @@ export class CrmMessageWebhookService {
         `INSERT INTO crm_message_webhook_events(
            tenant_id,company_id,branch_id,provider_key,external_event_id,event_type,external_message_id,outcome
          ) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,'PROCESSED')
-         ON CONFLICT(provider_key,external_event_id) DO NOTHING
+         ON CONFLICT(tenant_id,company_id,branch_id,provider_key,external_event_id) DO NOTHING
          RETURNING id`,
         event.tenantId,
         event.companyId,
