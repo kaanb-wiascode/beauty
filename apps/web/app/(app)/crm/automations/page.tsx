@@ -42,11 +42,11 @@ export default function CrmAutomationsPage() {
   return <div className="space-y-6">
     <PageHeader
       title="CRM Otomasyonları"
-      description="CRM event'lerinden güvenli ve idempotent takip görevleri üretin. Aynı automation key ikinci kez aynı işi oluşturmaz."
-      action={canManage ? <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={Boolean(running)} onClick={() => void run("events")}>{running === "events" ? "İşleniyor..." : "Event Kuyruğunu İşle"}</Button><Button disabled={Boolean(running)} onClick={() => void run("stale")}>{running === "stale" ? "Taranıyor..." : "14+ Gün Durağanları İşle"}</Button></div> : undefined}
+      description="CRM otomasyonları arka planda otomatik çalışır. Yetkili kullanıcılar gerektiğinde event ve durağan fırsat taramasını manuel olarak da tetikleyebilir."
+      action={canManage ? <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={Boolean(running)} onClick={() => void run("events")}>{running === "events" ? "İşleniyor..." : "Event Kuyruğunu Şimdi İşle"}</Button><Button disabled={Boolean(running)} onClick={() => void run("stale")}>{running === "stale" ? "Taranıyor..." : "14+ Gün Durağanları Şimdi İşle"}</Button></div> : undefined}
     />
 
-    {!canManage ? <Alert>Bu ekranı görüntüleyebilirsiniz; otomasyon çalıştırmak için crm.manage yetkisi gerekir.</Alert> : null}
+    {!canManage ? <Alert>Bu ekranı görüntüleyebilirsiniz; manuel otomasyon çalıştırmak için crm.manage yetkisi gerekir.</Alert> : null}
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {lastResult ? <Alert tone="success">{lastResult.label}: {lastResult.result.scanned} kayıt tarandı, {lastResult.result.created} takip oluşturuldu, {lastResult.result.skipped} kayıt idempotency nedeniyle atlandı.</Alert> : null}
 
@@ -73,12 +73,12 @@ export default function CrmAutomationsPage() {
 
     <GlassCard>
       <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Çalışma Modeli</p>
-      <h2 className="mt-1 text-[18px] font-semibold">Event-driven ve audit edilebilir</h2>
+      <h2 className="mt-1 text-[18px] font-semibold">Dağıtık, event-driven ve audit edilebilir</h2>
       <div className="mt-4 grid gap-3 text-[12px] leading-5 text-[var(--muted)] md:grid-cols-2">
         <p>Her otomatik takip normal <strong className="text-[var(--ink)]">crm_follow_ups</strong> kaydıdır; ayrı ve görünmez bir görev sistemi oluşmaz.</p>
         <p>Her execution <strong className="text-[var(--ink)]">AUTOMATION_EXECUTED</strong> olayı bırakır. Kaynak event, rule ve automation key CRM timeline üzerinden audit edilebilir.</p>
-        <p>İşlemler tenant/company/branch scope içinde çalışır. Event processor en fazla 100 pending event, stale sweep en fazla 100 açık fırsat işler.</p>
-        <p>Bu v1 manuel tetiklenebilir processor&apos;dır. Aynı servis daha sonra scheduler/queue worker tarafından güvenle çağrılabilecek şekilde tasarlanmıştır.</p>
+        <p>Runtime yaklaşık her 5 dakikada bir aday scope&apos;ları tarar. Dağıtık lease aynı anda yalnız bir scheduler instance&apos;ının orchestration yapmasını sağlar.</p>
+        <p>Tenant/company/branch izolasyonu explicit scope ile korunur. Transaction advisory lock ve unique automation key index&apos;i manuel çalıştırma ile scheduler yarışında duplicate takip oluşmasını engeller.</p>
       </div>
     </GlassCard>
   </div>;
