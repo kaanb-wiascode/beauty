@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { CrmCommercialController } from './crm-commercial.controller';
 import { CrmController } from './crm.controller';
+import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsController } from './crm-operations.controller';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.service';
@@ -14,6 +15,7 @@ import { CrmService } from './crm.service';
     CrmOpportunityService,
     CrmOperationsService,
     CrmOpportunityCommercialService,
+    CrmCustomer360Service,
   ],
   exports: [CrmService, CrmOpportunityService, CrmOperationsService],
 })
