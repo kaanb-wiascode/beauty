@@ -24,6 +24,19 @@ type Message = {
   createdAt: string;
 };
 type ProviderStatus = { providers: Array<{ key: string; channels: Channel[]; webhookReady: boolean }> };
+type WebhookEvent = {
+  id: string;
+  providerKey: string;
+  externalEventId: string;
+  eventType: "DELIVERY" | "INBOUND";
+  externalMessageId: string | null;
+  messageId: string | null;
+  outcome: "PROCESSED" | "IGNORED" | "FAILED";
+  errorMessage: string | null;
+  receivedAt: string;
+  channel: Channel | null;
+  messageStatus: Message["status"] | null;
+};
 
 const channelLabels: Record<Channel, string> = { EMAIL: "E-posta", SMS: "SMS", WHATSAPP: "WhatsApp" };
 
@@ -43,6 +56,7 @@ export default function CrmCommunicationsPage() {
   const activeBranch = hasActiveBranch();
   const [messages, setMessages] = useState<Message[]>([]);
   const [providers, setProviders] = useState<ProviderStatus>({ providers: [] });
+  const [webhookEvents, setWebhookEvents] = useState<WebhookEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [channel, setChannel] = useState<"ALL" | Channel>("ALL");
@@ -53,12 +67,14 @@ export default function CrmCommunicationsPage() {
     setLoading(true);
     setError("");
     try {
-      const [rows, providerStatus] = await Promise.all([
+      const [rows, providerStatus, callbacks] = await Promise.all([
         api<Message[]>("/crm/messages?limit=100"),
         api<ProviderStatus>("/crm/messages/providers"),
+        api<WebhookEvent[]>("/crm/message-webhook-events?limit=30"),
       ]);
       setMessages(rows);
       setProviders(providerStatus);
+      setWebhookEvents(callbacks);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "İletişim merkezi yüklenemedi.");
     } finally {
@@ -76,6 +92,7 @@ export default function CrmCommunicationsPage() {
   const outbound = messages.filter((message) => message.direction === "OUTBOUND").length;
   const failed = messages.filter((message) => message.status === "FAILED").length;
   const webhookReady = providers.providers.filter((provider) => provider.webhookReady).length;
+  const ignoredCallbacks = webhookEvents.filter((event) => event.outcome !== "PROCESSED").length;
 
   return <div className="space-y-6">
     <PageHeader title="CRM İletişim Merkezi" description="WhatsApp, SMS ve e-posta temaslarının branch bazlı birleşik zaman çizelgesi." action={<Button variant="secondary" onClick={() => void load()}>Yenile</Button>} />
@@ -85,11 +102,12 @@ export default function CrmCommunicationsPage() {
     {activeBranch && !providers.providers.length ? <Alert>Harici mesaj provider&apos;ı henüz bağlı değil. Müşteri profillerinden manuel iletişim kaydı tutulabilir; provider olmadan sistem mesajı gönderilmiş saymaz.</Alert> : null}
     {activeBranch && providers.providers.length ? <Alert tone="success">{providers.providers.length} provider bağlı · {webhookReady} provider imzalı inbound/delivery webhook almaya hazır.</Alert> : null}
 
-    <div className="grid gap-3 sm:grid-cols-4">
+    <div className="grid gap-3 sm:grid-cols-5">
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Gelen</p><strong className="mt-2 block text-[22px]">{inbound}</strong></GlassCard>
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Giden</p><strong className="mt-2 block text-[22px]">{outbound}</strong></GlassCard>
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Provider Hatası</p><strong className="mt-2 block text-[22px]">{failed}</strong></GlassCard>
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Webhook Ready</p><strong className="mt-2 block text-[22px]">{webhookReady}/{providers.providers.length}</strong></GlassCard>
+      <GlassCard><p className="text-[10px] text-[var(--muted)]">Callback Uyarısı</p><strong className="mt-2 block text-[22px]">{ignoredCallbacks}</strong></GlassCard>
     </div>
 
     <div className="flex flex-wrap gap-2">
@@ -110,5 +128,21 @@ export default function CrmCommunicationsPage() {
         ))}</div>
       </section>
     ) : <EmptyState title="İletişim Kaydı Yok" description="Seçili filtrelerde CRM iletişim kaydı bulunmuyor." />}
+
+    {!loading && activeBranch ? <GlassCard className="p-0">
+      <div className="border-b border-[var(--line)] px-5 py-4">
+        <h2 className="text-[14px] font-semibold">Provider Callback Geçmişi</h2>
+        <p className="mt-1 text-[10px] text-[var(--muted)]">İmzalı inbound webhook ve delivery receipt işlemleri. Ham provider payload&apos;ı burada saklanmaz.</p>
+      </div>
+      {webhookEvents.length ? <div className="divide-y divide-[var(--line)]">{webhookEvents.map((event) => (
+        <div key={event.id} className="grid gap-2 px-5 py-3 md:grid-cols-[120px_100px_110px_minmax(0,1fr)_160px] md:items-center">
+          <strong className="truncate text-[10px]">{event.providerKey}</strong>
+          <span className="text-[10px] text-[var(--muted)]">{event.eventType}</span>
+          <span className={event.outcome === "PROCESSED" ? "text-[10px] font-semibold text-[var(--accent)]" : "text-[10px] font-semibold text-[#9c513f]"}>{event.outcome}</span>
+          <div className="min-w-0"><p className="truncate text-[10px]">{event.messageId ? `Mesaj: ${event.messageId}` : event.externalMessageId || event.externalEventId}</p>{event.errorMessage ? <p className="mt-1 truncate text-[9px] text-[#9c513f]">{event.errorMessage}</p> : event.messageStatus ? <p className="mt-1 text-[9px] text-[var(--muted)]">Mesaj durumu: {event.messageStatus}{event.channel ? ` · ${channelLabels[event.channel]}` : ""}</p> : null}</div>
+          <time className="text-[9px] text-[var(--muted)]">{formatDate(event.receivedAt)}</time>
+        </div>
+      ))}</div> : <EmptyState title="Callback Kaydı Yok" description="Bu şubede henüz işlenmiş provider webhook olayı bulunmuyor." />}
+    </GlassCard> : null}
   </div>;
 }
