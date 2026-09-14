@@ -1,6 +1,7 @@
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmInboundOptOutService } from './crm-inbound-opt-out.service';
 
 type InboxRow = {
   id: string;
@@ -23,6 +24,7 @@ export class CrmUnresolvedInboundService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly optOut: CrmInboundOptOutService,
   ) {}
 
   list(status: 'OPEN' | 'RESOLVED' | 'DISMISSED' | 'ALL' = 'OPEN', limit = 100) {
@@ -213,6 +215,22 @@ export class CrmUnresolvedInboundService {
       messageId = existing[0]?.id;
     }
     if (!messageId) throw new BadRequestException('Inbound CRM message could not be materialized.');
+
+    await this.optOut.apply(tx, {
+      type: 'INBOUND',
+      tenantId: row.tenantId,
+      companyId: row.companyId,
+      branchId: row.branchId,
+      externalEventId: row.externalEventId,
+      externalMessageId: row.externalMessageId ?? row.externalEventId,
+      channel: row.channel,
+      sender: row.sender,
+      recipient: row.recipient,
+      subject: row.subject,
+      body: row.body,
+      customerId,
+      leadId,
+    });
 
     await tx.$executeRawUnsafe(
       `UPDATE crm_unresolved_inbound_messages
