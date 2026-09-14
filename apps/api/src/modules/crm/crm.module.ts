@@ -1,4 +1,6 @@
 import { Module } from '@nestjs/common';
+import { CrmAutomationRulesController } from './crm-automation-rules.controller';
+import { CrmAutomationRulesService } from './crm-automation-rules.service';
 import { CrmAutomationSchedulerService } from './crm-automation-scheduler.service';
 import { CrmAutomationService } from './crm-automation.service';
 import { CrmCommercialController } from './crm-commercial.controller';
@@ -12,7 +14,12 @@ import { CrmReminderService } from './crm-reminder.service';
 import { CrmService } from './crm.service';
 
 @Module({
-  controllers: [CrmController, CrmOperationsController, CrmCommercialController],
+  controllers: [
+    CrmController,
+    CrmOperationsController,
+    CrmCommercialController,
+    CrmAutomationRulesController,
+  ],
   providers: [
     CrmService,
     CrmOpportunityService,
@@ -20,6 +27,7 @@ import { CrmService } from './crm.service';
     CrmOpportunityCommercialService,
     CrmCustomer360Service,
     CrmReminderService,
+    CrmAutomationRulesService,
     CrmAutomationService,
     CrmAutomationSchedulerService,
   ],
