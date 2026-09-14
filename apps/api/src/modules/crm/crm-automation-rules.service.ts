@@ -16,11 +16,20 @@ export type CrmAutomationRule = {
 };
 
 const DEFAULTS: Record<CrmAutomationRuleKey, Record<string, unknown>> = {
-  LEAD_FIRST_TOUCH: { delayHours: 24, channel: 'CALL' },
+  LEAD_FIRST_TOUCH: {
+    delayHours: 24,
+    channel: 'CALL',
+    messageEnabled: false,
+    messageChannel: 'WHATSAPP',
+    messageTemplate: 'Merhaba, talebinizle ilgili size yardımcı olmak için iletişime geçiyoruz.',
+  },
   OPPORTUNITY_STAGE_FOLLOW_UP: {
     defaultDelayDays: 2,
     negotiationDelayDays: 1,
     channel: 'CALL',
+    messageEnabled: false,
+    messageChannel: 'WHATSAPP',
+    messageTemplate: 'Merhaba, sürecinizle ilgili kısa bir bilgilendirme için sizinle iletişime geçiyoruz.',
   },
   STALE_OPPORTUNITY_FOLLOW_UP: { staleDays: 14, delayHours: 24, channel: 'CALL' },
 };
