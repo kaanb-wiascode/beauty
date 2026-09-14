@@ -79,16 +79,45 @@ export class CrmMessageWebhookService {
           changed ? 'PROCESSED' : 'IGNORED',
           changed ? null : 'Status transition ignored',
         );
-        return { idempotent: false, outcome: changed ? 'PROCESSED' as const : 'IGNORED' as const, messageId: message.id };
+        return {
+          idempotent: false,
+          outcome: changed ? 'PROCESSED' as const : 'IGNORED' as const,
+          messageId: message.id,
+        };
       }
 
       const hasSubject = Boolean(event.customerId || event.leadId || event.opportunityId);
       if (!hasSubject) {
+        const unresolved = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `INSERT INTO crm_unresolved_inbound_messages(
+             tenant_id,company_id,branch_id,provider_key,external_event_id,external_message_id,
+             channel,sender,recipient,subject,body
+           ) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11)
+           ON CONFLICT(tenant_id,company_id,branch_id,provider_key,external_event_id) DO NOTHING
+           RETURNING id`,
+          event.tenantId,
+          event.companyId,
+          event.branchId,
+          provider.key,
+          event.externalEventId,
+          event.externalMessageId,
+          event.channel,
+          event.sender,
+          event.recipient,
+          event.subject?.trim() || null,
+          event.body.trim(),
+        );
         await tx.$executeRawUnsafe(
-          `UPDATE crm_message_webhook_events SET outcome='IGNORED',error_message='Inbound subject is not mapped' WHERE id=$1::uuid`,
+          `UPDATE crm_message_webhook_events
+           SET outcome='IGNORED',error_message='Inbound subject is not mapped'
+           WHERE id=$1::uuid`,
           claimed[0].id,
         );
-        return { idempotent: false, outcome: 'IGNORED' as const };
+        return {
+          idempotent: false,
+          outcome: 'IGNORED' as const,
+          unresolvedInboxId: unresolved[0]?.id ?? null,
+        };
       }
 
       const messages = await tx.$queryRawUnsafe<Array<{ id: string }>>(
