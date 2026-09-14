@@ -1,4 +1,8 @@
 import { Injectable } from '@nestjs/common';
+import type {
+  CrmProviderWebhookEvent,
+  CrmProviderWebhookRequest,
+} from './crm-message-webhook.types';
 
 export type CrmMessageChannel = 'EMAIL' | 'SMS' | 'WHATSAPP';
 
@@ -20,6 +24,8 @@ export interface CrmMessageProvider {
   readonly key: string;
   readonly channels: readonly CrmMessageChannel[];
   send(message: CrmProviderMessage): Promise<CrmProviderSendResult>;
+  verifyWebhook?(request: CrmProviderWebhookRequest): Promise<boolean> | boolean;
+  parseWebhook?(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent> | CrmProviderWebhookEvent;
 }
 
 @Injectable()
@@ -34,7 +40,12 @@ export class CrmMessageProviderRegistryService {
     return Array.from(this.providers.values()).map((provider) => ({
       key: provider.key,
       channels: [...provider.channels],
+      webhookReady: Boolean(provider.verifyWebhook && provider.parseWebhook),
     }));
+  }
+
+  resolveByKey(providerKey: string) {
+    return this.providers.get(providerKey) ?? null;
   }
 
   resolve(channel: CrmMessageChannel, providerKey?: string | null) {
