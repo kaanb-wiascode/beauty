@@ -35,6 +35,10 @@ export class CrmMessageProviderVaultService {
     return previous;
   }
 
+  assertReady() {
+    this.keyMaterial(this.activeVersion());
+  }
+
   private key(version: string) {
     return createHash('sha256').update(this.keyMaterial(version)).digest();
   }
