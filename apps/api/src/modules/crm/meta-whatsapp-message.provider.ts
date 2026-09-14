@@ -1,6 +1,7 @@
 import { createHmac, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, Injectable, OnModuleInit, ServiceUnavailableException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
 import { CrmMessageProviderConnectionsService } from './crm-message-provider-connections.service';
 import { CrmMessageProviderVaultService } from './crm-message-provider-vault.service';
 import {
@@ -29,6 +30,7 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
     private readonly connections: CrmMessageProviderConnectionsService,
     private readonly vault: CrmMessageProviderVaultService,
     private readonly registry: CrmMessageProviderRegistryService,
+    private readonly contacts: CrmInboundContactResolverService,
   ) {}
 
   onModuleInit() {
@@ -122,6 +124,7 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
     if (!inbound?.id || !inbound.from || inbound.type !== 'text' || !inbound.text?.body) {
       throw new BadRequestException('Unsupported Meta WhatsApp webhook payload.');
     }
+    const match = await this.contacts.resolvePhone(scope, inbound.from);
     return {
       ...scope,
       type: 'INBOUND',
@@ -131,6 +134,7 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
       sender: inbound.from,
       recipient: value?.metadata?.display_phone_number ?? phoneNumberId,
       body: inbound.text.body,
+      ...(match.matched ? { customerId: match.customerId, leadId: match.leadId } : {}),
     };
   }
 
