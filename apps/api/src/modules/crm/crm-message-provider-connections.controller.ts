@@ -37,6 +37,7 @@ export class CrmMessageProviderConnectionsController {
     const actorUserId = request.user?.sub;
     if (!actorUserId) throw new UnauthorizedException('Authenticated user id is missing.');
     const input = metaSchema.parse(body);
+    this.vault.assertReady();
     const saved = await this.connections.saveMetaPublicConfig(input, actorUserId);
     await this.vault.store(saved.id, {
       accessToken: input.accessToken,
