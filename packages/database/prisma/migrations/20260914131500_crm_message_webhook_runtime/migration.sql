@@ -1,4 +1,5 @@
 BEGIN;
+ALTER TABLE crm_messages ALTER COLUMN created_by_user_id DROP NOT NULL;
 CREATE TABLE crm_message_webhook_events (
  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
  tenant_id TEXT NOT NULL REFERENCES tenants(id) ON DELETE CASCADE,
