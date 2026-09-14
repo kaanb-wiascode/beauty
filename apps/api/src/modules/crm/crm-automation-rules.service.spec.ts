@@ -67,10 +67,11 @@ describe('CrmAutomationRulesService', () => {
     });
   });
 
-  it('upserts a versioned branch rule and emits an audit event', async () => {
+  it('upserts a versioned branch rule and emits an audit event linked to that rule', async () => {
     const { service, query, execute } = makeService();
     query.mockResolvedValueOnce([
       {
+        id: '11111111-1111-1111-1111-111111111111',
         enabled: true,
         config: { delayHours: 8, channel: 'WHATSAPP' },
         version: 2,
@@ -103,10 +104,11 @@ describe('CrmAutomationRulesService', () => {
       1,
     );
     expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining("'AUTOMATION_RULE_UPDATED'"),
+      expect.stringContaining('automation_rule_id'),
       'tenant-1',
       'company-1',
       'branch-1',
+      '11111111-1111-1111-1111-111111111111',
       'actor-1',
       expect.stringContaining('LEAD_FIRST_TOUCH'),
     );
