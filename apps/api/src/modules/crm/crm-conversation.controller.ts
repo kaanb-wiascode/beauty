@@ -8,6 +8,7 @@ import { CrmConversationService } from './crm-conversation.service';
 
 const typeSchema = z.enum(['CUSTOMER','LEAD','OPPORTUNITY']);
 const limitSchema = z.coerce.number().int().min(1).max(300).optional();
+const modeSchema = z.enum(['ALL','MINE','UNASSIGNED']).default('ALL');
 
 @Controller('crm/conversations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -16,8 +17,12 @@ export class CrmConversationController {
 
   @Get()
   @RequirePermission('crm','read')
-  list(@Req() request: { user?: { sub?: string } }, @Query('limit') limit?: string) {
-    return this.conversations.list(this.actor(request), limitSchema.parse(limit));
+  list(
+    @Req() request: { user?: { sub?: string } },
+    @Query('limit') limit?: string,
+    @Query('mode') mode?: string,
+  ) {
+    return this.conversations.list(this.actor(request), limitSchema.parse(limit), modeSchema.parse(mode ?? 'ALL'));
   }
 
   @Get(':subjectType/:subjectId')
