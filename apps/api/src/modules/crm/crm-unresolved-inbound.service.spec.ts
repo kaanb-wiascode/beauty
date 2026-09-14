@@ -2,14 +2,20 @@ import { ConflictException, NotFoundException } from '@nestjs/common';
 import { CrmUnresolvedInboundService } from './crm-unresolved-inbound.service';
 
 describe('CrmUnresolvedInboundService', () => {
-  const context = { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' };
+  const context = {
+    tenantId: 'tenant-1',
+    companyId: 'company-1',
+    branchId: 'branch-1',
+  };
 
   function makeService() {
     const query = jest.fn();
     const execute = jest.fn();
-    const transaction = jest.fn(async (work: (tx: unknown) => Promise<unknown>) =>
-      work({ $queryRawUnsafe: query, $executeRawUnsafe: execute }),
+    const transaction = jest.fn(
+      async (work: (tx: unknown) => Promise<unknown>) =>
+        work({ $queryRawUnsafe: query, $executeRawUnsafe: execute }),
     );
+    const optOutApply = jest.fn().mockResolvedValue(false);
     const service = new CrmUnresolvedInboundService(
       {
         $queryRawUnsafe: query,
@@ -17,8 +23,9 @@ describe('CrmUnresolvedInboundService', () => {
         $transaction: transaction,
       } as never,
       { getContext: jest.fn().mockReturnValue(context) } as never,
+      { apply: optOutApply } as never,
     );
-    return { service, query, execute, transaction };
+    return { service, query, execute, transaction, optOutApply };
   }
 
   it('lists unresolved messages only inside the active branch scope', async () => {
@@ -38,28 +45,36 @@ describe('CrmUnresolvedInboundService', () => {
   });
 
   it('resolves an open inbox item to an existing lead and materializes the inbound CRM message', async () => {
-    const { service, query, execute } = makeService();
+    const { service, query, execute, optOutApply } = makeService();
     query
-      .mockResolvedValueOnce([{
-        id: 'inbox-1',
-        tenantId: 'tenant-1',
-        companyId: 'company-1',
-        branchId: 'branch-1',
-        providerKey: 'meta-whatsapp',
-        externalEventId: 'event-1',
-        externalMessageId: 'wamid.1',
-        channel: 'WHATSAPP',
-        sender: '905551112233',
-        recipient: '905559998877',
-        subject: null,
-        body: 'Merhaba',
-        status: 'OPEN',
-      }])
+      .mockResolvedValueOnce([
+        {
+          id: 'inbox-1',
+          tenantId: 'tenant-1',
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          providerKey: 'meta-whatsapp',
+          externalEventId: 'event-1',
+          externalMessageId: 'wamid.1',
+          channel: 'WHATSAPP',
+          sender: '905551112233',
+          recipient: '905559998877',
+          subject: null,
+          body: 'Merhaba',
+          status: 'OPEN',
+        },
+      ])
       .mockResolvedValueOnce([{ id: 'lead-1' }])
       .mockResolvedValueOnce([{ id: 'message-1' }]);
 
     await expect(
-      service.resolve('inbox-1', 'LEAD', 'lead-1', 'Doğru lead bulundu.', 'user-1'),
+      service.resolve(
+        'inbox-1',
+        'LEAD',
+        'lead-1',
+        'Doğru lead bulundu.',
+        'user-1',
+      ),
     ).resolves.toEqual({
       id: 'inbox-1',
       status: 'RESOLVED',
@@ -91,6 +106,22 @@ describe('CrmUnresolvedInboundService', () => {
       'Merhaba',
       'wamid.1',
     );
+    expect(optOutApply).toHaveBeenCalledWith(
+      expect.objectContaining({
+        $queryRawUnsafe: query,
+        $executeRawUnsafe: execute,
+      }),
+      expect.objectContaining({
+        type: 'INBOUND',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+        branchId: 'branch-1',
+        channel: 'WHATSAPP',
+        body: 'Merhaba',
+        customerId: null,
+        leadId: 'lead-1',
+      }),
+    );
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining("SET status='RESOLVED'"),
       'inbox-1',
@@ -101,34 +132,46 @@ describe('CrmUnresolvedInboundService', () => {
     );
   });
 
-  it('refuses to resolve an inbox item that is already closed', async () => {
-    const { service, query } = makeService();
-    query.mockResolvedValueOnce([{
-      id: 'inbox-1',
-      tenantId: 'tenant-1',
-      companyId: 'company-1',
-      branchId: 'branch-1',
-      providerKey: 'meta-whatsapp',
-      externalEventId: 'event-1',
-      externalMessageId: 'wamid.1',
-      channel: 'WHATSAPP',
-      sender: '905551112233',
-      recipient: '905559998877',
-      subject: null,
-      body: 'Merhaba',
-      status: 'RESOLVED',
-    }]);
+  it('replays an unresolved opt-out message against the selected CRM subject', async () => {
+    const { service, query, optOutApply } = makeService();
+    optOutApply.mockResolvedValueOnce(true);
+    query
+      .mockResolvedValueOnce([
+        {
+          id: 'inbox-stop',
+          tenantId: 'tenant-1',
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          providerKey: 'meta-whatsapp',
+          externalEventId: 'event-stop',
+          externalMessageId: 'wamid.stop',
+          channel: 'WHATSAPP',
+          sender: '905551112233',
+          recipient: '905559998877',
+          subject: null,
+          body: 'İPTAL',
+          status: 'OPEN',
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'lead-1' }])
+      .mockResolvedValueOnce([{ id: 'message-stop' }]);
 
-    await expect(
-      service.resolve('inbox-1', 'LEAD', 'lead-1', null, 'user-1'),
-    ).rejects.toBeInstanceOf(ConflictException);
-    expect(query).toHaveBeenCalledTimes(1);
+    await service.resolve('inbox-stop', 'LEAD', 'lead-1', null, 'user-1');
+
+    expect(optOutApply).toHaveBeenCalledWith(
+      expect.anything(),
+      expect.objectContaining({
+        body: 'İPTAL',
+        leadId: 'lead-1',
+        customerId: null,
+      }),
+    );
   });
 
-  it('rejects a lead outside the active branch scope', async () => {
+  it('refuses to resolve an inbox item that is already closed', async () => {
     const { service, query } = makeService();
-    query
-      .mockResolvedValueOnce([{
+    query.mockResolvedValueOnce([
+      {
         id: 'inbox-1',
         tenantId: 'tenant-1',
         companyId: 'company-1',
@@ -141,12 +184,46 @@ describe('CrmUnresolvedInboundService', () => {
         recipient: '905559998877',
         subject: null,
         body: 'Merhaba',
-        status: 'OPEN',
-      }])
+        status: 'RESOLVED',
+      },
+    ]);
+
+    await expect(
+      service.resolve('inbox-1', 'LEAD', 'lead-1', null, 'user-1'),
+    ).rejects.toBeInstanceOf(ConflictException);
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('rejects a lead outside the active branch scope', async () => {
+    const { service, query } = makeService();
+    query
+      .mockResolvedValueOnce([
+        {
+          id: 'inbox-1',
+          tenantId: 'tenant-1',
+          companyId: 'company-1',
+          branchId: 'branch-1',
+          providerKey: 'meta-whatsapp',
+          externalEventId: 'event-1',
+          externalMessageId: 'wamid.1',
+          channel: 'WHATSAPP',
+          sender: '905551112233',
+          recipient: '905559998877',
+          subject: null,
+          body: 'Merhaba',
+          status: 'OPEN',
+        },
+      ])
       .mockResolvedValueOnce([]);
 
     await expect(
-      service.resolve('inbox-1', 'LEAD', 'lead-other-branch', null, 'user-1'),
+      service.resolve(
+        'inbox-1',
+        'LEAD',
+        'lead-other-branch',
+        null,
+        'user-1',
+      ),
     ).rejects.toBeInstanceOf(NotFoundException);
   });
 });
