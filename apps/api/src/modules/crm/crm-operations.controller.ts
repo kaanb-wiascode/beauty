@@ -1,9 +1,10 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsService } from './crm-operations.service';
 
 const uuid = z.string().uuid();
@@ -30,7 +31,10 @@ const staleOpportunitiesSchema = z.object({
 @Controller('crm/operations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class CrmOperationsController {
-  constructor(private readonly operations: CrmOperationsService) {}
+  constructor(
+    private readonly operations: CrmOperationsService,
+    private readonly customer360: CrmCustomer360Service,
+  ) {}
 
   @Get('follow-ups')
   @RequirePermission('crm', 'read')
@@ -42,5 +46,11 @@ export class CrmOperationsController {
   @RequirePermission('crm', 'read')
   listStaleOpportunities(@Query() query: unknown) {
     return this.operations.listStaleOpportunities(staleOpportunitiesSchema.parse(query));
+  }
+
+  @Get('customer-360/:customerId')
+  @RequirePermission('crm', 'read')
+  getCustomer360(@Param('customerId') customerId: string) {
+    return this.customer360.getSummary(uuid.parse(customerId));
   }
 }
