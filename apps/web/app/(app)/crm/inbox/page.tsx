@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { CustomerSearchPicker } from "@/components/customer-search-picker";
+import { LeadSearchPicker, type LeadSearchResult } from "@/components/lead-search-picker";
 import { Alert, Button, Field, GlassCard, Modal, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -26,7 +27,7 @@ type InboxItem = {
   createdAt: string;
 };
 
-type Action = { type: "customer" | "lead" | "dismiss"; item: InboxItem } | null;
+type Action = { type: "customer" | "existing-lead" | "new-lead" | "dismiss"; item: InboxItem } | null;
 
 export default function CrmInboundInboxPage() {
   const activeBranch = hasActiveBranch();
@@ -39,6 +40,7 @@ export default function CrmInboundInboxPage() {
   const [success, setSuccess] = useState("");
   const [action, setAction] = useState<Action>(null);
   const [customer, setCustomer] = useState<Customer | null>(null);
+  const [lead, setLead] = useState<LeadSearchResult | null>(null);
   const [note, setNote] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -59,6 +61,7 @@ export default function CrmInboundInboxPage() {
   function open(next: NonNullable<Action>) {
     setAction(next);
     setCustomer(null);
+    setLead(null);
     setNote("");
     setFirstName("");
     setLastName("");
@@ -82,7 +85,14 @@ export default function CrmInboundInboxPage() {
           body: { subjectType: "CUSTOMER", subjectId: customer.id, note: note.trim() || null },
         });
         setSuccess("Mesaj müşteriye bağlandı ve CRM iletişim geçmişine işlendi.");
-      } else if (action.type === "lead") {
+      } else if (action.type === "existing-lead") {
+        if (!lead) throw new Error("Bağlanacak Lead'i seçin.");
+        await api(`/crm/unresolved-inbound/${action.item.id}/resolve`, {
+          method: "POST",
+          body: { subjectType: "LEAD", subjectId: lead.id, note: note.trim() || null },
+        });
+        setSuccess("Mesaj mevcut Lead'e bağlandı ve CRM iletişim geçmişine işlendi.");
+      } else if (action.type === "new-lead") {
         if (!firstName.trim() || !lastName.trim()) throw new Error("Lead adı ve soyadı zorunludur.");
         await api(`/crm/unresolved-inbound/${action.item.id}/create-lead`, {
           method: "POST",
@@ -103,6 +113,14 @@ export default function CrmInboundInboxPage() {
       setError(requestError instanceof ApiError ? requestError.message : requestError instanceof Error ? requestError.message : "İşlem tamamlanamadı.");
     } finally { setWorking(false); }
   }
+
+  const modalTitle = action?.type === "customer"
+    ? "Mesajı Müşteriye Bağla"
+    : action?.type === "existing-lead"
+      ? "Mesajı Mevcut Lead'e Bağla"
+      : action?.type === "new-lead"
+        ? "Inbound Mesajdan Lead Oluştur"
+        : "Inbound Kaydı Kapat";
 
   return <div className="space-y-6">
     <PageHeader title="Inbound Inbox" description="CRM kişisi otomatik eşleşmeyen WhatsApp, SMS ve e-posta mesajlarını güvenli şekilde inceleyin ve doğru kayda bağlayın." />
@@ -141,19 +159,24 @@ export default function CrmInboundInboxPage() {
         </div>
         {item.status === "OPEN" && canManage ? <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => open({ type: "customer", item })}>Müşteriye Bağla</Button>
-          <Button variant="secondary" onClick={() => open({ type: "lead", item })}>Lead Oluştur</Button>
+          <Button variant="secondary" onClick={() => open({ type: "existing-lead", item })}>Lead'e Bağla</Button>
+          <Button variant="secondary" onClick={() => open({ type: "new-lead", item })}>Yeni Lead</Button>
           <Button variant="secondary" onClick={() => open({ type: "dismiss", item })}>Kapat</Button>
         </div> : <span className="text-[10px] font-semibold text-[var(--muted)]">{item.status}</span>}
       </div>
     </GlassCard>)}</section> : null}
 
-    <Modal open={Boolean(action)} title={action?.type === "customer" ? "Mesajı Müşteriye Bağla" : action?.type === "lead" ? "Inbound Mesajdan Lead Oluştur" : "Inbound Kaydı Kapat"} onClose={close}>
+    <Modal open={Boolean(action)} title={modalTitle} onClose={close}>
       <div className="space-y-4">
         {action?.type === "customer" ? <>
           <Field label="Müşteri"><CustomerSearchPicker selected={customer} disabled={working} onSelect={setCustomer} /></Field>
           <Field label="Çözüm notu"><TextArea rows={3} maxLength={1000} value={note} disabled={working} onChange={(event) => setNote(event.target.value)} /></Field>
         </> : null}
-        {action?.type === "lead" ? <div className="grid gap-4 sm:grid-cols-2">
+        {action?.type === "existing-lead" ? <>
+          <Field label="Lead"><LeadSearchPicker selected={lead} disabled={working} onSelect={setLead} /></Field>
+          <Field label="Çözüm notu"><TextArea rows={3} maxLength={1000} value={note} disabled={working} onChange={(event) => setNote(event.target.value)} /></Field>
+        </> : null}
+        {action?.type === "new-lead" ? <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Ad"><TextInput value={firstName} disabled={working} onChange={(event) => setFirstName(event.target.value)} /></Field>
           <Field label="Soyad"><TextInput value={lastName} disabled={working} onChange={(event) => setLastName(event.target.value)} /></Field>
         </div> : null}
