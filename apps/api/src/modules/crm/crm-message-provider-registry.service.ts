@@ -8,6 +8,9 @@ export type CrmMessageChannel = 'EMAIL' | 'SMS' | 'WHATSAPP';
 
 export type CrmProviderMessage = {
   messageId: string;
+  tenantId: string;
+  companyId: string;
+  branchId: string;
   channel: CrmMessageChannel;
   recipient: string;
   subject?: string | null;
@@ -26,6 +29,7 @@ export interface CrmMessageProvider {
   send(message: CrmProviderMessage): Promise<CrmProviderSendResult>;
   verifyWebhook?(request: CrmProviderWebhookRequest): Promise<boolean> | boolean;
   parseWebhook?(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent> | CrmProviderWebhookEvent;
+  verifyChallenge?(query: Record<string, unknown>): Promise<string | null> | string | null;
 }
 
 @Injectable()
@@ -41,6 +45,7 @@ export class CrmMessageProviderRegistryService {
       key: provider.key,
       channels: [...provider.channels],
       webhookReady: Boolean(provider.verifyWebhook && provider.parseWebhook),
+      challengeReady: Boolean(provider.verifyChallenge),
     }));
   }
 
