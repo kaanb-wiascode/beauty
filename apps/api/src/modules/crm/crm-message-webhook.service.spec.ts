@@ -113,4 +113,41 @@ describe('CrmMessageWebhookService', () => {
     expect(query.mock.calls[1][0]).toContain("'INBOUND'");
     expect(query.mock.calls[1][0]).toContain('NULL,NOW(),NOW()');
   });
+
+  it('links a repeated provider message id instead of creating a second inbound message', async () => {
+    const inbound = {
+      type: 'INBOUND' as const,
+      externalEventId: 'evt-in-2',
+      externalMessageId: 'in-1',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      channel: 'WHATSAPP' as const,
+      sender: '+905551112233',
+      recipient: '+902120000000',
+      body: 'Merhaba tekrar',
+      customerId: 'customer-1',
+    };
+    const { service, query, execute } = makeService({
+      event: inbound,
+      queries: [[{ id: 'webhook-3' }], [], [{ id: 'message-existing' }]],
+    });
+
+    await expect(
+      service.handle('provider-a', { headers: {}, body: {} }),
+    ).resolves.toEqual({
+      idempotent: false,
+      outcome: 'IGNORED',
+      messageId: 'message-existing',
+    });
+
+    expect(query.mock.calls[2][0]).toContain('external_message_id=$5');
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE crm_message_webhook_events'),
+      'webhook-3',
+      'message-existing',
+      'IGNORED',
+      'Inbound message already exists',
+    );
+  });
 });
