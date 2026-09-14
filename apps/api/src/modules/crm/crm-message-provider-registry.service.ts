@@ -8,9 +8,9 @@ export type CrmMessageChannel = 'EMAIL' | 'SMS' | 'WHATSAPP';
 
 export type CrmProviderMessage = {
   messageId: string;
-  tenantId: string;
-  companyId: string;
-  branchId: string;
+  tenantId?: string;
+  companyId?: string;
+  branchId?: string;
   channel: CrmMessageChannel;
   recipient: string;
   subject?: string | null;
