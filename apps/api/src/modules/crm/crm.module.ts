@@ -10,6 +10,8 @@ import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmMessageController } from './crm-message.controller';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
 import { CrmMessageService } from './crm-message.service';
+import { CrmMessageWebhookController } from './crm-message-webhook.controller';
+import { CrmMessageWebhookService } from './crm-message-webhook.service';
 import { CrmOperationsController } from './crm-operations.controller';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.service';
@@ -24,6 +26,7 @@ import { CrmService } from './crm.service';
     CrmCommercialController,
     CrmAutomationRulesController,
     CrmMessageController,
+    CrmMessageWebhookController,
   ],
   providers: [
     CrmService,
@@ -38,6 +41,7 @@ import { CrmService } from './crm.service';
     CrmAutomationSchedulerService,
     CrmMessageProviderRegistryService,
     CrmMessageService,
+    CrmMessageWebhookService,
   ],
   exports: [CrmService, CrmOpportunityService, CrmOperationsService, CrmMessageService],
 })
