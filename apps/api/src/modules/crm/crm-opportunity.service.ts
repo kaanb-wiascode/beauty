@@ -118,10 +118,13 @@ export class CrmOpportunityService {
   async list(filters: {
     stage?: string;
     ownerUserId?: string;
+    search?: string;
+    updatedBefore?: Date;
     limit?: number;
   }) {
     const context = this.context();
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    const search = filters.search?.trim() ? `%${filters.search.trim()}%` : null;
     return this.prisma.$queryRawUnsafe<OpportunityListRow[]>(
       `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",o.title,o.stage,
               o.estimated_value AS "estimatedValue",o.currency,o.probability,
@@ -143,13 +146,23 @@ export class CrmOpportunityService {
          AND ($3::text IS NULL OR o.branch_id=$3::text)
          AND ($4::text IS NULL OR o.stage=$4::text)
          AND ($5::text IS NULL OR o.owner_user_id=$5::text)
+         AND ($6::text IS NULL OR (
+           o.title ILIKE $6::text OR
+           COALESCE(l.first_name,'') ILIKE $6::text OR
+           COALESCE(l.last_name,'') ILIKE $6::text OR
+           COALESCE(c."firstName",'') ILIKE $6::text OR
+           COALESCE(c."lastName",'') ILIKE $6::text
+         ))
+         AND ($7::timestamptz IS NULL OR o.updated_at < $7::timestamptz)
        ORDER BY o.updated_at DESC,o.id
-       LIMIT $6`,
+       LIMIT $8`,
       context.tenantId,
       context.companyId,
       context.branchId,
       filters.stage ?? null,
       filters.ownerUserId ?? null,
+      search,
+      filters.updatedBefore ?? null,
       limit,
     );
   }
