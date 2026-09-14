@@ -133,27 +133,49 @@ export class CrmCommunicationComplianceService {
     subject: { leadId: string | null; opportunityId: string | null },
     channel: CrmMessageChannel,
   ) {
+    const status = await this.resolveStatus(
+      scope,
+      { customerId: null, leadId: subject.leadId, opportunityId: subject.opportunityId },
+      channel,
+    );
+    return { allowed: status === 'OPTED_IN', status };
+  }
+
+  async canSendManual(
+    scope: { tenantId: string; companyId: string; branchId: string },
+    subject: { customerId: string | null; leadId: string | null; opportunityId: string | null },
+    channel: CrmMessageChannel,
+  ) {
+    const status = await this.resolveStatus(scope, subject, channel);
+    return { allowed: status !== 'OPTED_OUT', status };
+  }
+
+  private async resolveStatus(
+    scope: { tenantId: string; companyId: string; branchId: string },
+    subject: { customerId: string | null; leadId: string | null; opportunityId: string | null },
+    channel: CrmMessageChannel,
+  ): Promise<ContactPermissionStatus> {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ status: ContactPermissionStatus | null }>>(
       `SELECT COALESCE(cp.status,lp.status) AS status
        FROM (SELECT 1) seed
        LEFT JOIN crm_opportunities o
-         ON o.id=$5::text AND o.tenant_id=$1::text AND o.company_id=$2::text AND o.branch_id=$3::text
+         ON o.id=$6::text AND o.tenant_id=$1::text AND o.company_id=$2::text AND o.branch_id=$3::text
        LEFT JOIN crm_contact_channel_permissions cp
          ON cp.tenant_id=$1::text AND cp.company_id=$2::text AND cp.branch_id=$3::text
-        AND cp.customer_id=o.customer_id AND cp.channel=$6
+        AND cp.customer_id=COALESCE($4::text,o.customer_id) AND cp.channel=$7
        LEFT JOIN crm_contact_channel_permissions lp
          ON lp.tenant_id=$1::text AND lp.company_id=$2::text AND lp.branch_id=$3::text
-        AND lp.lead_id=COALESCE($4::text,o.lead_id) AND lp.channel=$6
+        AND lp.lead_id=COALESCE($5::text,o.lead_id) AND lp.channel=$7
        LIMIT 1`,
       scope.tenantId,
       scope.companyId,
       scope.branchId,
+      subject.customerId,
       subject.leadId,
       subject.opportunityId,
       channel,
     );
-    const status = rows[0]?.status ?? null;
-    return { allowed: status === 'OPTED_IN', status: (status ?? 'UNKNOWN') as ContactPermissionStatus };
+    return (rows[0]?.status ?? 'UNKNOWN') as ContactPermissionStatus;
   }
 
   private async assertSubject(
