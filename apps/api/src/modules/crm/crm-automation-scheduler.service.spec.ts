@@ -24,6 +24,12 @@ describe('CrmAutomationSchedulerService', () => {
       staleDays: 9,
       staleBefore: new Date(),
     });
+    const processMessages = jest.fn().mockResolvedValue({
+      scanned: 1,
+      sent: 1,
+      failed: 0,
+      skipped: 0,
+    });
     const observe = jest.fn(
       async (_scope: unknown, _input: unknown, work: () => Promise<unknown>) => work(),
     );
@@ -32,6 +38,7 @@ describe('CrmAutomationSchedulerService', () => {
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
       { processPendingEvents, runStaleOpportunitySweep } as never,
       { execute: observe } as never,
+      { process: processMessages } as never,
     );
     return {
       service,
@@ -40,11 +47,12 @@ describe('CrmAutomationSchedulerService', () => {
       observe,
       processPendingEvents,
       runStaleOpportunitySweep,
+      processMessages,
     };
   }
 
   it('does not process scopes when another instance owns the lease', async () => {
-    const { service, processPendingEvents, runStaleOpportunitySweep, observe } =
+    const { service, processPendingEvents, runStaleOpportunitySweep, processMessages, observe } =
       createService(false);
 
     await (service as any).run();
@@ -52,10 +60,11 @@ describe('CrmAutomationSchedulerService', () => {
     expect(observe).not.toHaveBeenCalled();
     expect(processPendingEvents).not.toHaveBeenCalled();
     expect(runStaleOpportunitySweep).not.toHaveBeenCalled();
+    expect(processMessages).not.toHaveBeenCalled();
   });
 
-  it('records both scheduled operations and releases its lease', async () => {
-    const { service, query, execute, observe, processPendingEvents, runStaleOpportunitySweep } =
+  it('records scheduled operations, processes messages and releases its lease', async () => {
+    const { service, query, execute, observe, processPendingEvents, runStaleOpportunitySweep, processMessages } =
       createService(true);
 
     await (service as any).run();
@@ -67,6 +76,9 @@ describe('CrmAutomationSchedulerService', () => {
     };
     expect(query).toHaveBeenCalledWith(
       expect.stringContaining("r.rule_key='STALE_OPPORTUNITY_FOLLOW_UP'"),
+    );
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining('message_candidates AS'),
     );
     expect(observe).toHaveBeenNthCalledWith(
       1,
@@ -82,6 +94,7 @@ describe('CrmAutomationSchedulerService', () => {
     );
     expect(processPendingEvents).toHaveBeenCalledWith(scope);
     expect(runStaleOpportunitySweep).toHaveBeenCalledWith(scope);
+    expect(processMessages).toHaveBeenCalledWith(scope);
 
     const releaseCall = execute.mock.calls.find((call) =>
       String(call[0]).includes('DELETE FROM crm_automation_scheduler_leases'),
