@@ -31,6 +31,8 @@ import { CrmService } from './crm.service';
 import { CrmUnresolvedInboundController } from './crm-unresolved-inbound.controller';
 import { CrmUnresolvedInboundService } from './crm-unresolved-inbound.service';
 import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
+import { ResendEmailConnectionController } from './resend-email-connection.controller';
+import { ResendEmailMessageProvider } from './resend-email-message.provider';
 import { TwilioSmsConnectionController } from './twilio-sms-connection.controller';
 import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
 
@@ -44,6 +46,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmMessageController,
     CrmMessageProviderConnectionsController,
     TwilioSmsConnectionController,
+    ResendEmailConnectionController,
     CrmMessageWebhookController,
     CrmMessageWebhookHistoryController,
     CrmUnresolvedInboundController,
@@ -68,6 +71,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmMessageProviderVaultService,
     MetaWhatsAppMessageProvider,
     TwilioSmsMessageProvider,
+    ResendEmailMessageProvider,
     CrmMessageService,
     CrmMessageWebhookService,
     CrmMessageWebhookHistoryService,
