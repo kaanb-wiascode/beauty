@@ -6,6 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
 import {
   CrmAutomationScope,
@@ -36,6 +37,7 @@ export class CrmAutomationSchedulerService
     private readonly prisma: PrismaService,
     private readonly automations: CrmAutomationService,
     private readonly observability: CrmAutomationObservabilityService,
+    private readonly messages: CrmAutomationMessageActionService,
   ) {}
 
   onApplicationBootstrap() {
@@ -102,6 +104,25 @@ export class CrmAutomationSchedulerService
                AND a.event_type='AUTOMATION_EXECUTED'
                AND a.metadata->>'sourceEventId'=e.id::text
            )
+       ), message_candidates AS (
+         SELECT e.tenant_id,e.company_id,e.branch_id
+         FROM crm_events e
+         LEFT JOIN crm_automation_rules r
+           ON r.tenant_id=e.tenant_id
+          AND r.company_id=e.company_id
+          AND r.branch_id=e.branch_id
+          AND r.rule_key=e.metadata->>'rule'
+         WHERE e.branch_id IS NOT NULL
+           AND e.event_type='AUTOMATION_EXECUTED'
+           AND e.metadata->>'markerOnly'='true'
+           AND e.metadata->>'rule' IN ('LEAD_FIRST_TOUCH','OPPORTUNITY_STAGE_FOLLOW_UP')
+           AND COALESCE((r.config->>'messageEnabled')::boolean,FALSE)=TRUE
+           AND NOT EXISTS (
+             SELECT 1 FROM crm_events m
+             WHERE m.tenant_id=e.tenant_id AND m.company_id=e.company_id AND m.branch_id=e.branch_id
+               AND m.event_type='AUTOMATION_EXECUTED'
+               AND m.metadata->>'messageSourceEventId'=e.id::text
+           )
        ), stale_candidates AS (
          SELECT o.tenant_id,o.company_id,o.branch_id
          FROM crm_opportunities o
@@ -124,6 +145,8 @@ export class CrmAutomationSchedulerService
        ), candidates AS (
          SELECT * FROM event_candidates
          UNION
+         SELECT * FROM message_candidates
+         UNION
          SELECT * FROM stale_candidates
        )
        SELECT tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId"
@@ -145,9 +168,11 @@ export class CrmAutomationSchedulerService
       { origin: 'SCHEDULER', operation: 'STALE_SWEEP' },
       () => this.automations.runStaleOpportunitySweep(scope),
     );
+    const messages = await this.messages.process(scope);
     return {
       created: events.created + stale.created,
-      scanned: events.scanned + stale.scanned,
+      sent: messages.sent,
+      scanned: events.scanned + stale.scanned + messages.scanned,
     };
   }
 
@@ -170,15 +195,17 @@ export class CrmAutomationSchedulerService
 
       const scopes = await this.scopes();
       let created = 0;
+      let sent = 0;
       let scanned = 0;
       for (const scope of scopes) {
         const result = await this.processScope(scope);
         created += result.created;
+        sent += result.sent;
         scanned += result.scanned;
       }
-      if (created > 0) {
+      if (created > 0 || sent > 0) {
         this.logger.log(
-          `CRM automation scheduler created ${created} follow-up(s) from ${scanned} scanned record(s) across ${scopes.length} scope(s).`,
+          `CRM automation scheduler created ${created} follow-up(s), sent ${sent} message(s) from ${scanned} scanned record(s) across ${scopes.length} scope(s).`,
         );
       }
     } catch (error) {
