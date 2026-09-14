@@ -19,6 +19,7 @@ import { NavIcon } from "./nav-icon";
 const NAV_SECTIONS = [
   { label: "Genel", items: [
     { href: "/dashboard", label: "Bugün", icon: "home" },
+    { href: "/dashboard/management", label: "Yönetim Cockpit", icon: "trend" },
   ]},
   { label: "Müşteri İlişkileri", items: [
     { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
@@ -48,6 +49,8 @@ const NAV_SECTIONS = [
   ]},
   { label: "Finans Yönetimi", items: [
     { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
+    { href: "/finance/accounting", permission: "accounting.read", label: "Muhasebe", icon: "file" },
+    { href: "/finance/accounts-payable", permission: "finance.read", label: "Tedarikçi Borçları", icon: "receipt" },
     { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
     { href: "/finance/integrations", label: "Banka Ve Ödeme Bağlantıları", icon: "wallet" },
     { href: "/finance/integrations/operations", label: "Bağlantı İşlemleri", icon: "activity" },
