@@ -9,6 +9,7 @@ describe('MetaWhatsAppMessageProvider', () => {
   };
   const vault = { load: jest.fn() };
   const registry = { register: jest.fn() };
+  const contacts = { resolvePhone: jest.fn() };
 
   function makeProvider() {
     return new MetaWhatsAppMessageProvider(
@@ -16,6 +17,7 @@ describe('MetaWhatsAppMessageProvider', () => {
       connections as never,
       vault as never,
       registry as never,
+      contacts as never,
     );
   }
 
@@ -89,5 +91,30 @@ describe('MetaWhatsAppMessageProvider', () => {
       externalMessageId: 'wamid.123',
       status: 'DELIVERED',
     }));
+  });
+
+  it('attaches a unique CRM contact match to inbound WhatsApp messages', async () => {
+    const provider = makeProvider();
+    connections.findMetaByPhoneNumberId.mockResolvedValue({
+      id: 'connection-1', tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1', publicConfig: {},
+    });
+    contacts.resolvePhone.mockResolvedValue({ matched: true, customerId: 'customer-1', leadId: null });
+    const body = {
+      entry: [{ changes: [{ value: {
+        metadata: { phone_number_id: '12345', display_phone_number: '905551112233' },
+        messages: [{ id: 'wamid.in.1', from: '905551112244', type: 'text', text: { body: 'Merhaba' } }],
+      } }] }],
+    };
+
+    await expect(provider.parseWebhook({ body, headers: {} })).resolves.toEqual(expect.objectContaining({
+      type: 'INBOUND',
+      customerId: 'customer-1',
+      leadId: null,
+      sender: '905551112244',
+    }));
+    expect(contacts.resolvePhone).toHaveBeenCalledWith(
+      { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
+      '905551112244',
+    );
   });
 });
