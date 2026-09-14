@@ -31,6 +31,8 @@ import { CrmService } from './crm.service';
 import { CrmUnresolvedInboundController } from './crm-unresolved-inbound.controller';
 import { CrmUnresolvedInboundService } from './crm-unresolved-inbound.service';
 import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
+import { TwilioSmsConnectionController } from './twilio-sms-connection.controller';
+import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
 
 @Module({
   controllers: [
@@ -41,6 +43,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmAutomationRulesController,
     CrmMessageController,
     CrmMessageProviderConnectionsController,
+    TwilioSmsConnectionController,
     CrmMessageWebhookController,
     CrmMessageWebhookHistoryController,
     CrmUnresolvedInboundController,
@@ -64,6 +67,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmMessageProviderConnectionsService,
     CrmMessageProviderVaultService,
     MetaWhatsAppMessageProvider,
+    TwilioSmsMessageProvider,
     CrmMessageService,
     CrmMessageWebhookService,
     CrmMessageWebhookHistoryService,
