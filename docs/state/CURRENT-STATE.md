@@ -2,7 +2,7 @@
 
 > Ana teknik/ürün durum referansı. Yeni geliştirme oturumunda önce bu dosya, ardından ilgili domain checkpoint/runbook belgeleri okunmalıdır.
 
-Last updated: 2026-09-13
+Last updated: 2026-09-14
 
 ## 1. Project identity
 
@@ -15,46 +15,45 @@ Last updated: 2026-09-13
 
 All active development remains on `feature/core-commerce-foundation`. `main` remains untouched until an explicit merge/release decision.
 
-## 2. Current phase
+## 2. Current development state
 
-The principal backend foundations are now **feature-complete and frozen for the current scope**. New work should default to frontend/operational UX, deployment hardening, observability and explicitly approved new domains rather than recreating backend foundations.
+The principal backend foundations are mature. Current work should extend the governed APIs and existing operational UI rather than recreate parallel domain models.
 
 Current priorities:
 
-1. Preserve tenant/company/branch isolation and existing domain invariants.
+1. Preserve tenant/company/branch isolation and authorization scope.
 2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
-3. Keep CI green with frozen dependency installation and fresh PostgreSQL migration smoke testing.
-4. Continue frontend/operational UX on top of the governed APIs.
-5. Treat new domains such as Region or new provider integrations as separate product scope.
+3. Keep the complete fresh-database migration chain and monorepo quality pipeline green.
+4. Continue CRM operational maturity, automation, communication integrations and Customer 360.
+5. Continue frontend/operational UX across Finance, Procurement, Inventory, HR, Quality, Training and Reporting.
 
-## 3. Latest verified backend freeze checkpoint
+## 3. Latest verified checkpoint
 
 ```text
-d586befd212319dd2983ee9ae7b6e4dfee21e0bf
-test(crm): cover opportunity detail scope
+369eb60bf72aa0042b9c462f698e74ae0b21e47b
+test(crm): assert rule audit subject linkage
 
-Monorepo quality #1520 — SUCCESS
-Run ID: 34782496896
+Monorepo quality #1601 — SUCCESS
+Run ID: 34826608298
+Job ID: 103920123999
 ```
 
 Verified pipeline:
 
-- `pnpm install --frozen-lockfile`
+- frozen workspace dependency installation
 - PostgreSQL 16 service health
 - Prisma schema validation
-- complete migration chain applied successfully to a fresh database with `prisma migrate deploy`
+- complete migration chain on a fresh database with `prisma migrate deploy`
 - Prisma client generation
 - database typecheck/build
 - shared contract typecheck/build
 - API typecheck
 - API unit tests
 - API E2E tests
-- API build
+- API production build
 - web lint
 - web typecheck
 - web production build
-
-The workflow now rejects package/lockfile drift and migration-chain regressions instead of allowing either to remain hidden.
 
 ## 4. Architecture invariants
 
@@ -65,20 +64,140 @@ The following rules must not be weakened:
 - HR Staff/Employee and authenticated User are separate concepts.
 - Authorization is permission/scope-aware; role name alone is insufficient.
 - Financial mutations are auditable and idempotent.
+- Historical transaction/tax/payroll snapshots remain authoritative.
 - Provider/live-bank balances never replace accounting-ledger truth.
 - Reconciliation remains explicit.
 - Secrets/API credentials are never returned after storage.
 - Internet-banking usernames/passwords are not collected.
 - External providers use the integration layer rather than being embedded into business domains.
-- Historical transaction/tax/payroll snapshots remain authoritative for reversals/adjustments.
-- Quality/Training/Competency automation remains explainable and auditable.
-- Published Training content and published reusable questions are immutable/versioned.
-- Scheduled workers use concurrency controls and may not commit state after losing a fenced lease.
+- Append-only audit/event records are not rewritten.
+- Scheduled workers require concurrency controls, distributed ownership where applicable and idempotent execution.
 - Signed object-storage URLs are temporary delivery artifacts, not persisted domain identity.
 
-## 5. Major backend state
+## 5. CRM operational state
 
-### Core commerce / customer operations
+The governed CRM chain is operational:
+
+```text
+Lead / Customer
+      ↓
+Opportunity
+      ↓
+Commercial + Stage Management
+      ↓
+Follow-up Lifecycle
+      ↓
+CRM Cockpit / Action Center / Reminders
+      ↓
+WON Opportunity
+      ↓
+Sale Draft
+```
+
+Implemented CRM capabilities include:
+
+- branch-scoped Lead lifecycle and Lead detail/pool
+- standalone Customer -> Opportunity creation
+- Lead -> Opportunity qualification
+- governed Opportunity stages with optimistic version checks
+- Opportunity commercial editing without forcing a stage transition
+- Opportunity detail with Lead/Customer identity, commercial state, follow-ups and append-only timeline
+- Follow-up create/complete/reschedule/cancel lifecycle
+- CRM operations cockpit and exact scoped metrics
+- Action Center queues for overdue, today and stale work
+- owner-scoped work queues and inline lifecycle actions
+- Customer 360 CRM summary foundation
+- reminder feed / operational alert foundation
+- governed WON Opportunity -> Sale draft conversion
+- idempotent Opportunity/Sale linkage with commercial snapshot
+- server-side searchable customer picker for Opportunity creation
+- explicit `crm.read` / `crm.manage` permissions
+
+CRM mutations and reads preserve tenant/company/branch boundaries; database triggers provide a second line of scope enforcement.
+
+## 6. CRM automation runtime
+
+CRM automation is no longer a manual-only processor. It has a distributed background runtime.
+
+Runtime properties:
+
+- automatic scheduler starts shortly after application bootstrap
+- approximately 5-minute processing cadence
+- database-backed distributed scheduler lease
+- lease heartbeat and owner-scoped release
+- explicit tenant/company/branch processing scope; no synthetic request context
+- PostgreSQL transaction advisory locks for source events and automation keys
+- database unique partial index for automation execution keys
+- append-only `AUTOMATION_EXECUTED` audit events
+- safe manual-trigger/runtime races without duplicate follow-ups
+
+Current automation rules:
+
+1. **LEAD_FIRST_TOUCH** — new Lead -> first contact follow-up.
+2. **OPPORTUNITY_STAGE_FOLLOW_UP** — open Opportunity stage change -> owner follow-up.
+3. **STALE_OPPORTUNITY_FOLLOW_UP** — stale open Opportunity -> owner follow-up.
+
+## 7. Configurable CRM automation rules
+
+Branch-level automation rule configuration is implemented.
+
+Database model:
+
+- `crm_automation_rules`
+- tenant/company/branch/rule uniqueness
+- enabled flag
+- JSON configuration
+- optimistic version
+- creator/updater audit users
+- organization scope trigger
+
+`crm_events` now supports `automation_rule_id` as an audited subject. Rule-update events are linked by FK to the real rule record and checked against the same tenant/company/branch.
+
+Rule defaults preserve pre-configuration behavior when no branch override exists:
+
+- Lead first touch: 24 hours / CALL
+- Opportunity stage follow-up: 2 days, NEGOTIATION 1 day / CALL
+- Stale opportunity: 14 days inactivity, follow-up after 24 hours / CALL
+
+Supported configurable values:
+
+- rule enabled/disabled
+- first-contact delay
+- normal stage delay
+- negotiation stage delay
+- stale inactivity threshold
+- stale follow-up delay
+- follow-up channel: CALL, SMS, EMAIL, WHATSAPP, IN_PERSON, OTHER
+
+The API validates bounds per rule. Disabled event-driven rules mark source events as processed without generating a follow-up, so historical events do not accumulate and unexpectedly execute after re-enabling.
+
+Endpoints:
+
+- `GET /crm/automation-rules` — `crm.read`
+- `PATCH /crm/automation-rules/:ruleKey` — `crm.manage`
+- `POST /crm/operations/automations/process-events` — `crm.manage`
+- `POST /crm/operations/automations/stale-sweep` — `crm.manage`
+
+The stale scheduler discovery query reads each branch's configured inactivity threshold rather than assuming 14 days.
+
+## 8. CRM Automation Center UI
+
+Route: `/crm/automations`
+
+The Automation Center now provides a branch-scoped rule editor:
+
+- enable/disable each rule
+- edit delay/evaluation values
+- select follow-up channel
+- display system-default vs branch-override state
+- optimistic version-aware saves
+- reload on save/version conflict
+- manually process pending event automation
+- manually run stale-opportunity sweep using the configured threshold
+
+Rule changes append `AUTOMATION_RULE_UPDATED`; executions append `AUTOMATION_EXECUTED`.
+
+## 9. Core commerce / customer operations
 
 Implemented and substantially hardened:
 
@@ -93,67 +212,32 @@ Implemented and substantially hardened:
 - refunds and payment reversals
 - accounting links from operational source documents
 
-### CRM pipeline
+## 10. Accounting / Finance / Banking
 
-The governed CRM pipeline is operational across Lead, Customer, Opportunity, Follow-up and Sale handoff flows:
-
-- branch-scoped Lead lifecycle (`NEW`, `CONTACTED`, `QUALIFIED`, `LOST`, `CONVERTED`)
-- idempotent Lead -> Opportunity qualification under a serializable transaction
-- standalone Customer -> Opportunity creation with tenant/company/branch validation
-- governed Opportunity stage progression with optimistic version checks
-- branch-scoped Opportunity detail read model with Lead/Customer identity, commercial state, Follow-ups and CRM event timeline
-- Lead/Opportunity Follow-up tasks with assignee, channel, due date and completion outcome
-- append-only CRM events
-- database-enforced tenant/company/branch and subject scope guards
-- explicit `crm.read` / `crm.manage` permissions
-- CRM cockpit, Lead pool/detail, governed Pipeline, Opportunity create/detail and Follow-up Center web routes
-- minimal active-company assignee directory for CRM-owned assignment controls
-- Lead editing, owner filtering and Follow-up assignee selection
-- version-guarded Follow-up completion, rescheduling and reason-required cancellation
-- append-only Follow-up lifecycle events for completion, rescheduling and cancellation
-- Customer profile -> Opportunity creation flow
-- Pipeline cards resolve Lead/Customer subjects and expose Opportunity detail drill-down
-- governed Opportunity -> Sale draft conversion for won opportunities
-- idempotent Opportunity/Sale linkage with persisted commercial snapshot and database scope guards
-
-CRM notification delivery remains a future increment. Existing Customer -> Opportunity and Opportunity -> Sale paths should be extended rather than recreated.
-
-### Accounting / Finance
-
-Implemented at advanced level:
+Implemented at advanced foundation level:
 
 - Chart of Accounts / Journal Entries
 - automatic Sale / Payment / Refund posting
 - Accounts Payable / Supplier Ledger / AP Aging
 - Procurement / PO approval / Goods Receipt / Returns / Supplier Credit Notes
-- replacement / re-delivery workflow
 - VAT/KDV snapshots and reporting
 - Cost Centers
 - Profitability
 - Budgeting / Forecasting
-- 13-week cash flow
-- Treasury / Working Capital / DSO / DPO
-- CFO cockpit / financial health / benchmarks / alerts / management actions
-
-### Banking / Financial integrations
-
-Implemented at advanced level:
-
+- cash-flow and treasury foundations
+- CFO cockpit / financial health / alerts
 - provider registry/adapters
 - encrypted credential vault + rotation
 - signed/idempotent webhook runtime and durable queue
-- iyzico and PayTR workflows
 - POS settlement/accounting/reconciliation
 - Open Banking runtime and token lifecycle
-- Garanti client-credentials integration foundation
-- pagination/cursors/watermarks/overlap sync
-- distributed scheduler lease and per-integration claims
-- circuit breaker / timeout / safe retry
-- integration operations and health monitoring
+- provider resilience, health monitoring and distributed sync scheduler
 
-### Inventory / Warehouse
+Provider balances remain integration data; accounting-ledger truth remains authoritative.
 
-Implemented at advanced level:
+## 11. Inventory / Warehouse
+
+Implemented at advanced foundation level:
 
 - stock movements and consumption accounting
 - procurement receipt/return integration
@@ -163,219 +247,97 @@ Implemented at advanced level:
 - cycle-count lifecycle and accounting
 - in-transit valuation
 
-### HR / Payroll
+## 12. HR / Payroll
 
-Implemented at advanced level:
+Implemented at advanced foundation level:
 
 - HR operational records
 - attendance / leave inputs
 - payroll periods/items lifecycle
 - payroll accounting
-- salary/liability settlement
-- settlement reversal
+- salary/liability settlement and reversal
 - payroll cancellation/reversal
 - cost-center expense split
 - payroll reporting/dashboard
 - HR analytics
 - auditable work-input snapshots
 - configurable payroll policy engine
-- company-level payroll policy management/preview
 
 Payroll preview remains decision support and never silently rewrites payroll truth.
 
-### Marketplace / Supplier Network
+## 13. Quality / Training / Competency
 
-Marketplace and supplier-network foundations are implemented on the active branch. Supplier invitations, memberships, verification and platform audit flows use the existing `supplier_organizations` model; no parallel supplier identity should be introduced.
-
-The fresh-database migration gate exposed and fixed a historical invitation migration type mismatch: supplier organization, invitation and user references now consistently use the repository's TEXT identity strategy.
-
-## 6. Quality Management
-
-Quality is an operational bounded context rather than a planned foundation.
-
-Implemented chain includes:
+The cross-domain operational loop is implemented:
 
 ```text
-Signal / Customer Feedback / Inspection
+Quality Signal / Finding
         ↓
-Finding
-        ↓
-Quality Case
-        ↓
-CAPA / Rework / Verification
-        ↓
-Evidence
-        ↓
-Explainable Branch Quality Score
-```
-
-Capabilities include:
-
-- customer feedback and escalation
-- Quality Case lifecycle/events
-- inspection lifecycle including cancel/reschedule
-- findings and severity/SLA processing
-- CAPA and rework lifecycle
-- evidence attachment foundation
-- private managed evidence storage
-- notification/outbox foundations
-- public-feedback foundation
-- Quality cockpit
-- policy-versioned Branch Quality Score
-- scheduled Branch Quality Score processing
-- multi-branch Quality + Training comparison
-
-Real Branch Quality Score sources now include:
-
-- `INSPECTION_CATEGORY`
-- `CUSTOMER_FEEDBACK`
-- `TRAINING_COMPLIANCE`
-- `TRAINING_EFFECTIVENESS`
-
-`CUSTOM_METRIC` remains reserved until backed by a real auditable source.
-
-## 7. Education & Development / LMS
-
-LMS is **implemented at advanced backend foundation level**.
-
-Implemented capabilities include:
-
-- Training RBAC
-- assignment lifecycle/audit
-- immutable course versions
-- publish/retire guards
-- lessons and learner progress
-- theory exams
-- deterministic grading
-- practical assessments
-- final result snapshots
-- reusable versioned question bank
-- immutable exam-question snapshots
-- certificate lifecycle/expiry/revocation/renewal
-- learning programs
-- Training calendar/sessions/enrollment/attendance
-- development plans
-- Training effectiveness
-- effectiveness manager follow-ups
-- Training analytics
-- private controlled LMS documents
-
-### Managed Training documents
-
-Private documents use server-generated scoped object keys and short-lived SigV4 URLs. Actual stored MIME/size are verified with HEAD requests.
-
-`training_managed_documents` records successful verification. Database invariants now enforce both:
-
-- a registry row's `course_version_id` belongs to the same tenant/company; and
-- a `DOCUMENT` lesson may only link a verified object for the same tenant/company/exact course version.
-
-HTML, JavaScript, SVG and executable content types are rejected from managed private storage.
-
-## 8. Competency Management
-
-Competency Management is **implemented at advanced backend foundation level**.
-
-Implemented capabilities include:
-
-- competency definitions
-- immutable/versioned competency profiles
-- effective-dated staff profile assignment
-- append-only/time-aware assessment history
-- competency-gap calculation
-- competency-gap → Training rules
-- Training-result → competency assessment bridge
-- recurring competency review schedules/reviews
-- review completion guards requiring fresh evidence
-- HR `employee_profiles.position` → competency-profile mapping
-
-Authorization Roles and Competency Profiles remain separate concepts.
-
-Position mapping does not silently replace an employee's existing active competency-profile history.
-
-## 9. Quality ↔ Training ↔ Competency automation
-
-The backend integration loop is operational:
-
-```text
-Quality Finding / Signal
+Quality Case / CAPA
         ↓
 Versioned Training Rule
         ↓
-Training Assignment
+Training Assignment / Result
         ↓
-Course / Assessment / Result
-        ↓
-Competency Evidence
-        ↓
-Competency Gap / Review
+Competency Evidence / Gap / Review
         ↓
 Training Effectiveness
-        ↓
-Training Compliance + Effectiveness metrics
         ↓
 Branch Quality Score
 ```
 
-Generated assignments retain source rule/rationale and idempotency keys where applicable.
+Foundations include:
+
+- Quality cases, inspections, findings, CAPA/rework and evidence
+- customer feedback and escalation
+- explainable policy-versioned branch Quality Score
+- scheduled score processing with concurrency controls
+- immutable/versioned Training content and question bank
+- exams, practical assessments and final result snapshots
+- certificate lifecycle
+- learning programs, sessions, enrollment and attendance
+- development plans and effectiveness follow-ups
+- competency definitions/profiles/assessments/gap calculation/reviews
+- Quality ↔ Training ↔ Competency automation with idempotency/audit metadata
 
 No disciplinary/legal HR action is automatically inferred from a single Quality or Training signal.
 
-## 10. Scheduler / concurrency hardening
+## 14. Object storage / security
 
-Quality score scheduler supports:
+Managed private storage is S3-compatible and controlled:
 
-- due claiming with `FOR UPDATE SKIP LOCKED`
-- branch scope
-- worker owner + expiry lease
-- lease renewal before expensive calculation
-- lease-owner fencing on completion/failure
-- same-period idempotency
-- explicit calculated/skipped/failed/lost-lease outcomes
-- append-only schedule events
+- server-generated scoped object keys
+- short-lived signed PUT/GET URLs
+- actual MIME/size verification
+- tenant/company/course-version referential guards where applicable
+- dangerous browser-active/executable MIME types rejected
+- no credentials persisted in domain records
 
-A stale worker cannot advance or release a schedule after another worker has reclaimed it.
+## 15. Operational UI
 
-Other Training processors use serializable transactions, row locks/advisory locks or `SKIP LOCKED` where their transition model requires it.
-
-## 11. Operational UI already consuming backend
-
-Existing application surfaces include:
+Important existing application surfaces include:
 
 - `/crm` — CRM cockpit
-- `/crm/leads` — Lead pool
-- `/crm/leads/[id]` — Lead detail
-- `/crm/pipeline` — governed Opportunity pipeline
-- `/crm/opportunities/new` — standalone Customer -> Opportunity creation
-- `/crm/opportunities/[id]` — Opportunity commercial detail, Follow-ups and event timeline
-- `/crm/follow-ups` — Follow-up Center
-- `/customers/[id]` — Customer profile with CRM opportunity handoff
-- `/training` — Learning Operations
-- `/training/staff` — staff development directory
-- `/training/staff/[staffId]` — staff competency/training drill-down
-- `/training/analytics` — Learning Analytics + effectiveness follow-ups
-- `/training/question-bank` — question-bank authoring
-- `/quality/comparison` — multi-branch Quality + Training comparison
+- `/crm/actions` — CRM Action Center
+- `/crm/automations` — Automation Rules + runtime controls
+- `/crm/leads` and `/crm/leads/[id]`
+- `/crm/pipeline`
+- `/crm/opportunities/new`
+- `/crm/opportunities/[id]`
+- `/crm/opportunities/[id]/edit`
+- `/crm/follow-ups`
+- `/customers/[id]` — Customer profile / CRM handoff
+- `/training`
+- `/training/staff`
+- `/training/staff/[staffId]`
+- `/training/analytics`
+- `/training/question-bank`
+- `/quality/comparison`
 
 These should be extended incrementally; do not build parallel frontend systems or duplicate backend contracts.
 
-## 12. Object storage / security state
+## 16. CI / repository hygiene
 
-Managed private storage is S3-compatible and dependency-light:
-
-- Node built-in `crypto` performs SigV4 signing
-- Node `fetch` performs signed HEAD/DELETE operations
-- no AWS SDK runtime dependency is required
-- bucket/access-key/secret configuration is validated as a coherent group
-- credentials are never stored in domain records
-- object keys are scoped and server-generated
-- signed PUT/GET URLs are short-lived
-- real storage metadata is verified before registration
-- oversized managed objects are rejected/removed
-- browser-active/executable MIME types are blocked
-
-## 13. CI / repository hygiene
-
-Monorepo quality now enforces both dependency and migration reproducibility:
+Monorepo quality enforces dependency and migration reproducibility:
 
 ```text
 pnpm install --frozen-lockfile
@@ -383,35 +345,20 @@ PostgreSQL 16
 prisma migrate deploy
 ```
 
-A fresh database is created in CI and the complete migration chain must deploy successfully before package/API/web checks continue.
+A fresh database must accept the complete migration chain before package/API/web checks continue.
 
 The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking migration/compile/test/build contract is satisfied; it does not claim historical commerce formatting debt is zero.
 
-The latest verified CRM Opportunity detail increment (`d586befd212319dd2983ee9ae7b6e4dfee21e0bf`) passed the complete Monorepo quality pipeline in run `34782496896` / #1520.
+## 17. Next CRM priorities
 
-## 14. Backend freeze status
+Recommended continuation order:
 
-**Backend freeze for the current product scope is complete.**
+1. Automation execution/history observability and rule audit UI.
+2. Additional governed triggers/actions: expected-close alerts, WON/LOST workflows, follow-up outcome triggers and inactivity sequences.
+3. Pipeline advanced filters, risk badges, sorting/saved views and governed drag/drop.
+4. Communication adapters: WhatsApp, SMS, email, Meta/web leads and call logs.
+5. Broader Customer 360 with appointments, sales, packages/sessions, payments/receivables, CRM timeline and communication history.
+6. Conversion/forecast/lost-reason/sales-cycle analytics.
+7. Lead duplicate detection, merge, scoring, attribution and campaign maturity.
 
-The final regression established:
-
-- fresh-database migration reproducibility
-- managed-document tenant/company/course-version referential scope
-- scheduler lease fencing
-- controlled object-storage security
-- API type safety and tests
-- production API build
-- frontend contract compatibility through web lint/typecheck/build
-- CRM Customer -> Opportunity -> governed Pipeline -> Sale handoff compatibility
-
-Future work that does **not** block this backend freeze:
-
-- explicit Region domain + branch-to-region relationship
-- new Quality score sources without existing auditable source data
-- platform edge controls such as deployment-level/global rate limiting
-- additional external provider integrations
-- CRM notification delivery and additional operational automation
-- frontend/UX expansion over existing APIs
-- cleanup of historical non-blocking commerce Prettier debt
-
-For the Quality → Training → Competency chain and the current cross-domain backend scope, the branch should now be treated as **backend-frozen and ready for frontend/deployment-focused continuation**.
+Any new automation must preserve explicit scope, idempotency, auditability and concurrency guarantees established by the current runtime.
