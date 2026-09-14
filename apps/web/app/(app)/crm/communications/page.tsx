@@ -23,7 +23,7 @@ type Message = {
   sentAt: string | null;
   createdAt: string;
 };
-type ProviderStatus = { providers: Array<{ key: string; channels: Channel[] }> };
+type ProviderStatus = { providers: Array<{ key: string; channels: Channel[]; webhookReady: boolean }> };
 
 const channelLabels: Record<Channel, string> = { EMAIL: "E-posta", SMS: "SMS", WHATSAPP: "WhatsApp" };
 
@@ -75,6 +75,7 @@ export default function CrmCommunicationsPage() {
   const inbound = messages.filter((message) => message.direction === "INBOUND").length;
   const outbound = messages.filter((message) => message.direction === "OUTBOUND").length;
   const failed = messages.filter((message) => message.status === "FAILED").length;
+  const webhookReady = providers.providers.filter((provider) => provider.webhookReady).length;
 
   return <div className="space-y-6">
     <PageHeader title="CRM İletişim Merkezi" description="WhatsApp, SMS ve e-posta temaslarının branch bazlı birleşik zaman çizelgesi." action={<Button variant="secondary" onClick={() => void load()}>Yenile</Button>} />
@@ -82,11 +83,13 @@ export default function CrmCommunicationsPage() {
     {!canRead ? <Alert>CRM iletişim kayıtlarını görmek için crm.read yetkisi gerekir.</Alert> : null}
     {error ? <Alert>{error}</Alert> : null}
     {activeBranch && !providers.providers.length ? <Alert>Harici mesaj provider&apos;ı henüz bağlı değil. Müşteri profillerinden manuel iletişim kaydı tutulabilir; provider olmadan sistem mesajı gönderilmiş saymaz.</Alert> : null}
+    {activeBranch && providers.providers.length ? <Alert tone="success">{providers.providers.length} provider bağlı · {webhookReady} provider imzalı inbound/delivery webhook almaya hazır.</Alert> : null}
 
-    <div className="grid gap-3 sm:grid-cols-3">
+    <div className="grid gap-3 sm:grid-cols-4">
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Gelen</p><strong className="mt-2 block text-[22px]">{inbound}</strong></GlassCard>
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Giden</p><strong className="mt-2 block text-[22px]">{outbound}</strong></GlassCard>
       <GlassCard><p className="text-[10px] text-[var(--muted)]">Provider Hatası</p><strong className="mt-2 block text-[22px]">{failed}</strong></GlassCard>
+      <GlassCard><p className="text-[10px] text-[var(--muted)]">Webhook Ready</p><strong className="mt-2 block text-[22px]">{webhookReady}/{providers.providers.length}</strong></GlassCard>
     </div>
 
     <div className="flex flex-wrap gap-2">
