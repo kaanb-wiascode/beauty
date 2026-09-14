@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
 import { CrmAutomationRulesController } from './crm-automation-rules.controller';
 import { CrmAutomationRulesService } from './crm-automation-rules.service';
@@ -46,6 +47,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmReminderService,
     CrmAutomationRulesService,
     CrmAutomationService,
+    CrmAutomationMessageActionService,
     CrmAutomationObservabilityService,
     CrmAutomationSchedulerService,
     CrmInboundContactResolverService,
