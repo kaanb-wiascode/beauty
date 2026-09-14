@@ -6,7 +6,7 @@ describe('CrmAutomationSchedulerService', () => {
       if (sql.includes('INSERT INTO crm_automation_scheduler_leases')) {
         return ownsLease ? [{ ownerToken: args[1] }] : [];
       }
-      if (sql.includes('WITH candidates AS')) {
+      if (sql.includes('WITH event_candidates AS')) {
         return [
           { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
         ];
@@ -21,7 +21,7 @@ describe('CrmAutomationSchedulerService', () => {
       scanned: 1,
       created: 1,
       skipped: 0,
-      staleDays: 14,
+      staleDays: 9,
       staleBefore: new Date(),
     });
 
@@ -31,6 +31,7 @@ describe('CrmAutomationSchedulerService', () => {
     );
     return {
       service,
+      query,
       execute,
       processPendingEvents,
       runStaleOpportunitySweep,
@@ -47,8 +48,8 @@ describe('CrmAutomationSchedulerService', () => {
     expect(runStaleOpportunitySweep).not.toHaveBeenCalled();
   });
 
-  it('processes discovered scopes and releases its lease', async () => {
-    const { service, execute, processPendingEvents, runStaleOpportunitySweep } =
+  it('discovers configured stale scopes, processes them, and releases its lease', async () => {
+    const { service, query, execute, processPendingEvents, runStaleOpportunitySweep } =
       createService(true);
 
     await (service as any).run();
@@ -58,8 +59,11 @@ describe('CrmAutomationSchedulerService', () => {
       companyId: 'company-1',
       branchId: 'branch-1',
     };
+    expect(query).toHaveBeenCalledWith(
+      expect.stringContaining("r.rule_key='STALE_OPPORTUNITY_FOLLOW_UP'"),
+    );
     expect(processPendingEvents).toHaveBeenCalledWith(scope);
-    expect(runStaleOpportunitySweep).toHaveBeenCalledWith(scope, 14);
+    expect(runStaleOpportunitySweep).toHaveBeenCalledWith(scope);
 
     const releaseCall = execute.mock.calls.find((call) =>
       String(call[0]).includes('DELETE FROM crm_automation_scheduler_leases'),
