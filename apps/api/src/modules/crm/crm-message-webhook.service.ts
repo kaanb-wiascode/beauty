@@ -5,7 +5,7 @@ import {
   ServiceUnavailableException,
   UnauthorizedException,
 } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
 import type {
   CrmProviderWebhookEvent,
@@ -130,15 +130,13 @@ export class CrmMessageWebhookService {
   }
 
   private async applyDelivery(
-    tx: Parameters<Parameters<PrismaService['$transaction']>[0]>[0],
+    tx: Prisma.TransactionClient,
     messageId: string,
     event: Extract<CrmProviderWebhookEvent, { type: 'DELIVERY' }>,
   ) {
     const statusCondition = event.status === 'SENT'
       ? `status='QUEUED'`
-      : event.status === 'DELIVERED'
-        ? `status IN ('QUEUED','SENT')`
-        : `status IN ('QUEUED','SENT')`;
+      : `status IN ('QUEUED','SENT')`;
     const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
       `UPDATE crm_messages SET status=$2,
          sent_at=CASE WHEN $2 IN ('SENT','DELIVERED') THEN COALESCE(sent_at,NOW()) ELSE sent_at END,
