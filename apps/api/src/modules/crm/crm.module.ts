@@ -47,6 +47,12 @@ import { CrmService } from './crm.service';
     CrmMessageWebhookService,
     CrmMessageWebhookHistoryService,
   ],
-  exports: [CrmService, CrmOpportunityService, CrmOperationsService, CrmMessageService],
+  exports: [
+    CrmService,
+    CrmOpportunityService,
+    CrmOperationsService,
+    CrmMessageService,
+    CrmMessageProviderRegistryService,
+  ],
 })
 export class CrmModule {}
