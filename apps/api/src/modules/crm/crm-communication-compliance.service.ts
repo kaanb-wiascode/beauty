@@ -18,16 +18,21 @@ export class CrmCommunicationComplianceService {
   async list(subjectType: ContactSubjectType, subjectId: string) {
     const context = this.tenantContext.getContext();
     if (!context.branchId) throw new BadRequestException('Active branch is required.');
-    await this.assertSubject(context, subjectType, subjectId);
+    const scope = {
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      branchId: context.branchId,
+    };
+    await this.assertSubject(scope, subjectType, subjectId);
     const column = subjectType === 'CUSTOMER' ? 'customer_id' : 'lead_id';
     return this.prisma.$queryRawUnsafe(
       `SELECT id,channel,status,source,reason,changed_at AS "changedAt",created_at AS "createdAt",updated_at AS "updatedAt"
        FROM crm_contact_channel_permissions
        WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text AND ${column}=$4::text
        ORDER BY channel`,
-      context.tenantId,
-      context.companyId,
-      context.branchId,
+      scope.tenantId,
+      scope.companyId,
+      scope.branchId,
       subjectId,
     );
   }
@@ -43,7 +48,12 @@ export class CrmCommunicationComplianceService {
   ) {
     const context = this.tenantContext.getContext();
     if (!context.branchId) throw new BadRequestException('Active branch is required.');
-    await this.assertSubject(context, subjectType, subjectId);
+    const scope = {
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      branchId: context.branchId,
+    };
+    await this.assertSubject(scope, subjectType, subjectId);
     const customerId = subjectType === 'CUSTOMER' ? subjectId : null;
     const leadId = subjectType === 'LEAD' ? subjectId : null;
 
@@ -55,9 +65,9 @@ export class CrmCommunicationComplianceService {
            AND lead_id IS NOT DISTINCT FROM $5::text
            AND channel=$6
          LIMIT 1 FOR UPDATE`,
-        context.tenantId,
-        context.companyId,
-        context.branchId,
+        scope.tenantId,
+        scope.companyId,
+        scope.branchId,
         customerId,
         leadId,
         channel,
@@ -81,9 +91,9 @@ export class CrmCommunicationComplianceService {
              tenant_id,company_id,branch_id,customer_id,lead_id,channel,status,source,reason,changed_by_user_id
            ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10::text)
            RETURNING id`,
-          context.tenantId,
-          context.companyId,
-          context.branchId,
+          scope.tenantId,
+          scope.companyId,
+          scope.branchId,
           customerId,
           leadId,
           channel,
@@ -100,9 +110,9 @@ export class CrmCommunicationComplianceService {
         `INSERT INTO crm_contact_channel_permission_events(
            tenant_id,company_id,branch_id,permission_id,customer_id,lead_id,channel,previous_status,status,source,reason,actor_user_id
          ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,$12::text)`,
-        context.tenantId,
-        context.companyId,
-        context.branchId,
+        scope.tenantId,
+        scope.companyId,
+        scope.branchId,
         permissionId,
         customerId,
         leadId,
@@ -143,7 +153,7 @@ export class CrmCommunicationComplianceService {
       channel,
     );
     const status = rows[0]?.status ?? null;
-    return { allowed: status === 'OPTED_IN', status: status ?? 'UNKNOWN' as ContactPermissionStatus };
+    return { allowed: status === 'OPTED_IN', status: (status ?? 'UNKNOWN') as ContactPermissionStatus };
   }
 
   private async assertSubject(
