@@ -6,6 +6,8 @@ import { CrmAutomationRulesService } from './crm-automation-rules.service';
 import { CrmAutomationSchedulerService } from './crm-automation-scheduler.service';
 import { CrmAutomationService } from './crm-automation.service';
 import { CrmCommercialController } from './crm-commercial.controller';
+import { CrmCommunicationComplianceController } from './crm-communication-compliance.controller';
+import { CrmCommunicationComplianceService } from './crm-communication-compliance.service';
 import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
@@ -32,6 +34,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmController,
     CrmOperationsController,
     CrmCommercialController,
+    CrmCommunicationComplianceController,
     CrmAutomationRulesController,
     CrmMessageController,
     CrmMessageProviderConnectionsController,
@@ -45,6 +48,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmOpportunityCommercialService,
     CrmCustomer360Service,
     CrmReminderService,
+    CrmCommunicationComplianceService,
     CrmAutomationRulesService,
     CrmAutomationService,
     CrmAutomationMessageActionService,
