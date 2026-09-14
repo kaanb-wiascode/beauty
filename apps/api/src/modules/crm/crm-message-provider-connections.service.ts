@@ -76,4 +76,26 @@ export class CrmMessageProviderConnectionsService {
     if (!rows[0]) throw new ConflictException('Provider connection version changed.');
     return { id: rows[0].id, version: rows[0].version, fromNumber, enabled: input.enabled };
   }
+
+  async saveResendEmailPublicConfig(
+    input: { version?: number; enabled: boolean; fromEmail: string; fromName?: string },
+    actorUserId: string,
+  ) {
+    const scope = this.scope();
+    const fromEmail = input.fromEmail.trim().toLowerCase();
+    const fromName = input.fromName?.trim() || '';
+    if (!/^\S+@\S+\.\S+$/.test(fromEmail)) {
+      throw new BadRequestException('Resend sender e-mail address is invalid.');
+    }
+    const config = { fromEmail, fromName };
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string; version: number }>>(
+      `INSERT INTO crm_message_provider_connections(tenant_id,company_id,branch_id,provider_key,channel,enabled,public_config,created_by_user_id,updated_by_user_id)
+       VALUES($1::text,$2::text,$3::text,'resend-email','EMAIL',$4,$5::jsonb,$6::text,$6::text)
+       ON CONFLICT(tenant_id,company_id,branch_id,provider_key,channel) DO UPDATE SET enabled=EXCLUDED.enabled,public_config=EXCLUDED.public_config,updated_by_user_id=EXCLUDED.updated_by_user_id,version=crm_message_provider_connections.version+1,updated_at=NOW()
+       WHERE $7::int IS NULL OR crm_message_provider_connections.version=$7::int RETURNING id,version`,
+      scope.tenantId, scope.companyId, scope.branchId, input.enabled, JSON.stringify(config), actorUserId, input.version ?? null,
+    );
+    if (!rows[0]) throw new ConflictException('Provider connection version changed.');
+    return { id: rows[0].id, version: rows[0].version, fromEmail, fromName, enabled: input.enabled };
+  }
 }
