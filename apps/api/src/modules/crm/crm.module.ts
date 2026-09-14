@@ -8,6 +8,8 @@ import { CrmAutomationService } from './crm-automation.service';
 import { CrmCommercialController } from './crm-commercial.controller';
 import { CrmCommunicationComplianceController } from './crm-communication-compliance.controller';
 import { CrmCommunicationComplianceService } from './crm-communication-compliance.service';
+import { CrmConversationAnalyticsController } from './crm-conversation-analytics.controller';
+import { CrmConversationAnalyticsService } from './crm-conversation-analytics.service';
 import { CrmConversationController } from './crm-conversation.controller';
 import { CrmConversationService } from './crm-conversation.service';
 import { CrmController } from './crm.controller';
@@ -45,6 +47,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmCommercialController,
     CrmCommunicationComplianceController,
     CrmConversationController,
+    CrmConversationAnalyticsController,
     CrmAutomationRulesController,
     CrmMessageController,
     CrmMessageProviderConnectionsController,
@@ -63,6 +66,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmReminderService,
     CrmCommunicationComplianceService,
     CrmConversationService,
+    CrmConversationAnalyticsService,
     CrmAutomationRulesService,
     CrmAutomationService,
     CrmAutomationMessageActionService,
