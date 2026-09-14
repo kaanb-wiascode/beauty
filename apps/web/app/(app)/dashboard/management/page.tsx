@@ -154,7 +154,7 @@ export default function ManagementCockpitPage() {
             ["Personel Kaydı", staff.data?.data?.length ?? "—"],
             ["İK Veri Durumu", staff.error ? "Kontrol gerekli" : "Güncel"],
           ]} />
-          <ModuleLinks links={[["İK Kontrol Merkezi", "/hr"], ["Bordro", "/hr/payroll-dashboard"], ["Eğitim & Yetkinlik", "/training"], ["Kalite", "/quality/comparison"]]} />
+          <ModuleLinks links={[["İK Aksiyon Merkezi", "/hr/actions"], ["İK Kontrol Merkezi", "/hr"], ["Bordro", "/hr/payroll-dashboard"], ["Eğitim & Yetkinlik", "/training"], ["Kalite", "/quality/comparison"]]} />
         </FinancePanel>
       </section>
     </div>
