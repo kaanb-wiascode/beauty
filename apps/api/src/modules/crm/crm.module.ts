@@ -7,6 +7,9 @@ import { CrmAutomationService } from './crm-automation.service';
 import { CrmCommercialController } from './crm-commercial.controller';
 import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
+import { CrmMessageController } from './crm-message.controller';
+import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
+import { CrmMessageService } from './crm-message.service';
 import { CrmOperationsController } from './crm-operations.controller';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.service';
@@ -20,6 +23,7 @@ import { CrmService } from './crm.service';
     CrmOperationsController,
     CrmCommercialController,
     CrmAutomationRulesController,
+    CrmMessageController,
   ],
   providers: [
     CrmService,
@@ -32,7 +36,9 @@ import { CrmService } from './crm.service';
     CrmAutomationService,
     CrmAutomationObservabilityService,
     CrmAutomationSchedulerService,
+    CrmMessageProviderRegistryService,
+    CrmMessageService,
   ],
-  exports: [CrmService, CrmOpportunityService, CrmOperationsService],
+  exports: [CrmService, CrmOpportunityService, CrmOperationsService, CrmMessageService],
 })
 export class CrmModule {}
