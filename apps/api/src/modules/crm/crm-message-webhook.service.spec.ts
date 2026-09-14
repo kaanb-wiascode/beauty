@@ -27,11 +27,13 @@ describe('CrmMessageWebhookService', () => {
       parseWebhook: jest.fn().mockResolvedValue(options?.event ?? delivery),
     };
     const registry = { resolveByKey: jest.fn().mockReturnValue(provider) };
+    const optOut = { apply: jest.fn().mockResolvedValue(false) };
     const service = new CrmMessageWebhookService(
       { $transaction: transaction } as never,
       registry as never,
+      optOut as never,
     );
-    return { service, provider, registry, query, execute, transaction };
+    return { service, provider, registry, optOut, query, execute, transaction };
   }
 
   it('rejects an invalid signature before touching the database', async () => {
@@ -66,11 +68,7 @@ describe('CrmMessageWebhookService', () => {
 
     await expect(
       service.handle('provider-a', { headers: {}, body: {} }),
-    ).resolves.toEqual({
-      idempotent: false,
-      outcome: 'PROCESSED',
-      messageId: 'message-1',
-    });
+    ).resolves.toEqual({ idempotent: false, outcome: 'PROCESSED', messageId: 'message-1' });
 
     expect(query.mock.calls[1][0]).toContain('provider_key=$4');
     expect(query.mock.calls[2][0]).toContain("status IN ('QUEUED','SENT')");
@@ -80,6 +78,36 @@ describe('CrmMessageWebhookService', () => {
       'message-1',
       'PROCESSED',
       null,
+    );
+  });
+
+  it('stores an unresolved inbound event in the operations inbox', async () => {
+    const inbound = {
+      type: 'INBOUND' as const,
+      externalEventId: 'evt-unresolved-1',
+      externalMessageId: 'in-unresolved-1',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      channel: 'WHATSAPP' as const,
+      sender: '+905551112233',
+      recipient: '+902120000000',
+      body: 'Merhaba, bilgi almak istiyorum',
+    };
+    const { service, query, execute } = makeService({
+      event: inbound,
+      queries: [[{ id: 'webhook-unresolved' }], [{ id: 'inbox-1' }]],
+    });
+
+    await expect(service.handle('provider-a', { headers: {}, body: {} })).resolves.toEqual({
+      idempotent: false,
+      outcome: 'IGNORED',
+      unresolvedInboxId: 'inbox-1',
+    });
+    expect(query.mock.calls[1][0]).toContain('crm_unresolved_inbound_messages');
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining("error_message='Inbound subject is not mapped'"),
+      'webhook-unresolved',
     );
   });
 
@@ -97,19 +125,18 @@ describe('CrmMessageWebhookService', () => {
       body: 'Merhaba',
       customerId: 'customer-1',
     };
-    const { service, query } = makeService({
+    const { service, query, optOut } = makeService({
       event: inbound,
       queries: [[{ id: 'webhook-2' }], [{ id: 'message-2' }]],
     });
 
-    await expect(
-      service.handle('provider-a', { headers: {}, body: {} }),
-    ).resolves.toEqual({
+    await expect(service.handle('provider-a', { headers: {}, body: {} })).resolves.toEqual({
       idempotent: false,
       outcome: 'PROCESSED',
       messageId: 'message-2',
     });
 
+    expect(optOut.apply).toHaveBeenCalled();
     expect(query.mock.calls[1][0]).toContain("'INBOUND'");
     expect(query.mock.calls[1][0]).toContain('NULL,NOW(),NOW()');
   });
@@ -133,9 +160,7 @@ describe('CrmMessageWebhookService', () => {
       queries: [[{ id: 'webhook-3' }], [], [{ id: 'message-existing' }]],
     });
 
-    await expect(
-      service.handle('provider-a', { headers: {}, body: {} }),
-    ).resolves.toEqual({
+    await expect(service.handle('provider-a', { headers: {}, body: {} })).resolves.toEqual({
       idempotent: false,
       outcome: 'IGNORED',
       messageId: 'message-existing',
