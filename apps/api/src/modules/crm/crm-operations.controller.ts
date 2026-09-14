@@ -1,4 +1,12 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Param,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -6,6 +14,7 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsService } from './crm-operations.service';
+import { CrmReminderService } from './crm-reminder.service';
 
 const uuid = z.string().uuid();
 
@@ -28,13 +37,41 @@ const staleOpportunitiesSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
 });
 
+const reminderFeedSchema = z
+  .object({
+    scope: z.enum(['MINE', 'TEAM']).default('MINE'),
+    dayStart: z.coerce.date(),
+    dayEnd: z.coerce.date(),
+    today: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    closeThrough: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    staleBefore: z.coerce.date(),
+    limit: z.coerce.number().int().min(1).max(200).optional(),
+  })
+  .refine((value) => value.dayEnd > value.dayStart, {
+    message: 'dayEnd must be after dayStart.',
+    path: ['dayEnd'],
+  })
+  .refine((value) => value.closeThrough >= value.today, {
+    message: 'closeThrough must be on or after today.',
+    path: ['closeThrough'],
+  });
+
 @Controller('crm/operations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class CrmOperationsController {
   constructor(
     private readonly operations: CrmOperationsService,
     private readonly customer360: CrmCustomer360Service,
+    private readonly reminders: CrmReminderService,
   ) {}
+
+  private userId(request: { user?: { sub?: string } }) {
+    const id = request.user?.sub;
+    if (!id) {
+      throw new UnauthorizedException('Authenticated user id is missing.');
+    }
+    return id;
+  }
 
   @Get('follow-ups')
   @RequirePermission('crm', 'read')
@@ -46,6 +83,19 @@ export class CrmOperationsController {
   @RequirePermission('crm', 'read')
   listStaleOpportunities(@Query() query: unknown) {
     return this.operations.listStaleOpportunities(staleOpportunitiesSchema.parse(query));
+  }
+
+  @Get('reminders')
+  @RequirePermission('crm', 'read')
+  getReminders(
+    @Query() query: unknown,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    const filters = reminderFeedSchema.parse(query);
+    return this.reminders.getFeed({
+      ...filters,
+      userId: this.userId(request),
+    });
   }
 
   @Get('customer-360/:customerId')
