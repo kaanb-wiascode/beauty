@@ -24,6 +24,16 @@ type StaleOpportunityRow = {
   updatedAt: Date;
 };
 
+type PendingEventRow = {
+  id: string;
+  eventType: 'LEAD_CREATED' | 'OPPORTUNITY_STAGE_CHANGED';
+  branchId: string;
+  leadId: string | null;
+  opportunityId: string | null;
+  actorUserId: string;
+  metadata: Record<string, unknown> | null;
+};
+
 @Injectable()
 export class CrmAutomationService {
   constructor(
@@ -107,57 +117,123 @@ export class CrmAutomationService {
     return { created: true as const, followUpId: rows[0].id };
   }
 
-  async afterLeadCreated(
-    tx: Tx,
-    input: {
-      leadId: string;
-      branchId: string;
-      assignedUserId: string;
-      actorUserId: string;
-    },
-  ) {
-    const dueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
-    return this.createFollowUpOnce(tx, {
-      leadId: input.leadId,
-      branchId: input.branchId,
-      assignedUserId: input.assignedUserId,
-      actorUserId: input.actorUserId,
-      dueAt,
-      note: 'Otomatik takip: yeni lead için ilk temas.',
-      automationKey: `LEAD_FIRST_TOUCH:${input.leadId}`,
-      rule: 'LEAD_FIRST_TOUCH',
-    });
-  }
+  async processPendingEvents(actorUserId: string) {
+    const context = this.context();
+    const events = await this.prisma.$queryRawUnsafe<PendingEventRow[]>(
+      `SELECT e.id,e.event_type AS "eventType",e.branch_id AS "branchId",e.lead_id AS "leadId",
+              e.opportunity_id AS "opportunityId",e.actor_user_id AS "actorUserId",e.metadata
+       FROM crm_events e
+       WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+         AND ($3::text IS NULL OR e.branch_id=$3::text)
+         AND e.event_type IN ('LEAD_CREATED','OPPORTUNITY_STAGE_CHANGED')
+         AND NOT EXISTS (
+           SELECT 1 FROM crm_events a
+           WHERE a.tenant_id=e.tenant_id AND a.company_id=e.company_id AND a.branch_id=e.branch_id
+             AND a.event_type='AUTOMATION_EXECUTED'
+             AND a.metadata->>'sourceEventId'=e.id::text
+         )
+       ORDER BY e.created_at,e.id
+       LIMIT 100`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+    );
 
-  async afterOpportunityStageChanged(
-    tx: Tx,
-    input: {
-      opportunityId: string;
-      leadId: string | null;
-      branchId: string;
-      ownerUserId: string | null;
-      stage: string;
-      actorUserId: string;
-      version: number;
-    },
-  ) {
-    if (!input.ownerUserId || ['WON', 'LOST'].includes(input.stage)) {
-      return { created: false as const };
+    let created = 0;
+    let skipped = 0;
+    for (const event of events) {
+      const result = await this.prisma.$transaction(async (tx) => {
+        if (event.eventType === 'LEAD_CREATED' && event.leadId) {
+          const leads = await tx.$queryRawUnsafe<Array<{ ownerUserId: string | null }>>(
+            `SELECT owner_user_id AS "ownerUserId" FROM crm_leads
+             WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+             LIMIT 1`,
+            event.leadId,
+            context.tenantId,
+            context.companyId,
+            event.branchId,
+          );
+          const ownerUserId = leads[0]?.ownerUserId;
+          if (!ownerUserId) return { created: false as const };
+          const followUp = await this.createFollowUpOnce(tx, {
+            leadId: event.leadId,
+            branchId: event.branchId,
+            assignedUserId: ownerUserId,
+            actorUserId,
+            dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            note: 'Otomatik takip: yeni lead için ilk temas.',
+            automationKey: `LEAD_FIRST_TOUCH:${event.leadId}`,
+            rule: 'LEAD_FIRST_TOUCH',
+          });
+          await this.markSourceEvent(tx, event, actorUserId, 'LEAD_FIRST_TOUCH');
+          return followUp;
+        }
+
+        if (event.eventType === 'OPPORTUNITY_STAGE_CHANGED' && event.opportunityId) {
+          const opportunities = await tx.$queryRawUnsafe<Array<{
+            leadId: string | null;
+            ownerUserId: string | null;
+            stage: string;
+            version: number;
+          }>>(
+            `SELECT lead_id AS "leadId",owner_user_id AS "ownerUserId",stage,version
+             FROM crm_opportunities
+             WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+             LIMIT 1`,
+            event.opportunityId,
+            context.tenantId,
+            context.companyId,
+            event.branchId,
+          );
+          const opportunity = opportunities[0];
+          if (!opportunity?.ownerUserId || ['WON', 'LOST'].includes(opportunity.stage)) {
+            await this.markSourceEvent(tx, event, actorUserId, 'OPPORTUNITY_STAGE_FOLLOW_UP');
+            return { created: false as const };
+          }
+          const delayDays = opportunity.stage === 'NEGOTIATION' ? 1 : 2;
+          const followUp = await this.createFollowUpOnce(tx, {
+            leadId: opportunity.leadId,
+            opportunityId: event.opportunityId,
+            branchId: event.branchId,
+            assignedUserId: opportunity.ownerUserId,
+            actorUserId,
+            dueAt: new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
+            note: `Otomatik takip: fırsat ${opportunity.stage} aşamasına geçti.`,
+            automationKey: `OPPORTUNITY_STAGE:${event.opportunityId}:${opportunity.stage}:v${opportunity.version}`,
+            rule: 'OPPORTUNITY_STAGE_FOLLOW_UP',
+          });
+          await this.markSourceEvent(tx, event, actorUserId, 'OPPORTUNITY_STAGE_FOLLOW_UP');
+          return followUp;
+        }
+
+        return { created: false as const };
+      });
+      if (result.created) created += 1;
+      else skipped += 1;
     }
 
-    const delayDays = input.stage === 'NEGOTIATION' ? 1 : 2;
-    const dueAt = new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000);
-    return this.createFollowUpOnce(tx, {
-      leadId: input.leadId,
-      opportunityId: input.opportunityId,
-      branchId: input.branchId,
-      assignedUserId: input.ownerUserId,
-      actorUserId: input.actorUserId,
-      dueAt,
-      note: `Otomatik takip: fırsat ${input.stage} aşamasına geçti.`,
-      automationKey: `OPPORTUNITY_STAGE:${input.opportunityId}:${input.stage}:v${input.version}`,
-      rule: 'OPPORTUNITY_STAGE_FOLLOW_UP',
-    });
+    return { scanned: events.length, created, skipped };
+  }
+
+  private async markSourceEvent(
+    tx: Tx,
+    event: PendingEventRow,
+    actorUserId: string,
+    rule: string,
+  ) {
+    const context = this.context();
+    await tx.$executeRawUnsafe(
+      `INSERT INTO crm_events(
+         tenant_id,company_id,branch_id,lead_id,opportunity_id,event_type,actor_user_id,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'AUTOMATION_EXECUTED',$6::text,$7::jsonb)`,
+      context.tenantId,
+      context.companyId,
+      event.branchId,
+      event.leadId,
+      event.opportunityId,
+      actorUserId,
+      JSON.stringify({ sourceEventId: event.id, rule, markerOnly: true }),
+    );
   }
 
   async runStaleOpportunitySweep(actorUserId: string, staleDays = 14) {
