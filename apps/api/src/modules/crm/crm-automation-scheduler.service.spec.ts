@@ -2,9 +2,21 @@ import { CrmAutomationSchedulerService } from './crm-automation-scheduler.servic
 
 describe('CrmAutomationSchedulerService', () => {
   function createService(ownsLease: boolean) {
-    const query = jest.fn();
+    const query = jest.fn().mockImplementation(async (sql: string, ...args: unknown[]) => {
+      if (sql.includes('INSERT INTO crm_automation_scheduler_leases')) {
+        return ownsLease ? [{ ownerToken: args[1] }] : [];
+      }
+      if (sql.includes('WITH candidates AS')) {
+        return [
+          { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
+        ];
+      }
+      return [];
+    });
     const execute = jest.fn().mockResolvedValue(1);
-    const processPendingEvents = jest.fn().mockResolvedValue({ scanned: 2, created: 1, skipped: 1 });
+    const processPendingEvents = jest
+      .fn()
+      .mockResolvedValue({ scanned: 2, created: 1, skipped: 1 });
     const runStaleOpportunitySweep = jest.fn().mockResolvedValue({
       scanned: 1,
       created: 1,
@@ -13,28 +25,12 @@ describe('CrmAutomationSchedulerService', () => {
       staleBefore: new Date(),
     });
 
-    query
-      .mockResolvedValueOnce(ownsLease ? [{ ownerToken: expect.any(String) }] : [])
-      .mockResolvedValueOnce([
-        { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
-      ]);
-
-    if (ownsLease) {
-      query.mockImplementationOnce(async (_sql: string, _key: string, ownerToken: string) => [
-        { ownerToken },
-      ]);
-      query.mockResolvedValueOnce([
-        { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
-      ]);
-    }
-
     const service = new CrmAutomationSchedulerService(
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
       { processPendingEvents, runStaleOpportunitySweep } as never,
     );
     return {
       service,
-      query,
       execute,
       processPendingEvents,
       runStaleOpportunitySweep,
@@ -42,7 +38,8 @@ describe('CrmAutomationSchedulerService', () => {
   }
 
   it('does not process scopes when another instance owns the lease', async () => {
-    const { service, processPendingEvents, runStaleOpportunitySweep } = createService(false);
+    const { service, processPendingEvents, runStaleOpportunitySweep } =
+      createService(false);
 
     await (service as any).run();
 
@@ -51,11 +48,16 @@ describe('CrmAutomationSchedulerService', () => {
   });
 
   it('processes discovered scopes and releases its lease', async () => {
-    const { service, execute, processPendingEvents, runStaleOpportunitySweep } = createService(true);
+    const { service, execute, processPendingEvents, runStaleOpportunitySweep } =
+      createService(true);
 
     await (service as any).run();
 
-    const scope = { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' };
+    const scope = {
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+    };
     expect(processPendingEvents).toHaveBeenCalledWith(scope);
     expect(runStaleOpportunitySweep).toHaveBeenCalledWith(scope, 14);
 
