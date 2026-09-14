@@ -1,12 +1,14 @@
 import {
   BadRequestException,
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
   ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmCommunicationComplianceService } from './crm-communication-compliance.service';
 import {
   CrmMessageChannel,
   CrmMessageProviderRegistryService,
@@ -49,6 +51,7 @@ export class CrmMessageService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly providers: CrmMessageProviderRegistryService,
+    private readonly compliance: CrmCommunicationComplianceService,
   ) {}
 
   private scope() {
@@ -193,6 +196,20 @@ export class CrmMessageService {
     if (!['DRAFT', 'FAILED'].includes(existing.status)) {
       throw new ConflictException('Message is not sendable in its current status.');
     }
+    const consent = await this.compliance.canSendManual(
+      scope,
+      {
+        customerId: existing.customerId,
+        leadId: existing.leadId,
+        opportunityId: existing.opportunityId,
+      },
+      existing.channel,
+    );
+    if (!consent.allowed) {
+      throw new ForbiddenException(
+        `Contact opted out of ${existing.channel} communications.`,
+      );
+    }
     const provider = this.providers.resolve(existing.channel, existing.providerKey);
     if (!provider) {
       throw new ServiceUnavailableException(
@@ -322,7 +339,9 @@ export class CrmMessageService {
     const value = channel === 'EMAIL' ? rows[0]?.email : rows[0]?.phone;
     if (!value) {
       throw new BadRequestException(
-        channel === 'EMAIL' ? 'No e-mail address is available for this CRM subject.' : 'No phone number is available for this CRM subject.',
+        channel === 'EMAIL'
+          ? 'No e-mail address is available for this CRM subject.'
+          : 'No phone number is available for this CRM subject.',
       );
     }
     return value;
