@@ -6,6 +6,7 @@ import {
   OnModuleDestroy,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
 import {
   CrmAutomationScope,
   CrmAutomationService,
@@ -34,6 +35,7 @@ export class CrmAutomationSchedulerService
   constructor(
     private readonly prisma: PrismaService,
     private readonly automations: CrmAutomationService,
+    private readonly observability: CrmAutomationObservabilityService,
   ) {}
 
   onApplicationBootstrap() {
@@ -133,8 +135,16 @@ export class CrmAutomationSchedulerService
   }
 
   private async processScope(scope: CrmAutomationScope) {
-    const events = await this.automations.processPendingEvents(scope);
-    const stale = await this.automations.runStaleOpportunitySweep(scope);
+    const events = await this.observability.execute(
+      scope,
+      { origin: 'SCHEDULER', operation: 'EVENT_PROCESSOR' },
+      () => this.automations.processPendingEvents(scope),
+    );
+    const stale = await this.observability.execute(
+      scope,
+      { origin: 'SCHEDULER', operation: 'STALE_SWEEP' },
+      () => this.automations.runStaleOpportunitySweep(scope),
+    );
     return {
       created: events.created + stale.created,
       scanned: events.scanned + stale.scanned,
