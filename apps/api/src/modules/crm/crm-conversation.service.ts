@@ -3,7 +3,7 @@ import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type SubjectType = 'CUSTOMER' | 'LEAD' | 'OPPORTUNITY';
-
+type ConversationMode = 'ALL' | 'MINE' | 'UNASSIGNED';
 type Scope = { tenantId: string; companyId: string; branchId: string };
 
 @Injectable()
@@ -16,7 +16,7 @@ export class CrmConversationService {
     return { tenantId: context.tenantId, companyId: context.companyId, branchId: context.branchId };
   }
 
-  list(actorUserId: string, limit = 100) {
+  list(actorUserId: string, limit = 100, mode: ConversationMode = 'ALL') {
     const scope = this.scope();
     const safeLimit = Math.min(Math.max(limit, 1), 200);
     return this.prisma.$queryRawUnsafe(
@@ -54,12 +54,20 @@ export class CrmConversationService {
               COALESCE(unread.count,0)::int AS "unreadCount",
               (g.last_inbound_at IS NOT NULL AND (g.last_outbound_at IS NULL OR g.last_inbound_at > g.last_outbound_at)) AS "awaitingResponse",
               CASE WHEN g.last_inbound_at IS NOT NULL AND (g.last_outbound_at IS NULL OR g.last_inbound_at > g.last_outbound_at)
-                   THEN FLOOR(EXTRACT(EPOCH FROM (NOW()-g.last_inbound_at))/60)::int ELSE 0 END AS "responseAgeMinutes"
+                   THEN FLOOR(EXTRACT(EPOCH FROM (NOW()-g.last_inbound_at))/60)::int ELSE 0 END AS "responseAgeMinutes",
+              a.id AS "assignmentId",a.assigned_user_id AS "assignedUserId",a.version AS "assignmentVersion",
+              NULLIF(TRIM(CONCAT(COALESCE(au."firstName",''),' ',COALESCE(au."lastName",''))),'') AS "assignedUserName"
        FROM grouped g
        JOIN latest ON latest.subject_type=g.subject_type AND latest.subject_id=g.subject_id
        LEFT JOIN customers c ON g.subject_type='CUSTOMER' AND c.id=g.subject_id AND c."tenantId"=$1::text AND c."branchId"=$3::text
        LEFT JOIN crm_leads l ON g.subject_type='LEAD' AND l.id=g.subject_id AND l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
        LEFT JOIN crm_opportunities o ON g.subject_type='OPPORTUNITY' AND o.id=g.subject_id AND o.tenant_id=$1::text AND o.company_id=$2::text AND o.branch_id=$3::text
+       LEFT JOIN crm_conversation_assignments a
+         ON a.tenant_id=$1::text AND a.company_id=$2::text AND a.branch_id=$3::text
+        AND ((g.subject_type='CUSTOMER' AND a.customer_id=g.subject_id)
+          OR (g.subject_type='LEAD' AND a.lead_id=g.subject_id)
+          OR (g.subject_type='OPPORTUNITY' AND a.opportunity_id=g.subject_id))
+       LEFT JOIN users au ON au.id=a.assigned_user_id
        LEFT JOIN LATERAL (
          SELECT COUNT(*)::int AS count FROM scoped sm
          LEFT JOIN crm_conversation_reads r
@@ -70,6 +78,7 @@ export class CrmConversationService {
          WHERE sm.subject_type=g.subject_type AND sm.subject_id=g.subject_id AND sm.direction='INBOUND'
            AND sm.created_at>COALESCE(r.read_at,'epoch'::timestamptz)
        ) unread ON TRUE
+       WHERE ($6='ALL' OR ($6='MINE' AND a.assigned_user_id=$4::text) OR ($6='UNASSIGNED' AND a.id IS NULL))
        ORDER BY (COALESCE(unread.count,0)>0) DESC,
                 (g.last_inbound_at IS NOT NULL AND (g.last_outbound_at IS NULL OR g.last_inbound_at>g.last_outbound_at)) DESC,
                 g.last_message_at DESC
@@ -79,6 +88,7 @@ export class CrmConversationService {
       scope.branchId,
       actorUserId,
       safeLimit,
+      mode,
     );
   }
 
