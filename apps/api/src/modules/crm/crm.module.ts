@@ -8,7 +8,10 @@ import { CrmCommercialController } from './crm-commercial.controller';
 import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmMessageController } from './crm-message.controller';
+import { CrmMessageProviderConnectionsController } from './crm-message-provider-connections.controller';
+import { CrmMessageProviderConnectionsService } from './crm-message-provider-connections.service';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
+import { CrmMessageProviderVaultService } from './crm-message-provider-vault.service';
 import { CrmMessageService } from './crm-message.service';
 import { CrmMessageWebhookController } from './crm-message-webhook.controller';
 import { CrmMessageWebhookHistoryController } from './crm-message-webhook-history.controller';
@@ -20,6 +23,7 @@ import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.se
 import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmReminderService } from './crm-reminder.service';
 import { CrmService } from './crm.service';
+import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
 
 @Module({
   controllers: [
@@ -28,6 +32,7 @@ import { CrmService } from './crm.service';
     CrmCommercialController,
     CrmAutomationRulesController,
     CrmMessageController,
+    CrmMessageProviderConnectionsController,
     CrmMessageWebhookController,
     CrmMessageWebhookHistoryController,
   ],
@@ -43,6 +48,9 @@ import { CrmService } from './crm.service';
     CrmAutomationObservabilityService,
     CrmAutomationSchedulerService,
     CrmMessageProviderRegistryService,
+    CrmMessageProviderConnectionsService,
+    CrmMessageProviderVaultService,
+    MetaWhatsAppMessageProvider,
     CrmMessageService,
     CrmMessageWebhookService,
     CrmMessageWebhookHistoryService,
