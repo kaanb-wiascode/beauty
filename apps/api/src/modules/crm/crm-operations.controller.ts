@@ -14,6 +14,7 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
 import { CrmAutomationService } from './crm-automation.service';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsService } from './crm-operations.service';
@@ -63,6 +64,10 @@ const staleSweepSchema = z.object({
   staleDays: z.coerce.number().int().min(1).max(90).optional(),
 });
 
+const automationHistorySchema = z.object({
+  limit: z.coerce.number().int().min(1).max(100).default(30),
+});
+
 @Controller('crm/operations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 export class CrmOperationsController {
@@ -71,6 +76,7 @@ export class CrmOperationsController {
     private readonly customer360: CrmCustomer360Service,
     private readonly reminders: CrmReminderService,
     private readonly automations: CrmAutomationService,
+    private readonly automationObservability: CrmAutomationObservabilityService,
     private readonly tenantContext: TenantContext,
   ) {}
 
@@ -116,12 +122,22 @@ export class CrmOperationsController {
     });
   }
 
+  @Get('automations/history')
+  @RequirePermission('crm', 'read')
+  getAutomationHistory(@Query() query: unknown) {
+    const { limit } = automationHistorySchema.parse(query);
+    return this.automationObservability.getDashboard(this.automationScope(), limit);
+  }
+
   @Post('automations/process-events')
   @RequirePermission('crm', 'manage')
   processAutomationEvents(@Req() request: { user?: { sub?: string } }) {
-    return this.automations.processPendingEvents(
-      this.automationScope(),
-      this.userId(request),
+    const scope = this.automationScope();
+    const actorUserId = this.userId(request);
+    return this.automationObservability.execute(
+      scope,
+      { origin: 'MANUAL', operation: 'EVENT_PROCESSOR', initiatedByUserId: actorUserId },
+      () => this.automations.processPendingEvents(scope, actorUserId),
     );
   }
 
@@ -132,10 +148,12 @@ export class CrmOperationsController {
     @Req() request: { user?: { sub?: string } },
   ) {
     const { staleDays } = staleSweepSchema.parse(query);
-    return this.automations.runStaleOpportunitySweep(
-      this.automationScope(),
-      staleDays,
-      this.userId(request),
+    const scope = this.automationScope();
+    const actorUserId = this.userId(request);
+    return this.automationObservability.execute(
+      scope,
+      { origin: 'MANUAL', operation: 'STALE_SWEEP', initiatedByUserId: actorUserId },
+      () => this.automations.runStaleOpportunitySweep(scope, staleDays, actorUserId),
     );
   }
 
