@@ -19,6 +19,7 @@ describe('CrmAutomationMessageActionService', () => {
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
       { get: jest.fn().mockResolvedValue({ config: { messageEnabled: false } }) } as never,
       { resolve } as never,
+      { canSendAutomation: jest.fn() } as never,
     );
 
     await expect(service.process(scope)).resolves.toEqual({ scanned: 1, sent: 0, failed: 0, skipped: 1 });
@@ -26,6 +27,25 @@ describe('CrmAutomationMessageActionService', () => {
     expect(execute).toHaveBeenCalledWith(
       expect.stringContaining('INSERT INTO crm_events'),
       'tenant-1', 'company-1', 'branch-1', 'lead-1', null, 'user-1', expect.stringContaining('"messageSourceEventId":"event-1"'),
+    );
+  });
+
+  it('does not contact a provider without explicit opt-in', async () => {
+    const query = jest.fn().mockResolvedValueOnce([marker]);
+    const execute = jest.fn().mockResolvedValue(1);
+    const resolve = jest.fn();
+    const service = new CrmAutomationMessageActionService(
+      { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
+      { get: jest.fn().mockResolvedValue({ config: { messageEnabled: true, messageChannel: 'WHATSAPP', messageTemplate: 'Merhaba' } }) } as never,
+      { resolve } as never,
+      { canSendAutomation: jest.fn().mockResolvedValue({ allowed: false, status: 'OPTED_OUT' }) } as never,
+    );
+
+    await expect(service.process(scope)).resolves.toEqual({ scanned: 1, sent: 0, failed: 0, skipped: 1 });
+    expect(resolve).not.toHaveBeenCalled();
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('INSERT INTO crm_events'),
+      'tenant-1', 'company-1', 'branch-1', 'lead-1', null, 'user-1', expect.stringContaining('CONSENT_OPTED_OUT'),
     );
   });
 
@@ -42,6 +62,7 @@ describe('CrmAutomationMessageActionService', () => {
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
       { get: jest.fn().mockResolvedValue({ config: { messageEnabled: true, messageChannel: 'WHATSAPP', messageTemplate: 'Merhaba' } }) } as never,
       { resolve: jest.fn().mockReturnValue(null) } as never,
+      { canSendAutomation: jest.fn().mockResolvedValue({ allowed: true, status: 'OPTED_IN' }) } as never,
     );
 
     await expect(service.process(scope)).resolves.toEqual({ scanned: 1, sent: 0, failed: 1, skipped: 0 });
