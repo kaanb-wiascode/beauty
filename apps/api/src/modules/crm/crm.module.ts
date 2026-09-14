@@ -27,6 +27,8 @@ import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.se
 import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmReminderService } from './crm-reminder.service';
 import { CrmService } from './crm.service';
+import { CrmUnresolvedInboundController } from './crm-unresolved-inbound.controller';
+import { CrmUnresolvedInboundService } from './crm-unresolved-inbound.service';
 import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
 
 @Module({
@@ -40,6 +42,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmMessageProviderConnectionsController,
     CrmMessageWebhookController,
     CrmMessageWebhookHistoryController,
+    CrmUnresolvedInboundController,
   ],
   providers: [
     CrmService,
@@ -62,6 +65,7 @@ import { MetaWhatsAppMessageProvider } from './meta-whatsapp-message.provider';
     CrmMessageService,
     CrmMessageWebhookService,
     CrmMessageWebhookHistoryService,
+    CrmUnresolvedInboundService,
   ],
   exports: [
     CrmService,
