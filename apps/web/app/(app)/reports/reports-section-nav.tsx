@@ -8,6 +8,7 @@ import { cx } from "@/lib/format";
 
 const REPORT_NAV_ITEMS = [
   { href: "/reports", label: "Genel Raporlar", permission: ["reports", "read"] as const },
+  { href: "/reports/executive", label: "ERP Yönetim Raporu", permission: ["reports", "read"] as const },
   { href: "/reports/staff", label: "Personel Performansı", permission: ["reports", "read"] as const },
   { href: "/reports/services", label: "Hizmet Performansı", permission: ["reports", "read"] as const },
   { href: "/quality", label: "Kalite Merkezi", permission: ["quality", "read"] as const },
