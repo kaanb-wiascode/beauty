@@ -6,6 +6,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
+import { CrmInboundOptOutService } from './crm-inbound-opt-out.service';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
 import type {
   CrmProviderWebhookEvent,
@@ -17,6 +18,7 @@ export class CrmMessageWebhookService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly providers: CrmMessageProviderRegistryService,
+    private readonly optOut: CrmInboundOptOutService,
   ) {}
 
   async handle(providerKey: string, request: CrmProviderWebhookRequest) {
@@ -119,6 +121,8 @@ export class CrmMessageWebhookService {
           unresolvedInboxId: unresolved[0]?.id ?? null,
         };
       }
+
+      await this.optOut.apply(tx, event);
 
       const messages = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO crm_messages(
