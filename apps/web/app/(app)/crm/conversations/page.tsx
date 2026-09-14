@@ -83,13 +83,12 @@ export default function CrmConversationsPage() {
     try {
       const rows = await api<Thread[]>("/crm/conversations?limit=150");
       setThreads(rows);
-      if (selected) setSelected(rows.find((row) => row.subjectType === selected.subjectType && row.subjectId === selected.subjectId) ?? null);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Konuşmalar yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  }, [activeBranch, canRead, selected]);
+  }, [activeBranch, canRead]);
 
   useEffect(() => { void load(); }, [load]);
 
