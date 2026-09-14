@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
-import { TenantContext } from '../../common/tenant/tenant-context';
 
 type Tx = Prisma.TransactionClient;
 
@@ -42,19 +41,7 @@ type PendingEventRow = {
 
 @Injectable()
 export class CrmAutomationService {
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly tenantContext: TenantContext,
-  ) {}
-
-  private requestScope(): CrmAutomationScope {
-    const context = this.tenantContext.getContext();
-    return {
-      tenantId: context.tenantId,
-      companyId: context.companyId,
-      branchId: context.branchId,
-    };
-  }
+  constructor(private readonly prisma: PrismaService) {}
 
   private async lockKey(tx: Tx, scope: CrmAutomationScope, key: string) {
     await tx.$executeRawUnsafe(
@@ -63,7 +50,11 @@ export class CrmAutomationService {
     );
   }
 
-  private async sourceEventProcessed(tx: Tx, scope: CrmAutomationScope, event: PendingEventRow) {
+  private async sourceEventProcessed(
+    tx: Tx,
+    scope: CrmAutomationScope,
+    event: PendingEventRow,
+  ) {
     const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id FROM crm_events
        WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
@@ -154,11 +145,7 @@ export class CrmAutomationService {
     return { created: true as const, followUpId: rows[0].id };
   }
 
-  async processPendingEvents(actorUserId: string) {
-    return this.processPendingEventsForScope(this.requestScope(), actorUserId);
-  }
-
-  async processPendingEventsForScope(scope: CrmAutomationScope, actorUserId?: string) {
+  async processPendingEvents(scope: CrmAutomationScope, actorUserId?: string) {
     const events = await this.prisma.$queryRawUnsafe<PendingEventRow[]>(
       `SELECT e.id,e.event_type AS "eventType",e.branch_id AS "branchId",e.lead_id AS "leadId",
               e.opportunity_id AS "opportunityId",e.actor_user_id AS "actorUserId",e.metadata
@@ -201,7 +188,13 @@ export class CrmAutomationService {
           );
           const ownerUserId = leads[0]?.ownerUserId;
           if (!ownerUserId) {
-            await this.markSourceEvent(tx, scope, event, effectiveActorUserId, 'LEAD_FIRST_TOUCH');
+            await this.markSourceEvent(
+              tx,
+              scope,
+              event,
+              effectiveActorUserId,
+              'LEAD_FIRST_TOUCH',
+            );
             return { created: false as const };
           }
           const followUp = await this.createFollowUpOnce(tx, scope, {
@@ -214,7 +207,13 @@ export class CrmAutomationService {
             automationKey: `LEAD_FIRST_TOUCH:${event.leadId}`,
             rule: 'LEAD_FIRST_TOUCH',
           });
-          await this.markSourceEvent(tx, scope, event, effectiveActorUserId, 'LEAD_FIRST_TOUCH');
+          await this.markSourceEvent(
+            tx,
+            scope,
+            event,
+            effectiveActorUserId,
+            'LEAD_FIRST_TOUCH',
+          );
           return followUp;
         }
 
@@ -304,11 +303,7 @@ export class CrmAutomationService {
     );
   }
 
-  async runStaleOpportunitySweep(actorUserId: string, staleDays = 14) {
-    return this.runStaleOpportunitySweepForScope(this.requestScope(), staleDays, actorUserId);
-  }
-
-  async runStaleOpportunitySweepForScope(
+  async runStaleOpportunitySweep(
     scope: CrmAutomationScope,
     staleDays = 14,
     actorUserId?: string,
