@@ -159,7 +159,7 @@ export default function CrmInboundInboxPage() {
         </div>
         {item.status === "OPEN" && canManage ? <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => open({ type: "customer", item })}>Müşteriye Bağla</Button>
-          <Button variant="secondary" onClick={() => open({ type: "existing-lead", item })}>Lead'e Bağla</Button>
+          <Button variant="secondary" onClick={() => open({ type: "existing-lead", item })}>Lead&apos;e Bağla</Button>
           <Button variant="secondary" onClick={() => open({ type: "new-lead", item })}>Yeni Lead</Button>
           <Button variant="secondary" onClick={() => open({ type: "dismiss", item })}>Kapat</Button>
         </div> : <span className="text-[10px] font-semibold text-[var(--muted)]">{item.status}</span>}
