@@ -1,7 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
+import { CrmAutomationRulesService } from './crm-automation-rules.service';
 
 type Tx = Prisma.TransactionClient;
+type AutomationChannel = 'CALL' | 'SMS' | 'EMAIL' | 'WHATSAPP' | 'IN_PERSON' | 'OTHER';
 
 export type CrmAutomationScope = {
   tenantId: string;
@@ -15,7 +17,7 @@ type AutomationFollowUp = {
   branchId: string;
   assignedUserId: string;
   actorUserId: string;
-  channel?: 'CALL' | 'SMS' | 'EMAIL' | 'WHATSAPP' | 'IN_PERSON' | 'OTHER';
+  channel?: AutomationChannel;
   dueAt: Date;
   note: string;
   automationKey: string;
@@ -41,7 +43,34 @@ type PendingEventRow = {
 
 @Injectable()
 export class CrmAutomationService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly rules: CrmAutomationRulesService,
+  ) {}
+
+  private numberConfig(
+    config: Record<string, unknown>,
+    key: string,
+    fallback: number,
+    min: number,
+    max: number,
+  ) {
+    const value = config[key];
+    return typeof value === 'number' && Number.isFinite(value) && value >= min && value <= max
+      ? value
+      : fallback;
+  }
+
+  private channelConfig(config: Record<string, unknown>, fallback: AutomationChannel = 'CALL') {
+    const value = config.channel;
+    return ['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER'].includes(String(value))
+      ? (value as AutomationChannel)
+      : fallback;
+  }
+
+  private branchScope(scope: CrmAutomationScope, branchId: string): CrmAutomationScope {
+    return { ...scope, branchId };
+  }
 
   private async lockKey(tx: Tx, scope: CrmAutomationScope, key: string) {
     await tx.$executeRawUnsafe(
@@ -169,12 +198,21 @@ export class CrmAutomationService {
     let created = 0;
     let skipped = 0;
     for (const event of events) {
+      const eventScope = this.branchScope(scope, event.branchId);
+      const ruleKey = event.eventType === 'LEAD_CREATED'
+        ? 'LEAD_FIRST_TOUCH'
+        : 'OPPORTUNITY_STAGE_FOLLOW_UP';
+      const rule = await this.rules.get(eventScope, ruleKey);
       const result = await this.prisma.$transaction(async (tx) => {
-        await this.lockKey(tx, scope, `source-event:${event.id}`);
-        if (await this.sourceEventProcessed(tx, scope, event)) {
+        await this.lockKey(tx, eventScope, `source-event:${event.id}`);
+        if (await this.sourceEventProcessed(tx, eventScope, event)) {
           return { created: false as const };
         }
         const effectiveActorUserId = actorUserId ?? event.actorUserId;
+        if (!rule.enabled) {
+          await this.markSourceEvent(tx, eventScope, event, effectiveActorUserId, ruleKey, 'RULE_DISABLED');
+          return { created: false as const };
+        }
 
         if (event.eventType === 'LEAD_CREATED' && event.leadId) {
           const leads = await tx.$queryRawUnsafe<Array<{ ownerUserId: string | null }>>(
@@ -182,38 +220,29 @@ export class CrmAutomationService {
              WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
              LIMIT 1`,
             event.leadId,
-            scope.tenantId,
-            scope.companyId,
+            eventScope.tenantId,
+            eventScope.companyId,
             event.branchId,
           );
           const ownerUserId = leads[0]?.ownerUserId;
           if (!ownerUserId) {
-            await this.markSourceEvent(
-              tx,
-              scope,
-              event,
-              effectiveActorUserId,
-              'LEAD_FIRST_TOUCH',
-            );
+            await this.markSourceEvent(tx, eventScope, event, effectiveActorUserId, ruleKey, 'NO_OWNER');
             return { created: false as const };
           }
-          const followUp = await this.createFollowUpOnce(tx, scope, {
+          const delayHours = this.numberConfig(rule.config, 'delayHours', 24, 1, 720);
+          const channel = this.channelConfig(rule.config);
+          const followUp = await this.createFollowUpOnce(tx, eventScope, {
             leadId: event.leadId,
             branchId: event.branchId,
             assignedUserId: ownerUserId,
             actorUserId: effectiveActorUserId,
-            dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+            channel,
+            dueAt: new Date(Date.now() + delayHours * 60 * 60 * 1000),
             note: 'Otomatik takip: yeni lead için ilk temas.',
             automationKey: `LEAD_FIRST_TOUCH:${event.leadId}`,
-            rule: 'LEAD_FIRST_TOUCH',
+            rule: ruleKey,
           });
-          await this.markSourceEvent(
-            tx,
-            scope,
-            event,
-            effectiveActorUserId,
-            'LEAD_FIRST_TOUCH',
-          );
+          await this.markSourceEvent(tx, eventScope, event, effectiveActorUserId, ruleKey);
           return followUp;
         }
 
@@ -231,40 +260,32 @@ export class CrmAutomationService {
              WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
              LIMIT 1`,
             event.opportunityId,
-            scope.tenantId,
-            scope.companyId,
+            eventScope.tenantId,
+            eventScope.companyId,
             event.branchId,
           );
           const opportunity = opportunities[0];
           if (!opportunity?.ownerUserId || ['WON', 'LOST'].includes(opportunity.stage)) {
-            await this.markSourceEvent(
-              tx,
-              scope,
-              event,
-              effectiveActorUserId,
-              'OPPORTUNITY_STAGE_FOLLOW_UP',
-            );
+            await this.markSourceEvent(tx, eventScope, event, effectiveActorUserId, ruleKey, 'NOT_ACTIONABLE');
             return { created: false as const };
           }
-          const delayDays = opportunity.stage === 'NEGOTIATION' ? 1 : 2;
-          const followUp = await this.createFollowUpOnce(tx, scope, {
+          const defaultDelayDays = this.numberConfig(rule.config, 'defaultDelayDays', 2, 1, 90);
+          const negotiationDelayDays = this.numberConfig(rule.config, 'negotiationDelayDays', 1, 1, 90);
+          const delayDays = opportunity.stage === 'NEGOTIATION' ? negotiationDelayDays : defaultDelayDays;
+          const channel = this.channelConfig(rule.config);
+          const followUp = await this.createFollowUpOnce(tx, eventScope, {
             leadId: opportunity.leadId,
             opportunityId: event.opportunityId,
             branchId: event.branchId,
             assignedUserId: opportunity.ownerUserId,
             actorUserId: effectiveActorUserId,
+            channel,
             dueAt: new Date(Date.now() + delayDays * 24 * 60 * 60 * 1000),
             note: `Otomatik takip: fırsat ${opportunity.stage} aşamasına geçti.`,
             automationKey: `OPPORTUNITY_STAGE:${event.opportunityId}:${opportunity.stage}:v${opportunity.version}`,
-            rule: 'OPPORTUNITY_STAGE_FOLLOW_UP',
+            rule: ruleKey,
           });
-          await this.markSourceEvent(
-            tx,
-            scope,
-            event,
-            effectiveActorUserId,
-            'OPPORTUNITY_STAGE_FOLLOW_UP',
-          );
+          await this.markSourceEvent(tx, eventScope, event, effectiveActorUserId, ruleKey);
           return followUp;
         }
 
@@ -283,6 +304,7 @@ export class CrmAutomationService {
     event: PendingEventRow,
     actorUserId: string,
     rule: string,
+    reason?: string,
   ) {
     await tx.$executeRawUnsafe(
       `INSERT INTO crm_events(
@@ -299,16 +321,24 @@ export class CrmAutomationService {
         automationKey: `SOURCE_EVENT:${event.id}`,
         rule,
         markerOnly: true,
+        ...(reason ? { reason } : {}),
       }),
     );
   }
 
   async runStaleOpportunitySweep(
     scope: CrmAutomationScope,
-    staleDays = 14,
+    staleDaysOverride?: number,
     actorUserId?: string,
   ) {
+    const rule = await this.rules.get(scope, 'STALE_OPPORTUNITY_FOLLOW_UP');
+    const staleDays = staleDaysOverride ?? this.numberConfig(rule.config, 'staleDays', 14, 1, 90);
+    const delayHours = this.numberConfig(rule.config, 'delayHours', 24, 1, 720);
+    const channel = this.channelConfig(rule.config);
     const staleBefore = new Date(Date.now() - staleDays * 24 * 60 * 60 * 1000);
+    if (!rule.enabled) {
+      return { scanned: 0, created: 0, skipped: 0, staleDays, staleBefore, disabled: true };
+    }
     const rows = await this.prisma.$queryRawUnsafe<StaleOpportunityRow[]>(
       `SELECT id,branch_id AS "branchId",owner_user_id AS "ownerUserId",updated_at AS "updatedAt"
        FROM crm_opportunities
@@ -328,13 +358,15 @@ export class CrmAutomationService {
     let created = 0;
     let skipped = 0;
     for (const row of rows) {
+      const rowScope = this.branchScope(scope, row.branchId);
       const result = await this.prisma.$transaction((tx) =>
-        this.createFollowUpOnce(tx, scope, {
+        this.createFollowUpOnce(tx, rowScope, {
           opportunityId: row.id,
           branchId: row.branchId,
           assignedUserId: row.ownerUserId,
           actorUserId: actorUserId ?? row.ownerUserId,
-          dueAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
+          channel,
+          dueAt: new Date(Date.now() + delayHours * 60 * 60 * 1000),
           note: `Otomatik takip: fırsat ${staleDays}+ gündür hareketsiz.`,
           automationKey: `STALE_OPPORTUNITY:${row.id}:${row.updatedAt.toISOString()}`,
           rule: 'STALE_OPPORTUNITY_FOLLOW_UP',
@@ -344,6 +376,6 @@ export class CrmAutomationService {
       else skipped += 1;
     }
 
-    return { scanned: rows.length, created, skipped, staleDays, staleBefore };
+    return { scanned: rows.length, created, skipped, staleDays, staleBefore, disabled: false };
   }
 }
