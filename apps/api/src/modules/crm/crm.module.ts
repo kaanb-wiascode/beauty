@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmAutomationSchedulerService } from './crm-automation-scheduler.service';
 import { CrmAutomationService } from './crm-automation.service';
 import { CrmCommercialController } from './crm-commercial.controller';
 import { CrmController } from './crm.controller';
@@ -20,6 +21,7 @@ import { CrmService } from './crm.service';
     CrmCustomer360Service,
     CrmReminderService,
     CrmAutomationService,
+    CrmAutomationSchedulerService,
   ],
   exports: [CrmService, CrmOpportunityService, CrmOperationsService],
 })
