@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, ConflictException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import type { CrmAutomationScope } from './crm-automation.service';
 
@@ -74,10 +74,17 @@ export class CrmAutomationRulesService {
     input: { enabled: boolean; config: Record<string, unknown>; version?: number },
     actorUserId: string,
   ) {
-    if (!scope.branchId) throw new Error('Active branch is required.');
+    if (!scope.branchId) {
+      throw new BadRequestException('Active branch is required.');
+    }
     const config = { ...DEFAULTS[ruleKey], ...input.config };
     const rows = await this.prisma.$queryRawUnsafe<
-      Array<{ enabled: boolean; config: Record<string, unknown>; version: number }>
+      Array<{
+        id: string;
+        enabled: boolean;
+        config: Record<string, unknown>;
+        version: number;
+      }>
     >(
       `INSERT INTO crm_automation_rules(
          tenant_id,company_id,branch_id,rule_key,enabled,config,created_by_user_id,updated_by_user_id
@@ -89,7 +96,7 @@ export class CrmAutomationRulesService {
          updated_at=NOW(),
          version=crm_automation_rules.version+1
        WHERE $8::int IS NULL OR crm_automation_rules.version=$8::int
-       RETURNING enabled,config,version`,
+       RETURNING id,enabled,config,version`,
       scope.tenantId,
       scope.companyId,
       scope.branchId,
@@ -99,16 +106,24 @@ export class CrmAutomationRulesService {
       actorUserId,
       input.version ?? null,
     );
-    if (!rows[0]) throw new Error('Automation rule version conflict.');
+    if (!rows[0]) {
+      throw new ConflictException('Automation rule version conflict.');
+    }
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO crm_events(
-         tenant_id,company_id,branch_id,event_type,actor_user_id,metadata
-       ) VALUES($1::text,$2::text,$3::text,'AUTOMATION_RULE_UPDATED',$4::text,$5::jsonb)`,
+         tenant_id,company_id,branch_id,automation_rule_id,event_type,actor_user_id,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::uuid,'AUTOMATION_RULE_UPDATED',$5::text,$6::jsonb)`,
       scope.tenantId,
       scope.companyId,
       scope.branchId,
+      rows[0].id,
       actorUserId,
-      JSON.stringify({ ruleKey, enabled: rows[0].enabled, config: rows[0].config, version: rows[0].version }),
+      JSON.stringify({
+        ruleKey,
+        enabled: rows[0].enabled,
+        config: rows[0].config,
+        version: rows[0].version,
+      }),
     );
     return {
       ruleKey,
