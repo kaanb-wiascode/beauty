@@ -4,8 +4,9 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
+import { CustomerSearchPicker } from "@/components/customer-search-picker";
 import { Alert, Button, Field, GlassCard, PageHeader, Spinner, TextInput } from "@/components/ui";
-import { api, ApiError, withQuery } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 
 type Customer = {
@@ -14,16 +15,6 @@ type Customer = {
   lastName: string;
   phone: string | null;
   email: string | null;
-};
-
-type Paginated<T> = {
-  data: T[];
-  meta: {
-    total: number;
-    page: number;
-    limit: number;
-    totalPages: number;
-  };
 };
 
 type Assignee = {
@@ -65,11 +56,8 @@ export default function NewCustomerOpportunityPage() {
   const canManageCrm = hasPermission("crm", "manage");
 
   const [customer, setCustomer] = useState<Customer | null>(null);
-  const [customers, setCustomers] = useState<Customer[]>([]);
-  const [selectedCustomerId, setSelectedCustomerId] = useState(initialCustomerId);
   const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [loading, setLoading] = useState(true);
-  const [customerLoading, setCustomerLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [form, setForm] = useState<FormState>({
@@ -89,7 +77,6 @@ export default function NewCustomerOpportunityPage() {
         setLoading(true);
         setError("");
         const assigneePromise = api<Assignee[]>("/crm/assignees");
-
         if (initialCustomerId) {
           const [customerResult, assigneeResult] = await Promise.all([
             api<Customer>(`/customers/${initialCustomerId}`),
@@ -104,14 +91,8 @@ export default function NewCustomerOpportunityPage() {
           }));
           return;
         }
-
-        const [customerResult, assigneeResult] = await Promise.all([
-          api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
-          assigneePromise,
-        ]);
-        if (cancelled) return;
-        setCustomers(customerResult.data);
-        setAssignees(assigneeResult);
+        const assigneeResult = await assigneePromise;
+        if (!cancelled) setAssignees(assigneeResult);
       } catch (err) {
         if (!cancelled) {
           setError(err instanceof ApiError ? err.message : "Fırsat formu hazırlanamadı.");
@@ -128,29 +109,19 @@ export default function NewCustomerOpportunityPage() {
   }, [initialCustomerId]);
 
   const customerDescription = useMemo(() => {
-    if (!customer) return "Mevcut bir müşteri seçip CRM satış fırsatı oluşturun.";
+    if (!customer) return "Müşteriyi ad, telefon veya e-posta ile arayıp CRM satış fırsatı oluşturun.";
     const contact = customer.phone || customer.email;
     return contact ? `${fullName(customer)} · ${contact}` : fullName(customer);
   }, [customer]);
 
-  async function selectCustomer(id: string) {
-    setSelectedCustomerId(id);
-    setCustomer(null);
+  function chooseCustomer(next: Customer | null) {
+    setCustomer(next);
     setError("");
-    if (!id) return;
-
-    setCustomerLoading(true);
-    try {
-      const result = await api<Customer>(`/customers/${id}`);
-      setCustomer(result);
+    if (next) {
       setForm((current) => ({
         ...current,
-        title: `${fullName(result)} - Satış fırsatı`,
+        title: `${fullName(next)} - Satış fırsatı`,
       }));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi.");
-    } finally {
-      setCustomerLoading(false);
     }
   }
 
@@ -210,24 +181,9 @@ export default function NewCustomerOpportunityPage() {
           <form onSubmit={submit} className="space-y-5">
             {!initialCustomerId ? (
               <Field label="Müşteri">
-                <select
-                  required
-                  value={selectedCustomerId}
-                  onChange={(event) => void selectCustomer(event.target.value)}
-                  disabled={customerLoading || saving}
-                  className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]"
-                >
-                  <option value="">Müşteri seçin</option>
-                  {customers.map((row) => (
-                    <option key={row.id} value={row.id}>
-                      {fullName(row)}{row.phone ? ` · ${row.phone}` : row.email ? ` · ${row.email}` : ""}
-                    </option>
-                  ))}
-                </select>
+                <CustomerSearchPicker selected={customer} disabled={saving} onSelect={chooseCustomer} />
               </Field>
             ) : null}
-
-            {customerLoading ? <Spinner label="Müşteri bilgileri yükleniyor..." /> : null}
 
             {customer ? (
               <>
@@ -309,11 +265,13 @@ export default function NewCustomerOpportunityPage() {
                 </div>
 
                 <div className="flex flex-col-reverse gap-2 border-t border-[var(--line)] pt-4 sm:flex-row sm:justify-end">
-                  <Link href={`/customers/${customer.id}`}><Button type="button" variant="secondary" disabled={saving}>Vazgeç</Button></Link>
+                  <Link href={customer ? `/customers/${customer.id}` : "/crm"}><Button type="button" variant="secondary" disabled={saving}>Vazgeç</Button></Link>
                   <Button type="submit" disabled={saving}>{saving ? "Oluşturuluyor..." : "Fırsatı oluştur"}</Button>
                 </div>
               </>
-            ) : null}
+            ) : (
+              <p className="rounded-[16px] border border-dashed border-[var(--line)] px-4 py-5 text-[12px] text-[var(--muted)]">Devam etmek için en az iki karakterle müşteri arayın ve bir kayıt seçin.</p>
+            )}
           </form>
         </GlassCard>
       ) : null}
