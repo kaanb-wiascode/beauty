@@ -16,7 +16,6 @@ const LEASE_MINUTES = 10;
 const HEARTBEAT_MS = 2 * 60 * 1000;
 const RUN_INTERVAL_MS = 5 * 60 * 1000;
 const START_DELAY_MS = 45_000;
-const STALE_DAYS = 14;
 
 type ScopeRow = {
   tenantId: string;
@@ -88,7 +87,7 @@ export class CrmAutomationSchedulerService
 
   private async scopes(): Promise<CrmAutomationScope[]> {
     const rows = await this.prisma.$queryRawUnsafe<ScopeRow[]>(
-      `WITH candidates AS (
+      `WITH event_candidates AS (
          SELECT e.tenant_id,e.company_id,e.branch_id
          FROM crm_events e
          WHERE e.branch_id IS NOT NULL
@@ -101,29 +100,41 @@ export class CrmAutomationSchedulerService
                AND a.event_type='AUTOMATION_EXECUTED'
                AND a.metadata->>'sourceEventId'=e.id::text
            )
-         UNION
+       ), stale_candidates AS (
          SELECT o.tenant_id,o.company_id,o.branch_id
          FROM crm_opportunities o
+         LEFT JOIN crm_automation_rules r
+           ON r.tenant_id=o.tenant_id
+          AND r.company_id=o.company_id
+          AND r.branch_id=o.branch_id
+          AND r.rule_key='STALE_OPPORTUNITY_FOLLOW_UP'
          WHERE o.branch_id IS NOT NULL
            AND o.owner_user_id IS NOT NULL
            AND o.stage NOT IN ('WON','LOST')
-           AND o.updated_at < NOW() - ($1::int * INTERVAL '1 day')
+           AND COALESCE(r.enabled,TRUE)=TRUE
+           AND o.updated_at < NOW() - (
+             CASE
+               WHEN (r.config->>'staleDays') ~ '^[0-9]+$'
+                 THEN LEAST(GREATEST((r.config->>'staleDays')::int,1),90)
+               ELSE 14
+             END * INTERVAL '1 day'
+           )
+       ), candidates AS (
+         SELECT * FROM event_candidates
+         UNION
+         SELECT * FROM stale_candidates
        )
        SELECT tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId"
        FROM candidates
        ORDER BY tenant_id,company_id,branch_id
        LIMIT 500`,
-      STALE_DAYS,
     );
     return rows;
   }
 
   private async processScope(scope: CrmAutomationScope) {
     const events = await this.automations.processPendingEvents(scope);
-    const stale = await this.automations.runStaleOpportunitySweep(
-      scope,
-      STALE_DAYS,
-    );
+    const stale = await this.automations.runStaleOpportunitySweep(scope);
     return {
       created: events.created + stale.created,
       scanned: events.scanned + stale.scanned,
