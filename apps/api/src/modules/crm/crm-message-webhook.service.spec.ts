@@ -1,0 +1,116 @@
+import { UnauthorizedException } from '@nestjs/common';
+import { CrmMessageWebhookService } from './crm-message-webhook.service';
+
+describe('CrmMessageWebhookService', () => {
+  const delivery = {
+    type: 'DELIVERY' as const,
+    externalEventId: 'evt-1',
+    externalMessageId: 'provider-msg-1',
+    tenantId: 'tenant-1',
+    companyId: 'company-1',
+    branchId: 'branch-1',
+    status: 'DELIVERED' as const,
+  };
+
+  function makeService(options?: { verified?: boolean; event?: unknown; queries?: unknown[][] }) {
+    const queryResults = [...(options?.queries ?? [])];
+    const query = jest.fn().mockImplementation(async () => queryResults.shift() ?? []);
+    const execute = jest.fn().mockResolvedValue(1);
+    const transaction = jest.fn().mockImplementation(async (work: (tx: unknown) => Promise<unknown>) =>
+      work({ $queryRawUnsafe: query, $executeRawUnsafe: execute }),
+    );
+    const provider = {
+      key: 'provider-a',
+      channels: ['WHATSAPP'] as const,
+      send: jest.fn(),
+      verifyWebhook: jest.fn().mockResolvedValue(options?.verified ?? true),
+      parseWebhook: jest.fn().mockResolvedValue(options?.event ?? delivery),
+    };
+    const registry = { resolveByKey: jest.fn().mockReturnValue(provider) };
+    const service = new CrmMessageWebhookService(
+      { $transaction: transaction } as never,
+      registry as never,
+    );
+    return { service, provider, registry, query, execute, transaction };
+  }
+
+  it('rejects an invalid signature before touching the database', async () => {
+    const { service, transaction, provider } = makeService({ verified: false });
+
+    await expect(
+      service.handle('provider-a', { headers: {}, body: {} }),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(provider.parseWebhook).not.toHaveBeenCalled();
+    expect(transaction).not.toHaveBeenCalled();
+  });
+
+  it('treats a repeated external event as idempotent', async () => {
+    const { service, query } = makeService({ queries: [[]] });
+
+    await expect(
+      service.handle('provider-a', { headers: {}, body: {} }),
+    ).resolves.toEqual({ idempotent: true, outcome: 'DUPLICATE' });
+
+    expect(query).toHaveBeenCalledTimes(1);
+  });
+
+  it('applies a delivery receipt to the scoped provider message', async () => {
+    const { service, query, execute } = makeService({
+      queries: [
+        [{ id: 'webhook-1' }],
+        [{ id: 'message-1', status: 'SENT' }],
+        [{ id: 'message-1' }],
+      ],
+    });
+
+    await expect(
+      service.handle('provider-a', { headers: {}, body: {} }),
+    ).resolves.toEqual({
+      idempotent: false,
+      outcome: 'PROCESSED',
+      messageId: 'message-1',
+    });
+
+    expect(query.mock.calls[1][0]).toContain('provider_key=$4');
+    expect(query.mock.calls[2][0]).toContain("status IN ('QUEUED','SENT')");
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('UPDATE crm_message_webhook_events'),
+      'webhook-1',
+      'message-1',
+      'PROCESSED',
+      null,
+    );
+  });
+
+  it('stores a mapped inbound provider message with no fake user actor', async () => {
+    const inbound = {
+      type: 'INBOUND' as const,
+      externalEventId: 'evt-in-1',
+      externalMessageId: 'in-1',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      channel: 'WHATSAPP' as const,
+      sender: '+905551112233',
+      recipient: '+902120000000',
+      body: 'Merhaba',
+      customerId: 'customer-1',
+    };
+    const { service, query } = makeService({
+      event: inbound,
+      queries: [[{ id: 'webhook-2' }], [{ id: 'message-2' }]],
+    });
+
+    await expect(
+      service.handle('provider-a', { headers: {}, body: {} }),
+    ).resolves.toEqual({
+      idempotent: false,
+      outcome: 'PROCESSED',
+      messageId: 'message-2',
+    });
+
+    expect(query.mock.calls[1][0]).toContain("'INBOUND'");
+    expect(query.mock.calls[1][0]).toContain('NULL,NOW(),NOW()');
+  });
+});
