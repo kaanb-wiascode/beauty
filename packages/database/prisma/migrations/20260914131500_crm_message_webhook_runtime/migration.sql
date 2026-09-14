@@ -14,7 +14,7 @@ CREATE TABLE crm_message_webhook_events (
  error_message TEXT,
  received_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
  processed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
- UNIQUE(provider_key,external_event_id)
+ UNIQUE(tenant_id,company_id,branch_id,provider_key,external_event_id)
 );
 CREATE INDEX crm_message_webhook_scope_time_idx ON crm_message_webhook_events(tenant_id,company_id,branch_id,received_at DESC);
 CREATE INDEX crm_message_webhook_message_idx ON crm_message_webhook_events(message_id,received_at DESC) WHERE message_id IS NOT NULL;
