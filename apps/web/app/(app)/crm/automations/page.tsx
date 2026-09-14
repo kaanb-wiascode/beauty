@@ -37,6 +37,34 @@ type AutomationRule = {
   overridden: boolean;
 };
 
+type AutomationRun = {
+  id: string;
+  origin: "MANUAL" | "SCHEDULER";
+  operation: "EVENT_PROCESSOR" | "STALE_SWEEP";
+  status: "SUCCEEDED" | "FAILED";
+  scanned: number;
+  created: number;
+  skipped: number;
+  failed: number;
+  metrics: Record<string, unknown>;
+  errorMessage: string | null;
+  startedAt: string;
+  completedAt: string;
+};
+
+type AutomationHistory = {
+  summary: { runs7d: number; created7d: number; failed7d: number };
+  latestRuns: AutomationRun[];
+  ruleActivity: Array<{ ruleKey: RuleKey; lastActivityAt: string; executions7d: number }>;
+  ruleChanges: Array<{
+    eventId: string;
+    ruleKey: RuleKey;
+    actorUserId: string;
+    metadata: Record<string, unknown>;
+    createdAt: string;
+  }>;
+};
+
 const CHANNELS: Array<{ value: Channel; label: string }> = [
   { value: "CALL", label: "Arama" },
   { value: "WHATSAPP", label: "WhatsApp" },
@@ -77,13 +105,21 @@ function channelOf(config: Record<string, unknown>): Channel {
   return CHANNELS.some((item) => item.value === value) ? value : "CALL";
 }
 
+function formatDate(value?: string) {
+  if (!value) return "—";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("tr-TR");
+}
+
 export default function CrmAutomationsPage() {
   const canManage = hasPermission("crm", "manage");
   const activeBranch = hasActiveBranch();
   const [running, setRunning] = useState<"events" | "stale" | null>(null);
   const [savingRule, setSavingRule] = useState<RuleKey | null>(null);
   const [rules, setRules] = useState<AutomationRule[]>([]);
+  const [history, setHistory] = useState<AutomationHistory | null>(null);
   const [loadingRules, setLoadingRules] = useState(true);
+  const [loadingHistory, setLoadingHistory] = useState(true);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [lastResult, setLastResult] = useState<{ label: string; result: AutomationResult } | null>(null);
@@ -94,7 +130,6 @@ export default function CrmAutomationsPage() {
       return;
     }
     setLoadingRules(true);
-    setError("");
     try {
       setRules(await api<AutomationRule[]>("/crm/automation-rules"));
     } catch (requestError) {
@@ -104,9 +139,25 @@ export default function CrmAutomationsPage() {
     }
   }, [activeBranch]);
 
+  const loadHistory = useCallback(async () => {
+    if (!activeBranch) {
+      setLoadingHistory(false);
+      return;
+    }
+    setLoadingHistory(true);
+    try {
+      setHistory(await api<AutomationHistory>("/crm/operations/automations/history?limit=30"));
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Otomasyon geçmişi yüklenemedi.");
+    } finally {
+      setLoadingHistory(false);
+    }
+  }, [activeBranch]);
+
   useEffect(() => {
     void loadRules();
-  }, [loadRules]);
+    void loadHistory();
+  }, [loadRules, loadHistory]);
 
   function changeRule(ruleKey: RuleKey, patch: Partial<AutomationRule>) {
     setRules((current) => current.map((rule) => rule.ruleKey === ruleKey ? { ...rule, ...patch } : rule));
@@ -134,6 +185,7 @@ export default function CrmAutomationsPage() {
       });
       changeRule(rule.ruleKey, updated);
       setSuccess(`${RULE_META[rule.ruleKey].title} kuralı kaydedildi.`);
+      await loadHistory();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Otomasyon kuralı kaydedilemedi.");
       await loadRules();
@@ -156,8 +208,10 @@ export default function CrmAutomationsPage() {
         label: kind === "events" ? "CRM event otomasyonları" : "Durağan fırsat sweep'i",
         result,
       });
+      await loadHistory();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Otomasyon çalıştırılamadı.");
+      await loadHistory();
     } finally {
       setRunning(null);
     }
@@ -166,15 +220,17 @@ export default function CrmAutomationsPage() {
   return <div className="space-y-6">
     <PageHeader
       title="CRM Otomasyonları"
-      description="Branch bazlı otomasyon kurallarını yönetin. Runtime arka planda otomatik çalışır; değişiklikler audit event'i ile kaydedilir."
+      description="Branch bazlı otomasyon kurallarını yönetin ve scheduler/manual execution geçmişini aynı ekrandan izleyin."
       action={canManage && activeBranch ? <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={Boolean(running)} onClick={() => void run("events")}>{running === "events" ? "İşleniyor..." : "Event Kuyruğunu Şimdi İşle"}</Button><Button disabled={Boolean(running)} onClick={() => void run("stale")}>{running === "stale" ? "Taranıyor..." : "Durağanları Şimdi İşle"}</Button></div> : undefined}
     />
 
-    {!activeBranch ? <Alert>Otomasyon kurallarını yönetmek için aktif bir şube seçin.</Alert> : null}
-    {activeBranch && !canManage ? <Alert>Kuralları görüntüleyebilirsiniz; değiştirmek veya manuel çalıştırmak için crm.manage yetkisi gerekir.</Alert> : null}
+    {!activeBranch ? <Alert>Otomasyon kurallarını yönetmek ve geçmişi görmek için aktif bir şube seçin.</Alert> : null}
+    {activeBranch && !canManage ? <Alert>Kuralları ve execution geçmişini görüntüleyebilirsiniz; değiştirmek veya manuel çalıştırmak için crm.manage yetkisi gerekir.</Alert> : null}
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success}</Alert> : null}
     {lastResult ? <Alert tone="success">{lastResult.label}: {lastResult.result.scanned} kayıt tarandı, {lastResult.result.created} takip oluşturuldu, {lastResult.result.skipped} kayıt atlandı.</Alert> : null}
+
+    {activeBranch ? <AutomationOverview history={history} loading={loadingHistory} /> : null}
 
     {loadingRules ? <Spinner label="Otomasyon kuralları yükleniyor..." /> : null}
 
@@ -184,20 +240,84 @@ export default function CrmAutomationsPage() {
         rule={rule}
         canManage={canManage}
         saving={savingRule === rule.ruleKey}
+        activity={history?.ruleActivity.find((item) => item.ruleKey === rule.ruleKey)}
         onEnabled={(enabled) => changeRule(rule.ruleKey, { enabled })}
         onConfig={(key, value) => changeConfig(rule.ruleKey, key, value)}
         onSave={() => void saveRule(rule)}
       />)}
     </section> : null}
 
+    {activeBranch ? <ExecutionHistory history={history} loading={loadingHistory} /> : null}
+
     <GlassCard>
       <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Çalışma Modeli</p>
-      <h2 className="mt-1 text-[18px] font-semibold">Dağıtık, event-driven ve audit edilebilir</h2>
+      <h2 className="mt-1 text-[18px] font-semibold">Dağıtık, event-driven ve gözlemlenebilir</h2>
       <div className="mt-4 grid gap-3 text-[12px] leading-5 text-[var(--muted)] md:grid-cols-2">
         <p>Her otomatik takip normal <strong className="text-[var(--ink)]">crm_follow_ups</strong> kaydıdır; ayrı ve görünmez bir görev sistemi oluşmaz.</p>
         <p>Kural değişiklikleri <strong className="text-[var(--ink)]">AUTOMATION_RULE_UPDATED</strong>, execution&apos;lar <strong className="text-[var(--ink)]">AUTOMATION_EXECUTED</strong> olayı bırakır.</p>
-        <p>Runtime yaklaşık her 5 dakikada aday scope&apos;ları tarar. Stale discovery artık branch&apos;in ayarlanmış gün eşiğini kullanır.</p>
+        <p>Her manual/scheduler processor çalışması ayrıca <strong className="text-[var(--ink)]">crm_automation_runs</strong> kaydı oluşturur; success/failure ve aggregate metrikler kalıcıdır.</p>
         <p>Tenant/company/branch izolasyonu, distributed lease, transaction advisory lock ve unique automation key index&apos;i birlikte duplicate üretimi engeller.</p>
+      </div>
+    </GlassCard>
+  </div>;
+}
+
+function AutomationOverview({ history, loading }: { history: AutomationHistory | null; loading: boolean }) {
+  if (loading && !history) return <Spinner label="Otomasyon çalışma geçmişi yükleniyor..." />;
+  const summary = history?.summary ?? { runs7d: 0, created7d: 0, failed7d: 0 };
+  return <section className="grid gap-4 md:grid-cols-3">
+    <MetricCard label="7 Günlük Çalışma" value={summary.runs7d} />
+    <MetricCard label="Oluşturulan Takip" value={summary.created7d} />
+    <MetricCard label="Başarısız Çalışma" value={summary.failed7d} danger={summary.failed7d > 0} />
+  </section>;
+}
+
+function MetricCard({ label, value, danger = false }: { label: string; value: number; danger?: boolean }) {
+  return <GlassCard>
+    <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">{label}</p>
+    <p className={`mt-2 text-[30px] font-semibold tracking-[-.04em] ${danger ? "text-[#8f3d3d]" : "text-[var(--ink)]"}`}>{value}</p>
+  </GlassCard>;
+}
+
+function ExecutionHistory({ history, loading }: { history: AutomationHistory | null; loading: boolean }) {
+  return <div className="grid gap-4 xl:grid-cols-[1.35fr_.65fr]">
+    <GlassCard>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Execution History</p>
+          <h2 className="mt-1 text-[18px] font-semibold">Son Çalışmalar</h2>
+        </div>
+        {loading ? <span className="text-[11px] text-[var(--muted)]">Yenileniyor...</span> : null}
+      </div>
+      <div className="mt-4 space-y-3">
+        {!history?.latestRuns.length ? <p className="text-[12px] text-[var(--muted)]">Henüz kayıtlı execution yok.</p> : history.latestRuns.map((run) => <div key={run.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="flex items-center gap-2">
+              <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${run.status === "SUCCEEDED" ? "bg-[rgba(47,122,86,0.10)] text-[#2d5c45]" : "bg-[rgba(143,61,61,0.08)] text-[#7a3333]"}`}>{run.status === "SUCCEEDED" ? "BAŞARILI" : "HATALI"}</span>
+              <span className="text-[11px] font-semibold text-[var(--ink)]">{run.operation === "EVENT_PROCESSOR" ? "Event Processor" : "Stale Sweep"}</span>
+              <span className="text-[10px] text-[var(--muted)]">{run.origin === "SCHEDULER" ? "Scheduler" : "Manuel"}</span>
+            </div>
+            <span className="text-[10px] text-[var(--muted)]">{formatDate(run.startedAt)}</span>
+          </div>
+          <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-[10px] text-[var(--muted)]">
+            <span>Taranan <strong className="text-[var(--ink)]">{run.scanned}</strong></span>
+            <span>Oluşturulan <strong className="text-[var(--ink)]">{run.created}</strong></span>
+            <span>Atlanan <strong className="text-[var(--ink)]">{run.skipped}</strong></span>
+            {run.failed ? <span>Hata <strong className="text-[#8f3d3d]">{run.failed}</strong></span> : null}
+          </div>
+          {run.errorMessage ? <p className="mt-2 text-[10px] leading-4 text-[#8f3d3d]">{run.errorMessage}</p> : null}
+        </div>)}
+      </div>
+    </GlassCard>
+
+    <GlassCard>
+      <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Rule Changes</p>
+      <h2 className="mt-1 text-[18px] font-semibold">Değişiklik Geçmişi</h2>
+      <div className="mt-4 space-y-3">
+        {!history?.ruleChanges.length ? <p className="text-[12px] text-[var(--muted)]">Henüz rule değişikliği yok.</p> : history.ruleChanges.map((change) => <div key={change.eventId} className="border-b border-[var(--line)] pb-3 last:border-0 last:pb-0">
+          <p className="text-[11px] font-semibold text-[var(--ink)]">{RULE_META[change.ruleKey]?.title ?? change.ruleKey}</p>
+          <p className="mt-1 text-[10px] text-[var(--muted)]">{formatDate(change.createdAt)} · v{String(change.metadata.version ?? "—")} · {change.metadata.enabled === false ? "Kapalı" : "Aktif"}</p>
+        </div>)}
       </div>
     </GlassCard>
   </div>;
@@ -207,6 +327,7 @@ function RuleEditor({
   rule,
   canManage,
   saving,
+  activity,
   onEnabled,
   onConfig,
   onSave,
@@ -214,6 +335,7 @@ function RuleEditor({
   rule: AutomationRule;
   canManage: boolean;
   saving: boolean;
+  activity?: { ruleKey: RuleKey; lastActivityAt: string; executions7d: number };
   onEnabled: (enabled: boolean) => void;
   onConfig: (key: string, value: unknown) => void;
   onSave: () => void;
@@ -238,7 +360,11 @@ function RuleEditor({
     </div>
 
     <p className="mt-3 text-[12px] leading-5 text-[var(--muted)]">{meta.description}</p>
-    <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{rule.overridden ? `Branch override · v${rule.version}` : "Sistem varsayılanı"}</p>
+    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[var(--muted-soft)]">
+      <span>{rule.overridden ? `Branch override · v${rule.version}` : "Sistem varsayılanı"}</span>
+      <span>7g execution: {activity?.executions7d ?? 0}</span>
+      <span>Son aktivite: {formatDate(activity?.lastActivityAt)}</span>
+    </div>
 
     <div className="mt-5 grid gap-4">
       {rule.ruleKey === "LEAD_FIRST_TOUCH" ? <>
