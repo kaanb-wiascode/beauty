@@ -78,7 +78,7 @@ export default function CrmAutomationsPage() {
         <p>Her otomatik takip normal <strong className="text-[var(--ink)]">crm_follow_ups</strong> kaydıdır; ayrı ve görünmez bir görev sistemi oluşmaz.</p>
         <p>Her execution <strong className="text-[var(--ink)]">AUTOMATION_EXECUTED</strong> olayı bırakır. Kaynak event, rule ve automation key CRM timeline üzerinden audit edilebilir.</p>
         <p>İşlemler tenant/company/branch scope içinde çalışır. Event processor en fazla 100 pending event, stale sweep en fazla 100 açık fırsat işler.</p>
-        <p>Bu v1 manuel tetiklenebilir processor'dır. Aynı servis daha sonra scheduler/queue worker tarafından güvenle çağrılabilecek şekilde tasarlanmıştır.</p>
+        <p>Bu v1 manuel tetiklenebilir processor&apos;dır. Aynı servis daha sonra scheduler/queue worker tarafından güvenle çağrılabilecek şekilde tasarlanmıştır.</p>
       </div>
     </GlassCard>
   </div>;
