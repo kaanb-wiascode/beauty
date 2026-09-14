@@ -11,7 +11,7 @@ const LOCAL_CORS_ORIGINS = [
 ];
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
   const express = app.getHttpAdapter().getInstance();
 
   express.disable('x-powered-by');
