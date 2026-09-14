@@ -53,13 +53,14 @@ describe('CrmAutomationService', () => {
     );
     expect(tx.$executeRawUnsafe).toHaveBeenCalledWith(
       expect.stringContaining("'AUTOMATION_EXECUTED'"),
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
-      expect.anything(),
+      'tenant-1',
+      'company-1',
+      'branch-1',
+      'lead-1',
+      null,
+      'follow-up-1',
+      'actor-1',
+      expect.stringContaining('LEAD_FIRST_TOUCH:lead-1'),
     );
   });
 
