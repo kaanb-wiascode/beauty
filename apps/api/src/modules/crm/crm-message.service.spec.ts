@@ -1,4 +1,4 @@
-import { ServiceUnavailableException } from '@nestjs/common';
+import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
 import { CrmMessageService } from './crm-message.service';
 
@@ -32,16 +32,18 @@ const baseMessage = {
   updatedAt: new Date(),
 };
 
-function makeService() {
+function makeService(consent: { allowed: boolean; status: string } = { allowed: true, status: 'UNKNOWN' }) {
   const query = jest.fn();
   const execute = jest.fn().mockResolvedValue(1);
   const providers = new CrmMessageProviderRegistryService();
+  const canSendManual = jest.fn().mockResolvedValue(consent);
   const service = new CrmMessageService(
     { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
     { getContext: () => scope } as never,
     providers,
+    { canSendManual } as never,
   );
-  return { service, query, execute, providers };
+  return { service, query, execute, providers, canSendManual };
 }
 
 describe('CrmMessageService', () => {
@@ -96,6 +98,19 @@ describe('CrmMessageService', () => {
       'actor-1',
       null,
     );
+  });
+
+  it('blocks a manual provider send when the contact opted out', async () => {
+    const { service, query, canSendManual } = makeService({ allowed: false, status: 'OPTED_OUT' });
+    query.mockResolvedValueOnce([baseMessage]);
+
+    await expect(service.send(baseMessage.id, 1)).rejects.toBeInstanceOf(ForbiddenException);
+    expect(canSendManual).toHaveBeenCalledWith(
+      { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
+      { customerId: baseMessage.customerId, leadId: null, opportunityId: null },
+      'WHATSAPP',
+    );
+    expect(query).toHaveBeenCalledTimes(1);
   });
 
   it('refuses provider send when no real provider is configured', async () => {
