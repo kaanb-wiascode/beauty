@@ -66,6 +66,21 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
     return { externalMessageId: payload.messages[0].id, status: 'QUEUED' };
   }
 
+  async verifyChallenge(query: Record<string, unknown>) {
+    const mode = String(query['hub.mode'] ?? '');
+    const token = String(query['hub.verify_token'] ?? '');
+    const challenge = String(query['hub.challenge'] ?? '');
+    if (mode !== 'subscribe' || !token || !challenge) return null;
+    const connections = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM crm_message_provider_connections WHERE provider_key='meta-whatsapp' AND channel='WHATSAPP' AND enabled=TRUE`,
+    );
+    for (const connection of connections) {
+      const secrets = await this.vault.load(connection.id);
+      if (secrets?.verifyToken && this.safeEqual(secrets.verifyToken, token)) return challenge;
+    }
+    return null;
+  }
+
   async verifyWebhook(request: CrmProviderWebhookRequest) {
     const rawBody = request.rawBody;
     if (!rawBody) return false;
@@ -80,9 +95,7 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
     const signature = Array.isArray(rawSignature) ? rawSignature[0] : rawSignature;
     if (!signature?.startsWith('sha256=')) return false;
     const expected = `sha256=${createHmac('sha256', secrets.appSecret).update(rawBody).digest('hex')}`;
-    const left = Buffer.from(signature);
-    const right = Buffer.from(expected);
-    return left.length === right.length && timingSafeEqual(left, right);
+    return this.safeEqual(signature, expected);
   }
 
   async parseWebhook(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent> {
@@ -119,5 +132,11 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
       recipient: value?.metadata?.display_phone_number ?? phoneNumberId,
       body: inbound.text.body,
     };
+  }
+
+  private safeEqual(leftValue: string, rightValue: string) {
+    const left = Buffer.from(leftValue);
+    const right = Buffer.from(rightValue);
+    return left.length === right.length && timingSafeEqual(left, right);
   }
 }
