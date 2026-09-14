@@ -6,6 +6,7 @@ import { CrmOperationsController } from './crm-operations.controller';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.service';
 import { CrmOpportunityService } from './crm-opportunity.service';
+import { CrmReminderService } from './crm-reminder.service';
 import { CrmService } from './crm.service';
 
 @Module({
@@ -16,6 +17,7 @@ import { CrmService } from './crm.service';
     CrmOperationsService,
     CrmOpportunityCommercialService,
     CrmCustomer360Service,
+    CrmReminderService,
   ],
   exports: [CrmService, CrmOpportunityService, CrmOperationsService],
 })
