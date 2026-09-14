@@ -24,18 +24,18 @@ Current priorities:
 1. Preserve tenant/company/branch isolation and authorization scope.
 2. Preserve financial idempotency, auditability, concurrency and accounting integrity.
 3. Keep the complete fresh-database migration chain and monorepo quality pipeline green.
-4. Continue CRM operational maturity, automation, communication integrations and Customer 360.
+4. Continue CRM operational maturity, provider integrations, governed communication automation and Customer 360.
 5. Continue frontend/operational UX across Finance, Procurement, Inventory, HR, Quality, Training and Reporting.
 
 ## 3. Latest verified checkpoint
 
 ```text
-369eb60bf72aa0042b9c462f698e74ae0b21e47b
-test(crm): assert rule audit subject linkage
+cf6b5a5bd846b23339e71b35fc8f0e9a8e53550b
+feat(crm): export message provider registry
 
-Monorepo quality #1601 — SUCCESS
-Run ID: 34826608298
-Job ID: 103920123999
+Monorepo quality #1644 — SUCCESS
+Run ID: 34842703393
+Job ID: 103971182957
 ```
 
 Verified pipeline:
@@ -69,9 +69,11 @@ The following rules must not be weakened:
 - Reconciliation remains explicit.
 - Secrets/API credentials are never returned after storage.
 - Internet-banking usernames/passwords are not collected.
-- External providers use the integration layer rather than being embedded into business domains.
+- External providers use integration adapters rather than being embedded into business-domain services.
 - Append-only audit/event records are not rewritten.
 - Scheduled workers require concurrency controls, distributed ownership where applicable and idempotent execution.
+- Provider callbacks require signature verification before domain mutation.
+- Raw provider payloads are not persisted unless a concrete audited requirement justifies the additional PII/secret exposure.
 - Signed object-storage URLs are temporary delivery artifacts, not persisted domain identity.
 
 ## 5. CRM operational state
@@ -87,7 +89,7 @@ Commercial + Stage Management
       ↓
 Follow-up Lifecycle
       ↓
-CRM Cockpit / Action Center / Reminders
+Cockpit / Action Center / Reminders / Communications
       ↓
 WON Opportunity
       ↓
@@ -107,6 +109,7 @@ Implemented CRM capabilities include:
 - Action Center queues for overdue, today and stale work
 - owner-scoped work queues and inline lifecycle actions
 - Customer 360 CRM summary foundation
+- Customer 360 communication timeline
 - reminder feed / operational alert foundation
 - governed WON Opportunity -> Sale draft conversion
 - idempotent Opportunity/Sale linkage with commercial snapshot
@@ -151,7 +154,7 @@ Database model:
 - creator/updater audit users
 - organization scope trigger
 
-`crm_events` now supports `automation_rule_id` as an audited subject. Rule-update events are linked by FK to the real rule record and checked against the same tenant/company/branch.
+`crm_events` supports `automation_rule_id` as an audited subject. Rule-update events are linked by FK to the real rule record and checked against the same tenant/company/branch.
 
 Rule defaults preserve pre-configuration behavior when no branch override exists:
 
@@ -180,24 +183,131 @@ Endpoints:
 
 The stale scheduler discovery query reads each branch's configured inactivity threshold rather than assuming 14 days.
 
-## 8. CRM Automation Center UI
+## 8. CRM Automation Center and execution observability
 
 Route: `/crm/automations`
 
-The Automation Center now provides a branch-scoped rule editor:
+The Automation Center provides a branch-scoped rule editor and runtime observability:
 
 - enable/disable each rule
 - edit delay/evaluation values
 - select follow-up channel
 - display system-default vs branch-override state
 - optimistic version-aware saves
-- reload on save/version conflict
 - manually process pending event automation
 - manually run stale-opportunity sweep using the configured threshold
+- last-7-day execution KPIs
+- latest manual/scheduler execution history
+- created/skipped/failure metrics
+- rule-level last activity
+- rule-change timeline
 
-Rule changes append `AUTOMATION_RULE_UPDATED`; executions append `AUTOMATION_EXECUTED`.
+Execution persistence uses `crm_automation_runs`, scoped by tenant/company/branch. Successful and failed manual/scheduler runs are retained with operation, origin, counts, metrics, timestamps and error details. Rule changes append `AUTOMATION_RULE_UPDATED`; domain executions continue to append `AUTOMATION_EXECUTED`.
 
-## 9. Core commerce / customer operations
+## 9. CRM communication layer
+
+A governed CRM communication foundation is implemented for **EMAIL, SMS and WHATSAPP**.
+
+Database model: `crm_messages`.
+
+Message properties include:
+
+- tenant/company/branch scope
+- Customer / Lead / Opportunity subject linkage
+- INBOUND / OUTBOUND direction
+- DRAFT / QUEUED / SENT / DELIVERED / FAILED / CANCELLED lifecycle
+- provider key and provider external message id
+- recipient, subject and body
+- optimistic version
+- optional idempotency key
+- sent/delivered timestamps and failure reason
+
+Important guarantees:
+
+- provider absence never produces a fake `SENT` state
+- provider send claims a versioned message before external delivery
+- failures are retained as `FAILED`
+- provider external IDs are organization-scoped and de-duplicated
+- communication-history FKs use restrictive deletion semantics where audit/history must be preserved
+- provider-origin inbound records do not invent a synthetic user actor
+
+Main authenticated endpoints:
+
+- `GET /crm/messages`
+- `GET /crm/messages/providers`
+- `GET /crm/messages/:id`
+- `POST /crm/messages/manual`
+- `POST /crm/messages/drafts`
+- `POST /crm/messages/:id/send`
+
+Manual communication logging supports real-world communication performed outside the connected provider. Direct provider delivery remains unavailable until a concrete configured provider adapter is registered.
+
+## 10. CRM provider webhook runtime
+
+The CRM message provider contract now supports outbound delivery plus signed inbound/delivery callbacks.
+
+Provider adapter contract can implement:
+
+- `send(...)`
+- `verifyWebhook(...)`
+- `parseWebhook(...)`
+
+Nest application bootstrap preserves raw request bytes for providers whose signature verification requires the exact request body.
+
+Public provider callback endpoint:
+
+- `POST /crm/messages/webhooks/:providerKey`
+
+This endpoint intentionally does not use JWT/Tenant guards because it is an external provider callback surface. Domain mutation is allowed only after the registered provider adapter verifies the webhook signature.
+
+Normalized webhook events support:
+
+- **DELIVERY** — SENT / DELIVERED / FAILED receipts
+- **INBOUND** — normalized inbound CRM messages
+
+Runtime guarantees:
+
+- invalid signatures are rejected before database mutation
+- external event idempotency is scoped by tenant/company/branch/provider/event id
+- external provider message IDs are also organization-scoped unique keys
+- repeated webhook event IDs are ignored idempotently
+- the same inbound provider message arriving under a different webhook event ID does not create a second CRM message
+- delivery state transitions are monotonic; terminal/delivered states do not regress
+- inbound messages are persisted only when the provider adapter supplies an explicit Customer, Lead or Opportunity mapping
+- the runtime does not guess a CRM subject from ambiguous phone/e-mail matches
+- raw provider payloads are not persisted in the callback audit table
+- `CrmMessageProviderRegistryService` is exported so concrete provider modules can register adapters without embedding provider-specific code into CRM services
+
+Webhook audit model: `crm_message_webhook_events`.
+
+Authenticated observability endpoint:
+
+- `GET /crm/message-webhook-events` — `crm.read`
+
+The callback history is tenant/company/active-branch scoped and shows provider, event type, processing outcome, linked CRM message, message status/channel and ignored/error reason.
+
+## 11. CRM communication UI
+
+Route: `/crm/communications`
+
+The Communication Center now provides:
+
+- unified inbound/outbound timeline
+- EMAIL / SMS / WHATSAPP filtering
+- provider error count
+- connected provider count
+- webhook-ready provider count
+- callback warning count
+- signed provider callback history
+- PROCESSED / IGNORED callback visibility
+- linked CRM message status/channel
+- Customer / Lead / Opportunity drill-down
+
+Customer detail also contains a Customer 360 communication timeline and manual communication logging flow.
+
+No real Meta/Twilio/SMTP provider credentials or live adapters are connected by this foundation alone; it is provider-ready infrastructure, not a claim of live external delivery.
+
+## 12. Core commerce / customer operations
 
 Implemented and substantially hardened:
 
@@ -212,7 +322,7 @@ Implemented and substantially hardened:
 - refunds and payment reversals
 - accounting links from operational source documents
 
-## 10. Accounting / Finance / Banking
+## 13. Accounting / Finance / Banking
 
 Implemented at advanced foundation level:
 
@@ -235,7 +345,7 @@ Implemented at advanced foundation level:
 
 Provider balances remain integration data; accounting-ledger truth remains authoritative.
 
-## 11. Inventory / Warehouse
+## 14. Inventory / Warehouse
 
 Implemented at advanced foundation level:
 
@@ -247,7 +357,7 @@ Implemented at advanced foundation level:
 - cycle-count lifecycle and accounting
 - in-transit valuation
 
-## 12. HR / Payroll
+## 15. HR / Payroll
 
 Implemented at advanced foundation level:
 
@@ -265,7 +375,7 @@ Implemented at advanced foundation level:
 
 Payroll preview remains decision support and never silently rewrites payroll truth.
 
-## 13. Quality / Training / Competency
+## 16. Quality / Training / Competency
 
 The cross-domain operational loop is implemented:
 
@@ -301,7 +411,7 @@ Foundations include:
 
 No disciplinary/legal HR action is automatically inferred from a single Quality or Training signal.
 
-## 14. Object storage / security
+## 17. Object storage / security
 
 Managed private storage is S3-compatible and controlled:
 
@@ -312,20 +422,22 @@ Managed private storage is S3-compatible and controlled:
 - dangerous browser-active/executable MIME types rejected
 - no credentials persisted in domain records
 
-## 15. Operational UI
+## 18. Operational UI
 
 Important existing application surfaces include:
 
 - `/crm` — CRM cockpit
 - `/crm/actions` — CRM Action Center
-- `/crm/automations` — Automation Rules + runtime controls
+- `/crm/automations` — Automation Rules + execution history
+- `/crm/communications` — CRM Communication Center + provider callback observability
 - `/crm/leads` and `/crm/leads/[id]`
 - `/crm/pipeline`
 - `/crm/opportunities/new`
 - `/crm/opportunities/[id]`
 - `/crm/opportunities/[id]/edit`
 - `/crm/follow-ups`
-- `/customers/[id]` — Customer profile / CRM handoff
+- `/crm/reminders`
+- `/customers/[id]` — Customer profile / CRM + communication handoff
 - `/training`
 - `/training/staff`
 - `/training/staff/[staffId]`
@@ -335,7 +447,7 @@ Important existing application surfaces include:
 
 These should be extended incrementally; do not build parallel frontend systems or duplicate backend contracts.
 
-## 16. CI / repository hygiene
+## 19. CI / repository hygiene
 
 Monorepo quality enforces dependency and migration reproducibility:
 
@@ -349,16 +461,16 @@ A fresh database must accept the complete migration chain before package/API/web
 
 The dedicated commerce lint-debt step remains non-blocking historical debt reporting. A green run means the blocking migration/compile/test/build contract is satisfied; it does not claim historical commerce formatting debt is zero.
 
-## 17. Next CRM priorities
+## 20. Next CRM priorities
 
 Recommended continuation order:
 
-1. Automation execution/history observability and rule audit UI.
-2. Additional governed triggers/actions: expected-close alerts, WON/LOST workflows, follow-up outcome triggers and inactivity sequences.
-3. Pipeline advanced filters, risk badges, sorting/saved views and governed drag/drop.
-4. Communication adapters: WhatsApp, SMS, email, Meta/web leads and call logs.
-5. Broader Customer 360 with appointments, sales, packages/sessions, payments/receivables, CRM timeline and communication history.
-6. Conversion/forecast/lost-reason/sales-cycle analytics.
-7. Lead duplicate detection, merge, scoring, attribution and campaign maturity.
+1. Implement concrete provider adapters (for example Meta WhatsApp, an SMS provider and e-mail transport) with secure credential storage/rotation and provider-specific signed webhook verification.
+2. Add delivery retry/dead-letter/provider-health controls without weakening message idempotency or monotonic delivery state.
+3. Extend automation rules with governed communication actions, including explicit consent/opt-in, quiet-hours, template/version and suppression rules before any automatic outbound message.
+4. Add expected-close, WON/LOST, follow-up-outcome and inactivity sequence triggers.
+5. Continue Pipeline saved views/sorting and governed drag/drop.
+6. Broaden Customer 360 across appointments, sales, packages/sessions, payments/receivables and communication history.
+7. Expand conversion/forecast/lost-reason/sales-cycle analytics and lead duplicate/merge/scoring/attribution maturity.
 
-Any new automation must preserve explicit scope, idempotency, auditability and concurrency guarantees established by the current runtime.
+Any new automation or provider integration must preserve explicit scope, idempotency, auditability, consent governance, signature verification and concurrency guarantees established by the current runtime.
