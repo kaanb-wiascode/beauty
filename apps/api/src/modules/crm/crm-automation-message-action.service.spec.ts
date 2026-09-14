@@ -24,8 +24,8 @@ describe('CrmAutomationMessageActionService', () => {
     await expect(service.process(scope)).resolves.toEqual({ scanned: 1, sent: 0, failed: 0, skipped: 1 });
     expect(resolve).not.toHaveBeenCalled();
     expect(execute).toHaveBeenCalledWith(
-      expect.stringContaining('messageSourceEventId'),
-      'tenant-1', 'company-1', 'branch-1', 'lead-1', null, 'user-1', expect.any(String),
+      expect.stringContaining('INSERT INTO crm_events'),
+      'tenant-1', 'company-1', 'branch-1', 'lead-1', null, 'user-1', expect.stringContaining('"messageSourceEventId":"event-1"'),
     );
   });
 
