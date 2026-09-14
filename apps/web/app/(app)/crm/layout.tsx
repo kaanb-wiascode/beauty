@@ -6,6 +6,7 @@ const CRM_NAV = [
   ["Potansiyel Müşteriler", "/crm/leads"],
   ["Satış Süreci", "/crm/pipeline"],
   ["Takipler", "/crm/follow-ups"],
+  ["Birleşik Inbox", "/crm/conversations"],
   ["İletişim", "/crm/communications"],
   ["E-posta Provider", "/crm/communications/email"],
   ["Inbound Inbox", "/crm/inbox"],
