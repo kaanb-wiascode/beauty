@@ -17,6 +17,7 @@ CREATE TABLE crm_messages (
  idempotency_key TEXT,
  external_message_id TEXT,
  error_message TEXT,
+ version INTEGER NOT NULL DEFAULT 1 CHECK(version >= 1),
  created_by_user_id TEXT NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
  sent_at TIMESTAMPTZ,
  delivered_at TIMESTAMPTZ,
