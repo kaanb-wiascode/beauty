@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CrmMessageProviderSettings } from "@/components/crm-message-provider-settings";
+import { CrmTwilioSmsSettings } from "@/components/crm-twilio-sms-settings";
 import { Alert, Button, EmptyState, GlassCard, PageHeader, Select, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -98,6 +99,7 @@ export default function CrmCommunicationsPage() {
   return <div className="space-y-6">
     <PageHeader title="CRM İletişim Merkezi" description="WhatsApp, SMS ve e-posta temaslarının branch bazlı birleşik zaman çizelgesi." action={<Button variant="secondary" onClick={() => void load()}>Yenile</Button>} />
     <CrmMessageProviderSettings />
+    <CrmTwilioSmsSettings />
     {!activeBranch ? <Alert>İletişim merkezini kullanmak için aktif bir şube seçin.</Alert> : null}
     {!canRead ? <Alert>CRM iletişim kayıtlarını görmek için crm.read yetkisi gerekir.</Alert> : null}
     {error ? <Alert>{error}</Alert> : null}
