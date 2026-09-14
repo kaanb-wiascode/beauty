@@ -13,6 +13,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { CrmAutomationService } from './crm-automation.service';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsService } from './crm-operations.service';
@@ -70,6 +71,7 @@ export class CrmOperationsController {
     private readonly customer360: CrmCustomer360Service,
     private readonly reminders: CrmReminderService,
     private readonly automations: CrmAutomationService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   private userId(request: { user?: { sub?: string } }) {
@@ -78,6 +80,15 @@ export class CrmOperationsController {
       throw new UnauthorizedException('Authenticated user id is missing.');
     }
     return id;
+  }
+
+  private automationScope() {
+    const context = this.tenantContext.getContext();
+    return {
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      branchId: context.branchId,
+    };
   }
 
   @Get('follow-ups')
@@ -108,7 +119,10 @@ export class CrmOperationsController {
   @Post('automations/process-events')
   @RequirePermission('crm', 'manage')
   processAutomationEvents(@Req() request: { user?: { sub?: string } }) {
-    return this.automations.processPendingEvents(this.userId(request));
+    return this.automations.processPendingEvents(
+      this.automationScope(),
+      this.userId(request),
+    );
   }
 
   @Post('automations/stale-sweep')
@@ -119,8 +133,9 @@ export class CrmOperationsController {
   ) {
     const { staleDays } = staleSweepSchema.parse(query);
     return this.automations.runStaleOpportunitySweep(
-      this.userId(request),
+      this.automationScope(),
       staleDays,
+      this.userId(request),
     );
   }
 
