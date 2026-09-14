@@ -1,4 +1,13 @@
-import { Body, Controller, Get, Param, Patch, Req, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -15,11 +24,30 @@ const ruleKeySchema = z.enum([
   'OPPORTUNITY_STAGE_FOLLOW_UP',
   'STALE_OPPORTUNITY_FOLLOW_UP',
 ]);
-
-const updateRuleSchema = z.object({
+const channel = z.enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']);
+const common = z.object({
   enabled: z.boolean(),
   version: z.coerce.number().int().min(0).optional(),
-  config: z.record(z.string(), z.unknown()),
+});
+const leadRuleSchema = common.extend({
+  config: z.object({
+    delayHours: z.coerce.number().int().min(1).max(720),
+    channel,
+  }).strict(),
+});
+const stageRuleSchema = common.extend({
+  config: z.object({
+    defaultDelayDays: z.coerce.number().int().min(1).max(90),
+    negotiationDelayDays: z.coerce.number().int().min(1).max(90),
+    channel,
+  }).strict(),
+});
+const staleRuleSchema = common.extend({
+  config: z.object({
+    staleDays: z.coerce.number().int().min(1).max(90),
+    delayHours: z.coerce.number().int().min(1).max(720),
+    channel,
+  }).strict(),
 });
 
 @Controller('crm/automation-rules')
@@ -53,9 +81,15 @@ export class CrmAutomationRulesController {
     @Req() request: { user?: { sub?: string } },
   ) {
     const actorUserId = request.user?.sub;
-    if (!actorUserId) throw new Error('Authenticated user id is missing.');
+    if (!actorUserId) {
+      throw new UnauthorizedException('Authenticated user id is missing.');
+    }
     const ruleKey = ruleKeySchema.parse(rawRuleKey) as CrmAutomationRuleKey;
-    const input = updateRuleSchema.parse(body);
+    const input = ruleKey === 'LEAD_FIRST_TOUCH'
+      ? leadRuleSchema.parse(body)
+      : ruleKey === 'OPPORTUNITY_STAGE_FOLLOW_UP'
+        ? stageRuleSchema.parse(body)
+        : staleRuleSchema.parse(body);
     return this.rules.upsert(this.scope(), ruleKey, input, actorUserId);
   }
 }
