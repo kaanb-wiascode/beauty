@@ -16,6 +16,20 @@ describe('CrmCommunicationComplianceService', () => {
       .resolves.toEqual({ allowed: true, status: 'OPTED_IN' });
   });
 
+  it('allows unknown manual contact state but blocks explicit opt-out', async () => {
+    const query = jest.fn().mockResolvedValueOnce([{ status: null }]).mockResolvedValueOnce([{ status: 'OPTED_OUT' }]);
+    const service = new CrmCommunicationComplianceService(
+      { $queryRawUnsafe: query } as never,
+      { getContext: jest.fn().mockReturnValue(context) } as never,
+    );
+    const subject = { customerId: 'customer-1', leadId: null, opportunityId: null };
+
+    await expect(service.canSendManual(context, subject, 'SMS'))
+      .resolves.toEqual({ allowed: true, status: 'UNKNOWN' });
+    await expect(service.canSendManual(context, subject, 'SMS'))
+      .resolves.toEqual({ allowed: false, status: 'OPTED_OUT' });
+  });
+
   it('persists current permission state and an immutable audit event', async () => {
     const query = jest.fn().mockResolvedValueOnce([{ id: 'customer-1' }]);
     const txQuery = jest.fn()
