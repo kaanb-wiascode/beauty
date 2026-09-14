@@ -145,7 +145,7 @@ export default function ManagementCockpitPage() {
             ["Kritik Stok", inventory.data?.lowStockProducts ?? "—"],
             ["Stok Değeri", money.format(Number(inventory.data?.totalStockValue ?? 0))],
           ]} />
-          <ModuleLinks links={[["Satın Alma", "/inventory/purchases"], ["Envanter", "/inventory"], ["Stok Sayımları", "/inventory/counts"]]} />
+          <ModuleLinks links={[["Aksiyon Merkezi", "/inventory/actions"], ["Satın Alma", "/inventory/purchases"], ["Envanter", "/inventory"], ["Stok Sayımları", "/inventory/counts"]]} />
         </FinancePanel>
 
         <FinancePanel title="İnsan Kaynakları & Gelişim" description="Personel, bordro ve yetkinlik operasyonu">
