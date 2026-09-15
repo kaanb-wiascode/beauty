@@ -12,7 +12,7 @@ import {
 import { z } from 'zod';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
-import { JwtPayload } from '../../common/auth/jwt.strategy';
+import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
