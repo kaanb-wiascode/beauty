@@ -73,7 +73,9 @@ export class CustomerReportingService {
         visitCount: visits.length,
         completedVisits: completedVisits.length,
         firstVisitAt: completedDates[0] ?? null,
-        lastVisitAt: completedDates.at(-1) ?? null,
+        lastVisitAt: completedDates.length
+          ? completedDates[completedDates.length - 1]
+          : null,
         collected,
         averageCollectedPerVisit: completedVisits.length
           ? collected / completedVisits.length
