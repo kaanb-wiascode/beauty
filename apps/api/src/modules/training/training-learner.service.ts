@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { TrainingContentStorageService } from './training-content-storage.service';
 import { TrainingLessonProgressService } from './training-lesson-progress.service';
 
 @Injectable()
@@ -9,6 +10,7 @@ export class TrainingLearnerService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
     private readonly progress: TrainingLessonProgressService,
+    private readonly content: TrainingContentStorageService,
   ) {}
 
   private context() {
@@ -80,6 +82,29 @@ export class TrainingLearnerService {
       );
       return rows[0];
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async linkSelfByEmail(userId: string) {
+    const c = this.context();
+    const users = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,email FROM users WHERE id=$1::text LIMIT 1`,
+      userId,
+    );
+    if (!users.length || !users[0].email) throw new BadRequestException('Authenticated user has no email address to match.');
+    const candidates = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT s.id FROM staff s JOIN branches b ON b.id=s."branchId"
+       WHERE s."tenantId"=$1::text AND b."companyId"=$2::text AND s.status='ACTIVE'
+         AND lower(s.email)=lower($3)
+         AND ($4::text IS NULL OR s."branchId"=$4::text)
+       ORDER BY s.id LIMIT 2`,
+      c.tenantId,
+      c.companyId,
+      String(users[0].email),
+      c.branchId,
+    );
+    if (candidates.length === 0) throw new NotFoundException('No active staff profile matches the authenticated user email in the active scope.');
+    if (candidates.length > 1) throw new BadRequestException('Multiple staff profiles match this email; a manager must link the learner identity explicitly.');
+    return this.linkIdentity({ userId, staffId: candidates[0].id }, userId);
   }
 
   async me(userId: string) {
@@ -176,8 +201,8 @@ export class TrainingLearnerService {
     );
     const exams = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT e.id,e.title,e.pass_score AS "passScore",e.max_attempts AS "maxAttempts",
-              COUNT(q.id)::int AS "questionCount",
-              COUNT(at.id)::int AS "attemptCount",
+              COUNT(DISTINCT q.id)::int AS "questionCount",
+              COUNT(DISTINCT at.id)::int AS "attemptCount",
               MAX(at.score) AS "bestScore",
               BOOL_OR(at.passed) AS "passed"
        FROM training_exams e
@@ -284,5 +309,21 @@ export class TrainingLearnerService {
       }
     }
     return { progress: progressRow, summary };
+  }
+
+  async lessonDocument(userId: string, assignmentId: string, lessonId: string) {
+    const assignment = await this.assertOwnAssignment(userId, assignmentId);
+    const c = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id FROM training_lessons
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND course_version_id=$4::text AND content_type='DOCUMENT' AND content_ref IS NOT NULL LIMIT 1`,
+      lessonId,
+      c.tenantId,
+      c.companyId,
+      assignment.courseVersionId,
+    );
+    if (!rows.length) throw new NotFoundException('Document lesson does not belong to the learner assignment.');
+    return this.content.downloadLessonDocument(lessonId);
   }
 }
