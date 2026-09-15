@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 import { HrController } from './hr.controller';
 import { HrService } from './hr.service';
 import { HrOrganizationService } from './hr-organization.service';
+import { Employee360Service } from './employee-360.service';
 import { PayrollAccountingService } from './payroll-accounting.service';
 import { PayrollPeriodService } from './payroll-period.service';
 import { PayrollSettlementService } from './payroll-settlement.service';
@@ -17,37 +18,7 @@ import { PayrollPolicyService } from './payroll-policy.service';
 
 @Module({
   controllers: [HrController],
-  providers: [
-    HrService,
-    HrOrganizationService,
-    PayrollAccountingService,
-    PayrollPeriodService,
-    PayrollSettlementService,
-    PayrollReportService,
-    PayrollCostCenterAccountingService,
-    PayrollPostingOrchestratorService,
-    PayrollReversalService,
-    PayrollDashboardService,
-    PayrollPaymentReversalService,
-    PayrollWorkInputService,
-    HrAnalyticsService,
-    PayrollPolicyService,
-  ],
-  exports: [
-    HrService,
-    HrOrganizationService,
-    PayrollAccountingService,
-    PayrollPeriodService,
-    PayrollSettlementService,
-    PayrollReportService,
-    PayrollCostCenterAccountingService,
-    PayrollPostingOrchestratorService,
-    PayrollReversalService,
-    PayrollDashboardService,
-    PayrollPaymentReversalService,
-    PayrollWorkInputService,
-    HrAnalyticsService,
-    PayrollPolicyService,
-  ],
+  providers: [HrService,HrOrganizationService,Employee360Service,PayrollAccountingService,PayrollPeriodService,PayrollSettlementService,PayrollReportService,PayrollCostCenterAccountingService,PayrollPostingOrchestratorService,PayrollReversalService,PayrollDashboardService,PayrollPaymentReversalService,PayrollWorkInputService,HrAnalyticsService,PayrollPolicyService],
+  exports: [HrService,HrOrganizationService,Employee360Service,PayrollAccountingService,PayrollPeriodService,PayrollSettlementService,PayrollReportService,PayrollCostCenterAccountingService,PayrollPostingOrchestratorService,PayrollReversalService,PayrollDashboardService,PayrollPaymentReversalService,PayrollWorkInputService,HrAnalyticsService,PayrollPolicyService],
 })
 export class HrModule {}
