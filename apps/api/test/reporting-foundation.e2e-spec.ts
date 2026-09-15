@@ -29,7 +29,7 @@ describe('Reporting foundation authorization (e2e)', () => {
     await app.close();
   });
 
-  it('rejects unauthenticated catalog and preview requests', async () => {
+  it('rejects unauthenticated reporting requests', async () => {
     await request(app.getHttpServer())
       .get('/reports/catalog')
       .expect(401);
@@ -44,9 +44,21 @@ describe('Reporting foundation authorization (e2e)', () => {
         },
       })
       .expect(401);
+
+    await request(app.getHttpServer())
+      .post('/reports/exports')
+      .send({
+        reportKey: 'staff.performance',
+        format: 'CSV',
+        filters: {
+          from: '2026-09-01T00:00:00.000Z',
+          to: '2026-09-30T23:59:59.999Z',
+        },
+      })
+      .expect(401);
   });
 
-  it('allows an authenticated owner to use the permission-aware catalog and preview', async () => {
+  it('allows an authenticated owner to use catalog, preview and export history', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const email = `reporting-${suffix}@example.test`;
     const password = 'E2eStrongPassword!2026';
@@ -111,9 +123,59 @@ describe('Reporting foundation authorization (e2e)', () => {
         }),
       }),
     );
+
+    const exportJob = await request(app.getHttpServer())
+      .post('/reports/exports')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        reportKey: 'staff.performance',
+        format: 'CSV',
+        filters: {
+          from: '2026-09-01T00:00:00.000Z',
+          to: '2026-09-30T23:59:59.999Z',
+        },
+        columns: ['name', 'collected'],
+        includeSummary: true,
+        includeCharts: false,
+      })
+      .expect(201);
+
+    expect(exportJob.body).toEqual(
+      expect.objectContaining({
+        id: expect.any(String),
+        reportKey: 'staff.performance',
+        format: 'CSV',
+        status: 'QUEUED',
+        storageKey: null,
+      }),
+    );
+
+    const history = await request(app.getHttpServer())
+      .get('/reports/exports?status=QUEUED&limit=10')
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200);
+
+    expect(history.body).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ id: exportJob.body.id }),
+      ]),
+    );
+
+    await request(app.getHttpServer())
+      .get(`/reports/exports/${exportJob.body.id as string}`)
+      .set('Authorization', `Bearer ${token}`)
+      .expect(200)
+      .expect((response) => {
+        expect(response.body).toEqual(
+          expect.objectContaining({
+            id: exportJob.body.id,
+            status: 'QUEUED',
+          }),
+        );
+      });
   });
 
-  it('rejects arbitrary preview fields at the HTTP boundary', async () => {
+  it('rejects arbitrary preview and export fields at the HTTP boundary', async () => {
     const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
     const email = `reporting-invalid-${suffix}@example.test`;
     const password = 'E2eStrongPassword!2026';
@@ -134,10 +196,11 @@ describe('Reporting foundation authorization (e2e)', () => {
       .post('/auth/login')
       .send({ email, password })
       .expect(201);
+    const token = login.body.accessToken as string;
 
     await request(app.getHttpServer())
       .post('/reports/preview')
-      .set('Authorization', `Bearer ${login.body.accessToken as string}`)
+      .set('Authorization', `Bearer ${token}`)
       .send({
         reportKey: 'staff.performance',
         filters: {
@@ -146,6 +209,21 @@ describe('Reporting foundation authorization (e2e)', () => {
         },
         branchId: 'attempted-scope-override',
         prismaSelect: { tenantId: true },
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/reports/exports')
+      .set('Authorization', `Bearer ${token}`)
+      .send({
+        reportKey: 'staff.performance',
+        format: 'CSV',
+        filters: {
+          from: '2026-09-01T00:00:00.000Z',
+          to: '2026-09-30T23:59:59.999Z',
+        },
+        branchId: 'attempted-scope-override',
+        storageKey: '../../unsafe.csv',
       })
       .expect(400);
   });
