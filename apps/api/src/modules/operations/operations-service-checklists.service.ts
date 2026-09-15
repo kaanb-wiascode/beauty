@@ -82,7 +82,6 @@ export class OperationsServiceChecklistsService {
       this.prisma,
       serviceId,
       tenantId,
-      companyId,
       branchId,
     );
 
@@ -124,7 +123,6 @@ export class OperationsServiceChecklistsService {
           tx,
           serviceId,
           tenantId,
-          companyId,
           branchId,
         );
 
@@ -393,11 +391,10 @@ export class OperationsServiceChecklistsService {
     db: Pick<PrismaService, 'service'> | Prisma.TransactionClient,
     serviceId: string,
     tenantId: string,
-    companyId: string,
     branchId: string,
   ) {
     const service = await db.service.findFirst({
-      where: { id: serviceId, tenantId, companyId, branchId, status: 'ACTIVE' },
+      where: { id: serviceId, tenantId, branchId, status: 'ACTIVE' },
       select: { id: true },
     });
     if (!service) throw new NotFoundException('Service not found');
