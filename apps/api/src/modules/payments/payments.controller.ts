@@ -11,6 +11,7 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import {
   RequirePermission,
@@ -25,6 +26,7 @@ import { refundPaymentSchema } from './dto/refund-payment.dto';
 import { paymentSummarySchema } from './dto/payment-summary.dto';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
+@RestrictTenantMutations()
 @Controller('payments')
 export class PaymentsController {
   constructor(
