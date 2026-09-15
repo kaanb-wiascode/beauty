@@ -205,8 +205,43 @@ export class ReportsService {
         total,
         totalPages: Math.ceil(total / input.limit),
         sort: input.sort ?? null,
+        summary: this.buildAggregateSummary(rows),
       },
     };
+  }
+
+  private buildAggregateSummary(
+    rows: readonly Record<string, unknown>[],
+  ) {
+    const appointmentCount = rows.reduce(
+      (total, row) => total + this.numberValue(row.appointmentCount),
+      0,
+    );
+    const completedAppointments = rows.reduce(
+      (total, row) => total + this.numberValue(row.completedAppointments),
+      0,
+    );
+    const collected = rows.reduce(
+      (total, row) => total + this.numberValue(row.collected),
+      0,
+    );
+
+    return {
+      rowCount: rows.length,
+      appointmentCount,
+      completedAppointments,
+      completionRate: appointmentCount
+        ? Math.round((completedAppointments / appointmentCount) * 100)
+        : 0,
+      collected,
+      averageCollectedPerCompleted: completedAppointments
+        ? collected / completedAppointments
+        : 0,
+    };
+  }
+
+  private numberValue(value: unknown) {
+    return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
 
   private selectColumns(
