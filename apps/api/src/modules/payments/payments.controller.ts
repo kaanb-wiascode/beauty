@@ -12,7 +12,10 @@ import {
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
-import { RequirePermission } from '../../common/auth/permissions.decorator';
+import {
+  RequirePermission,
+  RequirePermissions,
+} from '../../common/auth/permissions.decorator';
 
 import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
@@ -47,7 +50,10 @@ export class PaymentsController {
   }
 
   @UseGuards(PermissionsGuard)
-  @RequirePermission('reports', 'read')
+  @RequirePermissions(
+    { resource: 'reports', action: 'read' },
+    { resource: 'payments', action: 'read' },
+  )
   @Get('dashboard-report')
   async dashboardReport(@Query() query: unknown) {
     const input = dashboardReportSchema.parse(query);
@@ -56,7 +62,10 @@ export class PaymentsController {
   }
 
   @UseGuards(PermissionsGuard)
-  @RequirePermission('reports', 'read')
+  @RequirePermissions(
+    { resource: 'reports', action: 'read' },
+    { resource: 'payments', action: 'read' },
+  )
   @Get('summary')
   async summary(@Query() query: unknown) {
     const input = paymentSummarySchema.parse(query);
