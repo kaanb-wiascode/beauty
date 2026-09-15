@@ -1,5 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 export type PayrollPolicyInput = {
@@ -13,9 +14,18 @@ export type PayrollPolicyInput = {
 
 @Injectable()
 export class PayrollPolicyService {
-  constructor(private readonly prisma: PrismaService, private readonly tenant: TenantContext) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenant: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
+  ) {}
 
-  private context(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId(),branchId:this.tenant.getBranchId()};}
+  private context(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId()};}
+  private async scopedContext(){
+    const scope=await this.organizationScope.getBranchScopedWhere();
+    const branchIds='branchId' in scope?(typeof scope.branchId==='string'?[scope.branchId]:scope.branchId.in):null;
+    return{tenantId:scope.tenantId,companyId:this.tenant.getCompanyId(),branchIds};
+  }
   private round(v:number){return Math.round((v+Number.EPSILON)*100)/100;}
   private bounds(year:number,month:number){
     if(!Number.isInteger(year)||year<2000||year>2200||!Number.isInteger(month)||month<1||month>12) throw new BadRequestException('Valid payroll year and month are required.');
@@ -76,37 +86,48 @@ export class PayrollPolicyService {
   }
 
   async preview(year:number,month:number){
-    const {tenantId,companyId,branchId}=this.context(); const {start,end}=this.bounds(year,month); const settings=await this.getSettings();
+    const {tenantId,companyId,branchIds}=await this.scopedContext(); const {start,end}=this.bounds(year,month); const settings=await this.getSettings();
     const rows=await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT s.id AS "staffId",s."firstName",s."lastName",s."branchId" AS "branchId",
               COALESCE((s.profile->>'salary')::numeric,0) AS "configuredGrossSalary",
-              COALESCE((SELECT SUM(ar.overtime_minutes) FROM attendance_records ar WHERE ar.staff_id=s.id AND ar.tenant_id=$1::text AND ar.work_date BETWEEN $4::date AND $5::date),0)::numeric AS "overtimeMinutes",
+              COALESCE((SELECT SUM(ar.overtime_minutes) FROM attendance_records ar WHERE ar.staff_id=s.id AND ar.tenant_id=$1::text AND ar.branch_id=s."branchId" AND ar.work_date BETWEEN $4::date AND $5::date),0)::numeric AS "overtimeMinutes",
               COALESCE((SELECT SUM(LEAST(lr.days, GREATEST(0,(LEAST(lr.end_date,$5::date)-GREATEST(lr.start_date,$4::date)+1))::numeric))
-                        FROM leave_requests lr WHERE lr.staff_id=s.id AND lr.tenant_id=$1::text AND lr.status='APPROVED' AND lr.type='UNPAID'
+                        FROM leave_requests lr WHERE lr.staff_id=s.id AND lr.tenant_id=$1::text AND lr.branch_id=s."branchId" AND lr.status='APPROVED' AND lr.type='UNPAID'
                           AND lr.start_date <= $5::date AND lr.end_date >= $4::date),0)::numeric AS "unpaidLeaveDays"
        FROM staff s JOIN branches b ON b.id=s."branchId"
-       WHERE s."tenantId"=$1::text AND b."companyId"=$2::text AND s.status='ACTIVE' AND ($3::text IS NULL OR s."branchId"=$3::text)
-       ORDER BY s."firstName",s."lastName"`,tenantId,companyId,branchId,start,end);
+       WHERE s."tenantId"=$1::text AND b."companyId"=$2::text AND s.status='ACTIVE' AND ($3::text[] IS NULL OR s."branchId"=ANY($3::text[]))
+       ORDER BY s."firstName",s."lastName"`,tenantId,companyId,branchIds,start,end);
     return {year,month,period:{start,end},settings,staff:rows.map(row=>({...row,...this.calculate(Number(row.configuredGrossSalary),Number(row.overtimeMinutes),Number(row.unpaidLeaveDays),settings)}))};
   }
 
   async attachEvaluation(periodId:string,staffId:string){
-    const {tenantId,companyId,branchId}=this.context(); const settings=await this.getSettings();
+    const {tenantId,companyId,branchIds}=await this.scopedContext(); const settings=await this.getSettings();
     return this.prisma.$transaction(async tx=>{
-      const periods=await tx.$queryRawUnsafe<any[]>(`SELECT id,year,month,status FROM payroll_periods WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT' FOR UPDATE`,periodId,tenantId,companyId);
-      if(!periods.length) throw new BadRequestException('Draft payroll period is required.'); const p=periods[0]; const {start,end}=this.bounds(Number(p.year),Number(p.month));
-      const items=await tx.$queryRawUnsafe<any[]>(`SELECT id,branch_id AS "branchId",gross_amount AS "grossAmount",calculation_snapshot AS "calculationSnapshot" FROM payroll_items WHERE period_id=$1::text AND staff_id=$2::text AND tenant_id=$3::text AND company_id=$4::text AND ($5::text IS NULL OR branch_id=$5::text) FOR UPDATE`,periodId,staffId,tenantId,companyId,branchId);
+      const periods=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,year,month,status,branch_id AS "branchId" FROM payroll_periods
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+           AND ($4::text[] IS NULL OR branch_id=ANY($4::text[])) FOR UPDATE`,periodId,tenantId,companyId,branchIds);
+      if(!periods.length) throw new BadRequestException('Draft payroll period is required.');
+      const p=periods[0]; const periodBranchId=p.branchId as string|null;
+      if(!periodBranchId) throw new BadRequestException('A branch-scoped payroll period is required for policy evaluation.');
+      const {start,end}=this.bounds(Number(p.year),Number(p.month));
+      const items=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,branch_id AS "branchId",gross_amount AS "grossAmount",calculation_snapshot AS "calculationSnapshot"
+         FROM payroll_items WHERE period_id=$1::text AND staff_id=$2::text AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text FOR UPDATE`,
+        periodId,staffId,tenantId,companyId,periodBranchId);
       if(!items.length) throw new NotFoundException('Draft payroll item not found.');
-      const staff=await tx.$queryRawUnsafe<any[]>(`SELECT COALESCE((profile->>'salary')::numeric,0) AS "configuredGrossSalary" FROM staff WHERE id=$1::text AND "tenantId"=$2::text LIMIT 1`,staffId,tenantId);
+      const staff=await tx.$queryRawUnsafe<any[]>(
+        `SELECT COALESCE((profile->>'salary')::numeric,0) AS "configuredGrossSalary"
+         FROM staff WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text LIMIT 1`,staffId,tenantId,periodBranchId);
       if(!staff.length) throw new NotFoundException('Staff member not found.');
       const stats=await tx.$queryRawUnsafe<any[]>(
-        `SELECT COALESCE((SELECT SUM(ar.overtime_minutes) FROM attendance_records ar WHERE ar.staff_id=$1::text AND ar.tenant_id=$2::text AND ar.work_date BETWEEN $3::date AND $4::date),0)::numeric AS "overtimeMinutes",
+        `SELECT COALESCE((SELECT SUM(ar.overtime_minutes) FROM attendance_records ar WHERE ar.staff_id=$1::text AND ar.tenant_id=$2::text AND ar.branch_id=$5::text AND ar.work_date BETWEEN $3::date AND $4::date),0)::numeric AS "overtimeMinutes",
                 COALESCE((SELECT SUM(LEAST(lr.days, GREATEST(0,(LEAST(lr.end_date,$4::date)-GREATEST(lr.start_date,$3::date)+1))::numeric)) FROM leave_requests lr
-                  WHERE lr.staff_id=$1::text AND lr.tenant_id=$2::text AND lr.status='APPROVED' AND lr.type='UNPAID' AND lr.start_date <= $4::date AND lr.end_date >= $3::date),0)::numeric AS "unpaidLeaveDays"`,staffId,tenantId,start,end);
+                  WHERE lr.staff_id=$1::text AND lr.tenant_id=$2::text AND lr.branch_id=$5::text AND lr.status='APPROVED' AND lr.type='UNPAID' AND lr.start_date <= $4::date AND lr.end_date >= $3::date),0)::numeric AS "unpaidLeaveDays"`,staffId,tenantId,start,end,periodBranchId);
       const result=this.calculate(Number(staff[0].configuredGrossSalary),Number(stats[0]?.overtimeMinutes),Number(stats[0]?.unpaidLeaveDays),settings);
       const existing=items[0].calculationSnapshot&&typeof items[0].calculationSnapshot==='object'?items[0].calculationSnapshot:{};
       const evaluation={source:'PAYROLL_POLICY',capturedAt:new Date().toISOString(),periodStart:start,periodEnd:end,settings,inputs:{configuredGrossSalary:Number(staff[0].configuredGrossSalary),overtimeMinutes:Number(stats[0]?.overtimeMinutes??0),unpaidLeaveDays:Number(stats[0]?.unpaidLeaveDays??0)},...result,enteredGross:this.round(Number(items[0].grossAmount)),grossVariance:this.round(Number(items[0].grossAmount)-result.proposedGross)};
-      await tx.$executeRawUnsafe(`UPDATE payroll_items SET calculation_snapshot=$2::jsonb,updated_at=NOW() WHERE id=$1::text`,items[0].id,JSON.stringify({...existing,policyEvaluation:evaluation}));
+      await tx.$executeRawUnsafe(`UPDATE payroll_items SET calculation_snapshot=$2::jsonb,updated_at=NOW() WHERE id=$1::text AND branch_id=$3::text`,items[0].id,JSON.stringify({...existing,policyEvaluation:evaluation}),periodBranchId);
       return {periodId,staffId,evaluation};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
