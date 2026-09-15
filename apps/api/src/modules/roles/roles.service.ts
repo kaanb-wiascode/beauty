@@ -24,13 +24,19 @@ export class RolesService {
     return this.tenantContext.getTenantId();
   }
 
+  private getCompanyId(): string {
+    return this.tenantContext.getCompanyId();
+  }
+
   private async getActorUserId(): Promise<string> {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
     const membershipId = this.tenantContext.getMembershipId();
     const membership = await this.prisma.membership.findFirst({
       where: {
         id: membershipId,
         tenantId,
+        companyId,
       },
       select: {
         userId: true,
@@ -38,7 +44,9 @@ export class RolesService {
     });
 
     if (!membership) {
-      throw new BadRequestException('Active membership is required for role administration');
+      throw new BadRequestException(
+        'Active membership is required for role administration',
+      );
     }
 
     return membership.userId;
@@ -84,6 +92,7 @@ export class RolesService {
 
   async create(input: CreateRoleInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const slug = input.name
       .trim()
@@ -98,6 +107,7 @@ export class RolesService {
     const existing = await this.prisma.role.findFirst({
       where: {
         tenantId,
+        companyId,
         OR: [
           { name: input.name.trim() },
           { slug },
@@ -118,6 +128,7 @@ export class RolesService {
       const created = await tx.role.create({
         data: {
           tenantId,
+          companyId,
           name: input.name.trim(),
           slug,
           description: input.description?.trim() || null,
@@ -140,6 +151,7 @@ export class RolesService {
         null,
         {
           id: created.id,
+          companyId: created.companyId,
           name: created.name,
           slug: created.slug,
           description: created.description,
@@ -152,10 +164,12 @@ export class RolesService {
 
   async findAll() {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     return this.prisma.role.findMany({
       where: {
         tenantId,
+        companyId,
       },
       orderBy: {
         createdAt: 'asc',
@@ -182,11 +196,13 @@ export class RolesService {
 
   async findOne(id: string) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       include: {
         rolePermissions: {
@@ -216,11 +232,13 @@ export class RolesService {
 
   async update(id: string, input: UpdateRoleInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       select: {
         id: true,
@@ -250,14 +268,14 @@ export class RolesService {
     }
 
     if (input.description !== undefined) {
-      data.description =
-        input.description?.trim() || null;
+      data.description = input.description?.trim() || null;
     }
 
     if (data.name) {
       const duplicate = await this.prisma.role.findFirst({
         where: {
           tenantId,
+          companyId,
           id: { not: id },
           name: data.name,
         },
@@ -267,9 +285,7 @@ export class RolesService {
       });
 
       if (duplicate) {
-        throw new BadRequestException(
-          'Role name already exists',
-        );
+        throw new BadRequestException('Role name already exists');
       }
     }
 
@@ -302,11 +318,13 @@ export class RolesService {
 
   async remove(id: string) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       include: {
         _count: {
@@ -322,15 +340,11 @@ export class RolesService {
     }
 
     if (role.slug === 'owner') {
-      throw new BadRequestException(
-        'Owner role cannot be deleted',
-      );
+      throw new BadRequestException('Owner role cannot be deleted');
     }
 
     if (role._count.memberships > 0) {
-      throw new BadRequestException(
-        'Role is assigned to users',
-      );
+      throw new BadRequestException('Role is assigned to users');
     }
 
     const actorUserId = await this.getActorUserId();
@@ -349,6 +363,7 @@ export class RolesService {
         role.id,
         {
           id: role.id,
+          companyId: role.companyId,
           name: role.name,
           slug: role.slug,
           description: role.description,
@@ -368,11 +383,13 @@ export class RolesService {
     input: UpdateRolePermissionsInput,
   ) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       select: {
         id: true,
@@ -385,9 +402,7 @@ export class RolesService {
       throw new NotFoundException('Role not found');
     }
 
-    const permissionIds = [
-      ...new Set(input.permissionIds),
-    ];
+    const permissionIds = [...new Set(input.permissionIds)];
 
     const permissions = await this.prisma.permission.findMany({
       where: {
@@ -406,21 +421,18 @@ export class RolesService {
       );
     }
 
-    // Owner rolünün kendisini kilitlememek için:
-    // roles.update yetkisini kaldırmaya izin vermiyoruz.
     if (role.slug === 'owner') {
-      const rolesUpdatePermission =
-        await this.prisma.permission.findUnique({
-          where: {
-            resource_action: {
-              resource: 'roles',
-              action: 'update',
-            },
+      const rolesUpdatePermission = await this.prisma.permission.findUnique({
+        where: {
+          resource_action: {
+            resource: 'roles',
+            action: 'update',
           },
-          select: {
-            id: true,
-          },
-        });
+        },
+        select: {
+          id: true,
+        },
+      });
 
       if (
         rolesUpdatePermission &&
