@@ -8,7 +8,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports foundation is now implemented on the backend with requester ownership and permission revalidation.
+The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports foundation is implemented end-to-end for personal views with requester ownership and permission revalidation.
 
 ## Completed export foundation
 
@@ -63,7 +63,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Worker/storage/download integration and frontend PDF selection.
 - Current Base14-font implementation normalizes non-ASCII/Turkish glyphs for deterministic rendering. Embedded Unicode brand fonts, company logo, richer layout and charts remain a presentation-quality follow-up rather than an authorization/export-pipeline blocker.
 
-## Saved Reports foundation
+## Saved Reports
 
 - Persistent `report_saved_views` storage and multi-file Prisma model.
 - Personal ownership only; tenant/company/branch/owner scope is derived from authenticated context and never accepted from the client.
@@ -71,16 +71,19 @@ The shared export foundation is implemented for the current Staff Performance, S
 - CRUD endpoints under `/reports/saved-reports`.
 - Saved report list/get/update re-evaluates current report/source-domain permission instead of trusting permissions from save time.
 - Saved columns and sort keys are checked against server-owned report definitions before persistence.
-- Favorites are represented by `isFavorite`; sharing is intentionally not enabled yet.
+- Export Center can save the current report/date/column/sort configuration, list personal saved reports, re-apply a saved configuration, favorite/unfavorite it and delete it.
+- Applying a saved report uses only entries still present in the server-owned report catalog; revoked report permissions cannot be revived by a saved view.
+- Sharing is intentionally not enabled yet.
 
 ## Frontend
 
 - Permission-aware `/reports/exports` Export Center.
-- Export Center now uses the server-owned `/reports/catalog` rather than local cached permission state to determine available reports.
+- Export Center uses the server-owned `/reports/catalog` rather than local cached permission state to determine available reports.
 - Reusable `ReportExportPanel`.
 - PDF / Excel (.xlsx) / CSV selector.
 - Visible-columns vs all-permitted-columns export mode.
 - Optional summary inclusion.
+- Saved Reports and personal favorites UX.
 - Personal paginated export history.
 - QUEUED / PROCESSING / READY / FAILED / EXPIRED states.
 - Polling only while jobs are pending.
@@ -107,7 +110,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 
 `report_export_jobs` is created by explicit migrations and continues to be accessed by server-owned, parameterized Prisma SQL fragments in the repository. The multi-file Prisma schema is synchronized through `prisma/reporting.prisma`.
 
-Saved Reports are deliberately personal in the first foundation increment. Shared/team reports require an explicit permission and ownership model before they are exposed.
+Saved Reports are deliberately personal in the first implementation. Shared/team reports require an explicit permission and ownership model before they are exposed.
 
 The in-process worker is appropriate for the current incremental implementation. A dedicated queue/worker deployment remains the production scaling target.
 
@@ -121,7 +124,7 @@ Prisma schema validation now passes. The latest observed quality pipeline then s
 
 1. Add export audit events when the shared AuditLog persistence/service is available.
 2. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
-3. Add Saved Reports frontend UX, favorites/recent reports and permission-safe reopen flows.
+3. Add recent reports/recent exports on top of the Saved Reports foundation.
 4. Add scheduled reports with timezone, recipient, format and retry/history controls.
 5. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
 6. Add frontend tests for permission filtering, polling lifecycle, saved reports and download transitions when the web test runner is introduced.
