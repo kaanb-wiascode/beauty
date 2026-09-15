@@ -130,6 +130,15 @@ export class ReportsController {
     return this.requireSchedules().list(request.user);
   }
 
+  @Get('schedules/:id/runs')
+  @RequirePermission('reports', 'read')
+  listScheduleRuns(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.requireSchedules().listRuns(request.user, id);
+  }
+
   @Get('schedules/:id')
   @RequirePermission('reports', 'read')
   getSchedule(
