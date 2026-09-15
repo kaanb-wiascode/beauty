@@ -60,6 +60,8 @@ export default function PlatformCustomer360Page() {
     );
   }
 
+  const tenant = data.tenant;
+
   return (
     <div className="mx-auto max-w-[1380px] space-y-7 pb-12">
       <header className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
@@ -71,28 +73,28 @@ export default function PlatformCustomer360Page() {
             Tenant 360
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">
-            {data.tenant.name}
+            {tenant.name}
           </h1>
-          <p className="mt-2 text-sm text-white/40">{data.tenant.slug} · {data.tenant.id}</p>
+          <p className="mt-2 text-sm text-white/40">{tenant.slug} · {tenant.id}</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[.035] px-4 py-3 text-xs text-white/50">
-          Oluşturulma: <span className="font-semibold text-white/75">{date.format(new Date(data.tenant.createdAt))}</span>
+          Oluşturulma: <span className="font-semibold text-white/75">{date.format(new Date(tenant.createdAt))}</span>
         </div>
       </header>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-        <Metric label="Şirket" value={data.summary.companies} detail={`${data.summary.activeCompanies} aktif`} />
-        <Metric label="Şube" value={data.summary.branches} detail={`${data.summary.activeBranches} aktif`} />
-        <Metric label="Aktif kullanıcı" value={data.summary.activeMemberships} />
-        <Metric label="Aktif owner" value={data.summary.activeOwners} />
+        <Metric label="Şirket" value={tenant.companyCount} detail={`${tenant.activeCompanyCount} aktif`} />
+        <Metric label="Şube" value={tenant.branchCount} detail={`${tenant.activeBranchCount} aktif`} />
+        <Metric label="Aktif kullanıcı" value={tenant.activeMembershipCount} />
+        <Metric label="Aktif owner" value={tenant.ownerCount} />
         <Metric
           label="Şirket aktiflik"
-          value={data.summary.companies ? Math.round((data.summary.activeCompanies / data.summary.companies) * 100) : 0}
+          value={tenant.companyCount ? Math.round((tenant.activeCompanyCount / tenant.companyCount) * 100) : 0}
           suffix="%"
         />
         <Metric
           label="Şube aktiflik"
-          value={data.summary.branches ? Math.round((data.summary.activeBranches / data.summary.branches) * 100) : 0}
+          value={tenant.branchCount ? Math.round((tenant.activeBranchCount / tenant.branchCount) * 100) : 0}
           suffix="%"
         />
       </section>
@@ -119,7 +121,7 @@ export default function PlatformCustomer360Page() {
 
         <Panel title="Üyelik dağılımı" eyebrow="Membership state">
           <div className="space-y-3">
-            {data.memberships.map((membership) => (
+            {data.membershipBreakdown.map((membership) => (
               <div key={`${membership.role}-${membership.status}`} className="rounded-2xl border border-white/[.07] bg-black/15 p-4">
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -130,7 +132,7 @@ export default function PlatformCustomer360Page() {
                 </div>
               </div>
             ))}
-            {!data.memberships.length ? (
+            {!data.membershipBreakdown.length ? (
               <p className="py-8 text-center text-sm text-white/35">Üyelik kaydı bulunmuyor.</p>
             ) : null}
           </div>
@@ -139,10 +141,10 @@ export default function PlatformCustomer360Page() {
 
       <Panel title="Tenant kimliği" eyebrow="Account metadata">
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <Cell label="Tenant ID" value={data.tenant.id} />
-          <Cell label="Slug" value={data.tenant.slug} />
-          <Cell label="Oluşturulma" value={date.format(new Date(data.tenant.createdAt))} />
-          <Cell label="Son güncelleme" value={date.format(new Date(data.tenant.updatedAt))} />
+          <Cell label="Tenant ID" value={tenant.id} />
+          <Cell label="Slug" value={tenant.slug} />
+          <Cell label="Oluşturulma" value={date.format(new Date(tenant.createdAt))} />
+          <Cell label="Son güncelleme" value={date.format(new Date(tenant.updatedAt))} />
         </div>
       </Panel>
     </div>
