@@ -16,7 +16,8 @@ const policySchema = z.object({
   criticalAfterMinutes: z.coerce.number().int().min(30).max(43200),
 });
 const stateSchema = z.object({
-  status: z.enum(['OPEN','SNOOZED','CLOSED']),
+  status: z.enum(['OPEN','PENDING','RESOLVED','SNOOZED','CLOSED']),
+  priority: z.enum(['LOW','NORMAL','HIGH','URGENT']).optional(),
   snoozedUntil: z.coerce.date().nullable().optional(),
   version: z.coerce.number().int().min(0).optional(),
 }).superRefine((value, ctx) => {
@@ -59,7 +60,7 @@ export class CrmConversationOperationsController {
     @Body() body: unknown, @Req() request: { user?: { sub?: string } }) {
     const input = stateSchema.parse(body);
     return this.operations.setState(subjectTypeSchema.parse(subjectType), subjectId, input.status,
-      input.snoozedUntil ?? null, input.version, this.actor(request));
+      input.snoozedUntil ?? null, input.priority, input.version, this.actor(request));
   }
 
   private actor(request: { user?: { sub?: string } }) {
