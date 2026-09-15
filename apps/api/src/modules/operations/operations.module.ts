@@ -18,6 +18,8 @@ import { OperationsIncidentsController } from './operations-incidents.controller
 import { OperationsIncidentsService } from './operations-incidents.service';
 import { OperationsIntelligenceController } from './operations-intelligence.controller';
 import { OperationsIntelligenceService } from './operations-intelligence.service';
+import { OperationsOptimizationController } from './operations-optimization.controller';
+import { OperationsOptimizationService } from './operations-optimization.service';
 import { OperationsRebookingAnalyticsController } from './operations-rebooking-analytics.controller';
 import { OperationsRebookingAnalyticsService } from './operations-rebooking-analytics.service';
 import { OperationsRebookingController } from './operations-rebooking.controller';
@@ -63,6 +65,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsReliabilityController,
     OperationsTimelineController,
     OperationsIntelligenceController,
+    OperationsOptimizationController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -86,6 +89,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsReliabilityService,
     OperationsTimelineService,
     OperationsIntelligenceService,
+    OperationsOptimizationService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
