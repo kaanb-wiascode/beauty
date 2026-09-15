@@ -2,20 +2,131 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
+type CertificateLifecycle = 'VALID' | 'EXPIRING' | 'EXPIRED' | 'REVOKED';
+
 @Injectable()
 export class TrainingCertificateService {
-  constructor(private readonly prisma:PrismaService,private readonly tenant:TenantContext){}
-  private context(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId(),branchId:this.tenant.getBranchId()};}
+  constructor(private readonly prisma: PrismaService, private readonly tenant: TenantContext) {}
 
-  private async certificate(tx:any,id:string){const c=this.context();const rows:any[]=await tx.$queryRawUnsafe(`SELECT cert.id,cert.status,cert.branch_id AS "branchId",cert.staff_id AS "staffId",cert.assignment_id AS "assignmentId",cert.course_version_id AS "courseVersionId",cert.expires_at AS "expiresAt",cert.renewal_assignment_id AS "renewalAssignmentId",v.course_id AS "courseId" FROM training_certificates cert JOIN training_course_versions v ON v.id=cert.course_version_id WHERE cert.id=$1::text AND cert.tenant_id=$2::text AND cert.company_id=$3::text AND ($4::text IS NULL OR cert.branch_id=$4::text) LIMIT 1`,id,c.tenantId,c.companyId,c.branchId);if(!rows.length)throw new NotFoundException('Training certificate not found.');return rows[0];}
+  private context() {
+    return {
+      tenantId: this.tenant.getTenantId(),
+      companyId: this.tenant.getCompanyId(),
+      branchId: this.tenant.getBranchId(),
+    };
+  }
 
-  async list(input:{staffId?:string;status?:string;limit?:number}={}){const c=this.context(),limit=Math.min(Math.max(Math.trunc(Number(input.limit??50)),1),200),status=input.status?.trim().toUpperCase()||null;if(status&&!['ACTIVE','EXPIRED','REVOKED','RENEWAL_ASSIGNED'].includes(status))throw new BadRequestException('Invalid certificate status.');return this.prisma.$queryRawUnsafe<any[]>(`SELECT cert.id,cert.certificate_no AS "certificateNo",cert.status,cert.staff_id AS "staffId",cert.assignment_id AS "assignmentId",cert.course_version_id AS "courseVersionId",cert.issued_at AS "issuedAt",cert.expires_at AS "expiresAt",cert.revoked_at AS "revokedAt",cert.revoke_reason AS "revokeReason",cert.renewal_assignment_id AS "renewalAssignmentId",cert.renewed_at AS "renewedAt",v.version AS "courseVersion",course.code AS "courseCode",course.title AS "courseTitle" FROM training_certificates cert JOIN training_course_versions v ON v.id=cert.course_version_id JOIN training_courses course ON course.id=v.course_id WHERE cert.tenant_id=$1::text AND cert.company_id=$2::text AND ($3::text IS NULL OR cert.branch_id=$3::text) AND ($4::text IS NULL OR cert.staff_id=$4::text) AND ($5::text IS NULL OR cert.status=$5::text) ORDER BY cert.issued_at DESC,cert.id LIMIT $6`,c.tenantId,c.companyId,c.branchId,input.staffId??null,status,limit);}
+  private warningDays(value: unknown) {
+    const days = Math.trunc(Number(value ?? 30));
+    if (!Number.isFinite(days) || days < 1 || days > 365) {
+      throw new BadRequestException('warningDays must be between 1 and 365.');
+    }
+    return days;
+  }
+
+  private decorateLifecycle<T extends { status: string; expiresAt?: Date | string | null; renewalAssignmentId?: string | null }>(row: T, warningDays: number, now = new Date()) {
+    const expiresAt = row.expiresAt ? new Date(row.expiresAt) : null;
+    let lifecycleStatus: CertificateLifecycle = 'VALID';
+    let daysToExpiry: number | null = null;
+
+    if (row.status === 'REVOKED') {
+      lifecycleStatus = 'REVOKED';
+    } else if (row.status === 'EXPIRED') {
+      lifecycleStatus = 'EXPIRED';
+    } else if (expiresAt && !Number.isNaN(expiresAt.getTime())) {
+      daysToExpiry = Math.ceil((expiresAt.getTime() - now.getTime()) / 86_400_000);
+      if (daysToExpiry <= 0) lifecycleStatus = 'EXPIRED';
+      else if (daysToExpiry <= warningDays) lifecycleStatus = 'EXPIRING';
+    }
+
+    return {
+      ...row,
+      lifecycleStatus,
+      daysToExpiry,
+      renewalState: row.renewalAssignmentId ? 'IN_PROGRESS' : lifecycleStatus === 'EXPIRING' || lifecycleStatus === 'EXPIRED' ? 'DUE' : 'NONE',
+    };
+  }
+
+  private async certificate(tx: any, id: string) {
+    const c = this.context();
+    const rows: any[] = await tx.$queryRawUnsafe(
+      `SELECT cert.id,cert.status,cert.branch_id AS "branchId",cert.staff_id AS "staffId",cert.assignment_id AS "assignmentId",cert.course_version_id AS "courseVersionId",cert.expires_at AS "expiresAt",cert.renewal_assignment_id AS "renewalAssignmentId",v.course_id AS "courseId"
+       FROM training_certificates cert
+       JOIN training_course_versions v ON v.id=cert.course_version_id
+       WHERE cert.id=$1::text AND cert.tenant_id=$2::text AND cert.company_id=$3::text
+         AND ($4::text IS NULL OR cert.branch_id=$4::text)
+       LIMIT 1`,
+      id,c.tenantId,c.companyId,c.branchId,
+    );
+    if (!rows.length) throw new NotFoundException('Training certificate not found.');
+    return rows[0];
+  }
+
+  async list(input: { staffId?: string; status?: string; limit?: number; warningDays?: number } = {}) {
+    const c=this.context(),limit=Math.min(Math.max(Math.trunc(Number(input.limit??50)),1),200),status=input.status?.trim().toUpperCase()||null,warningDays=this.warningDays(input.warningDays);
+    if(status&&!['ACTIVE','EXPIRED','REVOKED','RENEWAL_ASSIGNED'].includes(status))throw new BadRequestException('Invalid certificate status.');
+    const rows=await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT cert.id,cert.certificate_no AS "certificateNo",cert.status,cert.staff_id AS "staffId",cert.assignment_id AS "assignmentId",cert.course_version_id AS "courseVersionId",cert.issued_at AS "issuedAt",cert.expires_at AS "expiresAt",cert.revoked_at AS "revokedAt",cert.revoke_reason AS "revokeReason",cert.renewal_assignment_id AS "renewalAssignmentId",cert.renewed_at AS "renewedAt",v.version AS "courseVersion",course.code AS "courseCode",course.title AS "courseTitle",s."firstName" AS "staffFirstName",s."lastName" AS "staffLastName"
+       FROM training_certificates cert
+       JOIN training_course_versions v ON v.id=cert.course_version_id
+       JOIN training_courses course ON course.id=v.course_id
+       LEFT JOIN staff s ON s.id=cert.staff_id AND s."tenantId"=cert.tenant_id
+       WHERE cert.tenant_id=$1::text AND cert.company_id=$2::text
+         AND ($3::text IS NULL OR cert.branch_id=$3::text)
+         AND ($4::text IS NULL OR cert.staff_id=$4::text)
+         AND ($5::text IS NULL OR cert.status=$5::text)
+       ORDER BY cert.issued_at DESC,cert.id LIMIT $6`,
+      c.tenantId,c.companyId,c.branchId,input.staffId??null,status,limit,
+    );
+    return rows.map((row)=>this.decorateLifecycle(row,warningDays));
+  }
+
+  async lifecycle(input: { warningDays?: number; limit?: number } = {}) {
+    const warningDays=this.warningDays(input.warningDays),limit=Math.min(Math.max(Math.trunc(Number(input.limit??200)),1),500);
+    const certificates=await this.list({limit,warningDays});
+    const summary={VALID:0,EXPIRING:0,EXPIRED:0,REVOKED:0,renewalInProgress:0};
+    for(const cert of certificates){
+      summary[cert.lifecycleStatus as CertificateLifecycle]+=1;
+      if(cert.renewalState==='IN_PROGRESS')summary.renewalInProgress+=1;
+    }
+    const recertificationQueue=certificates
+      .filter((cert)=>cert.lifecycleStatus==='EXPIRING'||cert.lifecycleStatus==='EXPIRED'||cert.renewalState==='IN_PROGRESS')
+      .sort((a,b)=>{
+        if(a.renewalState==='IN_PROGRESS'&&b.renewalState!=='IN_PROGRESS')return 1;
+        if(b.renewalState==='IN_PROGRESS'&&a.renewalState!=='IN_PROGRESS')return -1;
+        return Number(a.daysToExpiry??Number.MAX_SAFE_INTEGER)-Number(b.daysToExpiry??Number.MAX_SAFE_INTEGER);
+      });
+    return{warningDays,summary,recertificationQueue,certificates};
+  }
 
   async revoke(id:string,reason:string,actorUserId:string){const clean=reason?.trim();if(!clean)throw new BadRequestException('Revocation reason is required.');const c=this.context();return this.prisma.$transaction(async tx=>{const cert=await this.certificate(tx,id);await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-certificate:${id}`);if(cert.status==='REVOKED')return{certificateId:id,status:'REVOKED',duplicate:true};if(cert.status==='RENEWAL_ASSIGNED')throw new BadRequestException('Certificate with an active renewal assignment cannot be revoked through this transition.');const rows=await tx.$queryRawUnsafe<any[]>(`UPDATE training_certificates SET status='REVOKED',revoked_at=COALESCE(revoked_at,now()),revoked_by_user_id=COALESCE(revoked_by_user_id,$2::text),revoke_reason=COALESCE(revoke_reason,$3) WHERE id=$1::text RETURNING id,status,revoked_at AS "revokedAt"`,id,actorUserId,clean);await tx.$executeRawUnsafe(`INSERT INTO training_certificate_events(tenant_id,company_id,branch_id,certificate_id,event_type,from_status,to_status,actor_user_id,reason) VALUES($1::text,$2::text,$3::text,$4::text,'REVOKED',$5,'REVOKED',$6::text,$7)`,c.tenantId,c.companyId,cert.branchId,id,cert.status,actorUserId,clean);return rows[0];},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});}
 
   async processExpired(actorUserId:string,limit=100){const c=this.context(),safe=Math.min(Math.max(Math.trunc(Number(limit)||100),1),500);return this.prisma.$transaction(async tx=>{const rows=await tx.$queryRawUnsafe<any[]>(`SELECT id,branch_id AS "branchId" FROM training_certificates WHERE tenant_id=$1::text AND company_id=$2::text AND status='ACTIVE' AND expires_at IS NOT NULL AND expires_at<=now() AND ($3::text IS NULL OR branch_id=$3::text) ORDER BY expires_at,id FOR UPDATE SKIP LOCKED LIMIT $4`,c.tenantId,c.companyId,c.branchId,safe);for(const cert of rows){await tx.$executeRawUnsafe(`UPDATE training_certificates SET status='EXPIRED' WHERE id=$1::text AND status='ACTIVE'`,cert.id);await tx.$executeRawUnsafe(`INSERT INTO training_certificate_events(tenant_id,company_id,branch_id,certificate_id,event_type,from_status,to_status,actor_user_id) VALUES($1::text,$2::text,$3::text,$4::text,'EXPIRED','ACTIVE','EXPIRED',$5::text)`,c.tenantId,c.companyId,cert.branchId,cert.id,actorUserId);}return{claimed:rows.length,expired:rows.length};},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});}
 
   async assignRenewal(id:string,input:{dueAt?:string|null},actorUserId:string){const c=this.context();const due=input.dueAt?new Date(input.dueAt):null;if(due&&Number.isNaN(due.getTime()))throw new BadRequestException('dueAt is invalid.');return this.prisma.$transaction(async tx=>{const cert=await this.certificate(tx,id);await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-certificate:${id}`);if(cert.status==='REVOKED')throw new BadRequestException('Revoked certificate cannot start renewal.');if(cert.renewalAssignmentId)return{certificateId:id,assignmentId:cert.renewalAssignmentId,status:'RENEWAL_ASSIGNED',duplicate:true};const published=await tx.$queryRawUnsafe<any[]>(`SELECT id FROM training_course_versions WHERE tenant_id=$1::text AND company_id=$2::text AND course_id=$3::text AND status='PUBLISHED' LIMIT 1`,c.tenantId,c.companyId,cert.courseId);if(!published.length)throw new BadRequestException('Course has no published version for renewal.');const sourceKey=`certificate-renewal:${id}`;const assignments=await tx.$queryRawUnsafe<any[]>(`INSERT INTO training_assignments(tenant_id,company_id,branch_id,course_id,course_version_id,staff_id,source_type,source_key,rationale,status,due_at,assigned_by_user_id,updated_by_user_id) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,'MANUAL',$7,$8::jsonb,'ASSIGNED',$9,$10::text,$10::text) ON CONFLICT(tenant_id,company_id,source_key) DO UPDATE SET source_key=EXCLUDED.source_key RETURNING id`,c.tenantId,c.companyId,cert.branchId,cert.courseId,published[0].id,cert.staffId,sourceKey,JSON.stringify({reason:'CERTIFICATE_RENEWAL',certificateId:id,previousAssignmentId:cert.assignmentId}),due,actorUserId);const assignmentId=assignments[0].id;await tx.$executeRawUnsafe(`UPDATE training_certificates SET status='RENEWAL_ASSIGNED',renewal_assignment_id=$2::text,renewed_at=now(),renewed_by_user_id=$3::text WHERE id=$1::text`,id,assignmentId,actorUserId);await tx.$executeRawUnsafe(`INSERT INTO training_assignment_events(assignment_id,tenant_id,company_id,branch_id,event_type,actor_user_id,metadata) VALUES($1::text,$2::text,$3::text,$4::text,'CREATED',$5::text,$6::jsonb),($1::text,$2::text,$3::text,$4::text,'CERTIFICATE_RENEWAL_ASSIGNED',$5::text,$6::jsonb)`,assignmentId,c.tenantId,c.companyId,cert.branchId,actorUserId,JSON.stringify({certificateId:id}));await tx.$executeRawUnsafe(`INSERT INTO training_certificate_events(tenant_id,company_id,branch_id,certificate_id,event_type,from_status,to_status,actor_user_id,metadata) VALUES($1::text,$2::text,$3::text,$4::text,'RENEWAL_ASSIGNED',$5,'RENEWAL_ASSIGNED',$6::text,$7::jsonb)`,c.tenantId,c.companyId,cert.branchId,id,cert.status,actorUserId,JSON.stringify({assignmentId,courseVersionId:published[0].id}));return{certificateId:id,assignmentId,status:'RENEWAL_ASSIGNED',duplicate:false};},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});}
+
+  async processRecertification(actorUserId:string,input:{warningDays?:number;limit?:number}={}){
+    const c=this.context(),warningDays=this.warningDays(input.warningDays),limit=Math.min(Math.max(Math.trunc(Number(input.limit??50)),1),200);
+    const candidates=await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT cert.id
+       FROM training_certificates cert
+       WHERE cert.tenant_id=$1::text AND cert.company_id=$2::text
+         AND ($3::text IS NULL OR cert.branch_id=$3::text)
+         AND cert.status IN ('ACTIVE','EXPIRED')
+         AND cert.renewal_assignment_id IS NULL
+         AND cert.expires_at IS NOT NULL
+         AND cert.expires_at<=now()+($4::int*interval '1 day')
+       ORDER BY cert.expires_at,cert.id
+       LIMIT $5`,
+      c.tenantId,c.companyId,c.branchId,warningDays,limit,
+    );
+    const results:any[]=[];
+    for(const candidate of candidates){
+      try{results.push(await this.assignRenewal(candidate.id,{},actorUserId));}
+      catch(error){results.push({certificateId:candidate.id,error:error instanceof Error?error.message:'Renewal assignment failed.'});}
+    }
+    return{warningDays,claimed:candidates.length,assigned:results.filter((item)=>!item.error&&!item.duplicate).length,duplicates:results.filter((item)=>item.duplicate).length,failed:results.filter((item)=>item.error).length,results};
+  }
 
   async events(id:string){const c=this.context();const found=await this.prisma.$queryRawUnsafe<any[]>(`SELECT 1 FROM training_certificates WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND ($4::text IS NULL OR branch_id=$4::text) LIMIT 1`,id,c.tenantId,c.companyId,c.branchId);if(!found.length)throw new NotFoundException('Training certificate not found.');return this.prisma.$queryRawUnsafe<any[]>(`SELECT id,event_type AS "eventType",from_status AS "fromStatus",to_status AS "toStatus",reason,metadata,actor_user_id AS "actorUserId",created_at AS "createdAt" FROM training_certificate_events WHERE tenant_id=$1::text AND company_id=$2::text AND certificate_id=$3::text ORDER BY created_at,id`,c.tenantId,c.companyId,id);}
 }
