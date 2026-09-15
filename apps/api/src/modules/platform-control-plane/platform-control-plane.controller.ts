@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -197,7 +198,7 @@ export class PlatformControlPlaneController {
   ) {
     const decision = body.decision;
     if (decision !== 'APPROVED' && decision !== 'REJECTED') {
-      throw new UnauthorizedException('A valid privileged operation decision is required.');
+      throw new BadRequestException('A valid privileged operation decision is required.');
     }
     return this.privilegedOperations.decide({
       actorUserId: this.actor(request),
@@ -216,6 +217,9 @@ export class PlatformControlPlaneController {
     @Query('action') action?: string,
     @Query('targetTenantId') targetTenantId?: string,
     @Query('correlationId') correlationId?: string,
+    @Query('requestId') requestId?: string,
+    @Query('riskLevel') riskLevel?: string,
+    @Query('approvalRequestId') approvalRequestId?: string,
     @Query('limit') limit?: string,
     @Query('offset') offset?: string,
   ) {
@@ -225,6 +229,9 @@ export class PlatformControlPlaneController {
       action,
       targetTenantId,
       correlationId,
+      requestId,
+      riskLevel,
+      approvalRequestId,
       limit: this.parseOptionalInteger(limit),
       offset: this.parseOptionalInteger(offset),
     });
