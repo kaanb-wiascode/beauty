@@ -50,8 +50,9 @@ export default function PlatformCustomersPage() {
     };
   }, [query, offset]);
 
+  const total = data?.pagination.total ?? 0;
   const page = Math.floor(offset / limit) + 1;
-  const pageCount = Math.max(1, Math.ceil((data?.total ?? 0) / limit));
+  const pageCount = Math.max(1, Math.ceil(total / limit));
 
   return (
     <div className="mx-auto max-w-[1380px] space-y-7 pb-12">
@@ -68,7 +69,7 @@ export default function PlatformCustomersPage() {
           </p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/[.035] px-4 py-2 text-xs font-medium text-white/55">
-          {number.format(data?.total ?? 0)} tenant
+          {number.format(total)} tenant
         </div>
       </header>
 
@@ -120,7 +121,7 @@ export default function PlatformCustomersPage() {
                     {number.format(customer.activeMembershipCount)}
                   </td>
                   <td className="px-4 py-4 text-xs text-white/60">
-                    {number.format(customer.activeOwnerCount)}
+                    {number.format(customer.ownerCount)}
                   </td>
                   <td className="px-4 py-4 text-xs text-white/45">
                     {date.format(new Date(customer.createdAt))}
@@ -160,7 +161,7 @@ export default function PlatformCustomersPage() {
             </button>
             <button
               type="button"
-              disabled={!data || offset + limit >= data.total}
+              disabled={!data || offset + limit >= total}
               onClick={() => setOffset((value) => value + limit)}
               className="rounded-xl border border-white/10 bg-white/[.035] px-3 py-2 text-[10px] font-semibold text-white/60 transition enabled:hover:bg-white/[.07] disabled:cursor-not-allowed disabled:opacity-30"
             >
