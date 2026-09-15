@@ -79,5 +79,6 @@ export const updateReportScheduleSchema = z
     message: 'At least one scheduled report field must be provided',
   });
 
+export type ReportScheduleDatePreset = (typeof reportScheduleDatePresets)[number];
 export type CreateReportScheduleInput = z.infer<typeof createReportScheduleSchema>;
 export type UpdateReportScheduleInput = z.infer<typeof updateReportScheduleSchema>;
