@@ -6,28 +6,38 @@ import {
 } from '@nestjs/common';
 import { Prisma } from '@beauty-erp/database';
 
-@Catch(Prisma.PrismaClientKnownRequestError)
+type DatabaseRequestError =
+  | Prisma.PrismaClientKnownRequestError
+  | Prisma.PrismaClientUnknownRequestError;
+
+@Catch(
+  Prisma.PrismaClientKnownRequestError,
+  Prisma.PrismaClientUnknownRequestError,
+)
 export class PrismaExceptionFilter implements ExceptionFilter {
-  catch(
-    exception: Prisma.PrismaClientKnownRequestError,
-    host: ArgumentsHost,
-  ) {
+  catch(exception: DatabaseRequestError, host: ArgumentsHost) {
     const response = host.switchToHttp().getResponse<{
       status: (code: number) => {
         json: (body: unknown) => unknown;
       };
     }>();
 
-    const databaseContext = `${exception.message} ${JSON.stringify(
-      exception.meta ?? {},
-    )}`;
+    const meta =
+      exception instanceof Prisma.PrismaClientKnownRequestError
+        ? exception.meta
+        : undefined;
+    const databaseContext = `${exception.message} ${JSON.stringify(meta ?? {})}`;
 
     if (databaseContext.includes('TENANT_QUOTA_EXCEEDED')) {
       const key = databaseContext.match(
         /entitlementKey(?:\\?"|')?\s*:\s*(?:\\?"|')([^"'\\]+)/,
       )?.[1];
-      const limit = databaseContext.match(/(?:\\?"|')?limit(?:\\?"|')?\s*:\s*(\d+)/)?.[1];
-      const current = databaseContext.match(/(?:\\?"|')?current(?:\\?"|')?\s*:\s*(\d+)/)?.[1];
+      const limit = databaseContext.match(
+        /(?:\\?"|')?limit(?:\\?"|')?\s*:\s*(\d+)/,
+      )?.[1];
+      const current = databaseContext.match(
+        /(?:\\?"|')?current(?:\\?"|')?\s*:\s*(\d+)/,
+      )?.[1];
 
       return response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
@@ -42,7 +52,10 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       });
     }
 
-    if (exception.code === 'P2002') {
+    if (
+      exception instanceof Prisma.PrismaClientKnownRequestError &&
+      exception.code === 'P2002'
+    ) {
       return response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
         error: 'Conflict',
