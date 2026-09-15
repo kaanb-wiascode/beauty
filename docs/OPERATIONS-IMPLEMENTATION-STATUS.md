@@ -8,9 +8,9 @@ This document tracks implementation progress conservatively. A phase is not cons
 
 ## Overall estimate
 
-Current implementation estimate: **~90%** of the Operations roadmap.
+Current implementation estimate: **~92%** of the Operations roadmap.
 
-The remaining work is concentrated in deep integrations, permission refinement, controlled reversals, advanced multi-staff execution and full branch-wide CI/E2E verification.
+The remaining work is concentrated in branch working-hours, multi-staff execution, controlled reversals, broader operational tasks, precise permissions and full branch-wide CI/E2E verification.
 
 ## Phase 1 — Visit & Operational Lifecycle
 
@@ -47,12 +47,13 @@ Implemented:
 - Incident-aware resource blocking and cancellation/no-show allocation release.
 - Resource Calendar UI/API.
 - Capacity engine and explainable bottlenecks.
-- Approved leave hard-block in slot acceptance/matching.
+- HR published-shift, approved-leave, certification and competency eligibility reused through `SkillBasedSchedulingService`.
+- Branch-configurable Operations eligibility policy with OFF/WARN/BLOCK modes.
+- ServiceExecution start revalidates staff eligibility before physical execution begins.
 
 Still open:
 
-- HR shift/working-hours authoritative scheduling integration.
-- Training competency/certification WARN/BLOCK policy.
+- Explicit branch working-hours source distinct from staff shifts.
 - Multi-resource quantity requirements.
 
 ## Phase 3 — Service Execution
@@ -64,6 +65,7 @@ Implemented:
 - Separate ServiceExecution domain.
 - Explicit start/complete actions and append-only execution events.
 - Resource revalidation at execution start.
+- Staff published-shift/leave/certification/competency eligibility revalidation at execution start.
 - Required SOP/checklist snapshot and completion guard.
 - Expected/actual consumable snapshot/edit flow.
 - Inventory posting observed through existing Inventory ownership.
@@ -85,18 +87,20 @@ Status: **near complete**
 Implemented:
 
 - Resource Capacity Engine and utilization metrics.
-- Staff availability board derived from HR/Appointment/Execution data.
+- Staff availability board derived from HR shifts/leave/attendance plus Appointment/Execution state.
 - Waitlist lifecycle and audit/versioning.
 - Resource-aware slot matching.
 - Approved-leave-aware matching and acceptance.
+- Staff eligibility guard at waitlist booking acceptance, including shift/certification/competency policy.
 - Serializable slot acceptance with Appointment + allocation + waitlist transition in one transaction.
 - Cancellation slot recovery and priority ranking.
 - Resource bottleneck analysis.
+- Shift/leave-aware workforce capacity integrated from HR `WorkforceCapacityService` into Operations optimization.
 
 Still open:
 
-- Shift-aware denominator and branch working-hours integration.
-- Competency-aware slot matching/capacity.
+- Branch working-hours integration.
+- Pre-filtering waitlist match suggestions by the full HR eligibility policy; final acceptance is already protected.
 - Automated offer/expiry delivery on top of CRM Communications.
 
 ## Phase 5 — Branch Operations
@@ -143,7 +147,7 @@ Still open:
 
 ## Phase 7 — Advanced Operations Intelligence
 
-Status: **implemented foundation / advanced optimization active**
+Status: **advanced foundation substantially implemented**
 
 Implemented:
 
@@ -152,15 +156,16 @@ Implemented:
 - Manager insights.
 - Capacity recommendations from authoritative Capacity Engine bottlenecks.
 - Staff load-balance recommendations from Utilization read-model.
+- HR published-shift/approved-leave workforce capacity shortages included in optimization recommendations and anomalies.
 - Demand-aware slot candidates based on 8-week historical demand versus upcoming bookings.
-- Anomaly detection for no-show rate spikes and critical capacity saturation.
+- Anomaly detection for no-show rate spikes, critical resource capacity saturation and workforce shift-capacity saturation.
 - Dedicated Intelligence and Optimization workspaces.
 - Deterministic scheduling remains authoritative; no automatic booking/reassignment is performed by intelligence.
 
 Still open:
 
 - Stronger forecasting with seasonality/holiday/branch-hours context.
-- Competency/shift-aware optimization recommendations.
+- Eligibility-aware ranking of every suggested staff/slot candidate before display.
 - Recommendation outcome tracking and model-quality telemetry.
 - Optional ML layer only after sufficient production-quality data exists.
 
@@ -168,15 +173,15 @@ Still open:
 
 Operations changes are continuously landing on the shared `feature/core-commerce-foundation` branch alongside HR, Reports, Admin, Finance and other workstreams.
 
-Recent Operations quality runs have frequently been superseded/cancelled by parallel pushes. The latest branch quality run must pass migration deployment, API typecheck/tests/E2E, API build and web lint/typecheck/build before Operations can be called branch-wide green.
+Recent Operations quality runs have frequently been superseded/cancelled by parallel pushes. The current branch quality run must pass migration deployment, API typecheck/tests/E2E, API build and web lint/typecheck/build before Operations can be called branch-wide green.
 
-Do **not** interpret a pending or superseded run as a successful validation.
+Do **not** interpret a pending, in-progress or superseded run as a successful validation.
 
 ## Remaining highest-priority work
 
 1. Verify a current branch HEAD through the complete quality workflow.
-2. Add HR shift/branch-working-hours integration to conflict, utilization and capacity calculations.
-3. Add Training competency/certification WARN/BLOCK policies to assignment and slot matching.
+2. Add explicit branch working-hours integration where it differs from HR staff shifts.
+3. Filter waitlist match suggestions by full eligibility before marking `MATCH_FOUND`; booking acceptance is already guarded.
 4. Add multiple-staff ServiceExecution handoffs.
 5. Add controlled execution reversal/cancellation semantics.
 6. Expand lightweight Operational Tasks beyond opening/closing.
