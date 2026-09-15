@@ -28,6 +28,15 @@ type AllocationRow = {
   blockedTo: Date;
 };
 
+type ResourceBlockRow = {
+  roomId: string | null;
+  assetId: string | null;
+  blockedFrom: Date;
+  blockedTo: Date;
+};
+
+type TimeInterval = { from: number; to: number };
+
 @Injectable()
 export class OperationsCapacityService {
   constructor(
@@ -54,6 +63,46 @@ export class OperationsCapacityService {
     return { tenantId, companyId, branchId };
   }
 
+  private overlapMinutes(from: Date, to: Date, start: Date, end: Date) {
+    const overlapFrom = Math.max(from.getTime(), start.getTime());
+    const overlapTo = Math.min(to.getTime(), end.getTime());
+    if (overlapFrom >= overlapTo) return 0;
+    return Math.ceil((overlapTo - overlapFrom) / 60_000);
+  }
+
+  private mergedBlockedMinutes(
+    intervals: ResourceBlockRow[],
+    resourceId: string,
+    from: Date,
+    to: Date,
+  ) {
+    const clipped: TimeInterval[] = intervals
+      .filter((item) => (item.roomId ?? item.assetId) === resourceId)
+      .map((item) => ({
+        from: Math.max(from.getTime(), item.blockedFrom.getTime()),
+        to: Math.min(to.getTime(), item.blockedTo.getTime()),
+      }))
+      .filter((item) => item.from < item.to)
+      .sort((left, right) => left.from - right.from);
+
+    if (!clipped.length) return 0;
+
+    const merged: TimeInterval[] = [];
+    for (const current of clipped) {
+      const previous = merged.at(-1);
+      if (!previous || current.from > previous.to) {
+        merged.push({ ...current });
+      } else {
+        previous.to = Math.max(previous.to, current.to);
+      }
+    }
+
+    return merged.reduce(
+      (sum, interval) => sum + Math.ceil((interval.to - interval.from) / 60_000),
+      0,
+    );
+  }
+
   async summary(input: OperationsCapacityInput) {
     const { tenantId, companyId, branchId } = this.context();
     const from = input.from;
@@ -74,7 +123,7 @@ export class OperationsCapacityService {
       );
     }
 
-    const [rooms, assets, allocations] = await Promise.all([
+    const [rooms, assets, allocations, resourceBlocks] = await Promise.all([
       this.prisma.$queryRawUnsafe<CapacityResourceRow[]>(
         `SELECT 'ROOM'::text AS "resourceType", r.id AS "resourceId",
                 r.name AS "resourceName", r.room_type AS category,
@@ -119,6 +168,19 @@ export class OperationsCapacityService {
         from,
         to,
       ),
+      this.prisma.$queryRawUnsafe<ResourceBlockRow[]>(
+        `SELECT room_id AS "roomId", inventory_asset_id AS "assetId",
+                blocked_from AS "blockedFrom", blocked_to AS "blockedTo"
+         FROM operations_resource_blocks
+         WHERE tenant_id = $1 AND company_id = $2 AND branch_id = $3
+           AND status = 'ACTIVE'
+           AND blocked_from < $5 AND blocked_to > $4`,
+        tenantId,
+        companyId,
+        branchId,
+        from,
+        to,
+      ),
     ]);
 
     const resources = [...rooms, ...assets];
@@ -128,11 +190,12 @@ export class OperationsCapacityService {
       const resourceId = allocation.roomId ?? allocation.assetId;
       if (!resourceId) continue;
 
-      const overlapFrom = Math.max(from.getTime(), allocation.blockedFrom.getTime());
-      const overlapTo = Math.min(to.getTime(), allocation.blockedTo.getTime());
-      if (overlapFrom >= overlapTo) continue;
-
-      const minutes = Math.ceil((overlapTo - overlapFrom) / 60_000);
+      const minutes = this.overlapMinutes(
+        from,
+        to,
+        allocation.blockedFrom,
+        allocation.blockedTo,
+      );
       allocationMinutesByResource.set(
         resourceId,
         (allocationMinutesByResource.get(resourceId) ?? 0) + minutes,
@@ -140,28 +203,39 @@ export class OperationsCapacityService {
     }
 
     const resourceMetrics = resources.map((resource) => {
+      const blockedMinutes = resource.unavailable
+        ? windowMinutes
+        : Math.min(
+            windowMinutes,
+            this.mergedBlockedMinutes(
+              resourceBlocks,
+              resource.resourceId,
+              from,
+              to,
+            ),
+          );
+      const availableMinutes = resource.unavailable
+        ? 0
+        : Math.max(0, windowMinutes - blockedMinutes);
       const allocatedMinutes = Math.min(
-        windowMinutes,
+        availableMinutes,
         allocationMinutesByResource.get(resource.resourceId) ?? 0,
       );
-      const availableMinutes = resource.unavailable ? 0 : windowMinutes;
-      const effectiveAllocatedMinutes = resource.unavailable
-        ? 0
-        : allocatedMinutes;
       const remainingMinutes = Math.max(
         0,
-        availableMinutes - effectiveAllocatedMinutes,
+        availableMinutes - allocatedMinutes,
       );
       const utilizationPercent =
         availableMinutes === 0
           ? 0
-          : Math.round((effectiveAllocatedMinutes / availableMinutes) * 10_000) /
-            100;
+          : Math.round((allocatedMinutes / availableMinutes) * 10_000) / 100;
 
       return {
         ...resource,
         windowMinutes,
-        allocatedMinutes: effectiveAllocatedMinutes,
+        blockedMinutes,
+        capacityMinutes: availableMinutes,
+        allocatedMinutes,
         remainingMinutes,
         utilizationPercent,
       };
@@ -174,6 +248,7 @@ export class OperationsCapacityService {
         category: string;
         totalResources: number;
         unavailableResources: number;
+        blockedMinutes: number;
         capacityMinutes: number;
         allocatedMinutes: number;
         remainingMinutes: number;
@@ -187,13 +262,15 @@ export class OperationsCapacityService {
         category: metric.category,
         totalResources: 0,
         unavailableResources: 0,
+        blockedMinutes: 0,
         capacityMinutes: 0,
         allocatedMinutes: 0,
         remainingMinutes: 0,
       };
       current.totalResources += 1;
       current.unavailableResources += metric.unavailable ? 1 : 0;
-      current.capacityMinutes += metric.unavailable ? 0 : windowMinutes;
+      current.blockedMinutes += metric.blockedMinutes;
+      current.capacityMinutes += metric.capacityMinutes;
       current.allocatedMinutes += metric.allocatedMinutes;
       current.remainingMinutes += metric.remainingMinutes;
       grouped.set(key, current);
@@ -209,13 +286,16 @@ export class OperationsCapacityService {
     }));
 
     const bottlenecks = categories
-      .filter((group) => group.capacityMinutes === 0 || group.utilizationPercent >= 80)
+      .filter(
+        (group) => group.capacityMinutes === 0 || group.utilizationPercent >= 80,
+      )
       .sort((left, right) => right.utilizationPercent - left.utilizationPercent)
       .map((group) => ({
         resourceType: group.resourceType,
         category: group.category,
         utilizationPercent: group.utilizationPercent,
         remainingMinutes: group.remainingMinutes,
+        blockedMinutes: group.blockedMinutes,
         unavailableResources: group.unavailableResources,
         reason:
           group.capacityMinutes === 0
@@ -233,6 +313,10 @@ export class OperationsCapacityService {
       (sum, group) => sum + group.allocatedMinutes,
       0,
     );
+    const totalBlockedMinutes = categories.reduce(
+      (sum, group) => sum + group.blockedMinutes,
+      0,
+    );
 
     return {
       from,
@@ -242,6 +326,7 @@ export class OperationsCapacityService {
         resources: resourceMetrics.length,
         unavailableResources: resourceMetrics.filter((item) => item.unavailable)
           .length,
+        blockedMinutes: totalBlockedMinutes,
         capacityMinutes: totalCapacityMinutes,
         allocatedMinutes: totalAllocatedMinutes,
         remainingMinutes: Math.max(0, totalCapacityMinutes - totalAllocatedMinutes),
