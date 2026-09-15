@@ -3,6 +3,7 @@ import { HrController } from './hr.controller';
 import { HrService } from './hr.service';
 import { HrOrganizationService } from './hr-organization.service';
 import { Employee360Service } from './employee-360.service';
+import { EmploymentHistoryService } from './employment-history.service';
 import { PayrollAccountingService } from './payroll-accounting.service';
 import { PayrollPeriodService } from './payroll-period.service';
 import { PayrollSettlementService } from './payroll-settlement.service';
@@ -15,10 +16,5 @@ import { PayrollPaymentReversalService } from './payroll-payment-reversal.servic
 import { PayrollWorkInputService } from './payroll-work-input.service';
 import { HrAnalyticsService } from './hr-analytics.service';
 import { PayrollPolicyService } from './payroll-policy.service';
-
-@Module({
-  controllers: [HrController],
-  providers: [HrService,HrOrganizationService,Employee360Service,PayrollAccountingService,PayrollPeriodService,PayrollSettlementService,PayrollReportService,PayrollCostCenterAccountingService,PayrollPostingOrchestratorService,PayrollReversalService,PayrollDashboardService,PayrollPaymentReversalService,PayrollWorkInputService,HrAnalyticsService,PayrollPolicyService],
-  exports: [HrService,HrOrganizationService,Employee360Service,PayrollAccountingService,PayrollPeriodService,PayrollSettlementService,PayrollReportService,PayrollCostCenterAccountingService,PayrollPostingOrchestratorService,PayrollReversalService,PayrollDashboardService,PayrollPaymentReversalService,PayrollWorkInputService,HrAnalyticsService,PayrollPolicyService],
-})
+@Module({controllers:[HrController],providers:[HrService,HrOrganizationService,Employee360Service,EmploymentHistoryService,PayrollAccountingService,PayrollPeriodService,PayrollSettlementService,PayrollReportService,PayrollCostCenterAccountingService,PayrollPostingOrchestratorService,PayrollReversalService,PayrollDashboardService,PayrollPaymentReversalService,PayrollWorkInputService,HrAnalyticsService,PayrollPolicyService],exports:[HrService,HrOrganizationService,Employee360Service,EmploymentHistoryService,PayrollAccountingService,PayrollPeriodService,PayrollSettlementService,PayrollReportService,PayrollCostCenterAccountingService,PayrollPostingOrchestratorService,PayrollReversalService,PayrollDashboardService,PayrollPaymentReversalService,PayrollWorkInputService,HrAnalyticsService,PayrollPolicyService]})
 export class HrModule {}
