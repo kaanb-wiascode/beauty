@@ -8,7 +8,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports foundation is implemented end-to-end for personal views with requester ownership and permission revalidation.
+The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports is implemented end-to-end for personal views with requester ownership, favorites, permission revalidation and recent-use tracking.
 
 ## Completed export foundation
 
@@ -63,7 +63,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Worker/storage/download integration and frontend PDF selection.
 - Current Base14-font implementation normalizes non-ASCII/Turkish glyphs for deterministic rendering. Embedded Unicode brand fonts, company logo, richer layout and charts remain a presentation-quality follow-up rather than an authorization/export-pipeline blocker.
 
-## Saved Reports
+## Saved Reports, Favorites and Recents
 
 - Persistent `report_saved_views` storage and multi-file Prisma model.
 - Personal ownership only; tenant/company/branch/owner scope is derived from authenticated context and never accepted from the client.
@@ -72,7 +72,9 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Saved report list/get/update re-evaluates current report/source-domain permission instead of trusting permissions from save time.
 - Saved columns and sort keys are checked against server-owned report definitions before persistence.
 - Export Center can save the current report/date/column/sort configuration, list personal saved reports, re-apply a saved configuration, favorite/unfavorite it and delete it.
-- Applying a saved report uses only entries still present in the server-owned report catalog; revoked report permissions cannot be revived by a saved view.
+- Applying a saved report performs an authenticated GET and updates `last_opened_at` only after permission revalidation succeeds.
+- Recent Reports is derived from permission-safe `last_opened_at` data rather than mutation timestamps.
+- Recent Exports reuses requester-private export history across all authorized report keys and supports READY artifact download.
 - Sharing is intentionally not enabled yet.
 
 ## Frontend
@@ -83,7 +85,8 @@ The shared export foundation is implemented for the current Staff Performance, S
 - PDF / Excel (.xlsx) / CSV selector.
 - Visible-columns vs all-permitted-columns export mode.
 - Optional summary inclusion.
-- Saved Reports and personal favorites UX.
+- Saved Reports, favorites and Recent Reports UX.
+- Cross-report Recent Exports section with refresh and READY download.
 - Personal paginated export history.
 - QUEUED / PROCESSING / READY / FAILED / EXPIRED states.
 - Polling only while jobs are pending.
@@ -103,7 +106,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 - PDF generator tests including metadata/detail output and multi-page pagination.
 - Storage filesystem/object-driver tests.
 - Stale worker, expiry and download tests.
-- Saved Report DTO boundary tests and permission-revalidation tests.
+- Saved Report DTO boundary, permission-revalidation and recent-open tracking tests.
 - Reporting HTTP/E2E coverage for queue creation, requester-private history, get-by-id and invalid requester/scope fields.
 
 ## Intentional implementation notes
@@ -118,17 +121,16 @@ The web workspace still has no dedicated frontend test runner. UI changes curren
 
 ## Current CI note
 
-Prisma schema validation now passes. The latest observed quality pipeline then stopped on an unrelated HR migration seed referencing `companies.tenant_id` while the existing table exposes `"tenantId"`. Reporting migrations, including `report_export_jobs`, applied successfully before that blocker. Do not classify Reporting as fully green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build.
+Prisma schema validation passes. The latest observed quality pipeline stopped on an unrelated HR migration seed referencing `companies.tenant_id` while the existing table exposes `"tenantId"`. Reporting migrations applied successfully before that blocker. Do not classify Reporting as fully green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build.
 
 ## Next Phase 2 increments
 
 1. Add export audit events when the shared AuditLog persistence/service is available.
 2. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
-3. Add recent reports/recent exports on top of the Saved Reports foundation.
-4. Add scheduled reports with timezone, recipient, format and retry/history controls.
-5. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
-6. Add frontend tests for permission filtering, polling lifecycle, saved reports and download transitions when the web test runner is introduced.
-7. Continue the roadmap into drill-down/comparison and additional report domains.
+3. Add scheduled reports with timezone, recipient, format and retry/history controls.
+4. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
+5. Add frontend tests for permission filtering, polling lifecycle, saved reports and download transitions when the web test runner is introduced.
+6. Continue the roadmap into drill-down/comparison and additional report domains.
 
 ## Security invariants
 
@@ -137,6 +139,7 @@ Prisma schema validation now passes. The latest observed quality pipeline then s
 - Export requester filters are derived from the authenticated principal.
 - Saved Report scope and ownership are derived from the authenticated principal.
 - Saved Reports re-evaluate current source-domain permissions before opening or mutation.
+- Recent Report usage timestamps are written only after permission-safe reopen.
 - Storage keys are server-generated and never accepted from clients.
 - Unauthorized/internal columns are rejected before queueing or saving a report view.
 - Worker authorization is re-evaluated at processing time.
