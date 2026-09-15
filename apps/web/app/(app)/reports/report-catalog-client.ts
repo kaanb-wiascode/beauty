@@ -3,13 +3,14 @@ import { api } from "@/lib/api";
 export type ReportCatalogKey =
   | "staff.performance"
   | "service.performance"
-  | "payments.summary";
+  | "payments.summary"
+  | "customers.performance";
 
 export type ReportCatalogItem = {
   key: ReportCatalogKey;
   title: string;
   description: string;
-  domain: "staff" | "services" | "payments";
+  domain: "staff" | "services" | "payments" | "customers";
   route: string;
   resultKind: "table" | "summary";
   availableColumns: readonly string[];
@@ -17,6 +18,7 @@ export type ReportCatalogItem = {
   exportableColumns: readonly string[];
   sortableColumns: readonly string[];
   exportFormats: readonly ("CSV" | "XLSX" | "PDF")[];
+  drilldowns: readonly string[];
   pagination: boolean;
 };
 
