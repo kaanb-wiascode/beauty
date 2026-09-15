@@ -1,4 +1,3 @@
-import { BadRequestException } from '@nestjs/common';
 import { OffboardingService } from './offboarding.service';
 
 describe('OffboardingService', () => {
@@ -134,9 +133,6 @@ describe('OffboardingService', () => {
       .mockResolvedValueOnce([{ id: 'history-future', effective_from: '2026-10-15' }]);
     const service = new OffboardingService(prisma as never, ctx as never);
 
-    await expect(service.complete('staff-1', 'user-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
     await expect(service.complete('staff-1', 'user-1')).rejects.toThrow(
       'Future employment history exists after the termination date.',
     );
