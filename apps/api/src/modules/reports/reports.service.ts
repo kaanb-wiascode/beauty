@@ -78,7 +78,11 @@ export class ReportsService {
       );
     }
 
-    const columns = this.resolveExportColumns(definition, input.columns);
+    const columns = this.resolveExportColumns(
+      definition,
+      input.columns,
+      input.columnMode,
+    );
     this.validateSort(definition, input.sort?.key);
 
     return {
@@ -291,7 +295,12 @@ export class ReportsService {
   private resolveExportColumns(
     definition: ReportDefinition,
     requested?: readonly string[],
+    mode: ReportExportInput['columnMode'] = 'VISIBLE',
   ) {
+    if (mode === 'ALL_PERMITTED') {
+      return [...definition.exportableColumns];
+    }
+
     const defaults = definition.defaultColumns.filter((column) =>
       definition.exportableColumns.includes(column),
     );
