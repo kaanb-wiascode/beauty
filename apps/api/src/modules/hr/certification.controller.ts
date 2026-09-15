@@ -39,6 +39,14 @@ export class CertificationController {
  @RequirePermissions({resource:'hr_sensitive',action:'read'})
  expiring(@Query('days')days?:string){return this.certifications.expiring(days?Number(days):30)}
 
+ @Get('services/:serviceId/certification-requirements')
+ @RequirePermissions({resource:'hr_sensitive',action:'read'})
+ serviceRequirements(@Param('serviceId')serviceId:string){return this.certifications.serviceRequirements(serviceId)}
+
+ @Post('services/:serviceId/certification-requirements')
+ @RequirePermissions({resource:'hr',action:'manage'},{resource:'hr_sensitive',action:'read'})
+ setServiceRequirement(@Param('serviceId')serviceId:string,@Body()body:any){return this.certifications.setServiceRequirement(serviceId,body)}
+
  @Get('employees/:id/service-eligibility/:serviceId')
  @RequirePermissions({resource:'hr_sensitive',action:'read'})
  serviceEligibility(@Param('id')id:string,@Param('serviceId')serviceId:string){return this.certifications.serviceEligibility(id,serviceId)}
