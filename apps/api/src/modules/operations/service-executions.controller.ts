@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -16,12 +17,16 @@ import {
   completeServiceExecutionSchema,
   startServiceExecutionSchema,
 } from './dto/service-execution.dto';
+import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
 import { ServiceExecutionsService } from './service-executions.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 @Controller('operations/service-executions')
 export class ServiceExecutionsController {
-  constructor(private readonly executions: ServiceExecutionsService) {}
+  constructor(
+    private readonly executions: ServiceExecutionsService,
+    private readonly checklists: OperationsServiceChecklistsService,
+  ) {}
 
   @Get('visits/:visitId')
   @UseGuards(PermissionsGuard)
@@ -43,10 +48,16 @@ export class ServiceExecutionsController {
   @Post(':executionId/complete')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'update')
-  complete(
+  async complete(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Body() body: unknown,
   ) {
+    const checklist = await this.checklists.getExecutionChecklist(executionId);
+    if (checklist.completionBlocked) {
+      throw new BadRequestException(
+        'Required service checklist items must be completed first.',
+      );
+    }
     return this.executions.complete(
       executionId,
       completeServiceExecutionSchema.parse(body),
