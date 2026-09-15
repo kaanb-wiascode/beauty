@@ -44,6 +44,9 @@ const typeLabel: Record<string, string> = {
   SERVICE_OVERRUN: "Süre Aşımı",
   CHECKOUT_STALE: "Checkout",
   ROOM_ATTENTION: "Oda",
+  DEVICE_UNAVAILABLE: "Cihaz",
+  RESOURCE_APPOINTMENT_IMPACT: "Kaynak Çakışması",
+  UPCOMING_STOCK_SHORTAGE: "Stok Riski",
   ACTIVE_INCIDENT: "Incident",
 };
 
@@ -100,7 +103,7 @@ export default function OperationsAlertsPage() {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Live Exceptions</p>
             <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Canlı Uyarılar & İstisnalar</h1>
-            <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Visit, randevu, oda ve incident kayıtlarından türetilen anlık operasyon sinyalleri. Uyarılar ayrı bir doğruluk kaynağı değildir; her kart ilgili business kaydının mevcut durumunu açıklar.</p>
+            <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Visit, randevu, oda/cihaz, incident ve Inventory verilerinden türetilen anlık operasyon sinyalleri. Uyarılar ayrı bir doğruluk kaynağı değildir; her kart ilgili business kaydının mevcut durumunu açıklar.</p>
           </div>
           <Button variant="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Yenileniyor..." : "Şimdi Yenile"}</Button>
         </div>
