@@ -20,6 +20,11 @@ export type ReportExportJob = {
   expiresAt: string | null;
 };
 
+export type ReportExportListResult = {
+  data: ReportExportJob[];
+  meta: { page: number; limit: number; total: number; totalPages: number };
+};
+
 export type CreateReportExportInput = {
   reportKey: "staff.performance" | "service.performance" | "payments.summary";
   filters: { from: string; to: string };
@@ -42,8 +47,24 @@ export function createReportExport(input: CreateReportExportInput) {
   });
 }
 
-export function listReportExports(limit = 20) {
-  return api<ReportExportJob[]>(withQuery("/reports/exports", { limit }));
+export function listReportExports(input: {
+  page?: number;
+  limit?: number;
+  reportKey?: CreateReportExportInput["reportKey"];
+  status?: ReportExportStatus;
+  format?: ReportExportJob["format"];
+  mine?: boolean;
+} = {}) {
+  return api<ReportExportListResult>(
+    withQuery("/reports/exports", {
+      page: input.page ?? 1,
+      limit: input.limit ?? 20,
+      reportKey: input.reportKey,
+      status: input.status,
+      format: input.format,
+      mine: input.mine === undefined ? undefined : String(input.mine),
+    }),
+  );
 }
 
 export async function downloadReportExport(job: Pick<ReportExportJob, "id">) {
