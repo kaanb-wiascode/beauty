@@ -361,8 +361,20 @@ export class AuthController {
     @Body() body: unknown,
   ) {
     const input = switchContextSchema.parse(body);
-    const result = await this.authService.switchContext(input.membershipId, input.branchId, user.sub);
-    await this.registerSession(result);
+    const result = await this.authService.switchContext(
+      input.membershipId,
+      input.branchId,
+      user.sub,
+    );
+    await this.sessionRegistry.register({
+      refreshId: result.refreshToken,
+      userId: user.sub,
+      tenantId: user.tenantId,
+      membershipId: result.membership.id,
+      companyId: result.company.id,
+      branchId: result.branch?.id ?? null,
+      roleScope: result.membership.roleScope,
+    });
     return result;
   }
 
