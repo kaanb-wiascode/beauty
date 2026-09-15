@@ -4,7 +4,9 @@ import { ObjectStorageModule } from '../../common/storage/object-storage.module'
 import { AppointmentsModule } from '../appointments/appointments.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FinanceModule } from '../finance/finance.module';
+import { InventoryModule } from '../inventory/inventory.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { ProcurementModule } from '../procurement/procurement.module';
 import { SalesModule } from '../sales/sales.module';
 import { ServicesModule } from '../services/services.module';
 import { StaffModule } from '../staff/staff.module';
@@ -41,6 +43,8 @@ import { ReportsService } from './reports.service';
     AppointmentsModule,
     CustomersModule,
     FinanceModule,
+    InventoryModule,
+    ProcurementModule,
     SalesModule,
     StaffModule,
     ServicesModule,
