@@ -33,7 +33,7 @@ export const createLeadSchema = z.object({
   adSetId: acquisitionText.optional(), adSetName: acquisitionText.optional(), adId: acquisitionText.optional(), adName: acquisitionText.optional(),
   landingPage: acquisitionUrl.optional(), referrer: acquisitionUrl.optional(), utmSource: acquisitionText.optional(), utmMedium: acquisitionText.optional(),
   utmCampaign: acquisitionText.optional(), utmContent: acquisitionText.optional(), utmTerm: acquisitionText.optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
-  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().optional(),
+  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().nullable().optional(),
   estimatedBudget: z.coerce.number().min(0).optional(), budgetCurrency: currencySchema.default('TRY'), purchaseUrgency: leadPurchaseUrgencySchema.optional(),
   consultationNeed: leadConsultationNeedSchema.optional(), customerIntent: z.string().trim().min(1).max(1000).optional(),
   team: z.string().trim().min(1).max(120).optional(),
