@@ -4,6 +4,12 @@ import Link from "next/link";
 
 const sections = [
   {
+    href: "/settings/users",
+    title: "Kullanıcılar",
+    description: "İşletme Üyeliklerini, Rolleri Ve Erişim Durumlarını Yönetin.",
+    glyph: "◎",
+  },
+  {
     href: "/settings/roles",
     title: "Roller Ve Yetkiler",
     description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.",
@@ -19,20 +25,20 @@ export default function SettingsPage() {
           Yönetim
         </div>
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
-          Ayarlar
+          Yönetim Merkezi
         </h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">
-          VALOO Çalışma Alanınızı Ve Ekip Erişimini Yönetin.
+          VALOO Çalışma Alanınızı, Kullanıcı Erişimini Ve Yönetim Politikalarını Yönetin.
         </p>
       </header>
 
       <section aria-labelledby="settings-sections" className="space-y-3">
         <div>
           <h2 id="settings-sections" className="text-sm font-semibold text-[var(--ink)]">
-            Yönetim Araçları
+            Erişim Yönetimi
           </h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Kullanmak İstediğiniz Ayar Alanını Seçin.
+            Kullanıcıları Ve Yetkilendirme Yapısını Ayrı Yönetim Alanlarından Yönetin.
           </p>
         </div>
 
