@@ -2,11 +2,26 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
+const COMPETENCY_LEVELS = [
+  { code: 'L0', label: 'Yetkin Değil', minScore: 0, maxScore: 19 },
+  { code: 'L1', label: 'Başlangıç', minScore: 20, maxScore: 39 },
+  { code: 'L2', label: 'Gözetim Altında', minScore: 40, maxScore: 59 },
+  { code: 'L3', label: 'Bağımsız Uygulayabilir', minScore: 60, maxScore: 79 },
+  { code: 'L4', label: 'İleri', minScore: 80, maxScore: 94 },
+  { code: 'L5', label: 'Eğitmen', minScore: 95, maxScore: 100 },
+] as const;
+
 @Injectable()
 export class CompetencyService {
   constructor(private readonly prisma: PrismaService, private readonly tenant: TenantContext) {}
 
   private context(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId(),branchId:this.tenant.getBranchId()};}
+
+  private level(score: number | null | undefined) {
+    if (score == null || !Number.isFinite(Number(score))) return null;
+    const value = Math.min(Math.max(Number(score), 0), 100);
+    return COMPETENCY_LEVELS.find((item) => value >= item.minScore && value <= item.maxScore) ?? COMPETENCY_LEVELS[0];
+  }
 
   private async staff(staffId:string){
     const c=this.context();
@@ -16,6 +31,62 @@ export class CompetencyService {
   }
 
   private date(value:string,field:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value??''))throw new BadRequestException(`${field} must use YYYY-MM-DD.`);return value;}
+
+  levelScale(){return COMPETENCY_LEVELS;}
+
+  async skillMatrix(){
+    const c=this.context();
+    const rows=await this.prisma.$queryRawUnsafe<any[]>(`
+      WITH scoped_staff AS (
+        SELECT s.id,s."firstName" AS "firstName",s."lastName" AS "lastName",s."branchId" AS "branchId",ep.position
+        FROM staff s
+        JOIN branches b ON b.id=s."branchId"
+        LEFT JOIN employee_profiles ep ON ep.staff_id=s.id AND ep.tenant_id=s."tenantId" AND ep.branch_id=s."branchId"
+        WHERE s."tenantId"=$1::text AND b."companyId"=$2::text AND s.status='ACTIVE'
+          AND ($3::text IS NULL OR s."branchId"=$3::text)
+      ), active_profile AS (
+        SELECT DISTINCT ON(sp.staff_id) sp.staff_id,sp.profile_id
+        FROM staff_competency_profiles sp
+        JOIN scoped_staff ss ON ss.id=sp.staff_id
+        WHERE sp.tenant_id=$1::text AND sp.company_id=$2::text
+          AND sp.effective_from<=CURRENT_DATE AND (sp.effective_to IS NULL OR sp.effective_to>=CURRENT_DATE)
+        ORDER BY sp.staff_id,sp.effective_from DESC,sp.created_at DESC
+      ), latest AS (
+        SELECT DISTINCT ON(a.staff_id,a.competency_id) a.staff_id,a.competency_id,a.score,a.source_type,a.assessed_at
+        FROM staff_competency_assessments a
+        JOIN scoped_staff ss ON ss.id=a.staff_id
+        WHERE a.tenant_id=$1::text AND a.company_id=$2::text
+        ORDER BY a.staff_id,a.competency_id,a.assessed_at DESC,a.created_at DESC
+      )
+      SELECT ss.id AS "staffId",ss."firstName",ss."lastName",ss."branchId",ss.position,
+             p.id AS "profileId",p.code AS "profileCode",p.name AS "profileName",p.version AS "profileVersion",
+             d.id AS "competencyId",d.code AS "competencyCode",d.name AS "competencyName",
+             r.required_level AS "requiredLevel",r.weight,l.score AS "currentLevel",
+             CASE WHEN r.required_level IS NULL THEN 0 WHEN l.score IS NULL THEN r.required_level ELSE GREATEST(r.required_level-l.score,0) END AS gap,
+             l.source_type AS "latestSource",l.assessed_at AS "lastAssessedAt"
+      FROM scoped_staff ss
+      LEFT JOIN active_profile ap ON ap.staff_id=ss.id
+      LEFT JOIN competency_profiles p ON p.id=ap.profile_id
+      LEFT JOIN competency_profile_requirements r ON r.profile_id=p.id
+      LEFT JOIN competency_definitions d ON d.id=r.competency_id
+      LEFT JOIN latest l ON l.staff_id=ss.id AND l.competency_id=d.id
+      ORDER BY ss."lastName",ss."firstName",d.name
+    `,c.tenantId,c.companyId,c.branchId);
+
+    const grouped=new Map<string,any>();
+    for(const row of rows){
+      let person=grouped.get(row.staffId);
+      if(!person){
+        person={staffId:row.staffId,firstName:row.firstName,lastName:row.lastName,branchId:row.branchId,position:row.position??null,profile:row.profileId?{id:row.profileId,code:row.profileCode,name:row.profileName,version:Number(row.profileVersion)}:null,requirements:[]};
+        grouped.set(row.staffId,person);
+      }
+      if(row.competencyId){
+        const current=row.currentLevel==null?null:Number(row.currentLevel),required=Number(row.requiredLevel??0),gap=Number(row.gap??0);
+        person.requirements.push({competencyId:row.competencyId,competencyCode:row.competencyCode,competencyName:row.competencyName,requiredLevel:required,requiredBand:this.level(required),currentLevel:current,currentBand:this.level(current),gap,meetsRequirement:current!=null&&gap<=0,weight:Number(row.weight??1),latestSource:row.latestSource??null,lastAssessedAt:row.lastAssessedAt??null});
+      }
+    }
+    return [...grouped.values()];
+  }
 
   async createDefinition(input:{code:string;name:string;description?:string|null;category?:string},actorUserId:string){
     const c=this.context(),code=input.code?.trim().toUpperCase(),name=input.name?.trim(),category=input.category?.trim().toUpperCase()||'GENERAL';
@@ -76,6 +147,7 @@ export class CompetencyService {
 
   async gaps(staffId:string){
     const c=this.context();await this.staff(staffId);
-    return this.prisma.$queryRawUnsafe<any[]>(`WITH profile AS (SELECT sp.profile_id FROM staff_competency_profiles sp WHERE sp.tenant_id=$1::text AND sp.company_id=$2::text AND sp.staff_id=$3::text AND sp.effective_from<=CURRENT_DATE AND (sp.effective_to IS NULL OR sp.effective_to>=CURRENT_DATE) ORDER BY sp.effective_from DESC,sp.created_at DESC LIMIT 1), latest AS (SELECT DISTINCT ON(a.competency_id) a.competency_id,a.score,a.source_type,a.assessed_at FROM staff_competency_assessments a WHERE a.tenant_id=$1::text AND a.company_id=$2::text AND a.staff_id=$3::text ORDER BY a.competency_id,a.assessed_at DESC,a.created_at DESC) SELECT d.id AS "competencyId",d.code AS "competencyCode",d.name AS "competencyName",r.required_level AS "requiredLevel",l.score AS "currentLevel",CASE WHEN l.score IS NULL THEN r.required_level ELSE GREATEST(r.required_level-l.score,0) END AS gap,l.source_type AS "latestSource",l.assessed_at AS "lastAssessedAt",r.weight FROM profile p JOIN competency_profile_requirements r ON r.profile_id=p.profile_id JOIN competency_definitions d ON d.id=r.competency_id LEFT JOIN latest l ON l.competency_id=d.id ORDER BY gap DESC,d.name`,c.tenantId,c.companyId,staffId);
+    const rows=await this.prisma.$queryRawUnsafe<any[]>(`WITH profile AS (SELECT sp.profile_id FROM staff_competency_profiles sp WHERE sp.tenant_id=$1::text AND sp.company_id=$2::text AND sp.staff_id=$3::text AND sp.effective_from<=CURRENT_DATE AND (sp.effective_to IS NULL OR sp.effective_to>=CURRENT_DATE) ORDER BY sp.effective_from DESC,sp.created_at DESC LIMIT 1), latest AS (SELECT DISTINCT ON(a.competency_id) a.competency_id,a.score,a.source_type,a.assessed_at FROM staff_competency_assessments a WHERE a.tenant_id=$1::text AND a.company_id=$2::text AND a.staff_id=$3::text ORDER BY a.competency_id,a.assessed_at DESC,a.created_at DESC) SELECT d.id AS "competencyId",d.code AS "competencyCode",d.name AS "competencyName",r.required_level AS "requiredLevel",l.score AS "currentLevel",CASE WHEN l.score IS NULL THEN r.required_level ELSE GREATEST(r.required_level-l.score,0) END AS gap,l.source_type AS "latestSource",l.assessed_at AS "lastAssessedAt",r.weight FROM profile p JOIN competency_profile_requirements r ON r.profile_id=p.profile_id JOIN competency_definitions d ON d.id=r.competency_id LEFT JOIN latest l ON l.competency_id=d.id ORDER BY gap DESC,d.name`,c.tenantId,c.companyId,staffId);
+    return rows.map((row)=>({...row,requiredBand:this.level(Number(row.requiredLevel)),currentBand:this.level(row.currentLevel==null?null:Number(row.currentLevel))}));
   }
 }
