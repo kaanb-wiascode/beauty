@@ -37,6 +37,7 @@ import { BusinessPolicyModule } from './modules/business-policies/business-polic
 import { AdministrationGovernanceModule } from './modules/administration-governance/administration-governance.module';
 import { BreakGlassModule } from './modules/break-glass/break-glass.module';
 import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
+import { FieldSecurityModule } from './modules/field-security/field-security.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -92,6 +93,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     AdministrationGovernanceModule,
     BreakGlassModule,
     AdminDashboardModule,
+    FieldSecurityModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
