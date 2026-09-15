@@ -16,6 +16,7 @@ const sections = [
   { href: "/settings/approval-delegations", title: "Onay Delegasyonları", description: "Geçici Vekaletleri Domain, Süre Ve Gerekçeyle Yönetin.", glyph: "↔" },
   { href: "/settings/sod-policies", title: "Görevlerin Ayrılığı", description: "Requester, Approver Ve Çok Adımlı Onay Çakışmalarını Domain Bazında Yönetin.", glyph: "≠" },
   { href: "/settings/business-policies", title: "İş Politikaları", description: "İndirim, İade, Masraf Ve Benzeri İş Kurallarını Yetkiden Ayrı Olarak Versiyonlayın.", glyph: "ƒ" },
+  { href: "/settings/integrations", title: "Entegrasyonlar", description: "Bankacılık Ve Ödeme Entegrasyonlarının Sağlık, Senkronizasyon Ve Yapılandırma Durumunu İzleyin.", glyph: "∞" },
   { href: "/settings/privacy", title: "Veri & Gizlilik", description: "Retention Metadata Ve Veri Taleplerini Denetlenebilir Governance Workflow'u İle Yönetin.", glyph: "◌" },
   { href: "/settings/organization", title: "Şirket Ve Şubeler", description: "Şirket Kapsamını, Şubeleri Ve Organizasyon Kullanımını Görüntüleyin.", glyph: "▦" },
   { href: "/settings/audit", title: "Denetim Kayıtları", description: "Kritik Yönetim Değişikliklerini, Aktörleri Ve Önce/Sonra Durumlarını İnceleyin.", glyph: "≋" },
