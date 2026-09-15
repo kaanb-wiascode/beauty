@@ -8,7 +8,7 @@ export class TrainingReminderService {
 
   private context(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId(),branchId:this.tenant.getBranchId()};}
 
-  async process(actorUserId:string,limit=200){
+  async process(_actorUserId:string,limit=200){
     const c=this.context(),safeLimit=Math.min(Math.max(Math.trunc(limit||200),1),500);
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRawUnsafe<any[]>(
@@ -35,11 +35,7 @@ export class TrainingReminderService {
            RETURNING id`,
           c.tenantId,c.companyId,row.branchId,row.id,row.staffId,type,row.dueAt,
         );
-        if(inserted.length){created+=1;await tx.$executeRawUnsafe(
-          `INSERT INTO training_assignment_events(assignment_id,tenant_id,company_id,branch_id,event_type,actor_user_id,note,metadata)
-           VALUES($1::text,$2::text,$3::text,$4::text,'REMINDER_CREATED',$5::text,$6,$7::jsonb)`,
-          row.id,c.tenantId,c.companyId,row.branchId,actorUserId,'Training assignment reminder created',JSON.stringify({type,dueAt:row.dueAt}),
-        );}
+        if(inserted.length)created+=1;
       }
       return{processed:rows.length,created};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
