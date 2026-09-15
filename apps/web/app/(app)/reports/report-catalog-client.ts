@@ -7,13 +7,24 @@ export type ReportCatalogKey =
   | "customers.performance"
   | "sales.performance"
   | "appointments.performance"
-  | "finance.performance";
+  | "finance.performance"
+  | "inventory.performance"
+  | "procurement.performance";
 
 export type ReportCatalogItem = {
   key: ReportCatalogKey;
   title: string;
   description: string;
-  domain: "staff" | "services" | "payments" | "customers" | "sales" | "appointments" | "finance";
+  domain:
+    | "staff"
+    | "services"
+    | "payments"
+    | "customers"
+    | "sales"
+    | "appointments"
+    | "finance"
+    | "inventory"
+    | "procurement";
   route: string;
   resultKind: "table" | "summary";
   availableColumns: readonly string[];
