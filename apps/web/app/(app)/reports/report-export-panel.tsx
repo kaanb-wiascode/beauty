@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/lib/api";
 import type { ReportDateRange } from "./report-filter-bar";
-import { reportRangeIsInvalid, reportRangeToQuery } from "./report-filter-bar";
+import { getReportRangeError, reportRangeToQuery } from "./report-filter-bar";
 import {
   createReportExport,
   downloadReportExport,
@@ -76,8 +76,9 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
   }, [hasPending, refresh]);
 
   async function createExport() {
-    if (reportRangeIsInvalid(range)) {
-      setError("Geçerli Bir Tarih Aralığı Seçin.");
+    const rangeError = getReportRangeError(range);
+    if (rangeError) {
+      setError(rangeError);
       return;
     }
 
