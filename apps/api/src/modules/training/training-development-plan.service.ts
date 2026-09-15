@@ -26,8 +26,7 @@ export interface AddDevelopmentPlanItemInput {
   facilitatorStaffId?: string | null;
 }
 
-const ACTIVITY_TYPES = new Set<DevelopmentPlanItemType>([
-  'ACTION',
+const TITLED_ACTIVITY_TYPES = new Set<DevelopmentPlanItemType>([
   'COACHING',
   'MENTORING',
   'PROJECT',
@@ -74,6 +73,8 @@ export class TrainingDevelopmentPlanService {
       return;
     }
 
+    if (input.targetLevel != null) throw new BadRequestException('targetLevel is only valid for COMPETENCY items.');
+
     if (type === 'COURSE') {
       if (!input.courseId || ids.length !== 1) throw new BadRequestException('COURSE items require only courseId.');
       const rows = await tx.$queryRawUnsafe<any[]>(
@@ -102,7 +103,7 @@ export class TrainingDevelopmentPlanService {
 
     if (ids.length) throw new BadRequestException(`${type} items cannot reference competencyId, courseId, or programId.`);
     const title = input.activityTitle?.trim();
-    if (ACTIVITY_TYPES.has(type) && !title) throw new BadRequestException(`${type} items require activityTitle.`);
+    if (TITLED_ACTIVITY_TYPES.has(type) && !title) throw new BadRequestException(`${type} items require activityTitle.`);
 
     if (input.facilitatorStaffId) {
       const rows = await tx.$queryRawUnsafe<any[]>(
