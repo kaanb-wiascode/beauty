@@ -12,6 +12,29 @@ type Membership = {
   user: { id: string; email: string; firstName: string; lastName: string };
   role: Role;
 };
+type EffectiveAccess = {
+  membership: { id: string; status: string; user: Membership["user"] };
+  role: { id: string; name: string; slug: string; scope: "CENTRAL" | "COMPANY" | "BRANCH"; company: { id: string; name: string } | null };
+  access: {
+    company: { id: string; name: string; status: string } | null;
+    branches: Array<{ id: string; name: string; code: string; status: string; company: { id: string; name: string } }>;
+  };
+  permissions: Array<{
+    id: string;
+    resource: string;
+    action: string;
+    description: string | null;
+    source: "ROLE";
+    sourceRole: { id: string; name: string; slug: string };
+  }>;
+  summary: { permissionCount: number; branchCount: number };
+};
+
+const SCOPE_LABELS: Record<EffectiveAccess["role"]["scope"], string> = {
+  CENTRAL: "Merkez / Tenant",
+  COMPANY: "Şirket",
+  BRANCH: "Şube",
+};
 
 export default function UsersPage() {
   const { showToast } = useToast();
@@ -23,6 +46,8 @@ export default function UsersPage() {
   const [statusFilter, setStatusFilter] = useState("ALL");
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [savingId, setSavingId] = useState<string | null>(null);
+  const [effective, setEffective] = useState<EffectiveAccess | null>(null);
+  const [effectiveLoading, setEffectiveLoading] = useState(false);
 
   useEffect(() => {
     let active = true;
@@ -33,7 +58,7 @@ export default function UsersPage() {
         setMemberships(membershipData);
       })
       .catch((err) => {
-        if (active) setError(err instanceof ApiError ? err.message : "Kullanıcılar Yüklenemedi.");
+        if (active) setError(err instanceof ApiError ? err.message : "Kullanıcılar yüklenemedi.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -59,9 +84,10 @@ export default function UsersPage() {
     try {
       const updated = await api<Membership>(`/memberships/${membershipId}/role`, { method: "PATCH", body: { roleId } });
       setMemberships((current) => current.map((item) => item.id === updated.id ? updated : item));
-      showToast("Kullanıcı Rolü Güncellendi.");
+      if (effective?.membership.id === membershipId) setEffective(null);
+      showToast("Kullanıcı rolü güncellendi.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kullanıcı Rolü Güncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "Kullanıcı rolü güncellenemedi.");
     } finally {
       setSavingId(null);
     }
@@ -73,9 +99,10 @@ export default function UsersPage() {
     try {
       const updated = await api<Membership>(`/memberships/${membershipId}/status`, { method: "PATCH", body: { status } });
       setMemberships((current) => current.map((item) => item.id === updated.id ? updated : item));
-      showToast(status === "ACTIVE" ? "Kullanıcı Aktifleştirildi." : "Kullanıcı Askıya Alındı.");
+      if (effective?.membership.id === membershipId) setEffective(null);
+      showToast(status === "ACTIVE" ? "Kullanıcı aktifleştirildi." : "Kullanıcı askıya alındı.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kullanıcı Durumu Güncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "Kullanıcı durumu güncellenemedi.");
     } finally {
       setSavingId(null);
     }
@@ -88,11 +115,24 @@ export default function UsersPage() {
     try {
       await api(`/memberships/${membership.id}`, { method: "DELETE" });
       setMemberships((current) => current.filter((item) => item.id !== membership.id));
-      showToast("Kullanıcı İşletmeden Kaldırıldı.");
+      if (effective?.membership.id === membership.id) setEffective(null);
+      showToast("Kullanıcı işletmeden kaldırıldı.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Kullanıcı Kaldırılamadı.");
+      setError(err instanceof ApiError ? err.message : "Kullanıcı kaldırılamadı.");
     } finally {
       setSavingId(null);
+    }
+  }
+
+  async function openEffectivePermissions(membershipId: string) {
+    setEffectiveLoading(true);
+    setError("");
+    try {
+      setEffective(await api<EffectiveAccess>(`/memberships/${membershipId}/effective-permissions`));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Etkin yetkiler yüklenemedi.");
+    } finally {
+      setEffectiveLoading(false);
     }
   }
 
@@ -103,7 +143,7 @@ export default function UsersPage() {
       <header className="border-b border-[var(--line)] pb-5">
         <div className="mb-1 text-xs font-medium text-[var(--muted)]">Yönetim / Erişim</div>
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Kullanıcılar</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">İşletme üyeliklerini, rolleri ve erişim durumlarını yönetin.</p>
+        <p className="mt-1 text-sm text-[var(--muted)]">İşletme üyeliklerini, rolleri, erişim durumlarını ve etkin yetkileri yönetin.</p>
       </header>
 
       {error ? <div className="rounded-xl border border-[#f0d8d8] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4545]">{error}</div> : null}
@@ -115,7 +155,7 @@ export default function UsersPage() {
           <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ALL">Tüm Durumlar</option><option value="ACTIVE">Aktif</option><option value="SUSPENDED">Askıda</option></select>
         </div>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[860px] text-left text-sm">
+          <table className="w-full min-w-[980px] text-left text-sm">
             <thead className="border-b border-[var(--line)] bg-[var(--surface-2)] text-xs text-[var(--muted)]"><tr><th className="px-4 py-3 font-medium">Kullanıcı</th><th className="px-4 py-3 font-medium">Rol</th><th className="px-4 py-3 font-medium">Durum</th><th className="px-4 py-3 text-right font-medium">İşlemler</th></tr></thead>
             <tbody>
               {filteredMemberships.map((membership) => {
@@ -125,7 +165,7 @@ export default function UsersPage() {
                   <td className="px-4 py-4"><div className="font-medium text-[var(--ink)]">{membership.user.firstName} {membership.user.lastName}</div><div className="text-xs text-[var(--muted)]">{membership.user.email}</div></td>
                   <td className="px-4 py-4"><select disabled={busy || owner} value={membership.role.id} onChange={(event) => void changeRole(membership.id, event.target.value)} className="min-h-9 rounded-lg border border-[var(--line)] bg-white px-2 text-sm disabled:opacity-60">{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></td>
                   <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${membership.status === "ACTIVE" ? "bg-[#eaf7ef] text-[#378a5e]" : "bg-[#fff4e6] text-[#a66518]"}`}>{membership.status === "ACTIVE" ? "Aktif" : "Askıda"}</span></td>
-                  <td className="px-4 py-4"><div className="flex justify-end gap-2">{!owner ? <button disabled={busy} type="button" onClick={() => void changeStatus(membership.id, membership.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE")} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium disabled:opacity-50">{membership.status === "ACTIVE" ? "Askıya Al" : "Aktifleştir"}</button> : null}{!owner ? <button disabled={busy} type="button" onClick={() => void removeMembership(membership)} className="rounded-lg border border-[#f0d8d8] px-3 py-2 text-xs font-medium text-[#9a4545] disabled:opacity-50">Kaldır</button> : null}</div></td>
+                  <td className="px-4 py-4"><div className="flex justify-end gap-2"><button disabled={effectiveLoading} type="button" onClick={() => void openEffectivePermissions(membership.id)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium disabled:opacity-50">Etkin Yetkiler</button>{!owner ? <button disabled={busy} type="button" onClick={() => void changeStatus(membership.id, membership.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE")} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium disabled:opacity-50">{membership.status === "ACTIVE" ? "Askıya Al" : "Aktifleştir"}</button> : null}{!owner ? <button disabled={busy} type="button" onClick={() => void removeMembership(membership)} className="rounded-lg border border-[#f0d8d8] px-3 py-2 text-xs font-medium text-[#9a4545] disabled:opacity-50">Kaldır</button> : null}</div></td>
                 </tr>;
               })}
               {!filteredMemberships.length ? <tr><td colSpan={4} className="px-4 py-10 text-center text-sm text-[var(--muted)]">Filtrelere uygun kullanıcı bulunamadı.</td></tr> : null}
@@ -133,6 +173,13 @@ export default function UsersPage() {
           </table>
         </div>
       </section>
+
+      {effective ? <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" role="dialog" aria-modal="true" aria-label="Etkin yetkiler"><div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] pb-4"><div><div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Etkin Yetkiler</div><h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">{effective.membership.user.firstName} {effective.membership.user.lastName}</h2><p className="text-sm text-[var(--muted)]">{effective.membership.user.email}</p></div><button type="button" onClick={() => setEffective(null)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium">Kapat</button></div>
+        <div className="grid gap-3 py-4 sm:grid-cols-2 lg:grid-cols-4"><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Rol</div><div className="mt-1 text-sm font-semibold">{effective.role.name}</div></div><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Kapsam</div><div className="mt-1 text-sm font-semibold">{SCOPE_LABELS[effective.role.scope]}</div></div><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Yetki</div><div className="mt-1 text-sm font-semibold">{effective.summary.permissionCount}</div></div><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Şube Erişimi</div><div className="mt-1 text-sm font-semibold">{effective.summary.branchCount}</div></div></div>
+        <section className="mb-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Organizasyon Erişimi</h3><p className="mt-1 text-xs text-[var(--muted)]">Şirket: {effective.access.company?.name ?? effective.role.company?.name ?? "Tenant geneli / atanmadı"}</p><div className="mt-3 flex flex-wrap gap-2">{effective.access.branches.length ? effective.access.branches.map((branch) => <span key={branch.id} className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-medium text-[var(--accent)]">{branch.name} · {branch.code}</span>) : <span className="text-xs text-[var(--muted)]">Seçili şube ataması yok.</span>}</div></section>
+        <section><div className="mb-2 flex items-center justify-between"><h3 className="text-sm font-semibold">Rol Kaynaklı Yetkiler</h3><span className="text-xs text-[var(--muted)]">Kaynak: {effective.role.name}</span></div><div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">{effective.permissions.map((permission) => <div key={permission.id} className="rounded-xl border border-[var(--line)] p-3"><div className="text-sm font-semibold text-[var(--ink)]">{permission.resource}.{permission.action}</div>{permission.description ? <div className="mt-1 text-xs text-[var(--muted)]">{permission.description}</div> : null}<div className="mt-2 text-[11px] text-[var(--muted)]">{permission.sourceRole.name} rolünden</div></div>)}</div>{!effective.permissions.length ? <div className="rounded-xl border border-dashed border-[var(--line)] px-4 py-8 text-center text-sm text-[var(--muted)]">Bu rol için yetki bulunmuyor.</div> : null}</section>
+      </div></div> : null}
     </main>
   );
 }
