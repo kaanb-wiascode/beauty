@@ -9,6 +9,7 @@ export const reportPreviewSchema = z
       reportKeys.staffPerformance,
       reportKeys.servicePerformance,
       reportKeys.paymentSummary,
+      reportKeys.customerPerformance,
     ]),
     filters: reportDateRangeSchema,
     columns: z.array(z.string().min(1)).max(20).optional(),
