@@ -10,14 +10,27 @@ type GeneratePdfInput = {
     from: Date;
     to: Date;
     generatedAt: Date;
+    branding?: {
+      companyName: string;
+      branchName?: string | null;
+    };
   };
+};
+
+type PdfLine = {
+  text: string;
+  size?: number;
+  bold?: boolean;
+  muted?: boolean;
+  gapAfter?: number;
 };
 
 const PAGE_WIDTH = 595;
 const PAGE_HEIGHT = 842;
 const MARGIN = 42;
 const LINE_HEIGHT = 14;
-const ROWS_PER_PAGE = 34;
+const ROWS_PER_PAGE = 31;
+const CONFIDENTIALITY_LABEL = 'CONFIDENTIAL / GIZLI';
 
 @Injectable()
 export class ReportPdfGenerator {
@@ -38,36 +51,83 @@ export class ReportPdfGenerator {
     if (chunks.length === 0) chunks.push([]);
 
     return chunks.map((rows, pageIndex) => {
-      const lines: string[] = [];
+      const lines: PdfLine[] = [];
       if (pageIndex === 0) {
-        lines.push(this.normalize(input.title));
-        lines.push(`Report: ${this.normalize(input.metadata.reportKey)}`);
-        lines.push(
-          `Period: ${this.date(input.metadata.from)} - ${this.date(input.metadata.to)}`,
-        );
-        lines.push(`Generated: ${this.dateTime(input.metadata.generatedAt)}`);
+        if (input.metadata.branding?.companyName) {
+          lines.push({
+            text: this.normalize(input.metadata.branding.companyName),
+            size: 10,
+            bold: true,
+            muted: true,
+          });
+        }
+        if (input.metadata.branding?.branchName) {
+          lines.push({
+            text: this.normalize(input.metadata.branding.branchName),
+            size: 8,
+            muted: true,
+            gapAfter: 3,
+          });
+        }
+
+        lines.push({ text: this.normalize(input.title), size: 17, bold: true, gapAfter: 4 });
+        lines.push({
+          text: `Rapor: ${this.normalize(input.metadata.reportKey)}`,
+          size: 8,
+          muted: true,
+        });
+        lines.push({
+          text: `Donem: ${this.date(input.metadata.from)} - ${this.date(input.metadata.to)}`,
+          size: 8,
+          muted: true,
+        });
+        lines.push({
+          text: `Olusturulma: ${this.dateTime(input.metadata.generatedAt)}`,
+          size: 8,
+          muted: true,
+          gapAfter: 5,
+        });
 
         if (input.summary && Object.keys(input.summary).length > 0) {
-          lines.push('Summary');
+          lines.push({ text: 'Ozet', size: 11, bold: true });
           for (const [key, value] of Object.entries(input.summary)) {
-            lines.push(`${this.normalize(key)}: ${this.formatValue(value)}`);
+            lines.push({
+              text: `${this.normalize(key)}: ${this.formatValue(value)}`,
+              size: 8,
+            });
           }
+          lines.push({ text: '', gapAfter: 3 });
         }
-        lines.push('');
+      } else {
+        lines.push({
+          text: this.normalize(input.title),
+          size: 10,
+          bold: true,
+          muted: true,
+          gapAfter: 3,
+        });
       }
 
-      lines.push(input.columns.map((column) => this.normalize(column)).join(' | '));
-      lines.push('-'.repeat(88));
+      lines.push({
+        text: input.columns.map((column) => this.normalize(column)).join(' | '),
+        size: 8,
+        bold: true,
+        gapAfter: 2,
+      });
       for (const row of rows) {
-        lines.push(this.truncate(row.join(' | '), 110));
+        lines.push({ text: this.truncate(row.join(' | '), 110), size: 8 });
       }
-      lines.push('');
-      lines.push(`Page ${pageIndex + 1} / ${chunks.length}`);
+      lines.push({ text: '', gapAfter: 2 });
+      lines.push({
+        text: `${CONFIDENTIALITY_LABEL}    Page ${pageIndex + 1} / ${chunks.length}`,
+        size: 7,
+        muted: true,
+      });
       return lines;
     });
   }
 
-  private buildPdf(pages: readonly string[][]) {
+  private buildPdf(pages: readonly PdfLine[][]) {
     const objects: string[] = [];
     const add = (value: string) => {
       objects.push(value);
@@ -76,8 +136,11 @@ export class ReportPdfGenerator {
 
     const catalogId = add('');
     const pagesId = add('');
-    const fontId = add(
+    const regularFontId = add(
       '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica /Encoding /WinAnsiEncoding >>',
+    );
+    const boldFontId = add(
+      '<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica-Bold /Encoding /WinAnsiEncoding >>',
     );
 
     const pageIds: number[] = [];
@@ -87,7 +150,7 @@ export class ReportPdfGenerator {
         `<< /Length ${Buffer.byteLength(stream, 'latin1')} >>\nstream\n${stream}\nendstream`,
       );
       const pageId = add(
-        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${fontId} 0 R >> >> /Contents ${contentId} 0 R >>`,
+        `<< /Type /Page /Parent ${pagesId} 0 R /MediaBox [0 0 ${PAGE_WIDTH} ${PAGE_HEIGHT}] /Resources << /Font << /F1 ${regularFontId} 0 R /F2 ${boldFontId} 0 R >> >> /Contents ${contentId} 0 R >>`,
       );
       pageIds.push(pageId);
     }
@@ -121,13 +184,25 @@ export class ReportPdfGenerator {
     return Buffer.from(chunks.join(''), 'latin1');
   }
 
-  private contentStream(lines: readonly string[]) {
-    const commands = ['BT', '/F1 9 Tf', `${MARGIN} ${PAGE_HEIGHT - MARGIN} Td`];
-    lines.forEach((line, index) => {
-      if (index > 0) commands.push(`0 -${LINE_HEIGHT} Td`);
-      commands.push(`(${this.escapePdf(this.truncate(line, 120))}) Tj`);
-    });
-    commands.push('ET');
+  private contentStream(lines: readonly PdfLine[]) {
+    const commands: string[] = [];
+    let y = PAGE_HEIGHT - MARGIN;
+
+    for (const line of lines) {
+      const size = line.size ?? 9;
+      const font = line.bold ? '/F2' : '/F1';
+      const gray = line.muted ? '0.42 g' : '0 g';
+      commands.push(
+        'BT',
+        gray,
+        `${font} ${size} Tf`,
+        `1 0 0 1 ${MARGIN} ${y} Tm`,
+        `(${this.escapePdf(this.truncate(line.text, 120))}) Tj`,
+        'ET',
+      );
+      y -= LINE_HEIGHT + (line.gapAfter ?? 0);
+    }
+
     return commands.join('\n');
   }
 
