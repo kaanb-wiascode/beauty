@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -29,6 +29,10 @@ const createIncomeSchema = z.object({
   sourceId: z.string().trim().max(150).optional(),
 });
 
+const updateIncomeSchema = createIncomeSchema.partial().extend({
+  version: z.coerce.number().int().positive(),
+});
+
 const listSchema = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) });
 const reasonSchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
@@ -52,6 +56,16 @@ export class IncomeRecordsController {
   @Get(':id')
   get(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.service.get(id);
+  }
+
+  @Patch(':id')
+  @RequirePermission('finance', 'manage')
+  update(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.update(id, updateIncomeSchema.parse(body), user.sub);
   }
 
   @Post(':id/submit')
