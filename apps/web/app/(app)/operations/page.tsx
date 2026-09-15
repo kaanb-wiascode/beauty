@@ -5,7 +5,22 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
-import type { Appointment, Customer, Paginated, Visit, VisitStatus } from "@/lib/types";
+import type { Appointment, Customer, Paginated, Visit, VisitDetail, VisitStatus } from "@/lib/types";
+
+type CheckoutIssue = {
+  code: "VISIT_NOT_CHECKOUT_PENDING" | "PAYMENT_PENDING" | "PACKAGE_SESSION_NOT_CONSUMED" | "COMMERCIAL_CONTEXT_UNVERIFIED";
+  appointmentId?: string;
+  message: string;
+};
+
+type CheckoutReadiness = {
+  visitId: string;
+  visitStatus: string;
+  appointmentIds: string[];
+  canCheckout: boolean;
+  blockers: CheckoutIssue[];
+  warnings: CheckoutIssue[];
+};
 
 const STATUS_LABELS: Record<VisitStatus, string> = {
   EXPECTED: "Bekleniyor",
@@ -73,6 +88,22 @@ function timeLabel(value: string) {
   }).format(new Date(value));
 }
 
+function dateTimeLabel(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function checkoutIssueLabel(issue: CheckoutIssue) {
+  if (issue.code === "PAYMENT_PENDING") return "Ödeme / tahsilat bekliyor";
+  if (issue.code === "PACKAGE_SESSION_NOT_CONSUMED") return "Paket seansı tüketilmedi";
+  if (issue.code === "VISIT_NOT_CHECKOUT_PENDING") return "Ziyaret henüz çıkış aşamasında değil";
+  return "Walk-in satış / ödeme durumu doğrulanmalı";
+}
+
 export default function OperationsPage() {
   const canUpdate = hasPermission("appointments", "update");
   const [visits, setVisits] = useState<Visit[]>([]);
@@ -83,12 +114,38 @@ export default function OperationsPage() {
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [walkInCustomerId, setWalkInCustomerId] = useState("");
   const [walkInRequestKey, setWalkInRequestKey] = useState<string | null>(null);
+  const [expandedVisitId, setExpandedVisitId] = useState<string | null>(null);
+  const [visitDetails, setVisitDetails] = useState<Record<string, VisitDetail>>({});
+  const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
+  const [readinessByVisit, setReadinessByVisit] = useState<Record<string, CheckoutReadiness>>({});
+
+  async function loadCheckoutReadiness(items: Visit[]) {
+    const checkoutVisits = items.filter((visit) => visit.status === "CHECKOUT_PENDING");
+    if (!checkoutVisits.length) {
+      setReadinessByVisit({});
+      return;
+    }
+
+    const results = await Promise.allSettled(
+      checkoutVisits.map(async (visit) => [
+        visit.id,
+        await api<CheckoutReadiness>(`/visits/${visit.id}/checkout-readiness`),
+      ] as const),
+    );
+
+    const next: Record<string, CheckoutReadiness> = {};
+    for (const result of results) {
+      if (result.status === "fulfilled") next[result.value[0]] = result.value[1];
+    }
+    setReadinessByVisit(next);
+  }
 
   async function load() {
     if (!hasActiveBranch()) {
       setVisits([]);
       setAppointments([]);
       setCustomers([]);
+      setReadinessByVisit({});
       setLoading(false);
       setError("Canlı operasyon ekranı için önce çalışma kapsamından bir şube seçin.");
       return;
@@ -110,6 +167,7 @@ export default function OperationsPage() {
       setVisits(visitResult);
       setAppointments(appointmentResult.data);
       setCustomers(customerResult.data);
+      void loadCheckoutReadiness(visitResult);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Operasyon verileri yüklenemedi.");
     } finally {
@@ -201,9 +259,35 @@ export default function OperationsPage() {
     }
   }
 
+  async function toggleVisitDetail(visit: Visit) {
+    if (expandedVisitId === visit.id) {
+      setExpandedVisitId(null);
+      return;
+    }
+
+    setExpandedVisitId(visit.id);
+    if (visitDetails[visit.id]) return;
+
+    setDetailLoadingId(visit.id);
+    try {
+      const detail = await api<VisitDetail>(`/visits/${visit.id}`);
+      setVisitDetails((current) => ({ ...current, [visit.id]: detail }));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Ziyaret geçmişi yüklenemedi.");
+    } finally {
+      setDetailLoadingId(null);
+    }
+  }
+
   async function advance(visit: Visit) {
     const action = NEXT_ACTION[visit.status];
     if (!action || !canUpdate) return;
+
+    const readiness = readinessByVisit[visit.id];
+    if (action.status === "CHECKED_OUT" && readiness && !readiness.canCheckout) {
+      setError(`Checkout tamamlanamaz: ${readiness.blockers.map(checkoutIssueLabel).join(", ")}.`);
+      return;
+    }
 
     setUpdatingId(visit.id);
     setError("");
@@ -219,6 +303,12 @@ export default function OperationsPage() {
           body: { toStatus: action.status, expectedVersion: visit.version },
         });
       }
+      setExpandedVisitId(null);
+      setVisitDetails((current) => {
+        const next = { ...current };
+        delete next[visit.id];
+        return next;
+      });
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Operasyon durumu güncellenemedi.");
@@ -324,23 +414,87 @@ export default function OperationsPage() {
           <div className="divide-y divide-[var(--line)]">
             {activeVisits.map((visit) => {
               const action = NEXT_ACTION[visit.status];
+              const readiness = readinessByVisit[visit.id];
+              const detail = visitDetails[visit.id];
+              const expanded = expandedVisitId === visit.id;
               return (
-                <div key={visit.id} className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,.8fr)_minmax(0,.7fr)_auto] md:items-center">
-                  <div className="min-w-0">
-                    <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(visit.customerId) ?? "Müşteri"}</p>
-                    <p className="mt-1 text-xs text-[var(--muted)]">{visit.source === "WALK_IN" ? "Walk-in" : "Randevulu"} · {elapsed(visitAgeStart(visit))}</p>
-                  </div>
-                  <div>
-                    <span className="inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{STATUS_LABELS[visit.status]}</span>
-                  </div>
-                  <div className="text-xs text-[var(--muted)]">Sürüm {visit.version}</div>
-                  <div className="justify-self-start md:justify-self-end">
-                    {action && canUpdate ? (
-                      <Button disabled={updatingId === visit.id} onClick={() => void advance(visit)}>
-                        {updatingId === visit.id ? "Güncelleniyor..." : action.label}
+                <div key={visit.id}>
+                  <div className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,.9fr)_minmax(0,1fr)_auto] md:items-center">
+                    <div className="min-w-0">
+                      <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(visit.customerId) ?? "Müşteri"}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{visit.source === "WALK_IN" ? "Walk-in" : "Randevulu"} · {elapsed(visitAgeStart(visit))}</p>
+                    </div>
+                    <div>
+                      <span className="inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{STATUS_LABELS[visit.status]}</span>
+                    </div>
+                    <div className="min-w-0 text-xs text-[var(--muted)]">
+                      {visit.status === "CHECKOUT_PENDING" && readiness ? (
+                        readiness.canCheckout ? (
+                          <span className="font-semibold text-[#2d6a49]">Checkout hazır{readiness.warnings.length ? " · doğrulama uyarısı var" : ""}</span>
+                        ) : (
+                          <span className="font-semibold text-[#8f3d3d]">{readiness.blockers.map(checkoutIssueLabel).join(" · ")}</span>
+                        )
+                      ) : (
+                        <>Sürüm {visit.version}</>
+                      )}
+                    </div>
+                    <div className="flex flex-wrap justify-self-start gap-2 md:justify-self-end">
+                      <Button variant="secondary" onClick={() => void toggleVisitDetail(visit)}>
+                        {expanded ? "Detayı Kapat" : "Geçmiş"}
                       </Button>
-                    ) : null}
+                      {action && canUpdate ? (
+                        <Button
+                          disabled={updatingId === visit.id || (action.status === "CHECKED_OUT" && readiness ? !readiness.canCheckout : false)}
+                          onClick={() => void advance(visit)}
+                        >
+                          {updatingId === visit.id ? "Güncelleniyor..." : action.label}
+                        </Button>
+                      ) : null}
+                    </div>
                   </div>
+
+                  {expanded ? (
+                    <div className="border-t border-[var(--line)] bg-[var(--surface-2)] px-6 py-5">
+                      {detailLoadingId === visit.id ? (
+                        <p className="text-xs text-[var(--muted)]">Operasyon geçmişi yükleniyor...</p>
+                      ) : detail ? (
+                        <div className="space-y-4">
+                          {readiness?.warnings.length ? (
+                            <div className="rounded-[14px] border border-[#e8d9b5] bg-[#fffaf0] px-4 py-3 text-xs text-[#7a6330]">
+                              {readiness.warnings.map(checkoutIssueLabel).join(" · ")}
+                            </div>
+                          ) : null}
+                          <div>
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Operasyon Timeline</p>
+                            {detail.timeline.length ? (
+                              <div className="mt-3 space-y-2">
+                                {detail.timeline.map((event) => (
+                                  <div key={event.id} className="flex flex-col gap-1 rounded-[14px] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                                    <div>
+                                      <p className="text-xs font-semibold text-[var(--ink)]">
+                                        {event.toStatus ? STATUS_LABELS[event.toStatus] : event.eventType}
+                                      </p>
+                                      <p className="mt-1 text-[11px] text-[var(--muted)]">
+                                        {event.fromStatus ? `${STATUS_LABELS[event.fromStatus]} → ` : ""}{event.toStatus ? STATUS_LABELS[event.toStatus] : event.eventType}
+                                        {event.note ? ` · ${event.note}` : ""}
+                                      </p>
+                                    </div>
+                                    <div className="text-[11px] text-[var(--muted-soft)]">
+                                      {dateTimeLabel(event.createdAt)} · Aktör {event.actorMembershipId.slice(0, 8)}
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="mt-2 text-xs text-[var(--muted)]">Timeline kaydı bulunmuyor.</p>
+                            )}
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-xs text-[var(--muted)]">Ziyaret detayı bulunamadı.</p>
+                      )}
+                    </div>
+                  ) : null}
                 </div>
               );
             })}
