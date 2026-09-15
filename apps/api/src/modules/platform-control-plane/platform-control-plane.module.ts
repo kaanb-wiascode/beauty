@@ -34,6 +34,8 @@ import { PlatformSubscriptionsController } from './platform-subscriptions.contro
 import { PlatformSubscriptionsService } from './platform-subscriptions.service';
 import { PlatformSupportController } from './platform-support.controller';
 import { PlatformSupportService } from './platform-support.service';
+import { PlatformSupportSessionController } from './platform-support-session.controller';
+import { PlatformSupportSessionService } from './platform-support-session.service';
 import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
 import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
 import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
@@ -46,6 +48,7 @@ import { PlatformTenantHealthService } from './platform-tenant-health.service';
     PlatformCustomerContextController,
     PlatformCustomerSuccessController,
     PlatformSupportController,
+    PlatformSupportSessionController,
     PlatformSubscriptionsController,
     PlatformEntitlementsController,
     PlatformProvisioningController,
@@ -58,6 +61,7 @@ import { PlatformTenantHealthService } from './platform-tenant-health.service';
     PlatformCustomerSuccessService,
     PlatformTenantHealthService,
     PlatformSupportService,
+    PlatformSupportSessionService,
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
@@ -89,6 +93,7 @@ import { PlatformTenantHealthService } from './platform-tenant-health.service';
     PlatformCustomerSuccessService,
     PlatformTenantHealthService,
     PlatformSupportService,
+    PlatformSupportSessionService,
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
