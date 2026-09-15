@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/lib/api";
+import type { ReportCatalogKey } from "./report-catalog-client";
 import type { ReportDateRange } from "./report-filter-bar";
 import { getReportRangeError, reportRangeToQuery } from "./report-filter-bar";
 import {
@@ -14,11 +15,10 @@ import {
   type ReportExportJob,
 } from "./report-export-client";
 
-type ReportKey = "staff.performance" | "service.performance" | "payments.summary";
 type SupportedExportFormat = ReportExportFormat;
 
 type Props = {
-  reportKey: ReportKey;
+  reportKey: ReportCatalogKey;
   range: ReportDateRange;
   columns?: readonly string[];
   sort?: { key: string; direction: "asc" | "desc" };
@@ -218,7 +218,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
                     type="button"
                     onClick={() => void download(job)}
                     disabled={downloadingId === job.id}
-                    className="h-9 rounded-lg border border-[var(--line)] px-3 text-[11px] font-semibold text-[var(--ink)] disabled:opacity-50"
+                    className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] font-semibold disabled:opacity-50"
                   >
                     {downloadingId === job.id ? "İndiriliyor..." : "İndir"}
                   </button>
@@ -226,13 +226,11 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
               </div>
             ))}
           </div>
-          {totalPages > 1 ? (
-            <div className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
-              <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Önceki</button>
-              <span className="text-[11px] text-[var(--muted)]">{page} / {totalPages}</span>
-              <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button>
-            </div>
-          ) : null}
+          <div className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
+            <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Önceki</button>
+            <span className="text-[11px] text-[var(--muted)]">{page} / {Math.max(totalPages, 1)}</span>
+            <button type="button" disabled={totalPages === 0 || page >= totalPages} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button>
+          </div>
         </>
       )}
     </section>
