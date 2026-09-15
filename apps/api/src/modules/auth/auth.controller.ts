@@ -161,6 +161,67 @@ export class AuthController {
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Post('sessions/revoke-all')
+  async revokeAllSessions(@CurrentUser() user: JwtPayload) {
+    return this.sessionRegistry.revokeAll({
+      actorUserId: user.sub,
+      targetUserId: user.sub,
+      tenantId: this.tenantContext.getTenantId(),
+      action: 'revoke_all',
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'read')
+  @Get('admin/users/:userId/sessions')
+  async adminUserSessions(@Param('userId') userId: string) {
+    const context = this.tenantContext.getContext();
+    await this.requireCompanyUser(userId, context.tenantId, context.companyId);
+    return this.sessionRegistry.listForCompany(
+      userId,
+      context.tenantId,
+      context.companyId,
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  @Post('admin/users/:userId/sessions/:id/revoke')
+  async adminRevokeUserSession(
+    @CurrentUser() actor: JwtPayload,
+    @Param('userId') userId: string,
+    @Param('id') id: string,
+  ) {
+    const context = this.tenantContext.getContext();
+    await this.requireCompanyUser(userId, context.tenantId, context.companyId);
+    return this.sessionRegistry.revokeForAdmin({
+      id,
+      actorUserId: actor.sub,
+      targetUserId: userId,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  @Post('admin/users/:userId/sessions/revoke-all')
+  async adminRevokeAllUserSessions(
+    @CurrentUser() actor: JwtPayload,
+    @Param('userId') userId: string,
+  ) {
+    const context = this.tenantContext.getContext();
+    await this.requireCompanyUser(userId, context.tenantId, context.companyId);
+    return this.sessionRegistry.revokeAll({
+      actorUserId: actor.sub,
+      targetUserId: userId,
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      action: 'admin_revoke_all',
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
   @Get('context/options')
   async contextOptions(@CurrentUser() user: JwtPayload) {
     const context = this.tenantContext.getContext();
@@ -265,5 +326,24 @@ export class AuthController {
       user,
       tenantContext: this.tenantContext.getContext(),
     };
+  }
+
+  private async requireCompanyUser(
+    userId: string,
+    tenantId: string,
+    companyId: string,
+  ) {
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        userId,
+        tenantId,
+        companyId,
+      },
+      select: { id: true },
+    });
+    if (!membership) {
+      throw new UnauthorizedException('User is not in the active company');
+    }
+    return membership;
   }
 }
