@@ -11,6 +11,7 @@ export default function TrainingCourseLayout({children}:{children:ReactNode}){
   const links=[
     {href:base,label:"İçerik & Assessment",exact:true},
     {href:`${base}/modules`,label:"Modüller"},
+    {href:`${base}/practical`,label:"Pratik Rubric"},
   ];
 
   return <div className="space-y-4">
