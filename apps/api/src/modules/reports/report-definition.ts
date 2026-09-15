@@ -5,6 +5,7 @@ export const reportKeys = {
   customerPerformance: 'customers.performance',
   salesPerformance: 'sales.performance',
   appointmentPerformance: 'appointments.performance',
+  financePerformance: 'finance.performance',
 } as const;
 
 export type ReportKey = (typeof reportKeys)[keyof typeof reportKeys];
@@ -19,7 +20,7 @@ export type ReportDefinition = Readonly<{
   key: ReportKey;
   title: string;
   description: string;
-  domain: 'staff' | 'services' | 'payments' | 'customers' | 'sales' | 'appointments';
+  domain: 'staff' | 'services' | 'payments' | 'customers' | 'sales' | 'appointments' | 'finance';
   route: string;
   resultKind: 'table' | 'summary';
   requiredPermissions: readonly ReportPermission[];
@@ -105,6 +106,19 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     defaultColumns: ['date','appointmentCount','completedCount','cancelledCount','noShowCount','completionRate','newCustomerCount','repeatCustomerCount','rebookingRate','peakHour'],
     exportableColumns: ['date','appointmentCount','scheduledCount','confirmedCount','completedCount','cancelledCount','noShowCount','completionRate','cancellationRate','noShowRate','uniqueCustomerCount','newCustomerCount','repeatCustomerCount','rebookedCustomerCount','rebookingRate','collected','averageDurationMinutes','peakHour'],
     sortableColumns: ['date','appointmentCount','scheduledCount','confirmedCount','completedCount','cancelledCount','noShowCount','completionRate','cancellationRate','noShowRate','uniqueCustomerCount','newCustomerCount','repeatCustomerCount','rebookedCustomerCount','rebookingRate','collected','averageDurationMinutes','peakHour'],
+    exportFormats: ['CSV', 'XLSX', 'PDF'], drilldowns: [], pagination: true,
+  },
+  {
+    key: reportKeys.financePerformance,
+    title: 'Finans Operasyon Özeti',
+    description: 'Onaylı gelir/gider kayıtları, aktif tahsilat/ödemeler ve açık bakiyelerin günlük görünümü.',
+    domain: 'finance', route: '/finance/performance', resultKind: 'table',
+    requiredPermissions: [{ resource: 'reports', action: 'read' }, { resource: 'finance', action: 'read' }],
+    filters: ['from', 'to'],
+    availableColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding','collectionRate','paymentRate','incomeRecordCount','expenseRecordCount'],
+    defaultColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding'],
+    exportableColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding','collectionRate','paymentRate','incomeRecordCount','expenseRecordCount'],
+    sortableColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding','collectionRate','paymentRate','incomeRecordCount','expenseRecordCount'],
     exportFormats: ['CSV', 'XLSX', 'PDF'], drilldowns: [], pagination: true,
   },
 ]);
