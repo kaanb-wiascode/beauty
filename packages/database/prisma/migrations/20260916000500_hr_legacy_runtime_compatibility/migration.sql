@@ -1,8 +1,9 @@
 -- Compatibility hardening for legacy HR endpoints while normalized engines remain authoritative.
 BEGIN;
 
--- Legacy attendance upsert targets tenant/staff/work_date. The original schema only
--- guaranteed staff/work_date, which cannot satisfy that ON CONFLICT target.
+-- Attendance must be tenant-aware. Drop the original global staff/date key so
+-- a staff identifier can never create a cross-tenant uniqueness coupling.
+DROP INDEX IF EXISTS attendance_records_staff_work_date_key;
 CREATE UNIQUE INDEX IF NOT EXISTS attendance_records_tenant_staff_work_date_key
   ON attendance_records(tenant_id, staff_id, work_date);
 
@@ -43,7 +44,6 @@ CREATE TRIGGER leave_requests_legacy_type_sync
 BEFORE INSERT OR UPDATE OF type, leave_type ON leave_requests
 FOR EACH ROW EXECUTE FUNCTION hr_sync_legacy_leave_type();
 
--- Normalize existing data once more after installing compatibility semantics.
 UPDATE leave_requests SET type = leave_type WHERE type IS DISTINCT FROM leave_type;
 
 COMMIT;
