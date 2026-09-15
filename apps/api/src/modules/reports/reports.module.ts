@@ -11,6 +11,8 @@ import { ReportExportExpiryRepository } from './report-export-expiry.repository'
 import { ReportExportExpiryService } from './report-export-expiry.service';
 import { ReportExportJobsRepository } from './report-export-jobs.repository';
 import { ReportExportProcessorService } from './report-export-processor.service';
+import { ReportExportStaleRepository } from './report-export-stale.repository';
+import { ReportExportStaleService } from './report-export-stale.service';
 import { ReportExportStorageService } from './report-export-storage.service';
 import { ReportExportWorkerContextService } from './report-export-worker-context.service';
 import { ReportExportWorkerRunnerService } from './report-export-worker-runner.service';
@@ -24,10 +26,12 @@ import { ReportsService } from './reports.service';
     ReportsService,
     ReportExportJobsRepository,
     ReportExportExpiryRepository,
+    ReportExportStaleRepository,
     ReportExportAuthorizationService,
     ReportExportWorkerContextService,
     ReportExportStorageService,
     ReportExportExpiryService,
+    ReportExportStaleService,
     ReportExportProcessorService,
     ReportExportWorkerRunnerService,
     ReportExportDownloadService,
