@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Visit } from "@/lib/types";
+import { ExecutionConsumablesPanel } from "./service-executions/execution-consumables-panel";
 
 type ServiceExecution = {
   id: string;
@@ -218,7 +219,7 @@ export function ServiceExecutionPanel({
             Service Execution
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Fiziksel hizmet, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
+            Fiziksel hizmet, sarf tüketimi, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
           </p>
         </div>
         {handoffsCompleted ? (
@@ -277,47 +278,53 @@ export function ServiceExecutionPanel({
               </div>
 
               {execution.status === "COMPLETED" ? (
-                <div className="mt-3 flex flex-col gap-3 border-t border-[var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="text-[11px] text-[var(--muted)]">
-                    <p>
-                      Randevu: {execution.appointmentStatus === "COMPLETED" ? "Tamamlandı" : execution.appointmentStatus ?? "Bilinmiyor"}
-                    </p>
-                    {execution.packageSessionId ? (
-                      <p className="mt-1">
-                        Paket seansı: {execution.packageSessionStatus === "CONSUMED" ? "Tüketildi" : execution.packageSessionStatus ?? "Bilinmiyor"}
+                <>
+                  <ExecutionConsumablesPanel
+                    executionId={execution.id}
+                    canUpdate={canUpdate && execution.appointmentStatus !== "COMPLETED"}
+                  />
+                  <div className="mt-3 flex flex-col gap-3 border-t border-[var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-[11px] text-[var(--muted)]">
+                      <p>
+                        Randevu: {execution.appointmentStatus === "COMPLETED" ? "Tamamlandı" : execution.appointmentStatus ?? "Bilinmiyor"}
                       </p>
-                    ) : (
-                      <p className="mt-1">Paket seansı: Yok</p>
-                    )}
-                  </div>
-                  {canUpdate ? (
-                    <div className="flex flex-wrap gap-2">
-                      {execution.appointmentStatus !== "COMPLETED" ? (
-                        <Button
-                          variant="secondary"
-                          disabled={Boolean(busyId)}
-                          onClick={() => void completeAppointment(execution)}
-                        >
-                          {busyId === `appointment:${execution.id}`
-                            ? "Randevu Tamamlanıyor..."
-                            : "Randevuyu Tamamla"}
-                        </Button>
-                      ) : null}
-                      {execution.appointmentStatus === "COMPLETED" &&
-                      execution.packageSessionId &&
-                      execution.packageSessionStatus === "RESERVED" ? (
-                        <Button
-                          disabled={Boolean(busyId)}
-                          onClick={() => void consumePackageSession(execution)}
-                        >
-                          {busyId === `session:${execution.packageSessionId}`
-                            ? "Seans Tüketiliyor..."
-                            : "Paket Seansını Tüket"}
-                        </Button>
-                      ) : null}
+                      {execution.packageSessionId ? (
+                        <p className="mt-1">
+                          Paket seansı: {execution.packageSessionStatus === "CONSUMED" ? "Tüketildi" : execution.packageSessionStatus ?? "Bilinmiyor"}
+                        </p>
+                      ) : (
+                        <p className="mt-1">Paket seansı: Yok</p>
+                      )}
                     </div>
-                  ) : null}
-                </div>
+                    {canUpdate ? (
+                      <div className="flex flex-wrap gap-2">
+                        {execution.appointmentStatus !== "COMPLETED" ? (
+                          <Button
+                            variant="secondary"
+                            disabled={Boolean(busyId)}
+                            onClick={() => void completeAppointment(execution)}
+                          >
+                            {busyId === `appointment:${execution.id}`
+                              ? "Randevu Tamamlanıyor..."
+                              : "Randevuyu Tamamla ve Stoğu İşle"}
+                          </Button>
+                        ) : null}
+                        {execution.appointmentStatus === "COMPLETED" &&
+                        execution.packageSessionId &&
+                        execution.packageSessionStatus === "RESERVED" ? (
+                          <Button
+                            disabled={Boolean(busyId)}
+                            onClick={() => void consumePackageSession(execution)}
+                          >
+                            {busyId === `session:${execution.packageSessionId}`
+                              ? "Seans Tüketiliyor..."
+                              : "Paket Seansını Tüket"}
+                          </Button>
+                        ) : null}
+                      </div>
+                    ) : null}
+                  </div>
+                </>
               ) : null}
             </div>
           ))}
@@ -355,7 +362,7 @@ export function ServiceExecutionPanel({
 
           {allCompleted && !handoffsCompleted ? (
             <p className="rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
-              Ziyaret hizmetini tamamlamadan önce her hizmet için randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
+              Ziyaret hizmetini tamamlamadan önce her hizmet için sarf kontrolü ve randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
             </p>
           ) : null}
 
