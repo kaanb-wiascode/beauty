@@ -46,6 +46,7 @@ import { OperationsTimelineService } from './operations-timeline.service';
 import { OperationsUtilizationController } from './operations-utilization.controller';
 import { OperationsUtilizationService } from './operations-utilization.service';
 import { OperationsWaitlistController } from './operations-waitlist.controller';
+import { OperationsWaitlistCandidateService } from './operations-waitlist-candidate.service';
 import { OperationsWaitlistMatchingService } from './operations-waitlist-matching.service';
 import { OperationsWaitlistRecoveryService } from './operations-waitlist-recovery.service';
 import { OperationsWaitlistService } from './operations-waitlist.service';
@@ -102,6 +103,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsStaffEligibilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
+    OperationsWaitlistCandidateService,
     OperationsWaitlistMatchingService,
     OperationsWaitlistRecoveryService,
     ServiceExecutionsService,
