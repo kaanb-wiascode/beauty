@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   InternalServerErrorException,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
@@ -43,6 +44,27 @@ export class ServiceExecutionReadService {
       throw new BadRequestException('A branch must be selected for this operation.');
     }
     return { tenantId, companyId, branchId };
+  }
+
+  async assertAppointmentBacked(executionId: string) {
+    const { tenantId, companyId, branchId } = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ appointmentId: string | null }>>(
+      `SELECT appointment_id AS "appointmentId"
+       FROM operations_service_executions
+       WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND branch_id=$4
+       LIMIT 1`,
+      executionId,
+      tenantId,
+      companyId,
+      branchId,
+    );
+    if (!rows[0]) throw new NotFoundException('Service execution not found.');
+    if (!rows[0].appointmentId) {
+      throw new BadRequestException(
+        'Walk-in service executions do not have an appointment completion handoff.',
+      );
+    }
+    return rows[0].appointmentId;
   }
 
   async listByVisit(visitId: string) {
