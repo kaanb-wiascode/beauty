@@ -9,6 +9,7 @@ export const reportComparisonSchema = z
       reportKeys.staffPerformance,
       reportKeys.servicePerformance,
       reportKeys.paymentSummary,
+      reportKeys.customerPerformance,
     ]),
     filters: reportDateRangeSchema,
   })
