@@ -8,7 +8,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import type { CreateLeadInput, UpdateLeadInput } from './crm.schemas';
 
-interface CrmLeadRow {
+export interface CrmLeadRow {
   id: string;
   [key: string]: unknown;
 }
