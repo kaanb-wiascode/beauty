@@ -12,12 +12,11 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 export type CheckoutBlockerCode =
   | 'VISIT_NOT_CHECKOUT_PENDING'
   | 'PAYMENT_PENDING'
-  | 'PACKAGE_SESSION_NOT_CONSUMED';
-
-export type CheckoutWarningCode = 'COMMERCIAL_CONTEXT_UNVERIFIED';
+  | 'PACKAGE_SESSION_NOT_CONSUMED'
+  | 'COMMERCIAL_CONTEXT_UNVERIFIED';
 
 export interface VisitCheckoutIssue {
-  code: CheckoutBlockerCode | CheckoutWarningCode;
+  code: CheckoutBlockerCode;
   appointmentId?: string;
   message: string;
 }
@@ -140,10 +139,10 @@ export class VisitCheckoutReadinessService {
     }
 
     if (visit.source === 'WALK_IN' && appointmentIds.length === 0) {
-      warnings.push({
+      blockers.push({
         code: 'COMMERCIAL_CONTEXT_UNVERIFIED',
         message:
-          'Walk-in commercial context is not linked to Visit yet; verify sale/payment state before checkout.',
+          'Walk-in commercial context is not linked to Visit yet; sale/payment state must be verified before checkout.',
       });
     }
 
