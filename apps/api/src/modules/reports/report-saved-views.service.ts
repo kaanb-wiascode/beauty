@@ -10,11 +10,12 @@ import type {
   CreateReportSavedViewInput,
   UpdateReportSavedViewInput,
 } from './dto/report-saved-view.dto';
-import { getReportDefinition, type ReportDefinition } from './report-definition';
 import {
-  ReportSavedViewsRepository,
-  type ReportSavedViewRecord,
-} from './report-saved-views.repository';
+  getReportDefinition,
+  type ReportDefinition,
+  type ReportKey,
+} from './report-definition';
+import { ReportSavedViewsRepository } from './report-saved-views.repository';
 import { ReportsService } from './reports.service';
 
 @Injectable()
@@ -34,8 +35,8 @@ export class ReportSavedViewsService {
   async list(user: JwtPayload) {
     const rows = await this.repository.list(user);
     const catalog = await this.reports.getCatalog(user);
-    const allowed = new Set(catalog.map((report) => report.key));
-    return rows.filter((row) => allowed.has(row.reportKey as never));
+    const allowed = new Set<ReportKey>(catalog.map((report) => report.key));
+    return rows.filter((row) => allowed.has(row.reportKey));
   }
 
   async get(user: JwtPayload, id: string) {
@@ -69,8 +70,8 @@ export class ReportSavedViewsService {
     return row;
   }
 
-  private async authorize(user: JwtPayload, reportKey: string) {
-    const definition = getReportDefinition(reportKey as never);
+  private async authorize(user: JwtPayload, reportKey: ReportKey) {
+    const definition = getReportDefinition(reportKey);
     if (!definition) throw new BadRequestException('Unsupported report');
 
     const catalog = await this.reports.getCatalog(user);
