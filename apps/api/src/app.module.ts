@@ -33,6 +33,7 @@ import { OrganizationAdminModule } from './modules/organization-admin/organizati
 import { TemporaryAccessModule } from './modules/temporary-access/temporary-access.module';
 import { ApprovalWorkflowModule } from './modules/approval-workflows/approval-workflow.module';
 import { BusinessPolicyModule } from './modules/business-policies/business-policy.module';
+import { AdministrationGovernanceModule } from './modules/administration-governance/administration-governance.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -88,6 +89,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     TemporaryAccessModule,
     ApprovalWorkflowModule,
     BusinessPolicyModule,
+    AdministrationGovernanceModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
