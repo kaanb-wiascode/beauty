@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { CrmModule } from '../crm/crm.module';
+import { HrModule } from '../hr/hr.module';
 import { VisitsModule } from '../visits/visits.module';
 import { OperationsAlertsController } from './operations-alerts.controller';
 import { OperationsAlertsService } from './operations-alerts.service';
@@ -36,6 +37,8 @@ import { OperationsServiceChecklistsController } from './operations-service-chec
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
 import { OperationsStaffAvailabilityController } from './operations-staff-availability.controller';
 import { OperationsStaffAvailabilityService } from './operations-staff-availability.service';
+import { OperationsStaffEligibilityController } from './operations-staff-eligibility.controller';
+import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
 import { OperationsTimelineController } from './operations-timeline.controller';
 import { OperationsTimelineService } from './operations-timeline.service';
 import { OperationsUtilizationController } from './operations-utilization.controller';
@@ -48,7 +51,7 @@ import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
 
 @Module({
-  imports: [VisitsModule, CrmModule],
+  imports: [VisitsModule, CrmModule, HrModule],
   controllers: [
     OperationsResourcesController,
     OperationsResourceBlocksController,
@@ -67,6 +70,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsIntelligenceController,
     OperationsOptimizationController,
     OperationsStaffAvailabilityController,
+    OperationsStaffEligibilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
     ServiceExecutionsController,
@@ -91,6 +95,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsIntelligenceService,
     OperationsOptimizationService,
     OperationsStaffAvailabilityService,
+    OperationsStaffEligibilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
     OperationsWaitlistMatchingService,
