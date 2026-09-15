@@ -53,39 +53,41 @@ export class PlatformPrivilegedOperationsService {
     const riskLevel = RISK_MAP[`${resource}.${action}`] ?? 'HIGH';
     const payload = JSON.stringify(redactPlatformAuditPayload(input.payload ?? {}));
 
-    const rows = await this.prisma.$queryRaw<Array<{ id: string; createdAt: Date; expiresAt: Date }>>`
-      INSERT INTO platform_privileged_action_requests (
-        requester_user_id, resource, action, risk_level, target_entity_type,
-        target_entity_id, target_tenant_id, reason, payload, request_id,
-        source_ip, user_agent
-      ) VALUES (
-        ${actorUserId}, ${resource}, ${action}, ${riskLevel},
-        ${input.targetEntityType ?? null}, ${input.targetEntityId ?? null},
-        ${input.targetTenantId ?? null}, ${reason}, ${payload}::jsonb,
-        ${input.context.requestId}, ${input.context.sourceIp}, ${input.context.userAgent}
-      )
-      RETURNING id, created_at AS "createdAt", expires_at AS "expiresAt"
-    `;
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRaw<Array<{ id: string; createdAt: Date; expiresAt: Date }>>`
+        INSERT INTO platform_privileged_action_requests (
+          requester_user_id, resource, action, risk_level, target_entity_type,
+          target_entity_id, target_tenant_id, reason, payload, request_id,
+          source_ip, user_agent
+        ) VALUES (
+          ${actorUserId}, ${resource}, ${action}, ${riskLevel},
+          ${input.targetEntityType ?? null}, ${input.targetEntityId ?? null},
+          ${input.targetTenantId ?? null}, ${reason}, ${payload}::jsonb,
+          ${input.context.requestId}, ${input.context.sourceIp}, ${input.context.userAgent}
+        )
+        RETURNING id, created_at AS "createdAt", expires_at AS "expiresAt"
+      `;
 
-    const created = rows[0];
-    if (!created) throw new BadRequestException('Privileged operation request could not be created.');
+      const created = rows[0];
+      if (!created) throw new BadRequestException('Privileged operation request could not be created.');
 
-    await this.prisma.$queryRaw`
-      INSERT INTO platform_audit_events (
-        actor_user_id, resource, action, target_entity_type, target_entity_id,
-        target_tenant_id, reason, metadata, request_id, source_ip, user_agent,
-        risk_level, approval_request_id
-      ) VALUES (
-        ${actorUserId}, 'privileged_operations', 'request.create',
-        'platform_privileged_action_request', ${created.id}, ${input.targetTenantId ?? null},
-        ${reason}, ${JSON.stringify({ resource, action, riskLevel })}::jsonb,
-        ${input.context.requestId}, ${input.context.sourceIp}, ${input.context.userAgent},
-        ${riskLevel}, ${created.id}
-      )
-      RETURNING id
-    `;
+      await tx.$queryRaw`
+        INSERT INTO platform_audit_events (
+          actor_user_id, resource, action, target_entity_type, target_entity_id,
+          target_tenant_id, reason, metadata, request_id, source_ip, user_agent,
+          risk_level, approval_request_id
+        ) VALUES (
+          ${actorUserId}, 'privileged_operations', 'request.create',
+          'platform_privileged_action_request', ${created.id}, ${input.targetTenantId ?? null},
+          ${reason}, ${JSON.stringify({ resource, action, riskLevel })}::jsonb,
+          ${input.context.requestId}, ${input.context.sourceIp}, ${input.context.userAgent},
+          ${riskLevel}, ${created.id}
+        )
+        RETURNING id
+      `;
 
-    return { ...created, riskLevel };
+      return { ...created, riskLevel };
+    });
   }
 
   async decide(input: DecidePrivilegedRequestInput) {
@@ -129,10 +131,25 @@ export class PlatformPrivilegedOperationsService {
       if (request.expiresAt.getTime() <= Date.now()) {
         await tx.$executeRaw`
           UPDATE platform_privileged_action_requests
-          SET status = 'EXPIRED', decided_at = CURRENT_TIMESTAMP
+          SET status = 'EXPIRED', decided_at = CURRENT_TIMESTAMP,
+              decision_reason = 'Approval window expired.'
           WHERE id = ${requestId}
         `;
-        throw new BadRequestException('Privileged operation request has expired.');
+        await tx.$queryRaw`
+          INSERT INTO platform_audit_events (
+            actor_user_id, resource, action, target_entity_type, target_entity_id,
+            target_tenant_id, reason, metadata, request_id, source_ip, user_agent,
+            risk_level, approval_request_id
+          ) VALUES (
+            ${actorUserId}, 'privileged_operations', 'request.expire',
+            'platform_privileged_action_request', ${requestId}, ${request.targetTenantId},
+            'Approval window expired.', ${JSON.stringify({ resource: request.resource, action: request.action })}::jsonb,
+            ${input.context.requestId}, ${input.context.sourceIp}, ${input.context.userAgent},
+            ${request.riskLevel}, ${requestId}
+          )
+          RETURNING id
+        `;
+        return { id: requestId, status: 'EXPIRED' as const };
       }
 
       await tx.$executeRaw`
