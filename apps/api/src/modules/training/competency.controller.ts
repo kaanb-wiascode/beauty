@@ -71,6 +71,18 @@ export class CompetencyController {
     return id;
   }
 
+  @Get('level-scale')
+  @RequirePermission('training', 'read')
+  levelScale() {
+    return this.competency.levelScale();
+  }
+
+  @Get('skill-matrix')
+  @RequirePermission('training', 'read')
+  skillMatrix() {
+    return this.competency.skillMatrix();
+  }
+
   @Get('definitions')
   @RequirePermission('training', 'read')
   definitions() {
