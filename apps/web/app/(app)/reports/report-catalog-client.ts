@@ -6,13 +6,14 @@ export type ReportCatalogKey =
   | "payments.summary"
   | "customers.performance"
   | "sales.performance"
-  | "appointments.performance";
+  | "appointments.performance"
+  | "finance.performance";
 
 export type ReportCatalogItem = {
   key: ReportCatalogKey;
   title: string;
   description: string;
-  domain: "staff" | "services" | "payments" | "customers" | "sales" | "appointments";
+  domain: "staff" | "services" | "payments" | "customers" | "sales" | "appointments" | "finance";
   route: string;
   resultKind: "table" | "summary";
   availableColumns: readonly string[];
