@@ -1,10 +1,11 @@
 import { ForbiddenException } from '@nestjs/common';
 
 import { ReportScheduleExecutionService } from './report-schedule-execution.service';
+import type { ClaimedReportScheduleRun } from './report-schedule-runs.repository';
 
-const claimed = {
+const claimed: ClaimedReportScheduleRun = {
   runId: 'run-1',
-  runStatus: 'CLAIMED' as const,
+  runStatus: 'CLAIMED',
   scheduledFor: new Date('2026-09-15T06:30:00.000Z'),
   exportJobId: null,
   scheduleId: 'schedule-1',
@@ -14,22 +15,22 @@ const claimed = {
   ownerId: 'user-1',
   membershipId: 'membership-1',
   roleId: 'role-1',
-  roleScope: 'BRANCH' as const,
-  reportKey: 'staff.performance' as const,
-  frequency: 'DAILY' as const,
+  roleScope: 'BRANCH',
+  reportKey: 'staff.performance',
+  frequency: 'DAILY',
   timezone: 'Europe/Istanbul',
   localHour: 9,
   localMinute: 30,
   dayOfWeek: null,
   dayOfMonth: null,
-  format: 'XLSX' as const,
+  format: 'XLSX',
   filters: { datePreset: 'LAST_7_DAYS' },
   columns: ['name', 'collected'],
   sort: { key: 'collected', direction: 'desc' },
   includeSummary: true,
 };
 
-function createService(run = claimed) {
+function createService(run: ClaimedReportScheduleRun = claimed) {
   const runs = {
     claimDue: jest.fn().mockResolvedValue(run),
     markQueued: jest.fn().mockResolvedValue(true),
@@ -95,7 +96,7 @@ describe('ReportScheduleExecutionService', () => {
   it('repairs an already queued run without creating another export', async () => {
     const { service, exportJobs, runs } = createService({
       ...claimed,
-      runStatus: 'QUEUED' as const,
+      runStatus: 'QUEUED',
       exportJobId: 'export-1',
     });
 
