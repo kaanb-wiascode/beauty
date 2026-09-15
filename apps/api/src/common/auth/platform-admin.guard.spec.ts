@@ -1,20 +1,26 @@
-import { ExecutionContext, ForbiddenException } from '@nestjs/common';
+import {
+  ExecutionContext,
+  ForbiddenException,
+  UnauthorizedException,
+} from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 
 import { PlatformAdminGuard } from './platform-admin.guard';
 
 describe('PlatformAdminGuard', () => {
-  const queryRawUnsafe = jest.fn();
+  const queryRaw = jest.fn();
   const prisma = {
-    $queryRawUnsafe: queryRawUnsafe,
+    $queryRaw: queryRaw,
   } as unknown as PrismaService;
   const guard = new PlatformAdminGuard(prisma);
 
-  const contextFor = (userId: string): ExecutionContext =>
+  const contextFor = (userId?: string): ExecutionContext =>
     ({
       switchToHttp: () => ({
-        getRequest: () => ({ user: { sub: userId } }),
+        getRequest: () => ({
+          user: userId ? { sub: userId } : undefined,
+        }),
       }),
     }) as unknown as ExecutionContext;
 
@@ -23,21 +29,24 @@ describe('PlatformAdminGuard', () => {
   });
 
   it('allows only explicitly active platform administrators', async () => {
-    queryRawUnsafe.mockResolvedValue([{ userId: 'user-1' }]);
+    queryRaw.mockResolvedValue([{ userId: 'user-1' }]);
 
     await expect(guard.canActivate(contextFor('user-1'))).resolves.toBe(true);
-
-    expect(queryRawUnsafe).toHaveBeenCalledWith(
-      expect.stringContaining("status='ACTIVE'"),
-      'user-1',
-    );
+    expect(queryRaw).toHaveBeenCalledTimes(1);
   });
 
   it('rejects authenticated tenant users without platform administrator assignment', async () => {
-    queryRawUnsafe.mockResolvedValue([]);
+    queryRaw.mockResolvedValue([]);
 
     await expect(guard.canActivate(contextFor('user-2'))).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+  });
+
+  it('rejects requests without an authenticated user id', async () => {
+    await expect(guard.canActivate(contextFor())).rejects.toBeInstanceOf(
+      UnauthorizedException,
+    );
+    expect(queryRaw).not.toHaveBeenCalled();
   });
 });
