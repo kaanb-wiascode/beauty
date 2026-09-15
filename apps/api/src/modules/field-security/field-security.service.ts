@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { randomUUID } from 'node:crypto';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -58,41 +58,44 @@ export class FieldSecurityService {
     });
     if (!permission) throw new BadRequestException('Required permission does not exist');
 
-    const previous = await this.prisma.$queryRaw<FieldPolicyRow[]>`
-      SELECT * FROM field_security_policies
-      WHERE "tenantId"=${context.tenantId}
-        AND "companyId"=${context.companyId}
-        AND "fieldGroup"=${fieldGroup}
-      LIMIT 1
-    `;
+    return this.prisma.$transaction(async (tx) => {
+      const previous = await tx.$queryRaw<FieldPolicyRow[]>`
+        SELECT * FROM field_security_policies
+        WHERE "tenantId"=${context.tenantId}
+          AND "companyId"=${context.companyId}
+          AND "fieldGroup"=${fieldGroup}
+        LIMIT 1
+        FOR UPDATE
+      `;
 
-    const id = previous[0]?.id ?? randomUUID();
-    const rows = await this.prisma.$queryRaw<FieldPolicyRow[]>`
-      INSERT INTO field_security_policies(
-        id,"tenantId","companyId","fieldGroup","requiredResource","requiredAction",description,"createdByUserId","createdAt","updatedAt"
-      ) VALUES(
-        ${id},${context.tenantId},${context.companyId},${fieldGroup},${requiredResource},${requiredAction},${input.description?.trim() || null},${actorUserId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
-      )
-      ON CONFLICT ("tenantId","companyId","fieldGroup") DO UPDATE SET
-        "requiredResource"=EXCLUDED."requiredResource",
-        "requiredAction"=EXCLUDED."requiredAction",
-        description=EXCLUDED.description,
-        "updatedAt"=CURRENT_TIMESTAMP
-      RETURNING *
-    `;
+      const id = previous[0]?.id ?? randomUUID();
+      const rows = await tx.$queryRaw<FieldPolicyRow[]>`
+        INSERT INTO field_security_policies(
+          id,"tenantId","companyId","fieldGroup","requiredResource","requiredAction",description,"createdByUserId","createdAt","updatedAt"
+        ) VALUES(
+          ${id},${context.tenantId},${context.companyId},${fieldGroup},${requiredResource},${requiredAction},${input.description?.trim() || null},${actorUserId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+        )
+        ON CONFLICT ("tenantId","companyId","fieldGroup") DO UPDATE SET
+          "requiredResource"=EXCLUDED."requiredResource",
+          "requiredAction"=EXCLUDED."requiredAction",
+          description=EXCLUDED.description,
+          "updatedAt"=CURRENT_TIMESTAMP
+        RETURNING *
+      `;
 
-    await this.audit.record({
-      actorUserId,
-      resource: 'field_security',
-      action: previous.length ? 'update' : 'create',
-      targetTenantId: context.tenantId,
-      targetEntityType: 'field_security_policy',
-      targetEntityId: id,
-      beforeState: previous[0] ?? null,
-      afterState: rows[0],
-      metadata: { companyId: context.companyId, fieldGroup },
-    });
-    return rows[0];
+      await this.audit.record({
+        actorUserId,
+        resource: 'field_security',
+        action: previous.length ? 'update' : 'create',
+        targetTenantId: context.tenantId,
+        targetEntityType: 'field_security_policy',
+        targetEntityId: id,
+        beforeState: previous[0] ?? null,
+        afterState: rows[0],
+        metadata: { companyId: context.companyId, fieldGroup },
+      }, tx);
+      return rows[0];
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async canRead(
