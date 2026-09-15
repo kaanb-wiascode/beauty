@@ -82,6 +82,7 @@ export class FinanceReportingService {
       date: string;
       incomeRecognized: number;
       expenseRecognized: number;
+      payableAmount: number;
       collected: number;
       paid: number;
       receivableOutstanding: number;
@@ -98,6 +99,7 @@ export class FinanceReportingService {
         date: key,
         incomeRecognized: 0,
         expenseRecognized: 0,
+        payableAmount: 0,
         collected: 0,
         paid: 0,
         receivableOutstanding: 0,
@@ -128,6 +130,7 @@ export class FinanceReportingService {
       const payable = Math.max(0, gross - withholding);
       const paid = Number(row.paidAmount) * rate;
       bucket.expenseRecognized += gross;
+      bucket.payableAmount += payable;
       bucket.paid += paid;
       bucket.payableOutstanding += Math.max(0, payable - paid);
       bucket.expenseRecordCount += 1;
@@ -142,8 +145,8 @@ export class FinanceReportingService {
         collectionRate: bucket.incomeRecognized
           ? Math.round((bucket.collected / bucket.incomeRecognized) * 100)
           : 0,
-        paymentRate: bucket.expenseRecognized
-          ? Math.round((bucket.paid / bucket.expenseRecognized) * 100)
+        paymentRate: bucket.payableAmount
+          ? Math.round((bucket.paid / bucket.payableAmount) * 100)
           : 0,
       }));
   }
