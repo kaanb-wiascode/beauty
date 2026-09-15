@@ -8,6 +8,15 @@ export const leadStatusSchema = z.enum([
   'CONVERTED',
 ]);
 
+export const leadContactChannelSchema = z.enum([
+  'CALL',
+  'SMS',
+  'EMAIL',
+  'WHATSAPP',
+  'IN_PERSON',
+  'OTHER',
+]);
+
 export const opportunityStageSchema = z.enum([
   'QUALIFIED',
   'NEEDS_ANALYSIS',
@@ -22,14 +31,18 @@ export const createLeadSchema = z
     firstName: z.string().trim().min(1).max(100),
     lastName: z.string().trim().min(1).max(100),
     phone: z.string().trim().min(3).max(40).optional(),
+    alternativePhone: z.string().trim().min(3).max(40).optional(),
     email: z.string().trim().email().max(254).optional(),
+    preferredContactChannel: leadContactChannelSchema.optional(),
+    language: z.string().trim().min(2).max(35).optional(),
+    timezone: z.string().trim().min(1).max(100).optional(),
     source: z.string().trim().min(1).max(60).default('MANUAL'),
     interestNote: z.string().trim().max(2000).optional(),
     ownerUserId: z.string().uuid().optional(),
     customerId: z.string().uuid().optional(),
   })
-  .refine((value) => value.phone || value.email, {
-    message: 'Lead için telefon veya e-posta gereklidir.',
+  .refine((value) => value.phone || value.alternativePhone || value.email, {
+    message: 'Lead için telefon, alternatif telefon veya e-posta gereklidir.',
   });
 
 export const updateLeadSchema = z.object({
@@ -37,7 +50,11 @@ export const updateLeadSchema = z.object({
   firstName: z.string().trim().min(1).max(100).optional(),
   lastName: z.string().trim().min(1).max(100).optional(),
   phone: z.string().trim().min(3).max(40).nullable().optional(),
+  alternativePhone: z.string().trim().min(3).max(40).nullable().optional(),
   email: z.string().trim().email().max(254).nullable().optional(),
+  preferredContactChannel: leadContactChannelSchema.nullable().optional(),
+  language: z.string().trim().min(2).max(35).nullable().optional(),
+  timezone: z.string().trim().min(1).max(100).nullable().optional(),
   source: z.string().trim().min(1).max(60).optional(),
   interestNote: z.string().trim().max(2000).nullable().optional(),
   ownerUserId: z.string().uuid().nullable().optional(),
@@ -89,7 +106,7 @@ export const createFollowUpSchema = z
     leadId: z.string().uuid().optional(),
     opportunityId: z.string().uuid().optional(),
     assignedUserId: z.string().uuid(),
-    channel: z.enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']),
+    channel: leadContactChannelSchema,
     dueAt: z.coerce.date(),
     note: z.string().trim().max(2000).optional(),
   })
@@ -111,9 +128,7 @@ export const rescheduleFollowUpSchema = z.object({
   version: z.coerce.number().int().min(1),
   dueAt: z.coerce.date(),
   assignedUserId: z.string().uuid().optional(),
-  channel: z
-    .enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER'])
-    .optional(),
+  channel: leadContactChannelSchema.optional(),
   note: z.string().trim().max(2000).nullable().optional(),
 });
 
