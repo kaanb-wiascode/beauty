@@ -12,6 +12,8 @@ import { FinanceReconciliationService } from './finance-reconciliation.service';
 import { FinanceReportingService } from './finance-reporting.service';
 import { FinanceSetupController } from './finance-setup.controller';
 import { FinanceSetupService } from './finance-setup.service';
+import { FinancialObligationPaymentsController } from './financial-obligation-payments.controller';
+import { FinancialObligationPaymentsService } from './financial-obligation-payments.service';
 import { FinancialObligationRulesService } from './financial-obligation-rules.service';
 import { FinancialObligationsController } from './financial-obligations.controller';
 import { FinancialObligationsService } from './financial-obligations.service';
@@ -29,6 +31,7 @@ import { IncomeRecordsService } from './income-records.service';
     FinanceConfigurationAuditController,
     FinanceReconciliationController,
     FinancialObligationsController,
+    FinancialObligationPaymentsController,
     ExpenseAccountingController,
     ExpensePaymentsController,
     IncomeRecordsController,
@@ -43,6 +46,7 @@ import { IncomeRecordsService } from './income-records.service';
     FinanceReportingService,
     FinancialObligationsService,
     FinancialObligationRulesService,
+    FinancialObligationPaymentsService,
     ExpenseAccountingService,
     ExpensePaymentsService,
     IncomeRecordsService,
@@ -57,6 +61,7 @@ import { IncomeRecordsService } from './income-records.service';
     FinanceReportingService,
     FinancialObligationsService,
     FinancialObligationRulesService,
+    FinancialObligationPaymentsService,
     ExpenseAccountingService,
     ExpensePaymentsService,
     IncomeRecordsService,
