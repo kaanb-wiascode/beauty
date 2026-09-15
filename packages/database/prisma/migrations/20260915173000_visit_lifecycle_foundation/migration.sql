@@ -16,11 +16,11 @@ CREATE TYPE "VisitSource" AS ENUM (
 );
 
 CREATE TABLE "visits" (
-  "id" UUID NOT NULL,
-  "tenantId" UUID NOT NULL,
-  "companyId" UUID NOT NULL,
-  "branchId" UUID NOT NULL,
-  "customerId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "companyId" TEXT NOT NULL,
+  "branchId" TEXT NOT NULL,
+  "customerId" TEXT NOT NULL,
   "source" "VisitSource" NOT NULL,
   "status" "VisitStatus" NOT NULL DEFAULT 'EXPECTED',
   "note" TEXT,
@@ -33,7 +33,7 @@ CREATE TABLE "visits" (
   "checkedOutAt" TIMESTAMP(3),
   "cancelledAt" TIMESTAMP(3),
   "version" INTEGER NOT NULL DEFAULT 1,
-  "createdByMembershipId" UUID NOT NULL,
+  "createdByMembershipId" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
   "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
@@ -46,8 +46,8 @@ CREATE TABLE "visits" (
 );
 
 CREATE TABLE "visit_appointments" (
-  "visitId" UUID NOT NULL,
-  "appointmentId" UUID NOT NULL,
+  "visitId" TEXT NOT NULL,
+  "appointmentId" TEXT NOT NULL,
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
 
   CONSTRAINT "visit_appointments_pkey" PRIMARY KEY ("visitId", "appointmentId"),
@@ -56,11 +56,11 @@ CREATE TABLE "visit_appointments" (
 );
 
 CREATE TABLE "visit_events" (
-  "id" UUID NOT NULL,
-  "visitId" UUID NOT NULL,
-  "tenantId" UUID NOT NULL,
-  "branchId" UUID NOT NULL,
-  "actorMembershipId" UUID NOT NULL,
+  "id" TEXT NOT NULL,
+  "visitId" TEXT NOT NULL,
+  "tenantId" TEXT NOT NULL,
+  "branchId" TEXT NOT NULL,
+  "actorMembershipId" TEXT NOT NULL,
   "eventType" VARCHAR(64) NOT NULL,
   "fromStatus" "VisitStatus",
   "toStatus" "VisitStatus",
