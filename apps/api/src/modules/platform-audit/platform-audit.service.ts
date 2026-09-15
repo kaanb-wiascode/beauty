@@ -16,6 +16,19 @@ export type PlatformAuditRecordInput = {
   correlationId?: string | null;
 };
 
+export type TenantAuditFilter = {
+  actorUserId?: string;
+  resource?: string;
+  action?: string;
+  entityType?: string;
+  entityId?: string;
+  companyId?: string;
+  branchId?: string;
+  from?: Date;
+  to?: Date;
+  limit?: number;
+};
+
 type PlatformAuditQueryClient = Pick<Prisma.TransactionClient, '$queryRaw'>;
 
 const REDACTED = '[REDACTED]';
@@ -36,6 +49,11 @@ const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, ''
 const isSensitiveKey = (key: string) => {
   const normalized = normalizeKey(key);
   return SENSITIVE_KEY_FRAGMENTS.some((fragment) => normalized.includes(fragment));
+};
+
+const optionalTrimmed = (value?: string) => {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : null;
 };
 
 export function redactPlatformAuditPayload(value: unknown): unknown {
@@ -116,5 +134,71 @@ export class PlatformAuditService {
     `;
 
     return rows[0];
+  }
+
+  async findTenantEvents(tenantId: string, filter: TenantAuditFilter = {}) {
+    const normalizedTenantId = tenantId.trim();
+    if (!normalizedTenantId) {
+      throw new BadRequestException('Tenant audit requires tenant context.');
+    }
+
+    const actorUserId = optionalTrimmed(filter.actorUserId);
+    const resource = optionalTrimmed(filter.resource);
+    const action = optionalTrimmed(filter.action);
+    const entityType = optionalTrimmed(filter.entityType);
+    const entityId = optionalTrimmed(filter.entityId);
+    const companyId = optionalTrimmed(filter.companyId);
+    const branchId = optionalTrimmed(filter.branchId);
+    const from = filter.from ?? null;
+    const to = filter.to ?? null;
+    const limit = Math.max(1, Math.min(filter.limit ?? 100, 200));
+
+    if (from && to && from > to) {
+      throw new BadRequestException('Audit date range is invalid.');
+    }
+
+    return this.prisma.$queryRaw<
+      Array<{
+        id: string;
+        actorUserId: string;
+        resource: string;
+        action: string;
+        targetEntityType: string | null;
+        targetEntityId: string | null;
+        reason: string | null;
+        beforeState: unknown;
+        afterState: unknown;
+        metadata: unknown;
+        correlationId: string | null;
+        createdAt: Date;
+      }>
+    >`
+      SELECT
+        id,
+        actor_user_id AS "actorUserId",
+        resource,
+        action,
+        target_entity_type AS "targetEntityType",
+        target_entity_id AS "targetEntityId",
+        reason,
+        before_state AS "beforeState",
+        after_state AS "afterState",
+        metadata,
+        correlation_id AS "correlationId",
+        created_at AS "createdAt"
+      FROM platform_audit_events
+      WHERE target_tenant_id = ${normalizedTenantId}
+        AND (${actorUserId}::text IS NULL OR actor_user_id = ${actorUserId})
+        AND (${resource}::text IS NULL OR resource = ${resource})
+        AND (${action}::text IS NULL OR action = ${action})
+        AND (${entityType}::text IS NULL OR target_entity_type = ${entityType})
+        AND (${entityId}::text IS NULL OR target_entity_id = ${entityId})
+        AND (${companyId}::text IS NULL OR metadata->>'companyId' = ${companyId})
+        AND (${branchId}::text IS NULL OR metadata->>'branchId' = ${branchId})
+        AND (${from}::timestamp IS NULL OR created_at >= ${from})
+        AND (${to}::timestamp IS NULL OR created_at <= ${to})
+      ORDER BY created_at DESC, id DESC
+      LIMIT ${limit}
+    `;
   }
 }
