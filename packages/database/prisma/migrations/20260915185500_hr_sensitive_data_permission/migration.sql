@@ -2,13 +2,12 @@
 -- Existing hr:read remains sufficient for operational Employee 360 data,
 -- while identity, banking and compensation details require hr_sensitive:read.
 
-INSERT INTO permissions (id, resource, action, description, "createdAt", "updatedAt")
+INSERT INTO permissions (id, resource, action, description, "createdAt")
 SELECT
   'perm_hr_sensitive_read',
   'hr_sensitive',
   'read',
   'Read sensitive HR identity, banking and compensation data',
-  CURRENT_TIMESTAMP,
   CURRENT_TIMESTAMP
 WHERE NOT EXISTS (
   SELECT 1 FROM permissions
