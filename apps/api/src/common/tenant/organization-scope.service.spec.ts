@@ -104,4 +104,54 @@ describe('OrganizationScopeService', () => {
       },
     });
   });
+
+  it('maps selected branch scope through the payment appointment relation', async () => {
+    const service = new OrganizationScopeService(
+      prisma,
+      createContext({ roleScope: 'BRANCH', branchId: 'branch-1' }),
+    );
+
+    await expect(service.getPaymentScopedWhere()).resolves.toEqual({
+      tenantId: 'tenant-1',
+      appointment: {
+        branchId: 'branch-1',
+      },
+    });
+  });
+
+  it('maps COMPANY assignments through the payment appointment relation', async () => {
+    findMany.mockResolvedValue([
+      { branchId: 'branch-1' },
+      { branchId: 'branch-2' },
+    ]);
+    const service = new OrganizationScopeService(
+      prisma,
+      createContext({ roleScope: 'COMPANY', branchId: null }),
+    );
+
+    await expect(service.getPaymentScopedWhere()).resolves.toEqual({
+      tenantId: 'tenant-1',
+      appointment: {
+        branchId: {
+          in: ['branch-1', 'branch-2'],
+        },
+      },
+    });
+  });
+
+  it('maps CENTRAL company scope through the payment appointment relation', async () => {
+    const service = new OrganizationScopeService(
+      prisma,
+      createContext({ roleScope: 'CENTRAL', branchId: null }),
+    );
+
+    await expect(service.getPaymentScopedWhere()).resolves.toEqual({
+      tenantId: 'tenant-1',
+      appointment: {
+        branch: {
+          companyId: 'company-1',
+        },
+      },
+    });
+  });
 });
