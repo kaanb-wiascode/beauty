@@ -16,6 +16,7 @@ const OPERATIONS_TABS = [
   { href: "/operations/checklists", label: "SOP / Checklist" },
   { href: "/operations/branch-checklists", label: "Açılış / Kapanış" },
   { href: "/operations/incidents", label: "Incident & Kesintiler" },
+  { href: "/operations/cancellations", label: "İptal / No-show" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
