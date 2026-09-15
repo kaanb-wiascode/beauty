@@ -21,15 +21,27 @@ describe('HR and payroll reporting lifecycle', () => {
     ]);
   });
 
+  it('keeps payroll liability settlement metrics available across selectable lifecycle columns', () => {
+    const definition = getReportDefinition(reportKeys.payrollSummary);
+    const settlementColumns = ['taxPaid', 'taxRemaining', 'socialPaid', 'socialRemaining'];
+
+    expect(definition?.availableColumns).toEqual(expect.arrayContaining(settlementColumns));
+    expect(definition?.exportableColumns).toEqual(expect.arrayContaining(settlementColumns));
+    expect(definition?.sortableColumns).toEqual(expect.arrayContaining(settlementColumns));
+    expect(definition?.defaultColumns).toEqual(expect.arrayContaining(['taxRemaining', 'socialRemaining']));
+  });
+
   it.each(['hr.workforce', 'payroll.summary'] as const)('supports the full lifecycle for %s', (reportKey) => {
+    const columns = reportKey === 'hr.workforce' ? ['date'] : ['periodDate', 'taxRemaining', 'socialRemaining'];
+
     expect(reportPreviewSchema.parse({ reportKey, filters }).reportKey).toBe(reportKey);
     expect(reportComparisonSchema.parse({ reportKey, filters }).reportKey).toBe(reportKey);
-    expect(reportExportSchema.parse({ reportKey, format: 'CSV', filters }).reportKey).toBe(reportKey);
+    expect(reportExportSchema.parse({ reportKey, format: 'CSV', filters, columns }).reportKey).toBe(reportKey);
     expect(reportExportListSchema.parse({ reportKey }).reportKey).toBe(reportKey);
-    expect(createReportSavedViewSchema.parse({ name: 'Görünüm', reportKey, filters, columns: [reportKey === 'hr.workforce' ? 'date' : 'periodDate'] }).reportKey).toBe(reportKey);
+    expect(createReportSavedViewSchema.parse({ name: 'Görünüm', reportKey, filters, columns }).reportKey).toBe(reportKey);
     expect(createReportScheduleSchema.parse({
       name: 'Aylık rapor', reportKey, frequency: 'MONTHLY', timezone: 'Europe/Istanbul', localHour: 9, localMinute: 0,
-      dayOfMonth: 1, format: 'XLSX', datePreset: 'PREVIOUS_MONTH', columns: [reportKey === 'hr.workforce' ? 'date' : 'periodDate'],
+      dayOfMonth: 1, format: 'XLSX', datePreset: 'PREVIOUS_MONTH', columns,
     }).reportKey).toBe(reportKey);
   });
 });
