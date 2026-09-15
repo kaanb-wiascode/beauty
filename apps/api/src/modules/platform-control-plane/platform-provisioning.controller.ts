@@ -12,7 +12,7 @@ import {
 import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard';
 import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
-import { PlatformProvisioningService } from './platform-provisioning.service';
+import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
 
 type PlatformRequest = {
   user?: { sub?: string };
@@ -22,7 +22,9 @@ type PlatformRequest = {
 @Controller('platform/provisioning')
 @UseGuards(PlatformJwtAuthGuard, PlatformPermissionsGuard)
 export class PlatformProvisioningController {
-  constructor(private readonly provisioning: PlatformProvisioningService) {}
+  constructor(
+    private readonly provisioning: PlatformProvisioningCoordinatorService,
+  ) {}
 
   @Post()
   @RequirePlatformPermission('provisioning', 'manage')
