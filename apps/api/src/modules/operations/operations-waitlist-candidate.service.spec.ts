@@ -1,17 +1,24 @@
+import { Test } from '@nestjs/testing';
+
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { OperationsBranchWorkingHoursService } from './operations-branch-working-hours.service';
+import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
 import { OperationsWaitlistCandidateService } from './operations-waitlist-candidate.service';
 
 describe('OperationsWaitlistCandidateService', () => {
   const queryRawUnsafe = jest.fn();
   const executeRawUnsafe = jest.fn();
-  const prisma = { $queryRawUnsafe: queryRawUnsafe, $executeRawUnsafe: executeRawUnsafe } as never;
+  const prisma = { $queryRawUnsafe: queryRawUnsafe, $executeRawUnsafe: executeRawUnsafe };
   const tenantContext = {
     getTenantId: () => 'tenant-1',
     getCompanyId: () => 'company-1',
     getBranchId: () => 'branch-1',
     getMembershipId: () => 'membership-1',
-  } as never;
-  const eligibility = { check: jest.fn() } as never;
-  const workingHours = { check: jest.fn() } as never;
+  };
+  const eligibility = { check: jest.fn() };
+  const workingHours = { check: jest.fn() };
+  let service: OperationsWaitlistCandidateService;
 
   const target = {
     id: 'wait-1', serviceId: 'service-1', preferredStaffId: null,
@@ -28,18 +35,29 @@ describe('OperationsWaitlistCandidateService', () => {
     roomId: null, roomName: null, assetId: null, assetName: null,
   };
 
-  beforeEach(() => {
+  beforeEach(async () => {
     queryRawUnsafe.mockReset();
     executeRawUnsafe.mockReset();
-    (eligibility.check as jest.Mock).mockReset();
-    (workingHours.check as jest.Mock).mockReset();
+    eligibility.check.mockReset();
+    workingHours.check.mockReset();
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OperationsWaitlistCandidateService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenantContext },
+        { provide: OperationsStaffEligibilityService, useValue: eligibility },
+        { provide: OperationsBranchWorkingHoursService, useValue: workingHours },
+      ],
+    }).compile();
+
+    service = moduleRef.get(OperationsWaitlistCandidateService);
   });
 
   it('filters a candidate outside configured branch hours before MATCH_FOUND transition', async () => {
     queryRawUnsafe.mockResolvedValueOnce([target]).mockResolvedValueOnce([candidate]);
-    (workingHours.check as jest.Mock).mockResolvedValue({ configured: true, allowed: false, reason: 'OUTSIDE_BRANCH_HOURS' });
-    const service = new OperationsWaitlistCandidateService(prisma, tenantContext, eligibility, workingHours);
-    const result = await service.findMatches('wait-1', { limit: 5 } as never);
+    workingHours.check.mockResolvedValue({ configured: true, allowed: false, reason: 'OUTSIDE_BRANCH_HOURS' });
+    const result = await service.findMatches('wait-1', { limit: 5 });
     expect(result.matches).toEqual([]);
     expect(eligibility.check).not.toHaveBeenCalled();
     expect(queryRawUnsafe).toHaveBeenCalledTimes(2);
@@ -48,12 +66,11 @@ describe('OperationsWaitlistCandidateService', () => {
 
   it('filters BLOCK-mode HR ineligible staff before exposing the candidate', async () => {
     queryRawUnsafe.mockResolvedValueOnce([target]).mockResolvedValueOnce([candidate]);
-    (workingHours.check as jest.Mock).mockResolvedValue({ configured: true, allowed: true, reason: 'WITHIN_BRANCH_HOURS' });
-    (eligibility.check as jest.Mock).mockResolvedValue({
+    workingHours.check.mockResolvedValue({ configured: true, allowed: true, reason: 'WITHIN_BRANCH_HOURS' });
+    eligibility.check.mockResolvedValue({
       allowed: false, mode: 'BLOCK', blockers: [{ code: 'STAFF_CERTIFICATION_MISSING' }], warnings: [],
     });
-    const service = new OperationsWaitlistCandidateService(prisma, tenantContext, eligibility, workingHours);
-    const result = await service.findMatches('wait-1', { limit: 5 } as never);
+    const result = await service.findMatches('wait-1', { limit: 5 });
     expect(result.matches).toEqual([]);
     expect(queryRawUnsafe).toHaveBeenCalledTimes(2);
   });
@@ -63,12 +80,11 @@ describe('OperationsWaitlistCandidateService', () => {
       .mockResolvedValueOnce([target])
       .mockResolvedValueOnce([candidate])
       .mockResolvedValueOnce([{ version: 3 }]);
-    (workingHours.check as jest.Mock).mockResolvedValue({ configured: true, allowed: true, reason: 'WITHIN_BRANCH_HOURS' });
-    (eligibility.check as jest.Mock).mockResolvedValue({
+    workingHours.check.mockResolvedValue({ configured: true, allowed: true, reason: 'WITHIN_BRANCH_HOURS' });
+    eligibility.check.mockResolvedValue({
       allowed: true, mode: 'WARN', blockers: [], warnings: [{ code: 'STAFF_COMPETENCY_GAP' }],
     });
-    const service = new OperationsWaitlistCandidateService(prisma, tenantContext, eligibility, workingHours);
-    const result = await service.findMatches('wait-1', { limit: 5 } as never);
+    const result = await service.findMatches('wait-1', { limit: 5 });
     expect(result.entryVersion).toBe(3);
     expect(result.matches).toHaveLength(1);
     expect(result.matches[0].eligibility.mode).toBe('WARN');
