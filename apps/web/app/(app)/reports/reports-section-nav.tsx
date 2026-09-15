@@ -13,6 +13,8 @@ const REPORT_NAV_ITEMS = [
   { href: "/reports/sales", label: "Satış Raporları", permission: ["reports", "read"] as const },
   { href: "/reports/appointments", label: "Randevu Raporları", permission: ["reports", "read"] as const },
   { href: "/reports/finance", label: "Finans Raporları", permission: ["reports", "read"] as const },
+  { href: "/reports/inventory", label: "Stok Raporları", permission: ["reports", "read"] as const },
+  { href: "/reports/procurement", label: "Satın Alma Raporları", permission: ["reports", "read"] as const },
   { href: "/reports/staff", label: "Personel Performansı", permission: ["reports", "read"] as const },
   { href: "/reports/services", label: "Hizmet Performansı", permission: ["reports", "read"] as const },
   { href: "/reports/compare", label: "Dönem Karşılaştırma", permission: ["reports", "read"] as const },
