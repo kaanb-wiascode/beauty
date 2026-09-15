@@ -10,7 +10,6 @@ export interface LeadScoringPolicyInput {
 
 export interface LeadScoreOverrideInput {
   score: number;
-  temperature: 'COLD' | 'WARM' | 'HOT';
   reason: string;
   version: number;
 }
@@ -76,14 +75,14 @@ export class CrmLeadScoringService {
       );
       if (!rows.length) throw new ConflictException('Lead scoring policy changed. Refresh and retry.');
 
+      await tx.$queryRawUnsafe(
+        `SELECT set_config('crm.actor_user_id',$1::text,TRUE)`,
+        actorUserId,
+      );
       await tx.$executeRawUnsafe(
         `UPDATE crm_leads SET customer_intent=customer_intent
-         WHERE tenant_id=$1::text AND company_id=$2::text
-           AND ($3::text IS NULL OR branch_id=$3::text)
-           AND lead_score_overridden=FALSE`,
+         WHERE tenant_id=$1::text AND lead_score_overridden=FALSE`,
         context.tenantId,
-        context.companyId,
-        context.branchId,
       );
 
       return rows[0];
@@ -131,14 +130,24 @@ export class CrmLeadScoringService {
     const context = this.context();
     const branchId = this.requireBranchId();
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        `SELECT set_config('crm.actor_user_id',$1::text,TRUE)`,
+        actorUserId,
+      );
       const rows = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
         `UPDATE crm_leads SET
-           lead_score=$5,lead_temperature=$6,lead_score_overridden=TRUE,
-           lead_score_override_reason=$7,lead_score_explanation=jsonb_build_object(
-             'engineVersion',1,'manualOverride',TRUE,'reason',$7::text
+           lead_score=$5,
+           lead_temperature=CASE
+             WHEN $5 >= COALESCE((SELECT hot_min FROM crm_lead_scoring_policies WHERE tenant_id=$2::text),80) THEN 'HOT'
+             WHEN $5 >= COALESCE((SELECT warm_min FROM crm_lead_scoring_policies WHERE tenant_id=$2::text),50) THEN 'WARM'
+             ELSE 'COLD'
+           END,
+           lead_score_overridden=TRUE,
+           lead_score_override_reason=$6,lead_score_explanation=jsonb_build_object(
+             'engineVersion',1,'manualOverride',TRUE,'reason',$6::text,'temperatureDerivedFromScore',TRUE
            ),lead_score_version=lead_score_version+1,lead_score_updated_at=NOW(),updated_at=NOW()
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
-           AND lead_score_version=$8
+           AND lead_score_version=$7
          RETURNING id,lead_score AS "score",lead_temperature AS "temperature",
                    lead_score_version AS "scoreVersion",lead_score_explanation AS "explanation",
                    lead_score_overridden AS "overridden",lead_score_override_reason AS "overrideReason",
@@ -148,7 +157,6 @@ export class CrmLeadScoringService {
         context.companyId,
         branchId,
         input.score,
-        input.temperature,
         input.reason,
         input.version,
       );
@@ -164,7 +172,7 @@ export class CrmLeadScoringService {
         actorUserId,
         JSON.stringify({
           score: input.score,
-          temperature: input.temperature,
+          temperature: rows[0].temperature,
           reason: input.reason,
           scoreVersion: rows[0].scoreVersion,
         }),
@@ -177,6 +185,10 @@ export class CrmLeadScoringService {
     const context = this.context();
     const branchId = this.requireBranchId();
     return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRawUnsafe(
+        `SELECT set_config('crm.actor_user_id',$1::text,TRUE)`,
+        actorUserId,
+      );
       const rows = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
         `UPDATE crm_leads SET
            lead_score_overridden=FALSE,lead_score_override_reason=NULL,customer_intent=customer_intent,updated_at=NOW()
