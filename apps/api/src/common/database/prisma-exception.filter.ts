@@ -18,6 +18,30 @@ export class PrismaExceptionFilter implements ExceptionFilter {
       };
     }>();
 
+    const databaseContext = `${exception.message} ${JSON.stringify(
+      exception.meta ?? {},
+    )}`;
+
+    if (databaseContext.includes('TENANT_QUOTA_EXCEEDED')) {
+      const key = databaseContext.match(
+        /entitlementKey(?:\\?"|')?\s*:\s*(?:\\?"|')([^"'\\]+)/,
+      )?.[1];
+      const limit = databaseContext.match(/(?:\\?"|')?limit(?:\\?"|')?\s*:\s*(\d+)/)?.[1];
+      const current = databaseContext.match(/(?:\\?"|')?current(?:\\?"|')?\s*:\s*(\d+)/)?.[1];
+
+      return response.status(HttpStatus.CONFLICT).json({
+        statusCode: HttpStatus.CONFLICT,
+        error: 'Conflict',
+        code: 'TENANT_QUOTA_EXCEEDED',
+        message: key
+          ? `Tenant quota exceeded for ${key}`
+          : 'Tenant quota exceeded.',
+        ...(key ? { entitlementKey: key } : {}),
+        ...(limit ? { limit: Number(limit) } : {}),
+        ...(current ? { current: Number(current) } : {}),
+      });
+    }
+
     if (exception.code === 'P2002') {
       return response.status(HttpStatus.CONFLICT).json({
         statusCode: HttpStatus.CONFLICT,
