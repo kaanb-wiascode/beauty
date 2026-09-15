@@ -18,10 +18,22 @@ import {
 import { TenantContext } from './tenant-context';
 
 const SAFE_HTTP_METHODS = new Set(['GET', 'HEAD', 'OPTIONS']);
+const ROUTE_ENTITLEMENTS: Array<{ segment: string; entitlementKey: string }> = [
+  { segment: 'crm', entitlementKey: 'crm.enabled' },
+  { segment: 'hr', entitlementKey: 'hr.enabled' },
+  { segment: 'finance', entitlementKey: 'finance.enabled' },
+];
 
 type EntitlementPolicyRow = {
   configured: boolean;
   effectiveValue: unknown;
+};
+
+type TenantRequest = {
+  user?: JwtPayload;
+  method?: string;
+  url?: string;
+  originalUrl?: string;
 };
 
 @Injectable()
@@ -35,7 +47,7 @@ export class TenantAuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context
       .switchToHttp()
-      .getRequest<{ user?: JwtPayload; method?: string }>();
+      .getRequest<TenantRequest>();
 
     const user = request.user;
 
@@ -63,11 +75,7 @@ export class TenantAuthGuard implements CanActivate {
       throw new ForbiddenException('Tenant access is suspended by the platform.');
     }
 
-    const entitlementKey = this.reflector.getAllAndOverride<string>(
-      TENANT_ENTITLEMENT_KEY,
-      [context.getHandler(), context.getClass()],
-    );
-
+    const entitlementKey = this.entitlementKeyForRequest(context, request);
     if (entitlementKey) {
       const entitlement = await this.resolveConfiguredEntitlement(
         user.tenantId,
@@ -108,6 +116,25 @@ export class TenantAuthGuard implements CanActivate {
     });
 
     return true;
+  }
+
+  private entitlementKeyForRequest(
+    context: ExecutionContext,
+    request: TenantRequest,
+  ) {
+    const explicit = this.reflector.getAllAndOverride<string>(
+      TENANT_ENTITLEMENT_KEY,
+      [context.getHandler(), context.getClass()],
+    );
+    if (explicit) return explicit;
+
+    const rawUrl = request.originalUrl ?? request.url ?? '';
+    const path = rawUrl.split('?')[0].toLowerCase();
+    const segments = path.split('/').filter(Boolean);
+    const mapped = ROUTE_ENTITLEMENTS.find(({ segment }) =>
+      segments.includes(segment),
+    );
+    return mapped?.entitlementKey;
   }
 
   private async resolveConfiguredEntitlement(
