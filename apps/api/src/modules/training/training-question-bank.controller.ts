@@ -22,6 +22,12 @@ export class TrainingQuestionBankController {
     return this.questions.list({ status, category, limit: limit ? Number(limit) : undefined });
   }
 
+  @Get('draft-exams')
+  @RequirePermission('training', 'manage')
+  draftExams() {
+    return this.questions.listDraftExams();
+  }
+
   @Post()
   @RequirePermission('training', 'manage')
   create(@Body() body: any, @Req() req: { user?: { sub?: string } }) {
