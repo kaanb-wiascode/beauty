@@ -5,6 +5,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import type { ReportExportInput } from './dto/report-export.dto';
+import type { ReportExportListInput } from './dto/report-export-list.dto';
 
 export const reportExportStatuses = [
   'QUEUED',
@@ -82,23 +83,39 @@ export class ReportExportJobsRepository {
     return job;
   }
 
-  list(
-    user: JwtPayload,
-    input: { status?: ReportExportStatus; limit: number },
-  ) {
+  async list(user: JwtPayload, input: ReportExportListInput) {
     const scope = this.scopeSql(user);
-    const status = input.status
-      ? Prisma.sql`AND "status" = ${input.status}`
-      : Prisma.sql``;
+    const filters = this.listFiltersSql(user, input);
+    const offset = (input.page - 1) * input.limit;
 
-    return this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
-      SELECT ${this.selectColumns()}
-      FROM "report_export_jobs"
-      WHERE ${scope}
-      ${status}
-      ORDER BY "requested_at" DESC
-      LIMIT ${input.limit}
-    `);
+    const [rows, counts] = await Promise.all([
+      this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
+        SELECT ${this.selectColumns()}
+        FROM "report_export_jobs"
+        WHERE ${scope}
+        ${filters}
+        ORDER BY "requested_at" DESC, "id" DESC
+        LIMIT ${input.limit}
+        OFFSET ${offset}
+      `),
+      this.prisma.$queryRaw<Array<{ total: bigint }>>(Prisma.sql`
+        SELECT COUNT(*)::bigint AS "total"
+        FROM "report_export_jobs"
+        WHERE ${scope}
+        ${filters}
+      `),
+    ]);
+
+    const total = Number(counts[0]?.total ?? 0n);
+    return {
+      data: rows,
+      meta: {
+        page: input.page,
+        limit: input.limit,
+        total,
+        totalPages: total === 0 ? 0 : Math.ceil(total / input.limit),
+      },
+    };
   }
 
   async findById(user: JwtPayload, id: string) {
@@ -178,6 +195,15 @@ export class ReportExportJobsRepository {
     `);
 
     return job ?? null;
+  }
+
+  private listFiltersSql(user: JwtPayload, input: ReportExportListInput) {
+    const fragments: Prisma.Sql[] = [];
+    if (input.status) fragments.push(Prisma.sql`AND "status" = ${input.status}`);
+    if (input.reportKey) fragments.push(Prisma.sql`AND "report_key" = ${input.reportKey}`);
+    if (input.format) fragments.push(Prisma.sql`AND "format" = ${input.format}`);
+    if (input.mine) fragments.push(Prisma.sql`AND "requested_by" = ${user.sub}`);
+    return fragments.length ? Prisma.join(fragments, ' ') : Prisma.empty;
   }
 
   private scopeSql(user: JwtPayload) {
