@@ -27,6 +27,20 @@ type OutcomeTrendRow = {
   previousNoShows: number;
 };
 
+type CapacityRecommendation = {
+  code: string;
+  priority: 'HIGH' | 'MEDIUM';
+  title: string;
+  evidence: {
+    resourceType: 'ROOM' | 'ASSET' | 'STAFF';
+    utilizationPercent: number;
+    remainingMinutes: number;
+    blockedMinutes: number;
+    unavailableResources: number;
+  };
+  suggestedAction: string;
+};
+
 @Injectable()
 export class OperationsOptimizationService {
   constructor(
@@ -112,7 +126,7 @@ export class OperationsOptimizationService {
       ),
     ]);
 
-    const capacityRecommendations = capacity.bottlenecks.map((item) => ({
+    const capacityRecommendations: CapacityRecommendation[] = capacity.bottlenecks.map((item) => ({
       code: `CAPACITY:${item.resourceType}:${item.category}`,
       priority: item.utilizationPercent >= 95 || item.remainingMinutes === 0 ? 'HIGH' : 'MEDIUM',
       title: `${item.category} kapasitesi baskı altında`,
