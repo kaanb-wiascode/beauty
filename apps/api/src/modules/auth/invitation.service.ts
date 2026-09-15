@@ -9,6 +9,7 @@ import * as argon2 from 'argon2';
 
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import { SecurityPolicyService } from './security-policy.service';
 
 export type CreateInvitationInput = {
   email: string;
@@ -52,6 +53,7 @@ export class InvitationService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly platformAudit: PlatformAuditService,
+    private readonly securityPolicy: SecurityPolicyService,
   ) {}
 
   async create(
@@ -288,6 +290,13 @@ export class InvitationService {
       throw new BadRequestException('Invitation is invalid or expired');
     }
 
+    const policy = await this.securityPolicy.get(candidate.tenantId, candidate.companyId);
+    const minimumLength = Number(policy.passwordMinLength);
+    if (input.password.length < minimumLength) {
+      throw new BadRequestException(
+        `Password must be at least ${minimumLength} characters`,
+      );
+    }
     const passwordHash = await argon2.hash(input.password);
 
     return this.prisma.$transaction(
