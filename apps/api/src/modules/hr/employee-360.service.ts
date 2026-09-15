@@ -1,12 +1,14 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { FieldSecurityService } from '../field-security/field-security.service';
 
 @Injectable()
 export class Employee360Service {
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizationScope: OrganizationScopeService,
+    private readonly fieldSecurity: FieldSecurityService,
   ) {}
 
   private amount(value: unknown) {
@@ -16,6 +18,13 @@ export class Employee360Service {
   }
 
   async get(staffId: string, includeSensitive = false) {
+    const [identityAllowed, compensationAllowed] = includeSensitive
+      ? await Promise.all([
+          this.fieldSecurity.canRead('hr.employee.identity-banking', { resource: 'hr_sensitive', action: 'read' }),
+          this.fieldSecurity.canRead('hr.employee.compensation-payroll', { resource: 'hr_sensitive', action: 'read' }),
+        ])
+      : [false, false];
+
     const scope = await this.organizationScope.getBranchScopedWhere();
     const tenantId = scope.tenantId;
     const branchIds =
@@ -98,7 +107,7 @@ export class Employee360Service {
         staffId,
         branchIds,
       ),
-      includeSensitive
+      compensationAllowed
         ? this.prisma.$queryRawUnsafe<any[]>(
             `SELECT pp.year,pp.month,pp.status AS "periodStatus",pi.gross_amount AS "grossAmount",pi.net_amount AS "netAmount",pi.employer_cost AS "employerCost"
              FROM payroll_items pi
@@ -111,7 +120,7 @@ export class Employee360Service {
             branchIds,
           )
         : Promise.resolve([]),
-      includeSensitive
+      compensationAllowed
         ? this.prisma.$queryRawUnsafe<any[]>(
             `SELECT sp.amount,sp.method,sp.status,sp.paid_at AS "paidAt",sp.note
              FROM salary_payments sp
@@ -155,7 +164,7 @@ export class Employee360Service {
     const master = masterRows[0] ?? {};
     const currentAssignment = assignments.find((x: any) => x.effectiveTo == null) ?? assignments[0] ?? null;
     const safeEmployment = employment.map((item: any) =>
-      includeSensitive ? item : { ...item, grossSalary: undefined },
+      compensationAllowed ? item : { ...item, grossSalary: undefined, salaryType: undefined },
     );
     const timeline = [
       ...safeEmployment.map((x: any) => ({ ...x, source: 'EMPLOYMENT', date: x.effectiveFrom, title: x.eventType })),
@@ -169,10 +178,10 @@ export class Employee360Service {
       employmentType: master.employmentType ?? profile.employmentType ?? null,
       hireDate: master.hireDate ?? profile.hireDate ?? null,
       terminationDate: master.terminationDate ?? profile.terminationDate ?? null,
-      salaryType: includeSensitive ? (master.salaryType ?? profile.salaryType ?? null) : undefined,
+      salaryType: compensationAllowed ? (master.salaryType ?? profile.salaryType ?? null) : undefined,
     };
 
-    if (includeSensitive) {
+    if (identityAllowed) {
       Object.assign(employee, {
         identityNumber: master.identityNumber ?? profile.identityNumber ?? null,
         dateOfBirth: master.dateOfBirth ?? profile.dateOfBirth ?? null,
@@ -180,6 +189,10 @@ export class Employee360Service {
         address: master.address ?? profile.address ?? null,
         bankName: master.bankName ?? profile.bankName ?? null,
         iban: master.iban ?? profile.iban ?? null,
+      });
+    }
+    if (compensationAllowed) {
+      Object.assign(employee, {
         grossSalary: this.amount(master.grossSalary ?? profile.salary),
       });
     }
@@ -190,9 +203,13 @@ export class Employee360Service {
       employment: { history: safeEmployment, timeline },
       attendance: attendance[0] ?? {},
       leave: leaves[0] ?? {},
-      payroll: includeSensitive ? { recentPeriods: payroll, recentPayments: payments } : undefined,
+      payroll: compensationAllowed ? { recentPeriods: payroll, recentPayments: payments } : undefined,
       performance: { appointments: appointmentStats[0] ?? {}, recentAppointments },
-      sensitiveDataIncluded: includeSensitive,
+      fieldAccess: {
+        identityBanking: identityAllowed,
+        compensationPayroll: compensationAllowed,
+      },
+      sensitiveDataIncluded: identityAllowed || compensationAllowed,
     };
   }
 }
