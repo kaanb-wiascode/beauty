@@ -8,7 +8,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared reporting/export foundation is implemented for Staff Performance, Service Performance and Payment Summary. CSV, XLSX and PDF generation are active. Saved Reports, favorites, Recent Reports and Recent Exports are implemented for personal use. Scheduled Reports now has persistence, API management, timezone-aware recurrence, an idempotent execution ledger, automatic due-run queueing and personal run history.
+The shared reporting/export foundation is implemented for Staff Performance, Service Performance and Payment Summary. CSV, XLSX and PDF generation are active. Saved Reports, favorites, Recent Reports and Recent Exports are implemented for personal use. Scheduled Reports now has persistence, API management, timezone-aware recurrence, an idempotent execution ledger, automatic due-run queueing, personal run history and a dedicated frontend management workspace.
 
 ## Reporting / export foundation
 
@@ -97,7 +97,12 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Saved Reports, favorites, Recent Reports and Recent Exports.
 - Personal paginated export history and pending polling.
 - Authenticated binary download shares normal refresh-token behavior.
-- Scheduled Reports management UI remains to be added.
+- Dedicated `/reports/schedules` workspace is linked from the Reports navigation.
+- Schedule creation uses the permission-aware report catalog, report-owned export formats, exportable columns and current report sort contract.
+- Users can configure daily/weekly/monthly cadence, local run time, dynamic date preset, output format and summary inclusion.
+- Browser IANA timezone is submitted explicitly; the API remains authoritative for validation and next-run calculation.
+- Existing schedules can be paused/resumed or deleted from the workspace.
+- Personal execution history shows scheduled time, QUEUED/FAILED lifecycle and bounded failure code without exposing internal auth snapshots.
 
 ## Tests / safety coverage
 
@@ -112,20 +117,20 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Schedule recurrence/timezone/date-preset tests.
 - Scheduled execution tests cover idempotency keys, queued-run recovery, authorization revocation and tampered stored payloads.
 - Worker ordering test verifies due schedules are queued before normal export processing.
+- The web workspace still has no dedicated test runner; schedule UI validation currently relies on monorepo lint/typecheck/build plus backend contract tests.
 
 ## Current CI note
 
-Prisma schema validation passes. The latest observed monorepo pipeline remains affected by unrelated shared-branch migration work before Reporting can be classified fully green. Reporting must not be called complete until a descendant quality run reaches and passes API typecheck/tests/E2E/build.
+A descendant `Monorepo quality` run must reach and pass API typecheck/tests/E2E/build plus web lint/typecheck/build before Reporting is classified fully green. Do not infer success while the workflow is pending or in progress.
 
 ## Next Phase 2 increments
 
-1. Add Scheduled Reports frontend management and run-history UX.
-2. Add export/schedule audit events when the shared AuditLog service is available.
-3. Improve PDF presentation quality with embedded Unicode font, legal-entity branding, logo, confidentiality labels, styled tables and controlled charts.
-4. Add verified-recipient delivery only after the platform notification/recipient model exists.
-5. Move in-process scheduling/export execution to a dedicated queue/worker deployment when infrastructure is available.
-6. Add coordinated frontend test infrastructure.
-7. Continue into drill-down, comparisons and additional report domains.
+1. Add export/schedule audit events when the shared AuditLog service is available.
+2. Improve PDF presentation quality with embedded Unicode font, legal-entity branding, logo, confidentiality labels, styled tables and controlled charts.
+3. Add verified-recipient delivery only after the platform notification/recipient model exists.
+4. Move in-process scheduling/export execution to a dedicated queue/worker deployment when infrastructure is available.
+5. Add coordinated frontend test infrastructure.
+6. Continue into drill-down, comparisons and additional report domains.
 
 ## Security invariants
 
