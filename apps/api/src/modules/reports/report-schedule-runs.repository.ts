@@ -128,7 +128,7 @@ export class ReportScheduleRunsRepository {
         "completed_at" = CURRENT_TIMESTAMP,
         "updated_at" = CURRENT_TIMESTAMP
       WHERE "id" = ${runId}
-        AND "status" IN ('CLAIMED','QUEUED')
+        AND "status" IN ('CLAIMED','QUEUED','FAILED')
       RETURNING "id"
     `);
     return Boolean(row);
@@ -199,6 +199,6 @@ export class ReportScheduleRunsRepository {
         ${branch}
       ORDER BY r."scheduled_for" DESC, r."id" DESC
       LIMIT ${bounded}
-    `);
+    `;
   }
 }
