@@ -4,6 +4,7 @@ import type { RoleScopeValue } from '../auth/jwt.strategy';
 
 export interface TenantContextValue {
   tenantId: string;
+  membershipId: string;
   companyId: string;
   branchId: string | null;
   roleScope: RoleScopeValue;
@@ -35,6 +36,10 @@ export class TenantContext {
 
   getTenantId(): string {
     return this.getContext().tenantId;
+  }
+
+  getMembershipId(): string {
+    return this.getContext().membershipId;
   }
 
   getCompanyId(): string {
