@@ -28,7 +28,10 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     description: 'Personel bazında randevu, tamamlanma ve tahsilat performansı.',
     domain: 'staff',
     route: '/staff/performance',
-    requiredPermissions: [{ resource: 'reports', action: 'read' }],
+    requiredPermissions: [
+      { resource: 'reports', action: 'read' },
+      { resource: 'staff', action: 'read' },
+    ],
     filters: ['from', 'to'],
   },
   {
@@ -37,7 +40,10 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     description: 'Hizmet bazında performans görünümü.',
     domain: 'services',
     route: '/services/performance',
-    requiredPermissions: [{ resource: 'reports', action: 'read' }],
+    requiredPermissions: [
+      { resource: 'reports', action: 'read' },
+      { resource: 'services', action: 'read' },
+    ],
     filters: ['from', 'to'],
   },
   {
@@ -46,7 +52,10 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     description: 'Ödeme ve tahsilat performansı görünümü.',
     domain: 'payments',
     route: '/payments/summary',
-    requiredPermissions: [{ resource: 'reports', action: 'read' }],
+    requiredPermissions: [
+      { resource: 'reports', action: 'read' },
+      { resource: 'payments', action: 'read' },
+    ],
     filters: ['from', 'to'],
   },
 ]);
