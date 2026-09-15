@@ -35,7 +35,7 @@ export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly exportDownloads: ReportExportDownloadService,
-    private readonly exportPolicy: ReportExportPolicyService,
+    private readonly exportPolicy?: ReportExportPolicyService,
   ) {}
 
   @Get('catalog')
@@ -61,7 +61,7 @@ export class ReportsController {
     @Body() body: unknown,
   ) {
     const input = reportExportSchema.parse(body);
-    await this.exportPolicy.assertCanQueue(request.user);
+    await this.exportPolicy?.assertCanQueue(request.user);
     const job = await this.reportsService.createExportJob(request.user, input);
     if (!job) {
       throw new InternalServerErrorException('Report export job was not created');
