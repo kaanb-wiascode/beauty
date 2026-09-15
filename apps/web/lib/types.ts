@@ -28,6 +28,31 @@ export type Service = { id: string; tenantId: string; name: string; description:
 export type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 export type Appointment = { id: string; tenantId: string; customerId: string; staffId: string; serviceId: string; startAt: string; endAt: string; status: AppointmentStatus; notes: string | null; payment: { id: string; amount: string | number; method: "CASH" | "CARD" | "TRANSFER"; paidAt: string } | null; createdAt: string; updatedAt: string };
 
+export type VisitStatus = "EXPECTED" | "ARRIVED" | "CHECKED_IN" | "WAITING" | "IN_SERVICE" | "SERVICE_COMPLETED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "CANCELLED";
+export type VisitSource = "APPOINTMENT" | "WALK_IN";
+export type Visit = {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  branchId: string;
+  customerId: string;
+  source: VisitSource;
+  status: VisitStatus;
+  note: string | null;
+  idempotencyKey: string | null;
+  arrivedAt: string | null;
+  checkedInAt: string | null;
+  serviceStartedAt: string | null;
+  serviceCompletedAt: string | null;
+  checkoutPendingAt: string | null;
+  checkedOutAt: string | null;
+  cancelledAt: string | null;
+  version: number;
+  createdByMembershipId: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
 export type CreateCustomerInput = { firstName: string; lastName: string; phone?: string; email?: string; birthDate?: string; customerSource?: CustomerSource; healthProfile?: { allergies?: string; sensitivities?: string; medications?: string; conditions?: string; notes?: string }; consents?: { kvkkAcknowledgement?: boolean; explicitConsent?: boolean; membershipAgreement?: boolean; healthFormCompletion?: boolean; healthDataConsent?: boolean; marketingSms?: boolean; marketingEmail?: boolean; marketingPhone?: boolean } };
 export type UpdateCustomerInput = { firstName?: string; lastName?: string; phone?: string | null; email?: string | null; birthDate?: string | null; customerSource?: CustomerSource | null };
 export type CreateStaffInput = { firstName: string; lastName: string; phone?: string; email?: string; profile?: StaffProfile };
