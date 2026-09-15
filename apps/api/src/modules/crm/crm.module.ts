@@ -34,6 +34,7 @@ import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityCommercialService } from './crm-opportunity-commercial.service';
 import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmReminderService } from './crm-reminder.service';
+import { CrmReportingService } from './crm-reporting.service';
 import { CrmService } from './crm.service';
 import { CrmUnresolvedInboundController } from './crm-unresolved-inbound.controller';
 import { CrmUnresolvedInboundService } from './crm-unresolved-inbound.service';
@@ -69,6 +70,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmOpportunityCommercialService,
     CrmCustomer360Service,
     CrmReminderService,
+    CrmReportingService,
     CrmCommunicationComplianceService,
     CrmConversationService,
     CrmConversationAnalyticsService,
@@ -96,6 +98,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmLeadService,
     CrmOpportunityService,
     CrmOperationsService,
+    CrmReportingService,
     CrmMessageService,
     CrmMessageProviderRegistryService,
   ],
