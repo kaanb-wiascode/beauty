@@ -17,6 +17,14 @@ export const leadContactChannelSchema = z.enum([
   'OTHER',
 ]);
 
+const acquisitionText = z.string().trim().min(1).max(255);
+const acquisitionUrl = z.string().trim().url().max(2048);
+const clickIdentifiersSchema = z
+  .record(z.string(), z.string().trim().min(1).max(2048))
+  .refine((value) => Object.keys(value).length <= 20, {
+    message: 'En fazla 20 click identifier saklanabilir.',
+  });
+
 export const opportunityStageSchema = z.enum([
   'QUALIFIED',
   'NEEDS_ANALYSIS',
@@ -37,6 +45,21 @@ export const createLeadSchema = z
     language: z.string().trim().min(2).max(35).optional(),
     timezone: z.string().trim().min(1).max(100).optional(),
     source: z.string().trim().min(1).max(60).default('MANUAL'),
+    sourceDetail: acquisitionText.optional(),
+    campaignId: acquisitionText.optional(),
+    campaignName: acquisitionText.optional(),
+    adSetId: acquisitionText.optional(),
+    adSetName: acquisitionText.optional(),
+    adId: acquisitionText.optional(),
+    adName: acquisitionText.optional(),
+    landingPage: acquisitionUrl.optional(),
+    referrer: acquisitionUrl.optional(),
+    utmSource: acquisitionText.optional(),
+    utmMedium: acquisitionText.optional(),
+    utmCampaign: acquisitionText.optional(),
+    utmContent: acquisitionText.optional(),
+    utmTerm: acquisitionText.optional(),
+    clickIdentifiers: clickIdentifiersSchema.optional(),
     interestNote: z.string().trim().max(2000).optional(),
     ownerUserId: z.string().uuid().optional(),
     customerId: z.string().uuid().optional(),
@@ -56,6 +79,21 @@ export const updateLeadSchema = z.object({
   language: z.string().trim().min(2).max(35).nullable().optional(),
   timezone: z.string().trim().min(1).max(100).nullable().optional(),
   source: z.string().trim().min(1).max(60).optional(),
+  sourceDetail: acquisitionText.nullable().optional(),
+  campaignId: acquisitionText.nullable().optional(),
+  campaignName: acquisitionText.nullable().optional(),
+  adSetId: acquisitionText.nullable().optional(),
+  adSetName: acquisitionText.nullable().optional(),
+  adId: acquisitionText.nullable().optional(),
+  adName: acquisitionText.nullable().optional(),
+  landingPage: acquisitionUrl.nullable().optional(),
+  referrer: acquisitionUrl.nullable().optional(),
+  utmSource: acquisitionText.nullable().optional(),
+  utmMedium: acquisitionText.nullable().optional(),
+  utmCampaign: acquisitionText.nullable().optional(),
+  utmContent: acquisitionText.nullable().optional(),
+  utmTerm: acquisitionText.nullable().optional(),
+  clickIdentifiers: clickIdentifiersSchema.optional(),
   interestNote: z.string().trim().max(2000).nullable().optional(),
   ownerUserId: z.string().uuid().nullable().optional(),
   status: z.enum(['NEW', 'CONTACTED', 'LOST']).optional(),
