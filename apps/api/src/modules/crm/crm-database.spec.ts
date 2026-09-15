@@ -22,6 +22,10 @@ describe('CRM database invariants', () => {
     resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260915174500_crm_lead_acquisition_context/migration.sql'),
     'utf8',
   );
+  const commercialContextMigration = readFileSync(
+    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260915175500_crm_lead_commercial_context/migration.sql'),
+    'utf8',
+  );
 
   it('locks organization and subject scope at database level', () => {
     expect(migration).toContain('validate_crm_scope');
@@ -76,5 +80,18 @@ describe('CRM database invariants', () => {
     expect(acquisitionContextMigration).toContain('crm_leads_click_identifiers_object_check');
     expect(acquisitionContextMigration).toContain('idx_crm_leads_acquisition_campaign_scope');
     expect(acquisitionContextMigration).toContain('tenant_id, company_id, branch_id');
+  });
+
+  it('persists structured lead commercial intent with controlled values', () => {
+    expect(commercialContextMigration).toContain('interested_service_ids TEXT[]');
+    expect(commercialContextMigration).toContain('interested_package_ids TEXT[]');
+    expect(commercialContextMigration).toContain('preferred_branch_id TEXT');
+    expect(commercialContextMigration).toContain('estimated_budget NUMERIC(18,2)');
+    expect(commercialContextMigration).toContain('crm_leads_estimated_budget_check');
+    expect(commercialContextMigration).toContain('crm_leads_purchase_urgency_check');
+    expect(commercialContextMigration).toContain('crm_leads_consultation_need_check');
+    expect(commercialContextMigration).toContain('idx_crm_leads_preferred_branch_scope');
+    expect(commercialContextMigration).toContain('idx_crm_leads_interested_services_gin');
+    expect(commercialContextMigration).toContain('idx_crm_leads_interested_packages_gin');
   });
 });
