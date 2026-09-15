@@ -13,6 +13,8 @@ import { OperationsIncidentsController } from './operations-incidents.controller
 import { OperationsIncidentsService } from './operations-incidents.service';
 import { OperationsResourceBlocksController } from './operations-resource-blocks.controller';
 import { OperationsResourceBlocksService } from './operations-resource-blocks.service';
+import { OperationsResourceCalendarController } from './operations-resource-calendar.controller';
+import { OperationsResourceCalendarService } from './operations-resource-calendar.service';
 import { OperationsResourcesController } from './operations-resources.controller';
 import { OperationsResourcesService } from './operations-resources.service';
 import { OperationsServiceChecklistsController } from './operations-service-checklists.controller';
@@ -33,6 +35,7 @@ import { ServiceExecutionsService } from './service-executions.service';
   controllers: [
     OperationsResourcesController,
     OperationsResourceBlocksController,
+    OperationsResourceCalendarController,
     OperationsConsumablesController,
     OperationsServiceChecklistsController,
     OperationsBranchChecklistsController,
@@ -48,6 +51,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsAllocationService,
     OperationsCapacityService,
     OperationsResourceBlocksService,
+    OperationsResourceCalendarService,
     OperationsConsumablesService,
     OperationsServiceChecklistsService,
     OperationsBranchChecklistsService,
