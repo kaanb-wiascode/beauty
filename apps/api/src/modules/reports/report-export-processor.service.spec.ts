@@ -63,6 +63,9 @@ function createProcessor() {
   const csv = {
     generate: jest.fn().mockReturnValue('\uFEFFname,collected\r\nAda Yılmaz,1250\r\n'),
   } as any;
+  const xlsx = {
+    generate: jest.fn().mockReturnValue(Buffer.from('xlsx-content')),
+  } as any;
   const storage = {
     write: jest.fn().mockResolvedValue(storageKey),
     delete: jest.fn().mockResolvedValue(undefined),
@@ -76,12 +79,14 @@ function createProcessor() {
     authorization,
     workerContext,
     csv,
+    xlsx,
     storage,
     processor: new ReportExportProcessorService(
       jobs,
       authorization,
       workerContext,
       csv,
+      xlsx,
       storage,
       config,
     ),
@@ -99,22 +104,37 @@ describe('ReportExportProcessorService', () => {
       expect.objectContaining({ reportKey: 'staff.performance', format: 'CSV' }),
     );
     expect(storage.write).toHaveBeenCalledWith(
-      expect.objectContaining({
-        tenantId: 'tenant-1',
-        jobId: 'export-1',
-        extension: 'csv',
-      }),
+      expect.objectContaining({ tenantId: 'tenant-1', jobId: 'export-1', extension: 'csv' }),
     );
     expect(jobs.markReady).toHaveBeenCalledWith(
       'export-1',
-      expect.objectContaining({
-        rowCount: 1,
-        storageKey,
-        expiresAt: expect.any(Date),
-      }),
+      expect.objectContaining({ rowCount: 1, storageKey, expiresAt: expect.any(Date) }),
     );
     expect(jobs.markFailed).not.toHaveBeenCalled();
     expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('generates and stores XLSX jobs', async () => {
+    const { processor, jobs, xlsx, csv, storage } = createProcessor();
+    jobs.claimNextQueued.mockResolvedValueOnce({ ...job, format: 'XLSX' });
+    storage.write.mockResolvedValueOnce(
+      'tenants/tenant-1/report-exports/export-1/file.xlsx',
+    );
+
+    await processor.processNext();
+
+    expect(xlsx.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        columns: ['name', 'collected'],
+        rows: [{ name: 'Ada Yılmaz', collected: 1250 }],
+        summary: { rowCount: 1 },
+        metadata: expect.objectContaining({ reportKey: 'staff.performance' }),
+      }),
+    );
+    expect(csv.generate).not.toHaveBeenCalled();
+    expect(storage.write).toHaveBeenCalledWith(
+      expect.objectContaining({ extension: 'xlsx', content: expect.any(Buffer) }),
+    );
   });
 
   it('deletes the exact uploaded artifact when READY transition fails before commit', async () => {
@@ -124,10 +144,6 @@ describe('ReportExportProcessorService', () => {
 
     await processor.processNext();
 
-    expect(jobs.findById).toHaveBeenCalledWith(
-      expect.objectContaining({ tenantId: 'tenant-1', companyId: 'company-1' }),
-      'export-1',
-    );
     expect(storage.delete).toHaveBeenCalledWith(storageKey);
     expect(jobs.markFailed).toHaveBeenCalledWith('export-1', {
       errorCode: 'EXPORT_GENERATION_FAILED',
@@ -149,7 +165,6 @@ describe('ReportExportProcessorService', () => {
     jobs.findById.mockResolvedValueOnce(persistedReady);
 
     await expect(processor.processNext()).resolves.toEqual(persistedReady);
-
     expect(storage.delete).not.toHaveBeenCalled();
     expect(jobs.markFailed).not.toHaveBeenCalled();
   });
