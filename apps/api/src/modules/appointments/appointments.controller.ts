@@ -13,6 +13,7 @@ import {
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 
@@ -22,6 +23,7 @@ import { listAppointmentsSchema } from './dto/list-appointments.dto';
 import { updateAppointmentSchema } from './dto/update-appointment.dto';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
+@RestrictTenantMutations()
 @Controller('appointments')
 export class AppointmentsController {
   constructor(
