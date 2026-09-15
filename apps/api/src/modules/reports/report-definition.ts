@@ -17,8 +17,13 @@ export type ReportDefinition = Readonly<{
   description: string;
   domain: 'staff' | 'services' | 'payments';
   route: string;
+  resultKind: 'table' | 'summary';
   requiredPermissions: readonly ReportPermission[];
   filters: readonly string[];
+  availableColumns: readonly string[];
+  defaultColumns: readonly string[];
+  sortableColumns: readonly string[];
+  pagination: boolean;
 }>;
 
 export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
@@ -28,11 +33,36 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     description: 'Personel bazında randevu, tamamlanma ve tahsilat performansı.',
     domain: 'staff',
     route: '/staff/performance',
+    resultKind: 'table',
     requiredPermissions: [
       { resource: 'reports', action: 'read' },
       { resource: 'staff', action: 'read' },
     ],
     filters: ['from', 'to'],
+    availableColumns: [
+      'name',
+      'status',
+      'branchId',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
+    defaultColumns: [
+      'name',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
+    sortableColumns: [
+      'name',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
+    pagination: true,
   },
   {
     key: reportKeys.servicePerformance,
@@ -40,11 +70,37 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     description: 'Hizmet bazında performans görünümü.',
     domain: 'services',
     route: '/services/performance',
+    resultKind: 'table',
     requiredPermissions: [
       { resource: 'reports', action: 'read' },
       { resource: 'services', action: 'read' },
     ],
     filters: ['from', 'to'],
+    availableColumns: [
+      'name',
+      'price',
+      'status',
+      'branchId',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
+    defaultColumns: [
+      'name',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
+    sortableColumns: [
+      'name',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
+    pagination: true,
   },
   {
     key: reportKeys.paymentSummary,
@@ -52,10 +108,33 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     description: 'Ödeme ve tahsilat performansı görünümü.',
     domain: 'payments',
     route: '/payments/summary',
+    resultKind: 'summary',
     requiredPermissions: [
       { resource: 'reports', action: 'read' },
       { resource: 'payments', action: 'read' },
     ],
     filters: ['from', 'to'],
+    availableColumns: [
+      'gross',
+      'refunds',
+      'net',
+      'paymentCount',
+      'refundCount',
+      'methods',
+    ],
+    defaultColumns: [
+      'gross',
+      'refunds',
+      'net',
+      'paymentCount',
+      'refundCount',
+      'methods',
+    ],
+    sortableColumns: [],
+    pagination: false,
   },
 ]);
+
+export function getReportDefinition(key: ReportKey) {
+  return reportDefinitions.find((report) => report.key === key);
+}
