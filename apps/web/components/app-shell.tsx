@@ -42,6 +42,7 @@ const NAV_SECTIONS = [
     { href: "/communications/routing", permission: "communications.manage", label: "Lead Routing", icon: "arrows" },
   ]},
   { label: "Operasyon", items: [
+    { href: "/operations", permission: "appointments.read", label: "Canlı Operasyon", icon: "activity" },
     { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
     { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
