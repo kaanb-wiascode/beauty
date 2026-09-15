@@ -9,11 +9,12 @@ import {
   createReportExport,
   downloadReportExport,
   listReportExports,
+  type ReportExportFormat,
   type ReportExportJob,
 } from "./report-export-client";
 
 type ReportKey = "staff.performance" | "service.performance" | "payments.summary";
-type SupportedExportFormat = "CSV" | "XLSX";
+type SupportedExportFormat = ReportExportFormat;
 
 type Props = {
   reportKey: ReportKey;
@@ -129,7 +130,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
       <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-[15px] font-semibold text-[var(--ink)]">Dışa Aktarım</h2>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">CSV veya Excel dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">PDF, Excel veya CSV dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
         </div>
         <div className="flex items-center gap-2">
           <select
@@ -138,6 +139,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
             className="h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-[12px] font-semibold text-[var(--ink)]"
             aria-label="Dışa aktarım formatı"
           >
+            <option value="PDF">PDF</option>
             <option value="XLSX">Excel (.xlsx)</option>
             <option value="CSV">CSV</option>
           </select>
