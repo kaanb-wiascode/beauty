@@ -1,5 +1,8 @@
 import { ConflictException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 
+import { PrismaService } from '@beauty-erp/database';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { PlatformGoLiveService } from './platform-go-live.service';
 
 const completedSteps = [
@@ -23,12 +26,22 @@ describe('PlatformGoLiveService', () => {
     $transaction: jest.fn(async (callback: (client: typeof tx) => unknown) => callback(tx)),
   };
   const audit = { record: jest.fn() };
-  const service = new PlatformGoLiveService(prisma as never, audit as never);
+  let service: PlatformGoLiveService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     jest.clearAllMocks();
     tx.$executeRaw.mockResolvedValue(1);
     audit.record.mockResolvedValue(undefined);
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        PlatformGoLiveService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: PlatformAuditService, useValue: audit },
+      ],
+    }).compile();
+
+    service = moduleRef.get(PlatformGoLiveService);
   });
 
   it('blocks go-live until the invited owner has accepted and has an active owner membership', async () => {
@@ -40,7 +53,7 @@ describe('PlatformGoLiveService', () => {
 
     await expect(
       service.execute('run-1', 'platform-actor-1', 'Launch approved'),
-    ).rejects.toMatchObject<Partial<ConflictException>>({ status: 409 });
+    ).rejects.toBeInstanceOf(ConflictException);
 
     expect(tx.$executeRaw).not.toHaveBeenCalled();
     expect(audit.record).not.toHaveBeenCalled();
@@ -61,7 +74,7 @@ describe('PlatformGoLiveService', () => {
 
     await expect(
       service.execute('run-1', 'platform-actor-1', 'Launch approved'),
-    ).rejects.toMatchObject<Partial<ConflictException>>({ status: 409 });
+    ).rejects.toBeInstanceOf(ConflictException);
 
     expect(tx.$executeRaw).not.toHaveBeenCalled();
   });
