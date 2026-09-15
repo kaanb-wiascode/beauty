@@ -1,7 +1,7 @@
-import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DocumentSequenceService } from '../document-sequences/document-sequence.service';
 import { validateJournalLines } from './domain/journal-policy';
 
 interface CreateAccountInput {
@@ -48,6 +48,7 @@ export class AccountingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly documentSequences: DocumentSequenceService,
   ) {}
 
   private context() {
@@ -56,10 +57,6 @@ export class AccountingService {
       companyId: this.tenantContext.getCompanyId(),
       branchId: this.tenantContext.getBranchId(),
     };
-  }
-
-  private journalNumber(entryDate: Date): string {
-    return `JE-${entryDate.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
   private reportDateWhere(filter: AccountingReportFilter) {
@@ -148,13 +145,19 @@ export class AccountingService {
     if (existing) return existing;
 
     validateJournalLines(input.lines);
+    const number = await this.documentSequences.next(tx, {
+      documentType: 'journal-entry',
+      prefix: 'JE',
+      date: input.entryDate,
+      branchId: input.branchId,
+    });
 
     return tx.journalEntry.create({
       data: {
         tenantId: input.tenantId,
         companyId: input.companyId,
         branchId: input.branchId,
-        number: this.journalNumber(input.entryDate),
+        number,
         entryDate: input.entryDate,
         description: input.description,
         referenceType: input.referenceType,
@@ -330,27 +333,35 @@ export class AccountingService {
       if (!branch) throw new BadRequestException('Branch context is invalid.');
     }
 
-    return this.prisma.journalEntry.create({
-      data: {
-        tenantId,
-        companyId,
+    return this.prisma.$transaction(async (tx) => {
+      const number = await this.documentSequences.next(tx, {
+        documentType: 'journal-entry',
+        prefix: 'JE',
+        date: input.entryDate,
         branchId,
-        number: this.journalNumber(input.entryDate),
-        entryDate: input.entryDate,
-        description: input.description.trim(),
-        referenceType: input.referenceType?.trim() || null,
-        referenceId: input.referenceId?.trim() || null,
-        lines: {
-          create: input.lines.map((line) => ({
-            accountId: line.accountId,
-            debit: line.debit,
-            credit: line.credit,
-            memo: line.memo?.trim() || null,
-          })),
+      });
+      return tx.journalEntry.create({
+        data: {
+          tenantId,
+          companyId,
+          branchId,
+          number,
+          entryDate: input.entryDate,
+          description: input.description.trim(),
+          referenceType: input.referenceType?.trim() || null,
+          referenceId: input.referenceId?.trim() || null,
+          lines: {
+            create: input.lines.map((line) => ({
+              accountId: line.accountId,
+              debit: line.debit,
+              credit: line.credit,
+              memo: line.memo?.trim() || null,
+            })),
+          },
         },
-      },
-      include: { lines: { include: { account: true } } },
-    });
+        include: { lines: { include: { account: true } } },
+      });
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async listJournalEntries() {
