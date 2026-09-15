@@ -1,0 +1,46 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+
+@Injectable()
+export class Employee360Service {
+  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext) {}
+
+  private scope(){
+    const tenantId=this.tenantContext.getTenantId();
+    const branchId=this.tenantContext.getBranchId();
+    const roleScope=this.tenantContext.getRoleScope();
+    if(!tenantId)throw new BadRequestException('Tenant context is required.');
+    if(roleScope!=='CENTRAL'&&!branchId)throw new BadRequestException('A branch must be selected for this operation.');
+    return {tenantId,branchId};
+  }
+
+  async get(staffId:string){
+    const {tenantId,branchId}=this.scope();
+    const staff=await this.prisma.staff.findFirst({where:{id:staffId,tenantId,...(branchId?{branchId}:{})},select:{id:true,firstName:true,lastName:true,email:true,phone:true,status:true,branchId:true,profile:true,createdAt:true,updatedAt:true,branch:{select:{id:true,name:true,companyId:true}}}});
+    if(!staff)throw new NotFoundException('Staff not found');
+
+    const [masterRows,assignments,attendance,leaves,payroll,payments,appointmentStats,recentAppointments]=await Promise.all([
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT employee_number AS "personnelNumber",national_identity_number AS "identityNumber",date_of_birth AS "dateOfBirth",personal_email AS "personalEmail",address,employment_type AS "employmentType",hire_date AS "hireDate",termination_date AS "terminationDate",bank_name AS "bankName",iban,gross_salary AS "grossSalary",salary_type AS "salaryType" FROM employee_master_records WHERE tenant_id=$1 AND staff_id=$2 LIMIT 1`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT a.id,a.branch_id AS "branchId",a.department_id AS "departmentId",d.name AS "departmentName",a.team_id AS "teamId",t.name AS "teamName",a.position_id AS "positionId",p.name AS "positionName",a.manager_staff_id AS "managerStaffId",m."firstName" AS "managerFirstName",m."lastName" AS "managerLastName",a.effective_from AS "effectiveFrom",a.effective_to AS "effectiveTo",a.reason FROM hr_employee_assignments a LEFT JOIN hr_departments d ON d.id=a.department_id LEFT JOIN hr_teams t ON t.id=a.team_id LEFT JOIN hr_positions p ON p.id=a.position_id LEFT JOIN staff m ON m.id=a.manager_staff_id WHERE a.tenant_id=$1 AND a.staff_id=$2 ORDER BY a.effective_from DESC,a.created_at DESC`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS "recordCount",COUNT(*) FILTER (WHERE status='PRESENT')::int AS "presentCount",COALESCE(SUM(worked_minutes),0)::int AS "workedMinutes",COALESCE(SUM(overtime_minutes),0)::int AS "overtimeMinutes",MAX(work_date) AS "lastWorkDate" FROM attendance_records WHERE tenant_id=$1 AND staff_id=$2`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS "requestCount",COALESCE(SUM(days) FILTER (WHERE status='APPROVED'),0) AS "approvedDays",COALESCE(SUM(days) FILTER (WHERE status='PENDING'),0) AS "pendingDays",MAX(end_date) FILTER (WHERE status='APPROVED') AS "lastApprovedLeaveEnd" FROM leave_requests WHERE tenant_id=$1 AND staff_id=$2`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT pp.year,pp.month,pp.status AS "periodStatus",pi.gross_amount AS "grossAmount",pi.net_amount AS "netAmount",pi.employer_cost AS "employerCost" FROM payroll_items pi JOIN payroll_periods pp ON pp.id=pi.period_id WHERE pi.tenant_id=$1 AND pi.staff_id=$2 ORDER BY pp.year DESC,pp.month DESC LIMIT 12`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT sp.amount,sp.method,sp.status,sp.paid_at AS "paidAt",sp.note FROM salary_payments sp WHERE sp.tenant_id=$1 AND sp.staff_id=$2 ORDER BY sp.paid_at DESC LIMIT 12`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS "totalAppointments",COUNT(*) FILTER (WHERE a.status='COMPLETED')::int AS "completedAppointments",COUNT(*) FILTER (WHERE a.status='CANCELLED')::int AS "cancelledAppointments",COALESCE(SUM(p.amount) FILTER (WHERE p.status='COMPLETED'),0) AS "collectedRevenue",MAX(a.start_at) AS "lastAppointmentAt" FROM appointments a LEFT JOIN payments p ON p.appointment_id=a.id AND p.tenant_id=a.tenant_id WHERE a.tenant_id=$1 AND a.staff_id=$2`,tenantId,staffId),
+      this.prisma.$queryRawUnsafe<any[]>(`SELECT a.id,a.start_at AS "startAt",a.end_at AS "endAt",a.status,s.name AS "serviceName",c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName" FROM appointments a JOIN services s ON s.id=a.service_id JOIN customers c ON c.id=a.customer_id WHERE a.tenant_id=$1 AND a.staff_id=$2 ORDER BY a.start_at DESC LIMIT 10`,tenantId,staffId),
+    ]);
+
+    const profile=(staff.profile&&typeof staff.profile==='object'&&!Array.isArray(staff.profile)?staff.profile:{}) as Record<string,unknown>;
+    const master=masterRows[0]??{};
+    const currentAssignment=assignments.find((x:any)=>x.effectiveTo==null)??assignments[0]??null;
+    return {
+      employee:{...staff,profile:undefined,personnelNumber:master.personnelNumber??profile.personnelNumber??null,identityNumber:master.identityNumber??profile.identityNumber??null,dateOfBirth:master.dateOfBirth??profile.dateOfBirth??null,personalEmail:master.personalEmail??profile.personalEmail??null,address:master.address??profile.address??null,employmentType:master.employmentType??profile.employmentType??null,hireDate:master.hireDate??profile.hireDate??null,terminationDate:master.terminationDate??profile.terminationDate??null,bankName:master.bankName??profile.bankName??null,iban:master.iban??profile.iban??null,grossSalary:master.grossSalary==null?Number(profile.salary??0):Number(master.grossSalary),salaryType:master.salaryType??profile.salaryType??null},
+      organization:{current:currentAssignment,history:assignments},
+      attendance:attendance[0]??{recordCount:0,presentCount:0,workedMinutes:0,overtimeMinutes:0,lastWorkDate:null},
+      leave:leaves[0]??{requestCount:0,approvedDays:0,pendingDays:0,lastApprovedLeaveEnd:null},
+      payroll:{recentPeriods:payroll,recentPayments:payments},
+      performance:{appointments:appointmentStats[0]??{totalAppointments:0,completedAppointments:0,cancelledAppointments:0,collectedRevenue:0,lastAppointmentAt:null},recentAppointments},
+    };
+  }
+}
