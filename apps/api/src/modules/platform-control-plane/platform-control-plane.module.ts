@@ -17,10 +17,12 @@ import { PlatformOnboardingService } from './platform-onboarding.service';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformProvisioningController } from './platform-provisioning.controller';
+import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
 import { PlatformProvisioningService } from './platform-provisioning.service';
 import { PlatformReadModelService } from './platform-read-model.service';
 import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
 import { PlatformSubscriptionsService } from './platform-subscriptions.service';
+import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
 import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
 
 @Module({
@@ -40,6 +42,8 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
+    PlatformProvisioningCoordinatorService,
+    PlatformTenantBootstrapService,
     PlatformOnboardingService,
     PlatformIamReadService,
     PlatformIamMutationService,
@@ -57,6 +61,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
+    PlatformProvisioningCoordinatorService,
     PlatformOnboardingService,
   ],
 })
