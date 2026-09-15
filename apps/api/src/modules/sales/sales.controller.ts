@@ -6,6 +6,7 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { SalesService } from './sales.service';
 
 const saleItemSchema = z.object({
@@ -40,6 +41,7 @@ const refundSalePaymentSchema = z.object({
 
 @Controller('sales')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RestrictTenantMutations()
 @RequirePermission('payments', 'read')
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
