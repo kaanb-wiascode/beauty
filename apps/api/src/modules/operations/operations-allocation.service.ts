@@ -241,7 +241,18 @@ export class OperationsAllocationService {
       args.roomId,
     );
     if (existing) return existing;
-    await this.assertNoOverlap(tx, 'room_id', args.roomId, args.blockedFrom, args.blockedTo);
+    await this.assertNoOverlap(
+      tx,
+      {
+        tenantId: args.tenantId,
+        companyId: args.companyId,
+        branchId: args.branchId,
+      },
+      'room_id',
+      args.roomId,
+      args.blockedFrom,
+      args.blockedTo,
+    );
     return this.insertAllocation(tx, args, { roomId: args.roomId, assetId: null });
   }
 
@@ -288,10 +299,9 @@ export class OperationsAllocationService {
       `SELECT m.id FROM inventory_asset_maintenance m
        WHERE m.asset_id = $1 AND m.status IN ('PLANNED', 'IN_PROGRESS')
          AND m.completed_at IS NULL
-         AND (m.scheduled_at IS NULL OR m.scheduled_at < $3)
+         AND (m.scheduled_at IS NULL OR m.scheduled_at < $2)
        LIMIT 1`,
       args.assetId,
-      args.blockedFrom,
       args.blockedTo,
     );
     if (maintenance.length) {
@@ -311,6 +321,11 @@ export class OperationsAllocationService {
     if (existing) return existing;
     await this.assertNoOverlap(
       tx,
+      {
+        tenantId: args.tenantId,
+        companyId: args.companyId,
+        branchId: args.branchId,
+      },
       'inventory_asset_id',
       args.assetId,
       args.blockedFrom,
@@ -350,6 +365,7 @@ export class OperationsAllocationService {
 
   private async assertNoOverlap(
     tx: Prisma.TransactionClient,
+    context: { tenantId: string; companyId: string; branchId: string },
     column: 'room_id' | 'inventory_asset_id',
     resourceId: string,
     blockedFrom: Date,
@@ -380,6 +396,39 @@ export class OperationsAllocationService {
         conflictingAppointmentId: conflicts[0].appointmentId,
         blockedFrom: conflicts[0].blockedFrom,
         blockedTo: conflicts[0].blockedTo,
+      });
+    }
+
+    const blocks = await tx.$queryRawUnsafe<
+      Array<{
+        id: string;
+        reason: string;
+        blockedFrom: Date;
+        blockedTo: Date;
+      }>
+    >(
+      `SELECT id, reason, blocked_from AS "blockedFrom", blocked_to AS "blockedTo"
+       FROM operations_resource_blocks
+       WHERE tenant_id = $1 AND company_id = $2 AND branch_id = $3
+         AND ${column} = $4 AND status = 'ACTIVE'
+         AND blocked_from < $6 AND blocked_to > $5
+       ORDER BY blocked_from ASC LIMIT 1`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      resourceId,
+      blockedFrom,
+      blockedTo,
+    );
+    if (blocks[0]) {
+      throw new ConflictException({
+        code: 'RESOURCE_UNAVAILABLE_BLOCK',
+        resourceId,
+        resourceBlockId: blocks[0].id,
+        reason: blocks[0].reason,
+        blockedFrom: blocks[0].blockedFrom,
+        blockedTo: blocks[0].blockedTo,
+        message: 'Resource is unavailable for the requested window.',
       });
     }
   }
