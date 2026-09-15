@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { CrmModule } from '../crm/crm.module';
 import { VisitsModule } from '../visits/visits.module';
 import { OperationsAlertsController } from './operations-alerts.controller';
 import { OperationsAlertsService } from './operations-alerts.service';
@@ -11,6 +12,8 @@ import { OperationsBranchChecklistsService } from './operations-branch-checklist
 import { OperationsCapacityService } from './operations-capacity.service';
 import { OperationsConsumablesController } from './operations-consumables.controller';
 import { OperationsConsumablesService } from './operations-consumables.service';
+import { OperationsCustomerEngagementController } from './operations-customer-engagement.controller';
+import { OperationsCustomerEngagementService } from './operations-customer-engagement.service';
 import { OperationsIncidentsController } from './operations-incidents.controller';
 import { OperationsIncidentsService } from './operations-incidents.service';
 import { OperationsRebookingAnalyticsController } from './operations-rebooking-analytics.controller';
@@ -37,7 +40,7 @@ import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
 
 @Module({
-  imports: [VisitsModule],
+  imports: [VisitsModule, CrmModule],
   controllers: [
     OperationsResourcesController,
     OperationsResourceBlocksController,
@@ -50,6 +53,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsAppointmentOutcomesController,
     OperationsRebookingController,
     OperationsRebookingAnalyticsController,
+    OperationsCustomerEngagementController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -69,6 +73,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsAppointmentOutcomesService,
     OperationsRebookingService,
     OperationsRebookingAnalyticsService,
+    OperationsCustomerEngagementService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
