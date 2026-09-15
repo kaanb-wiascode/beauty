@@ -52,6 +52,20 @@ export type Visit = {
   createdAt: string;
   updatedAt: string;
 };
+export type VisitEvent = {
+  id: string;
+  visitId: string;
+  actorMembershipId: string;
+  eventType: string;
+  fromStatus: VisitStatus | null;
+  toStatus: VisitStatus | null;
+  note: string | null;
+  createdAt: string;
+};
+export type VisitDetail = Visit & {
+  appointmentIds: string[];
+  timeline: VisitEvent[];
+};
 
 export type CreateCustomerInput = { firstName: string; lastName: string; phone?: string; email?: string; birthDate?: string; customerSource?: CustomerSource; healthProfile?: { allergies?: string; sensitivities?: string; medications?: string; conditions?: string; notes?: string }; consents?: { kvkkAcknowledgement?: boolean; explicitConsent?: boolean; membershipAgreement?: boolean; healthFormCompletion?: boolean; healthDataConsent?: boolean; marketingSms?: boolean; marketingEmail?: boolean; marketingPhone?: boolean } };
 export type UpdateCustomerInput = { firstName?: string; lastName?: string; phone?: string | null; email?: string | null; birthDate?: string | null; customerSource?: CustomerSource | null };
