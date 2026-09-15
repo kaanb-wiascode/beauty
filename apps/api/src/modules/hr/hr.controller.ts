@@ -4,6 +4,7 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { HrService } from './hr.service';
+import { HrOrganizationService } from './hr-organization.service';
 import { PayrollAccountingService } from './payroll-accounting.service';
 import { PayrollPeriodService } from './payroll-period.service';
 import { PayrollSettlementService } from './payroll-settlement.service';
@@ -22,6 +23,7 @@ import { PayrollPolicyService } from './payroll-policy.service';
 export class HrController {
   constructor(
     private readonly hrService: HrService,
+    private readonly organization: HrOrganizationService,
     private readonly payrollAccounting: PayrollAccountingService,
     private readonly payrollPeriods: PayrollPeriodService,
     private readonly payrollSettlement: PayrollSettlementService,
@@ -41,6 +43,12 @@ export class HrController {
   @Post('employees') @RequirePermission('hr','manage') createEmployee(@Body()body:any){return this.hrService.createEmployee(body);}
   @Patch('employees/:id') @RequirePermission('hr','manage') updateEmployee(@Param('id')id:string,@Body()body:any){return this.hrService.updateEmployee(id,body);}
   @Delete('employees/:id') @RequirePermission('hr','manage') deleteEmployee(@Param('id')id:string){return this.hrService.deleteEmployee(id);}
+  @Get('organization') organizationStructure(){return this.organization.structure();}
+  @Post('organization/departments') @RequirePermission('hr','manage') createDepartment(@Body()body:any){return this.organization.createDepartment(body);}
+  @Post('organization/teams') @RequirePermission('hr','manage') createTeam(@Body()body:any){return this.organization.createTeam(body);}
+  @Post('organization/positions') @RequirePermission('hr','manage') createPosition(@Body()body:any){return this.organization.createPosition(body);}
+  @Get('employees/:id/assignments') employeeAssignments(@Param('id')id:string){return this.organization.employeeHistory(id);}
+  @Post('employees/:id/assignments') @RequirePermission('hr','manage') assignEmployee(@Param('id')id:string,@Body()body:any){return this.organization.assign(id,body);}
   @Get('personnel-files') personnelFiles(){return this.hrService.personnelFiles();}
   @Get('attendance') attendance(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.attendance(year?+year:undefined,month?+month:undefined);}
   @Post('attendance') @RequirePermission('hr','manage') saveAttendance(@Body()body:any){return this.hrService.upsertAttendance(body);}
@@ -57,17 +65,7 @@ export class HrController {
   @Put('payroll/policy') @RequirePermission('hr','manage') updatePayrollPolicy(@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.payrollPolicy.updateSettings({enabled:Boolean(b.enabled),applyOvertime:Boolean(b.applyOvertime),applyUnpaidLeaveDeduction:Boolean(b.applyUnpaidLeaveDeduction),standardMonthlyMinutes:b.standardMonthlyMinutes==null?null:Number(b.standardMonthlyMinutes),overtimeMultiplier:b.overtimeMultiplier==null?null:Number(b.overtimeMultiplier),monthlyDayDivisor:b.monthlyDayDivisor==null?null:Number(b.monthlyDayDivisor)},this.userId(req));}
   @Get('payroll/policy/preview') payrollPolicyPreview(@Query('year')year:string,@Query('month')month:string){return this.payrollPolicy.preview(+year,+month);}
   @Post('payroll/periods') @RequirePermission('hr','manage') createPayrollPeriod(@Body()b:{year:number;month:number}){return this.payrollPeriods.create(+b.year,+b.month);}
-  @Post('payroll/periods/:id/items')
-  @RequirePermission('hr','manage')
-  upsertPayrollItem(@Param('id')id:string,@Body()b:any){
-    return this.payrollAccounting.upsertItem(id,{
-      staffId:b.staffId,branchId:b.branchId,costCenterId:b.costCenterId,
-      grossAmount:Number(b.grossAmount),netAmount:Number(b.netAmount),incomeTax:Number(b.incomeTax??0),stampTax:Number(b.stampTax??0),
-      employeeSocialSecurity:Number(b.employeeSocialSecurity??0),unemploymentEmployee:Number(b.unemploymentEmployee??0),
-      employerSocialSecurity:Number(b.employerSocialSecurity??0),unemploymentEmployer:Number(b.unemploymentEmployer??0),
-      otherDeductions:Number(b.otherDeductions??0),employerCost:Number(b.employerCost),note:b.note,
-    });
-  }
+  @Post('payroll/periods/:id/items') @RequirePermission('hr','manage') upsertPayrollItem(@Param('id')id:string,@Body()b:any){return this.payrollAccounting.upsertItem(id,{staffId:b.staffId,branchId:b.branchId,costCenterId:b.costCenterId,grossAmount:Number(b.grossAmount),netAmount:Number(b.netAmount),incomeTax:Number(b.incomeTax??0),stampTax:Number(b.stampTax??0),employeeSocialSecurity:Number(b.employeeSocialSecurity??0),unemploymentEmployee:Number(b.unemploymentEmployee??0),employerSocialSecurity:Number(b.employerSocialSecurity??0),unemploymentEmployer:Number(b.unemploymentEmployer??0),otherDeductions:Number(b.otherDeductions??0),employerCost:Number(b.employerCost),note:b.note});}
   @Post('payroll/periods/:id/items/:staffId/work-inputs') @RequirePermission('hr','manage') attachPayrollWorkInputs(@Param('id')id:string,@Param('staffId')staffId:string){return this.payrollWorkInputs.attachToDraft(id,staffId);}
   @Post('payroll/periods/:id/items/:staffId/policy-evaluation') @RequirePermission('hr','manage') attachPayrollPolicyEvaluation(@Param('id')id:string,@Param('staffId')staffId:string){return this.payrollPolicy.attachEvaluation(id,staffId);}
   @Post('payroll/periods/:id/submit') @RequirePermission('hr','manage') submitPayroll(@Param('id')id:string){return this.payrollAccounting.submit(id);}
@@ -76,27 +74,12 @@ export class HrController {
   @Post('payroll/periods/:id/cancel') @RequirePermission('hr','manage') cancelPayroll(@Param('id')id:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.payrollReversal.cancel(id,this.userId(req),b.reason??'');}
   @Post('payroll/periods/:id/reverse') @RequirePermission('hr','manage') reversePayroll(@Param('id')id:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.payrollReversal.reverse(id,this.userId(req),b.reason??'');}
   @Get('payroll/periods/:id/report') payrollPeriodReport(@Param('id')id:string){return this.payrollReport.period(id);}
-  @Post('payroll/periods/:id/payments')
-  @RequirePermission('hr','manage')
-  paySalary(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
-    return this.payrollSettlement.paySalary(id,b.staffId,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);
-  }
-  @Post('payroll/periods/:id/liabilities')
-  @RequirePermission('hr','manage')
-  settleLiability(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){
-    const type=b.type==='TAX'?'TAX':b.type==='SOCIAL_SECURITY'?'SOCIAL_SECURITY':'OTHER';
-    return this.payrollSettlement.settleLiability(id,type,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);
-  }
+  @Post('payroll/periods/:id/payments') @RequirePermission('hr','manage') paySalary(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){return this.payrollSettlement.paySalary(id,b.staffId,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);}
+  @Post('payroll/periods/:id/liabilities') @RequirePermission('hr','manage') settleLiability(@Param('id')id:string,@Body()b:any,@Req()req:{user?:{sub?:string}}){const type=b.type==='TAX'?'TAX':b.type==='SOCIAL_SECURITY'?'SOCIAL_SECURITY':'OTHER';return this.payrollSettlement.settleLiability(id,type,Number(b.amount),b.method==='CASH'?'CASH':'BANK',this.userId(req),b.note);}
   @Post('payroll/payments/:paymentId/reverse') @RequirePermission('hr','manage') reverseSalaryPayment(@Param('paymentId')paymentId:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.paymentReversal.reverseSalaryPayment(paymentId,this.userId(req),b.reason??'');}
   @Post('payroll/liability-payments/:paymentId/reverse') @RequirePermission('hr','manage') reverseLiabilityPayment(@Param('paymentId')paymentId:string,@Body()b:{reason?:string},@Req()req:{user?:{sub?:string}}){return this.paymentReversal.reverseLiabilityPayment(paymentId,this.userId(req),b.reason??'');}
-
   @Get('payments') payments(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.payments(year?+year:undefined,month?+month:undefined);}
-  @Post('payments')
-  @RequirePermission('hr','manage')
-  createPayment(@Body()body:any,@Req()req:{user?:{sub?:string}}){
-    if(!body.periodId) throw new BadRequestException('periodId is required for accounting-backed salary payment.');
-    return this.payrollSettlement.paySalary(body.periodId,body.staffId,Number(body.amount),body.method==='CASH'?'CASH':'BANK',this.userId(req),body.note);
-  }
+  @Post('payments') @RequirePermission('hr','manage') createPayment(@Body()body:any,@Req()req:{user?:{sub?:string}}){if(!body.periodId) throw new BadRequestException('periodId is required for accounting-backed salary payment.');return this.payrollSettlement.paySalary(body.periodId,body.staffId,Number(body.amount),body.method==='CASH'?'CASH':'BANK',this.userId(req),body.note);}
   @Get('sgk') sgk(@Query('year')year?:string,@Query('month')month?:string){return this.hrService.sgk(year?+year:undefined,month?+month:undefined);}
   @Post('sgk') @RequirePermission('hr','manage') createSgk(@Body()body:any){return this.hrService.createSgk(body);}
 }
