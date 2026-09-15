@@ -1,0 +1,34 @@
+model ReportExportJob {
+  id             String   @id
+  tenantId       String   @map("tenant_id")
+  companyId      String   @map("company_id")
+  branchId       String?  @map("branch_id")
+  roleScope      String   @map("role_scope")
+  membershipId   String   @map("membership_id")
+  roleId         String   @map("role_id")
+  requestedBy    String   @map("requested_by")
+  reportKey      String   @map("report_key")
+  format         String
+  status         String   @default("QUEUED")
+  filters        Json
+  columns        Json
+  sort           Json?
+  includeSummary Boolean  @default(true) @map("include_summary")
+  includeCharts  Boolean  @default(false) @map("include_charts")
+  rowCount       Int?     @map("row_count")
+  storageKey     String?  @map("storage_key")
+  errorCode      String?  @map("error_code")
+  errorSummary   String?  @map("error_summary")
+  requestedAt    DateTime @default(now()) @map("requested_at")
+  startedAt      DateTime? @map("started_at")
+  completedAt    DateTime? @map("completed_at")
+  expiresAt      DateTime? @map("expires_at")
+  updatedAt      DateTime @default(now()) @map("updated_at")
+
+  @@index([tenantId, requestedAt], map: "report_export_jobs_tenant_requested_at_idx")
+  @@index([tenantId, companyId, requestedAt], map: "report_export_jobs_tenant_company_requested_at_idx")
+  @@index([tenantId, status], map: "report_export_jobs_tenant_status_idx")
+  @@index([tenantId, requestedBy, requestedAt], map: "report_export_jobs_tenant_requester_idx")
+  @@index([tenantId, membershipId, requestedAt], map: "report_export_jobs_tenant_membership_idx")
+  @@map("report_export_jobs")
+}
