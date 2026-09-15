@@ -15,6 +15,10 @@ import {
   ReportExportJobsRepository,
   type ReportExportJobRecord,
 } from './report-export-jobs.repository';
+import {
+  ReportExportPolicyService,
+  ReportExportRowLimitError,
+} from './report-export-policy.service';
 import { ReportExportStorageService } from './report-export-storage.service';
 import { ReportExportWorkerContextService } from './report-export-worker-context.service';
 import { ReportPdfGenerator } from './report-pdf.generator';
@@ -31,6 +35,7 @@ export class ReportExportProcessorService {
     private readonly pdf: ReportPdfGenerator,
     private readonly storage: ReportExportStorageService,
     private readonly config: ConfigService,
+    private readonly policy?: ReportExportPolicyService,
   ) {}
 
   async processNext() {
@@ -50,6 +55,7 @@ export class ReportExportProcessorService {
       });
 
       const materialized = await this.workerContext.materialize(user, input);
+      this.policy?.assertRowLimit(materialized.rows.length);
       const generatedAt = new Date();
       const summary = input.includeSummary
         ? (materialized.summary as Record<string, unknown> | null)
@@ -158,8 +164,6 @@ export class ReportExportProcessorService {
     try {
       return await this.jobs.findById(user, jobId);
     } catch {
-      // The READY write may have committed even when its acknowledgement failed.
-      // Preserve the artifact when persisted state cannot be verified.
       return undefined;
     }
   }
@@ -199,6 +203,13 @@ export class ReportExportProcessorService {
       return {
         errorCode: 'INVALID_JOB_PAYLOAD',
         errorSummary: 'Stored export parameters are invalid.',
+      };
+    }
+
+    if (error instanceof ReportExportRowLimitError) {
+      return {
+        errorCode: 'ROW_LIMIT_EXCEEDED',
+        errorSummary: `Export exceeds the configured row limit of ${error.limit}.`,
       };
     }
 
