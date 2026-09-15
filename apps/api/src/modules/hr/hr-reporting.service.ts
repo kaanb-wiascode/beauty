@@ -109,7 +109,9 @@ export class HrReportingService {
       employerCost: unknown;
       salaryPaid: unknown;
       taxLiability: unknown;
+      taxPaid: unknown;
       socialLiability: unknown;
+      socialPaid: unknown;
     }>>(
       `WITH period_rows AS (
          SELECT pp.id,make_date(pp.year,pp.month,1) AS period_date,pp.status,
@@ -128,8 +130,19 @@ export class HrReportingService {
          GROUP BY pp.id,pp.year,pp.month,pp.status
        )
        SELECT p.period_date AS "periodDate",p.status,p."employeeCount",p.gross,p.net,p."employerCost",
-              COALESCE((SELECT SUM(sp.amount) FROM salary_payments sp WHERE sp.period_id=p.id AND sp.status='PAID'),0)::numeric AS "salaryPaid",
-              p."taxLiability",p."socialLiability"
+              COALESCE((SELECT SUM(sp.amount) FROM salary_payments sp
+                        WHERE sp.period_id=p.id AND sp.tenant_id=$1::text AND sp.company_id=$2::text
+                          AND ($3::text[] IS NULL OR sp.branch_id=ANY($3::text[])) AND sp.status='PAID'),0)::numeric AS "salaryPaid",
+              p."taxLiability",
+              COALESCE((SELECT SUM(plp.amount) FROM payroll_liability_payments plp
+                        WHERE plp.period_id=p.id AND plp.tenant_id=$1::text AND plp.company_id=$2::text
+                          AND ($3::text[] IS NULL OR plp.branch_id=ANY($3::text[]))
+                          AND plp.type='TAX' AND plp.status='PAID'),0)::numeric AS "taxPaid",
+              p."socialLiability",
+              COALESCE((SELECT SUM(plp.amount) FROM payroll_liability_payments plp
+                        WHERE plp.period_id=p.id AND plp.tenant_id=$1::text AND plp.company_id=$2::text
+                          AND ($3::text[] IS NULL OR plp.branch_id=ANY($3::text[]))
+                          AND plp.type='SOCIAL_SECURITY' AND plp.status='PAID'),0)::numeric AS "socialPaid"
        FROM period_rows p ORDER BY p.period_date ASC`,
       tenantId,
       companyId,
@@ -148,7 +161,11 @@ export class HrReportingService {
       salaryPaid: Number(row.salaryPaid ?? 0),
       salaryRemaining: Math.max(0, Number(row.net ?? 0) - Number(row.salaryPaid ?? 0)),
       taxLiability: Number(row.taxLiability ?? 0),
+      taxPaid: Number(row.taxPaid ?? 0),
+      taxRemaining: Math.max(0, Number(row.taxLiability ?? 0) - Number(row.taxPaid ?? 0)),
       socialLiability: Number(row.socialLiability ?? 0),
+      socialPaid: Number(row.socialPaid ?? 0),
+      socialRemaining: Math.max(0, Number(row.socialLiability ?? 0) - Number(row.socialPaid ?? 0)),
       payrollSettlementRate: Number(row.net ?? 0)
         ? Math.round((Number(row.salaryPaid ?? 0) / Number(row.net ?? 0)) * 100)
         : 0,
