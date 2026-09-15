@@ -24,6 +24,7 @@ import {
   type PlatformRequestLike,
 } from './platform-request-context';
 import { PlatformReadModelService } from './platform-read-model.service';
+import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
 
 type PlatformRequest = PlatformRequestLike & { user?: { sub?: string } };
 type TenantLifecycleState = 'ACTIVE' | 'RESTRICTED' | 'SUSPENDED';
@@ -33,6 +34,7 @@ type TenantLifecycleState = 'ACTIVE' | 'RESTRICTED' | 'SUSPENDED';
 export class PlatformControlPlaneController {
   constructor(
     private readonly readModel: PlatformReadModelService,
+    private readonly tenantGovernance: PlatformTenantGovernanceReadService,
     private readonly iamRead: PlatformIamReadService,
     private readonly iamMutation: PlatformIamMutationService,
     private readonly auditRead: PlatformAuditReadService,
@@ -58,6 +60,12 @@ export class PlatformControlPlaneController {
       limit: this.parseOptionalInteger(limit),
       offset: this.parseOptionalInteger(offset),
     });
+  }
+
+  @Get('customers/:tenantId/governance')
+  @RequirePlatformPermission('customers', 'read')
+  getCustomerGovernance(@Param('tenantId') tenantId: string) {
+    return this.tenantGovernance.getTenantGovernance(tenantId);
   }
 
   @Get('customers/:tenantId')
