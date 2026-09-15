@@ -1,56 +1,287 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Alert, Field, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th, TextInput } from "@/components/ui";
+import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import {
+  ReportFilterBar,
+  reportDateInputValue,
+  reportRangeIsInvalid,
+  reportRangeToQuery,
+  type ReportDateRange,
+} from "../report-filter-bar";
+import { useReportTableState } from "../use-report-table-state";
 
-type Row = { service: { id: string; name: string; price: string | number; status: string }; appointmentCount: number; completedAppointments: number; collected: number };
-const presets = [{ label: "Bugün", days: 0 }, { label: "Dün", days: 1 }, { label: "7 Gün", days: 6 }, { label: "30 Gün", days: 29 }, { label: "90 Gün", days: 89 }];
-const money = (v: number) => new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 }).format(v);
-const dateValue = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+type Row = {
+  service: {
+    id: string;
+    name: string;
+    price: string | number;
+    status: string;
+  };
+  appointmentCount: number;
+  completedAppointments: number;
+  collected: number;
+};
+
+type ColumnKey = "name" | "appointments" | "completed" | "rate" | "collected";
+type SortKey = ColumnKey;
+
+const SERVICE_COLUMNS: readonly ColumnKey[] = [
+  "name",
+  "appointments",
+  "completed",
+  "rate",
+  "collected",
+];
+
+const COLUMN_LABELS: Record<ColumnKey, string> = {
+  name: "Hizmet",
+  appointments: "Randevu",
+  completed: "Tamamlanan",
+  rate: "Başarı",
+  collected: "Tahsilat",
+};
+
+const money = (value: number) =>
+  new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(value);
+
+function completionRate(row: Row) {
+  return row.appointmentCount
+    ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
+    : 0;
+}
+
+function compareRows(a: Row, b: Row, key: SortKey) {
+  if (key === "name") return a.service.name.localeCompare(b.service.name, "tr-TR");
+  if (key === "appointments") return a.appointmentCount - b.appointmentCount;
+  if (key === "completed") return a.completedAppointments - b.completedAppointments;
+  if (key === "rate") return completionRate(a) - completionRate(b);
+  return a.collected - b.collected;
+}
 
 export default function ServiceReportPage() {
-  const today = useMemo(() => dateValue(new Date()), []);
-  const [from, setFrom] = useState(today), [to, setTo] = useState(today);
-  const [rows, setRows] = useState<Row[]>([]), [loading, setLoading] = useState(true), [error, setError] = useState("");
+  const [range, setRange] = useState<ReportDateRange>(() => {
+    const today = reportDateInputValue(new Date());
+    return { from: today, to: today };
+  });
+  const [rows, setRows] = useState<Row[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [metric, setMetric] = useState<"revenue" | "completed">("revenue");
-  const [selected, setSelected] = useState<string | null>(null), [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<string | null>(null);
+  const [query, setQuery] = useState("");
+  const tableState = useReportTableState<ColumnKey, SortKey>({
+    columns: SERVICE_COLUMNS,
+    initialSort: { key: "collected", direction: "desc" },
+  });
 
   useEffect(() => {
-    if (from > to) { setRows([]); setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz."); setLoading(false); return; }
+    if (reportRangeIsInvalid(range)) {
+      setRows([]);
+      setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz.");
+      setLoading(false);
+      return;
+    }
+
     let cancelled = false;
     async function load() {
-      setLoading(true); setError("");
+      setLoading(true);
+      setError("");
       try {
-        const result = await api<Row[]>(withQuery("/services/performance", { from: new Date(`${from}T00:00:00`).toISOString(), to: new Date(`${to}T23:59:59.999`).toISOString() }));
-        if (!cancelled) { const sorted = [...result].sort((a, b) => b.collected - a.collected || b.completedAppointments - a.completedAppointments); setRows(sorted); setSelected(sorted[0]?.service.id ?? null); }
-      } catch (err) { if (!cancelled) setError(err instanceof ApiError ? err.message : "Hizmet Raporu Yüklenemedi."); }
-      finally { if (!cancelled) setLoading(false); }
+        const result = await api<Row[]>(
+          withQuery("/services/performance", reportRangeToQuery(range)),
+        );
+        if (!cancelled) {
+          setRows(result);
+          setSelected((current) =>
+            current && result.some((row) => row.service.id === current)
+              ? current
+              : result[0]?.service.id ?? null,
+          );
+        }
+      } catch (err) {
+        if (!cancelled) {
+          setError(
+            err instanceof ApiError ? err.message : "Hizmet Raporu Yüklenemedi.",
+          );
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
     }
-    void load(); return () => { cancelled = true; };
-  }, [from, to]);
 
-  const totals = useMemo(() => rows.reduce((t, r) => ({ appointments: t.appointments + r.appointmentCount, completed: t.completed + r.completedAppointments, collected: t.collected + r.collected }), { appointments: 0, completed: 0, collected: 0 }), [rows]);
-  const filtered = useMemo(() => rows.filter(r => r.service.name.toLocaleLowerCase("tr-TR").includes(query.toLocaleLowerCase("tr-TR"))), [rows, query]);
-  const selectedRow = rows.find(r => r.service.id === selected) ?? rows[0];
-  const completion = totals.appointments ? Math.round(totals.completed / totals.appointments * 100) : 0;
+    void load();
+    return () => {
+      cancelled = true;
+    };
+  }, [range]);
+
+  const totals = useMemo(
+    () =>
+      rows.reduce(
+        (total, row) => ({
+          appointments: total.appointments + row.appointmentCount,
+          completed: total.completed + row.completedAppointments,
+          collected: total.collected + row.collected,
+        }),
+        { appointments: 0, completed: 0, collected: 0 },
+      ),
+    [rows],
+  );
+
+  const filtered = useMemo(() => {
+    const normalizedQuery = query.toLocaleLowerCase("tr-TR");
+    return rows
+      .filter((row) =>
+        row.service.name.toLocaleLowerCase("tr-TR").includes(normalizedQuery),
+      )
+      .sort((a, b) => {
+        const result = compareRows(a, b, tableState.sort.key);
+        return tableState.sort.direction === "asc" ? result : -result;
+      });
+  }, [query, rows, tableState.sort]);
+
+  const ranked = useMemo(
+    () =>
+      [...rows].sort(
+        (a, b) =>
+          b.collected - a.collected ||
+          b.completedAppointments - a.completedAppointments,
+      ),
+    [rows],
+  );
+  const selectedRow =
+    rows.find((row) => row.service.id === selected) ?? ranked[0];
+  const completion = totals.appointments
+    ? Math.round((totals.completed / totals.appointments) * 100)
+    : 0;
   const average = totals.completed ? totals.collected / totals.completed : 0;
-  const max = Math.max(...rows.map(r => metric === "revenue" ? r.collected : r.completedAppointments), 1);
-  function preset(days: number) { const end = new Date(); const start = new Date(); start.setDate(end.getDate() - days); setFrom(dateValue(start)); setTo(dateValue(end)); }
+  const max = Math.max(
+    ...ranked.map((row) =>
+      metric === "revenue" ? row.collected : row.completedAppointments,
+    ),
+    1,
+  );
 
-  return <div className="mx-auto max-w-6xl space-y-5">
-    <PageHeader title="Hizmet Raporları" description="Hangi Hizmetlerin Daha Çok Tercih Edildiğini Ve Kazandırdığını Tek Ekranda Görün." />
-    {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-    <Panel><div className="flex flex-col gap-4 p-4 sm:p-5"><div className="flex flex-wrap items-center gap-2">{presets.map(p => <button key={p.label} type="button" onClick={() => preset(p.days)} className="rounded-xl border border-[var(--line)] px-3.5 py-2 text-[12px] font-medium text-[var(--muted)] hover:border-[var(--accent)] hover:text-[var(--ink)]">{p.label}</button>)}<span className="hidden h-5 w-px bg-[var(--line)] sm:block" /><div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2"><Field label="Başlangıç"><TextInput type="date" value={from} onChange={e => setFrom(e.target.value)} /></Field><Field label="Bitiş"><TextInput type="date" value={to} onChange={e => setTo(e.target.value)} /></Field></div></div></div></Panel>
-    {loading ? <Spinner label="Hizmet Raporu Hazırlanıyor..." /> : <>
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Toplam Tahsilat" value={money(totals.collected)} detail="Seçilen Dönem" /><Metric label="Tamamlanan" value={totals.completed.toLocaleString("tr-TR")} detail={`%${completion} Tamamlanma`} /><Metric label="Toplam Randevu" value={totals.appointments.toLocaleString("tr-TR")} detail={`${rows.length} Hizmet`} /><Metric label="Ortalama İşlem" value={money(average)} detail="Tamamlanan Başına" /></section>
-      <section className="grid gap-4 lg:grid-cols-[1.45fr_0.75fr]">
-        <Panel><div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-[16px] font-semibold text-[var(--ink)]">Hizmet Performansı</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Bir Hizmete Dokunarak Detayını Açın.</p></div><div className="flex rounded-xl bg-[var(--surface-muted)] p-1"><button type="button" onClick={() => setMetric("revenue")} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium ${metric === "revenue" ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}>Ciro</button><button type="button" onClick={() => setMetric("completed")} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium ${metric === "completed" ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}>İşlem</button></div></div><div className="space-y-2 p-4 sm:p-5">{rows.length === 0 ? <Empty /> : rows.map((r, i) => { const value = metric === "revenue" ? r.collected : r.completedAppointments; const pct = Math.max(4, value / max * 100); const rate = r.appointmentCount ? Math.round(r.completedAppointments / r.appointmentCount * 100) : 0; return <button key={r.service.id} type="button" onClick={() => setSelected(r.service.id)} className={`grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl p-3 text-left transition ${selected === r.service.id ? "bg-[var(--surface-muted)]" : "hover:bg-[var(--surface-muted)]"}`}><span className="text-[11px] font-semibold text-[var(--muted-soft)]">{i + 1}</span><span className="min-w-0"><span className="flex items-center justify-between gap-3"><span className="truncate text-[13px] font-semibold text-[var(--ink)]">{r.service.name}</span><span className="shrink-0 text-[12px] font-semibold text-[var(--ink)]">{metric === "revenue" ? money(value) : `${value} İşlem`}</span></span><span className="mt-2 block h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${pct}%` }} /></span></span><span className="text-right text-[11px] text-[var(--muted)]">%{rate}</span></button>; })}</div></Panel>
-        <Panel><div className="border-b border-[var(--line)] px-5 py-4"><p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Seçili Hizmet</p><h2 className="mt-1 truncate text-[19px] font-semibold text-[var(--ink)]">{selectedRow?.service.name ?? "—"}</h2></div>{selectedRow ? <div className="space-y-4 p-5"><div className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--surface-muted)] text-[18px]">✦</div><Detail label="Tahsilat" value={money(selectedRow.collected)} /><Detail label="Randevu" value={String(selectedRow.appointmentCount)} /><Detail label="Tamamlanan" value={String(selectedRow.completedAppointments)} /><Detail label="Başarı Oranı" value={`%${selectedRow.appointmentCount ? Math.round(selectedRow.completedAppointments / selectedRow.appointmentCount * 100) : 0}`} /></div> : <Empty />}</Panel>
-      </section>
-      <Panel><div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div><h2 className="text-[16px] font-semibold text-[var(--ink)]">Hizmet Detayları</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Arama İle Hizmeti Hızlıca Bulun.</p></div><input aria-label="Hizmet Ara" value={query} onChange={e => setQuery(e.target.value)} placeholder="Hizmet Ara..." className="h-9 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] outline-none focus:border-[var(--accent)] sm:w-56" /></div>{filtered.length === 0 ? <Empty /> : <TableWrap><thead><tr><Th>Hizmet</Th><Th>Randevu</Th><Th>Tamamlanan</Th><Th>Başarı</Th><Th>Tahsilat</Th></tr></thead><tbody>{filtered.map(r => { const rate = r.appointmentCount ? Math.round(r.completedAppointments / r.appointmentCount * 100) : 0; return <tr key={r.service.id} className="cursor-pointer" onClick={() => setSelected(r.service.id)}><Td label="Hizmet" className="font-medium">{r.service.name}</Td><Td label="Randevu">{r.appointmentCount}</Td><Td label="Tamamlanan">{r.completedAppointments}</Td><Td label="Başarı">%{rate}</Td><Td label="Tahsilat" className="font-semibold">{money(r.collected)}</Td></tr>; })}</tbody></TableWrap>}</Panel>
-    </>}
-  </div>;
+  return (
+    <div className="mx-auto max-w-6xl space-y-5">
+      <PageHeader
+        title="Hizmet Raporları"
+        description="Hangi Hizmetlerin Daha Çok Tercih Edildiğini Ve Kazandırdığını Tek Ekranda Görün."
+      />
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+
+      <ReportFilterBar from={range.from} to={range.to} onChange={setRange} />
+
+      {loading ? (
+        <Spinner label="Hizmet Raporu Hazırlanıyor..." />
+      ) : (
+        <>
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            <Metric label="Toplam Tahsilat" value={money(totals.collected)} detail="Seçilen Dönem" />
+            <Metric label="Tamamlanan" value={totals.completed.toLocaleString("tr-TR")} detail={`%${completion} Tamamlanma`} />
+            <Metric label="Toplam Randevu" value={totals.appointments.toLocaleString("tr-TR")} detail={`${rows.length} Hizmet`} />
+            <Metric label="Ortalama İşlem" value={money(average)} detail="Tamamlanan Başına" />
+          </section>
+
+          <section className="grid gap-4 lg:grid-cols-[1.45fr_0.75fr]">
+            <Panel>
+              <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <h2 className="text-[16px] font-semibold text-[var(--ink)]">Hizmet Performansı</h2>
+                  <p className="mt-1 text-[12px] text-[var(--muted)]">Bir Hizmete Dokunarak Detayını Açın.</p>
+                </div>
+                <div className="flex rounded-xl bg-[var(--surface-muted)] p-1">
+                  <button type="button" onClick={() => setMetric("revenue")} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium ${metric === "revenue" ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}>Ciro</button>
+                  <button type="button" onClick={() => setMetric("completed")} className={`rounded-lg px-3 py-1.5 text-[11px] font-medium ${metric === "completed" ? "bg-[var(--surface)] text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}>İşlem</button>
+                </div>
+              </div>
+              <div className="space-y-2 p-4 sm:p-5">
+                {ranked.length === 0 ? <Empty /> : ranked.map((row, index) => {
+                  const value = metric === "revenue" ? row.collected : row.completedAppointments;
+                  const percentage = Math.max(4, (value / max) * 100);
+                  return (
+                    <button key={row.service.id} type="button" onClick={() => setSelected(row.service.id)} className={`grid w-full grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 rounded-2xl p-3 text-left transition ${selected === row.service.id ? "bg-[var(--surface-muted)]" : "hover:bg-[var(--surface-muted)]"}`}>
+                      <span className="text-[11px] font-semibold text-[var(--muted-soft)]">{index + 1}</span>
+                      <span className="min-w-0">
+                        <span className="flex items-center justify-between gap-3">
+                          <span className="truncate text-[13px] font-semibold text-[var(--ink)]">{row.service.name}</span>
+                          <span className="shrink-0 text-[12px] font-semibold text-[var(--ink)]">{metric === "revenue" ? money(value) : `${value} İşlem`}</span>
+                        </span>
+                        <span className="mt-2 block h-2 overflow-hidden rounded-full bg-[var(--surface-muted)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{ width: `${percentage}%` }} /></span>
+                      </span>
+                      <span className="text-right text-[11px] text-[var(--muted)]">%{completionRate(row)}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </Panel>
+
+            <Panel>
+              <div className="border-b border-[var(--line)] px-5 py-4">
+                <p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Seçili Hizmet</p>
+                <h2 className="mt-1 truncate text-[19px] font-semibold text-[var(--ink)]">{selectedRow?.service.name ?? "—"}</h2>
+              </div>
+              {selectedRow ? (
+                <div className="space-y-4 p-5">
+                  <div className="grid h-12 w-12 place-items-center rounded-2xl bg-[var(--surface-muted)] text-[18px]">✦</div>
+                  <Detail label="Tahsilat" value={money(selectedRow.collected)} />
+                  <Detail label="Randevu" value={String(selectedRow.appointmentCount)} />
+                  <Detail label="Tamamlanan" value={String(selectedRow.completedAppointments)} />
+                  <Detail label="Başarı Oranı" value={`%${completionRate(selectedRow)}`} />
+                </div>
+              ) : <Empty />}
+            </Panel>
+          </section>
+
+          <Panel>
+            <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 lg:flex-row lg:items-center lg:justify-between">
+              <div><h2 className="text-[16px] font-semibold text-[var(--ink)]">Hizmet Detayları</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Arama, Sıralama Ve Sütun Görünümünü Tek Yerden Yönetin.</p></div>
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+                <input aria-label="Hizmet Ara" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Hizmet Ara..." className="h-9 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] outline-none focus:border-[var(--accent)] sm:w-56" />
+                <details className="relative">
+                  <summary className="flex h-9 cursor-pointer list-none items-center rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] font-medium text-[var(--muted)]">Sütunlar</summary>
+                  <div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-lg">
+                    {SERVICE_COLUMNS.map((column) => (
+                      <label key={column} className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-[12px] text-[var(--ink)] hover:bg-[var(--surface-muted)]">
+                        <input type="checkbox" checked={tableState.visibleColumns.has(column)} onChange={() => tableState.toggleColumn(column)} />
+                        {COLUMN_LABELS[column]}
+                      </label>
+                    ))}
+                  </div>
+                </details>
+              </div>
+            </div>
+            {filtered.length === 0 ? <Empty /> : (
+              <TableWrap>
+                <thead><tr>{tableState.visibleColumnList.map((column) => <Th key={column}><SortButton label={COLUMN_LABELS[column]} active={tableState.sort.key === column} direction={tableState.sort.direction} onClick={() => tableState.toggleSort(column)} /></Th>)}</tr></thead>
+                <tbody>
+                  {filtered.map((row) => (
+                    <tr key={row.service.id} className="cursor-pointer" onClick={() => setSelected(row.service.id)}>
+                      {tableState.visibleColumns.has("name") ? <Td label="Hizmet" className="font-medium">{row.service.name}</Td> : null}
+                      {tableState.visibleColumns.has("appointments") ? <Td label="Randevu">{row.appointmentCount}</Td> : null}
+                      {tableState.visibleColumns.has("completed") ? <Td label="Tamamlanan">{row.completedAppointments}</Td> : null}
+                      {tableState.visibleColumns.has("rate") ? <Td label="Başarı">%{completionRate(row)}</Td> : null}
+                      {tableState.visibleColumns.has("collected") ? <Td label="Tahsilat" className="font-semibold">{money(row.collected)}</Td> : null}
+                    </tr>
+                  ))}
+                </tbody>
+              </TableWrap>
+            )}
+          </Panel>
+        </>
+      )}
+    </div>
+  );
+}
+
+function SortButton({ label, active, direction, onClick }: { label: string; active: boolean; direction: "asc" | "desc"; onClick: () => void }) {
+  return <button type="button" onClick={onClick} className="inline-flex items-center gap-1 font:inherit text:inherit"><span>{label}</span><span aria-hidden="true" className="text-[10px] text-[var(--muted-soft)]">{active ? (direction === "asc" ? "↑" : "↓") : "↕"}</span></button>;
 }
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) { return <GlassCard><p className="text-[11px] font-medium text-[var(--muted)]">{label}</p><p className="mt-1.5 text-[24px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p></GlassCard>; }
 function Detail({ label, value }: { label: string; value: string }) { return <div className="flex items-center justify-between border-b border-[var(--line)] pb-3 last:border-0 last:pb-0"><span className="text-[12px] text-[var(--muted)]">{label}</span><span className="text-[13px] font-semibold text-[var(--ink)]">{value}</span></div>; }
