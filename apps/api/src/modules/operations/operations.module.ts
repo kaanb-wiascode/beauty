@@ -50,6 +50,8 @@ import { OperationsWaitlistCandidateService } from './operations-waitlist-candid
 import { OperationsWaitlistMatchingService } from './operations-waitlist-matching.service';
 import { OperationsWaitlistRecoveryService } from './operations-waitlist-recovery.service';
 import { OperationsWaitlistService } from './operations-waitlist.service';
+import { ServiceExecutionStaffController } from './service-execution-staff.controller';
+import { ServiceExecutionStaffService } from './service-execution-staff.service';
 import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
 
@@ -77,6 +79,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsStaffEligibilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
+    ServiceExecutionStaffController,
     ServiceExecutionsController,
   ],
   providers: [
@@ -106,6 +109,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsWaitlistCandidateService,
     OperationsWaitlistMatchingService,
     OperationsWaitlistRecoveryService,
+    ServiceExecutionStaffService,
     ServiceExecutionsService,
   ],
 })
