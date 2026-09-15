@@ -16,6 +16,7 @@ import { ReportExportStaleService } from './report-export-stale.service';
 import { ReportExportStorageService } from './report-export-storage.service';
 import { ReportExportWorkerContextService } from './report-export-worker-context.service';
 import { ReportExportWorkerRunnerService } from './report-export-worker-runner.service';
+import { ReportXlsxGenerator } from './report-xlsx.generator';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
@@ -36,6 +37,7 @@ import { ReportsService } from './reports.service';
     ReportExportWorkerRunnerService,
     ReportExportDownloadService,
     ReportCsvGenerator,
+    ReportXlsxGenerator,
   ],
   exports: [ReportsService, ReportExportProcessorService],
 })
