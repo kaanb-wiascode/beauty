@@ -13,6 +13,7 @@ import {
 } from "./report-export-client";
 
 type ReportKey = "staff.performance" | "service.performance" | "payments.summary";
+type SupportedExportFormat = "CSV" | "XLSX";
 
 type Props = {
   reportKey: ReportKey;
@@ -41,6 +42,7 @@ function formatDateTime(value: string) {
 
 export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
   const [jobs, setJobs] = useState<ReportExportJob[]>([]);
+  const [format, setFormat] = useState<SupportedExportFormat>("XLSX");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -96,6 +98,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
     try {
       await createReportExport({
         reportKey,
+        format,
         filters: reportRangeToQuery(range),
         columns,
         sort,
@@ -103,7 +106,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
       setPage(1);
       await refresh();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "CSV Dışa Aktarım Başlatılamadı.");
+      setError(err instanceof ApiError ? err.message : `${format} Dışa Aktarım Başlatılamadı.`);
     } finally {
       setCreating(false);
     }
@@ -126,16 +129,27 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
       <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h2 className="text-[15px] font-semibold text-[var(--ink)]">Dışa Aktarım</h2>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">CSV dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">CSV veya Excel dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
         </div>
-        <button
-          type="button"
-          onClick={() => void createExport()}
-          disabled={creating}
-          className="h-10 rounded-xl border border-[var(--line)] bg-white px-4 text-[12px] font-semibold text-[var(--ink)] disabled:opacity-50"
-        >
-          {creating ? "Kuyruğa Alınıyor..." : "CSV Oluştur"}
-        </button>
+        <div className="flex items-center gap-2">
+          <select
+            value={format}
+            onChange={(event) => setFormat(event.target.value as SupportedExportFormat)}
+            className="h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-[12px] font-semibold text-[var(--ink)]"
+            aria-label="Dışa aktarım formatı"
+          >
+            <option value="XLSX">Excel (.xlsx)</option>
+            <option value="CSV">CSV</option>
+          </select>
+          <button
+            type="button"
+            onClick={() => void createExport()}
+            disabled={creating}
+            className="h-10 rounded-xl border border-[var(--line)] bg-white px-4 text-[12px] font-semibold text-[var(--ink)] disabled:opacity-50"
+          >
+            {creating ? "Kuyruğa Alınıyor..." : `${format} Oluştur`}
+          </button>
+        </div>
       </div>
 
       {error ? <div className="border-b border-[var(--line)] px-5 py-3 text-[11px] text-red-600">{error}</div> : null}
