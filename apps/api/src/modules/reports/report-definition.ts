@@ -3,6 +3,7 @@ export const reportKeys = {
   servicePerformance: 'service.performance',
   paymentSummary: 'payments.summary',
   customerPerformance: 'customers.performance',
+  salesPerformance: 'sales.performance',
 } as const;
 
 export type ReportKey = (typeof reportKeys)[keyof typeof reportKeys];
@@ -17,7 +18,7 @@ export type ReportDefinition = Readonly<{
   key: ReportKey;
   title: string;
   description: string;
-  domain: 'staff' | 'services' | 'payments' | 'customers';
+  domain: 'staff' | 'services' | 'payments' | 'customers' | 'sales';
   route: string;
   resultKind: 'table' | 'summary';
   requiredPermissions: readonly ReportPermission[];
@@ -108,6 +109,26 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     defaultColumns: ['name','visitCount','completedVisits','lastVisitAt','collected','averageCollectedPerVisit'],
     exportableColumns: ['name','customerSource','customerSince','visitCount','completedVisits','firstVisitAt','lastVisitAt','collected','averageCollectedPerVisit'],
     sortableColumns: ['name','customerSince','visitCount','completedVisits','firstVisitAt','lastVisitAt','collected','averageCollectedPerVisit'],
+    exportFormats: ['CSV', 'XLSX', 'PDF'],
+    drilldowns: [],
+    pagination: true,
+  },
+  {
+    key: reportKeys.salesPerformance,
+    title: 'Satış Performansı',
+    description: 'Onaylanmış satışlarda ciro, tahsilat, iade ve açık bakiye görünümü.',
+    domain: 'sales',
+    route: '/sales/performance',
+    resultKind: 'table',
+    requiredPermissions: [
+      { resource: 'reports', action: 'read' },
+      { resource: 'payments', action: 'read' },
+    ],
+    filters: ['from', 'to'],
+    availableColumns: ['confirmedAt','customerName','subtotal','discountTotal','revenue','collected','refunded','netCollected','outstanding','itemCount','serviceQuantity','packageQuantity'],
+    defaultColumns: ['confirmedAt','customerName','revenue','collected','refunded','outstanding','itemCount'],
+    exportableColumns: ['confirmedAt','customerName','subtotal','discountTotal','revenue','collected','refunded','netCollected','outstanding','itemCount','serviceQuantity','packageQuantity'],
+    sortableColumns: ['confirmedAt','customerName','subtotal','discountTotal','revenue','collected','refunded','netCollected','outstanding','itemCount','serviceQuantity','packageQuantity'],
     exportFormats: ['CSV', 'XLSX', 'PDF'],
     drilldowns: [],
     pagination: true,
