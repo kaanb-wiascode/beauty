@@ -15,10 +15,13 @@ import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformOnboardingController } from './platform-onboarding.controller';
 import { PlatformOnboardingService } from './platform-onboarding.service';
+import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformProvisioningController } from './platform-provisioning.controller';
 import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
+import { PlatformProvisioningFailureService } from './platform-provisioning-failure.service';
+import { PlatformProvisioningOperationsService } from './platform-provisioning-operations.service';
 import { PlatformProvisioningService } from './platform-provisioning.service';
 import { PlatformReadModelService } from './platform-read-model.service';
 import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
@@ -45,6 +48,9 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformEntitlementsService,
     PlatformProvisioningService,
     PlatformProvisioningCoordinatorService,
+    PlatformProvisioningFailureService,
+    PlatformProvisioningOperationsService,
+    PlatformOwnerInvitationService,
     PlatformTenantBootstrapService,
     PlatformTenantConfigurationBootstrapService,
     PlatformOnboardingService,
@@ -66,6 +72,8 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformEntitlementsService,
     PlatformProvisioningService,
     PlatformProvisioningCoordinatorService,
+    PlatformProvisioningOperationsService,
+    PlatformOwnerInvitationService,
     PlatformOnboardingService,
   ],
 })
