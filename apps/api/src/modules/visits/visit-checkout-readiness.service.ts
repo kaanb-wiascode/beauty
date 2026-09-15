@@ -147,12 +147,12 @@ export class VisitCheckoutReadinessService {
       >(
         `SELECT c.sale_id AS "saleId", s.status::text AS "saleStatus", s.total::text AS "saleTotal",
                 COALESCE(SUM(CASE WHEN sp.status::text='COMPLETED' THEN sp.amount ELSE 0 END),0)::text AS "paidTotal",
-                (SELECT COUNT(*)::int FROM sale_items si WHERE si.sale_id=s.id AND si.type::text='SERVICE' AND si.service_id IS NOT NULL) AS "serviceItemCount"
+                (SELECT COUNT(*)::int FROM sale_items si WHERE si."saleId"=s.id AND si.type::text='SERVICE' AND si."serviceId" IS NOT NULL) AS "serviceItemCount"
          FROM operations_walk_in_commercial_contexts c
          JOIN sales s ON s.id=c.sale_id
-         LEFT JOIN sale_payments sp ON sp.sale_id=s.id AND sp.tenant_id=$2 AND sp.branch_id=$3
+         LEFT JOIN sale_payments sp ON sp."saleId"=s.id AND sp."tenantId"=$2 AND sp."branchId"=$3
          WHERE c.visit_id=$1 AND c.tenant_id=$2 AND c.company_id=$4 AND c.branch_id=$3
-           AND s.tenant_id=$2 AND s.branch_id=$3 AND s.customer_id=$5
+           AND s."tenantId"=$2 AND s."branchId"=$3 AND s."customerId"=$5
          GROUP BY c.sale_id,s.status,s.total
          LIMIT 1`,
         id,
