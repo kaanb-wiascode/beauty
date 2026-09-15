@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { CustomerContextPanel } from "@/components/platform/customer-context-panel";
 import { TenantGovernancePanel } from "@/components/platform/tenant-governance-panel";
 import { ApiError } from "@/lib/api";
 import {
@@ -101,6 +102,7 @@ export default function PlatformCustomer360Page() {
       </section>
 
       <TenantGovernancePanel tenantId={tenant.id} />
+      <CustomerContextPanel tenantId={tenant.id} />
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
         <Panel title="Organizasyon yapısı" eyebrow="Companies & branches">
