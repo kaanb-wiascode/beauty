@@ -6,20 +6,10 @@ import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Paginated, Service } from "@/lib/types";
+import { WaitlistMatchPanel } from "./waitlist-match-panel";
 
-type CustomerOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-};
-
-type StaffOption = {
-  id: string;
-  firstName: string;
-  lastName: string;
-  status: string;
-};
-
+type CustomerOption = { id: string; firstName: string; lastName: string };
+type StaffOption = { id: string; firstName: string; lastName: string; status: string };
 type WaitlistEntry = {
   id: string;
   customerId: string;
@@ -94,13 +84,12 @@ export default function OperationsWaitlistPage() {
     setLoading(true);
     setError("");
     try {
-      const [waitlistResult, customerResult, serviceResult, staffResult] =
-        await Promise.all([
-          api<WaitlistEntry[]>("/operations/waitlist"),
-          api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 200 })),
-          api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 200 })),
-          api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 200, status: "ACTIVE" })),
-        ]);
+      const [waitlistResult, customerResult, serviceResult, staffResult] = await Promise.all([
+        api<WaitlistEntry[]>("/operations/waitlist"),
+        api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 200 })),
+        api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 200 })),
+        api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 200, status: "ACTIVE" })),
+      ]);
       setEntries(waitlistResult);
       setCustomers(customerResult.data);
       setServices(serviceResult.data.filter((service) => service.status === "ACTIVE"));
@@ -129,29 +118,23 @@ export default function OperationsWaitlistPage() {
     setError("");
     setMessage("");
     try {
-      const result = await api<{ entry: WaitlistEntry; duplicate: boolean }>(
-        "/operations/waitlist",
-        {
-          method: "POST",
-          body: {
-            customerId: form.customerId,
-            serviceId: form.serviceId,
-            preferredStaffId: form.preferredStaffId || null,
-            desiredFrom: desiredFrom.toISOString(),
-            desiredTo: desiredTo.toISOString(),
-            preferredTimeStart: form.preferredTimeStart || null,
-            preferredTimeEnd: form.preferredTimeEnd || null,
-            priority: Number(form.priority),
-            contactChannel: form.contactChannel,
-            note: form.note.trim() || null,
-          },
+      const result = await api<{ entry: WaitlistEntry; duplicate: boolean }>("/operations/waitlist", {
+        method: "POST",
+        body: {
+          customerId: form.customerId,
+          serviceId: form.serviceId,
+          preferredStaffId: form.preferredStaffId || null,
+          desiredFrom: desiredFrom.toISOString(),
+          desiredTo: desiredTo.toISOString(),
+          preferredTimeStart: form.preferredTimeStart || null,
+          preferredTimeEnd: form.preferredTimeEnd || null,
+          timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "Europe/Istanbul",
+          priority: Number(form.priority),
+          contactChannel: form.contactChannel,
+          note: form.note.trim() || null,
         },
-      );
-      setMessage(
-        result.duplicate
-          ? "Aynı aktif tercih zaten bekleme listesinde; mevcut kayıt korundu."
-          : "Müşteri bekleme listesine eklendi.",
-      );
+      });
+      setMessage(result.duplicate ? "Aynı aktif tercih zaten bekleme listesinde; mevcut kayıt korundu." : "Müşteri bekleme listesine eklendi.");
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Bekleme listesi kaydı oluşturulamadı.");
@@ -178,53 +161,38 @@ export default function OperationsWaitlistPage() {
   }
 
   if (loading) {
-    return (
-      <div className="mx-auto max-w-[1420px] py-10">
-        <Spinner label="Bekleme listesi hazırlanıyor..." />
-      </div>
-    );
+    return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Bekleme listesi hazırlanıyor..." /></div>;
   }
 
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-          Capacity Recovery
-        </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">
-          Bekleme Listesi
-        </h1>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Capacity Recovery</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Bekleme Listesi</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-          Uygun randevu bulamayan müşterilerin hizmet, personel ve zaman tercihlerini branch-scoped olarak kaydedin. Slot matching ve iptalden doğan kapasite kurtarma bu kayıtların üzerine bağlanacaktır.
+          Bekleyen talepleri gerçek personel ve kaynak kapasitesiyle eşleştirin; uygun slot kabul edildiğinde randevu ve kaynak rezervasyonları atomik oluşturulur.
         </p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {message ? (
-        <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[#2d6a49]">
-          {message}
-        </div>
-      ) : null}
+      {message ? <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[#2d6a49]">{message}</div> : null}
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-[var(--ink)]">Yeni Bekleme Talebi</h2>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           <Field label="Müşteri">
             <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))}>
-              <option value="">Müşteri seçin</option>
-              {customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</option>)}
+              <option value="">Müşteri seçin</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</option>)}
             </select>
           </Field>
           <Field label="Hizmet">
             <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}>
-              <option value="">Hizmet seçin</option>
-              {services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
+              <option value="">Hizmet seçin</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
             </select>
           </Field>
           <Field label="Tercih edilen personel">
             <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.preferredStaffId} onChange={(event) => setForm((current) => ({ ...current, preferredStaffId: event.target.value }))}>
-              <option value="">Fark etmez</option>
-              {staff.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
+              <option value="">Fark etmez</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
             </select>
           </Field>
           <Field label="Tarih aralığı başlangıcı"><TextInput type="datetime-local" value={form.desiredFrom} onChange={(event) => setForm((current) => ({ ...current, desiredFrom: event.target.value }))} /></Field>
@@ -251,23 +219,27 @@ export default function OperationsWaitlistPage() {
         </div>
         {entries.length ? (
           <div className="divide-y divide-[var(--line)]">
-            {entries.map((entry) => (
-              <div key={entry.id} className="grid gap-3 px-6 py-4 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_150px_130px_auto] xl:items-center">
-                <div>
-                  <p className="text-sm font-semibold text-[var(--ink)]">{entry.customerName}</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{entry.serviceName}{entry.preferredStaffName ? ` · ${entry.preferredStaffName}` : " · Personel fark etmez"}</p>
+            {entries.map((entry) => {
+              const active = ["WAITING", "MATCH_FOUND", "CONTACTED"].includes(entry.status);
+              return (
+                <div key={entry.id} className="px-6 py-4">
+                  <div className="grid gap-3 xl:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_150px_130px_auto] xl:items-center">
+                    <div>
+                      <p className="text-sm font-semibold text-[var(--ink)]">{entry.customerName}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{entry.serviceName}{entry.preferredStaffName ? ` · ${entry.preferredStaffName}` : " · Personel fark etmez"}</p>
+                    </div>
+                    <div className="text-xs text-[var(--muted)]">
+                      <p>{new Date(entry.desiredFrom).toLocaleString("tr-TR")} – {new Date(entry.desiredTo).toLocaleString("tr-TR")}</p>
+                      {entry.preferredTimeStart && entry.preferredTimeEnd ? <p className="mt-1">Saat: {entry.preferredTimeStart.slice(0, 5)}–{entry.preferredTimeEnd.slice(0, 5)}</p> : null}
+                    </div>
+                    <span className="text-xs font-semibold text-[var(--ink)]">Öncelik {entry.priority}</span>
+                    <span className="w-fit rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{statusLabel[entry.status]}</span>
+                    {canUpdate && active ? <Button variant="secondary" disabled={busyId === entry.id} onClick={() => void cancel(entry)}>{busyId === entry.id ? "İptal ediliyor..." : "İptal Et"}</Button> : null}
+                  </div>
+                  {active ? <WaitlistMatchPanel entryId={entry.id} entryVersion={entry.version} canUpdate={canUpdate} onBooked={load} /> : null}
                 </div>
-                <div className="text-xs text-[var(--muted)]">
-                  <p>{new Date(entry.desiredFrom).toLocaleString("tr-TR")} – {new Date(entry.desiredTo).toLocaleString("tr-TR")}</p>
-                  {entry.preferredTimeStart && entry.preferredTimeEnd ? <p className="mt-1">Saat: {entry.preferredTimeStart.slice(0, 5)}–{entry.preferredTimeEnd.slice(0, 5)}</p> : null}
-                </div>
-                <span className="text-xs font-semibold text-[var(--ink)]">Öncelik {entry.priority}</span>
-                <span className="w-fit rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{statusLabel[entry.status]}</span>
-                {canUpdate && ["WAITING", "MATCH_FOUND", "CONTACTED"].includes(entry.status) ? (
-                  <Button variant="secondary" disabled={busyId === entry.id} onClick={() => void cancel(entry)}>{busyId === entry.id ? "İptal ediliyor..." : "İptal Et"}</Button>
-                ) : null}
-              </div>
-            ))}
+              );
+            })}
           </div>
         ) : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Bekleme listesinde kayıt yok.</div>}
       </section>
