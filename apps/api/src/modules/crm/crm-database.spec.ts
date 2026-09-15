@@ -2,30 +2,18 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 describe('CRM database invariants', () => {
-  const migration = readFileSync(
-    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260913001000_crm_pipeline_foundation/migration.sql'),
+  const readMigration = (name: string) => readFileSync(
+    resolve(__dirname, `../../../../../packages/database/prisma/migrations/${name}/migration.sql`),
     'utf8',
   );
-  const followUpLifecycleMigration = readFileSync(
-    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260913002000_crm_follow_up_lifecycle/migration.sql'),
-    'utf8',
-  );
-  const saleLinkageMigration = readFileSync(
-    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260913163000_crm_opportunity_sale_linkage/migration.sql'),
-    'utf8',
-  );
-  const contactContextMigration = readFileSync(
-    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260915173500_crm_lead_contact_context/migration.sql'),
-    'utf8',
-  );
-  const acquisitionContextMigration = readFileSync(
-    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260915174500_crm_lead_acquisition_context/migration.sql'),
-    'utf8',
-  );
-  const commercialContextMigration = readFileSync(
-    resolve(__dirname, '../../../../../packages/database/prisma/migrations/20260915175500_crm_lead_commercial_context/migration.sql'),
-    'utf8',
-  );
+  const migration = readMigration('20260913001000_crm_pipeline_foundation');
+  const followUpLifecycleMigration = readMigration('20260913002000_crm_follow_up_lifecycle');
+  const saleLinkageMigration = readMigration('20260913163000_crm_opportunity_sale_linkage');
+  const contactContextMigration = readMigration('20260915173500_crm_lead_contact_context');
+  const acquisitionContextMigration = readMigration('20260915174500_crm_lead_acquisition_context');
+  const commercialContextMigration = readMigration('20260915175500_crm_lead_commercial_context');
+  const salesContextMigration = readMigration('20260915180500_crm_lead_sales_context');
+  const salesLifecycleMigration = readMigration('20260915181000_crm_lead_sales_lifecycle_guard');
 
   it('locks organization and subject scope at database level', () => {
     expect(migration).toContain('validate_crm_scope');
@@ -93,5 +81,23 @@ describe('CRM database invariants', () => {
     expect(commercialContextMigration).toContain('idx_crm_leads_preferred_branch_scope');
     expect(commercialContextMigration).toContain('idx_crm_leads_interested_services_gin');
     expect(commercialContextMigration).toContain('idx_crm_leads_interested_packages_gin');
+  });
+
+  it('constrains lead scoring and sales temperature', () => {
+    expect(salesContextMigration).toContain('lead_score INTEGER NOT NULL DEFAULT 0');
+    expect(salesContextMigration).toContain('lead_temperature TEXT NOT NULL DEFAULT');
+    expect(salesContextMigration).toContain('lead_score BETWEEN 0 AND 100');
+    expect(salesContextMigration).toContain("lead_temperature IN ('COLD','WARM','HOT')");
+    expect(salesContextMigration).toContain('idx_crm_leads_sales_queue_scope');
+  });
+
+  it('derives and preserves first-occurrence sales lifecycle timestamps', () => {
+    expect(salesLifecycleMigration).toContain('crm_leads_sync_sales_lifecycle');
+    expect(salesLifecycleMigration).toContain('first_assigned_at := NOW()');
+    expect(salesLifecycleMigration).toContain('first_contacted_at := NOW()');
+    expect(salesLifecycleMigration).toContain('qualified_at := NOW()');
+    expect(salesLifecycleMigration).toContain('disqualified_at := NOW()');
+    expect(salesLifecycleMigration).toContain('crm_leads_preserve_first_lifecycle_facts');
+    expect(salesLifecycleMigration).toContain('OLD.first_response_at');
   });
 });
