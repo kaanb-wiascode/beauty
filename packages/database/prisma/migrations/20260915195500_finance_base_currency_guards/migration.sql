@@ -96,12 +96,16 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-DROP TRIGGER IF EXISTS "expense_payments_base_currency_guard" ON "expense_payments";
-CREATE TRIGGER "expense_payments_base_currency_guard"
-BEFORE INSERT
-ON "expense_payments"
-FOR EACH ROW
-EXECUTE FUNCTION enforce_expense_payment_base_currency();
+-- expense_payments is introduced by a later migration. Keep clean database installs valid
+-- while still installing the guard immediately on environments where the table already exists.
+DO $guard$
+BEGIN
+  IF to_regclass('public.expense_payments') IS NOT NULL THEN
+    EXECUTE 'DROP TRIGGER IF EXISTS "expense_payments_base_currency_guard" ON "expense_payments"';
+    EXECUTE 'CREATE TRIGGER "expense_payments_base_currency_guard" BEFORE INSERT ON "expense_payments" FOR EACH ROW EXECUTE FUNCTION enforce_expense_payment_base_currency()';
+  END IF;
+END;
+$guard$;
 
 -- Reversal tables are intentionally not blocked. Historical non-TRY postings/collections/payments
 -- must remain reversible so incorrect legacy ledger entries can be unwound safely.
