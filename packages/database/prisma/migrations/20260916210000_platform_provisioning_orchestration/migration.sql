@@ -1,6 +1,7 @@
 CREATE TABLE "platform_provisioning_runs" (
   "id" TEXT NOT NULL DEFAULT gen_random_uuid()::text,
   "idempotency_key" TEXT NOT NULL,
+  "request_fingerprint" TEXT NOT NULL,
   "status" TEXT NOT NULL DEFAULT 'PENDING',
   "source_type" TEXT NOT NULL DEFAULT 'MANUAL',
   "source_id" TEXT,
