@@ -19,6 +19,7 @@ import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
 import { CrmInboundOptOutService } from './crm-inbound-opt-out.service';
+import { CrmLeadDuplicateService } from './crm-lead-duplicate.service';
 import { CrmLeadService } from './crm-lead.service';
 import { CrmMessageController } from './crm-message.controller';
 import { CrmMessageProviderConnectionsController } from './crm-message-provider-connections.controller';
@@ -53,7 +54,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmMessageWebhookHistoryController, CrmUnresolvedInboundController,
   ],
   providers: [
-    CrmService, CrmLeadService, CrmAcquisitionService, CrmOpportunityService, CrmOperationsService,
+    CrmService, CrmLeadService, CrmLeadDuplicateService, CrmAcquisitionService, CrmOpportunityService, CrmOperationsService,
     CrmOpportunityCommercialService, CrmCustomer360Service, CrmReminderService,
     CrmCommunicationComplianceService, CrmConversationService, CrmConversationAnalyticsService,
     CrmConversationOperationsService, CrmAutomationRulesService, CrmAutomationService,
@@ -64,7 +65,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
     CrmMessageWebhookHistoryService, CrmUnresolvedInboundService,
   ],
   exports: [
-    CrmService, CrmLeadService, CrmAcquisitionService, CrmOpportunityService, CrmOperationsService,
+    CrmService, CrmLeadService, CrmLeadDuplicateService, CrmAcquisitionService, CrmOpportunityService, CrmOperationsService,
     CrmMessageService, CrmMessageProviderRegistryService,
   ],
 })
