@@ -6,10 +6,14 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { ZodError } from 'zod';
 
+import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { reportExportSchema } from './dto/report-export.dto';
 import { ReportCsvGenerator } from './report-csv.generator';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
-import { ReportExportJobsRepository } from './report-export-jobs.repository';
+import {
+  ReportExportJobsRepository,
+  type ReportExportJobRecord,
+} from './report-export-jobs.repository';
 import { ReportExportStorageService } from './report-export-storage.service';
 import { ReportExportWorkerContextService } from './report-export-worker-context.service';
 
@@ -59,14 +63,69 @@ export class ReportExportProcessorService {
         Date.now() + this.retentionDays() * 24 * 60 * 60 * 1000,
       );
 
-      return this.jobs.markReady(job.id, {
+      return await this.completeReadyTransition(user, job.id, storageKey, {
         rowCount: materialized.rows.length,
-        storageKey,
         expiresAt,
       });
     } catch (error) {
       const failure = this.safeFailure(error);
       return this.jobs.markFailed(job.id, failure);
+    }
+  }
+
+  private async completeReadyTransition(
+    user: JwtPayload,
+    jobId: string,
+    storageKey: string,
+    input: { rowCount: number; expiresAt: Date },
+  ) {
+    let transitionError: unknown = null;
+
+    try {
+      const ready = await this.jobs.markReady(jobId, {
+        rowCount: input.rowCount,
+        storageKey,
+        expiresAt: input.expiresAt,
+      });
+      if (ready) return ready;
+      transitionError = new Error('Export READY transition was not applied');
+    } catch (error) {
+      transitionError = error;
+    }
+
+    const persisted = await this.readPersistedJob(user, jobId);
+    if (persisted?.status === 'READY') {
+      if (persisted.storageKey !== storageKey) {
+        await this.deleteOrphanArtifact(storageKey);
+      }
+      return persisted;
+    }
+
+    if (persisted !== undefined) {
+      await this.deleteOrphanArtifact(storageKey);
+    }
+
+    throw transitionError;
+  }
+
+  private async readPersistedJob(
+    user: JwtPayload,
+    jobId: string,
+  ): Promise<ReportExportJobRecord | null | undefined> {
+    try {
+      return await this.jobs.findById(user, jobId);
+    } catch {
+      // The READY write may have committed even when its acknowledgement failed.
+      // Preserve the artifact when persisted state cannot be verified.
+      return undefined;
+    }
+  }
+
+  private async deleteOrphanArtifact(storageKey: string) {
+    try {
+      await this.storage.delete(storageKey);
+    } catch {
+      // Cleanup is best-effort and must not replace the primary transition error.
     }
   }
 
