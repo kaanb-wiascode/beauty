@@ -15,6 +15,7 @@ export const reportComparisonSchema = z
       reportKeys.financePerformance,
       reportKeys.inventoryPerformance,
       reportKeys.procurementPerformance,
+      reportKeys.crmPerformance,
     ]),
     filters: reportDateRangeSchema,
   })
