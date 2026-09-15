@@ -10,7 +10,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 - Server-owned export capabilities on each `ReportDefinition`.
 - Explicit `exportableColumns` separate from preview-visible columns.
-- Explicit export format allow-list (`PDF`, `XLSX`, `CSV`).
+- Export capability advertisement is implementation-aware: definitions currently expose only `CSV`; `PDF` and `XLSX` remain transport-contract values for future generators but cannot be queued until implemented.
 - Strict export request DTO with no arbitrary SQL, Prisma, storage, tenant, company or branch controls.
 - Export preparation reuses the same report/domain permission checks as preview.
 - Internal scope columns such as `branchId` cannot be re-enabled through export parameters.
@@ -49,6 +49,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Reusable `ReportExportPanel` shows queued/processing/ready/failed/expired states and polls only while work is pending.
 - `/reports/exports` provides a permission-aware Export Center for Staff, Service and Payment reports with shared date filters, CSV queue creation, history and download actions.
 - Reports navigation exposes the Export Center only to users with `reports.read`; source-domain report choices are additionally filtered by the user's current domain permissions.
+- Shared report date validation now rejects missing, malformed and inverted date ranges before ISO conversion, preventing cleared date inputs from throwing `Invalid Date` errors in preview/export flows.
 
 ## Intentional implementation note
 
@@ -59,6 +60,8 @@ The generated Prisma schema model is intentionally not being force-written while
 The current filesystem storage provider is suitable as a development/default provider. A production object-storage provider should replace it before multi-instance production export delivery, while retaining the same server-generated-key and authorization rules.
 
 No XLSX/workbook library is currently declared in the API workspace, and CI installs with `pnpm install --frozen-lockfile`. Do not add an XLSX dependency through `package.json` alone; the workspace lockfile must be regenerated and committed atomically with that dependency before XLSX implementation is enabled.
+
+The web workspace currently has no frontend test runner configured. Adding React/UI tests requires a deliberate dependency + lockfile change; until then, web changes continue to be covered by lint/typecheck/build in the monorepo quality workflow and by pure shared validation helpers where possible.
 
 ## Current CI note
 
@@ -72,7 +75,7 @@ Recent monorepo quality runs validate the Prisma schema but stop during migratio
 4. Add export audit events once the shared AuditLog persistence/service is implemented.
 5. Replace/default-switch filesystem storage with object storage before multi-instance production deployment.
 6. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
-7. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions.
+7. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions when a web test runner is introduced.
 
 ## Security invariants
 
