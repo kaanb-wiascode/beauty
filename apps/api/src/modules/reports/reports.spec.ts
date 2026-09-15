@@ -9,6 +9,7 @@ import { REQUIRED_PERMISSION_KEY } from '../../common/auth/permissions.decorator
 import { PaymentsService } from '../payments/payments.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
+import { ReportExportJobsRepository } from './report-export-jobs.repository';
 import { reportDefinitions, reportKeys } from './report-definition';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
@@ -18,6 +19,13 @@ describe('reporting foundation', () => {
     roleId: 'role-1',
     tenantId: 'tenant-1',
     companyId: 'company-1',
+  };
+  const fullUser = {
+    ...user,
+    sub: 'user-1',
+    membershipId: 'membership-1',
+    branchId: 'branch-1',
+    roleScope: 'BRANCH' as const,
   };
 
   function createService(
@@ -40,17 +48,24 @@ describe('reporting foundation', () => {
     const paymentsService = {
       summary: jest.fn(),
     } as unknown as PaymentsService;
+    const exportJobs = {
+      create: jest.fn(),
+      list: jest.fn(),
+      findById: jest.fn(),
+    } as unknown as ReportExportJobsRepository;
 
     return {
       prisma,
       staffService,
       servicesService,
       paymentsService,
+      exportJobs,
       service: new ReportsService(
         prisma,
         staffService,
         servicesService,
         paymentsService,
+        exportJobs,
       ),
     };
   }
@@ -117,6 +132,33 @@ describe('reporting foundation', () => {
       expect.objectContaining({
         reportKey: reportKeys.staffPerformance,
         format: 'XLSX',
+        columns: ['name', 'collected'],
+      }),
+    );
+  });
+
+  it('queues a validated export with the authenticated scope snapshot', async () => {
+    const { service, exportJobs } = createService([
+      { resource: 'reports', action: 'read' },
+      { resource: 'staff', action: 'read' },
+    ]);
+    jest.spyOn(exportJobs, 'create').mockResolvedValue({ id: 'export-1' } as never);
+
+    await service.createExportJob(fullUser, {
+      reportKey: reportKeys.staffPerformance,
+      format: 'CSV',
+      filters: {
+        from: new Date('2026-09-01T00:00:00.000Z'),
+        to: new Date('2026-09-30T23:59:59.999Z'),
+      },
+      columns: ['name', 'collected'],
+      includeSummary: true,
+      includeCharts: false,
+    });
+
+    expect(exportJobs.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        user: fullUser,
         columns: ['name', 'collected'],
       }),
     );
@@ -285,10 +327,13 @@ describe('reporting foundation', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('requires reports.read for catalog and preview endpoints', () => {
+  it('requires reports.read for reporting endpoints', () => {
     for (const handler of [
       ReportsController.prototype.getCatalog,
       ReportsController.prototype.preview,
+      ReportsController.prototype.createExport,
+      ReportsController.prototype.listExports,
+      ReportsController.prototype.getExport,
     ]) {
       expect(
         Reflect.getMetadata(REQUIRED_PERMISSION_KEY, handler),
