@@ -6,6 +6,7 @@ import {
 
 import { PrismaService } from '@beauty-erp/database';
 
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreateStaffInput } from './dto/create-staff.dto';
 import { ListStaffInput } from './dto/list-staff.dto';
@@ -17,6 +18,7 @@ export class StaffService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
   ) {}
 
   private requireBranchId(): string {
@@ -39,24 +41,39 @@ export class StaffService {
       return branchId;
     }
 
+    const roleScope = this.tenantContext.getRoleScope();
     const companyId = this.tenantContext.getCompanyId();
-    const branches = await this.prisma.branch.findMany({
-      where: {
-        companyId,
-        status: 'ACTIVE',
-      },
-      select: { id: true },
-      orderBy: { createdAt: 'asc' },
-      take: 2,
-    });
 
-    if (branches.length === 1) {
-      return branches[0].id;
+    if (roleScope === 'BRANCH') {
+      throw new BadRequestException(
+        'Personel eklemek için bir şube seçin.',
+      );
     }
 
-    if (branches.length === 0) {
+    const branchIds =
+      roleScope === 'COMPANY'
+        ? await this.organizationScope.getAssignedActiveBranchIds()
+        : (
+            await this.prisma.branch.findMany({
+              where: {
+                companyId,
+                status: 'ACTIVE',
+              },
+              select: { id: true },
+              orderBy: { createdAt: 'asc' },
+              take: 2,
+            })
+          ).map((branch) => branch.id);
+
+    if (branchIds.length === 1) {
+      return branchIds[0];
+    }
+
+    if (branchIds.length === 0) {
       throw new BadRequestException(
-        'Bu şirkette aktif şube bulunamadı. Önce bir şube oluşturun.',
+        roleScope === 'COMPANY'
+          ? 'Bu kullanıcıya atanmış aktif şube bulunamadı.'
+          : 'Bu şirkette aktif şube bulunamadı. Önce bir şube oluşturun.',
       );
     }
 
@@ -65,35 +82,19 @@ export class StaffService {
     );
   }
 
-  private getStaffScope() {
-    const tenantId = this.tenantContext.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
   private async validateBranchAccess(branchId: string): Promise<void> {
-    const companyId = this.tenantContext.getCompanyId();
+    const scope = await this.organizationScope.getBranchScopedWhere();
 
     const branch = await this.prisma.branch.findFirst({
       where: {
         id: branchId,
-        companyId,
+        companyId: this.tenantContext.getCompanyId(),
         status: 'ACTIVE',
+        ...(scope.branchId
+          ? typeof scope.branchId === 'string'
+            ? { id: scope.branchId }
+            : { id: { in: scope.branchId.in } }
+          : {}),
       },
       select: { id: true },
     });
@@ -123,7 +124,7 @@ export class StaffService {
   async findAll(input: ListStaffInput) {
     const { page, limit, search, status } = input;
     const skip = (page - 1) * limit;
-    const scope = this.getStaffScope();
+    const scope = await this.organizationScope.getBranchScopedWhere();
 
     const where = {
       ...scope,
@@ -162,7 +163,7 @@ export class StaffService {
   }
 
   async performance(input: StaffPerformanceInput) {
-    const scope = this.getStaffScope();
+    const scope = await this.organizationScope.getBranchScopedWhere();
 
     const [staff, appointments] = await Promise.all([
       this.prisma.staff.findMany({
@@ -215,7 +216,7 @@ export class StaffService {
   }
 
   async findOne(id: string) {
-    const scope = this.getStaffScope();
+    const scope = await this.organizationScope.getBranchScopedWhere();
     const staff = await this.prisma.staff.findFirst({
       where: { id, ...scope },
     });
@@ -225,7 +226,7 @@ export class StaffService {
   }
 
   async update(id: string, input: UpdateStaffInput) {
-    const scope = this.getStaffScope();
+    const scope = await this.organizationScope.getBranchScopedWhere();
     const staff = await this.prisma.staff.findFirst({
       where: { id, ...scope },
       select: { id: true },
@@ -246,7 +247,7 @@ export class StaffService {
   }
 
   async archive(id: string) {
-    const scope = this.getStaffScope();
+    const scope = await this.organizationScope.getBranchScopedWhere();
     const staff = await this.prisma.staff.findFirst({
       where: { id, ...scope },
       select: { id: true },
