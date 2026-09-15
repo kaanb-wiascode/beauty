@@ -53,8 +53,7 @@ export class TrainingLearningPathService {
        ORDER BY version DESC`,
       c.tenantId,c.companyId,programId,
     );
-    const versionIds = versions.map((version) => version.id);
-    if (!versionIds.length) return { ...programs[0], versions: [] };
+    if (!versions.length) return { ...programs[0], versions: [] };
 
     const items = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT i.id,i.program_version_id AS "programVersionId",i.sequence,i.course_id AS "courseId",
@@ -63,13 +62,14 @@ export class TrainingLearningPathService {
               COALESCE(jsonb_agg(pre.prerequisite_item_id ORDER BY pre.prerequisite_item_id)
                 FILTER (WHERE pre.prerequisite_item_id IS NOT NULL),'[]'::jsonb) AS "prerequisiteItemIds"
        FROM training_program_items i
+       JOIN training_program_versions pv ON pv.id=i.program_version_id
        JOIN training_courses course ON course.id=i.course_id
        LEFT JOIN training_program_item_prerequisites pre
          ON pre.tenant_id=i.tenant_id AND pre.company_id=i.company_id AND pre.program_item_id=i.id
-       WHERE i.tenant_id=$1::text AND i.company_id=$2::text AND i.program_version_id = ANY($3::text[])
+       WHERE i.tenant_id=$1::text AND i.company_id=$2::text AND pv.program_id=$3::text
        GROUP BY i.id,course.code,course.title,course.category
        ORDER BY i.program_version_id,i.sequence,i.id`,
-      c.tenantId,c.companyId,versionIds,
+      c.tenantId,c.companyId,programId,
     );
     const grouped = new Map<string, any[]>();
     for (const item of items) grouped.set(item.programVersionId,[...(grouped.get(item.programVersionId)??[]),item]);
@@ -83,8 +83,9 @@ export class TrainingLearningPathService {
 
     const items = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,sequence FROM training_program_items
-       WHERE tenant_id=$1::text AND company_id=$2::text AND program_version_id=$3::text AND id = ANY($4::text[])`,
-      c.tenantId,c.companyId,versionId,[itemId,prerequisiteItemId],
+       WHERE tenant_id=$1::text AND company_id=$2::text AND program_version_id=$3::text
+         AND (id=$4::text OR id=$5::text)`,
+      c.tenantId,c.companyId,versionId,itemId,prerequisiteItemId,
     );
     if (items.length !== 2) throw new NotFoundException('Learning path items not found on this version.');
     const version = await this.prisma.$queryRawUnsafe<any[]>(
