@@ -32,8 +32,6 @@ CREATE INDEX "employee_master_records_branch_id_idx" ON "employee_master_records
 CREATE INDEX "employee_master_records_tenant_branch_idx" ON "employee_master_records"("tenant_id", "branch_id");
 CREATE INDEX "employee_master_records_employment_type_idx" ON "employee_master_records"("tenant_id", "employment_type");
 CREATE INDEX "employee_master_records_hire_date_idx" ON "employee_master_records"("tenant_id", "hire_date");
-CREATE UNIQUE INDEX "employee_master_records_employee_number_key" ON "employee_master_records"("tenant_id", "employee_number") WHERE "employee_number" IS NOT NULL;
-CREATE UNIQUE INDEX "employee_master_records_identity_number_key" ON "employee_master_records"("tenant_id", "national_identity_number") WHERE "national_identity_number" IS NOT NULL;
 
 INSERT INTO "employee_master_records" (
     "staff_id",
@@ -84,3 +82,33 @@ SELECT
 FROM "staff" s
 WHERE s."profile" IS NOT NULL
 ON CONFLICT ("staff_id") DO NOTHING;
+
+-- Legacy JSON had no database uniqueness guarantees. If duplicate identifiers already exist,
+-- preserve the employee records but leave the conflicting normalized identifier empty so the
+-- migration remains deployable. New writes are protected by the unique indexes below.
+UPDATE "employee_master_records" emr
+SET "employee_number" = NULL,
+    "updated_at" = CURRENT_TIMESTAMP
+WHERE emr."employee_number" IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM "employee_master_records" duplicate
+    WHERE duplicate."tenant_id" = emr."tenant_id"
+      AND duplicate."employee_number" = emr."employee_number"
+      AND duplicate."staff_id" <> emr."staff_id"
+  );
+
+UPDATE "employee_master_records" emr
+SET "national_identity_number" = NULL,
+    "updated_at" = CURRENT_TIMESTAMP
+WHERE emr."national_identity_number" IS NOT NULL
+  AND EXISTS (
+    SELECT 1
+    FROM "employee_master_records" duplicate
+    WHERE duplicate."tenant_id" = emr."tenant_id"
+      AND duplicate."national_identity_number" = emr."national_identity_number"
+      AND duplicate."staff_id" <> emr."staff_id"
+  );
+
+CREATE UNIQUE INDEX "employee_master_records_employee_number_key" ON "employee_master_records"("tenant_id", "employee_number") WHERE "employee_number" IS NOT NULL;
+CREATE UNIQUE INDEX "employee_master_records_identity_number_key" ON "employee_master_records"("tenant_id", "national_identity_number") WHERE "national_identity_number" IS NOT NULL;
