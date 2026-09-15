@@ -29,7 +29,7 @@ export type ReportExportListResult = {
 
 export type CreateReportExportInput = {
   reportKey: "staff.performance" | "service.performance" | "payments.summary";
-  format?: Extract<ReportExportFormat, "CSV" | "XLSX">;
+  format?: ReportExportFormat;
   filters: { from: string; to: string };
   columns?: readonly string[];
   sort?: { key: string; direction: "asc" | "desc" };
