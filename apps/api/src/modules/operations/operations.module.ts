@@ -6,6 +6,8 @@ import { OperationsBranchChecklistsService } from './operations-branch-checklist
 import { OperationsCapacityService } from './operations-capacity.service';
 import { OperationsConsumablesController } from './operations-consumables.controller';
 import { OperationsConsumablesService } from './operations-consumables.service';
+import { OperationsIncidentsController } from './operations-incidents.controller';
+import { OperationsIncidentsService } from './operations-incidents.service';
 import { OperationsResourceBlocksController } from './operations-resource-blocks.controller';
 import { OperationsResourceBlocksService } from './operations-resource-blocks.service';
 import { OperationsResourcesController } from './operations-resources.controller';
@@ -30,6 +32,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsConsumablesController,
     OperationsServiceChecklistsController,
     OperationsBranchChecklistsController,
+    OperationsIncidentsController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -43,6 +46,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsConsumablesService,
     OperationsServiceChecklistsService,
     OperationsBranchChecklistsService,
+    OperationsIncidentsService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
