@@ -11,8 +11,8 @@ export class CrmLeadMergeService {
     const c=this.tenantContext.getContext();
     if(!c.branchId) throw new BadRequestException('Active branch is required for lead merge.');
     return this.prisma.$transaction(async tx=>{
-      const leads=await tx.$queryRawUnsafe<Array<{id:string;version:number;mergedIntoLeadId:string|null}>>(
-        `SELECT id,version,merged_into_lead_id AS "mergedIntoLeadId" FROM crm_leads
+      const leads=await tx.$queryRawUnsafe<Array<{id:string;version:number;mergedIntoLeadId:string|null;source:string;sourceDetail:string|null;campaignId:string|null;campaignName:string|null;adSetId:string|null;adSetName:string|null;adId:string|null;adName:string|null;landingPage:string|null;referrer:string|null;utmSource:string|null;utmMedium:string|null;utmCampaign:string|null;utmContent:string|null;utmTerm:string|null;clickIdentifiers:unknown;acquisitionChannelId:string|null;acquisitionSourceId:string|null;acquisitionCampaignRefId:string|null;acquisitionAdSetRefId:string|null;acquisitionAdRefId:string|null}>>(
+        `SELECT id,version,merged_into_lead_id AS "mergedIntoLeadId",source,source_detail AS "sourceDetail",campaign_id AS "campaignId",campaign_name AS "campaignName",ad_set_id AS "adSetId",ad_set_name AS "adSetName",ad_id AS "adId",ad_name AS "adName",landing_page AS "landingPage",referrer,utm_source AS "utmSource",utm_medium AS "utmMedium",utm_campaign AS "utmCampaign",utm_content AS "utmContent",utm_term AS "utmTerm",click_identifiers AS "clickIdentifiers",acquisition_channel_id AS "acquisitionChannelId",acquisition_source_id AS "acquisitionSourceId",acquisition_campaign_ref_id AS "acquisitionCampaignRefId",acquisition_ad_set_ref_id AS "acquisitionAdSetRefId",acquisition_ad_ref_id AS "acquisitionAdRefId" FROM crm_leads
          WHERE id IN ($1::text,$2::text) AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text
          ORDER BY id FOR UPDATE`,sourceLeadId,targetLeadId,c.tenantId,c.companyId,c.branchId);
       const source=leads.find(l=>l.id===sourceLeadId),target=leads.find(l=>l.id===targetLeadId);
@@ -45,7 +45,8 @@ export class CrmLeadMergeService {
          RETURNING id,version`,targetLeadId,c.tenantId,c.companyId,c.branchId,targetVersion);
       if(!targetRows[0]) throw new ConflictException('Target lead changed before merge could complete.');
 
-      const metadata=JSON.stringify({sourceLeadId,targetLeadId,reason:reason.trim().slice(0,1000),movedOpportunityId:sourceOpportunity?.id??null,sourceVersionBefore:sourceVersion,targetVersionBefore:targetVersion});
+      const attributionSnapshot=(lead:typeof source)=>({source:lead.source,sourceDetail:lead.sourceDetail,campaignId:lead.campaignId,campaignName:lead.campaignName,adSetId:lead.adSetId,adSetName:lead.adSetName,adId:lead.adId,adName:lead.adName,landingPage:lead.landingPage,referrer:lead.referrer,utmSource:lead.utmSource,utmMedium:lead.utmMedium,utmCampaign:lead.utmCampaign,utmContent:lead.utmContent,utmTerm:lead.utmTerm,clickIdentifiers:lead.clickIdentifiers,acquisitionChannelId:lead.acquisitionChannelId,acquisitionSourceId:lead.acquisitionSourceId,acquisitionCampaignRefId:lead.acquisitionCampaignRefId,acquisitionAdSetRefId:lead.acquisitionAdSetRefId,acquisitionAdRefId:lead.acquisitionAdRefId});
+      const metadata=JSON.stringify({sourceLeadId,targetLeadId,reason:reason.trim().slice(0,1000),movedOpportunityId:sourceOpportunity?.id??null,sourceVersionBefore:sourceVersion,targetVersionBefore:targetVersion,sourceAttribution:attributionSnapshot(source),targetAttribution:attributionSnapshot(target)});
       await tx.$executeRawUnsafe(
         `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
          VALUES($1::text,$2::text,$3::text,$4::text,'LEAD_MERGED_SOURCE',$6::text,$7::jsonb),
