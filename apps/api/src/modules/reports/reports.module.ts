@@ -20,6 +20,8 @@ import { ReportExportWorkerRunnerService } from './report-export-worker-runner.s
 import { ReportPdfGenerator } from './report-pdf.generator';
 import { ReportSavedViewsRepository } from './report-saved-views.repository';
 import { ReportSavedViewsService } from './report-saved-views.service';
+import { ReportSchedulesRepository } from './report-schedules.repository';
+import { ReportSchedulesService } from './report-schedules.service';
 import { ReportXlsxGenerator } from './report-xlsx.generator';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
@@ -32,6 +34,8 @@ import { ReportsService } from './reports.service';
     ReportExportJobsRepository,
     ReportSavedViewsRepository,
     ReportSavedViewsService,
+    ReportSchedulesRepository,
+    ReportSchedulesService,
     ReportExportExpiryRepository,
     ReportExportStaleRepository,
     ReportExportAuthorizationService,
