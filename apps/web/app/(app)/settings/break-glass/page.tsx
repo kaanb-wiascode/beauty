@@ -131,7 +131,7 @@ export default function BreakGlassPage() {
           return <article key={row.id} className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div><div className="text-sm font-semibold text-[var(--ink)]">{row.permissionResource}.{row.permissionAction}</div><div className="mt-1 text-xs text-[var(--muted)]">{new Date(row.startsAt).toLocaleString("tr-TR")} → {new Date(row.endsAt).toLocaleString("tr-TR")} · {row.branchName ?? "Şirket geneli"}</div><div className="mt-2 text-xs text-[var(--muted)]">{row.reason}</div></div>
-              <div className="flex items-center gap-2"><span className="rounded-full border border-[var(--line)] px-2 py-1 text-xs">{row.revokedAt ? "REVOKED" : active ? "ACTIVE" : "EXPIRED"}</span>{active && <Button size="sm" variant="secondary" disabled={busy} onClick={() => revoke(row.id)}>Erken Kapat</Button>}</div>
+              <div className="flex items-center gap-2"><span className="rounded-full border border-[var(--line)] px-2 py-1 text-xs">{row.revokedAt ? "REVOKED" : active ? "ACTIVE" : "EXPIRED"}</span>{active && <Button className="min-h-8 px-2.5 py-1 text-xs" variant="secondary" disabled={busy} onClick={() => revoke(row.id)}>Erken Kapat</Button>}</div>
             </div>
           </article>;
         })}
