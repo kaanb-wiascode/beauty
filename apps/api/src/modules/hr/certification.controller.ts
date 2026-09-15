@@ -40,5 +40,6 @@ export class CertificationController {
  expiring(@Query('days')days?:string){return this.certifications.expiring(days?Number(days):30)}
 
  @Get('employees/:id/service-eligibility/:serviceId')
+ @RequirePermissions({resource:'hr_sensitive',action:'read'})
  serviceEligibility(@Param('id')id:string,@Param('serviceId')serviceId:string){return this.certifications.serviceEligibility(id,serviceId)}
 }
