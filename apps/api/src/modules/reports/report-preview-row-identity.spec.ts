@@ -36,7 +36,21 @@ function createService() {
   const payments = {} as any;
   const exports = {} as any;
 
-  return new ReportsService(prisma, staff, services, payments, exports);
+  return new ReportsService(
+    prisma,
+    staff,
+    services,
+    payments,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    {} as never,
+    exports,
+  );
 }
 
 describe('ReportsService drilldown row identity', () => {
