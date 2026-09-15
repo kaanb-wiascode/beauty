@@ -16,6 +16,7 @@ const ITEMS = [
   { href: "/training/assessments", label: "Değerlendirmeler", permission: "manage" },
   { href: "/training/staff", label: "Personel Gelişimi", permission: "read" },
   { href: "/training/skill-matrix", label: "Skill Matrix", permission: "read" },
+  { href: "/training/certifications", label: "Sertifikasyon", permission: "read" },
   { href: "/training/question-bank", label: "Soru Bankası", permission: "manage" },
   { href: "/training/analytics", label: "Analitik", permission: "read" },
 ] as const;
