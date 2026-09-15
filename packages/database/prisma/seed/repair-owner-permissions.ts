@@ -39,6 +39,7 @@ const OWNER_PERMISSIONS = [
   ['accounting', 'manage'],
   ['hr', 'read'],
   ['hr', 'manage'],
+  ['hr_sensitive', 'read'],
   ['financial_integrations', 'read'],
   ['financial_integrations', 'manage'],
 ] as const;
