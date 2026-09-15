@@ -17,6 +17,7 @@ model ReportExportJob {
   includeCharts  Boolean  @default(false) @map("include_charts")
   rowCount       Int?     @map("row_count")
   storageKey     String?  @map("storage_key")
+  scheduleRunId  String?  @map("schedule_run_id")
   errorCode      String?  @map("error_code")
   errorSummary   String?  @map("error_summary")
   requestedAt    DateTime @default(now()) @map("requested_at")
@@ -30,5 +31,6 @@ model ReportExportJob {
   @@index([tenantId, status], map: "report_export_jobs_tenant_status_idx")
   @@index([tenantId, requestedBy, requestedAt], map: "report_export_jobs_tenant_requester_idx")
   @@index([tenantId, membershipId, requestedAt], map: "report_export_jobs_tenant_membership_idx")
+  @@unique([scheduleRunId], map: "report_export_jobs_schedule_run_key")
   @@map("report_export_jobs")
 }
