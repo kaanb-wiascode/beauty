@@ -76,36 +76,34 @@ BEGIN
      OR (
        TG_OP = 'UPDATE'
        AND OLD.status = 'ACTIVE'
-       AND OLD.tenant_id = NEW.tenant_id
-       AND OLD.user_id = NEW.user_id
+       AND OLD."tenantId" = NEW."tenantId"
+       AND OLD."userId" = NEW."userId"
      ) THEN
     RETURN NEW;
   END IF;
 
-  PERFORM pg_advisory_xact_lock(hashtext('tenant-quota'), hashtext(NEW.tenant_id));
+  PERFORM pg_advisory_xact_lock(hashtext('tenant-quota'), hashtext(NEW."tenantId"));
 
-  v_limit := platform_effective_configured_integer_quota(NEW.tenant_id, 'users.limit');
+  v_limit := platform_effective_configured_integer_quota(NEW."tenantId", 'users.limit');
   IF v_limit IS NULL OR v_limit < 0 THEN
     RETURN NEW;
   END IF;
 
-  -- A user who is already active elsewhere in the same tenant does not consume
-  -- another seat. The exclusion also makes this safe for UPDATE transitions.
   IF EXISTS (
     SELECT 1
     FROM memberships m
-    WHERE m.tenant_id = NEW.tenant_id
-      AND m.user_id = NEW.user_id
+    WHERE m."tenantId" = NEW."tenantId"
+      AND m."userId" = NEW."userId"
       AND m.status = 'ACTIVE'
       AND m.id <> NEW.id
   ) THEN
     RETURN NEW;
   END IF;
 
-  SELECT COUNT(DISTINCT m.user_id)::INTEGER
+  SELECT COUNT(DISTINCT m."userId")::INTEGER
   INTO v_current
   FROM memberships m
-  WHERE m.tenant_id = NEW.tenant_id
+  WHERE m."tenantId" = NEW."tenantId"
     AND m.status = 'ACTIVE'
     AND m.id <> NEW.id;
 
@@ -126,7 +124,7 @@ $$;
 
 DROP TRIGGER IF EXISTS memberships_tenant_user_quota_guard ON memberships;
 CREATE TRIGGER memberships_tenant_user_quota_guard
-BEFORE INSERT OR UPDATE OF status, tenant_id, user_id
+BEFORE INSERT OR UPDATE OF status, "tenantId", "userId"
 ON memberships
 FOR EACH ROW
 EXECUTE FUNCTION enforce_tenant_user_quota();
@@ -141,14 +139,18 @@ DECLARE
   v_current INTEGER;
 BEGIN
   IF NEW.status <> 'ACTIVE'
-     OR (TG_OP = 'UPDATE' AND OLD.status = 'ACTIVE' AND OLD.company_id = NEW.company_id) THEN
+     OR (
+       TG_OP = 'UPDATE'
+       AND OLD.status = 'ACTIVE'
+       AND OLD."companyId" = NEW."companyId"
+     ) THEN
     RETURN NEW;
   END IF;
 
-  SELECT c.tenant_id
+  SELECT c."tenantId"
   INTO v_tenant_id
   FROM companies c
-  WHERE c.id = NEW.company_id;
+  WHERE c.id = NEW."companyId";
 
   IF v_tenant_id IS NULL THEN
     RETURN NEW;
@@ -164,8 +166,8 @@ BEGIN
   SELECT COUNT(*)::INTEGER
   INTO v_current
   FROM branches b
-  INNER JOIN companies c ON c.id = b.company_id
-  WHERE c.tenant_id = v_tenant_id
+  INNER JOIN companies c ON c.id = b."companyId"
+  WHERE c."tenantId" = v_tenant_id
     AND b.status = 'ACTIVE'
     AND b.id <> NEW.id;
 
@@ -186,7 +188,7 @@ $$;
 
 DROP TRIGGER IF EXISTS branches_tenant_quota_guard ON branches;
 CREATE TRIGGER branches_tenant_quota_guard
-BEFORE INSERT OR UPDATE OF status, company_id
+BEFORE INSERT OR UPDATE OF status, "companyId"
 ON branches
 FOR EACH ROW
 EXECUTE FUNCTION enforce_tenant_branch_quota();
