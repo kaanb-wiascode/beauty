@@ -50,6 +50,115 @@ export class MembershipsService {
     });
   }
 
+  async findEffectivePermissions(id: string) {
+    const tenantId = this.getTenantId();
+
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id,
+        tenantId,
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+        company: {
+          select: {
+            id: true,
+            name: true,
+            status: true,
+          },
+        },
+        branchAccesses: {
+          include: {
+            branch: {
+              select: {
+                id: true,
+                name: true,
+                code: true,
+                status: true,
+                company: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+          orderBy: {
+            createdAt: 'asc',
+          },
+        },
+        role: {
+          include: {
+            company: {
+              select: {
+                id: true,
+                name: true,
+              },
+            },
+            rolePermissions: {
+              include: {
+                permission: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    const permissions = membership.role.rolePermissions
+      .map(({ permission }) => ({
+        id: permission.id,
+        resource: permission.resource,
+        action: permission.action,
+        description: permission.description,
+        source: 'ROLE' as const,
+        sourceRole: {
+          id: membership.role.id,
+          name: membership.role.name,
+          slug: membership.role.slug,
+        },
+      }))
+      .sort((a, b) =>
+        `${a.resource}.${a.action}`.localeCompare(`${b.resource}.${b.action}`),
+      );
+
+    return {
+      membership: {
+        id: membership.id,
+        status: membership.status,
+        user: membership.user,
+      },
+      role: {
+        id: membership.role.id,
+        name: membership.role.name,
+        slug: membership.role.slug,
+        scope: membership.role.scope,
+        company: membership.role.company,
+      },
+      access: {
+        company: membership.company,
+        branches: membership.branchAccesses.map(({ branch }) => branch),
+      },
+      permissions,
+      summary: {
+        permissionCount: permissions.length,
+        branchCount: membership.branchAccesses.length,
+      },
+    };
+  }
+
   async updateStatus(
     id: string,
     input: UpdateMembershipStatusInput,
