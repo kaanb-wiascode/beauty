@@ -66,6 +66,9 @@ function createProcessor() {
   const xlsx = {
     generate: jest.fn().mockReturnValue(Buffer.from('xlsx-content')),
   } as any;
+  const pdf = {
+    generate: jest.fn().mockReturnValue(Buffer.from('%PDF-1.4\n')),
+  } as any;
   const storage = {
     write: jest.fn().mockResolvedValue(storageKey),
     delete: jest.fn().mockResolvedValue(undefined),
@@ -80,6 +83,7 @@ function createProcessor() {
     workerContext,
     csv,
     xlsx,
+    pdf,
     storage,
     processor: new ReportExportProcessorService(
       jobs,
@@ -87,6 +91,7 @@ function createProcessor() {
       workerContext,
       csv,
       xlsx,
+      pdf,
       storage,
       config,
     ),
@@ -115,7 +120,7 @@ describe('ReportExportProcessorService', () => {
   });
 
   it('generates and stores XLSX jobs', async () => {
-    const { processor, jobs, xlsx, csv, storage } = createProcessor();
+    const { processor, jobs, xlsx, csv, pdf, storage } = createProcessor();
     jobs.claimNextQueued.mockResolvedValueOnce({ ...job, format: 'XLSX' });
     storage.write.mockResolvedValueOnce(
       'tenants/tenant-1/report-exports/export-1/file.xlsx',
@@ -132,8 +137,34 @@ describe('ReportExportProcessorService', () => {
       }),
     );
     expect(csv.generate).not.toHaveBeenCalled();
+    expect(pdf.generate).not.toHaveBeenCalled();
     expect(storage.write).toHaveBeenCalledWith(
       expect.objectContaining({ extension: 'xlsx', content: expect.any(Buffer) }),
+    );
+  });
+
+  it('generates and stores PDF jobs', async () => {
+    const { processor, jobs, pdf, csv, xlsx, storage } = createProcessor();
+    jobs.claimNextQueued.mockResolvedValueOnce({ ...job, format: 'PDF' });
+    storage.write.mockResolvedValueOnce(
+      'tenants/tenant-1/report-exports/export-1/file.pdf',
+    );
+
+    await processor.processNext();
+
+    expect(pdf.generate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        title: 'Personel Performansı',
+        columns: ['name', 'collected'],
+        rows: [{ name: 'Ada Yılmaz', collected: 1250 }],
+        summary: { rowCount: 1 },
+        metadata: expect.objectContaining({ reportKey: 'staff.performance' }),
+      }),
+    );
+    expect(csv.generate).not.toHaveBeenCalled();
+    expect(xlsx.generate).not.toHaveBeenCalled();
+    expect(storage.write).toHaveBeenCalledWith(
+      expect.objectContaining({ extension: 'pdf', content: expect.any(Buffer) }),
     );
   });
 
@@ -210,19 +241,6 @@ describe('ReportExportProcessorService', () => {
     expect(jobs.markFailed).toHaveBeenCalledWith('export-1', {
       errorCode: 'AUTHORIZATION_REVOKED',
       errorSummary: 'Export authorization is no longer valid.',
-    });
-  });
-
-  it('does not attempt unimplemented PDF generation', async () => {
-    const { processor, jobs, workerContext } = createProcessor();
-    jobs.claimNextQueued.mockResolvedValueOnce({ ...job, format: 'PDF' });
-
-    await processor.processNext();
-
-    expect(workerContext.materialize).not.toHaveBeenCalled();
-    expect(jobs.markFailed).toHaveBeenCalledWith('export-1', {
-      errorCode: 'FORMAT_NOT_IMPLEMENTED',
-      errorSummary: 'PDF export generation is not available yet.',
     });
   });
 
