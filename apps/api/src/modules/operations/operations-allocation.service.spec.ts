@@ -67,6 +67,47 @@ describe('OperationsAllocationService conflict engine', () => {
     ).rejects.toBeInstanceOf(ConflictException);
   });
 
+  it('rejects a room reservation that overlaps an active outage block', async () => {
+    queryRawUnsafe
+      .mockResolvedValueOnce([
+        {
+          id: 'appointment-1',
+          serviceId: 'service-1',
+          startAt: new Date('2026-09-15T10:00:00.000Z'),
+          endAt: new Date('2026-09-15T11:00:00.000Z'),
+          status: 'CONFIRMED',
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { id: 'room-1', name: 'Oda 1', roomType: 'TREATMENT_ROOM', status: 'AVAILABLE' },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        {
+          id: 'block-1',
+          reason: 'Operational incident: HVAC failure',
+          blockedFrom: new Date('2026-09-15T09:30:00.000Z'),
+          blockedTo: new Date('2026-09-15T12:00:00.000Z'),
+        },
+      ]);
+
+    await expect(
+      service.allocate('appointment-1', {
+        roomId: '11111111-1111-4111-8111-111111111111',
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'RESOURCE_UNAVAILABLE_BLOCK',
+        resourceBlockId: 'block-1',
+      }),
+    });
+
+    expect(queryRawUnsafe).toHaveBeenCalledTimes(7);
+  });
+
   it('returns an existing reservation for the same appointment and resource', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([
