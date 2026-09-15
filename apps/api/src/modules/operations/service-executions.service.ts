@@ -30,6 +30,16 @@ type ExecutionRow = {
   version: number;
 };
 
+type AllocationContextRow = {
+  roomId: string | null;
+  roomType: string | null;
+  roomStatus: string | null;
+  assetId: string | null;
+  assetType: string | null;
+  assetStatus: string | null;
+  assetMaintenanceBlocked: boolean;
+};
+
 @Injectable()
 export class ServiceExecutionsService {
   constructor(
@@ -166,13 +176,25 @@ export class ServiceExecutionsService {
             tenantId,
             branchId,
           ),
-          tx.$queryRawUnsafe<
-            Array<{ roomId: string | null; assetId: string | null }>
-          >(
-            `SELECT room_id AS "roomId", inventory_asset_id AS "assetId"
-             FROM operations_resource_allocations
-             WHERE appointment_id = $1 AND tenant_id = $2
-               AND company_id = $3 AND branch_id = $4 AND status = 'RESERVED'`,
+          tx.$queryRawUnsafe<AllocationContextRow[]>(
+            `SELECT ra.room_id AS "roomId", r.room_type AS "roomType",
+                    r.status AS "roomStatus",
+                    ra.inventory_asset_id AS "assetId", a.asset_type AS "assetType",
+                    a.status AS "assetStatus",
+                    CASE WHEN a.id IS NULL THEN FALSE ELSE EXISTS (
+                      SELECT 1
+                      FROM inventory_asset_maintenance m
+                      WHERE m.asset_id = a.id
+                        AND m.status IN ('PLANNED', 'IN_PROGRESS')
+                        AND m.completed_at IS NULL
+                        AND (m.scheduled_at IS NULL OR m.scheduled_at <= CURRENT_TIMESTAMP)
+                    ) END AS "assetMaintenanceBlocked"
+             FROM operations_resource_allocations ra
+             LEFT JOIN operations_rooms r ON r.id = ra.room_id
+             LEFT JOIN inventory_assets a ON a.id = ra.inventory_asset_id
+             WHERE ra.appointment_id = $1 AND ra.tenant_id = $2
+               AND ra.company_id = $3 AND ra.branch_id = $4
+               AND ra.status = 'RESERVED'`,
             input.appointmentId,
             tenantId,
             companyId,
@@ -181,21 +203,51 @@ export class ServiceExecutionsService {
         ]);
 
         const requirement = requirements[0];
-        const roomId = allocations.find((item) => item.roomId)?.roomId ?? null;
-        const assetId = allocations.find((item) => item.assetId)?.assetId ?? null;
-        if (requirement?.roomType && !roomId) {
+        const roomAllocation = requirement?.roomType
+          ? allocations.find(
+              (item) =>
+                item.roomId &&
+                item.roomType === requirement.roomType &&
+                ['AVAILABLE', 'RESERVED'].includes(item.roomStatus ?? ''),
+            )
+          : allocations.find((item) => item.roomId);
+
+        if (requirement?.roomType && !roomAllocation) {
           throw new BadRequestException(
-            `Service requires a room allocation of type ${requirement.roomType}.`,
+            `Service requires an available room allocation of type ${requirement.roomType}.`,
           );
         }
+
+        const assetAllocation = requirement?.requiredAssetId
+          ? allocations.find(
+              (item) =>
+                item.assetId === requirement.requiredAssetId &&
+                item.assetStatus === 'ACTIVE' &&
+                !item.assetMaintenanceBlocked,
+            )
+          : requirement?.requiredAssetType
+            ? allocations.find(
+                (item) =>
+                  item.assetId &&
+                  item.assetType === requirement.requiredAssetType &&
+                  item.assetStatus === 'ACTIVE' &&
+                  !item.assetMaintenanceBlocked,
+              )
+            : allocations.find((item) => item.assetId);
+
         if (
           (requirement?.requiredAssetId || requirement?.requiredAssetType) &&
-          !assetId
+          !assetAllocation
         ) {
           throw new BadRequestException(
-            'Service requires an equipment allocation before execution can start.',
+            requirement.requiredAssetId
+              ? 'Service requires its configured equipment allocation to be active and maintenance-free.'
+              : `Service requires an active ${requirement.requiredAssetType} equipment allocation.`,
           );
         }
+
+        const roomId = roomAllocation?.roomId ?? null;
+        const assetId = assetAllocation?.assetId ?? null;
 
         const created = await tx.$queryRawUnsafe<ExecutionRow[]>(
           `INSERT INTO operations_service_executions (
