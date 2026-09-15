@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { VisitsModule } from '../visits/visits.module';
 import { OperationsAlertsController } from './operations-alerts.controller';
 import { OperationsAlertsService } from './operations-alerts.service';
 import { OperationsAllocationService } from './operations-allocation.service';
@@ -28,6 +29,7 @@ import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
 
 @Module({
+  imports: [VisitsModule],
   controllers: [
     OperationsResourcesController,
     OperationsResourceBlocksController,
