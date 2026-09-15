@@ -1,7 +1,4 @@
-import {
-  BadRequestException,
-  ForbiddenException,
-} from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
@@ -28,13 +25,15 @@ describe('PlatformPrivilegedOperationsService', () => {
     transaction.mockReset();
   });
 
-  it('creates a classified privileged operation request and audit event', async () => {
+  it('creates a classified privileged operation request and audit event atomically', async () => {
     const created = {
       id: 'approval-1',
       createdAt: new Date('2026-09-15T12:00:00.000Z'),
       expiresAt: new Date('2026-09-16T12:00:00.000Z'),
     };
-    queryRaw.mockResolvedValueOnce([created]).mockResolvedValueOnce([{ id: 'audit-1' }]);
+    const tx = { $queryRaw: jest.fn(), $executeRaw: executeRaw };
+    transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
+    tx.$queryRaw.mockResolvedValueOnce([created]).mockResolvedValueOnce([{ id: 'audit-1' }]);
 
     await expect(
       service.create({
@@ -49,7 +48,8 @@ describe('PlatformPrivilegedOperationsService', () => {
       }),
     ).resolves.toEqual({ ...created, riskLevel: 'CRITICAL' });
 
-    expect(queryRaw).toHaveBeenCalledTimes(2);
+    expect(transaction).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(2);
   });
 
   it('prevents a requester from deciding their own request', async () => {
@@ -97,7 +97,7 @@ describe('PlatformPrivilegedOperationsService', () => {
     ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
-  it('rejects expired requests and marks them expired in the transaction', async () => {
+  it('persists EXPIRED status instead of rolling it back with an exception', async () => {
     const tx = { $queryRaw: jest.fn(), $executeRaw: executeRaw };
     transaction.mockImplementation(async (callback: (client: typeof tx) => unknown) => callback(tx));
     tx.$queryRaw
@@ -113,7 +113,8 @@ describe('PlatformPrivilegedOperationsService', () => {
           targetTenantId: null,
           expiresAt: new Date(Date.now() - 60_000),
         },
-      ]);
+      ])
+      .mockResolvedValueOnce([{ id: 'audit-1' }]);
 
     await expect(
       service.decide({
@@ -123,8 +124,9 @@ describe('PlatformPrivilegedOperationsService', () => {
         reason: 'Approval arrived too late',
         context: operationContext,
       }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    ).resolves.toEqual({ id: 'approval-1', status: 'EXPIRED' });
     expect(executeRaw).toHaveBeenCalledTimes(1);
+    expect(tx.$queryRaw).toHaveBeenCalledTimes(3);
   });
 
   it('clamps approval queue pagination and hides totalCount from items', async () => {
