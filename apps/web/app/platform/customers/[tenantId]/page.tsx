@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
+import { TenantGovernancePanel } from "@/components/platform/tenant-governance-panel";
 import { ApiError } from "@/lib/api";
 import {
   getPlatformCustomer360,
@@ -99,6 +100,8 @@ export default function PlatformCustomer360Page() {
         />
       </section>
 
+      <TenantGovernancePanel tenantId={tenant.id} />
+
       <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
         <Panel title="Organizasyon yapısı" eyebrow="Companies & branches">
           <div className="divide-y divide-white/[.07]">
@@ -143,8 +146,10 @@ export default function PlatformCustomer360Page() {
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
           <Cell label="Tenant ID" value={tenant.id} />
           <Cell label="Slug" value={tenant.slug} />
+          <Cell label="Lifecycle" value={`${tenant.lifecycleState} · v${tenant.lifecycleVersion}`} />
           <Cell label="Oluşturulma" value={date.format(new Date(tenant.createdAt))} />
           <Cell label="Son güncelleme" value={date.format(new Date(tenant.updatedAt))} />
+          <Cell label="Lifecycle nedeni" value={tenant.lifecycleReason ?? "—"} />
         </div>
       </Panel>
     </div>
