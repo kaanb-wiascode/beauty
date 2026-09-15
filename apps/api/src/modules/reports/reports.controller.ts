@@ -3,6 +3,7 @@ import {
   Controller,
   Get,
   InternalServerErrorException,
+  Optional,
   Param,
   Post,
   Query,
@@ -35,7 +36,7 @@ export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly exportDownloads: ReportExportDownloadService,
-    private readonly exportPolicy?: ReportExportPolicyService,
+    @Optional() private readonly exportPolicy?: ReportExportPolicyService,
   ) {}
 
   @Get('catalog')
