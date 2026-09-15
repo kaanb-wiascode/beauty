@@ -1,21 +1,21 @@
 import { api, withQuery } from "./api";
 
 export type PlatformCommandCenter = {
-  summary: {
-    tenants: number;
-    companies: number;
-    activeCompanies: number;
-    branches: number;
-    activeBranches: number;
-    activeMemberships: number;
+  counts: {
+    tenantCount: number;
+    companyCount: number;
+    activeCompanyCount: number;
+    branchCount: number;
+    activeBranchCount: number;
+    activeMembershipCount: number;
   };
   recentTenants: Array<{
     id: string;
     name: string;
     slug: string;
     createdAt: string;
-    activeMemberships: number;
-    activeBranches: number;
+    activeMembershipCount: number;
+    activeBranchCount: number;
   }>;
 };
 
@@ -30,32 +30,20 @@ export type PlatformCustomerSummary = {
   branchCount: number;
   activeBranchCount: number;
   activeMembershipCount: number;
-  activeOwnerCount: number;
+  ownerCount: number;
 };
 
 export type PlatformCustomerList = {
   items: PlatformCustomerSummary[];
-  total: number;
-  limit: number;
-  offset: number;
+  pagination: {
+    total: number;
+    limit: number;
+    offset: number;
+  };
 };
 
 export type PlatformCustomer360 = {
-  tenant: {
-    id: string;
-    name: string;
-    slug: string;
-    createdAt: string;
-    updatedAt: string;
-  };
-  summary: {
-    companies: number;
-    activeCompanies: number;
-    branches: number;
-    activeBranches: number;
-    activeMemberships: number;
-    activeOwners: number;
-  };
+  tenant: PlatformCustomerSummary;
   companies: Array<{
     id: string;
     name: string;
@@ -66,7 +54,7 @@ export type PlatformCustomer360 = {
     branchCount: number;
     activeBranchCount: number;
   }>;
-  memberships: Array<{
+  membershipBreakdown: Array<{
     role: string;
     status: string;
     count: number;
