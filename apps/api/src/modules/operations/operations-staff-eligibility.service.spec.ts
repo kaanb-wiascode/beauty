@@ -1,29 +1,46 @@
 import { ConflictException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
 
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { SkillBasedSchedulingService } from '../hr/skill-based-scheduling.service';
 import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
 
 describe('OperationsStaffEligibilityService', () => {
   const queryRawUnsafe = jest.fn();
+  const appointmentFindFirst = jest.fn();
   const prisma = {
     $queryRawUnsafe: queryRawUnsafe,
-    appointment: { findFirst: jest.fn() },
-  } as never;
+    appointment: { findFirst: appointmentFindFirst },
+  };
   const tenantContext = {
     getTenantId: () => 'tenant-1',
     getCompanyId: () => 'company-1',
     getBranchId: () => 'branch-1',
-  } as never;
-  const hrScheduling = { eligibility: jest.fn() } as never;
+  };
+  const hrScheduling = { eligibility: jest.fn() };
+  let service: OperationsStaffEligibilityService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     queryRawUnsafe.mockReset();
-    (hrScheduling.eligibility as jest.Mock).mockReset();
-    (prisma as any).appointment.findFirst.mockReset();
+    appointmentFindFirst.mockReset();
+    hrScheduling.eligibility.mockReset();
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OperationsStaffEligibilityService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenantContext },
+        { provide: SkillBasedSchedulingService, useValue: hrScheduling },
+      ],
+    }).compile();
+
+    service = moduleRef.get(OperationsStaffEligibilityService);
   });
 
   it('defaults to WARN and surfaces HR blockers without blocking the action', async () => {
     queryRawUnsafe.mockResolvedValueOnce([]);
-    (hrScheduling.eligibility as jest.Mock).mockResolvedValue({
+    hrScheduling.eligibility.mockResolvedValue({
       checks: {
         branch: true,
         scheduledShift: false,
@@ -37,7 +54,6 @@ describe('OperationsStaffEligibilityService', () => {
       missingCompetencies: [{ competencyId: 'comp-1' }],
     });
 
-    const service = new OperationsStaffEligibilityService(prisma, tenantContext, hrScheduling);
     const result = await service.check({
       staffId: '11111111-1111-4111-8111-111111111111',
       serviceId: '22222222-2222-4222-8222-222222222222',
@@ -67,7 +83,7 @@ describe('OperationsStaffEligibilityService', () => {
         version: 1,
       },
     ]);
-    (hrScheduling.eligibility as jest.Mock).mockResolvedValue({
+    hrScheduling.eligibility.mockResolvedValue({
       checks: {
         branch: true,
         scheduledShift: true,
@@ -81,7 +97,6 @@ describe('OperationsStaffEligibilityService', () => {
       missingCompetencies: [],
     });
 
-    const service = new OperationsStaffEligibilityService(prisma, tenantContext, hrScheduling);
     const result = await service.check({
       staffId: '11111111-1111-4111-8111-111111111111',
       serviceId: '22222222-2222-4222-8222-222222222222',
@@ -106,14 +121,14 @@ describe('OperationsStaffEligibilityService', () => {
         version: 1,
       },
     ]);
-    (prisma as any).appointment.findFirst.mockResolvedValue({
+    appointmentFindFirst.mockResolvedValue({
       id: 'appointment-1',
       staffId: '11111111-1111-4111-8111-111111111111',
       serviceId: '22222222-2222-4222-8222-222222222222',
       startAt: new Date('2026-09-16T09:00:00Z'),
       endAt: new Date('2026-09-16T10:00:00Z'),
     });
-    (hrScheduling.eligibility as jest.Mock).mockResolvedValue({
+    hrScheduling.eligibility.mockResolvedValue({
       checks: {
         branch: true,
         scheduledShift: true,
@@ -127,7 +142,6 @@ describe('OperationsStaffEligibilityService', () => {
       missingCompetencies: [],
     });
 
-    const service = new OperationsStaffEligibilityService(prisma, tenantContext, hrScheduling);
     await expect(service.assertAppointmentExecutionEligible('appointment-1')).resolves.toEqual(
       expect.objectContaining({ allowed: true }),
     );
@@ -146,7 +160,7 @@ describe('OperationsStaffEligibilityService', () => {
           version: 1,
         },
       ]);
-    (hrScheduling.eligibility as jest.Mock).mockResolvedValue({
+    hrScheduling.eligibility.mockResolvedValue({
       checks: {
         branch: true,
         scheduledShift: false,
@@ -160,7 +174,6 @@ describe('OperationsStaffEligibilityService', () => {
       missingCompetencies: [],
     });
 
-    const service = new OperationsStaffEligibilityService(prisma, tenantContext, hrScheduling);
     await expect(
       service.assertWaitlistEntryEligible('entry-1', {
         staffId: '11111111-1111-4111-8111-111111111111',
