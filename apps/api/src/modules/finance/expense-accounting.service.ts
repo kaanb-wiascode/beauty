@@ -32,6 +32,7 @@ interface ExpenseAccountingRow {
   description: string | null;
   counterpartyName: string | null;
   approvalStatus: 'DRAFT' | 'SUBMITTED' | 'APPROVED' | 'REJECTED' | 'CANCELLED';
+  paymentStatus: 'UNPAID' | 'PARTIALLY_PAID' | 'PAID' | 'CANCELLED';
   accountingStatus: 'UNPOSTED' | 'READY_TO_POST' | 'POSTED' | 'REVERSED';
   version: number;
 }
@@ -256,6 +257,131 @@ export class ExpenseAccountingService {
     });
   }
 
+  async reverse(expenseId: string, actorId: string, reason: string) {
+    const cleanReason = reason.trim();
+    if (!cleanReason) throw new BadRequestException('Expense accounting reversal reason is required.');
+
+    return this.prisma.$transaction(async (tx) => {
+      const expense = await this.getExpenseForUpdate(tx, expenseId);
+      await this.acquireLock(tx, `expense-post:${expense.companyId}`, expense.id);
+
+      if (expense.accountingStatus === 'REVERSED') {
+        const existing = await tx.journalEntry.findFirst({
+          where: { companyId: expense.companyId, referenceType: 'EXPENSE_REVERSAL', referenceId: expense.id },
+          select: { id: true },
+        });
+        return {
+          id: expense.id,
+          accountingStatus: 'REVERSED',
+          journalEntryId: existing?.id ?? null,
+          idempotent: true,
+        };
+      }
+      if (expense.paymentStatus !== 'UNPAID') {
+        throw new BadRequestException('Expense payments must be fully reversed before accounting can be reversed.');
+      }
+      try {
+        assertExpenseAccountingTransition({
+          approvalStatus: expense.approvalStatus,
+          current: expense.accountingStatus,
+          next: 'REVERSED',
+          hasAccountingMapping: true,
+        });
+      } catch (error) {
+        throw new BadRequestException((error as Error).message);
+      }
+
+      const original = await tx.journalEntry.findFirst({
+        where: {
+          companyId: expense.companyId,
+          referenceType: 'EXPENSE',
+          referenceId: expense.id,
+        },
+        include: { lines: true },
+      });
+      if (!original || !original.lines.length) {
+        throw new BadRequestException('Posted expense journal entry could not be found for reversal.');
+      }
+
+      const existingReversal = await tx.journalEntry.findFirst({
+        where: {
+          companyId: expense.companyId,
+          referenceType: 'EXPENSE_REVERSAL',
+          referenceId: expense.id,
+        },
+        select: { id: true },
+      });
+      if (existingReversal) {
+        await tx.journalEntry.update({ where: { id: original.id }, data: { status: 'REVERSED' } });
+        await tx.$executeRawUnsafe(
+          `UPDATE expenses SET accounting_status='REVERSED',version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=$1::text`,
+          expense.id,
+        );
+        return {
+          id: expense.id,
+          accountingStatus: 'REVERSED',
+          journalEntryId: existingReversal.id,
+          idempotent: true,
+        };
+      }
+
+      const lines = original.lines.map((line) => ({
+        accountId: line.accountId,
+        debit: Number(line.credit),
+        credit: Number(line.debit),
+        memo: line.memo ? `Ters kayıt: ${line.memo}` : 'Gider muhasebe ters kaydı',
+      }));
+      try {
+        validateJournalLines(lines);
+      } catch (error) {
+        throw new BadRequestException(error instanceof Error ? error.message : 'Expense reversal journal is not balanced.');
+      }
+
+      const reversedAt = new Date();
+      const reversal = await tx.journalEntry.create({
+        data: {
+          tenantId: expense.tenantId,
+          companyId: expense.companyId,
+          branchId: expense.branchId,
+          number: `JE-${reversedAt.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`,
+          status: 'POSTED',
+          entryDate: reversedAt,
+          description: `Gider muhasebe ters kaydı ${expense.id}: ${cleanReason}`,
+          referenceType: 'EXPENSE_REVERSAL',
+          referenceId: expense.id,
+          postedAt: reversedAt,
+          lines: { create: lines },
+        },
+        select: { id: true },
+      });
+
+      await tx.journalEntry.update({
+        where: { id: original.id },
+        data: { status: 'REVERSED' },
+      });
+      await tx.$executeRawUnsafe(
+        `UPDATE expenses SET accounting_status='REVERSED',version=version+1,updated_at=CURRENT_TIMESTAMP WHERE id=$1::text`,
+        expense.id,
+      );
+      await this.audit(
+        tx,
+        expense,
+        actorId,
+        'EXPENSE_ACCOUNTING_REVERSED',
+        expense.accountingStatus,
+        'REVERSED',
+        cleanReason,
+      );
+      return {
+        id: expense.id,
+        accountingStatus: 'REVERSED',
+        journalEntryId: reversal.id,
+        originalJournalEntryId: original.id,
+        version: expense.version + 1,
+      };
+    });
+  }
+
   private async getExpenseForUpdate(tx: Prisma.TransactionClient, id: string): Promise<ExpenseAccountingRow> {
     const { tenantId, companyId, branchId } = this.context();
     await this.acquireLock(tx, `expense:${companyId}`, id);
@@ -264,7 +390,7 @@ export class ExpenseAccountingService {
               transaction_date AS "transactionDate",gross_amount AS "grossAmount",net_amount AS "netAmount",
               tax_amount AS "taxAmount",withholding_amount AS "withholdingAmount",currency,exchange_rate AS "exchangeRate",
               description,counterparty_name AS "counterpartyName",approval_status AS "approvalStatus",
-              accounting_status AS "accountingStatus",version
+              payment_status AS "paymentStatus",accounting_status AS "accountingStatus",version
        FROM expenses
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          AND ($4::text IS NULL OR branch_id=$4::text)
@@ -322,11 +448,12 @@ export class ExpenseAccountingService {
     eventType: string,
     beforeStatus: string,
     afterStatus: string,
+    reason?: string,
   ) {
     await tx.$executeRawUnsafe(
       `INSERT INTO expense_audit_events(
-         id,tenant_id,company_id,branch_id,expense_id,actor_id,event_type,before_state,after_state
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8::jsonb,$9::jsonb)`,
+         id,tenant_id,company_id,branch_id,expense_id,actor_id,event_type,reason,before_state,after_state
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9::jsonb,$10::jsonb)`,
       randomUUID(),
       expense.tenantId,
       expense.companyId,
@@ -334,6 +461,7 @@ export class ExpenseAccountingService {
       expense.id,
       actorId,
       eventType,
+      reason ?? null,
       JSON.stringify({ accountingStatus: beforeStatus }),
       JSON.stringify({ accountingStatus: afterStatus }),
     );
