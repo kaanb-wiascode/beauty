@@ -19,6 +19,12 @@ const collectionSchema = z.object({
   sourceId: z.string().trim().max(150).optional(),
 });
 
+const reversalSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+  sourceType: z.string().trim().max(100).optional(),
+  sourceId: z.string().trim().max(150).optional(),
+});
+
 @Controller('finance/income')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RequirePermission('finance', 'read')
@@ -38,5 +44,16 @@ export class IncomeCollectionsController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.record(id, collectionSchema.parse(body), user.sub);
+  }
+
+  @Post(':id/collections/:collectionId/reverse')
+  @RequirePermission('finance', 'manage')
+  reverse(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('collectionId', new ParseUUIDPipe()) collectionId: string,
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.service.reverse(id, collectionId, reversalSchema.parse(body), user.sub);
   }
 }
