@@ -16,6 +16,10 @@ const mappingSchema = z.object({
   withholdingAccountId: z.string().uuid().optional(),
 });
 
+const reversalSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 @Controller('finance')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RequirePermission('finance', 'read')
@@ -49,5 +53,16 @@ export class ExpenseAccountingController {
     @CurrentUser() user: JwtPayload,
   ) {
     return this.service.post(id, user.sub);
+  }
+
+  @Post('expenses/:id/accounting/reverse')
+  @RequirePermission('finance', 'manage')
+  reverse(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const input = reversalSchema.parse(body);
+    return this.service.reverse(id, user.sub, input.reason);
   }
 }
