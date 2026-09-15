@@ -24,14 +24,14 @@ export type ReportPreviewMeta = {
 };
 
 export type TableReportPreview<TRow> = {
-  report: { key: string; resultKind: "table" };
+  report: { key: string; resultKind: "table"; drilldowns: string[] };
   columns: string[];
   data: TRow[];
   meta: ReportPreviewMeta;
 };
 
 export type SummaryReportPreview<TSummary> = {
-  report: { key: string; resultKind: "summary" };
+  report: { key: string; resultKind: "summary"; drilldowns: string[] };
   columns: string[];
   data: TSummary;
   meta: null;
