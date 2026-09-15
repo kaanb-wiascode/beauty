@@ -30,7 +30,7 @@ export class CrmLeadMergeService {
       if(sourceOpportunity){
         await tx.$executeRawUnsafe(`UPDATE crm_opportunities SET lead_id=$2::text,version=version+1,updated_at=NOW() WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text`,sourceOpportunity.id,targetLeadId,c.tenantId,c.companyId,c.branchId);
       }
-      await tx.$executeRawUnsafe(`UPDATE crm_follow_ups SET lead_id=$2::text,updated_at=NOW() WHERE lead_id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text`,sourceLeadId,targetLeadId,c.tenantId,c.companyId,c.branchId);
+      await tx.$executeRawUnsafe(`UPDATE crm_follow_ups SET lead_id=$2::text,version=version+1,updated_at=NOW() WHERE lead_id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text`,sourceLeadId,targetLeadId,c.tenantId,c.companyId,c.branchId);
       await tx.$executeRawUnsafe(`UPDATE crm_messages SET lead_id=$2::text,version=version+1,updated_at=NOW() WHERE lead_id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text`,sourceLeadId,targetLeadId,c.tenantId,c.companyId,c.branchId);
 
       const updated=await tx.$queryRawUnsafe<Array<{id:string;mergedIntoLeadId:string;mergedAt:Date;version:number}>>(
