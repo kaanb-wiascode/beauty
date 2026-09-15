@@ -16,6 +16,7 @@ import { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { ExpensesService } from './expenses.service';
 
 const createExpenseSchema = z.object({
@@ -61,6 +62,7 @@ const reasonSchema = z.object({
 
 @Controller('finance/expenses')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RestrictTenantMutations()
 @RequirePermission('finance', 'read')
 export class ExpensesController {
   constructor(private readonly service: ExpensesService) {}
