@@ -26,6 +26,7 @@ import { AccountsPayableModule } from './modules/accounts-payable/accounts-payab
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProfitabilityModule } from './modules/profitability/profitability.module';
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
+import { FinanceModule } from './modules/finance/finance.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -72,6 +73,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     ProcurementModule,
     ProfitabilityModule,
     FinancialIntegrationsModule,
+    FinanceModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
