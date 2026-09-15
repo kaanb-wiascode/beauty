@@ -28,7 +28,22 @@ export class OperationsWalkInCommercialService {
        WHERE c.visit_id=$1 AND c.tenant_id=$2 AND c.company_id=$3 AND c.branch_id=$4 LIMIT 1`,
       visitId, tenantId, companyId, branchId,
     );
-    return rows[0] ?? null;
+    const context = rows[0];
+    if (!context) return null;
+
+    const serviceItems = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT si.id AS "saleItemId",si."serviceId" AS "serviceId",si.description,
+              si.quantity,si."unitPrice"::text AS "unitPrice",si."lineTotal"::text AS "lineTotal",
+              svc.name AS "serviceName",svc."durationMinutes" AS "durationMinutes"
+       FROM sale_items si
+       JOIN services svc ON svc.id=si."serviceId"
+       WHERE si."saleId"=$1 AND si.type::text='SERVICE' AND si."serviceId" IS NOT NULL
+         AND svc."tenantId"=$2 AND svc."branchId"=$3
+       ORDER BY si."createdAt" ASC,si.id ASC`,
+      context.saleId, tenantId, branchId,
+    );
+
+    return { ...context, serviceItems };
   }
 
   async link(visitId: string, input: LinkWalkInCommercialContextInput) {
