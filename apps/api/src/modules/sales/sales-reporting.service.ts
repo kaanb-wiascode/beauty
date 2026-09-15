@@ -46,12 +46,14 @@ export class SalesReportingService {
     });
 
     return sales.map((sale) => {
-      const collected = sale.payments
+      const completedCollected = sale.payments
         .filter((payment) => payment.status === 'COMPLETED')
         .reduce((total, payment) => total + Number(payment.amount), 0);
       const refunded = sale.payments
         .filter((payment) => payment.status === 'REFUNDED')
         .reduce((total, payment) => total + Number(payment.amount), 0);
+      const grossCollected = completedCollected + refunded;
+      const netCollected = grossCollected - refunded;
       const serviceQuantity = sale.items
         .filter((item) => item.type === 'SERVICE')
         .reduce((total, item) => total + item.quantity, 0);
@@ -67,10 +69,11 @@ export class SalesReportingService {
         subtotal: Number(sale.subtotal),
         discountTotal: Number(sale.discountTotal),
         revenue: Number(sale.total),
-        collected,
+        grossCollected,
+        collected: netCollected,
         refunded,
-        netCollected: collected - refunded,
-        outstanding: Math.max(0, Number(sale.total) - collected),
+        netCollected,
+        outstanding: Math.max(0, Number(sale.total) - netCollected),
         itemCount: sale.items.reduce((total, item) => total + item.quantity, 0),
         serviceQuantity,
         packageQuantity,
