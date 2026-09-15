@@ -7,6 +7,7 @@ import {
   Patch,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
@@ -16,6 +17,10 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { MembershipsService } from './memberships.service';
 import { updateMembershipRoleSchema } from './dto/update-membership-role.dto';
 import { updateMembershipStatusSchema } from './dto/update-membership-status.dto';
+
+const updateBranchAccessSchema = z.object({
+  branchIds: z.array(z.string().uuid()).max(200),
+});
 
 @Controller('memberships')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -73,6 +78,20 @@ export class MembershipsController {
     return this.membershipsService.updateRole(
       id,
       input,
+    );
+  }
+
+  @Patch(':id/branch-access')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  async updateBranchAccess(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = updateBranchAccessSchema.parse(body);
+    return this.membershipsService.replaceBranchAccess(
+      id,
+      input.branchIds,
     );
   }
 }
