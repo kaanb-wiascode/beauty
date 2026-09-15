@@ -51,6 +51,7 @@ export type Visit = {
   createdByMembershipId: string;
   createdAt: string;
   updatedAt: string;
+  appointmentIds?: string[];
 };
 export type VisitEvent = {
   id: string;
