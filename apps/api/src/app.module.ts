@@ -35,6 +35,7 @@ import { TemporaryAccessModule } from './modules/temporary-access/temporary-acce
 import { ApprovalWorkflowModule } from './modules/approval-workflows/approval-workflow.module';
 import { BusinessPolicyModule } from './modules/business-policies/business-policy.module';
 import { AdministrationGovernanceModule } from './modules/administration-governance/administration-governance.module';
+import { BreakGlassModule } from './modules/break-glass/break-glass.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -88,6 +89,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     ApprovalWorkflowModule,
     BusinessPolicyModule,
     AdministrationGovernanceModule,
+    BreakGlassModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
