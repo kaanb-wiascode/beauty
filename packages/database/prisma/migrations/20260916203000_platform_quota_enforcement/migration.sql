@@ -73,7 +73,12 @@ DECLARE
   v_current INTEGER;
 BEGIN
   IF NEW.status <> 'ACTIVE'
-     OR (TG_OP = 'UPDATE' AND OLD.status = 'ACTIVE') THEN
+     OR (
+       TG_OP = 'UPDATE'
+       AND OLD.status = 'ACTIVE'
+       AND OLD.tenant_id = NEW.tenant_id
+       AND OLD.user_id = NEW.user_id
+     ) THEN
     RETURN NEW;
   END IF;
 
