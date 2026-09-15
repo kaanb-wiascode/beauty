@@ -4,6 +4,7 @@ import { ObjectStorageModule } from '../../common/storage/object-storage.module'
 import { PaymentsModule } from '../payments/payments.module';
 import { ServicesModule } from '../services/services.module';
 import { StaffModule } from '../staff/staff.module';
+import { ReportComparisonService } from './report-comparison.service';
 import { ReportCsvGenerator } from './report-csv.generator';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
 import { ReportExportBrandingService } from './report-export-branding.service';
@@ -34,6 +35,7 @@ import { ReportsService } from './reports.service';
   controllers: [ReportsController],
   providers: [
     ReportsService,
+    ReportComparisonService,
     ReportExportJobsRepository,
     ReportSavedViewsRepository,
     ReportSavedViewsService,
