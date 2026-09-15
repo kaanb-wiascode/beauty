@@ -23,6 +23,7 @@ import { PlatformReadModelService } from './platform-read-model.service';
 import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
 import { PlatformSubscriptionsService } from './platform-subscriptions.service';
 import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
+import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
 import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
 
 @Module({
@@ -44,6 +45,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformProvisioningService,
     PlatformProvisioningCoordinatorService,
     PlatformTenantBootstrapService,
+    PlatformTenantConfigurationBootstrapService,
     PlatformOnboardingService,
     PlatformIamReadService,
     PlatformIamMutationService,
