@@ -5,10 +5,13 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthPublicRateLimitGuard } from './auth-public-rate-limit.guard';
 import { AuthService } from './auth.service';
+import { InvitationService } from './invitation.service';
 import { JwtStrategy } from '../../common/auth/jwt.strategy';
+import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
 
 @Module({
   imports: [
+    PlatformAuditModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],
       inject: [ConfigService],
@@ -21,6 +24,6 @@ import { JwtStrategy } from '../../common/auth/jwt.strategy';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, AuthPublicRateLimitGuard, JwtStrategy],
+  providers: [AuthService, InvitationService, AuthPublicRateLimitGuard, JwtStrategy],
 })
 export class AuthModule {}
