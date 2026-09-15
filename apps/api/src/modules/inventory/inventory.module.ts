@@ -7,6 +7,7 @@ import { WarehouseAccountingService } from './warehouse-accounting.service';
 import { InventoryGovernanceService } from './inventory-governance.service';
 import { InventoryTransferReceiptService } from './inventory-transfer-receipt.service';
 import { InventoryValuationReportService } from './inventory-valuation-report.service';
+import { InventoryScopeService } from './inventory-scope.service';
 
 @Module({
   controllers: [InventoryController, InventoryLotsController],
@@ -17,6 +18,7 @@ import { InventoryValuationReportService } from './inventory-valuation-report.se
     InventoryGovernanceService,
     InventoryTransferReceiptService,
     InventoryValuationReportService,
+    InventoryScopeService,
   ],
   exports: [
     InventoryService,
@@ -25,6 +27,7 @@ import { InventoryValuationReportService } from './inventory-valuation-report.se
     InventoryGovernanceService,
     InventoryTransferReceiptService,
     InventoryValuationReportService,
+    InventoryScopeService,
   ],
 })
 export class InventoryModule {}
