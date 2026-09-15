@@ -6,6 +6,7 @@ import { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { ExpensePaymentsService } from './expense-payments.service';
 
 const paymentSchema = z.object({
@@ -27,6 +28,7 @@ const reversalSchema = z.object({
 
 @Controller('finance/expenses')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RestrictTenantMutations()
 @RequirePermission('finance', 'read')
 export class ExpensePaymentsController {
   constructor(private readonly service: ExpensePaymentsService) {}
