@@ -34,6 +34,26 @@ describe('CrmLeadScoringService', () => {
     expect(query).toHaveBeenCalledWith(expect.stringContaining('crm_lead_scoring_policies'), 'tenant-1');
   });
 
+  it('recalculates all non-overridden tenant leads when tenant thresholds change', async () => {
+    const { service, query, execute } = makeService();
+    query
+      .mockResolvedValueOnce([{ warmMin: 55, hotMin: 85, version: 2, updatedAt: new Date() }])
+      .mockResolvedValueOnce([{ set_config: 'actor-1' }]);
+
+    await expect(service.updatePolicy({ warmMin: 55, hotMin: 85, version: 1 }, 'actor-1'))
+      .resolves.toMatchObject({ warmMin: 55, hotMin: 85, version: 2 });
+
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining("set_config('crm.actor_user_id'"),
+      'actor-1',
+    );
+    expect(execute).toHaveBeenCalledWith(
+      expect.stringContaining('WHERE tenant_id=$1::text AND lead_score_overridden=FALSE'),
+      'tenant-1',
+    );
+  });
+
   it('reads score history only inside tenant/company/branch scope', async () => {
     const { service, query } = makeService();
     query
@@ -51,34 +71,41 @@ describe('CrmLeadScoringService', () => {
     );
   });
 
-  it('persists an optimistic manual override and emits an auditable CRM event', async () => {
+  it('derives manual override temperature server-side and emits an auditable CRM event', async () => {
     const { service, query, execute } = makeService();
-    query.mockResolvedValueOnce([
-      {
-        id: 'lead-1',
-        score: 92,
-        temperature: 'HOT',
-        scoreVersion: 4,
-        overridden: true,
-      },
-    ]);
+    query
+      .mockResolvedValueOnce([{ set_config: 'actor-1' }])
+      .mockResolvedValueOnce([
+        {
+          id: 'lead-1',
+          score: 92,
+          temperature: 'HOT',
+          scoreVersion: 4,
+          overridden: true,
+        },
+      ]);
 
     await expect(
       service.overrideScore(
         'lead-1',
-        { score: 92, temperature: 'HOT', reason: 'Manager review', version: 3 },
+        { score: 92, reason: 'Manager review', version: 3 },
         'actor-1',
       ),
     ).resolves.toMatchObject({ score: 92, temperature: 'HOT', scoreVersion: 4, overridden: true });
 
-    expect(query).toHaveBeenCalledWith(
-      expect.stringContaining('lead_score_overridden=TRUE'),
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("set_config('crm.actor_user_id'"),
+      'actor-1',
+    );
+    expect(query).toHaveBeenNthCalledWith(
+      2,
+      expect.stringContaining('lead_temperature=CASE'),
       'lead-1',
       'tenant-1',
       'company-1',
       'branch-1',
       92,
-      'HOT',
       'Manager review',
       3,
     );
@@ -89,22 +116,30 @@ describe('CrmLeadScoringService', () => {
       'branch-1',
       'lead-1',
       'actor-1',
-      expect.stringContaining('Manager review'),
+      expect.stringContaining('"temperature":"HOT"'),
     );
   });
 
-  it('recalculates through the database scoring trigger and clears manual override', async () => {
+  it('recalculates through the database scoring trigger and attributes history to the actor context', async () => {
     const { service, query, execute } = makeService();
-    query.mockResolvedValueOnce([
-      { id: 'lead-1', score: 67, temperature: 'WARM', scoreVersion: 5, overridden: false },
-    ]);
+    query
+      .mockResolvedValueOnce([{ set_config: 'actor-1' }])
+      .mockResolvedValueOnce([
+        { id: 'lead-1', score: 67, temperature: 'WARM', scoreVersion: 5, overridden: false },
+      ]);
 
     await expect(service.recalculate('lead-1', 'actor-1')).resolves.toMatchObject({
       score: 67,
       temperature: 'WARM',
       overridden: false,
     });
-    expect(query).toHaveBeenCalledWith(
+    expect(query).toHaveBeenNthCalledWith(
+      1,
+      expect.stringContaining("set_config('crm.actor_user_id'"),
+      'actor-1',
+    );
+    expect(query).toHaveBeenNthCalledWith(
+      2,
       expect.stringContaining('lead_score_overridden=FALSE'),
       'lead-1',
       'tenant-1',
