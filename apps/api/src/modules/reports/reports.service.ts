@@ -4,14 +4,13 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-
 import { PrismaService } from '@beauty-erp/database';
-
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { AppointmentReportingService } from '../appointments/appointment-reporting.service';
 import { CrmReportingService } from '../crm/crm-reporting.service';
 import { CustomerReportingService } from '../customers/customer-reporting.service';
 import { FinanceReportingService } from '../finance/finance-reporting.service';
+import { HrReportingService } from '../hr/hr-reporting.service';
 import { InventoryReportingService } from '../inventory/inventory-reporting.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ProcurementReportingService } from '../procurement/procurement-reporting.service';
@@ -44,6 +43,7 @@ export class ReportsService {
     private readonly inventoryReporting: InventoryReportingService,
     private readonly procurementReporting: ProcurementReportingService,
     private readonly crmReporting: CrmReportingService,
+    private readonly hrReporting: HrReportingService,
     private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
@@ -51,27 +51,17 @@ export class ReportsService {
     const rolePermissions = await this.prisma.rolePermission.findMany({
       where: {
         roleId: user.roleId,
-        role: {
-          tenantId: user.tenantId,
-          OR: [{ companyId: null }, { companyId: user.companyId }],
-        },
+        role: { tenantId: user.tenantId, OR: [{ companyId: null }, { companyId: user.companyId }] },
       },
       select: { permission: { select: { resource: true, action: true } } },
     });
-    const granted = new Set(
-      rolePermissions.map(({ permission }) => `${permission.resource}:${permission.action}`),
-    );
+    const granted = new Set(rolePermissions.map(({ permission }) => `${permission.resource}:${permission.action}`));
     return reportDefinitions.filter((report) =>
-      report.requiredPermissions.every((permission) =>
-        granted.has(`${permission.resource}:${permission.action}`),
-      ),
+      report.requiredPermissions.every((permission) => granted.has(`${permission.resource}:${permission.action}`)),
     );
   }
 
-  async prepareExport(
-    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
-    input: ReportExportInput,
-  ) {
+  async prepareExport(user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>, input: ReportExportInput) {
     const definition = await this.authorizeDefinition(user, input.reportKey);
     if (!definition.exportFormats.includes(input.format)) {
       throw new BadRequestException(`Unsupported report export format: ${input.format}`);
@@ -89,13 +79,9 @@ export class ReportsService {
     };
   }
 
-  async materializeExport(
-    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
-    input: ReportExportInput,
-  ) {
+  async materializeExport(user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>, input: ReportExportInput) {
     const prepared = await this.prepareExport(user, input);
     const definition = getReportDefinition(prepared.reportKey)!;
-
     if (definition.key === reportKeys.paymentSummary) {
       const summary = await this.paymentsService.summary(input.filters);
       return {
@@ -106,7 +92,6 @@ export class ReportsService {
         summary: prepared.includeSummary ? summary : null,
       };
     }
-
     const rows = await this.loadTableRows(definition.key, input.filters);
     const sorted = this.sortRows(rows, prepared.sort);
     return {
@@ -133,49 +118,29 @@ export class ReportsService {
     return job;
   }
 
-  async preview(
-    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
-    input: ReportPreviewInput,
-  ) {
+  async preview(user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>, input: ReportPreviewInput) {
     const definition = await this.authorizeDefinition(user, input.reportKey);
     const columns = this.resolveColumns(definition, input.columns);
     this.validateSort(definition, input.sort?.key);
-
     if (definition.key === reportKeys.paymentSummary) {
       const summary = await this.paymentsService.summary(input.filters);
       return {
-        report: {
-          key: definition.key,
-          resultKind: definition.resultKind,
-          drilldowns: definition.drilldowns,
-        },
+        report: { key: definition.key, resultKind: definition.resultKind, drilldowns: definition.drilldowns },
         columns,
         data: this.selectColumns(summary, columns),
         meta: null,
       };
     }
-
     const rows = await this.loadTableRows(definition.key, input.filters);
-    return this.buildTablePreview(
-      definition,
-      columns,
-      rows,
-      input,
-      this.buildSummary(definition.key, rows),
-    );
+    return this.buildTablePreview(definition, columns, rows, input, this.buildSummary(definition.key, rows));
   }
 
-  private async loadTableRows(
-    key: ReportKey,
-    filters: ReportPreviewInput['filters'],
-  ): Promise<Record<string, unknown>[]> {
+  private async loadTableRows(key: ReportKey, filters: ReportPreviewInput['filters']): Promise<Record<string, unknown>[]> {
     if (key === reportKeys.staffPerformance) {
       const rows = await this.staffService.performance(filters);
       return rows.map((row) => ({
         ...row,
-        completionRate: row.appointmentCount
-          ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
-          : 0,
+        completionRate: row.appointmentCount ? Math.round((row.completedAppointments / row.appointmentCount) * 100) : 0,
       }));
     }
     if (key === reportKeys.servicePerformance) {
@@ -188,9 +153,7 @@ export class ReportsService {
         branchId: row.service.branchId,
         appointmentCount: row.appointmentCount,
         completedAppointments: row.completedAppointments,
-        completionRate: row.appointmentCount
-          ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
-          : 0,
+        completionRate: row.appointmentCount ? Math.round((row.completedAppointments / row.appointmentCount) * 100) : 0,
         collected: row.collected,
       }));
     }
@@ -201,6 +164,8 @@ export class ReportsService {
     if (key === reportKeys.inventoryPerformance) return this.inventoryReporting.performance(filters);
     if (key === reportKeys.procurementPerformance) return this.procurementReporting.performance(filters);
     if (key === reportKeys.crmPerformance) return this.crmReporting.performance(filters);
+    if (key === reportKeys.hrWorkforce) return this.hrReporting.workforce(filters);
+    if (key === reportKeys.payrollSummary) return this.hrReporting.payroll(filters);
     throw new BadRequestException('Unsupported table report');
   }
 
@@ -212,13 +177,12 @@ export class ReportsService {
     if (key === reportKeys.inventoryPerformance) return this.buildInventorySummary(rows);
     if (key === reportKeys.procurementPerformance) return this.buildProcurementSummary(rows);
     if (key === reportKeys.crmPerformance) return this.buildCrmSummary(rows);
+    if (key === reportKeys.hrWorkforce) return this.buildHrSummary(rows);
+    if (key === reportKeys.payrollSummary) return this.buildPayrollSummary(rows);
     return this.buildAggregateSummary(rows);
   }
 
-  private async authorizeDefinition(
-    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
-    reportKey: ReportPreviewInput['reportKey'],
-  ) {
+  private async authorizeDefinition(user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>, reportKey: ReportPreviewInput['reportKey']) {
     const definition = getReportDefinition(reportKey);
     if (!definition) throw new BadRequestException('Unsupported report');
     const catalog = await this.getCatalog(user);
@@ -231,39 +195,24 @@ export class ReportsService {
   private resolveColumns(definition: ReportDefinition, requested?: readonly string[]) {
     const columns = requested?.length ? [...new Set(requested)] : [...definition.defaultColumns];
     const invalid = columns.filter((column) => !definition.availableColumns.includes(column));
-    if (invalid.length) {
-      throw new BadRequestException(`Unsupported report columns: ${invalid.join(', ')}`);
-    }
+    if (invalid.length) throw new BadRequestException(`Unsupported report columns: ${invalid.join(', ')}`);
     return columns;
   }
 
-  private resolveExportColumns(
-    definition: ReportDefinition,
-    requested?: readonly string[],
-    mode: ReportExportInput['columnMode'] = 'VISIBLE',
-  ) {
+  private resolveExportColumns(definition: ReportDefinition, requested?: readonly string[], mode: ReportExportInput['columnMode'] = 'VISIBLE') {
     if (mode === 'ALL_PERMITTED') return [...definition.exportableColumns];
-    const defaults = definition.defaultColumns.filter((column) =>
-      definition.exportableColumns.includes(column),
-    );
+    const defaults = definition.defaultColumns.filter((column) => definition.exportableColumns.includes(column));
     const columns = requested?.length ? [...new Set(requested)] : defaults;
     const invalid = columns.filter((column) => !definition.exportableColumns.includes(column));
-    if (invalid.length) {
-      throw new BadRequestException(`Unsupported report export columns: ${invalid.join(', ')}`);
-    }
+    if (invalid.length) throw new BadRequestException(`Unsupported report export columns: ${invalid.join(', ')}`);
     return columns;
   }
 
   private validateSort(definition: ReportDefinition, sortKey?: string) {
-    if (sortKey && !definition.sortableColumns.includes(sortKey)) {
-      throw new BadRequestException(`Unsupported report sort: ${sortKey}`);
-    }
+    if (sortKey && !definition.sortableColumns.includes(sortKey)) throw new BadRequestException(`Unsupported report sort: ${sortKey}`);
   }
 
-  private sortRows(
-    rows: readonly Record<string, unknown>[],
-    sort: ReportExportInput['sort'] | null,
-  ) {
+  private sortRows(rows: readonly Record<string, unknown>[], sort: ReportExportInput['sort'] | null) {
     const sorted = [...rows];
     if (!sort) return sorted;
     sorted.sort((a, b) => {
@@ -273,13 +222,7 @@ export class ReportsService {
     return sorted;
   }
 
-  private buildTablePreview(
-    definition: ReportDefinition,
-    columns: readonly string[],
-    rows: readonly Record<string, unknown>[],
-    input: ReportPreviewInput,
-    summary: Record<string, unknown>,
-  ) {
+  private buildTablePreview(definition: ReportDefinition, columns: readonly string[], rows: readonly Record<string, unknown>[], input: ReportPreviewInput, summary: Record<string, unknown>) {
     const sorted = [...rows];
     if (input.sort) {
       sorted.sort((a, b) => {
@@ -291,26 +234,13 @@ export class ReportsService {
     const start = (input.page - 1) * input.limit;
     const pageRows = sorted.slice(start, start + input.limit);
     return {
-      report: {
-        key: definition.key,
-        resultKind: definition.resultKind,
-        drilldowns: definition.drilldowns,
-      },
+      report: { key: definition.key, resultKind: definition.resultKind, drilldowns: definition.drilldowns },
       columns,
       data: pageRows.map((row) => {
         const selected = this.selectColumns(row, columns);
-        return definition.drilldowns.length > 0 && typeof row.id === 'string'
-          ? { ...selected, _rowId: row.id }
-          : selected;
+        return definition.drilldowns.length > 0 && typeof row.id === 'string' ? { ...selected, _rowId: row.id } : selected;
       }),
-      meta: {
-        page: input.page,
-        limit: input.limit,
-        total,
-        totalPages: Math.ceil(total / input.limit),
-        sort: input.sort ?? null,
-        summary,
-      },
+      meta: { page: input.page, limit: input.limit, total, totalPages: Math.ceil(total / input.limit), sort: input.sort ?? null, summary },
     };
   }
 
@@ -318,16 +248,7 @@ export class ReportsService {
     const appointmentCount = rows.reduce((t, r) => t + this.numberValue(r.appointmentCount), 0);
     const completedAppointments = rows.reduce((t, r) => t + this.numberValue(r.completedAppointments), 0);
     const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
-    return {
-      rowCount: rows.length,
-      appointmentCount,
-      completedAppointments,
-      completionRate: appointmentCount
-        ? Math.round((completedAppointments / appointmentCount) * 100)
-        : 0,
-      collected,
-      averageCollectedPerCompleted: completedAppointments ? collected / completedAppointments : 0,
-    };
+    return { rowCount: rows.length, appointmentCount, completedAppointments, completionRate: appointmentCount ? Math.round((completedAppointments / appointmentCount) * 100) : 0, collected, averageCollectedPerCompleted: completedAppointments ? collected / completedAppointments : 0 };
   }
 
   private buildCustomerSummary(rows: readonly Record<string, unknown>[]) {
@@ -335,15 +256,7 @@ export class ReportsService {
     const completedVisits = rows.reduce((t, r) => t + this.numberValue(r.completedVisits), 0);
     const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
     const customersWithVisits = rows.filter((r) => this.numberValue(r.visitCount) > 0).length;
-    return {
-      rowCount: rows.length,
-      customersWithVisits,
-      visitCount,
-      completedVisits,
-      collected,
-      averageCollectedPerCustomer: customersWithVisits ? collected / customersWithVisits : 0,
-      averageCollectedPerCompletedVisit: completedVisits ? collected / completedVisits : 0,
-    };
+    return { rowCount: rows.length, customersWithVisits, visitCount, completedVisits, collected, averageCollectedPerCustomer: customersWithVisits ? collected / customersWithVisits : 0, averageCollectedPerCompletedVisit: completedVisits ? collected / completedVisits : 0 };
   }
 
   private buildSalesSummary(rows: readonly Record<string, unknown>[]) {
@@ -352,18 +265,7 @@ export class ReportsService {
     const refunded = rows.reduce((t, r) => t + this.numberValue(r.refunded), 0);
     const outstanding = rows.reduce((t, r) => t + this.numberValue(r.outstanding), 0);
     const discountTotal = rows.reduce((t, r) => t + this.numberValue(r.discountTotal), 0);
-    return {
-      rowCount: rows.length,
-      saleCount: rows.length,
-      revenue,
-      collected,
-      refunded,
-      netCollected: collected,
-      outstanding,
-      discountTotal,
-      averageBasket: rows.length ? revenue / rows.length : 0,
-      collectionRate: revenue ? Math.round((collected / revenue) * 100) : 0,
-    };
+    return { rowCount: rows.length, saleCount: rows.length, revenue, collected, refunded, netCollected: collected, outstanding, discountTotal, averageBasket: rows.length ? revenue / rows.length : 0, collectionRate: revenue ? Math.round((collected / revenue) * 100) : 0 };
   }
 
   private buildAppointmentSummary(rows: readonly Record<string, unknown>[]) {
@@ -377,24 +279,7 @@ export class ReportsService {
     const rebookedCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.rebookedCustomerCount), 0);
     const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
     const resolved = completedCount + cancelledCount + noShowCount;
-    return {
-      rowCount: rows.length,
-      appointmentCount,
-      completedCount,
-      completedCustomerCount,
-      cancelledCount,
-      noShowCount,
-      completionRate: resolved ? Math.round((completedCount / resolved) * 100) : 0,
-      cancellationRate: resolved ? Math.round((cancelledCount / resolved) * 100) : 0,
-      noShowRate: resolved ? Math.round((noShowCount / resolved) * 100) : 0,
-      newCustomerCount,
-      repeatCustomerCount,
-      rebookedCustomerCount,
-      rebookingRate: completedCustomerCount
-        ? Math.round((rebookedCustomerCount / completedCustomerCount) * 100)
-        : 0,
-      collected,
-    };
+    return { rowCount: rows.length, appointmentCount, completedCount, completedCustomerCount, cancelledCount, noShowCount, completionRate: resolved ? Math.round((completedCount / resolved) * 100) : 0, cancellationRate: resolved ? Math.round((cancelledCount / resolved) * 100) : 0, noShowRate: resolved ? Math.round((noShowCount / resolved) * 100) : 0, newCustomerCount, repeatCustomerCount, rebookedCustomerCount, rebookingRate: completedCustomerCount ? Math.round((rebookedCustomerCount / completedCustomerCount) * 100) : 0, collected };
   }
 
   private buildFinanceSummary(rows: readonly Record<string, unknown>[]) {
@@ -407,22 +292,7 @@ export class ReportsService {
     const payableOutstanding = rows.reduce((t, r) => t + this.numberValue(r.payableOutstanding), 0);
     const incomeRecordCount = rows.reduce((t, r) => t + this.numberValue(r.incomeRecordCount), 0);
     const expenseRecordCount = rows.reduce((t, r) => t + this.numberValue(r.expenseRecordCount), 0);
-    return {
-      rowCount: rows.length,
-      incomeRecognized,
-      expenseRecognized,
-      payableAmount,
-      operatingMargin: incomeRecognized - expenseRecognized,
-      collected,
-      paid,
-      netCashMovement: collected - paid,
-      receivableOutstanding,
-      payableOutstanding,
-      incomeRecordCount,
-      expenseRecordCount,
-      collectionRate: incomeRecognized ? Math.round((collected / incomeRecognized) * 100) : 0,
-      paymentRate: payableAmount ? Math.round((paid / payableAmount) * 100) : 0,
-    };
+    return { rowCount: rows.length, incomeRecognized, expenseRecognized, payableAmount, operatingMargin: incomeRecognized - expenseRecognized, collected, paid, netCashMovement: collected - paid, receivableOutstanding, payableOutstanding, incomeRecordCount, expenseRecordCount, collectionRate: incomeRecognized ? Math.round((collected / incomeRecognized) * 100) : 0, paymentRate: payableAmount ? Math.round((paid / payableAmount) * 100) : 0 };
   }
 
   private buildInventorySummary(rows: readonly Record<string, unknown>[]) {
@@ -437,15 +307,7 @@ export class ReportsService {
     const totalAmount = rows.reduce((t, r) => t + this.numberValue(r.totalAmount), 0);
     const itemCount = rows.reduce((t, r) => t + this.numberValue(r.itemCount), 0);
     const receivedCount = rows.reduce((t, r) => t + this.numberValue(r.receivedCount), 0);
-    return {
-      rowCount: rows.length,
-      orderCount,
-      totalAmount,
-      itemCount,
-      receivedCount,
-      receiptRate: orderCount ? Math.round((receivedCount / orderCount) * 100) : 0,
-      averageOrderValue: orderCount ? totalAmount / orderCount : 0,
-    };
+    return { rowCount: rows.length, orderCount, totalAmount, itemCount, receivedCount, receiptRate: orderCount ? Math.round((receivedCount / orderCount) * 100) : 0, averageOrderValue: orderCount ? totalAmount / orderCount : 0 };
   }
 
   private buildCrmSummary(rows: readonly Record<string, unknown>[]) {
@@ -457,19 +319,29 @@ export class ReportsService {
     const lostOpportunityCount = rows.reduce((t, r) => t + this.numberValue(r.lostOpportunityCount), 0);
     const pipelineValue = rows.reduce((t, r) => t + this.numberValue(r.pipelineValue), 0);
     const wonValue = rows.reduce((t, r) => t + this.numberValue(r.wonValue), 0);
-    return {
-      rowCount: rows.length,
-      leadCount,
-      convertedCount,
-      lostLeadCount,
-      leadConversionRate: leadCount ? Math.round((convertedCount / leadCount) * 100) : 0,
-      opportunityCount,
-      wonCount,
-      lostOpportunityCount,
-      winRate: opportunityCount ? Math.round((wonCount / opportunityCount) * 100) : 0,
-      pipelineValue,
-      wonValue,
-    };
+    return { rowCount: rows.length, leadCount, convertedCount, lostLeadCount, leadConversionRate: leadCount ? Math.round((convertedCount / leadCount) * 100) : 0, opportunityCount, wonCount, lostOpportunityCount, winRate: opportunityCount ? Math.round((wonCount / opportunityCount) * 100) : 0, pipelineValue, wonValue };
+  }
+
+  private buildHrSummary(rows: readonly Record<string, unknown>[]) {
+    const attendanceRecords = rows.reduce((t, r) => t + this.numberValue(r.attendanceRecords), 0);
+    const presentRecords = rows.reduce((t, r) => t + this.numberValue(r.presentRecords), 0);
+    const absentRecords = rows.reduce((t, r) => t + this.numberValue(r.absentRecords), 0);
+    const workedMinutes = rows.reduce((t, r) => t + this.numberValue(r.workedMinutes), 0);
+    const overtimeMinutes = rows.reduce((t, r) => t + this.numberValue(r.overtimeMinutes), 0);
+    const approvedLeaveDays = rows.reduce((t, r) => t + this.numberValue(r.approvedLeaveDays), 0);
+    return { rowCount: rows.length, attendanceRecords, presentRecords, absentRecords, absenceRate: attendanceRecords ? Math.round((absentRecords / attendanceRecords) * 100) : 0, workedMinutes, overtimeMinutes, approvedLeaveDays };
+  }
+
+  private buildPayrollSummary(rows: readonly Record<string, unknown>[]) {
+    const employeeCount = rows.reduce((t, r) => t + this.numberValue(r.employeeCount), 0);
+    const gross = rows.reduce((t, r) => t + this.numberValue(r.gross), 0);
+    const net = rows.reduce((t, r) => t + this.numberValue(r.net), 0);
+    const employerCost = rows.reduce((t, r) => t + this.numberValue(r.employerCost), 0);
+    const salaryPaid = rows.reduce((t, r) => t + this.numberValue(r.salaryPaid), 0);
+    const salaryRemaining = rows.reduce((t, r) => t + this.numberValue(r.salaryRemaining), 0);
+    const taxLiability = rows.reduce((t, r) => t + this.numberValue(r.taxLiability), 0);
+    const socialLiability = rows.reduce((t, r) => t + this.numberValue(r.socialLiability), 0);
+    return { rowCount: rows.length, employeeCount, gross, net, employerCost, salaryPaid, salaryRemaining, taxLiability, socialLiability, payrollSettlementRate: net ? Math.round((salaryPaid / net) * 100) : 0 };
   }
 
   private numberValue(value: unknown) {
