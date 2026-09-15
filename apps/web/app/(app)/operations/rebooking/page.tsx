@@ -24,6 +24,17 @@ type Opportunity = {
   rebooked: boolean;
 };
 
+type RebookingAnalytics = {
+  windowDays: number;
+  eligibleCompleted: number;
+  rebooked: number;
+  recommendedTracked: number;
+  rebookingRate: number;
+  avgDeviationDays: number | null;
+  byService: Array<{ serviceId: string; serviceName: string; rebooked: number }>;
+  byStaff: Array<{ staffId: string; staffName: string; rebooked: number }>;
+};
+
 function localInputValue(value: string | null) {
   if (!value) return "";
   const date = new Date(value);
@@ -36,6 +47,7 @@ export default function OperationsRebookingPage() {
   const canManage = hasPermission("appointments", "update");
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [analytics, setAnalytics] = useState<RebookingAnalytics | null>(null);
   const [serviceId, setServiceId] = useState("");
   const [intervalDays, setIntervalDays] = useState("28");
   const [selectedId, setSelectedId] = useState("");
@@ -54,12 +66,14 @@ export default function OperationsRebookingPage() {
     setLoading(true);
     setError("");
     try {
-      const [opportunityRows, serviceRows] = await Promise.all([
+      const [opportunityRows, serviceRows, analyticsRow] = await Promise.all([
         api<Opportunity[]>("/operations/rebooking/opportunities"),
         api<Paginated<Service>>("/services?page=1&limit=200"),
+        api<RebookingAnalytics>("/operations/rebooking-analytics?days=90"),
       ]);
       setOpportunities(opportunityRows);
       setServices(serviceRows.data);
+      setAnalytics(analyticsRow);
       setServiceId((current) => current || serviceRows.data[0]?.id || "");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Rebooking verileri yüklenemedi.");
@@ -139,6 +153,15 @@ export default function OperationsRebookingPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       {notice ? <Alert tone="success" onClose={() => setNotice("")}>{notice}</Alert> : null}
+
+      {analytics ? (
+        <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">90 Gün Rebooking Oranı</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">%{analytics.rebookingRate}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">Tamamlanan Hizmet</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.eligibleCompleted}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">Rebooked</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.rebooked}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">Öneriden Ortalama Sapma</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.avgDeviationDays === null ? "—" : `${analytics.avgDeviationDays > 0 ? "+" : ""}${analytics.avgDeviationDays} gün`}</p></div>
+        </section>
+      ) : null}
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <h2 className="text-sm font-semibold text-[var(--ink)]">Hizmet Dönüş Politikası</h2>
