@@ -11,6 +11,11 @@ import {
 } from "../report-filter-bar";
 import { ReportExportPanel } from "../report-export-panel";
 import {
+  downloadReportExport,
+  listReportExports,
+  type ReportExportJob,
+} from "../report-export-client";
+import {
   getReportCatalog,
   type ReportCatalogItem,
   type ReportCatalogKey,
@@ -18,6 +23,7 @@ import {
 import {
   createReportSavedView,
   deleteReportSavedView,
+  getReportSavedView,
   listReportSavedViews,
   toggleReportSavedViewFavorite,
   type ReportSavedView,
@@ -33,6 +39,16 @@ function savedDate(value: string) {
   return value.slice(0, 10);
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export default function ReportExportsPage() {
   const [catalog, setCatalog] = useState<ReportCatalogItem[]>([]);
   const [reportKey, setReportKey] = useState<ReportCatalogKey | null>(null);
@@ -45,6 +61,11 @@ export default function ReportExportsPage() {
   const [savedError, setSavedError] = useState("");
   const [savedName, setSavedName] = useState("");
   const [saving, setSaving] = useState(false);
+  const [openingSavedId, setOpeningSavedId] = useState<string | null>(null);
+  const [recentExports, setRecentExports] = useState<ReportExportJob[]>([]);
+  const [recentExportsLoading, setRecentExportsLoading] = useState(true);
+  const [recentExportsError, setRecentExportsError] = useState("");
+  const [downloadingRecentId, setDownloadingRecentId] = useState<string | null>(null);
   const [range, setRange] = useState<ReportDateRange>(() => {
     const today = reportDateInputValue(new Date());
     return { from: today, to: today };
@@ -93,6 +114,8 @@ export default function ReportExportsPage() {
         if (active) setSavedLoading(false);
       });
 
+    void refreshRecentExports(active);
+
     return () => {
       active = false;
     };
@@ -103,6 +126,37 @@ export default function ReportExportsPage() {
     [catalog, reportKey],
   );
 
+  const recentSavedViews = useMemo(
+    () =>
+      savedViews
+        .filter((view) => view.lastOpenedAt)
+        .slice()
+        .sort(
+          (a, b) =>
+            new Date(b.lastOpenedAt ?? 0).getTime() -
+            new Date(a.lastOpenedAt ?? 0).getTime(),
+        )
+        .slice(0, 4),
+    [savedViews],
+  );
+
+  async function refreshRecentExports(active = true) {
+    try {
+      const result = await listReportExports({ page: 1, limit: 5, mine: true });
+      if (!active) return;
+      setRecentExports(result.data);
+      setRecentExportsError("");
+    } catch (error) {
+      if (!active) return;
+      setRecentExports([]);
+      setRecentExportsError(
+        error instanceof ApiError ? error.message : "Son dışa aktarımlar yüklenemedi.",
+      );
+    } finally {
+      if (active) setRecentExportsLoading(false);
+    }
+  }
+
   function selectReport(key: ReportCatalogKey) {
     const definition = catalog.find((report) => report.key === key);
     setReportKey(key);
@@ -110,16 +164,30 @@ export default function ReportExportsPage() {
     setSort(DEFAULT_SORTS[key]);
   }
 
-  function applySavedView(view: ReportSavedView) {
+  async function applySavedView(view: ReportSavedView) {
     if (!catalog.some((report) => report.key === view.reportKey)) {
       setSavedError("Bu kaydedilmiş rapor için artık gerekli yetkiniz bulunmuyor.");
       return;
     }
-    setReportKey(view.reportKey);
-    setRange({ from: savedDate(view.filters.from), to: savedDate(view.filters.to) });
-    setColumns(view.columns);
-    setSort(view.sort ?? undefined);
+
+    setOpeningSavedId(view.id);
     setSavedError("");
+    try {
+      const opened = await getReportSavedView(view.id);
+      setReportKey(opened.reportKey);
+      setRange({ from: savedDate(opened.filters.from), to: savedDate(opened.filters.to) });
+      setColumns(opened.columns);
+      setSort(opened.sort ?? undefined);
+      setSavedViews((items) =>
+        items.map((item) => (item.id === opened.id ? opened : item)),
+      );
+    } catch (error) {
+      setSavedError(
+        error instanceof ApiError ? error.message : "Kaydedilmiş rapor açılamadı.",
+      );
+    } finally {
+      setOpeningSavedId(null);
+    }
   }
 
   async function saveCurrentView() {
@@ -164,6 +232,20 @@ export default function ReportExportsPage() {
       setSavedError("");
     } catch (error) {
       setSavedError(error instanceof ApiError ? error.message : "Kaydedilmiş rapor silinemedi.");
+    }
+  }
+
+  async function downloadRecent(job: ReportExportJob) {
+    setDownloadingRecentId(job.id);
+    setRecentExportsError("");
+    try {
+      await downloadReportExport(job);
+    } catch (error) {
+      setRecentExportsError(
+        error instanceof ApiError ? error.message : "Rapor dosyası indirilemedi.",
+      );
+    } finally {
+      setDownloadingRecentId(null);
     }
   }
 
@@ -217,6 +299,28 @@ export default function ReportExportsPage() {
             </div>
           </section>
 
+          {recentSavedViews.length > 0 ? (
+            <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+              <h2 className="text-[14px] font-semibold text-[var(--ink)]">Son Kullanılan Raporlar</h2>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {recentSavedViews.map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    disabled={openingSavedId === view.id}
+                    onClick={() => void applySavedView(view)}
+                    className="rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-left disabled:opacity-50"
+                  >
+                    <span className="block text-[11px] font-semibold text-[var(--ink)]">{view.name}</span>
+                    <span className="mt-0.5 block text-[9px] text-[var(--muted-soft)]">
+                      {view.lastOpenedAt ? formatDateTime(view.lastOpenedAt) : ""}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
+
           <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
             <div className="flex items-center justify-between gap-3">
               <div>
@@ -235,7 +339,12 @@ export default function ReportExportsPage() {
                 {savedViews.map((view) => (
                   <div key={view.id} className="rounded-xl border border-[var(--line)] bg-white p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <button type="button" onClick={() => applySavedView(view)} className="min-w-0 text-left">
+                      <button
+                        type="button"
+                        disabled={openingSavedId === view.id}
+                        onClick={() => void applySavedView(view)}
+                        className="min-w-0 text-left disabled:opacity-50"
+                      >
                         <div className="flex items-center gap-2">
                           <span className="truncate text-[12px] font-semibold text-[var(--ink)]">{view.name}</span>
                           {view.isFavorite ? <span className="text-[10px] text-[var(--muted)]">Favori</span> : null}
@@ -253,10 +362,57 @@ export default function ReportExportsPage() {
             )}
           </section>
 
+          <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <h2 className="text-[14px] font-semibold text-[var(--ink)]">Son Dışa Aktarımlar</h2>
+                <p className="mt-1 text-[11px] text-[var(--muted)]">Tüm yetkili raporlarınızdan en son oluşturduğunuz dosyalar.</p>
+              </div>
+              <button type="button" onClick={() => void refreshRecentExports()} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[10px] text-[var(--muted)]">Yenile</button>
+            </div>
+            {recentExportsError ? <p className="mt-3 text-[11px] text-red-600">{recentExportsError}</p> : null}
+            {recentExportsLoading ? (
+              <p className="mt-4 text-[12px] text-[var(--muted)]">Son dışa aktarımlar yükleniyor...</p>
+            ) : recentExports.length === 0 ? (
+              <p className="mt-4 text-[12px] text-[var(--muted)]">Henüz dışa aktarım bulunmuyor.</p>
+            ) : (
+              <div className="mt-4 divide-y divide-[var(--line)]">
+                {recentExports.map((job) => (
+                  <div key={job.id} className="flex items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="text-[11px] font-semibold text-[var(--ink)]">{catalog.find((item) => item.key === job.reportKey)?.title ?? job.reportKey}</span>
+                        <span className="text-[10px] text-[var(--muted)]">{job.format}</span>
+                        <span className="text-[10px] text-[var(--muted-soft)]">{job.status}</span>
+                      </div>
+                      <p className="mt-1 text-[9px] text-[var(--muted-soft)]">{formatDateTime(job.requestedAt)}</p>
+                    </div>
+                    {job.status === "READY" ? (
+                      <button
+                        type="button"
+                        disabled={downloadingRecentId === job.id}
+                        onClick={() => void downloadRecent(job)}
+                        className="rounded-lg border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] disabled:opacity-50"
+                      >
+                        {downloadingRecentId === job.id ? "İndiriliyor..." : "İndir"}
+                      </button>
+                    ) : null}
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+
           <ReportFilterBar from={range.from} to={range.to} onChange={setRange} />
 
           {selected ? (
-            <ReportExportPanel reportKey={selected.key} range={range} columns={columns} sort={sort} />
+            <ReportExportPanel
+              reportKey={selected.key}
+              range={range}
+              columns={columns}
+              sort={sort}
+              onExportCreated={() => void refreshRecentExports()}
+            />
           ) : null}
         </>
       )}
