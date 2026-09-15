@@ -46,6 +46,10 @@ interface VisitRow {
   updatedAt: Date;
 }
 
+interface VisitListRow extends VisitRow {
+  appointmentIds: string[];
+}
+
 interface VisitEventRow {
   id: string;
   visitId: string;
@@ -303,8 +307,17 @@ export class VisitsService {
 
     params.push(input.limit);
 
-    return this.prisma.$queryRawUnsafe<VisitRow[]>(
-      `SELECT v.*
+    return this.prisma.$queryRawUnsafe<VisitListRow[]>(
+      `SELECT v.*,
+              COALESCE(
+                ARRAY(
+                  SELECT va."appointmentId"
+                  FROM "visit_appointments" va
+                  WHERE va."visitId" = v."id"
+                  ORDER BY va."createdAt" ASC
+                ),
+                ARRAY[]::TEXT[]
+              ) AS "appointmentIds"
        FROM "visits" v
        WHERE ${conditions.join(' AND ')}
        ORDER BY v."createdAt" DESC
