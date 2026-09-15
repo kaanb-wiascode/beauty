@@ -79,10 +79,15 @@ describe('OperationsAlertsService', () => {
       15,
       100,
     );
-    expect(queryRawUnsafe.mock.calls[0][0]).toContain("v.status::text = 'WAITING'");
-    expect(queryRawUnsafe.mock.calls[0][0]).toContain("v.status::text = 'CHECKOUT_PENDING'");
-    expect(queryRawUnsafe.mock.calls[0][0]).toContain("v.status::text = 'IN_SERVICE'");
-    expect(queryRawUnsafe.mock.calls[0][0]).toContain("r.status IN ('CLEANING','OUT_OF_SERVICE')");
-    expect(queryRawUnsafe.mock.calls[0][0]).toContain("i.status = 'OPEN'");
+    const sql = queryRawUnsafe.mock.calls[0][0] as string;
+    expect(sql).toContain("v.status::text = 'WAITING'");
+    expect(sql).toContain("v.status::text = 'CHECKOUT_PENDING'");
+    expect(sql).toContain("v.status::text = 'IN_SERVICE'");
+    expect(sql).toContain("r.status IN ('CLEANING','OUT_OF_SERVICE')");
+    expect(sql).toContain("'DEVICE_UNAVAILABLE'::text AS type");
+    expect(sql).toContain("'RESOURCE_APPOINTMENT_IMPACT'::text AS type");
+    expect(sql).toContain("'UPCOMING_STOCK_SHORTAGE'::text AS type");
+    expect(sql).toContain("ap.\"startAt\" < CURRENT_TIMESTAMP + INTERVAL '24 hours'");
+    expect(sql).toContain("i.status = 'OPEN'");
   });
 });
