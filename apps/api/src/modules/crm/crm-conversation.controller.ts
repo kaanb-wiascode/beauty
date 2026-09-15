@@ -9,6 +9,9 @@ import { CrmConversationService } from './crm-conversation.service';
 const typeSchema = z.enum(['CUSTOMER','LEAD','OPPORTUNITY']);
 const limitSchema = z.coerce.number().int().min(1).max(300).optional();
 const modeSchema = z.enum(['ALL','MINE','UNASSIGNED']).default('ALL');
+const statusSchema = z.enum(['ACTIVE','OPEN','PENDING','RESOLVED','SNOOZED','CLOSED']).default('ACTIVE');
+const prioritySchema = z.enum(['ALL','LOW','NORMAL','HIGH','URGENT']).default('ALL');
+const channelSchema = z.enum(['ALL','EMAIL','SMS','WHATSAPP']).default('ALL');
 
 @Controller('crm/conversations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -21,8 +24,18 @@ export class CrmConversationController {
     @Req() request: { user?: { sub?: string } },
     @Query('limit') limit?: string,
     @Query('mode') mode?: string,
+    @Query('status') status?: string,
+    @Query('priority') priority?: string,
+    @Query('channel') channel?: string,
   ) {
-    return this.conversations.list(this.actor(request), limitSchema.parse(limit), modeSchema.parse(mode ?? 'ALL'));
+    return this.conversations.list(
+      this.actor(request),
+      limitSchema.parse(limit),
+      modeSchema.parse(mode ?? 'ALL'),
+      statusSchema.parse(status ?? 'ACTIVE'),
+      prioritySchema.parse(priority ?? 'ALL'),
+      channelSchema.parse(channel ?? 'ALL'),
+    );
   }
 
   @Get(':subjectType/:subjectId')

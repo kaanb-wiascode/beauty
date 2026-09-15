@@ -4,6 +4,9 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 
 type SubjectType = 'CUSTOMER' | 'LEAD' | 'OPPORTUNITY';
 type ConversationMode = 'ALL' | 'MINE' | 'UNASSIGNED';
+type ConversationStatusFilter = 'ACTIVE' | 'OPEN' | 'PENDING' | 'RESOLVED' | 'SNOOZED' | 'CLOSED';
+type ConversationPriorityFilter = 'ALL' | 'LOW' | 'NORMAL' | 'HIGH' | 'URGENT';
+type ConversationChannelFilter = 'ALL' | 'EMAIL' | 'SMS' | 'WHATSAPP';
 type Scope = { tenantId: string; companyId: string; branchId: string };
 
 @Injectable()
@@ -16,7 +19,14 @@ export class CrmConversationService {
     return { tenantId: context.tenantId, companyId: context.companyId, branchId: context.branchId };
   }
 
-  list(actorUserId: string, limit = 100, mode: ConversationMode = 'ALL') {
+  list(
+    actorUserId: string,
+    limit = 100,
+    mode: ConversationMode = 'ALL',
+    status: ConversationStatusFilter = 'ACTIVE',
+    priority: ConversationPriorityFilter = 'ALL',
+    channel: ConversationChannelFilter = 'ALL',
+  ) {
     const scope = this.scope();
     const safeLimit = Math.min(Math.max(limit, 1), 200);
     return this.prisma.$queryRawUnsafe(
@@ -53,8 +63,9 @@ export class CrmConversationService {
               a.id AS "assignmentId",a.assigned_user_id AS "assignedUserId",a.version AS "assignmentVersion",
               NULLIF(TRIM(CONCAT(COALESCE(au."firstName",''),' ',COALESCE(au."lastName",''))),'') AS "assignedUserName",
               CASE WHEN s.status='SNOOZED' AND s.snoozed_until<=NOW() THEN 'OPEN' ELSE COALESCE(s.status,'OPEN') END AS "conversationStatus",
+              COALESCE(s.priority,'NORMAL') AS "conversationPriority",
               CASE WHEN s.status='SNOOZED' AND s.snoozed_until>NOW() THEN s.snoozed_until ELSE NULL END AS "snoozedUntil",
-              COALESCE(s.version,0)::int AS "stateVersion"
+              s.resolved_at AS "resolvedAt",s.closed_at AS "closedAt",COALESCE(s.version,0)::int AS "stateVersion"
        FROM grouped g JOIN latest ON latest.subject_type=g.subject_type AND latest.subject_id=g.subject_id
        LEFT JOIN customers c ON g.subject_type='CUSTOMER' AND c.id=g.subject_id AND c."tenantId"=$1::text AND c."branchId"=$3::text
        LEFT JOIN crm_leads l ON g.subject_type='LEAD' AND l.id=g.subject_id AND l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
@@ -72,11 +83,18 @@ export class CrmConversationService {
            AND sm.created_at>COALESCE(r.read_at,'epoch'::timestamptz)
        ) unread ON TRUE
        WHERE ($6='ALL' OR ($6='MINE' AND a.assigned_user_id=$4::text) OR ($6='UNASSIGNED' AND a.id IS NULL))
-         AND (s.id IS NULL OR s.status='OPEN' OR (s.status='SNOOZED' AND s.snoozed_until<=NOW()))
-       ORDER BY (COALESCE(unread.count,0)>0) DESC,
+         AND (
+           ($7='ACTIVE' AND (CASE WHEN s.status='SNOOZED' AND s.snoozed_until<=NOW() THEN 'OPEN' ELSE COALESCE(s.status,'OPEN') END) IN ('OPEN','PENDING'))
+           OR ($7='SNOOZED' AND s.status='SNOOZED' AND s.snoozed_until>NOW())
+           OR ($7<>'ACTIVE' AND $7<>'SNOOZED' AND (CASE WHEN s.status='SNOOZED' AND s.snoozed_until<=NOW() THEN 'OPEN' ELSE COALESCE(s.status,'OPEN') END)=$7)
+         )
+         AND ($8='ALL' OR COALESCE(s.priority,'NORMAL')=$8)
+         AND ($9='ALL' OR EXISTS(SELECT 1 FROM unnest(g.channels) AS channel_value WHERE channel_value::text=$9))
+       ORDER BY CASE COALESCE(s.priority,'NORMAL') WHEN 'URGENT' THEN 4 WHEN 'HIGH' THEN 3 WHEN 'NORMAL' THEN 2 ELSE 1 END DESC,
+                (COALESCE(unread.count,0)>0) DESC,
                 (g.last_inbound_at IS NOT NULL AND (g.last_outbound_at IS NULL OR g.last_inbound_at>g.last_outbound_at)) DESC,g.last_message_at DESC
        LIMIT $5`,
-      scope.tenantId, scope.companyId, scope.branchId, actorUserId, safeLimit, mode,
+      scope.tenantId, scope.companyId, scope.branchId, actorUserId, safeLimit, mode, status, priority, channel,
     );
   }
 
