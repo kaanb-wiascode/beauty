@@ -5,6 +5,7 @@ export const reportKeys = {
 } as const;
 
 export type ReportKey = (typeof reportKeys)[keyof typeof reportKeys];
+export type ReportExportFormat = 'PDF' | 'XLSX' | 'CSV';
 
 export type ReportPermission = Readonly<{
   resource: string;
@@ -22,7 +23,9 @@ export type ReportDefinition = Readonly<{
   filters: readonly string[];
   availableColumns: readonly string[];
   defaultColumns: readonly string[];
+  exportableColumns: readonly string[];
   sortableColumns: readonly string[];
+  exportFormats: readonly ReportExportFormat[];
   pagination: boolean;
 }>;
 
@@ -55,6 +58,14 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'completionRate',
       'collected',
     ],
+    exportableColumns: [
+      'name',
+      'status',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
     sortableColumns: [
       'name',
       'appointmentCount',
@@ -62,6 +73,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'completionRate',
       'collected',
     ],
+    exportFormats: ['PDF', 'XLSX', 'CSV'],
     pagination: true,
   },
   {
@@ -93,6 +105,15 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'completionRate',
       'collected',
     ],
+    exportableColumns: [
+      'name',
+      'price',
+      'status',
+      'appointmentCount',
+      'completedAppointments',
+      'completionRate',
+      'collected',
+    ],
     sortableColumns: [
       'name',
       'appointmentCount',
@@ -100,6 +121,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'completionRate',
       'collected',
     ],
+    exportFormats: ['PDF', 'XLSX', 'CSV'],
     pagination: true,
   },
   {
@@ -130,7 +152,16 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'refundCount',
       'methods',
     ],
+    exportableColumns: [
+      'gross',
+      'refunds',
+      'net',
+      'paymentCount',
+      'refundCount',
+      'methods',
+    ],
     sortableColumns: [],
+    exportFormats: ['PDF', 'XLSX', 'CSV'],
     pagination: false,
   },
 ]);
