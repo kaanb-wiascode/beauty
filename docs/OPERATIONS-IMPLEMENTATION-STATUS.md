@@ -8,9 +8,9 @@ This document tracks implementation progress conservatively. A phase is not cons
 
 ## Overall estimate
 
-Current implementation estimate: **~96%** of the Operations roadmap.
+Current implementation estimate: **~97%** of the Operations roadmap.
 
-The remaining work is concentrated in richer multi-staff UI, broader operational tasks, precise permissions, walk-in depth, strict transaction-bound configuration revalidation and full branch-wide CI/E2E verification.
+The remaining work is concentrated in walk-in depth, broader operational tasks, precise permissions, strict transaction-bound configuration revalidation and full branch-wide CI/E2E verification.
 
 ## Phase 1 — Visit & Operational Lifecycle
 
@@ -79,13 +79,12 @@ Implemented:
 - Controlled IN_PROGRESS cancellation with reason snapshot, optimistic versioning and immutable correction audit.
 - Controlled COMPLETED reversal to CANCELLED only before Appointment completion and before Inventory consumption posting.
 - Correction actions close active staff assignments and preserve the prior execution as auditable history before a restart.
+- Service Execution UI includes active assignment history, assistant assignment, responsibility handoff and controlled cancel/reversal actions.
 
 Still open:
 
 - Walk-in ServiceExecution completion model.
 - Deeper Training/Quality reference integration for SOP templates.
-- Richer multi-staff frontend controls beyond the API foundation.
-- Wire the new execution correction action component into the main Service Execution panel.
 
 ## Phase 4 — Capacity, Waitlist & Recovery
 
@@ -187,8 +186,7 @@ Do **not** interpret a pending, in-progress or superseded run as a successful va
 ## Remaining highest-priority work
 
 1. Verify a current branch HEAD through the complete quality workflow.
-2. Wire correction and richer multi-staff controls into the Service Execution workspace.
-3. Complete walk-in ServiceExecution/commercial linkage.
-4. Expand lightweight Operational Tasks beyond opening/closing.
-5. Move waitlist branch-hours/eligibility revalidation into the serializable acceptance transaction.
-6. Complete roadmap E2E scenarios and permission refinement.
+2. Complete walk-in ServiceExecution/commercial linkage.
+3. Expand lightweight Operational Tasks beyond opening/closing.
+4. Move waitlist branch-hours/eligibility revalidation into the serializable acceptance transaction.
+5. Complete roadmap E2E scenarios and permission refinement.
