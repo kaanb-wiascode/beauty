@@ -11,6 +11,7 @@ import { StaffModule } from './modules/staff/staff.module';
 import { AppointmentsModule } from './modules/appointments/appointments.module';
 import { ServicesModule } from './modules/services/services.module';
 import { PaymentsModule } from './modules/payments/payments.module';
+import { ReportsModule } from './modules/reports/reports.module';
 import { RolesModule } from './modules/roles/roles.module';
 import { MembershipsModule } from './modules/memberships/memberships.module';
 import { InventoryModule } from './modules/inventory/inventory.module';
@@ -56,6 +57,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     AppointmentsModule,
     ServicesModule,
     PaymentsModule,
+    ReportsModule,
     RolesModule,
     MembershipsModule,
     InventoryModule,
