@@ -13,6 +13,8 @@ export const reportExportSchema = z
       reportKeys.salesPerformance,
       reportKeys.appointmentPerformance,
       reportKeys.financePerformance,
+      reportKeys.inventoryPerformance,
+      reportKeys.procurementPerformance,
     ]),
     format: z.enum(['PDF', 'XLSX', 'CSV']),
     filters: reportDateRangeSchema,
