@@ -22,11 +22,6 @@ describe('default finance taxonomy', () => {
 
   it('includes required operational expense domains', () => {
     const codes = new Set(flattenCodes(DEFAULT_EXPENSE_TAXONOMY));
-    expect(codes).toEqual(
-      expect.objectContaining({
-        size: expect.any(Number),
-      }),
-    );
     expect(codes.has('FACILITY_RENT')).toBe(true);
     expect(codes.has('STATUTORY_SGK')).toBe(true);
     expect(codes.has('PERSONNEL_ADVANCE')).toBe(true);
