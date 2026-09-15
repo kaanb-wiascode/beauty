@@ -70,6 +70,50 @@ export class FinancialObligationRulesService {
     );
   }
 
+  async generateActive(from: Date, to: Date, actorId: string, limit = 250) {
+    if (to < from) throw new BadRequestException('Generation end date must be on or after start date.');
+    const ctx = this.ctx();
+    const rules = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id
+       FROM financial_obligation_rules
+       WHERE tenant_id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3)
+         AND is_active=TRUE
+         AND start_date<=$4::date
+         AND (end_date IS NULL OR end_date>=$5::date)
+       ORDER BY created_at ASC
+       LIMIT $6`,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      to,
+      from,
+      Math.min(Math.max(limit, 1), 500),
+    );
+
+    let generated = 0;
+    let skipped = 0;
+    let occurrences = 0;
+    let failed = 0;
+    const failures: Array<{ ruleId: string; error: string }> = [];
+
+    for (const rule of rules) {
+      try {
+        const result = await this.generate(rule.id, from, to, actorId);
+        generated += result.generated;
+        skipped += result.skipped;
+        occurrences += result.occurrences;
+      } catch (error) {
+        failed += 1;
+        failures.push({
+          ruleId: rule.id,
+          error: error instanceof Error ? error.message : 'Unknown recurrence generation error.',
+        });
+      }
+    }
+
+    return { scannedRules: rules.length, generated, skipped, occurrences, failed, failures };
+  }
+
   async generate(id: string, from: Date, to: Date, actorId: string) {
     if (to < from) throw new BadRequestException('Generation end date must be on or after start date.');
     const ctx = this.ctx();
