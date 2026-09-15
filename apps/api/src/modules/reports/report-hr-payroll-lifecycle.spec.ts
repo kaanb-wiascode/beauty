@@ -23,16 +23,27 @@ describe('HR and payroll reporting lifecycle', () => {
 
   it('keeps payroll liability settlement metrics available across selectable lifecycle columns', () => {
     const definition = getReportDefinition(reportKeys.payrollSummary);
-    const settlementColumns = ['taxPaid', 'taxRemaining', 'socialPaid', 'socialRemaining'];
+    const settlementColumns = [
+      'taxPaid',
+      'taxRemaining',
+      'socialPaid',
+      'socialRemaining',
+      'otherPaid',
+      'otherRemaining',
+    ];
 
     expect(definition?.availableColumns).toEqual(expect.arrayContaining(settlementColumns));
     expect(definition?.exportableColumns).toEqual(expect.arrayContaining(settlementColumns));
     expect(definition?.sortableColumns).toEqual(expect.arrayContaining(settlementColumns));
-    expect(definition?.defaultColumns).toEqual(expect.arrayContaining(['taxRemaining', 'socialRemaining']));
+    expect(definition?.defaultColumns).toEqual(
+      expect.arrayContaining(['taxRemaining', 'socialRemaining', 'otherRemaining']),
+    );
   });
 
   it.each(['hr.workforce', 'payroll.summary'] as const)('supports the full lifecycle for %s', (reportKey) => {
-    const columns = reportKey === 'hr.workforce' ? ['date'] : ['periodDate', 'taxRemaining', 'socialRemaining'];
+    const columns = reportKey === 'hr.workforce'
+      ? ['date']
+      : ['periodDate', 'taxRemaining', 'socialRemaining', 'otherRemaining'];
 
     expect(reportPreviewSchema.parse({ reportKey, filters }).reportKey).toBe(reportKey);
     expect(reportComparisonSchema.parse({ reportKey, filters }).reportKey).toBe(reportKey);
