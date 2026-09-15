@@ -11,6 +11,7 @@ import { reportExportSchema } from './dto/report-export.dto';
 import { ReportCsvGenerator } from './report-csv.generator';
 import { getReportDefinition } from './report-definition';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
+import { ReportExportBrandingService } from './report-export-branding.service';
 import {
   ReportExportJobsRepository,
   type ReportExportJobRecord,
@@ -36,6 +37,7 @@ export class ReportExportProcessorService {
     private readonly storage: ReportExportStorageService,
     private readonly config: ConfigService,
     private readonly policy?: ReportExportPolicyService,
+    private readonly branding?: ReportExportBrandingService,
   ) {}
 
   async processNext() {
@@ -61,6 +63,10 @@ export class ReportExportProcessorService {
         ? (materialized.summary as Record<string, unknown> | null)
         : null;
       const definition = getReportDefinition(input.reportKey);
+      const branding =
+        input.format === 'PDF' && this.branding
+          ? await this.branding.resolve(user)
+          : undefined;
 
       const generated =
         input.format === 'XLSX'
@@ -91,6 +97,7 @@ export class ReportExportProcessorService {
                     from: input.filters.from,
                     to: input.filters.to,
                     generatedAt,
+                    branding,
                   },
                 }),
               }
