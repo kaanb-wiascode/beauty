@@ -13,6 +13,7 @@ const mappingSchema = z.object({
   expenseAccountId: z.string().uuid(),
   taxAccountId: z.string().uuid().optional(),
   payableAccountId: z.string().uuid(),
+  withholdingAccountId: z.string().uuid().optional(),
 });
 
 @Controller('finance')
