@@ -4,9 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { UpdateRolePermissionsInput } from './dto/update-role-permissions.dto';
 import { CreateRoleInput } from './dto/create-role.dto';
 import { UpdateRoleInput } from './dto/update-role.dto';
@@ -16,10 +17,69 @@ export class RolesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly platformAudit: PlatformAuditService,
   ) {}
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
+  }
+
+  private async getActorUserId(): Promise<string> {
+    const tenantId = this.getTenantId();
+    const membershipId = this.tenantContext.getMembershipId();
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id: membershipId,
+        tenantId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException('Active membership is required for role administration');
+    }
+
+    return membership.userId;
+  }
+
+  private auditMetadata() {
+    const context = this.tenantContext.getContext();
+    return {
+      membershipId: context.membershipId,
+      companyId: context.companyId,
+      branchId: context.branchId,
+      roleScope: context.roleScope,
+    };
+  }
+
+  private async recordRoleAudit(
+    tx: Prisma.TransactionClient,
+    actorUserId: string,
+    action: string,
+    roleId: string,
+    beforeState: unknown,
+    afterState: unknown,
+    metadata?: Record<string, unknown>,
+  ) {
+    await this.platformAudit.record(
+      {
+        actorUserId,
+        resource: 'roles',
+        action,
+        targetTenantId: this.getTenantId(),
+        targetEntityType: 'role',
+        targetEntityId: roleId,
+        beforeState,
+        afterState,
+        metadata: {
+          ...this.auditMetadata(),
+          ...metadata,
+        },
+      },
+      tx,
+    );
   }
 
   async create(input: CreateRoleInput) {
@@ -52,21 +112,41 @@ export class RolesService {
       throw new BadRequestException('Role already exists');
     }
 
-    return this.prisma.role.create({
-      data: {
-        tenantId,
-        name: input.name.trim(),
-        slug,
-        description: input.description?.trim() || null,
-      },
-      include: {
-        _count: {
-          select: {
-            memberships: true,
-            rolePermissions: true,
+    const actorUserId = await this.getActorUserId();
+
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.role.create({
+        data: {
+          tenantId,
+          name: input.name.trim(),
+          slug,
+          description: input.description?.trim() || null,
+        },
+        include: {
+          _count: {
+            select: {
+              memberships: true,
+              rolePermissions: true,
+            },
           },
         },
-      },
+      });
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'create',
+        created.id,
+        null,
+        {
+          id: created.id,
+          name: created.name,
+          slug: created.slug,
+          description: created.description,
+        },
+      );
+
+      return created;
     });
   }
 
@@ -144,7 +224,9 @@ export class RolesService {
       },
       select: {
         id: true,
+        name: true,
         slug: true,
+        description: true,
       },
     });
 
@@ -191,9 +273,28 @@ export class RolesService {
       }
     }
 
-    await this.prisma.role.update({
-      where: { id },
-      data,
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.role.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+        },
+      });
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'update',
+        id,
+        role,
+        updated,
+      );
     });
 
     return this.findOne(id);
@@ -232,10 +333,28 @@ export class RolesService {
       );
     }
 
-    await this.prisma.role.delete({
-      where: {
-        id: role.id,
-      },
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.role.delete({
+        where: {
+          id: role.id,
+        },
+      });
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'delete',
+        role.id,
+        {
+          id: role.id,
+          name: role.name,
+          slug: role.slug,
+          description: role.description,
+        },
+        { deleted: true },
+      );
     });
 
     return {
@@ -257,6 +376,7 @@ export class RolesService {
       },
       select: {
         id: true,
+        name: true,
         slug: true,
       },
     });
@@ -312,21 +432,49 @@ export class RolesService {
       }
     }
 
-    await this.prisma.$transaction([
-      this.prisma.rolePermission.deleteMany({
+    const currentPermissions = await this.prisma.rolePermission.findMany({
+      where: {
+        roleId: role.id,
+      },
+      select: {
+        permissionId: true,
+      },
+    });
+    const beforePermissionIds = currentPermissions
+      .map((item) => item.permissionId)
+      .sort();
+    const afterPermissionIds = [...permissionIds].sort();
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({
         where: {
           roleId: role.id,
         },
-      }),
-      ...permissionIds.map((permissionId) =>
-        this.prisma.rolePermission.create({
+      });
+
+      for (const permissionId of permissionIds) {
+        await tx.rolePermission.create({
           data: {
             roleId: role.id,
             permissionId,
           },
-        }),
-      ),
-    ]);
+        });
+      }
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'permissions.update',
+        role.id,
+        { permissionIds: beforePermissionIds },
+        { permissionIds: afterPermissionIds },
+        {
+          roleName: role.name,
+          roleSlug: role.slug,
+        },
+      );
+    });
 
     return this.findOne(role.id);
   }
