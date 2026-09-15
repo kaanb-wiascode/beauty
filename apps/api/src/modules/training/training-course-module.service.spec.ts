@@ -1,23 +1,38 @@
 import { NotFoundException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { TrainingCourseModuleService } from './training-course-module.service';
 
 describe('TrainingCourseModuleService', () => {
   const tenant={getTenantId:()=> 't1',getCompanyId:()=> 'c1'};
 
+  async function createService(prisma: object) {
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        TrainingCourseModuleService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenant },
+      ],
+    }).compile();
+    return moduleRef.get(TrainingCourseModuleService);
+  }
+
   it('creates the next module sequence under a locked draft version', async()=>{
-    const query=jest.fn(async(sql:string)=>{
+    const query=jest.fn(async(sql:string,..._params:unknown[])=>{
       if(sql.includes('FROM training_course_versions v'))return[{id:'v1'}];
       if(sql.includes('MAX(sequence)'))return[{sequence:3}];
       if(sql.includes('INSERT INTO training_course_modules'))return[{id:'m3',sequence:3,title:'Advanced',description:null}];
       return[];
     });
-    const execute=jest.fn(async()=>1);
+    const execute=jest.fn(async(..._args:unknown[])=>1);
     const tx={$queryRawUnsafe:query,$executeRawUnsafe:execute};
     const prisma={
       $queryRawUnsafe:query,
-      $transaction:jest.fn(async(fn:any)=>fn(tx)),
+      $transaction:jest.fn(async(fn:(client:typeof tx)=>Promise<unknown>)=>fn(tx)),
     };
-    const service=new TrainingCourseModuleService(prisma as any,tenant as any);
+    const service=await createService(prisma);
 
     const result=await service.create('v1',{title:'Advanced'},'u1');
 
@@ -26,18 +41,18 @@ describe('TrainingCourseModuleService', () => {
   });
 
   it('reorders modules using positive staging sequences', async()=>{
-    const rootQuery=jest.fn(async(sql:string)=>sql.includes('FROM training_course_versions v')?[{id:'v1'}]:[]);
-    const txQuery=jest.fn(async(sql:string)=>{
+    const rootQuery=jest.fn(async(sql:string,..._params:unknown[])=>sql.includes('FROM training_course_versions v')?[{id:'v1'}]:[]);
+    const txQuery=jest.fn(async(sql:string,..._params:unknown[])=>{
       if(sql.includes('FROM training_course_modules'))return[{id:'m1',sequence:1},{id:'m2',sequence:2}];
       return[];
     });
-    const execute=jest.fn(async()=>1);
+    const execute=jest.fn(async(..._args:unknown[])=>1);
     const tx={$queryRawUnsafe:txQuery,$executeRawUnsafe:execute};
     const prisma={
       $queryRawUnsafe:rootQuery,
-      $transaction:jest.fn(async(fn:any)=>fn(tx)),
+      $transaction:jest.fn(async(fn:(client:typeof tx)=>Promise<unknown>)=>fn(tx)),
     };
-    const service=new TrainingCourseModuleService(prisma as any,tenant as any);
+    const service=await createService(prisma);
 
     await service.reorder('v1',['m2','m1']);
 
@@ -49,15 +64,15 @@ describe('TrainingCourseModuleService', () => {
   });
 
   it('rejects assigning a lesson that is not on the target draft', async()=>{
-    const query=jest.fn(async(sql:string)=>{
+    const query=jest.fn(async(sql:string,..._params:unknown[])=>{
       if(sql.includes('FROM training_course_modules m'))return[{id:'m1',versionId:'v1',sequence:1,title:'Core',description:null}];
       return[];
     });
     const prisma={
       $queryRawUnsafe:query,
-      $executeRawUnsafe:jest.fn(async()=>0),
+      $executeRawUnsafe:jest.fn(async(..._args:unknown[])=>0),
     };
-    const service=new TrainingCourseModuleService(prisma as any,tenant as any);
+    const service=await createService(prisma);
 
     await expect(service.assignLesson('m1','l-other')).rejects.toBeInstanceOf(NotFoundException);
   });
