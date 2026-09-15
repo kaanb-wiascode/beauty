@@ -9,10 +9,8 @@ export const leadTemperatureSchema = z.enum(['COLD', 'WARM', 'HOT']);
 const acquisitionText = z.string().trim().min(1).max(255);
 const acquisitionUrl = z.string().trim().url().max(2048);
 const acquisitionRefId = z.string().uuid();
-const clickIdentifiersSchema = z.record(z.string(), z.string().trim().min(1).max(2048)).refine(
-  (value) => Object.keys(value).length <= 20,
-  { message: 'En fazla 20 click identifier saklanabilir.' },
-);
+const externalIdentity = z.string().trim().min(1).max(255);
+const clickIdentifiersSchema = z.record(z.string(), z.string().trim().min(1).max(2048)).refine((value) => Object.keys(value).length <= 20, { message: 'En fazla 20 click identifier saklanabilir.' });
 const interestIdsSchema = z.array(z.string().uuid()).max(50).transform((ids) => [...new Set(ids)]);
 const currencySchema = z.string().trim().length(3).transform((value) => value.toUpperCase());
 const leadScoreSchema = z.coerce.number().int().min(0).max(100);
@@ -21,77 +19,45 @@ const lifecycleTimestampSchema = z.coerce.date();
 export const opportunityStageSchema = z.enum(['QUALIFIED', 'NEEDS_ANALYSIS', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']);
 
 export const createLeadSchema = z.object({
-  firstName: z.string().trim().min(1).max(100),
-  lastName: z.string().trim().min(1).max(100),
-  phone: z.string().trim().min(3).max(40).optional(),
-  alternativePhone: z.string().trim().min(3).max(40).optional(),
-  email: z.string().trim().email().max(254).optional(),
-  preferredContactChannel: leadContactChannelSchema.optional(),
-  language: z.string().trim().min(2).max(35).optional(),
-  timezone: z.string().trim().min(1).max(100).optional(),
-  source: z.string().trim().min(1).max(60).default('MANUAL'),
-  acquisitionChannelId: acquisitionRefId.optional(), acquisitionSourceId: acquisitionRefId.optional(),
-  acquisitionCampaignRefId: acquisitionRefId.optional(), acquisitionAdSetRefId: acquisitionRefId.optional(), acquisitionAdRefId: acquisitionRefId.optional(),
-  sourceDetail: acquisitionText.optional(), campaignId: acquisitionText.optional(), campaignName: acquisitionText.optional(),
-  adSetId: acquisitionText.optional(), adSetName: acquisitionText.optional(), adId: acquisitionText.optional(), adName: acquisitionText.optional(),
-  landingPage: acquisitionUrl.optional(), referrer: acquisitionUrl.optional(), utmSource: acquisitionText.optional(), utmMedium: acquisitionText.optional(),
-  utmCampaign: acquisitionText.optional(), utmContent: acquisitionText.optional(), utmTerm: acquisitionText.optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
-  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().optional(),
-  estimatedBudget: z.coerce.number().min(0).optional(), budgetCurrency: currencySchema.default('TRY'), purchaseUrgency: leadPurchaseUrgencySchema.optional(),
-  consultationNeed: leadConsultationNeedSchema.optional(), customerIntent: z.string().trim().min(1).max(1000).optional(),
-  team: z.string().trim().min(1).max(120).optional(), leadScore: leadScoreSchema.default(0), leadTemperature: leadTemperatureSchema.default('COLD'),
-  firstContactedAt: lifecycleTimestampSchema.optional(), firstResponseAt: lifecycleTimestampSchema.optional(),
+  firstName: z.string().trim().min(1).max(100), lastName: z.string().trim().min(1).max(100),
+  phone: z.string().trim().min(3).max(40).optional(), alternativePhone: z.string().trim().min(3).max(40).optional(), email: z.string().trim().email().max(254).optional(),
+  providerContactId: externalIdentity.optional(), whatsappIdentity: externalIdentity.optional(),
+  preferredContactChannel: leadContactChannelSchema.optional(), language: z.string().trim().min(2).max(35).optional(), timezone: z.string().trim().min(1).max(100).optional(),
+  source: z.string().trim().min(1).max(60).default('MANUAL'), acquisitionChannelId: acquisitionRefId.optional(), acquisitionSourceId: acquisitionRefId.optional(), acquisitionCampaignRefId: acquisitionRefId.optional(), acquisitionAdSetRefId: acquisitionRefId.optional(), acquisitionAdRefId: acquisitionRefId.optional(),
+  sourceDetail: acquisitionText.optional(), campaignId: acquisitionText.optional(), campaignName: acquisitionText.optional(), adSetId: acquisitionText.optional(), adSetName: acquisitionText.optional(), adId: acquisitionText.optional(), adName: acquisitionText.optional(),
+  landingPage: acquisitionUrl.optional(), referrer: acquisitionUrl.optional(), utmSource: acquisitionText.optional(), utmMedium: acquisitionText.optional(), utmCampaign: acquisitionText.optional(), utmContent: acquisitionText.optional(), utmTerm: acquisitionText.optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
+  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().optional(), estimatedBudget: z.coerce.number().min(0).optional(), budgetCurrency: currencySchema.default('TRY'), purchaseUrgency: leadPurchaseUrgencySchema.optional(), consultationNeed: leadConsultationNeedSchema.optional(), customerIntent: z.string().trim().min(1).max(1000).optional(),
+  team: z.string().trim().min(1).max(120).optional(), leadScore: leadScoreSchema.default(0), leadTemperature: leadTemperatureSchema.default('COLD'), firstContactedAt: lifecycleTimestampSchema.optional(), firstResponseAt: lifecycleTimestampSchema.optional(),
   interestNote: z.string().trim().max(2000).optional(), ownerUserId: z.string().uuid().optional(), customerId: z.string().uuid().optional(),
-}).refine((value) => value.phone || value.alternativePhone || value.email, {
-  message: 'Lead için telefon, alternatif telefon veya e-posta gereklidir.',
-});
+}).refine((value) => value.phone || value.alternativePhone || value.email || value.providerContactId || value.whatsappIdentity, { message: 'Lead için en az bir iletişim veya sağlayıcı kimliği gereklidir.' });
 
 export const updateLeadSchema = z.object({
   version: z.coerce.number().int().min(1), firstName: z.string().trim().min(1).max(100).optional(), lastName: z.string().trim().min(1).max(100).optional(),
-  phone: z.string().trim().min(3).max(40).nullable().optional(), alternativePhone: z.string().trim().min(3).max(40).nullable().optional(),
-  email: z.string().trim().email().max(254).nullable().optional(), preferredContactChannel: leadContactChannelSchema.nullable().optional(),
-  language: z.string().trim().min(2).max(35).nullable().optional(), timezone: z.string().trim().min(1).max(100).nullable().optional(), source: z.string().trim().min(1).max(60).optional(),
-  acquisitionChannelId: acquisitionRefId.nullable().optional(), acquisitionSourceId: acquisitionRefId.nullable().optional(),
-  acquisitionCampaignRefId: acquisitionRefId.nullable().optional(), acquisitionAdSetRefId: acquisitionRefId.nullable().optional(), acquisitionAdRefId: acquisitionRefId.nullable().optional(),
-  sourceDetail: acquisitionText.nullable().optional(), campaignId: acquisitionText.nullable().optional(), campaignName: acquisitionText.nullable().optional(),
-  adSetId: acquisitionText.nullable().optional(), adSetName: acquisitionText.nullable().optional(), adId: acquisitionText.nullable().optional(), adName: acquisitionText.nullable().optional(),
-  landingPage: acquisitionUrl.nullable().optional(), referrer: acquisitionUrl.nullable().optional(), utmSource: acquisitionText.nullable().optional(), utmMedium: acquisitionText.nullable().optional(),
-  utmCampaign: acquisitionText.nullable().optional(), utmContent: acquisitionText.nullable().optional(), utmTerm: acquisitionText.nullable().optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
-  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().nullable().optional(),
-  estimatedBudget: z.coerce.number().min(0).nullable().optional(), budgetCurrency: currencySchema.optional(), purchaseUrgency: leadPurchaseUrgencySchema.nullable().optional(),
-  consultationNeed: leadConsultationNeedSchema.nullable().optional(), customerIntent: z.string().trim().min(1).max(1000).nullable().optional(),
-  team: z.string().trim().min(1).max(120).nullable().optional(), leadScore: leadScoreSchema.optional(), leadTemperature: leadTemperatureSchema.optional(),
-  firstContactedAt: lifecycleTimestampSchema.nullable().optional(), firstResponseAt: lifecycleTimestampSchema.nullable().optional(),
-  interestNote: z.string().trim().max(2000).nullable().optional(), ownerUserId: z.string().uuid().nullable().optional(),
-  status: z.enum(['NEW', 'CONTACTED', 'LOST']).optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional(),
+  phone: z.string().trim().min(3).max(40).nullable().optional(), alternativePhone: z.string().trim().min(3).max(40).nullable().optional(), email: z.string().trim().email().max(254).nullable().optional(),
+  providerContactId: externalIdentity.nullable().optional(), whatsappIdentity: externalIdentity.nullable().optional(),
+  preferredContactChannel: leadContactChannelSchema.nullable().optional(), language: z.string().trim().min(2).max(35).nullable().optional(), timezone: z.string().trim().min(1).max(100).nullable().optional(), source: z.string().trim().min(1).max(60).optional(),
+  acquisitionChannelId: acquisitionRefId.nullable().optional(), acquisitionSourceId: acquisitionRefId.nullable().optional(), acquisitionCampaignRefId: acquisitionRefId.nullable().optional(), acquisitionAdSetRefId: acquisitionRefId.nullable().optional(), acquisitionAdRefId: acquisitionRefId.nullable().optional(),
+  sourceDetail: acquisitionText.nullable().optional(), campaignId: acquisitionText.nullable().optional(), campaignName: acquisitionText.nullable().optional(), adSetId: acquisitionText.nullable().optional(), adSetName: acquisitionText.nullable().optional(), adId: acquisitionText.nullable().optional(), adName: acquisitionText.nullable().optional(), landingPage: acquisitionUrl.nullable().optional(), referrer: acquisitionUrl.nullable().optional(), utmSource: acquisitionText.nullable().optional(), utmMedium: acquisitionText.nullable().optional(), utmCampaign: acquisitionText.nullable().optional(), utmContent: acquisitionText.nullable().optional(), utmTerm: acquisitionText.nullable().optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
+  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().nullable().optional(), estimatedBudget: z.coerce.number().min(0).nullable().optional(), budgetCurrency: currencySchema.optional(), purchaseUrgency: leadPurchaseUrgencySchema.nullable().optional(), consultationNeed: leadConsultationNeedSchema.nullable().optional(), customerIntent: z.string().trim().min(1).max(1000).nullable().optional(),
+  team: z.string().trim().min(1).max(120).nullable().optional(), leadScore: leadScoreSchema.optional(), leadTemperature: leadTemperatureSchema.optional(), firstContactedAt: lifecycleTimestampSchema.nullable().optional(), firstResponseAt: lifecycleTimestampSchema.nullable().optional(),
+  interestNote: z.string().trim().max(2000).nullable().optional(), ownerUserId: z.string().uuid().nullable().optional(), status: z.enum(['NEW', 'CONTACTED', 'LOST']).optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional(),
 });
 
-export const qualifyLeadSchema = z.object({
-  version: z.coerce.number().int().min(1), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(),
-  currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional(),
-});
-export const createOpportunitySchema = z.object({
-  customerId: z.string().uuid(), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'),
-  probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional(),
-});
-export const transitionOpportunitySchema = z.object({
-  version: z.coerce.number().int().min(1), stage: opportunityStageSchema, probability: z.coerce.number().int().min(0).max(100).optional(),
-  estimatedValue: z.coerce.number().min(0).nullable().optional(), expectedCloseDate: z.coerce.date().nullable().optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional(),
-});
-export const createFollowUpSchema = z.object({
-  leadId: z.string().uuid().optional(), opportunityId: z.string().uuid().optional(), assignedUserId: z.string().uuid(), channel: leadContactChannelSchema,
-  dueAt: z.coerce.date(), note: z.string().trim().max(2000).optional(),
-}).refine((value) => Number(Boolean(value.leadId)) + Number(Boolean(value.opportunityId)) === 1, {
-  message: 'Takip görevi tam olarak bir lead veya fırsata bağlanmalıdır.',
-});
+export const duplicateCandidateSchema = z.object({
+  phone: z.string().trim().min(3).max(40).optional(), alternativePhone: z.string().trim().min(3).max(40).optional(), email: z.string().trim().email().max(254).optional(), providerContactId: externalIdentity.optional(), whatsappIdentity: externalIdentity.optional(), excludeLeadId: z.string().uuid().optional(),
+}).refine((value) => value.phone || value.alternativePhone || value.email || value.providerContactId || value.whatsappIdentity, { message: 'Duplicate search requires at least one identity signal.' });
+
+export const qualifyLeadSchema = z.object({ version: z.coerce.number().int().min(1), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional() });
+export const createOpportunitySchema = z.object({ customerId: z.string().uuid(), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional() });
+export const transitionOpportunitySchema = z.object({ version: z.coerce.number().int().min(1), stage: opportunityStageSchema, probability: z.coerce.number().int().min(0).max(100).optional(), estimatedValue: z.coerce.number().min(0).nullable().optional(), expectedCloseDate: z.coerce.date().nullable().optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional() });
+export const createFollowUpSchema = z.object({ leadId: z.string().uuid().optional(), opportunityId: z.string().uuid().optional(), assignedUserId: z.string().uuid(), channel: leadContactChannelSchema, dueAt: z.coerce.date(), note: z.string().trim().max(2000).optional() }).refine((value) => Number(Boolean(value.leadId)) + Number(Boolean(value.opportunityId)) === 1, { message: 'Takip görevi tam olarak bir lead veya fırsata bağlanmalıdır.' });
 export const completeFollowUpSchema = z.object({ version: z.coerce.number().int().min(1), outcome: z.string().trim().min(1).max(2000) });
-export const rescheduleFollowUpSchema = z.object({
-  version: z.coerce.number().int().min(1), dueAt: z.coerce.date(), assignedUserId: z.string().uuid().optional(), channel: leadContactChannelSchema.optional(), note: z.string().trim().max(2000).nullable().optional(),
-});
+export const rescheduleFollowUpSchema = z.object({ version: z.coerce.number().int().min(1), dueAt: z.coerce.date(), assignedUserId: z.string().uuid().optional(), channel: leadContactChannelSchema.optional(), note: z.string().trim().max(2000).nullable().optional() });
 export const cancelFollowUpSchema = z.object({ version: z.coerce.number().int().min(1), reason: z.string().trim().min(1).max(1000) });
 
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
+export type DuplicateCandidateInput = z.infer<typeof duplicateCandidateSchema>;
 export type QualifyLeadInput = z.infer<typeof qualifyLeadSchema>;
 export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>;
 export type TransitionOpportunityInput = z.infer<typeof transitionOpportunitySchema>;
