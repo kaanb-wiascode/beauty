@@ -70,18 +70,18 @@ export default function PlatformCommandCenterPage() {
       {data ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            <Metric label="Tenant" value={data.summary.tenants} />
-            <Metric label="Şirket" value={data.summary.companies} detail={`${number.format(data.summary.activeCompanies)} aktif`} />
-            <Metric label="Şube" value={data.summary.branches} detail={`${number.format(data.summary.activeBranches)} aktif`} />
-            <Metric label="Aktif kullanıcı" value={data.summary.activeMemberships} />
+            <Metric label="Tenant" value={data.counts.tenantCount} />
+            <Metric label="Şirket" value={data.counts.companyCount} detail={`${number.format(data.counts.activeCompanyCount)} aktif`} />
+            <Metric label="Şube" value={data.counts.branchCount} detail={`${number.format(data.counts.activeBranchCount)} aktif`} />
+            <Metric label="Aktif kullanıcı" value={data.counts.activeMembershipCount} />
             <Metric
               label="Şirket aktiflik"
-              value={data.summary.companies ? Math.round((data.summary.activeCompanies / data.summary.companies) * 100) : 0}
+              value={data.counts.companyCount ? Math.round((data.counts.activeCompanyCount / data.counts.companyCount) * 100) : 0}
               suffix="%"
             />
             <Metric
               label="Şube aktiflik"
-              value={data.summary.branches ? Math.round((data.summary.activeBranches / data.summary.branches) * 100) : 0}
+              value={data.counts.branchCount ? Math.round((data.counts.activeBranchCount / data.counts.branchCount) * 100) : 0}
               suffix="%"
             />
           </section>
@@ -107,8 +107,8 @@ export default function PlatformCommandCenterPage() {
                     <p className="text-sm font-semibold text-white">{tenant.name}</p>
                     <p className="mt-1 text-[11px] text-white/35">{tenant.slug}</p>
                   </div>
-                  <DataCell label="Aktif kullanıcı" value={number.format(tenant.activeMemberships)} />
-                  <DataCell label="Aktif şube" value={number.format(tenant.activeBranches)} />
+                  <DataCell label="Aktif kullanıcı" value={number.format(tenant.activeMembershipCount)} />
+                  <DataCell label="Aktif şube" value={number.format(tenant.activeBranchCount)} />
                   <DataCell label="Oluşturulma" value={date.format(new Date(tenant.createdAt))} />
                 </Link>
               ))}
