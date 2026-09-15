@@ -78,11 +78,11 @@ export class AppointmentReportingService {
       noShowCount: number;
       newCustomerCount: number;
       repeatCustomerCount: number;
-      rebookedCustomerCount: number;
       collected: number;
       totalDurationMinutes: number;
       hours: Map<number, number>;
       customers: Set<string>;
+      completedCustomers: Set<string>;
       rebooked: Set<string>;
     }>();
 
@@ -98,11 +98,11 @@ export class AppointmentReportingService {
         noShowCount: 0,
         newCustomerCount: 0,
         repeatCustomerCount: 0,
-        rebookedCustomerCount: 0,
         collected: 0,
         totalDurationMinutes: 0,
         hours: new Map<number, number>(),
         customers: new Set<string>(),
+        completedCustomers: new Set<string>(),
         rebooked: new Set<string>(),
       };
 
@@ -110,7 +110,10 @@ export class AppointmentReportingService {
       bucket.customers.add(appointment.customerId);
       if (appointment.status === 'SCHEDULED') bucket.scheduledCount += 1;
       if (appointment.status === 'CONFIRMED') bucket.confirmedCount += 1;
-      if (appointment.status === 'COMPLETED') bucket.completedCount += 1;
+      if (appointment.status === 'COMPLETED') {
+        bucket.completedCount += 1;
+        bucket.completedCustomers.add(appointment.customerId);
+      }
       if (appointment.status === 'CANCELLED') bucket.cancelledCount += 1;
       if (appointment.status === 'NO_SHOW') bucket.noShowCount += 1;
 
@@ -141,7 +144,9 @@ export class AppointmentReportingService {
     }
 
     return [...buckets.values()].map((bucket) => {
-      const peakHour = [...bucket.hours.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0])[0]?.[0] ?? null;
+      const peakHour = [...bucket.hours.entries()].sort(
+        (a, b) => b[1] - a[1] || a[0] - b[0],
+      )[0]?.[0] ?? null;
       const resolved = bucket.completedCount + bucket.cancelledCount + bucket.noShowCount;
       return {
         date: bucket.date,
@@ -155,11 +160,12 @@ export class AppointmentReportingService {
         cancellationRate: resolved ? Math.round((bucket.cancelledCount / resolved) * 100) : 0,
         noShowRate: resolved ? Math.round((bucket.noShowCount / resolved) * 100) : 0,
         uniqueCustomerCount: bucket.customers.size,
+        completedCustomerCount: bucket.completedCustomers.size,
         newCustomerCount: bucket.newCustomerCount,
         repeatCustomerCount: bucket.repeatCustomerCount,
         rebookedCustomerCount: bucket.rebooked.size,
-        rebookingRate: bucket.completedCount
-          ? Math.round((bucket.rebooked.size / bucket.completedCount) * 100)
+        rebookingRate: bucket.completedCustomers.size
+          ? Math.round((bucket.rebooked.size / bucket.completedCustomers.size) * 100)
           : 0,
         collected: bucket.collected,
         averageDurationMinutes: bucket.appointmentCount
