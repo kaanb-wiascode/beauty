@@ -39,6 +39,7 @@ import { BreakGlassModule } from './modules/break-glass/break-glass.module';
 import { AdminDashboardModule } from './modules/admin-dashboard/admin-dashboard.module';
 import { FieldSecurityModule } from './modules/field-security/field-security.module';
 import { NotificationPolicyModule } from './modules/notification-policies/notification-policy.module';
+import { TenantEntitlementsModule } from './modules/tenant-entitlements/tenant-entitlements.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -96,6 +97,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     AdminDashboardModule,
     FieldSecurityModule,
     NotificationPolicyModule,
+    TenantEntitlementsModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
