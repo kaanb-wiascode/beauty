@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { AuthService } from './auth.service';
 import { AuthSessionRegistryService } from './auth-session-registry.service';
 import { InvitationService } from './invitation.service';
+import { SecurityPolicyService } from './security-policy.service';
 import {
   AuthPublicRateLimit,
   AuthPublicRateLimitGuard,
@@ -53,6 +54,13 @@ const acceptInvitationSchema = z.object({
   lastName: z.string().trim().min(1).max(100),
 });
 
+const securityPolicySchema = z.object({
+  requireMfa: z.boolean(),
+  sessionMaxAgeMinutes: z.number().int().min(15).max(43200),
+  idleTimeoutMinutes: z.number().int().min(5).max(10080),
+  passwordMinLength: z.number().int().min(8).max(128),
+});
+
 @Controller('auth')
 @UseGuards(AuthPublicRateLimitGuard)
 export class AuthController {
@@ -60,6 +68,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sessionRegistry: AuthSessionRegistryService,
     private readonly invitationService: InvitationService,
+    private readonly securityPolicyService: SecurityPolicyService,
     private readonly tenantContext: TenantContext,
     private readonly prisma: PrismaService,
   ) {}
@@ -68,7 +77,6 @@ export class AuthController {
   @AuthPublicRateLimit('register', 5, 600)
   async register(@Body() body: unknown) {
     const input: RegisterInput = registerSchema.parse(body);
-
     return this.authService.register(input);
   }
 
@@ -77,7 +85,6 @@ export class AuthController {
   @Post('users')
   async createUser(@Body() body: unknown) {
     const input = createTenantUserSchema.parse(body);
-
     return this.authService.createTenantUser(
       input,
       this.tenantContext.getTenantId(),
@@ -153,11 +160,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
   @Post('sessions/:id/revoke')
   async revokeSession(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
-    return this.sessionRegistry.revoke(
-      id,
-      user.sub,
-      this.tenantContext.getTenantId(),
-    );
+    return this.sessionRegistry.revoke(id, user.sub, this.tenantContext.getTenantId());
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -177,11 +180,7 @@ export class AuthController {
   async adminUserSessions(@Param('userId') userId: string) {
     const context = this.tenantContext.getContext();
     await this.requireCompanyUser(userId, context.tenantId, context.companyId);
-    return this.sessionRegistry.listForCompany(
-      userId,
-      context.tenantId,
-      context.companyId,
-    );
+    return this.sessionRegistry.listForCompany(userId, context.tenantId, context.companyId);
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -221,6 +220,29 @@ export class AuthController {
     });
   }
 
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'read')
+  @Get('security-policy')
+  async securityPolicy() {
+    const context = this.tenantContext.getContext();
+    return this.securityPolicyService.get(context.tenantId, context.companyId);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  @Post('security-policy')
+  async updateSecurityPolicy(
+    @CurrentUser() actor: JwtPayload,
+    @Body() body: unknown,
+  ) {
+    const context = this.tenantContext.getContext();
+    return this.securityPolicyService.update(securityPolicySchema.parse(body), {
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      actorUserId: actor.sub,
+    });
+  }
+
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
   @Get('context/options')
   async contextOptions(@CurrentUser() user: JwtPayload) {
@@ -242,23 +264,14 @@ export class AuthController {
     });
 
     if (!membership) {
-      throw new UnauthorizedException(
-        'Active organization membership is missing',
-      );
+      throw new UnauthorizedException('Active organization membership is missing');
     }
 
     const branches =
       membership.role.scope === 'CENTRAL'
         ? await this.prisma.branch.findMany({
-            where: {
-              companyId: context.companyId,
-              status: 'ACTIVE',
-            },
-            select: {
-              id: true,
-              name: true,
-              code: true,
-            },
+            where: { companyId: context.companyId, status: 'ACTIVE' },
+            select: { id: true, name: true, code: true },
             orderBy: [{ name: 'asc' }, { id: 'asc' }],
           })
         : membership.branchAccesses
@@ -285,11 +298,7 @@ export class AuthController {
     @Body() body: unknown,
   ) {
     const input = switchContextSchema.parse(body);
-    const result = await this.authService.switchContext(
-      input.membershipId,
-      input.branchId,
-      user.sub,
-    );
+    const result = await this.authService.switchContext(input.membershipId, input.branchId, user.sub);
     await this.sessionRegistry.register({
       refreshId: result.refreshToken,
       userId: user.sub,
@@ -328,17 +337,9 @@ export class AuthController {
     };
   }
 
-  private async requireCompanyUser(
-    userId: string,
-    tenantId: string,
-    companyId: string,
-  ) {
+  private async requireCompanyUser(userId: string, tenantId: string, companyId: string) {
     const membership = await this.prisma.membership.findFirst({
-      where: {
-        userId,
-        tenantId,
-        companyId,
-      },
+      where: { userId, tenantId, companyId },
       select: { id: true },
     });
     if (!membership) {
