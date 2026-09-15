@@ -1,5 +1,6 @@
-import { Controller, Get, UseGuards } from '@nestjs/common';
+import { Controller, Get, Req, UseGuards } from '@nestjs/common';
 
+import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
@@ -13,7 +14,7 @@ export class ReportsController {
 
   @Get('catalog')
   @RequirePermission('reports', 'read')
-  getCatalog() {
-    return this.reportsService.getCatalog();
+  getCatalog(@Req() request: { user: JwtPayload }) {
+    return this.reportsService.getCatalog(request.user);
   }
 }
