@@ -21,6 +21,7 @@ export class TenantAuthGuard implements CanActivate {
 
     if (
       !user?.tenantId ||
+      !user.membershipId ||
       !user.companyId ||
       !user.roleScope
     ) {
@@ -31,6 +32,7 @@ export class TenantAuthGuard implements CanActivate {
 
     this.tenantContext.setContext({
       tenantId: user.tenantId,
+      membershipId: user.membershipId,
       companyId: user.companyId,
       branchId: user.branchId ?? null,
       roleScope: user.roleScope,
