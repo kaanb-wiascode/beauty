@@ -34,6 +34,17 @@ export class FinanceSetupController {
     return this.service.createCategory(categorySchema.parse(body));
   }
 
+  @Get('income-categories')
+  listIncomeCategories() {
+    return this.service.listIncomeCategories();
+  }
+
+  @Post('income-categories')
+  @RequirePermission('finance', 'manage')
+  createIncomeCategory(@Body() body: unknown) {
+    return this.service.createIncomeCategory(categorySchema.parse(body));
+  }
+
   @Get('cost-centers')
   listCostCenters() {
     return this.service.listCostCenters();
