@@ -17,6 +17,7 @@ import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions
 import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
+import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import {
   getPlatformOperationContext,
@@ -35,6 +36,7 @@ export class PlatformControlPlaneController {
     private readonly iamMutation: PlatformIamMutationService,
     private readonly auditRead: PlatformAuditReadService,
     private readonly privilegedOperations: PlatformPrivilegedOperationsService,
+    private readonly privilegedExecution: PlatformPrivilegedExecutionService,
   ) {}
 
   @Get('command-center')
@@ -75,10 +77,13 @@ export class PlatformControlPlaneController {
     @Req() request: PlatformRequest,
     @Body() body: { userId?: string; roleSlug?: string; reason?: string },
   ) {
-    return this.iamMutation.provisionAdmin(
-      { actorUserId: this.actor(request), reason: body.reason ?? '' },
-      { userId: body.userId ?? '', roleSlug: body.roleSlug },
-    );
+    return this.requestIamOperation(request, {
+      action: 'admin.provision',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: body.userId ?? null,
+      reason: body.reason ?? '',
+      payload: { userId: body.userId ?? '', roleSlug: body.roleSlug },
+    });
   }
 
   @Post('iam/admins/:userId/status')
@@ -88,10 +93,23 @@ export class PlatformControlPlaneController {
     @Param('userId') userId: string,
     @Body() body: { status?: string; reason?: string },
   ) {
-    return this.iamMutation.setAdminStatus(
-      { actorUserId: this.actor(request), reason: body.reason ?? '' },
-      { userId, status: body.status ?? '' },
-    );
+    const status = (body.status ?? '').trim().toUpperCase();
+    if (status === 'ACTIVE') {
+      return this.iamMutation.setAdminStatus(
+        { actorUserId: this.actor(request), reason: body.reason ?? '' },
+        { userId, status },
+      );
+    }
+    if (status !== 'SUSPENDED') {
+      throw new BadRequestException('Platform admin status must be ACTIVE or SUSPENDED.');
+    }
+    return this.requestIamOperation(request, {
+      action: 'admin.suspend',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: userId,
+      reason: body.reason ?? '',
+      payload: { userId },
+    });
   }
 
   @Post('iam/admins/:userId/roles')
@@ -101,10 +119,13 @@ export class PlatformControlPlaneController {
     @Param('userId') userId: string,
     @Body() body: { roleSlug?: string; reason?: string },
   ) {
-    return this.iamMutation.assignRole(
-      { actorUserId: this.actor(request), reason: body.reason ?? '' },
-      { userId, roleSlug: body.roleSlug ?? '' },
-    );
+    return this.requestIamOperation(request, {
+      action: 'role.assign',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: userId,
+      reason: body.reason ?? '',
+      payload: { userId, roleSlug: body.roleSlug ?? '' },
+    });
   }
 
   @Post('iam/admins/:userId/roles/:roleSlug/remove')
@@ -115,10 +136,13 @@ export class PlatformControlPlaneController {
     @Param('roleSlug') roleSlug: string,
     @Body() body: { reason?: string },
   ) {
-    return this.iamMutation.removeRole(
-      { actorUserId: this.actor(request), reason: body.reason ?? '' },
-      { userId, roleSlug },
-    );
+    return this.requestIamOperation(request, {
+      action: 'role.remove',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: userId,
+      reason: body.reason ?? '',
+      payload: { userId, roleSlug },
+    });
   }
 
   @Post('iam/roles/:roleSlug/permissions')
@@ -128,10 +152,17 @@ export class PlatformControlPlaneController {
     @Param('roleSlug') roleSlug: string,
     @Body() body: { resource?: string; action?: string; reason?: string },
   ) {
-    return this.iamMutation.grantRolePermission(
-      { actorUserId: this.actor(request), reason: body.reason ?? '' },
-      { roleSlug, resource: body.resource ?? '', action: body.action ?? '' },
-    );
+    return this.requestIamOperation(request, {
+      action: 'permission.grant',
+      targetEntityType: 'platform_role',
+      targetEntityId: roleSlug,
+      reason: body.reason ?? '',
+      payload: {
+        roleSlug,
+        resource: body.resource ?? '',
+        action: body.action ?? '',
+      },
+    });
   }
 
   @Post('iam/roles/:roleSlug/permissions/revoke')
@@ -141,10 +172,17 @@ export class PlatformControlPlaneController {
     @Param('roleSlug') roleSlug: string,
     @Body() body: { resource?: string; action?: string; reason?: string },
   ) {
-    return this.iamMutation.revokeRolePermission(
-      { actorUserId: this.actor(request), reason: body.reason ?? '' },
-      { roleSlug, resource: body.resource ?? '', action: body.action ?? '' },
-    );
+    return this.requestIamOperation(request, {
+      action: 'permission.revoke',
+      targetEntityType: 'platform_role',
+      targetEntityId: roleSlug,
+      reason: body.reason ?? '',
+      payload: {
+        roleSlug,
+        resource: body.resource ?? '',
+        action: body.action ?? '',
+      },
+    });
   }
 
   @Get('privileged-operations')
@@ -209,6 +247,19 @@ export class PlatformControlPlaneController {
     });
   }
 
+  @Post('privileged-operations/:requestId/execute')
+  @RequirePlatformPermission('privileged_operations', 'manage')
+  executePrivilegedOperation(
+    @Req() request: PlatformRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.privilegedExecution.execute({
+      actorUserId: this.actor(request),
+      requestId,
+      context: getPlatformOperationContext(request),
+    });
+  }
+
   @Get('audit')
   @RequirePlatformPermission('platform_audit', 'read')
   listAuditEvents(
@@ -234,6 +285,28 @@ export class PlatformControlPlaneController {
       approvalRequestId,
       limit: this.parseOptionalInteger(limit),
       offset: this.parseOptionalInteger(offset),
+    });
+  }
+
+  private requestIamOperation(
+    request: PlatformRequest,
+    input: {
+      action: string;
+      targetEntityType: string;
+      targetEntityId: string | null;
+      reason: string;
+      payload: unknown;
+    },
+  ) {
+    return this.privilegedOperations.create({
+      actorUserId: this.actor(request),
+      resource: 'platform_iam',
+      action: input.action,
+      targetEntityType: input.targetEntityType,
+      targetEntityId: input.targetEntityId,
+      reason: input.reason,
+      payload: input.payload,
+      context: getPlatformOperationContext(request),
     });
   }
 
