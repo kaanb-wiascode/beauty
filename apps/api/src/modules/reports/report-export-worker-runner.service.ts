@@ -3,12 +3,14 @@ import {
   Logger,
   OnApplicationBootstrap,
   OnApplicationShutdown,
+  Optional,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 import { ReportExportExpiryService } from './report-export-expiry.service';
 import { ReportExportProcessorService } from './report-export-processor.service';
 import { ReportExportStaleService } from './report-export-stale.service';
+import { ReportScheduleExecutionService } from './report-schedule-execution.service';
 
 @Injectable()
 export class ReportExportWorkerRunnerService
@@ -23,6 +25,7 @@ export class ReportExportWorkerRunnerService
     private readonly expiry: ReportExportExpiryService,
     private readonly stale: ReportExportStaleService,
     private readonly config: ConfigService,
+    @Optional() private readonly schedules?: ReportScheduleExecutionService,
   ) {}
 
   onApplicationBootstrap() {
@@ -34,6 +37,7 @@ export class ReportExportWorkerRunnerService
         event: 'report_export_worker_started',
         pollIntervalMs: intervalMs,
         batchSize: this.batchSize(),
+        scheduleBatchSize: this.scheduleBatchSize(),
         expiryBatchSize: this.expiryBatchSize(),
         staleBatchSize: this.staleBatchSize(),
         staleProcessingMinutes: this.staleProcessingMinutes(),
@@ -60,6 +64,7 @@ export class ReportExportWorkerRunnerService
     this.running = true;
     const startedAt = Date.now();
     const batchSize = this.batchSize();
+    const scheduleBatchSize = this.scheduleBatchSize();
     const expiryBatchSize = this.expiryBatchSize();
     const staleBatchSize = this.staleBatchSize();
     const staleProcessingMinutes = this.staleProcessingMinutes();
@@ -71,6 +76,15 @@ export class ReportExportWorkerRunnerService
       );
       const cleanup = await this.expiry.cleanup(expiryBatchSize);
 
+      let scheduled = 0;
+      if (this.schedules) {
+        while (scheduled < scheduleBatchSize) {
+          const result = await this.schedules.processNext();
+          if (!result) break;
+          scheduled += 1;
+        }
+      }
+
       let processed = 0;
       while (processed < batchSize) {
         const result = await this.processor.processNext();
@@ -78,10 +92,16 @@ export class ReportExportWorkerRunnerService
         processed += 1;
       }
 
-      if (processed > 0 || cleanup.expired > 0 || recovery.failed > 0) {
+      if (
+        scheduled > 0 ||
+        processed > 0 ||
+        cleanup.expired > 0 ||
+        recovery.failed > 0
+      ) {
         this.logger.log(
           JSON.stringify({
             event: 'report_export_worker_tick',
+            scheduled,
             processed,
             staleFailed: recovery.failed,
             expired: cleanup.expired,
@@ -97,6 +117,7 @@ export class ReportExportWorkerRunnerService
         JSON.stringify({
           event: 'report_export_worker_failed',
           batchSize,
+          scheduleBatchSize,
           expiryBatchSize,
           staleBatchSize,
           staleProcessingMinutes,
@@ -125,6 +146,15 @@ export class ReportExportWorkerRunnerService
   private batchSize() {
     return this.boundedInteger(
       this.config.get<string>('REPORT_EXPORT_WORKER_BATCH_SIZE'),
+      5,
+      1,
+      20,
+    );
+  }
+
+  private scheduleBatchSize() {
+    return this.boundedInteger(
+      this.config.get<string>('REPORT_SCHEDULE_BATCH_SIZE'),
       5,
       1,
       20,
