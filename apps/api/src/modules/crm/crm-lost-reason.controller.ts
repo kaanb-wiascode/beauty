@@ -18,5 +18,5 @@ export class CrmLostReasonController{
  @Post('lost-reasons') @RequirePermission('crm','manage') create(@Body() body:unknown){return this.reasons.create(createSchema.parse(body));}
  @Patch('lost-reasons/:id/active') @RequirePermission('crm','manage') setActive(@Param('id') id:string,@Body() body:unknown){return this.reasons.setActive(reasonId.parse(id),activeSchema.parse(body).isActive);}
  @Post('leads/:id/lost') @RequirePermission('crm','manage') loseLead(@Param('id') id:string,@Body() body:unknown,@Req() req:{user?:{sub?:string}}){return this.transitions.loseLead(idSchema.parse(id),loseSchema.parse(body),this.actor(req));}
- @Post('opportunities/:id/lost') @RequirePermission('crm','manage') loseOpportunity(@Param('id') id:string,@Body() body:unknown,@Req() req:{user?:{sub?:string}}){this.actor(req);return this.transitions.loseOpportunity(idSchema.parse(id),loseSchema.parse(body));}
+ @Post('opportunities/:id/lost') @RequirePermission('crm','manage') loseOpportunity(@Param('id') id:string,@Body() body:unknown,@Req() req:{user?:{sub?:string}}){return this.transitions.loseOpportunity(idSchema.parse(id),loseSchema.parse(body),this.actor(req));}
 }
