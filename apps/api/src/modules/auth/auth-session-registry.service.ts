@@ -82,6 +82,99 @@ export class AuthSessionRegistryService {
   }
 
   async list(userId: string, tenantId: string) {
+    return this.listScoped(userId, tenantId, null);
+  }
+
+  async listForCompany(userId: string, tenantId: string, companyId: string) {
+    return this.listScoped(userId, tenantId, companyId);
+  }
+
+  async revoke(id: string, userId: string, tenantId: string) {
+    return this.revokeRecord({
+      id,
+      actorUserId: userId,
+      targetUserId: userId,
+      tenantId,
+      companyId: null,
+      action: 'revoke',
+    });
+  }
+
+  async revokeForAdmin(input: {
+    id: string;
+    actorUserId: string;
+    targetUserId: string;
+    tenantId: string;
+    companyId: string;
+  }) {
+    return this.revokeRecord({
+      ...input,
+      action: 'admin_revoke',
+    });
+  }
+
+  async revokeAll(input: {
+    actorUserId: string;
+    targetUserId: string;
+    tenantId: string;
+    companyId?: string | null;
+    action?: 'revoke_all' | 'admin_revoke_all';
+  }) {
+    const sessions = input.companyId
+      ? await this.listForCompany(input.targetUserId, input.tenantId, input.companyId)
+      : await this.list(input.targetUserId, input.tenantId);
+
+    let revokedCount = 0;
+    for (const session of sessions) {
+      try {
+        await this.revokeRecord({
+          id: session.id,
+          actorUserId: input.actorUserId,
+          targetUserId: input.targetUserId,
+          tenantId: input.tenantId,
+          companyId: input.companyId ?? null,
+          action: input.action ?? 'revoke_all',
+          writeAudit: false,
+        });
+        revokedCount += 1;
+      } catch (error) {
+        if (!(error instanceof NotFoundException)) throw error;
+      }
+    }
+
+    await this.audit.record({
+      actorUserId: input.actorUserId,
+      resource: 'security_sessions',
+      action: input.action ?? 'revoke_all',
+      targetTenantId: input.tenantId,
+      targetEntityType: 'user_sessions',
+      targetEntityId: input.targetUserId,
+      beforeState: { activeSessionCount: sessions.length },
+      afterState: { activeSessionCount: Math.max(0, sessions.length - revokedCount) },
+      metadata: {
+        targetUserId: input.targetUserId,
+        companyId: input.companyId ?? null,
+        revokedCount,
+      },
+    });
+
+    return { revokedCount };
+  }
+
+  async unregister(refreshId: string) {
+    const id = this.fingerprint(refreshId);
+    const raw = await this.redis.get(`auth:session:${id}`);
+    const record = raw ? this.parse(raw) : null;
+    await this.redis.delete(`auth:session:${id}`);
+    if (record) {
+      await this.redis.getClient().sRem(
+        `auth:user-sessions:${record.userId}:${record.tenantId}`,
+        id,
+      );
+    }
+  }
+
+  private async listScoped(userId: string, tenantId: string, companyId: string | null) {
     const indexKey = `auth:user-sessions:${userId}:${tenantId}`;
     const ids = await this.redis.getClient().sMembers(indexKey);
     const result = [];
@@ -98,6 +191,7 @@ export class AuthSessionRegistryService {
         await this.redis.getClient().sRem(indexKey, id);
         continue;
       }
+      if (companyId && record.companyId !== companyId) continue;
       const ttl = await this.redis.getClient().ttl(key);
       result.push(this.publicRecord(record, ttl >= 0 ? ttl : null));
     }
@@ -105,42 +199,57 @@ export class AuthSessionRegistryService {
     return result.sort((a, b) => b.rotatedAt.localeCompare(a.rotatedAt));
   }
 
-  async revoke(id: string, userId: string, tenantId: string) {
-    const key = `auth:session:${id}`;
+  private async revokeRecord(input: {
+    id: string;
+    actorUserId: string;
+    targetUserId: string;
+    tenantId: string;
+    companyId: string | null;
+    action: string;
+    writeAudit?: boolean;
+  }) {
+    const key = `auth:session:${input.id}`;
     const raw = await this.redis.get(key);
     const record = raw ? this.parse(raw) : null;
-    if (!record || record.userId !== userId || record.tenantId !== tenantId) {
+    if (
+      !record ||
+      record.userId !== input.targetUserId ||
+      record.tenantId !== input.tenantId ||
+      (input.companyId && record.companyId !== input.companyId)
+    ) {
       throw new NotFoundException('Session not found');
     }
 
     await this.redis.delete(`auth:refresh:${record.refreshId}`);
     await this.redis.delete(key);
-    await this.redis.getClient().sRem(`auth:user-sessions:${userId}:${tenantId}`, id);
-    await this.audit.record({
-      actorUserId: userId,
-      resource: 'security_sessions',
-      action: 'revoke',
-      targetTenantId: tenantId,
-      targetEntityType: 'auth_session',
-      targetEntityId: id,
-      beforeState: { active: true, membershipId: record.membershipId },
-      afterState: { active: false },
-      metadata: { companyId: record.companyId, branchId: record.branchId },
-    });
-    return { id, revoked: true };
-  }
+    await this.redis.getClient().sRem(
+      `auth:user-sessions:${input.targetUserId}:${input.tenantId}`,
+      input.id,
+    );
 
-  async unregister(refreshId: string) {
-    const id = this.fingerprint(refreshId);
-    const raw = await this.redis.get(`auth:session:${id}`);
-    const record = raw ? this.parse(raw) : null;
-    await this.redis.delete(`auth:session:${id}`);
-    if (record) {
-      await this.redis.getClient().sRem(
-        `auth:user-sessions:${record.userId}:${record.tenantId}`,
-        id,
-      );
+    if (input.writeAudit !== false) {
+      await this.audit.record({
+        actorUserId: input.actorUserId,
+        resource: 'security_sessions',
+        action: input.action,
+        targetTenantId: input.tenantId,
+        targetEntityType: 'auth_session',
+        targetEntityId: input.id,
+        beforeState: {
+          active: true,
+          membershipId: record.membershipId,
+          userId: record.userId,
+        },
+        afterState: { active: false },
+        metadata: {
+          companyId: record.companyId,
+          branchId: record.branchId,
+          targetUserId: record.userId,
+        },
+      });
     }
+
+    return { id: input.id, revoked: true };
   }
 
   private publicRecord(record: SessionRecord, expiresInSeconds: number | null) {
