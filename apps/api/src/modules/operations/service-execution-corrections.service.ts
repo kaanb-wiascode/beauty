@@ -16,7 +16,7 @@ import type {
 
 type ExecutionRow = {
   id: string;
-  appointmentId: string;
+  appointmentId: string | null;
   visitId: string;
   status: 'IN_PROGRESS' | 'COMPLETED' | 'CANCELLED';
   version: number;
@@ -91,16 +91,18 @@ export class ServiceExecutionCorrectionsService {
         }
 
         if (action === 'REVERSE_COMPLETION') {
-          const appointment = await tx.appointment.findFirst({
-            where: { id: execution.appointmentId, tenantId, branchId },
-            select: { status: true },
-          });
-          if (!appointment) throw new NotFoundException('Linked appointment not found.');
-          if (appointment.status === 'COMPLETED') {
-            throw new ConflictException({
-              code: 'APPOINTMENT_ALREADY_COMPLETED',
-              message: 'Execution completion cannot be reversed after the linked appointment is completed.',
+          if (execution.appointmentId) {
+            const appointment = await tx.appointment.findFirst({
+              where: { id: execution.appointmentId, tenantId, branchId },
+              select: { status: true },
             });
+            if (!appointment) throw new NotFoundException('Linked appointment not found.');
+            if (appointment.status === 'COMPLETED') {
+              throw new ConflictException({
+                code: 'APPOINTMENT_ALREADY_COMPLETED',
+                message: 'Execution completion cannot be reversed after the linked appointment is completed.',
+              });
+            }
           }
 
           const posted = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -110,7 +112,7 @@ export class ServiceExecutionCorrectionsService {
              WHERE m.tenant_id=$1 AND m.company_id=$2 AND w.branch_id=$3
                AND m.type='SERVICE_CONSUMPTION'
                AND ((m.reference_type='SERVICE_EXECUTION' AND m.reference_id=$4)
-                 OR (m.reference_type='APPOINTMENT' AND m.reference_id=$5))
+                 OR ($5::text IS NOT NULL AND m.reference_type='APPOINTMENT' AND m.reference_id=$5))
              LIMIT 1`,
             tenantId,
             companyId,
