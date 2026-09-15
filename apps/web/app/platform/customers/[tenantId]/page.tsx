@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useEffect, useState } from "react";
 
 import { CustomerContextPanel } from "@/components/platform/customer-context-panel";
+import { TenantEntitlementsPanel } from "@/components/platform/tenant-entitlements-panel";
 import { TenantGovernancePanel } from "@/components/platform/tenant-governance-panel";
 import { TenantSubscriptionPanel } from "@/components/platform/tenant-subscription-panel";
 import { ApiError } from "@/lib/api";
@@ -75,6 +76,7 @@ export default function PlatformCustomer360Page() {
       <TenantGovernancePanel tenantId={tenant.id} />
       <CustomerContextPanel tenantId={tenant.id} />
       <TenantSubscriptionPanel tenantId={tenant.id} />
+      <TenantEntitlementsPanel tenantId={tenant.id} />
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
         <Panel title="Organizasyon yapısı" eyebrow="Companies & branches">
