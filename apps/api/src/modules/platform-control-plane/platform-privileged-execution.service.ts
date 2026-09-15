@@ -78,6 +78,7 @@ export class PlatformPrivilegedExecutionService {
 
   private async executePlatformIam(client: TxClient, actorUserId: string, request: ApprovalRequest) {
     const payload = this.payloadObject(request.payload);
+    this.assertTargetBinding(request, payload);
 
     switch (request.action) {
       case 'admin.provision': {
@@ -175,6 +176,23 @@ export class PlatformPrivilegedExecutionService {
       }
       default:
         throw new BadRequestException('Unsupported platform IAM privileged action.');
+    }
+  }
+
+  private assertTargetBinding(request: ApprovalRequest, payload: Record<string, unknown>) {
+    if (request.action === 'admin.provision' || request.action === 'admin.suspend' || request.action === 'role.assign' || request.action === 'role.remove') {
+      const userId = this.requiredString(payload.userId, 'payload.userId');
+      if (request.targetEntityType !== 'platform_admin_user' || request.targetEntityId !== userId) {
+        throw new BadRequestException('Approved target does not match the stored platform admin payload.');
+      }
+      return;
+    }
+
+    if (request.action === 'permission.grant' || request.action === 'permission.revoke') {
+      const roleSlug = this.requiredString(payload.roleSlug, 'payload.roleSlug');
+      if (request.targetEntityType !== 'platform_role' || request.targetEntityId !== roleSlug) {
+        throw new BadRequestException('Approved target does not match the stored platform role payload.');
+      }
     }
   }
 
