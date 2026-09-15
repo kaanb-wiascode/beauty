@@ -7,6 +7,9 @@ function createRunner(configValues: Record<string, string | undefined> = {}) {
   const expiry = {
     cleanup: jest.fn().mockResolvedValue({ expired: 0, deleted: 0 }),
   } as any;
+  const stale = {
+    recover: jest.fn().mockResolvedValue({ failed: 0 }),
+  } as any;
   const config = {
     get: jest.fn((key: string) => configValues[key]),
   } as any;
@@ -14,24 +17,46 @@ function createRunner(configValues: Record<string, string | undefined> = {}) {
   return {
     processor,
     expiry,
-    runner: new ReportExportWorkerRunnerService(processor, expiry, config),
+    stale,
+    runner: new ReportExportWorkerRunnerService(
+      processor,
+      expiry,
+      stale,
+      config,
+    ),
   };
 }
 
 describe('ReportExportWorkerRunnerService', () => {
-  it('runs expiry cleanup before processing a bounded batch', async () => {
-    const { runner, processor, expiry } = createRunner({
+  it('recovers stale jobs before expiry cleanup and processing a bounded batch', async () => {
+    const { runner, processor, expiry, stale } = createRunner({
       REPORT_EXPORT_WORKER_BATCH_SIZE: '2',
       REPORT_EXPORT_EXPIRY_BATCH_SIZE: '50',
+      REPORT_EXPORT_STALE_BATCH_SIZE: '40',
+      REPORT_EXPORT_STALE_PROCESSING_MINUTES: '45',
+    });
+    const order: string[] = [];
+    stale.recover.mockImplementation(async () => {
+      order.push('stale');
+      return { failed: 1 };
+    });
+    expiry.cleanup.mockImplementation(async () => {
+      order.push('expiry');
+      return { expired: 0, deleted: 0 };
     });
     processor.processNext
-      .mockResolvedValueOnce({ id: 'export-1' })
+      .mockImplementationOnce(async () => {
+        order.push('process');
+        return { id: 'export-1' };
+      })
       .mockResolvedValueOnce({ id: 'export-2' })
       .mockResolvedValueOnce({ id: 'export-3' });
 
     await expect(runner.tick()).resolves.toBe(2);
+    expect(stale.recover).toHaveBeenCalledWith(45, 40);
     expect(expiry.cleanup).toHaveBeenCalledWith(50);
     expect(processor.processNext).toHaveBeenCalledTimes(2);
+    expect(order.slice(0, 3)).toEqual(['stale', 'expiry', 'process']);
   });
 
   it('stops the batch when no queued job remains', async () => {
@@ -58,7 +83,16 @@ describe('ReportExportWorkerRunnerService', () => {
     await expect(first).resolves.toBe(1);
   });
 
-  it('contains cleanup or processor failures without leaking them through the runner', async () => {
+  it('contains stale recovery failures and does not process new jobs', async () => {
+    const { runner, stale, expiry, processor } = createRunner();
+    stale.recover.mockRejectedValueOnce(new Error('sensitive recovery failure'));
+
+    await expect(runner.tick()).resolves.toBe(0);
+    expect(expiry.cleanup).not.toHaveBeenCalled();
+    expect(processor.processNext).not.toHaveBeenCalled();
+  });
+
+  it('contains cleanup failures and does not process new jobs', async () => {
     const { runner, expiry, processor } = createRunner();
     expiry.cleanup.mockRejectedValueOnce(new Error('sensitive cleanup failure'));
 
