@@ -9,6 +9,7 @@ const OPERATIONS_TABS = [
   { href: "/operations/alerts", label: "Canlı Uyarılar" },
   { href: "/operations/waitlist", label: "Bekleme Listesi" },
   { href: "/operations/resources", label: "Kaynaklar ve Kapasite" },
+  { href: "/operations/resource-calendar", label: "Kaynak Takvimi" },
   { href: "/operations/staff-availability", label: "Personel Uygunluğu" },
   { href: "/operations/utilization", label: "Kullanım Analizi" },
   { href: "/operations/service-executions", label: "Hizmet İcraları" },
