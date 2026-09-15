@@ -14,6 +14,7 @@ import { OperationsUtilizationController } from './operations-utilization.contro
 import { OperationsUtilizationService } from './operations-utilization.service';
 import { OperationsWaitlistController } from './operations-waitlist.controller';
 import { OperationsWaitlistMatchingService } from './operations-waitlist-matching.service';
+import { OperationsWaitlistRecoveryService } from './operations-waitlist-recovery.service';
 import { OperationsWaitlistService } from './operations-waitlist.service';
 import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
@@ -38,6 +39,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsUtilizationService,
     OperationsWaitlistService,
     OperationsWaitlistMatchingService,
+    OperationsWaitlistRecoveryService,
     ServiceExecutionsService,
   ],
 })
