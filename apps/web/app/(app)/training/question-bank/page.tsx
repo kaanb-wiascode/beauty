@@ -1,207 +1,103 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
-import { DataView, DataViewMeta } from "@/components/data-view";
+import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
-type Course = { id: string; code: string; title: string };
-type Quiz = { id: string; title: string; courseId: string | null; passScore: number };
-type Question = {
-  id: string;
-  quizId: string;
-  question: string;
-  options: string[];
-  correctIndex: number;
-  points: number;
-  sortOrder: number;
-};
+type QuestionType="SINGLE_CHOICE"|"MULTIPLE_CHOICE"|"TRUE_FALSE";
+type BankQuestion={id:string;code:string;version:number;status:"DRAFT"|"PUBLISHED"|"RETIRED";category:string;questionType:QuestionType;prompt:string;options?:unknown;correctAnswer:unknown;defaultPoints:number;tags:string[];publishedAt?:string|null;createdAt:string};
+type DraftExam={id:string;title:string;passScore:number;maxAttempts?:number|null;courseVersionId:string;version:number;courseId:string;courseCode:string;courseTitle:string;questionCount:number};
+type QuestionForm={code:string;category:string;questionType:QuestionType;prompt:string;options:string;correctAnswer:string;defaultPoints:string;tags:string};
 
-type QuizForm = {
-  courseId: string;
-  title: string;
-  passScore: string;
-  questionCount: string;
-};
+const EMPTY:QuestionForm={code:"",category:"GENERAL",questionType:"SINGLE_CHOICE",prompt:"",options:"",correctAnswer:"",defaultPoints:"1",tags:""};
+const STATUS:Record<BankQuestion["status"],string>={DRAFT:"Taslak",PUBLISHED:"Yayında",RETIRED:"Emekli"};
 
-type QuestionForm = {
-  quizId: string;
-  question: string;
-  option1: string;
-  option2: string;
-  option3: string;
-  option4: string;
-  correctIndex: string;
-  points: string;
-  sortOrder: string;
-};
+function errorMessage(error:unknown,fallback:string){return error instanceof ApiError?error.message:error instanceof Error?error.message:fallback;}
+function displayAnswer(value:unknown){return Array.isArray(value)?value.map(String).join(", "):typeof value==="boolean"?(value?"Doğru":"Yanlış"):String(value??"");}
+function displayOptions(value:unknown){return Array.isArray(value)?value.map(String):[];}
 
-const emptyQuiz: QuizForm = { courseId: "", title: "", passScore: "70", questionCount: "10" };
-const emptyQuestion: QuestionForm = {
-  quizId: "", question: "", option1: "", option2: "", option3: "", option4: "", correctIndex: "0", points: "1", sortOrder: "0",
-};
+export default function QuestionBankPage(){
+  const [questions,setQuestions]=useState<BankQuestion[]>([]);
+  const [draftExams,setDraftExams]=useState<DraftExam[]>([]);
+  const [form,setForm]=useState<QuestionForm>(EMPTY);
+  const [status,setStatus]=useState<string>("");
+  const [targetExamId,setTargetExamId]=useState("");
+  const [loading,setLoading]=useState(true);
+  const [busy,setBusy]=useState<string|null>(null);
+  const [error,setError]=useState("");
+  const [success,setSuccess]=useState("");
 
-export default function QuestionBankPage() {
-  const [courses, setCourses] = useState<Course[]>([]);
-  const [quizzes, setQuizzes] = useState<Quiz[]>([]);
-  const [questions, setQuestions] = useState<Question[]>([]);
-  const [quizForm, setQuizForm] = useState<QuizForm>(emptyQuiz);
-  const [questionForm, setQuestionForm] = useState<QuestionForm>(emptyQuestion);
-  const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const [message, setMessage] = useState("");
-
-  async function load() {
-    setLoading(true);
-    setError("");
-    try {
-      const [courseRows, quizRows] = await Promise.all([
-        api<Course[]>("/training/courses"),
-        api<Quiz[]>("/training/quizzes"),
+  const load=useCallback(async()=>{
+    setLoading(true);setError("");
+    try{
+      const [questionRows,examRows]=await Promise.all([
+        api<BankQuestion[]>(`/training/lms/question-bank${status?`?status=${status}`:""}`),
+        api<DraftExam[]>("/training/lms/question-bank/draft-exams"),
       ]);
-      setCourses(courseRows);
-      setQuizzes(quizRows);
-      setQuizForm((current) => ({ ...current, courseId: current.courseId || courseRows[0]?.id || "" }));
-      setQuestionForm((current) => ({ ...current, quizId: current.quizId || quizRows[0]?.id || "" }));
-      if (quizRows[0]?.id) setQuestions(await api<Question[]>(`/training/quizzes/${quizRows[0].id}/questions`));
-      else setQuestions([]);
-    } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Soru Bankası Verileri Yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
+      setQuestions(questionRows??[]);setDraftExams(examRows??[]);
+      setTargetExamId(current=>(examRows??[]).some(item=>item.id===current)?current:(examRows?.[0]?.id??""));
+    }catch(requestError){setError(errorMessage(requestError,"Soru bankası yüklenemedi."));}
+    finally{setLoading(false);}
+  },[status]);
+  useEffect(()=>{void load();},[load]);
+
+  const published=useMemo(()=>questions.filter(item=>item.status==="PUBLISHED"),[questions]);
+  const drafts=useMemo(()=>questions.filter(item=>item.status==="DRAFT"),[questions]);
+  const categories=useMemo(()=>new Set(questions.map(item=>item.category)).size,[questions]);
+  const targetExam=useMemo(()=>draftExams.find(item=>item.id===targetExamId)??null,[draftExams,targetExamId]);
+
+  function payload(){
+    const options=form.questionType==="TRUE_FALSE"?undefined:form.options.split("\n").map(item=>item.trim()).filter(Boolean);
+    let correctAnswer:unknown=form.correctAnswer.trim();
+    if(form.questionType==="TRUE_FALSE")correctAnswer=form.correctAnswer!=="false";
+    if(form.questionType==="MULTIPLE_CHOICE")correctAnswer=form.correctAnswer.split(",").map(item=>item.trim()).filter(Boolean);
+    return{code:form.code,category:form.category,questionType:form.questionType,prompt:form.prompt,options,correctAnswer,defaultPoints:Number(form.defaultPoints),tags:form.tags.split(",").map(item=>item.trim()).filter(Boolean)};
   }
 
-  useEffect(() => { void load(); }, []);
-
-  const selectedQuizId = questionForm.quizId;
-  useEffect(() => {
-    if (!selectedQuizId) { setQuestions([]); return; }
-    void api<Question[]>(`/training/quizzes/${selectedQuizId}/questions`)
-      .then(setQuestions)
-      .catch((requestError) => setError(requestError instanceof ApiError ? requestError.message : "Sorular Yüklenemedi."));
-  }, [selectedQuizId]);
-
-  const selectedQuiz = useMemo(() => quizzes.find((quiz) => quiz.id === questionForm.quizId) ?? null, [quizzes, questionForm.quizId]);
-
-  async function createQuiz() {
-    if (!quizForm.title.trim()) { setError("Sınav Başlığı Zorunludur."); return; }
-    setSaving(true); setError(""); setMessage("");
-    try {
-      await api("/training/quizzes", {
-        method: "POST",
-        body: {
-          courseId: quizForm.courseId || null,
-          title: quizForm.title.trim(),
-          passScore: Number(quizForm.passScore || 70),
-          questionCount: Number(quizForm.questionCount || 10),
-        },
-      });
-      setMessage("Sınav Oluşturuldu.");
-      setQuizForm((current) => ({ ...emptyQuiz, courseId: current.courseId }));
-      await load();
-    } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Sınav Oluşturulamadı.");
-    } finally { setSaving(false); }
+  async function create(event:FormEvent){
+    event.preventDefault();if(busy)return;setBusy("create");setError("");setSuccess("");
+    try{await api("/training/lms/question-bank",{method:"POST",body:payload()});setForm(EMPTY);setSuccess("Soru taslağı oluşturuldu. Yayınlandıktan sonra course-version sınavlarında tekrar kullanılabilir.");await load();}
+    catch(requestError){setError(errorMessage(requestError,"Soru oluşturulamadı."));}
+    finally{setBusy(null);}
   }
 
-  async function createQuestion() {
-    const options = [questionForm.option1, questionForm.option2, questionForm.option3, questionForm.option4].map((value) => value.trim()).filter(Boolean);
-    if (!questionForm.quizId || !questionForm.question.trim() || options.length < 2) {
-      setError("Sınav, Soru Metni Ve En Az İki Seçenek Gereklidir.");
-      return;
-    }
-    setSaving(true); setError(""); setMessage("");
-    try {
-      await api(`/training/quizzes/${questionForm.quizId}/questions`, {
-        method: "POST",
-        body: {
-          question: questionForm.question.trim(),
-          options,
-          correctIndex: Number(questionForm.correctIndex || 0),
-          points: Number(questionForm.points || 1),
-          sortOrder: Number(questionForm.sortOrder || 0),
-        },
-      });
-      setMessage("Soru Eklendi.");
-      setQuestionForm((current) => ({ ...emptyQuestion, quizId: current.quizId }));
-      setQuestions(await api<Question[]>(`/training/quizzes/${questionForm.quizId}/questions`));
-    } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Soru Eklenemedi.");
-    } finally { setSaving(false); }
+  async function publish(question:BankQuestion){
+    if(busy)return;setBusy(`publish:${question.id}`);setError("");setSuccess("");
+    try{await api(`/training/lms/question-bank/${question.id}/publish`,{method:"POST"});setSuccess(`${question.code} v${question.version} yayınlandı.`);await load();}
+    catch(requestError){setError(errorMessage(requestError,"Soru yayınlanamadı."));}
+    finally{setBusy(null);}
   }
 
-  if (loading) return <div className="py-16"><Spinner label="Soru Bankası Hazırlanıyor..." /></div>;
+  async function addToExam(question:BankQuestion){
+    if(!targetExam||busy)return;setBusy(`attach:${question.id}`);setError("");setSuccess("");
+    try{const result=await api<{duplicate?:boolean}>(`/training/lms/question-bank/${question.id}/exams/${targetExam.id}`,{method:"POST",body:{sequence:targetExam.questionCount+1,points:question.defaultPoints}});setSuccess(result.duplicate?"Bu soru sürümü seçili sınavda zaten bulunuyor.":`${question.code} v${question.version}, ${targetExam.courseCode} · ${targetExam.title} sınavına snapshot olarak eklendi.`);await load();}
+    catch(requestError){setError(errorMessage(requestError,"Soru sınava eklenemedi."));}
+    finally{setBusy(null);}
+  }
 
-  return (
-    <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
-      <header>
-        <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Eğitim Ve Yetkinlik</p>
-        <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Soru Bankası</h1>
-        <p className="mt-2 max-w-[760px] text-[13px] leading-6 text-[var(--muted)]">Sınavları Ve Soruları Yönetin, Başarı Puanını Belirleyin Ve Eğitim Değerlendirmelerini Hazırlayın.</p>
-      </header>
+  if(loading)return <div className="flex min-h-[420px] items-center justify-center rounded-[22px] border border-[var(--line)] bg-[var(--surface)]"><Spinner label="Versioned Soru Bankası Hazırlanıyor..."/></div>;
 
-      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {message ? <Alert tone="success" onClose={() => setMessage("")}>{message}</Alert> : null}
+  return <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
+    <header><p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">Assessment Consolidation</p><h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Soru Bankası</h1><p className="mt-2 max-w-[880px] text-[13px] leading-6 text-[var(--muted)]">Reusable ve versioned soruları yönetin. Yayınlanmış banka soruları draft course-version sınavlarına immutable snapshot olarak eklenir; learner grading tek LMS assessment motoru üzerinden çalışır.</p></header>
+    {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{success?<Alert tone="success" onClose={()=>setSuccess("")}>{success}</Alert>:null}
+    <section className="grid gap-3 sm:grid-cols-4"><FinanceMetric label="Gösterilen" value={questions.length} detail="Bank Question Version" tone="neutral"/><FinanceMetric label="Yayında" value={published.length} detail="Reusable" tone="success"/><FinanceMetric label="Taslak" value={drafts.length} detail="Yayın Bekliyor" tone={drafts.length?"warning":"neutral"}/><FinanceMetric label="Kategori" value={categories} detail="Aktif Görünüm" tone="info"/></section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h2 className="text-[15px] font-semibold text-[var(--ink)]">Yeni Sınav</h2>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">Eğitime Bağlı Veya Bağımsız Bir Değerlendirme Oluşturun.</p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Field label="Eğitim"><select className="control h-11 w-full" value={quizForm.courseId} onChange={(event) => setQuizForm({ ...quizForm, courseId: event.target.value })}><option value="">Bağımsız Sınav</option>{courses.map((course) => <option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}</select></Field>
-            <Field label="Sınav Başlığı"><TextInput value={quizForm.title} onChange={(event) => setQuizForm({ ...quizForm, title: event.target.value })} /></Field>
-            <Field label="Başarı Puanı"><TextInput type="number" min="0" max="100" value={quizForm.passScore} onChange={(event) => setQuizForm({ ...quizForm, passScore: event.target.value })} /></Field>
-            <Field label="Soru Sayısı"><TextInput type="number" min="1" value={quizForm.questionCount} onChange={(event) => setQuizForm({ ...quizForm, questionCount: event.target.value })} /></Field>
-          </div>
-          <div className="mt-5 flex justify-end"><Button disabled={saving} onClick={() => void createQuiz()}>{saving ? "Kaydediliyor..." : "Sınav Oluştur"}</Button></div>
-        </section>
+    <div className="grid gap-6 xl:grid-cols-[0.9fr_1.1fr]">
+      <FinancePanel title="Yeni Banka Sorusu" description="Aynı code için yeni kayıt yeni version üretir; yayınlama önceki published version'ı RETIRED yapar."><form onSubmit={create} className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Soru Kodu" required><TextInput required value={form.code} onChange={event=>setForm({...form,code:event.target.value})} placeholder="HYGIENE-001"/></Field><Field label="Kategori"><TextInput value={form.category} onChange={event=>setForm({...form,category:event.target.value})} placeholder="HYGIENE"/></Field></div>
+        <Field label="Soru Tipi"><select className="control h-11 w-full" value={form.questionType} onChange={event=>setForm({...form,questionType:event.target.value as QuestionType,correctAnswer:event.target.value==="TRUE_FALSE"?"true":""})}><option value="SINGLE_CHOICE">Tek Seçim</option><option value="MULTIPLE_CHOICE">Çoklu Seçim</option><option value="TRUE_FALSE">Doğru / Yanlış</option></select></Field>
+        <Field label="Soru Metni" required><textarea required className="control min-h-[100px] w-full resize-y" value={form.prompt} onChange={event=>setForm({...form,prompt:event.target.value})}/></Field>
+        {form.questionType!=="TRUE_FALSE"?<Field label="Seçenekler"><textarea className="control min-h-[110px] w-full resize-y" value={form.options} onChange={event=>setForm({...form,options:event.target.value})} placeholder={"Her satıra bir seçenek\nA\nB\nC"}/></Field>:null}
+        {form.questionType==="TRUE_FALSE"?<Field label="Doğru Cevap"><select className="control h-11 w-full" value={form.correctAnswer||"true"} onChange={event=>setForm({...form,correctAnswer:event.target.value})}><option value="true">Doğru</option><option value="false">Yanlış</option></select></Field>:<Field label={form.questionType==="MULTIPLE_CHOICE"?"Doğru Cevaplar (virgülle)":"Doğru Cevap"} required><TextInput required value={form.correctAnswer} onChange={event=>setForm({...form,correctAnswer:event.target.value})}/></Field>}
+        <div className="grid gap-3 sm:grid-cols-2"><Field label="Varsayılan Puan"><TextInput type="number" min="0.1" step="0.1" value={form.defaultPoints} onChange={event=>setForm({...form,defaultPoints:event.target.value})}/></Field><Field label="Etiketler"><TextInput value={form.tags} onChange={event=>setForm({...form,tags:event.target.value})} placeholder="hijyen, güvenlik"/></Field></div>
+        <div className="flex justify-end"><Button type="submit" disabled={busy!==null}>{busy==="create"?"Kaydediliyor...":"Taslak Soru Oluştur"}</Button></div>
+      </form></FinancePanel>
 
-        <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h2 className="text-[15px] font-semibold text-[var(--ink)]">Yeni Soru</h2>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">Seçili Sınava Çoktan Seçmeli Soru Ekleyin.</p>
-          <div className="mt-5 space-y-4">
-            <Field label="Sınav"><select className="control h-11 w-full" value={questionForm.quizId} onChange={(event) => setQuestionForm({ ...questionForm, quizId: event.target.value })}><option value="">Sınav Seçin</option>{quizzes.map((quiz) => <option key={quiz.id} value={quiz.id}>{quiz.title}</option>)}</select></Field>
-            <Field label="Soru Metni"><TextInput value={questionForm.question} onChange={(event) => setQuestionForm({ ...questionForm, question: event.target.value })} /></Field>
-            <div className="grid gap-3 sm:grid-cols-2">
-              {["option1", "option2", "option3", "option4"].map((key, index) => <Field key={key} label={`${index + 1}. Seçenek`}><TextInput value={questionForm[key as keyof QuestionForm]} onChange={(event) => setQuestionForm({ ...questionForm, [key]: event.target.value })} /></Field>)}
-            </div>
-            <div className="grid gap-3 sm:grid-cols-3">
-              <Field label="Doğru Seçenek"><select className="control h-11 w-full" value={questionForm.correctIndex} onChange={(event) => setQuestionForm({ ...questionForm, correctIndex: event.target.value })}>{[0,1,2,3].map((index) => <option key={index} value={index}>{index + 1}. Seçenek</option>)}</select></Field>
-              <Field label="Puan"><TextInput type="number" min="1" value={questionForm.points} onChange={(event) => setQuestionForm({ ...questionForm, points: event.target.value })} /></Field>
-              <Field label="Sıra"><TextInput type="number" min="0" value={questionForm.sortOrder} onChange={(event) => setQuestionForm({ ...questionForm, sortOrder: event.target.value })} /></Field>
-            </div>
-          </div>
-          <div className="mt-5 flex justify-end"><Button disabled={saving || !questionForm.quizId} onClick={() => void createQuestion()}>{saving ? "Kaydediliyor..." : "Soru Ekle"}</Button></div>
-        </section>
-      </div>
-
-      <DataView>
-        <div className="border-b border-[var(--line)] px-5 py-4">
-          <h2 className="text-[15px] font-semibold text-[var(--ink)]">{selectedQuiz?.title ?? "Sorular"}</h2>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">{selectedQuiz ? `Başarı Puanı: %${selectedQuiz.passScore}` : "Sınav Seçin"}</p>
-        </div>
-        <div className="divide-y divide-[var(--line)]">
-          {questions.map((question, index) => (
-            <article key={question.id} className="p-5">
-              <div className="flex items-start gap-3">
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] font-semibold text-[var(--accent)]">{index + 1}</span>
-                <div className="min-w-0 flex-1">
-                  <p className="text-[12px] font-semibold text-[var(--ink)]">{question.question}</p>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                    {question.options.map((option, optionIndex) => <div key={optionIndex} className={`rounded-[12px] border px-3 py-2 text-[11px] ${optionIndex === question.correctIndex ? "border-[var(--success)] bg-[var(--success-soft)] text-[var(--success)]" : "border-[var(--line)] text-[var(--muted)]"}`}>{optionIndex + 1}. {option}</div>)}
-                  </div>
-                  <p className="mt-3 text-[10px] text-[var(--muted-soft)]">{question.points} Puan · Sıra {question.sortOrder}</p>
-                </div>
-              </div>
-            </article>
-          ))}
-          {!questions.length ? <div className="p-10 text-center text-[12px] text-[var(--muted)]">Seçili Sınav İçin Soru Bulunmuyor.</div> : null}
-        </div>
-        <DataViewMeta><span>{questions.length} Soru</span><span>{quizzes.length} Sınav</span></DataViewMeta>
-      </DataView>
+      <FinancePanel title="Course-Version Sınavına Bağla" description="Yalnızca DRAFT course version üzerindeki LMS sınavları hedeflenebilir."><div className="space-y-4"><Field label="Hedef Sınav"><select className="control h-11 w-full" value={targetExamId} onChange={event=>setTargetExamId(event.target.value)}><option value="">Draft sınav seçin</option>{draftExams.map(exam=><option key={exam.id} value={exam.id}>{exam.courseCode} · {exam.courseTitle} · v{exam.version} · {exam.title} ({exam.questionCount} soru)</option>)}</select></Field>{targetExam?<Alert tone="success">Seçili hedef: {targetExam.courseCode} v{targetExam.version} / {targetExam.title}. Banka sorusu eklendiğinde cevap ve seçenekler bu sürüme snapshot olarak kopyalanır.</Alert>:<FinanceEmpty title="Draft Sınav Yok" description="Önce Kurs Yazarlığı alanında theory exam oluşturun."/>}</div></FinancePanel>
     </div>
-  );
+
+    <FinancePanel title="Versioned Soru Kataloğu" description="Taslak, yayınlanmış ve emekli sürümleri tek katalogdan yönetin."><div className="mb-4 flex flex-wrap gap-2">{["","DRAFT","PUBLISHED","RETIRED"].map(value=><Button key={value||"ALL"} variant={status===value?"primary":"secondary"} onClick={()=>setStatus(value)}>{value?STATUS[value as BankQuestion["status"]]:"Tümü"}</Button>)}</div><div className="space-y-3">{questions.length?questions.map(question=>{const options=displayOptions(question.options);return <article key={question.id} className="rounded-[18px] border border-[var(--line)] p-4"><div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><span className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{question.code} · v{question.version}</span><span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[9px] font-semibold text-[var(--muted)]">{STATUS[question.status]}</span><span className="text-[9px] font-medium text-[var(--muted-soft)]">{question.category}</span></div><p className="mt-2 text-[13px] font-semibold leading-6 text-[var(--ink)]">{question.prompt}</p>{options.length?<div className="mt-3 flex flex-wrap gap-2">{options.map(option=><span key={option} className="rounded-[10px] border border-[var(--line)] px-2.5 py-1.5 text-[10px] text-[var(--muted)]">{option}</span>)}</div>:null}<p className="mt-3 text-[10px] text-[var(--muted-soft)]">{question.questionType} · {question.defaultPoints} puan · Cevap: {displayAnswer(question.correctAnswer)}{question.tags?.length?` · ${question.tags.join(", ")}`:""}</p></div><div className="flex shrink-0 flex-wrap gap-2">{question.status==="DRAFT"?<Button disabled={busy!==null} onClick={()=>void publish(question)}>{busy===`publish:${question.id}`?"Yayınlanıyor...":"Yayınla"}</Button>:null}{question.status==="PUBLISHED"?<Button variant="secondary" disabled={!targetExam||busy!==null} onClick={()=>void addToExam(question)}>{busy===`attach:${question.id}`?"Ekleniyor...":"Sınava Ekle"}</Button>:null}</div></div></article>}):<FinanceEmpty title="Soru Bulunmuyor" description="Seçili filtre için banka sorusu bulunmuyor."/>}</div></FinancePanel>
+  </div>;
 }
