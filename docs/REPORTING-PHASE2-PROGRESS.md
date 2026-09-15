@@ -45,6 +45,10 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Expiry tests cover bounded cleanup, storage deletion and partial storage failures.
 - Download tests cover requester ownership, readiness, expiry and current permission revalidation.
 - Reporting E2E covers export job creation, scoped history retrieval, get-by-id, unauthenticated rejection and arbitrary export-field rejection.
+- Web export client supports queue creation, scoped history retrieval and authenticated artifact download.
+- Reusable `ReportExportPanel` shows queued/processing/ready/failed/expired states and polls only while work is pending.
+- `/reports/exports` provides a permission-aware Export Center for Staff, Service and Payment reports with shared date filters, CSV queue creation, history and download actions.
+- Reports navigation exposes the Export Center only to users with `reports.read`; source-domain report choices are additionally filtered by the user's current domain permissions.
 
 ## Intentional implementation note
 
@@ -54,6 +58,8 @@ The generated Prisma schema model is intentionally not being force-written while
 
 The current filesystem storage provider is suitable as a development/default provider. A production object-storage provider should replace it before multi-instance production export delivery, while retaining the same server-generated-key and authorization rules.
 
+No XLSX/workbook library is currently declared in the API workspace, and CI installs with `pnpm install --frozen-lockfile`. Do not add an XLSX dependency through `package.json` alone; the workspace lockfile must be regenerated and committed atomically with that dependency before XLSX implementation is enabled.
+
 ## Current CI note
 
 Recent monorepo quality runs validate the Prisma schema but stop during migration deployment in the unrelated Platform migration `20260915150000_platform_privileged_governance`, because that migration inserts into `platform_permissions` before that relation exists at that point in migration order. Reporting migrations are not reached in those failed runs. Do not classify Reporting CI as green until a later descendant run passes migration deployment and reaches API typecheck/tests/E2E/build.
@@ -61,12 +67,12 @@ Recent monorepo quality runs validate the Prisma schema but stop during migratio
 ## Next Phase 2 increments
 
 1. Synchronize `ReportExportJob` into the active Prisma schema after concurrent database edits settle.
-2. Add XLSX workbook generation with typed numeric/date cells, column widths and metadata sheets.
+2. Add XLSX workbook generation with typed numeric/date cells, column widths and metadata sheets after an XLSX dependency and lockfile are committed atomically.
 3. Add server-side PDF report generation.
-4. Add export audit events.
-5. Add user-facing export history, status and download UX.
-6. Replace/default-switch filesystem storage with object storage before multi-instance production deployment.
-7. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
+4. Add export audit events once the shared AuditLog persistence/service is implemented.
+5. Replace/default-switch filesystem storage with object storage before multi-instance production deployment.
+6. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
+7. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions.
 
 ## Security invariants
 
