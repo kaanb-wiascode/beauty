@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthController } from './auth.controller';
 import { AuthPublicRateLimitGuard } from './auth-public-rate-limit.guard';
 import { AuthService } from './auth.service';
+import { AuthSessionRegistryService } from './auth-session-registry.service';
 import { InvitationService } from './invitation.service';
 import { JwtStrategy } from '../../common/auth/jwt.strategy';
 import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
@@ -24,6 +25,6 @@ import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
     }),
   ],
   controllers: [AuthController],
-  providers: [AuthService, InvitationService, AuthPublicRateLimitGuard, JwtStrategy],
+  providers: [AuthService, AuthSessionRegistryService, InvitationService, AuthPublicRateLimitGuard, JwtStrategy],
 })
 export class AuthModule {}
