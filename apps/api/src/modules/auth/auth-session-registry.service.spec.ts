@@ -1,8 +1,9 @@
-import { NotFoundException } from '@nestjs/common';
+import { NotFoundException, UnauthorizedException } from '@nestjs/common';
 
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { AuthSessionRegistryService } from './auth-session-registry.service';
+import { SecurityPolicyService } from './security-policy.service';
 
 describe('AuthSessionRegistryService', () => {
   const values = new Map<string, string>();
@@ -27,6 +28,10 @@ describe('AuthSessionRegistryService', () => {
   const sMembers = jest.fn(async (key: string) => [...(sets.get(key) ?? [])]);
   const expire = jest.fn().mockResolvedValue(true);
   const auditRecord = jest.fn().mockResolvedValue({ id: 'audit-1' });
+  const policyGet = jest.fn().mockResolvedValue({
+    sessionMaxAgeMinutes: 10080,
+    idleTimeoutMinutes: 480,
+  });
 
   const redis = {
     set: jest.fn(async (key: string, value: string) => {
@@ -40,7 +45,8 @@ describe('AuthSessionRegistryService', () => {
   } as unknown as RedisService;
 
   const audit = { record: auditRecord } as unknown as PlatformAuditService;
-  const service = new AuthSessionRegistryService(redis, audit);
+  const policy = { get: policyGet } as unknown as SecurityPolicyService;
+  const service = new AuthSessionRegistryService(redis, audit, policy);
 
   beforeEach(() => {
     values.clear();
@@ -49,6 +55,10 @@ describe('AuthSessionRegistryService', () => {
     ttl.mockResolvedValue(3600);
     expire.mockResolvedValue(true);
     auditRecord.mockResolvedValue({ id: 'audit-1' });
+    policyGet.mockResolvedValue({
+      sessionMaxAgeMinutes: 10080,
+      idleTimeoutMinutes: 480,
+    });
   });
 
   it('registers a session without exposing the refresh identifier', async () => {
@@ -86,6 +96,35 @@ describe('AuthSessionRegistryService', () => {
     expect(next?.id).not.toBe(first.id);
     expect(values.has(`auth:session:${first.id}`)).toBe(false);
     expect(values.has(`auth:session:${next?.id}`)).toBe(true);
+  });
+
+  it('rejects a refresh when idle timeout policy has expired', async () => {
+    policyGet.mockResolvedValue({
+      sessionMaxAgeMinutes: 120,
+      idleTimeoutMinutes: 5,
+    });
+    const first = await service.register({
+      refreshId: '00000000-0000-4000-8000-000000000030',
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-1',
+      branchId: null,
+      roleScope: 'COMPANY',
+    });
+    const key = `auth:session:${first.id}`;
+    const record = JSON.parse(values.get(key) ?? '{}') as Record<string, unknown>;
+    record.rotatedAt = new Date(Date.now() - 6 * 60_000).toISOString();
+    values.set(key, JSON.stringify(record));
+
+    await expect(
+      service.rotate(
+        '00000000-0000-4000-8000-000000000030',
+        '00000000-0000-4000-8000-000000000031',
+      ),
+    ).rejects.toBeInstanceOf(UnauthorizedException);
+
+    expect(values.has('auth:refresh:00000000-0000-4000-8000-000000000031')).toBe(false);
   });
 
   it('revokes only a session owned by the current user and tenant', async () => {
