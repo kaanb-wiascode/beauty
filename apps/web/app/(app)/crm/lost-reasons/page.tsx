@@ -1,0 +1,25 @@
+"use client";
+
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Alert, Button, EmptyState, Field, PageHeader, Spinner, TextArea, TextInput } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
+
+type LostReason = { id:string; code:string; label:string; description:string|null; isActive:boolean; isSystem:boolean; sortOrder:number };
+const emptyForm={code:"",label:"",description:"",sortOrder:"0"};
+
+export default function CrmLostReasonsPage(){
+  const canManage=hasPermission("crm","manage"),{showToast}=useToast();
+  const [rows,setRows]=useState<LostReason[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[showInactive,setShowInactive]=useState(false),[form,setForm]=useState(emptyForm);
+  const load=useCallback(async()=>{setLoading(true);setError("");try{setRows(await api<LostReason[]>(`/crm/lost-reasons?includeInactive=${showInactive}`));}catch(e){setError(e instanceof ApiError?e.message:"Kaybetme nedenleri yüklenemedi.");}finally{setLoading(false);}},[showInactive]);
+  useEffect(()=>{void load();},[load]);
+  async function create(event:FormEvent){event.preventDefault();if(!form.code.trim()||!form.label.trim())return;setSaving(true);setError("");try{await api("/crm/lost-reasons",{method:"POST",body:{code:form.code.trim(),label:form.label.trim(),description:form.description.trim()||null,sortOrder:Number(form.sortOrder)||0}});setForm(emptyForm);showToast("Kaybetme nedeni oluşturuldu.","success");await load();}catch(e){setError(e instanceof ApiError?e.message:"Kaybetme nedeni oluşturulamadı.");}finally{setSaving(false);}}
+  async function setActive(row:LostReason){setSaving(true);setError("");try{await api(`/crm/lost-reasons/${row.id}/active`,{method:"PATCH",body:{isActive:!row.isActive}});showToast(row.isActive?"Kaybetme nedeni pasifleştirildi.":"Kaybetme nedeni aktifleştirildi.","success");await load();}catch(e){setError(e instanceof ApiError?e.message:"Kaybetme nedeni güncellenemedi.");}finally{setSaving(false);}}
+  return <div className="space-y-6">
+    <PageHeader title="Kaybetme Nedenleri" description="Lead ve satış fırsatlarının neden kaybedildiğini standartlaştırın; raporlama ve dönüşüm analizinde aynı sınıflandırmayı kullanın." action={<Button variant="secondary" onClick={()=>setShowInactive(v=>!v)}>{showInactive?"Yalnızca Aktifleri Göster":"Pasifleri de Göster"}</Button>}/>
+    {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
+    {canManage?<form onSubmit={create} className="rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)]"><h2 className="text-[13px] font-semibold">Yeni Neden</h2><div className="mt-4 grid gap-4 md:grid-cols-[180px_1fr_120px]"><Field label="Kod" required><TextInput placeholder="PRICE_LOCAL" value={form.code} onChange={e=>setForm({...form,code:e.target.value.toUpperCase().replace(/[^A-Z0-9_]/g,"")})}/></Field><Field label="Ad" required><TextInput placeholder="Örn. Fiyat uygun bulunmadı" value={form.label} onChange={e=>setForm({...form,label:e.target.value})}/></Field><Field label="Sıra"><TextInput type="number" min="0" value={form.sortOrder} onChange={e=>setForm({...form,sortOrder:e.target.value})}/></Field></div><div className="mt-4"><Field label="Açıklama"><TextArea rows={2} value={form.description} onChange={e=>setForm({...form,description:e.target.value})}/></Field></div><div className="mt-4 flex justify-end"><Button type="submit" disabled={saving||!form.code.trim()||!form.label.trim()}>{saving?"Kaydediliyor...":"Neden Ekle"}</Button></div></form>:null}
+    {loading?<Spinner label="Kaybetme nedenleri hazırlanıyor..."/>:rows.length?<section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]"><div className="divide-y divide-[var(--line)]">{rows.map(row=><div key={row.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px]">{row.label}</strong><span className="rounded-full bg-black/[0.04] px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{row.code}</span>{row.isSystem?<span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--accent)]">Sistem</span>:null}<span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${row.isActive?"bg-[rgba(47,122,86,.10)] text-[#2d5c45]":"bg-black/[.04] text-[var(--muted)]"}`}>{row.isActive?"Aktif":"Pasif"}</span></div>{row.description?<p className="mt-1 text-[11px] text-[var(--muted)]">{row.description}</p>:null}</div>{canManage?<Button variant="secondary" disabled={saving} onClick={()=>void setActive(row)}>{row.isActive?"Pasifleştir":"Aktifleştir"}</Button>:null}</div>)}</div></section>:<EmptyState title="Kaybetme Nedeni Bulunmuyor" description="CRM kayıp sınıflandırması için ilk nedeni oluşturun."/>}
+  </div>;
+}

@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmAcquisitionService } from './crm-acquisition.service';
 import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
 import { CrmAutomationRulesController } from './crm-automation-rules.controller';
@@ -6,6 +7,7 @@ import { CrmAutomationRulesService } from './crm-automation-rules.service';
 import { CrmAutomationSchedulerService } from './crm-automation-scheduler.service';
 import { CrmAutomationService } from './crm-automation.service';
 import { CrmCommercialController } from './crm-commercial.controller';
+import { CrmCommercialOptionsService } from './crm-commercial-options.service';
 import { CrmCommunicationComplianceController } from './crm-communication-compliance.controller';
 import { CrmCommunicationComplianceService } from './crm-communication-compliance.service';
 import { CrmConversationAnalyticsController } from './crm-conversation-analytics.controller';
@@ -18,7 +20,13 @@ import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
 import { CrmInboundOptOutService } from './crm-inbound-opt-out.service';
+import { CrmLeadDuplicateService } from './crm-lead-duplicate.service';
+import { CrmLeadIdentityService } from './crm-lead-identity.service';
+import { CrmLeadMergeService } from './crm-lead-merge.service';
 import { CrmLeadService } from './crm-lead.service';
+import { CrmLostReasonController } from './crm-lost-reason.controller';
+import { CrmLostReasonService } from './crm-lost-reason.service';
+import { CrmLostTransitionService } from './crm-lost-transition.service';
 import { CrmMessageController } from './crm-message.controller';
 import { CrmMessageProviderConnectionsController } from './crm-message-provider-connections.controller';
 import { CrmMessageProviderConnectionsService } from './crm-message-provider-connections.service';
@@ -44,60 +52,8 @@ import { TwilioSmsConnectionController } from './twilio-sms-connection.controlle
 import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
 
 @Module({
-  controllers: [
-    CrmController,
-    CrmOperationsController,
-    CrmCommercialController,
-    CrmCommunicationComplianceController,
-    CrmConversationController,
-    CrmConversationAnalyticsController,
-    CrmConversationOperationsController,
-    CrmAutomationRulesController,
-    CrmMessageController,
-    CrmMessageProviderConnectionsController,
-    TwilioSmsConnectionController,
-    ResendEmailConnectionController,
-    CrmMessageWebhookController,
-    CrmMessageWebhookHistoryController,
-    CrmUnresolvedInboundController,
-  ],
-  providers: [
-    CrmService,
-    CrmLeadService,
-    CrmOpportunityService,
-    CrmOperationsService,
-    CrmOpportunityCommercialService,
-    CrmCustomer360Service,
-    CrmReminderService,
-    CrmCommunicationComplianceService,
-    CrmConversationService,
-    CrmConversationAnalyticsService,
-    CrmConversationOperationsService,
-    CrmAutomationRulesService,
-    CrmAutomationService,
-    CrmAutomationMessageActionService,
-    CrmAutomationObservabilityService,
-    CrmAutomationSchedulerService,
-    CrmInboundContactResolverService,
-    CrmInboundOptOutService,
-    CrmMessageProviderRegistryService,
-    CrmMessageProviderConnectionsService,
-    CrmMessageProviderVaultService,
-    MetaWhatsAppMessageProvider,
-    TwilioSmsMessageProvider,
-    ResendEmailMessageProvider,
-    CrmMessageService,
-    CrmMessageWebhookService,
-    CrmMessageWebhookHistoryService,
-    CrmUnresolvedInboundService,
-  ],
-  exports: [
-    CrmService,
-    CrmLeadService,
-    CrmOpportunityService,
-    CrmOperationsService,
-    CrmMessageService,
-    CrmMessageProviderRegistryService,
-  ],
+  controllers: [CrmController,CrmLostReasonController,CrmOperationsController,CrmCommercialController,CrmCommunicationComplianceController,CrmConversationController,CrmConversationAnalyticsController,CrmConversationOperationsController,CrmAutomationRulesController,CrmMessageController,CrmMessageProviderConnectionsController,TwilioSmsConnectionController,ResendEmailConnectionController,CrmMessageWebhookController,CrmMessageWebhookHistoryController,CrmUnresolvedInboundController],
+  providers: [CrmService,CrmLeadService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmLeadMergeService,CrmLostReasonService,CrmLostTransitionService,CrmAcquisitionService,CrmCommercialOptionsService,CrmOpportunityService,CrmOperationsService,CrmOpportunityCommercialService,CrmCustomer360Service,CrmReminderService,CrmCommunicationComplianceService,CrmConversationService,CrmConversationAnalyticsService,CrmConversationOperationsService,CrmAutomationRulesService,CrmAutomationService,CrmAutomationMessageActionService,CrmAutomationObservabilityService,CrmAutomationSchedulerService,CrmInboundContactResolverService,CrmInboundOptOutService,CrmMessageProviderRegistryService,CrmMessageProviderConnectionsService,CrmMessageProviderVaultService,MetaWhatsAppMessageProvider,TwilioSmsMessageProvider,ResendEmailMessageProvider,CrmMessageService,CrmMessageWebhookService,CrmMessageWebhookHistoryService,CrmUnresolvedInboundService],
+  exports: [CrmService,CrmLeadService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmLeadMergeService,CrmLostReasonService,CrmLostTransitionService,CrmAcquisitionService,CrmCommercialOptionsService,CrmOpportunityService,CrmOperationsService,CrmMessageService,CrmMessageProviderRegistryService],
 })
 export class CrmModule {}

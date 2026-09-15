@@ -4,143 +4,17 @@ import { PrismaService } from '@beauty-erp/database';
 import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
 import { CrmMessageProviderConnectionsService } from './crm-message-provider-connections.service';
 import { CrmMessageProviderVaultService } from './crm-message-provider-vault.service';
-import {
-  CrmMessageProvider,
-  CrmMessageProviderRegistryService,
-  CrmProviderMessage,
-  CrmProviderSendResult,
-} from './crm-message-provider-registry.service';
+import { CrmMessageProvider,CrmMessageProviderRegistryService,CrmProviderMessage,CrmProviderSendResult } from './crm-message-provider-registry.service';
 import type { CrmProviderWebhookEvent, CrmProviderWebhookRequest } from './crm-message-webhook.types';
-
-type MetaBody = {
-  entry?: Array<{ changes?: Array<{ value?: {
-    metadata?: { phone_number_id?: string; display_phone_number?: string };
-    messages?: Array<{ id?: string; from?: string; timestamp?: string; type?: string; text?: { body?: string } }>;
-    statuses?: Array<{ id?: string; status?: string; timestamp?: string; errors?: Array<{ title?: string; message?: string }> }>;
-  } }> }>;
-};
-
+type MetaBody={entry?:Array<{changes?:Array<{value?:{metadata?:{phone_number_id?:string;display_phone_number?:string};contacts?:Array<{wa_id?:string}>;messages?:Array<{id?:string;from?:string;timestamp?:string;type?:string;text?:{body?:string}}> ;statuses?:Array<{id?:string;status?:string;timestamp?:string;errors?:Array<{title?:string;message?:string}>}>}}>}>};
 @Injectable()
-export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModuleInit {
-  readonly key = 'meta-whatsapp';
-  readonly channels = ['WHATSAPP'] as const;
-
-  constructor(
-    private readonly prisma: PrismaService,
-    private readonly connections: CrmMessageProviderConnectionsService,
-    private readonly vault: CrmMessageProviderVaultService,
-    private readonly registry: CrmMessageProviderRegistryService,
-    private readonly contacts: CrmInboundContactResolverService,
-  ) {}
-
-  onModuleInit() {
-    this.registry.register(this);
-  }
-
-  async send(message: CrmProviderMessage): Promise<CrmProviderSendResult> {
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ tenantId: string; companyId: string; branchId: string }>>(
-      `SELECT tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId" FROM crm_messages WHERE id=$1::text LIMIT 1`,
-      message.messageId,
-    );
-    const scope = rows[0];
-    if (!scope) throw new BadRequestException('CRM message scope could not be resolved.');
-    const connection = await this.connections.getScoped(this.key, 'WHATSAPP', scope);
-    if (!connection?.enabled) throw new ServiceUnavailableException('Meta WhatsApp connection is not enabled for this branch.');
-    const secrets = await this.vault.load(connection.id);
-    const accessToken = secrets?.accessToken;
-    if (!accessToken) throw new ServiceUnavailableException('Meta WhatsApp credentials are not configured.');
-    const phoneNumberId = String(connection.publicConfig.phoneNumberId ?? '');
-    const graphApiVersion = String(connection.publicConfig.graphApiVersion ?? '');
-    if (!phoneNumberId || !graphApiVersion) throw new ServiceUnavailableException('Meta WhatsApp public configuration is incomplete.');
-    const recipient = message.recipient.replace(/[^0-9]/g, '');
-    if (recipient.length < 8) throw new BadRequestException('WhatsApp recipient number is invalid.');
-
-    const response = await fetch(`https://graph.facebook.com/${graphApiVersion}/${encodeURIComponent(phoneNumberId)}/messages`, {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
-      body: JSON.stringify({ messaging_product: 'whatsapp', recipient_type: 'individual', to: recipient, type: 'text', text: { preview_url: false, body: message.body } }),
-      signal: AbortSignal.timeout(10000),
-    });
-    const payload = await response.json() as { messages?: Array<{ id?: string }>; error?: { message?: string } };
-    if (!response.ok || !payload.messages?.[0]?.id) {
-      throw new ServiceUnavailableException(payload.error?.message?.slice(0, 500) || `Meta WhatsApp send failed with HTTP ${response.status}.`);
-    }
-    return { externalMessageId: payload.messages[0].id, status: 'QUEUED' };
-  }
-
-  async verifyChallenge(query: Record<string, unknown>) {
-    const mode = String(query['hub.mode'] ?? '');
-    const token = String(query['hub.verify_token'] ?? '');
-    const challenge = String(query['hub.challenge'] ?? '');
-    if (mode !== 'subscribe' || !token || !challenge) return null;
-    const connections = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT id FROM crm_message_provider_connections WHERE provider_key='meta-whatsapp' AND channel='WHATSAPP' AND enabled=TRUE`,
-    );
-    for (const connection of connections) {
-      const secrets = await this.vault.load(connection.id);
-      if (secrets?.verifyToken && this.safeEqual(secrets.verifyToken, token)) return challenge;
-    }
-    return null;
-  }
-
-  async verifyWebhook(request: CrmProviderWebhookRequest) {
-    const rawBody = request.rawBody;
-    if (!rawBody) return false;
-    const body = request.body as MetaBody;
-    const phoneNumberId = body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;
-    if (!phoneNumberId) return false;
-    const connection = await this.connections.findMetaByPhoneNumberId(phoneNumberId);
-    if (!connection) return false;
-    const secrets = await this.vault.load(connection.id);
-    if (!secrets?.appSecret) return false;
-    const rawSignature = request.headers['x-hub-signature-256'];
-    const signature = Array.isArray(rawSignature) ? rawSignature[0] : rawSignature;
-    if (!signature?.startsWith('sha256=')) return false;
-    const expected = `sha256=${createHmac('sha256', secrets.appSecret).update(rawBody).digest('hex')}`;
-    return this.safeEqual(signature, expected);
-  }
-
-  async parseWebhook(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent> {
-    const body = request.body as MetaBody;
-    const value = body.entry?.[0]?.changes?.[0]?.value;
-    const phoneNumberId = value?.metadata?.phone_number_id;
-    if (!phoneNumberId) throw new BadRequestException('Meta webhook phone number id is missing.');
-    const connection = await this.connections.findMetaByPhoneNumberId(phoneNumberId);
-    if (!connection) throw new BadRequestException('Meta WhatsApp connection could not be resolved.');
-    const scope = { tenantId: connection.tenantId, companyId: connection.companyId, branchId: connection.branchId };
-    const status = value?.statuses?.[0];
-    if (status?.id && status.status) {
-      const mapped = status.status === 'failed' ? 'FAILED' : status.status === 'delivered' || status.status === 'read' ? 'DELIVERED' : 'SENT';
-      return {
-        ...scope,
-        type: 'DELIVERY',
-        externalEventId: `status:${status.id}:${status.status}:${status.timestamp ?? ''}`,
-        externalMessageId: status.id,
-        status: mapped,
-        errorMessage: status.errors?.[0]?.message ?? status.errors?.[0]?.title ?? null,
-      };
-    }
-    const inbound = value?.messages?.[0];
-    if (!inbound?.id || !inbound.from || inbound.type !== 'text' || !inbound.text?.body) {
-      throw new BadRequestException('Unsupported Meta WhatsApp webhook payload.');
-    }
-    const match = await this.contacts.resolvePhone(scope, inbound.from);
-    return {
-      ...scope,
-      type: 'INBOUND',
-      externalEventId: `message:${inbound.id}`,
-      externalMessageId: inbound.id,
-      channel: 'WHATSAPP',
-      sender: inbound.from,
-      recipient: value?.metadata?.display_phone_number ?? phoneNumberId,
-      body: inbound.text.body,
-      ...(match.matched ? { customerId: match.customerId, leadId: match.leadId } : {}),
-    };
-  }
-
-  private safeEqual(leftValue: string, rightValue: string) {
-    const left = Buffer.from(leftValue);
-    const right = Buffer.from(rightValue);
-    return left.length === right.length && timingSafeEqual(left, right);
-  }
+export class MetaWhatsAppMessageProvider implements CrmMessageProvider,OnModuleInit{
+ readonly key='meta-whatsapp'; readonly channels=['WHATSAPP'] as const;
+ constructor(private readonly prisma:PrismaService,private readonly connections:CrmMessageProviderConnectionsService,private readonly vault:CrmMessageProviderVaultService,private readonly registry:CrmMessageProviderRegistryService,private readonly contacts:CrmInboundContactResolverService){}
+ onModuleInit(){this.registry.register(this);}
+ async send(message:CrmProviderMessage):Promise<CrmProviderSendResult>{const rows=await this.prisma.$queryRawUnsafe<Array<{tenantId:string;companyId:string;branchId:string}>>(`SELECT tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId" FROM crm_messages WHERE id=$1::text LIMIT 1`,message.messageId);const scope=rows[0];if(!scope)throw new BadRequestException('CRM message scope could not be resolved.');const connection=await this.connections.getScoped(this.key,'WHATSAPP',scope);if(!connection?.enabled)throw new ServiceUnavailableException('Meta WhatsApp connection is not enabled for this branch.');const secrets=await this.vault.load(connection.id),accessToken=secrets?.accessToken;if(!accessToken)throw new ServiceUnavailableException('Meta WhatsApp credentials are not configured.');const phoneNumberId=String(connection.publicConfig.phoneNumberId??''),graphApiVersion=String(connection.publicConfig.graphApiVersion??'');if(!phoneNumberId||!graphApiVersion)throw new ServiceUnavailableException('Meta WhatsApp public configuration is incomplete.');const recipient=message.recipient.replace(/[^0-9]/g,'');if(recipient.length<8)throw new BadRequestException('WhatsApp recipient number is invalid.');const response=await fetch(`https://graph.facebook.com/${graphApiVersion}/${encodeURIComponent(phoneNumberId)}/messages`,{method:'POST',headers:{Authorization:`Bearer ${accessToken}`,'Content-Type':'application/json'},body:JSON.stringify({messaging_product:'whatsapp',recipient_type:'individual',to:recipient,type:'text',text:{preview_url:false,body:message.body}}),signal:AbortSignal.timeout(10000)});const payload=await response.json() as {messages?:Array<{id?:string}>;error?:{message?:string}};if(!response.ok||!payload.messages?.[0]?.id)throw new ServiceUnavailableException(payload.error?.message?.slice(0,500)||`Meta WhatsApp send failed with HTTP ${response.status}.`);return {externalMessageId:payload.messages[0].id,status:'QUEUED'};}
+ async verifyChallenge(query:Record<string,unknown>){const mode=String(query['hub.mode']??''),token=String(query['hub.verify_token']??''),challenge=String(query['hub.challenge']??'');if(mode!=='subscribe'||!token||!challenge)return null;const connections=await this.prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id FROM crm_message_provider_connections WHERE provider_key='meta-whatsapp' AND channel='WHATSAPP' AND enabled=TRUE`);for(const connection of connections){const secrets=await this.vault.load(connection.id);if(secrets?.verifyToken&&this.safeEqual(secrets.verifyToken,token))return challenge;}return null;}
+ async verifyWebhook(request:CrmProviderWebhookRequest){const rawBody=request.rawBody;if(!rawBody)return false;const body=request.body as MetaBody,phoneNumberId=body.entry?.[0]?.changes?.[0]?.value?.metadata?.phone_number_id;if(!phoneNumberId)return false;const connection=await this.connections.findMetaByPhoneNumberId(phoneNumberId);if(!connection)return false;const secrets=await this.vault.load(connection.id);if(!secrets?.appSecret)return false;const rawSignature=request.headers['x-hub-signature-256'],signature=Array.isArray(rawSignature)?rawSignature[0]:rawSignature;if(!signature?.startsWith('sha256='))return false;const expected=`sha256=${createHmac('sha256',secrets.appSecret).update(rawBody).digest('hex')}`;return this.safeEqual(signature,expected);}
+ async parseWebhook(request:CrmProviderWebhookRequest):Promise<CrmProviderWebhookEvent>{const body=request.body as MetaBody,value=body.entry?.[0]?.changes?.[0]?.value,phoneNumberId=value?.metadata?.phone_number_id;if(!phoneNumberId)throw new BadRequestException('Meta webhook phone number id is missing.');const connection=await this.connections.findMetaByPhoneNumberId(phoneNumberId);if(!connection)throw new BadRequestException('Meta WhatsApp connection could not be resolved.');const scope={tenantId:connection.tenantId,companyId:connection.companyId,branchId:connection.branchId},status=value?.statuses?.[0];if(status?.id&&status.status){const mapped=status.status==='failed'?'FAILED':status.status==='delivered'||status.status==='read'?'DELIVERED':'SENT';return {...scope,type:'DELIVERY',externalEventId:`status:${status.id}:${status.status}:${status.timestamp??''}`,externalMessageId:status.id,status:mapped,errorMessage:status.errors?.[0]?.message??status.errors?.[0]?.title??null};}const inbound=value?.messages?.[0];if(!inbound?.id||!inbound.from||inbound.type!=='text'||!inbound.text?.body)throw new BadRequestException('Unsupported Meta WhatsApp webhook payload.');const whatsappIdentity=value?.contacts?.[0]?.wa_id?.trim()||inbound.from;const match=await this.contacts.resolveIdentity(scope,{whatsappIdentity,phone:inbound.from});return {...scope,type:'INBOUND',externalEventId:`message:${inbound.id}`,externalMessageId:inbound.id,channel:'WHATSAPP',sender:inbound.from,recipient:value?.metadata?.display_phone_number??phoneNumberId,body:inbound.text.body,whatsappIdentity,...(match.matched?{customerId:match.customerId,leadId:match.leadId}:{})};}
+ private safeEqual(leftValue:string,rightValue:string){const left=Buffer.from(leftValue),right=Buffer.from(rightValue);return left.length===right.length&&timingSafeEqual(left,right);}
 }

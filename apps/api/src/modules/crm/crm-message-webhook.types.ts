@@ -27,4 +27,6 @@ export type CrmProviderWebhookEvent =
       customerId?: string | null;
       leadId?: string | null;
       opportunityId?: string | null;
+      providerContactId?: string | null;
+      whatsappIdentity?: string | null;
     });
