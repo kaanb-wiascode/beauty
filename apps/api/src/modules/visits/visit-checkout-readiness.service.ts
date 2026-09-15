@@ -15,8 +15,10 @@ export type CheckoutBlockerCode =
   | 'PACKAGE_SESSION_NOT_CONSUMED'
   | 'COMMERCIAL_CONTEXT_UNVERIFIED';
 
+export type CheckoutWarningCode = 'COMMERCIAL_BALANCE_OUTSTANDING';
+
 export interface VisitCheckoutIssue {
-  code: CheckoutBlockerCode;
+  code: CheckoutBlockerCode | CheckoutWarningCode;
   appointmentId?: string;
   message: string;
 }
@@ -58,9 +60,10 @@ export class VisitCheckoutReadinessService {
     const { tenantId, branchId } = this.context();
 
     const visits = await this.prisma.$queryRawUnsafe<
-      Array<{ id: string; status: string; source: 'APPOINTMENT' | 'WALK_IN' }>
+      Array<{ id: string; companyId: string; customerId: string; status: string; source: 'APPOINTMENT' | 'WALK_IN' }>
     >(
-      `SELECT "id", "status"::text AS "status", "source"::text AS "source"
+      `SELECT "id", "companyId" AS "companyId", "customerId" AS "customerId",
+              "status"::text AS "status", "source"::text AS "source"
        FROM "visits"
        WHERE "id" = $1
          AND "tenantId" = $2
@@ -139,11 +142,37 @@ export class VisitCheckoutReadinessService {
     }
 
     if (visit.source === 'WALK_IN' && appointmentIds.length === 0) {
-      blockers.push({
-        code: 'COMMERCIAL_CONTEXT_UNVERIFIED',
-        message:
-          'Walk-in commercial context is not linked to Visit yet; sale/payment state must be verified before checkout.',
-      });
+      const contexts = await this.prisma.$queryRawUnsafe<
+        Array<{ saleId: string; saleStatus: string; saleTotal: string; paidTotal: string; serviceItemCount: number }>
+      >(
+        `SELECT c.sale_id AS "saleId", s.status::text AS "saleStatus", s.total::text AS "saleTotal",
+                COALESCE(SUM(CASE WHEN sp.status::text='COMPLETED' THEN sp.amount ELSE 0 END),0)::text AS "paidTotal",
+                (SELECT COUNT(*)::int FROM sale_items si WHERE si.sale_id=s.id AND si.type::text='SERVICE' AND si.service_id IS NOT NULL) AS "serviceItemCount"
+         FROM operations_walk_in_commercial_contexts c
+         JOIN sales s ON s.id=c.sale_id
+         LEFT JOIN sale_payments sp ON sp.sale_id=s.id AND sp.tenant_id=$2 AND sp.branch_id=$3
+         WHERE c.visit_id=$1 AND c.tenant_id=$2 AND c.company_id=$4 AND c.branch_id=$3
+           AND s.tenant_id=$2 AND s.branch_id=$3 AND s.customer_id=$5
+         GROUP BY c.sale_id,s.status,s.total
+         LIMIT 1`,
+        id,
+        tenantId,
+        branchId,
+        visit.companyId,
+        visit.customerId,
+      );
+      const context = contexts[0];
+      if (!context || context.saleStatus !== 'CONFIRMED' || Number(context.serviceItemCount) < 1) {
+        blockers.push({
+          code: 'COMMERCIAL_CONTEXT_UNVERIFIED',
+          message: 'Walk-in visit must be linked to a confirmed service sale for the same customer and branch before checkout.',
+        });
+      } else if (Number(context.paidTotal) < Number(context.saleTotal)) {
+        warnings.push({
+          code: 'COMMERCIAL_BALANCE_OUTSTANDING',
+          message: 'Walk-in sale is commercially verified but still has an outstanding balance.',
+        });
+      }
     }
 
     return {
