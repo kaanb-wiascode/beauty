@@ -11,6 +11,7 @@ describe('CrmReportingService', () => {
         convertedCount: 3,
         lostLeadCount: 2,
         opportunityCount: 5,
+        openOpportunityCount: 2,
         wonCount: 2,
         lostOpportunityCount: 1,
         pipelineValue: '12500.50',
@@ -37,11 +38,15 @@ describe('CrmReportingService', () => {
       expect.any(Date),
       expect.any(Date),
     );
+    const sql = queryRaw.mock.calls[0]?.[0] as string;
+    expect(sql).toContain("COUNT(*) FILTER (WHERE o.stage NOT IN ('WON','LOST'))");
+    expect(sql).toContain("SUM(CASE WHEN o.stage NOT IN ('WON','LOST')");
     expect(result[0]).toMatchObject({
       leadCount: 10,
       convertedCount: 3,
       leadConversionRate: 30,
       opportunityCount: 5,
+      openOpportunityCount: 2,
       wonCount: 2,
       winRate: 40,
       pipelineValue: 12500.5,
