@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common';
 
 import { ObjectStorageModule } from '../../common/storage/object-storage.module';
 import { AppointmentsModule } from '../appointments/appointments.module';
+import { CrmModule } from '../crm/crm.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FinanceModule } from '../finance/finance.module';
 import { InventoryModule } from '../inventory/inventory.module';
@@ -41,6 +42,7 @@ import { ReportsService } from './reports.service';
   imports: [
     ObjectStorageModule,
     AppointmentsModule,
+    CrmModule,
     CustomersModule,
     FinanceModule,
     InventoryModule,
