@@ -21,6 +21,7 @@ export class CrmReportingService {
       convertedCount: number;
       lostLeadCount: number;
       opportunityCount: number;
+      openOpportunityCount: number;
       wonCount: number;
       lostOpportunityCount: number;
       pipelineValue: unknown;
@@ -43,9 +44,10 @@ export class CrmReportingService {
        ), opportunity_daily AS (
          SELECT date_trunc('day',o.created_at) AS day,
                 COUNT(*)::int AS "opportunityCount",
+                COUNT(*) FILTER (WHERE o.stage NOT IN ('WON','LOST'))::int AS "openOpportunityCount",
                 COUNT(*) FILTER (WHERE o.stage='WON')::int AS "wonCount",
                 COUNT(*) FILTER (WHERE o.stage='LOST')::int AS "lostOpportunityCount",
-                COALESCE(SUM(CASE WHEN o.stage<>'LOST' THEN COALESCE(o.estimated_value,0) ELSE 0 END),0)::numeric AS "pipelineValue",
+                COALESCE(SUM(CASE WHEN o.stage NOT IN ('WON','LOST') THEN COALESCE(o.estimated_value,0) ELSE 0 END),0)::numeric AS "pipelineValue",
                 COALESCE(SUM(CASE WHEN o.stage='WON' THEN COALESCE(o.estimated_value,0) ELSE 0 END),0)::numeric AS "wonValue"
          FROM crm_opportunities o
          WHERE o.tenant_id=$1::text AND o.company_id=$2::text
@@ -60,6 +62,7 @@ export class CrmReportingService {
               COALESCE(l."convertedCount",0)::int AS "convertedCount",
               COALESCE(l."lostLeadCount",0)::int AS "lostLeadCount",
               COALESCE(o."opportunityCount",0)::int AS "opportunityCount",
+              COALESCE(o."openOpportunityCount",0)::int AS "openOpportunityCount",
               COALESCE(o."wonCount",0)::int AS "wonCount",
               COALESCE(o."lostOpportunityCount",0)::int AS "lostOpportunityCount",
               COALESCE(o."pipelineValue",0)::numeric AS "pipelineValue",
@@ -83,6 +86,7 @@ export class CrmReportingService {
       convertedCount: Number(row.convertedCount),
       lostLeadCount: Number(row.lostLeadCount),
       opportunityCount: Number(row.opportunityCount),
+      openOpportunityCount: Number(row.openOpportunityCount),
       wonCount: Number(row.wonCount),
       lostOpportunityCount: Number(row.lostOpportunityCount),
       pipelineValue: Number(row.pipelineValue ?? 0),
