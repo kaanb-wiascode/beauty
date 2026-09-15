@@ -5,6 +5,7 @@ import { AppointmentsModule } from '../appointments/appointments.module';
 import { CrmModule } from '../crm/crm.module';
 import { CustomersModule } from '../customers/customers.module';
 import { FinanceModule } from '../finance/finance.module';
+import { HrModule } from '../hr/hr.module';
 import { InventoryModule } from '../inventory/inventory.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { ProcurementModule } from '../procurement/procurement.module';
@@ -45,6 +46,7 @@ import { ReportsService } from './reports.service';
     CrmModule,
     CustomersModule,
     FinanceModule,
+    HrModule,
     InventoryModule,
     ProcurementModule,
     SalesModule,
