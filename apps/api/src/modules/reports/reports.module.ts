@@ -6,6 +6,7 @@ import { ServicesModule } from '../services/services.module';
 import { StaffModule } from '../staff/staff.module';
 import { ReportComparisonService } from './report-comparison.service';
 import { ReportCsvGenerator } from './report-csv.generator';
+import { ReportDrilldownService } from './report-drilldown.service';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
 import { ReportExportBrandingService } from './report-export-branding.service';
 import { ReportExportDownloadService } from './report-export-download.service';
@@ -36,6 +37,7 @@ import { ReportsService } from './reports.service';
   providers: [
     ReportsService,
     ReportComparisonService,
+    ReportDrilldownService,
     ReportExportJobsRepository,
     ReportSavedViewsRepository,
     ReportSavedViewsService,
