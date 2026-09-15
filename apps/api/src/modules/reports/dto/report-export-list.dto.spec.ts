@@ -21,12 +21,16 @@ describe('reportExportListSchema', () => {
     });
   });
 
-  it('applies safe defaults', () => {
+  it('defaults history to the authenticated requester', () => {
     expect(reportExportListSchema.parse({})).toEqual({
-      mine: false,
+      mine: true,
       page: 1,
       limit: 25,
     });
+  });
+
+  it('rejects attempts to disable requester scoping', () => {
+    expect(() => reportExportListSchema.parse({ mine: 'false' })).toThrow();
   });
 
   it('rejects arbitrary requester and scope filters', () => {
