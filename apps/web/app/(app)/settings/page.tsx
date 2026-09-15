@@ -16,6 +16,12 @@ const sections = [
     glyph: "◇",
   },
   {
+    href: "/settings/organization",
+    title: "Şirket Ve Şubeler",
+    description: "Şirket Kapsamını, Şubeleri Ve Organizasyon Kullanımını Görüntüleyin.",
+    glyph: "▦",
+  },
+  {
     href: "/settings/audit",
     title: "Denetim Kayıtları",
     description: "Kritik Yönetim Değişikliklerini, Aktörleri Ve Önce/Sonra Durumlarını İnceleyin.",
@@ -44,7 +50,7 @@ export default function SettingsPage() {
             Erişim Ve Güvenlik Yönetimi
           </h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Kullanıcıları, Yetkilendirme Yapısını Ve Kritik Yönetim Değişikliklerini Ayrı Yönetim Alanlarından Yönetin.
+            Kullanıcıları, Organizasyon Kapsamını, Yetkilendirme Yapısını Ve Kritik Yönetim Değişikliklerini Ayrı Yönetim Alanlarından Yönetin.
           </p>
         </div>
 
