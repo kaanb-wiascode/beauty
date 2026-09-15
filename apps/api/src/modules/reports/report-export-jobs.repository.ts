@@ -63,60 +63,17 @@ export class ReportExportJobsRepository {
 
     const [job] = await this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
       INSERT INTO "report_export_jobs" (
-        "id",
-        "tenant_id",
-        "company_id",
-        "branch_id",
-        "role_scope",
-        "requested_by",
-        "report_key",
-        "format",
-        "status",
-        "filters",
-        "columns",
-        "sort",
-        "include_summary",
-        "include_charts"
+        "id", "tenant_id", "company_id", "branch_id", "role_scope",
+        "requested_by", "report_key", "format", "status", "filters",
+        "columns", "sort", "include_summary", "include_charts"
       ) VALUES (
-        ${id},
-        ${user.tenantId},
-        ${user.companyId},
-        ${user.branchId},
-        ${user.roleScope},
-        ${user.sub},
-        ${input.reportKey},
-        ${input.format},
-        'QUEUED',
-        CAST(${filters} AS jsonb),
-        CAST(${selectedColumns} AS jsonb),
+        ${id}, ${user.tenantId}, ${user.companyId}, ${user.branchId},
+        ${user.roleScope}, ${user.sub}, ${input.reportKey}, ${input.format},
+        'QUEUED', CAST(${filters} AS jsonb), CAST(${selectedColumns} AS jsonb),
         ${sort === null ? Prisma.sql`NULL` : Prisma.sql`CAST(${sort} AS jsonb)`},
-        ${input.includeSummary},
-        ${input.includeCharts}
+        ${input.includeSummary}, ${input.includeCharts}
       )
-      RETURNING
-        "id" AS "id",
-        "tenant_id" AS "tenantId",
-        "company_id" AS "companyId",
-        "branch_id" AS "branchId",
-        "role_scope" AS "roleScope",
-        "requested_by" AS "requestedBy",
-        "report_key" AS "reportKey",
-        "format" AS "format",
-        "status" AS "status",
-        "filters" AS "filters",
-        "columns" AS "columns",
-        "sort" AS "sort",
-        "include_summary" AS "includeSummary",
-        "include_charts" AS "includeCharts",
-        "row_count" AS "rowCount",
-        "storage_key" AS "storageKey",
-        "error_code" AS "errorCode",
-        "error_summary" AS "errorSummary",
-        "requested_at" AS "requestedAt",
-        "started_at" AS "startedAt",
-        "completed_at" AS "completedAt",
-        "expires_at" AS "expiresAt",
-        "updated_at" AS "updatedAt"
+      RETURNING ${this.returningColumns()}
     `);
 
     return job;
@@ -129,33 +86,10 @@ export class ReportExportJobsRepository {
     const scope = this.scopeSql(user);
     const status = input.status
       ? Prisma.sql`AND "status" = ${input.status}`
-      : Prisma.empty;
+      : Prisma.sql``;
 
     return this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
-      SELECT
-        "id" AS "id",
-        "tenant_id" AS "tenantId",
-        "company_id" AS "companyId",
-        "branch_id" AS "branchId",
-        "role_scope" AS "roleScope",
-        "requested_by" AS "requestedBy",
-        "report_key" AS "reportKey",
-        "format" AS "format",
-        "status" AS "status",
-        "filters" AS "filters",
-        "columns" AS "columns",
-        "sort" AS "sort",
-        "include_summary" AS "includeSummary",
-        "include_charts" AS "includeCharts",
-        "row_count" AS "rowCount",
-        "storage_key" AS "storageKey",
-        "error_code" AS "errorCode",
-        "error_summary" AS "errorSummary",
-        "requested_at" AS "requestedAt",
-        "started_at" AS "startedAt",
-        "completed_at" AS "completedAt",
-        "expires_at" AS "expiresAt",
-        "updated_at" AS "updatedAt"
+      SELECT ${this.selectColumns()}
       FROM "report_export_jobs"
       WHERE ${scope}
       ${status}
@@ -167,34 +101,77 @@ export class ReportExportJobsRepository {
   async findById(user: JwtPayload, id: string) {
     const scope = this.scopeSql(user);
     const [job] = await this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
-      SELECT
-        "id" AS "id",
-        "tenant_id" AS "tenantId",
-        "company_id" AS "companyId",
-        "branch_id" AS "branchId",
-        "role_scope" AS "roleScope",
-        "requested_by" AS "requestedBy",
-        "report_key" AS "reportKey",
-        "format" AS "format",
-        "status" AS "status",
-        "filters" AS "filters",
-        "columns" AS "columns",
-        "sort" AS "sort",
-        "include_summary" AS "includeSummary",
-        "include_charts" AS "includeCharts",
-        "row_count" AS "rowCount",
-        "storage_key" AS "storageKey",
-        "error_code" AS "errorCode",
-        "error_summary" AS "errorSummary",
-        "requested_at" AS "requestedAt",
-        "started_at" AS "startedAt",
-        "completed_at" AS "completedAt",
-        "expires_at" AS "expiresAt",
-        "updated_at" AS "updatedAt"
+      SELECT ${this.selectColumns()}
       FROM "report_export_jobs"
       WHERE "id" = ${id}
         AND ${scope}
       LIMIT 1
+    `);
+
+    return job ?? null;
+  }
+
+  async claimNextQueued() {
+    const [job] = await this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
+      WITH next_job AS (
+        SELECT "id"
+        FROM "report_export_jobs"
+        WHERE "status" = 'QUEUED'
+        ORDER BY "requested_at" ASC
+        FOR UPDATE SKIP LOCKED
+        LIMIT 1
+      )
+      UPDATE "report_export_jobs" AS job
+      SET
+        "status" = 'PROCESSING',
+        "started_at" = CURRENT_TIMESTAMP,
+        "updated_at" = CURRENT_TIMESTAMP
+      FROM next_job
+      WHERE job."id" = next_job."id"
+      RETURNING ${this.returningColumns('job')}
+    `);
+
+    return job ?? null;
+  }
+
+  async markReady(
+    id: string,
+    input: { rowCount: number; storageKey: string; expiresAt: Date },
+  ) {
+    const [job] = await this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
+      UPDATE "report_export_jobs" AS job
+      SET
+        "status" = 'READY',
+        "row_count" = ${input.rowCount},
+        "storage_key" = ${input.storageKey},
+        "completed_at" = CURRENT_TIMESTAMP,
+        "expires_at" = ${input.expiresAt},
+        "updated_at" = CURRENT_TIMESTAMP,
+        "error_code" = NULL,
+        "error_summary" = NULL
+      WHERE job."id" = ${id}
+        AND job."status" = 'PROCESSING'
+      RETURNING ${this.returningColumns('job')}
+    `);
+
+    return job ?? null;
+  }
+
+  async markFailed(
+    id: string,
+    input: { errorCode: string; errorSummary: string },
+  ) {
+    const [job] = await this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
+      UPDATE "report_export_jobs" AS job
+      SET
+        "status" = 'FAILED',
+        "completed_at" = CURRENT_TIMESTAMP,
+        "updated_at" = CURRENT_TIMESTAMP,
+        "error_code" = ${input.errorCode},
+        "error_summary" = ${input.errorSummary.slice(0, 500)}
+      WHERE job."id" = ${id}
+        AND job."status" = 'PROCESSING'
+      RETURNING ${this.returningColumns('job')}
     `);
 
     return job ?? null;
@@ -212,6 +189,63 @@ export class ReportExportJobsRepository {
     return Prisma.sql`
       "tenant_id" = ${user.tenantId}
       AND "company_id" = ${user.companyId}
+    `;
+  }
+
+  private selectColumns() {
+    return Prisma.sql`
+      "id" AS "id",
+      "tenant_id" AS "tenantId",
+      "company_id" AS "companyId",
+      "branch_id" AS "branchId",
+      "role_scope" AS "roleScope",
+      "requested_by" AS "requestedBy",
+      "report_key" AS "reportKey",
+      "format" AS "format",
+      "status" AS "status",
+      "filters" AS "filters",
+      "columns" AS "columns",
+      "sort" AS "sort",
+      "include_summary" AS "includeSummary",
+      "include_charts" AS "includeCharts",
+      "row_count" AS "rowCount",
+      "storage_key" AS "storageKey",
+      "error_code" AS "errorCode",
+      "error_summary" AS "errorSummary",
+      "requested_at" AS "requestedAt",
+      "started_at" AS "startedAt",
+      "completed_at" AS "completedAt",
+      "expires_at" AS "expiresAt",
+      "updated_at" AS "updatedAt"
+    `;
+  }
+
+  private returningColumns(alias?: string) {
+    const prefix = alias ? Prisma.raw(`${alias}.`) : Prisma.empty;
+    return Prisma.sql`
+      ${prefix}"id" AS "id",
+      ${prefix}"tenant_id" AS "tenantId",
+      ${prefix}"company_id" AS "companyId",
+      ${prefix}"branch_id" AS "branchId",
+      ${prefix}"role_scope" AS "roleScope",
+      ${prefix}"requested_by" AS "requestedBy",
+      ${prefix}"report_key" AS "reportKey",
+      ${prefix}"format" AS "format",
+      ${prefix}"status" AS "status",
+      ${prefix}"filters" AS "filters",
+      ${prefix}"columns" AS "columns",
+      ${prefix}"sort" AS "sort",
+      ${prefix}"include_summary" AS "includeSummary",
+      ${prefix}"include_charts" AS "includeCharts",
+      ${prefix}"row_count" AS "rowCount",
+      ${prefix}"storage_key" AS "storageKey",
+      ${prefix}"error_code" AS "errorCode",
+      ${prefix}"error_summary" AS "errorSummary",
+      ${prefix}"requested_at" AS "requestedAt",
+      ${prefix}"started_at" AS "startedAt",
+      ${prefix}"completed_at" AS "completedAt",
+      ${prefix}"expires_at" AS "expiresAt",
+      ${prefix}"updated_at" AS "updatedAt"
     `;
   }
 }
