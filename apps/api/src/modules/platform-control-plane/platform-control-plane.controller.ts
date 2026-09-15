@@ -16,9 +16,14 @@ import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions
 import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
+import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
+import {
+  getPlatformOperationContext,
+  type PlatformRequestLike,
+} from './platform-request-context';
 import { PlatformReadModelService } from './platform-read-model.service';
 
-type PlatformRequest = { user?: { sub?: string } };
+type PlatformRequest = PlatformRequestLike & { user?: { sub?: string } };
 
 @Controller('platform')
 @UseGuards(PlatformJwtAuthGuard, PlatformPermissionsGuard)
@@ -28,6 +33,7 @@ export class PlatformControlPlaneController {
     private readonly iamRead: PlatformIamReadService,
     private readonly iamMutation: PlatformIamMutationService,
     private readonly auditRead: PlatformAuditReadService,
+    private readonly privilegedOperations: PlatformPrivilegedOperationsService,
   ) {}
 
   @Get('command-center')
@@ -138,6 +144,68 @@ export class PlatformControlPlaneController {
       { actorUserId: this.actor(request), reason: body.reason ?? '' },
       { roleSlug, resource: body.resource ?? '', action: body.action ?? '' },
     );
+  }
+
+  @Get('privileged-operations')
+  @RequirePlatformPermission('privileged_operations', 'read')
+  listPrivilegedOperations(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.privilegedOperations.list({
+      status,
+      limit: this.parseOptionalInteger(limit),
+      offset: this.parseOptionalInteger(offset),
+    });
+  }
+
+  @Post('privileged-operations')
+  @RequirePlatformPermission('privileged_operations', 'manage')
+  createPrivilegedOperation(
+    @Req() request: PlatformRequest,
+    @Body()
+    body: {
+      resource?: string;
+      action?: string;
+      targetEntityType?: string | null;
+      targetEntityId?: string | null;
+      targetTenantId?: string | null;
+      reason?: string;
+      payload?: unknown;
+    },
+  ) {
+    return this.privilegedOperations.create({
+      actorUserId: this.actor(request),
+      resource: body.resource ?? '',
+      action: body.action ?? '',
+      targetEntityType: body.targetEntityType,
+      targetEntityId: body.targetEntityId,
+      targetTenantId: body.targetTenantId,
+      reason: body.reason ?? '',
+      payload: body.payload,
+      context: getPlatformOperationContext(request),
+    });
+  }
+
+  @Post('privileged-operations/:requestId/decision')
+  @RequirePlatformPermission('privileged_operations', 'manage')
+  decidePrivilegedOperation(
+    @Req() request: PlatformRequest,
+    @Param('requestId') requestId: string,
+    @Body() body: { decision?: 'APPROVED' | 'REJECTED'; reason?: string },
+  ) {
+    const decision = body.decision;
+    if (decision !== 'APPROVED' && decision !== 'REJECTED') {
+      throw new UnauthorizedException('A valid privileged operation decision is required.');
+    }
+    return this.privilegedOperations.decide({
+      actorUserId: this.actor(request),
+      requestId,
+      decision,
+      reason: body.reason ?? '',
+      context: getPlatformOperationContext(request),
+    });
   }
 
   @Get('audit')
