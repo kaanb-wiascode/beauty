@@ -196,6 +196,35 @@ export class PermissionsGuard implements CanActivate {
           `${permission.resource}:${permission.action}`,
       ),
     );
+
+    const missing = uniqueRequirements.filter(
+      (permission) => !granted.has(`${permission.resource}:${permission.action}`),
+    );
+
+    if (missing.length > 0) {
+      const temporaryPermissions = await this.prisma.$queryRaw<
+        Array<{ resource: string; action: string }>
+      >`
+        SELECT DISTINCT p.resource, p.action
+        FROM temporary_permission_grants g
+        JOIN permissions p ON p.id = g."permissionId"
+        WHERE g."tenantId" = ${user.tenantId}
+          AND g."companyId" = ${user.companyId}
+          AND g."membershipId" = ${user.membershipId}
+          AND g."revokedAt" IS NULL
+          AND g."startsAt" <= CURRENT_TIMESTAMP
+          AND g."endsAt" > CURRENT_TIMESTAMP
+          AND (
+            g."branchId" IS NULL
+            OR g."branchId" IS NOT DISTINCT FROM ${user.branchId}
+          )
+      `;
+
+      for (const permission of temporaryPermissions) {
+        granted.add(`${permission.resource}:${permission.action}`);
+      }
+    }
+
     const hasAllPermissions = uniqueRequirements.every(
       (permission) =>
         granted.has(`${permission.resource}:${permission.action}`),
