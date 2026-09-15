@@ -8,6 +8,7 @@ import { ConfigService } from '@nestjs/config';
 
 import { ReportExportExpiryService } from './report-export-expiry.service';
 import { ReportExportProcessorService } from './report-export-processor.service';
+import { ReportExportStaleService } from './report-export-stale.service';
 
 @Injectable()
 export class ReportExportWorkerRunnerService
@@ -20,6 +21,7 @@ export class ReportExportWorkerRunnerService
   constructor(
     private readonly processor: ReportExportProcessorService,
     private readonly expiry: ReportExportExpiryService,
+    private readonly stale: ReportExportStaleService,
     private readonly config: ConfigService,
   ) {}
 
@@ -33,6 +35,8 @@ export class ReportExportWorkerRunnerService
         pollIntervalMs: intervalMs,
         batchSize: this.batchSize(),
         expiryBatchSize: this.expiryBatchSize(),
+        staleBatchSize: this.staleBatchSize(),
+        staleProcessingMinutes: this.staleProcessingMinutes(),
       }),
     );
 
@@ -57,8 +61,14 @@ export class ReportExportWorkerRunnerService
     const startedAt = Date.now();
     const batchSize = this.batchSize();
     const expiryBatchSize = this.expiryBatchSize();
+    const staleBatchSize = this.staleBatchSize();
+    const staleProcessingMinutes = this.staleProcessingMinutes();
 
     try {
+      const recovery = await this.stale.recover(
+        staleProcessingMinutes,
+        staleBatchSize,
+      );
       const cleanup = await this.expiry.cleanup(expiryBatchSize);
 
       let processed = 0;
@@ -68,11 +78,12 @@ export class ReportExportWorkerRunnerService
         processed += 1;
       }
 
-      if (processed > 0 || cleanup.expired > 0) {
+      if (processed > 0 || cleanup.expired > 0 || recovery.failed > 0) {
         this.logger.log(
           JSON.stringify({
             event: 'report_export_worker_tick',
             processed,
+            staleFailed: recovery.failed,
             expired: cleanup.expired,
             deleted: cleanup.deleted,
             durationMs: Date.now() - startedAt,
@@ -87,6 +98,8 @@ export class ReportExportWorkerRunnerService
           event: 'report_export_worker_failed',
           batchSize,
           expiryBatchSize,
+          staleBatchSize,
+          staleProcessingMinutes,
           durationMs: Date.now() - startedAt,
         }),
       );
@@ -124,6 +137,24 @@ export class ReportExportWorkerRunnerService
       100,
       1,
       500,
+    );
+  }
+
+  private staleBatchSize() {
+    return this.boundedInteger(
+      this.config.get<string>('REPORT_EXPORT_STALE_BATCH_SIZE'),
+      100,
+      1,
+      500,
+    );
+  }
+
+  private staleProcessingMinutes() {
+    return this.boundedInteger(
+      this.config.get<string>('REPORT_EXPORT_STALE_PROCESSING_MINUTES'),
+      30,
+      5,
+      1_440,
     );
   }
 
