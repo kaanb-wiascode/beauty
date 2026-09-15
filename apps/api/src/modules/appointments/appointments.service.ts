@@ -9,6 +9,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { CreateAppointmentInput } from './dto/create-appointment.dto';
 import { ListAppointmentsInput } from './dto/list-appointments.dto';
 import { UpdateAppointmentInput } from './dto/update-appointment.dto';
@@ -25,6 +26,7 @@ export class AppointmentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
   ) {}
 
   private getTenantId(): string {
@@ -47,27 +49,6 @@ export class AppointmentsService {
     }
 
     return branchId;
-  }
-
-  private getAppointmentScope() {
-    const tenantId = this.tenantContext.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
   }
 
   private validateDateRange(startAt: Date, endAt: Date): void {
@@ -352,9 +333,10 @@ export class AppointmentsService {
     }
 
     const skip = (page - 1) * limit;
+    const organizationScope = await this.organizationScope.getBranchScopedWhere();
 
     const where = {
-      ...this.getAppointmentScope(),
+      ...organizationScope,
       ...(status ? { status } : {}),
       ...(staffId ? { staffId } : {}),
       ...(customerId ? { customerId } : {}),
@@ -408,10 +390,11 @@ export class AppointmentsService {
   }
 
   async findOne(id: string) {
+    const organizationScope = await this.organizationScope.getBranchScopedWhere();
     const appointment = await this.prisma.appointment.findFirst({
       where: {
         id,
-        ...this.getAppointmentScope(),
+        ...organizationScope,
       },
       include: {
         payment: {
@@ -444,6 +427,7 @@ export class AppointmentsService {
 
   async update(id: string, input: UpdateAppointmentInput) {
     const tenantId = this.getTenantId();
+    const organizationScope = await this.organizationScope.getBranchScopedWhere();
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -458,7 +442,7 @@ export class AppointmentsService {
         const appointment = await tx.appointment.findFirst({
           where: {
             id,
-            ...this.getAppointmentScope(),
+            ...organizationScope,
           },
           include: {
             session: true,
@@ -679,6 +663,8 @@ export class AppointmentsService {
   }
 
   async remove(id: string) {
+    const organizationScope = await this.organizationScope.getBranchScopedWhere();
+
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
@@ -692,7 +678,7 @@ export class AppointmentsService {
         const appointment = await tx.appointment.findFirst({
           where: {
             id,
-            ...this.getAppointmentScope(),
+            ...organizationScope,
           },
           include: {
             session: true,
