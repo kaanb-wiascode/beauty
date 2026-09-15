@@ -20,6 +20,8 @@ import { OperationsRebookingAnalyticsController } from './operations-rebooking-a
 import { OperationsRebookingAnalyticsService } from './operations-rebooking-analytics.service';
 import { OperationsRebookingController } from './operations-rebooking.controller';
 import { OperationsRebookingService } from './operations-rebooking.service';
+import { OperationsReliabilityController } from './operations-reliability.controller';
+import { OperationsReliabilityService } from './operations-reliability.service';
 import { OperationsResourceBlocksController } from './operations-resource-blocks.controller';
 import { OperationsResourceBlocksService } from './operations-resource-blocks.service';
 import { OperationsResourceCalendarController } from './operations-resource-calendar.controller';
@@ -30,6 +32,8 @@ import { OperationsServiceChecklistsController } from './operations-service-chec
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
 import { OperationsStaffAvailabilityController } from './operations-staff-availability.controller';
 import { OperationsStaffAvailabilityService } from './operations-staff-availability.service';
+import { OperationsTimelineController } from './operations-timeline.controller';
+import { OperationsTimelineService } from './operations-timeline.service';
 import { OperationsUtilizationController } from './operations-utilization.controller';
 import { OperationsUtilizationService } from './operations-utilization.service';
 import { OperationsWaitlistController } from './operations-waitlist.controller';
@@ -54,6 +58,8 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsRebookingController,
     OperationsRebookingAnalyticsController,
     OperationsCustomerEngagementController,
+    OperationsReliabilityController,
+    OperationsTimelineController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -74,6 +80,8 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsRebookingService,
     OperationsRebookingAnalyticsService,
     OperationsCustomerEngagementService,
+    OperationsReliabilityService,
+    OperationsTimelineService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
