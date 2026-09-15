@@ -21,18 +21,6 @@ export class StaffService {
     private readonly organizationScope: OrganizationScopeService,
   ) {}
 
-  private requireBranchId(): string {
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        'A branch must be selected for this operation.',
-      );
-    }
-
-    return branchId;
-  }
-
   private async resolveCreateBranchId(): Promise<string> {
     const branchId = this.tenantContext.getBranchId();
 
@@ -83,23 +71,30 @@ export class StaffService {
   }
 
   private async validateBranchAccess(branchId: string): Promise<void> {
-    const scope = await this.organizationScope.getBranchScopedWhere();
+    const companyId = this.tenantContext.getCompanyId();
+    const roleScope = this.tenantContext.getRoleScope();
 
     const branch = await this.prisma.branch.findFirst({
       where: {
         id: branchId,
-        companyId: this.tenantContext.getCompanyId(),
+        companyId,
         status: 'ACTIVE',
-        ...(scope.branchId
-          ? typeof scope.branchId === 'string'
-            ? { id: scope.branchId }
-            : { id: { in: scope.branchId.in } }
-          : {}),
       },
       select: { id: true },
     });
 
     if (!branch) {
+      throw new NotFoundException('Branch not found');
+    }
+
+    if (roleScope === 'CENTRAL') {
+      return;
+    }
+
+    const assignedBranchIds =
+      await this.organizationScope.getAssignedActiveBranchIds();
+
+    if (!assignedBranchIds.includes(branchId)) {
       throw new NotFoundException('Branch not found');
     }
   }
