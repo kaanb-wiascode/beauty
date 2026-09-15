@@ -76,7 +76,7 @@ export class AdminDashboardService {
             COUNT(*) FILTER (
               WHERE r.scope <> 'CENTRAL'
                 AND NOT EXISTS (
-                  SELECT 1 FROM membership_branch_accesses mba WHERE mba."membershipId" = m.id
+                  SELECT 1 FROM membership_branch_access mba WHERE mba."membershipId" = m.id
                 )
             )::int AS "withoutBranchScope",
             COUNT(*) FILTER (WHERE r.scope = 'CENTRAL')::int AS "broadCentral"
