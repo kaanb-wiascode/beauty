@@ -1,8 +1,13 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import {
+  Injectable,
+  NotFoundException,
+  UnauthorizedException,
+} from '@nestjs/common';
 import { createHash } from 'node:crypto';
 
 import { RedisService } from '../../infrastructure/redis/redis.service';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
+import { SecurityPolicyService } from './security-policy.service';
 
 type SessionRecord = {
   id: string;
@@ -17,13 +22,22 @@ type SessionRecord = {
   rotatedAt: string;
 };
 
-const TTL_SECONDS = 60 * 60 * 24 * 7;
+type SessionPolicy = {
+  sessionMaxAgeMinutes: number;
+  idleTimeoutMinutes: number;
+};
+
+const DEFAULT_POLICY: SessionPolicy = {
+  sessionMaxAgeMinutes: 60 * 24 * 7,
+  idleTimeoutMinutes: 60 * 8,
+};
 
 @Injectable()
 export class AuthSessionRegistryService {
   constructor(
     private readonly redis: RedisService,
     private readonly audit: PlatformAuditService,
+    private readonly securityPolicy: SecurityPolicyService,
   ) {}
 
   async register(input: {
@@ -49,36 +63,54 @@ export class AuthSessionRegistryService {
       createdAt: now,
       rotatedAt: now,
     };
+    const policy = await this.resolvePolicy(input.tenantId, input.companyId);
+    const ttl = this.sessionTtlSeconds(record, policy, Date.now());
 
-    await this.redis.set(`auth:session:${id}`, JSON.stringify(record), TTL_SECONDS);
-    await this.redis.getClient().sAdd(`auth:user-sessions:${input.userId}:${input.tenantId}`, id);
-    await this.redis.getClient().expire(`auth:user-sessions:${input.userId}:${input.tenantId}`, TTL_SECONDS);
-    return this.publicRecord(record, TTL_SECONDS);
+    await this.redis.set(`auth:session:${id}`, JSON.stringify(record), ttl);
+    const indexKey = `auth:user-sessions:${input.userId}:${input.tenantId}`;
+    await this.redis.getClient().sAdd(indexKey, id);
+    await this.redis
+      .getClient()
+      .expire(indexKey, Math.max(ttl, policy.sessionMaxAgeMinutes * 60));
+    return this.publicRecord(record, ttl);
   }
 
   async rotate(oldRefreshId: string, newRefreshId: string) {
     const oldId = this.fingerprint(oldRefreshId);
     const raw = await this.redis.get(`auth:session:${oldId}`);
-    if (!raw) return null;
+    if (!raw) {
+      await this.redis.delete(`auth:refresh:${newRefreshId}`);
+      throw new UnauthorizedException('Session is expired or no longer registered');
+    }
 
     const current = this.parse(raw);
-    if (!current) return null;
+    if (!current) {
+      await this.redis.delete(`auth:refresh:${newRefreshId}`);
+      throw new UnauthorizedException('Session registry is invalid');
+    }
+
+    const policy = await this.resolvePolicy(current.tenantId, current.companyId);
+    const now = Date.now();
+    this.assertActive(current, policy, now);
 
     const newId = this.fingerprint(newRefreshId);
     const next: SessionRecord = {
       ...current,
       id: newId,
       refreshId: newRefreshId,
-      rotatedAt: new Date().toISOString(),
+      rotatedAt: new Date(now).toISOString(),
     };
+    const ttl = this.sessionTtlSeconds(next, policy, now);
     const indexKey = `auth:user-sessions:${current.userId}:${current.tenantId}`;
 
-    await this.redis.set(`auth:session:${newId}`, JSON.stringify(next), TTL_SECONDS);
+    await this.redis.set(`auth:session:${newId}`, JSON.stringify(next), ttl);
     await this.redis.delete(`auth:session:${oldId}`);
     await this.redis.getClient().sRem(indexKey, oldId);
     await this.redis.getClient().sAdd(indexKey, newId);
-    await this.redis.getClient().expire(indexKey, TTL_SECONDS);
-    return this.publicRecord(next, TTL_SECONDS);
+    await this.redis
+      .getClient()
+      .expire(indexKey, Math.max(ttl, policy.sessionMaxAgeMinutes * 60));
+    return this.publicRecord(next, ttl);
   }
 
   async list(userId: string, tenantId: string) {
@@ -250,6 +282,44 @@ export class AuthSessionRegistryService {
     }
 
     return { id: input.id, revoked: true };
+  }
+
+  private async resolvePolicy(
+    tenantId: string,
+    companyId: string | null,
+  ): Promise<SessionPolicy> {
+    if (!companyId) return DEFAULT_POLICY;
+    const policy = await this.securityPolicy.get(tenantId, companyId);
+    return {
+      sessionMaxAgeMinutes: Number(policy.sessionMaxAgeMinutes),
+      idleTimeoutMinutes: Number(policy.idleTimeoutMinutes),
+    };
+  }
+
+  private assertActive(record: SessionRecord, policy: SessionPolicy, now: number) {
+    const createdAt = Date.parse(record.createdAt);
+    const rotatedAt = Date.parse(record.rotatedAt);
+    const maxAgeMs = policy.sessionMaxAgeMinutes * 60_000;
+    const idleMs = policy.idleTimeoutMinutes * 60_000;
+
+    if (
+      !Number.isFinite(createdAt) ||
+      !Number.isFinite(rotatedAt) ||
+      now - createdAt >= maxAgeMs ||
+      now - rotatedAt >= idleMs
+    ) {
+      throw new UnauthorizedException('Session lifetime policy has expired');
+    }
+  }
+
+  private sessionTtlSeconds(record: SessionRecord, policy: SessionPolicy, now: number) {
+    const createdAt = Date.parse(record.createdAt);
+    const remainingMaxAgeMs = Math.max(
+      1_000,
+      createdAt + policy.sessionMaxAgeMinutes * 60_000 - now,
+    );
+    const idleMs = Math.max(1_000, policy.idleTimeoutMinutes * 60_000);
+    return Math.max(1, Math.floor(Math.min(remainingMaxAgeMs, idleMs) / 1_000));
   }
 
   private publicRecord(record: SessionRecord, expiresInSeconds: number | null) {
