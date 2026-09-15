@@ -8,6 +8,9 @@ export type PlatformAuditQuery = {
   action?: string;
   targetTenantId?: string;
   correlationId?: string;
+  requestId?: string;
+  riskLevel?: string;
+  approvalRequestId?: string;
   limit?: number;
   offset?: number;
 };
@@ -28,6 +31,11 @@ type PlatformAuditRow = {
   afterState: unknown;
   metadata: unknown;
   correlationId: string | null;
+  requestId: string | null;
+  sourceIp: string | null;
+  userAgent: string | null;
+  riskLevel: string | null;
+  approvalRequestId: string | null;
   createdAt: Date;
   totalCount: number;
 };
@@ -42,6 +50,9 @@ export class PlatformAuditReadService {
     const action = this.clean(query.action);
     const targetTenantId = this.clean(query.targetTenantId);
     const correlationId = this.clean(query.correlationId);
+    const requestId = this.clean(query.requestId);
+    const riskLevel = this.clean(query.riskLevel).toUpperCase();
+    const approvalRequestId = this.clean(query.approvalRequestId);
     const limit = this.clampInteger(query.limit, 50, 1, 100);
     const offset = this.clampInteger(query.offset, 0, 0, 100_000);
 
@@ -62,6 +73,11 @@ export class PlatformAuditReadService {
         pae.after_state AS "afterState",
         pae.metadata,
         pae.correlation_id AS "correlationId",
+        pae.request_id AS "requestId",
+        pae.source_ip AS "sourceIp",
+        pae.user_agent AS "userAgent",
+        pae.risk_level AS "riskLevel",
+        pae.approval_request_id AS "approvalRequestId",
         pae.created_at AS "createdAt",
         COUNT(*) OVER()::int AS "totalCount"
       FROM platform_audit_events pae
@@ -71,6 +87,9 @@ export class PlatformAuditReadService {
         AND (${action} = '' OR pae.action = ${action})
         AND (${targetTenantId} = '' OR pae.target_tenant_id = ${targetTenantId})
         AND (${correlationId} = '' OR pae.correlation_id = ${correlationId})
+        AND (${requestId} = '' OR pae.request_id = ${requestId})
+        AND (${riskLevel} = '' OR pae.risk_level = ${riskLevel})
+        AND (${approvalRequestId} = '' OR pae.approval_request_id = ${approvalRequestId})
       ORDER BY pae.created_at DESC, pae.id DESC
       LIMIT ${limit}
       OFFSET ${offset}
