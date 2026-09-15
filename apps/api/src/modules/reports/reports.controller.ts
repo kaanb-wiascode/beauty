@@ -22,6 +22,7 @@ import { reportExportSchema } from './dto/report-export.dto';
 import { reportExportListSchema } from './dto/report-export-list.dto';
 import { reportPreviewSchema } from './dto/report-preview.dto';
 import { ReportExportDownloadService } from './report-export-download.service';
+import { ReportExportPolicyService } from './report-export-policy.service';
 import {
   toPublicReportExportJob,
   toPublicReportExportList,
@@ -34,6 +35,7 @@ export class ReportsController {
   constructor(
     private readonly reportsService: ReportsService,
     private readonly exportDownloads: ReportExportDownloadService,
+    private readonly exportPolicy: ReportExportPolicyService,
   ) {}
 
   @Get('catalog')
@@ -59,6 +61,7 @@ export class ReportsController {
     @Body() body: unknown,
   ) {
     const input = reportExportSchema.parse(body);
+    await this.exportPolicy.assertCanQueue(request.user);
     const job = await this.reportsService.createExportJob(request.user, input);
     if (!job) {
       throw new InternalServerErrorException('Report export job was not created');
