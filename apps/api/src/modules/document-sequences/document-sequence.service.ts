@@ -31,13 +31,14 @@ export class DocumentSequenceService {
 
   async list() {
     const context = this.tenantContext.getContext();
-    return this.prisma.$queryRaw<SequenceRow[]>`
+    const rows = await this.prisma.$queryRaw<SequenceRow[]>`
       SELECT id,"tenantId","companyId","branchId","documentType",prefix,"yearScoped",padding,
              "currentYear","currentValue",active,"createdAt","updatedAt"
       FROM admin_document_sequences
       WHERE "tenantId"=${context.tenantId} AND "companyId"=${context.companyId}
       ORDER BY "documentType",COALESCE("branchId",'')
     `;
+    return rows.map((row) => this.serializable(row));
   }
 
   async upsert(input: {
@@ -80,21 +81,25 @@ export class DocumentSequenceService {
         LIMIT 1 FOR UPDATE
       `;
       const id = previous[0]?.id ?? randomUUID();
-      const rows = await tx.$queryRaw<SequenceRow[]>`
-        INSERT INTO admin_document_sequences(
-          id,"tenantId","companyId","branchId","documentType",prefix,"yearScoped",padding,active,"createdAt","updatedAt"
-        ) VALUES(
-          ${id},${context.tenantId},${context.companyId},${input.branchId ?? null},${documentType},${prefix},${input.yearScoped ?? true},${padding},${input.active ?? true},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
-        )
-        ON CONFLICT ("tenantId","companyId",(COALESCE("branchId",'')),"documentType") DO UPDATE SET
-          prefix=EXCLUDED.prefix,
-          "yearScoped"=EXCLUDED."yearScoped",
-          padding=EXCLUDED.padding,
-          active=EXCLUDED.active,
-          "updatedAt"=CURRENT_TIMESTAMP
-        RETURNING id,"tenantId","companyId","branchId","documentType",prefix,"yearScoped",padding,
-                  "currentYear","currentValue",active,"createdAt","updatedAt"
-      `;
+      const rows = previous.length
+        ? await tx.$queryRaw<SequenceRow[]>`
+            UPDATE admin_document_sequences
+            SET prefix=${prefix},"yearScoped"=${input.yearScoped ?? true},padding=${padding},active=${input.active ?? true},"updatedAt"=CURRENT_TIMESTAMP
+            WHERE id=${id}
+            RETURNING id,"tenantId","companyId","branchId","documentType",prefix,"yearScoped",padding,
+                      "currentYear","currentValue",active,"createdAt","updatedAt"
+          `
+        : await tx.$queryRaw<SequenceRow[]>`
+            INSERT INTO admin_document_sequences(
+              id,"tenantId","companyId","branchId","documentType",prefix,"yearScoped",padding,active,"createdAt","updatedAt"
+            ) VALUES(
+              ${id},${context.tenantId},${context.companyId},${input.branchId ?? null},${documentType},${prefix},${input.yearScoped ?? true},${padding},${input.active ?? true},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+            )
+            RETURNING id,"tenantId","companyId","branchId","documentType",prefix,"yearScoped",padding,
+                      "currentYear","currentValue",active,"createdAt","updatedAt"
+          `;
+      const beforeState = previous[0] ? this.serializable(previous[0]) : null;
+      const afterState = this.serializable(rows[0]);
       await this.audit.record({
         actorUserId,
         resource: 'document_sequences',
@@ -102,11 +107,11 @@ export class DocumentSequenceService {
         targetTenantId: context.tenantId,
         targetEntityType: 'document_sequence',
         targetEntityId: id,
-        beforeState: previous[0] ?? null,
-        afterState: rows[0],
+        beforeState,
+        afterState,
         metadata: { companyId: context.companyId, documentType, branchId: input.branchId ?? null },
       }, tx);
-      return rows[0];
+      return afterState;
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
@@ -171,6 +176,10 @@ export class DocumentSequenceService {
     });
     if (!membership) throw new BadRequestException('Active membership is required');
     return membership.userId;
+  }
+
+  private serializable(row: SequenceRow) {
+    return { ...row, currentValue: Number(row.currentValue) };
   }
 
   private normalize(value: string) {
