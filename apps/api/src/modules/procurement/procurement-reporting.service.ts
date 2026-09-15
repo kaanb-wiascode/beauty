@@ -24,21 +24,27 @@ export class ProcurementReportingService {
       itemCount: number;
       receivedCount: number;
     }>>(
-      `SELECT date_trunc('day',COALESCE(po.ordered_at,po.created_at)) AS date,
-              po.status::text AS status,
-              COUNT(DISTINCT po.id)::int AS "orderCount",
-              COALESCE(SUM(DISTINCT po.total_amount),0)::numeric AS "totalAmount",
-              COUNT(i.id)::int AS "itemCount",
-              COUNT(DISTINCT CASE WHEN po.received_at IS NOT NULL THEN po.id END)::int AS "receivedCount"
-       FROM inventory_purchase_orders po
-       JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
-       LEFT JOIN inventory_purchase_order_items i ON i.purchase_order_id=po.id
-       WHERE po.tenant_id=$1::text AND po.company_id=$2::text
-         AND ($3::text IS NULL OR w.branch_id=$3::text)
-         AND COALESCE(po.ordered_at,po.created_at) >= $4::timestamptz
-         AND COALESCE(po.ordered_at,po.created_at) <= $5::timestamptz
-       GROUP BY date_trunc('day',COALESCE(po.ordered_at,po.created_at)),po.status
-       ORDER BY date ASC,po.status ASC`,
+      `WITH scoped_orders AS (
+         SELECT po.id,po.status::text AS status,po.total_amount,
+                COALESCE(po.ordered_at,po.created_at) AS effective_at,
+                po.received_at,
+                (SELECT COUNT(*)::int FROM inventory_purchase_order_items i WHERE i.purchase_order_id=po.id) AS item_count
+         FROM inventory_purchase_orders po
+         JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+         WHERE po.tenant_id=$1::text AND po.company_id=$2::text
+           AND ($3::text IS NULL OR w.branch_id=$3::text)
+           AND COALESCE(po.ordered_at,po.created_at) >= $4::timestamptz
+           AND COALESCE(po.ordered_at,po.created_at) <= $5::timestamptz
+       )
+       SELECT date_trunc('day',effective_at) AS date,
+              status,
+              COUNT(*)::int AS "orderCount",
+              COALESCE(SUM(total_amount),0)::numeric AS "totalAmount",
+              COALESCE(SUM(item_count),0)::int AS "itemCount",
+              COUNT(*) FILTER (WHERE received_at IS NOT NULL)::int AS "receivedCount"
+       FROM scoped_orders
+       GROUP BY date_trunc('day',effective_at),status
+       ORDER BY date ASC,status ASC`,
       tenantId,
       companyId,
       branchId,
