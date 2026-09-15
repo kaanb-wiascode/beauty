@@ -5,6 +5,7 @@ import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { PlatformOnboardingService } from './platform-onboarding.service';
 import { PlatformProvisioningService } from './platform-provisioning.service';
 import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
+import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
 
 type ProvisioningStartInput = {
   idempotencyKey?: string;
@@ -22,10 +23,13 @@ type ProvisioningStartInput = {
 type ProvisioningSnapshot = {
   id: string;
   tenantId: string | null;
-  input: {
-    companySlug: string;
-  };
+  input: { companySlug: string };
 };
+
+type ExtensionStepKey =
+  | 'DEFAULT_ROLES_PERMISSIONS'
+  | 'DEFAULT_CONFIGURATION'
+  | 'ONBOARDING_CHECKLIST';
 
 @Injectable()
 export class PlatformProvisioningCoordinatorService {
@@ -33,6 +37,7 @@ export class PlatformProvisioningCoordinatorService {
     private readonly prisma: PrismaService,
     private readonly provisioning: PlatformProvisioningService,
     private readonly tenantBootstrap: PlatformTenantBootstrapService,
+    private readonly configurationBootstrap: PlatformTenantConfigurationBootstrapService,
     private readonly onboarding: PlatformOnboardingService,
     private readonly platformAudit: PlatformAuditService,
   ) {}
@@ -43,12 +48,7 @@ export class PlatformProvisioningCoordinatorService {
     reason: string,
     correlationId?: string | null,
   ) {
-    const result = await this.provisioning.start(
-      input,
-      actorUserId,
-      reason,
-      correlationId,
-    );
+    const result = await this.provisioning.start(input, actorUserId, reason, correlationId);
     return this.advance(result as ProvisioningSnapshot, actorUserId, reason, correlationId);
   }
 
@@ -62,23 +62,18 @@ export class PlatformProvisioningCoordinatorService {
     reason: string,
     correlationId?: string | null,
   ) {
-    const result = await this.provisioning.resume(
-      runId,
-      actorUserId,
-      reason,
-      correlationId,
-    );
+    const result = await this.provisioning.resume(runId, actorUserId, reason, correlationId);
     return this.advance(result as ProvisioningSnapshot, actorUserId, reason, correlationId);
   }
 
   private async advance(
-    snapshot: ProvisioningSnapshot,
+    run: ProvisioningSnapshot,
     actorUserId: string,
     reason: string,
     correlationId?: string | null,
   ) {
-    const run = snapshot.id ? snapshot : await this.provisioning.get(snapshot.id) as ProvisioningSnapshot;
     if (!run.tenantId) return this.provisioning.get(run.id);
+    const tenantId = run.tenantId;
 
     await this.completeStep(
       run.id,
@@ -86,16 +81,28 @@ export class PlatformProvisioningCoordinatorService {
       actorUserId,
       reason,
       correlationId,
-      async (tx) => this.tenantBootstrap.ensureDefaultRbac(
-        run.tenantId as string,
-        actorUserId,
-        {
-          companySlug: run.input.companySlug,
-          reason,
-          correlationId,
-        },
-        tx,
-      ),
+      (tx) =>
+        this.tenantBootstrap.ensureDefaultRbac(
+          tenantId,
+          actorUserId,
+          { companySlug: run.input.companySlug, reason, correlationId },
+          tx,
+        ),
+    );
+
+    await this.completeStep(
+      run.id,
+      'DEFAULT_CONFIGURATION',
+      actorUserId,
+      reason,
+      correlationId,
+      (tx) =>
+        this.configurationBootstrap.ensureDefaults(
+          tenantId,
+          actorUserId,
+          { companySlug: run.input.companySlug, reason, correlationId },
+          tx,
+        ),
     );
 
     await this.completeStep(
@@ -106,13 +113,9 @@ export class PlatformProvisioningCoordinatorService {
       correlationId,
       async (tx) => {
         const onboarding = await this.onboarding.ensureChecklist(
-          run.tenantId as string,
+          tenantId,
           actorUserId,
-          {
-            provisioningRunId: run.id,
-            reason,
-            correlationId,
-          },
+          { provisioningRunId: run.id, reason, correlationId },
           tx,
         );
         return {
@@ -128,7 +131,7 @@ export class PlatformProvisioningCoordinatorService {
 
   private async completeStep(
     runId: string,
-    stepKey: 'DEFAULT_ROLES_PERMISSIONS' | 'ONBOARDING_CHECKLIST',
+    stepKey: ExtensionStepKey,
     actorUserId: string,
     reason: string,
     correlationId: string | null | undefined,
@@ -137,21 +140,13 @@ export class PlatformProvisioningCoordinatorService {
     try {
       return await this.prisma.$transaction(async (tx) => {
         await tx.$queryRaw`
-          SELECT pg_advisory_xact_lock(
-            hashtext('platform-provisioning'),
-            hashtext(${runId})
-          )
+          SELECT pg_advisory_xact_lock(hashtext('platform-provisioning'), hashtext(${runId}))
         `;
 
-        const rows = await tx.$queryRaw<Array<{
-          id: string;
-          status: string;
-          tenantId: string | null;
-        }>>`
-          SELECT
-            s.id,
-            s.status,
-            r.tenant_id AS "tenantId"
+        const rows = await tx.$queryRaw<
+          Array<{ id: string; status: string; tenantId: string | null }>
+        >`
+          SELECT s.id, s.status, r.tenant_id AS "tenantId"
           FROM platform_provisioning_steps s
           JOIN platform_provisioning_runs r ON r.id = s.run_id
           WHERE s.run_id = ${runId} AND s.step_key = ${stepKey}
@@ -163,23 +158,17 @@ export class PlatformProvisioningCoordinatorService {
 
         await tx.$executeRaw`
           UPDATE platform_provisioning_steps
-          SET
-            status = 'RUNNING',
-            attempt_count = attempt_count + 1,
-            last_error = NULL,
-            started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
-            updated_at = CURRENT_TIMESTAMP
+          SET status = 'RUNNING', attempt_count = attempt_count + 1,
+              last_error = NULL, started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+              updated_at = CURRENT_TIMESTAMP
           WHERE id = ${step.id}
         `;
 
         const output = await execute(tx);
         await tx.$executeRaw`
           UPDATE platform_provisioning_steps
-          SET
-            status = 'COMPLETED',
-            output = ${JSON.stringify(output)}::jsonb,
-            completed_at = CURRENT_TIMESTAMP,
-            updated_at = CURRENT_TIMESTAMP
+          SET status = 'COMPLETED', output = ${JSON.stringify(output)}::jsonb,
+              completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
           WHERE id = ${step.id}
         `;
 
@@ -198,7 +187,6 @@ export class PlatformProvisioningCoordinatorService {
           },
           tx,
         );
-
         return output;
       });
     } catch (error) {
