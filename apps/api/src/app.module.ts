@@ -26,6 +26,7 @@ import { AccountsPayableModule } from './modules/accounts-payable/accounts-payab
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProfitabilityModule } from './modules/profitability/profitability.module';
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
+import { IntegrationAdminModule } from './modules/integration-admin/integration-admin.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { PlatformAuditModule } from './modules/platform-audit/platform-audit.module';
 import { PlatformControlPlaneModule } from './modules/platform-control-plane/platform-control-plane.module';
@@ -52,11 +53,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
 
 @Module({
   imports: [
-    ConfigModule.forRoot({
-      isGlobal: true,
-      cache: true,
-      validate: (config) => envSchema.parse(config),
-    }),
+    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: (config) => envSchema.parse(config) }),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -82,6 +79,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     ProcurementModule,
     ProfitabilityModule,
     FinancialIntegrationsModule,
+    IntegrationAdminModule,
     FinanceModule,
     PlatformAuditModule,
     PlatformControlPlaneModule,
