@@ -100,6 +100,63 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
+export async function apiResponse(
+  path: string,
+  options: Pick<ApiOptions, "method" | "auth"> = {},
+): Promise<Response> {
+  const { method = "GET", auth = true } = options;
+  let accessToken = auth ? getAccessToken() : null;
+
+  if (auth && !accessToken && !path.startsWith("/auth/")) {
+    accessToken = await refreshAccessToken();
+    if (!accessToken) {
+      clearSession();
+      redirectToLogin();
+      throw new ApiError(
+        "Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.",
+        401,
+      );
+    }
+  }
+
+  const request = async (token: string | null) => {
+    const headers: Record<string, string> = {};
+    if (auth && token) headers.Authorization = `Bearer ${token}`;
+
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers,
+        credentials: "include",
+      });
+    } catch {
+      throw new ApiError(
+        "Sunucuya Bağlanılamadı. Lütfen Birkaç Dakika Sonra Tekrar Deneyin.",
+        0,
+      );
+    }
+  };
+
+  let response = await request(accessToken);
+
+  if (response.status === 401 && auth && !path.startsWith("/auth/")) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      response = await request(refreshedToken);
+    } else {
+      clearSession();
+      redirectToLogin();
+    }
+  }
+
+  if (response.status === 401 && auth) {
+    clearSession();
+    redirectToLogin();
+  }
+
+  return response;
+}
+
 export async function api<T>(
   path: string,
   options: ApiOptions = {},
