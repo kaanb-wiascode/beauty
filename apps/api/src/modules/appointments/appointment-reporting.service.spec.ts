@@ -26,7 +26,11 @@ describe('AppointmentReportingService', () => {
               status: 'COMPLETED', payment: null,
             },
           ])
-          .mockResolvedValueOnce([{ customerId: 'c1' }]),
+          .mockResolvedValueOnce([
+            { id: 'a1', customerId: 'c1', startAt: new Date('2026-09-10T09:00:00.000Z') },
+            { id: 'a3', customerId: 'c1', startAt: new Date('2026-09-10T09:30:00.000Z') },
+            { id: 'a4', customerId: 'c1', startAt: new Date('2026-10-01T09:00:00.000Z') },
+          ]),
         groupBy: jest.fn().mockResolvedValue([
           { customerId: 'c1', _min: { startAt: new Date('2026-09-10T09:00:00.000Z') } },
           { customerId: 'c2', _min: { startAt: new Date('2026-08-01T09:00:00.000Z') } },
