@@ -3,6 +3,8 @@ import { api, withQuery } from "./api";
 export type PlatformCommandCenter = {
   counts: {
     tenantCount: number;
+    restrictedTenantCount: number;
+    suspendedTenantCount: number;
     companyCount: number;
     activeCompanyCount: number;
     branchCount: number;
@@ -14,6 +16,8 @@ export type PlatformCommandCenter = {
     name: string;
     slug: string;
     createdAt: string;
+    lifecycleState: string;
+    lifecycleVersion: number;
     activeMembershipCount: number;
     activeBranchCount: number;
   }>;
@@ -25,6 +29,10 @@ export type PlatformCustomerSummary = {
   slug: string;
   createdAt: string;
   updatedAt: string;
+  lifecycleState: "ACTIVE" | "RESTRICTED" | "SUSPENDED";
+  lifecycleReason: string | null;
+  lifecycleVersion: number;
+  lifecycleUpdatedAt: string | null;
   companyCount: number;
   activeCompanyCount: number;
   branchCount: number;
@@ -51,6 +59,55 @@ export type PlatformCustomer360 = {
     activeBranchCount: number;
   }>;
   membershipBreakdown: Array<{ role: string; status: string; count: number }>;
+};
+
+export type PlatformTenantGovernance = {
+  lifecycle: {
+    tenantId: string;
+    state: "ACTIVE" | "RESTRICTED" | "SUSPENDED";
+    reason: string | null;
+    version: number;
+    updatedByUserId: string | null;
+    updatedByEmail: string | null;
+    createdAt: string;
+    updatedAt: string;
+  };
+  operations: Array<{
+    id: string;
+    requesterUserId: string;
+    requesterEmail: string;
+    approverUserId: string | null;
+    approverEmail: string | null;
+    resource: string;
+    action: string;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    status: string;
+    reason: string;
+    decisionReason: string | null;
+    requestId: string | null;
+    createdAt: string;
+    decidedAt: string | null;
+    executedAt: string | null;
+    expiresAt: string;
+  }>;
+  auditTimeline: Array<{
+    id: string;
+    actorUserId: string;
+    actorEmail: string | null;
+    resource: string;
+    action: string;
+    targetEntityType: string | null;
+    targetEntityId: string | null;
+    reason: string | null;
+    beforeState: unknown;
+    afterState: unknown;
+    metadata: unknown;
+    requestId: string | null;
+    correlationId: string | null;
+    riskLevel: string | null;
+    approvalRequestId: string | null;
+    createdAt: string;
+  }>;
 };
 
 export type PlatformIamOverview = {
@@ -148,6 +205,18 @@ export function listPlatformCustomers(params: { search?: string; limit?: number;
 }
 export function getPlatformCustomer360(tenantId: string) {
   return api<PlatformCustomer360>(`/platform/customers/${tenantId}`);
+}
+export function getPlatformTenantGovernance(tenantId: string) {
+  return api<PlatformTenantGovernance>(`/platform/customers/${tenantId}/governance`);
+}
+export function requestPlatformCustomerLifecycle(
+  tenantId: string,
+  input: { state: "ACTIVE" | "RESTRICTED" | "SUSPENDED"; expectedVersion: number; reason: string },
+) {
+  return api<PlatformApprovalRequestResult>(`/platform/customers/${tenantId}/lifecycle`, {
+    method: "POST",
+    body: input,
+  });
 }
 export function getPlatformIamOverview() {
   return api<PlatformIamOverview>("/platform/iam");
