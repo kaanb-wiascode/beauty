@@ -1,4 +1,7 @@
-import { ForbiddenException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ForbiddenException,
+} from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 
@@ -89,6 +92,74 @@ describe('reporting foundation', () => {
     const catalog = await service.getCatalog(user);
 
     expect(catalog).toEqual(reportDefinitions);
+  });
+
+  it('prepares an export only from server-owned exportable columns', async () => {
+    const { service } = createService([
+      { resource: 'reports', action: 'read' },
+      { resource: 'staff', action: 'read' },
+    ]);
+
+    const result = await service.prepareExport(user, {
+      reportKey: reportKeys.staffPerformance,
+      format: 'XLSX',
+      filters: {
+        from: new Date('2026-09-01T00:00:00.000Z'),
+        to: new Date('2026-09-30T23:59:59.999Z'),
+      },
+      columns: ['name', 'collected'],
+      sort: { key: 'collected', direction: 'desc' },
+      includeSummary: true,
+      includeCharts: false,
+    });
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        reportKey: reportKeys.staffPerformance,
+        format: 'XLSX',
+        columns: ['name', 'collected'],
+      }),
+    );
+  });
+
+  it('does not allow internal scope columns to be exported', async () => {
+    const { service } = createService([
+      { resource: 'reports', action: 'read' },
+      { resource: 'staff', action: 'read' },
+    ]);
+
+    await expect(
+      service.prepareExport(user, {
+        reportKey: reportKeys.staffPerformance,
+        format: 'CSV',
+        filters: {
+          from: new Date('2026-09-01T00:00:00.000Z'),
+          to: new Date('2026-09-30T23:59:59.999Z'),
+        },
+        columns: ['name', 'branchId'],
+        includeSummary: true,
+        includeCharts: false,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+  });
+
+  it('does not allow export preparation to bypass domain permission', async () => {
+    const { service } = createService([
+      { resource: 'reports', action: 'read' },
+    ]);
+
+    await expect(
+      service.prepareExport(user, {
+        reportKey: reportKeys.paymentSummary,
+        format: 'PDF',
+        filters: {
+          from: new Date('2026-09-01T00:00:00.000Z'),
+          to: new Date('2026-09-30T23:59:59.999Z'),
+        },
+        includeSummary: true,
+        includeCharts: false,
+      }),
+    ).rejects.toBeInstanceOf(ForbiddenException);
   });
 
   it('sorts, paginates, projects and aggregates staff preview on the server', async () => {
