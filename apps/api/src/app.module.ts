@@ -28,6 +28,7 @@ import { ProfitabilityModule } from './modules/profitability/profitability.modul
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
 import { FinanceModule } from './modules/finance/finance.module';
 import { PlatformAuditModule } from './modules/platform-audit/platform-audit.module';
+import { PlatformControlPlaneModule } from './modules/platform-control-plane/platform-control-plane.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -76,6 +77,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     FinancialIntegrationsModule,
     FinanceModule,
     PlatformAuditModule,
+    PlatformControlPlaneModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
