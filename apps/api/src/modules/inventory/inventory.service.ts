@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { InventoryScopeService } from './inventory-scope.service';
 
 const row = (value: any) => value;
 type RawDb = Pick<
@@ -17,6 +18,7 @@ export class InventoryService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly inventoryScope: InventoryScopeService,
   ) {}
 
   private tenantId() {
@@ -49,15 +51,15 @@ export class InventoryService {
     warehouseId: string,
     companyId = this.companyId(),
   ) {
-    const branchId = this.tenantContext.getBranchId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
     const rows = await db.$queryRawUnsafe<any[]>(
       `SELECT id,branch_id AS "branchId" FROM inventory_warehouses
        WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE'
-         AND ($3::text IS NULL OR branch_id=$3::text)
+         AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))
        LIMIT 1`,
       warehouseId,
       companyId,
-      branchId,
+      branchIds,
     );
     if (!rows.length) {
       throw new BadRequestException(
@@ -137,31 +139,40 @@ export class InventoryService {
 
   async overview() {
     await this.ensureWarehouses();
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
-    const filter = branchId
-      ? `w.branch_id='${branchId}'::text`
-      : `w.company_id='${companyId}'::text`;
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
 
     const [metrics, critical, warehouses, purchaseRequests] =
       await Promise.all([
         this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT COUNT(DISTINCT p.id)::int AS "totalProducts", COUNT(DISTINCT CASE WHEN s.quantity<=s.minimum_quantity AND s.minimum_quantity>0 THEN p.id END)::int AS "criticalProducts", COALESCE(SUM(s.quantity*s.cost_per_unit),0)::numeric AS "inventoryValue" FROM inventory_products p LEFT JOIN inventory_stock s ON s.product_id=p.id LEFT JOIN inventory_warehouses w ON w.id=s.warehouse_id AND ${filter} WHERE p.company_id=$1::text AND p.status='ACTIVE'`,
+          `SELECT COUNT(DISTINCT p.id)::int AS "totalProducts", COUNT(DISTINCT CASE WHEN s.quantity<=s.minimum_quantity AND s.minimum_quantity>0 THEN p.id END)::int AS "criticalProducts", COALESCE(SUM(s.quantity*s.cost_per_unit),0)::numeric AS "inventoryValue"
+           FROM inventory_products p
+           LEFT JOIN inventory_stock s ON s.product_id=p.id
+           LEFT JOIN inventory_warehouses w ON w.id=s.warehouse_id
+             AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
+           WHERE p.company_id=$1::text AND p.status='ACTIVE'`,
           companyId,
+          branchIds,
         ),
         this.prisma.$queryRawUnsafe<any[]>(
-          `SELECT p.id,p.name,p.sku,p.unit,w.id AS "warehouseId",w.name AS "warehouseName",w.type AS "warehouseType",s.quantity,s.minimum_quantity AS "minimumQuantity",s.target_quantity AS "targetQuantity" FROM inventory_stock s JOIN inventory_products p ON p.id=s.product_id JOIN inventory_warehouses w ON w.id=s.warehouse_id WHERE p.company_id=$1::text AND p.status='ACTIVE' AND ${filter} AND s.quantity<=s.minimum_quantity AND s.minimum_quantity>0 ORDER BY s.quantity ASC,p.name ASC LIMIT 12`,
+          `SELECT p.id,p.name,p.sku,p.unit,w.id AS "warehouseId",w.name AS "warehouseName",w.type AS "warehouseType",s.quantity,s.minimum_quantity AS "minimumQuantity",s.target_quantity AS "targetQuantity"
+           FROM inventory_stock s
+           JOIN inventory_products p ON p.id=s.product_id
+           JOIN inventory_warehouses w ON w.id=s.warehouse_id
+           WHERE p.company_id=$1::text AND p.status='ACTIVE'
+             AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
+             AND s.quantity<=s.minimum_quantity AND s.minimum_quantity>0
+           ORDER BY s.quantity ASC,p.name ASC LIMIT 12`,
           companyId,
+          branchIds,
         ),
         this.prisma.$queryRawUnsafe<any[]>(
           `SELECT id,name,type,branch_id AS "branchId"
            FROM inventory_warehouses
-           WHERE company_id=$1::text
-             AND status='ACTIVE'
-             AND ($2::text IS NULL OR branch_id=$2::text)
+           WHERE company_id=$1::text AND status='ACTIVE'
+             AND ($2::text[] IS NULL OR branch_id=ANY($2::text[]))
            ORDER BY type,name`,
           companyId,
-          branchId,
+          branchIds,
         ),
         this.purchaseRequests(),
       ]);
@@ -178,15 +189,14 @@ export class InventoryService {
       const lots = await this.prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*)::int AS count
          FROM inventory_product_lots l
-         JOIN inventory_warehouses w
-           ON w.id=l.warehouse_id AND w.company_id=l.company_id
+         JOIN inventory_warehouses w ON w.id=l.warehouse_id AND w.company_id=l.company_id
          WHERE l.company_id=$1::text
-           AND ($2::text IS NULL OR w.branch_id=$2::text)
+           AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
            AND l.expires_at IS NOT NULL
            AND l.expires_at <= NOW()+INTERVAL '30 days'
            AND l.quantity>0`,
         companyId,
-        branchId,
+        branchIds,
       );
       expiringLots = Number(lots[0]?.count ?? 0);
     } catch (error) {
@@ -205,16 +215,23 @@ export class InventoryService {
 
   async products(search?: string) {
     await this.ensureWarehouses();
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
-    const filter = branchId
-      ? `w.branch_id='${branchId}'::text`
-      : `w.company_id='${companyId}'::text`;
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
 
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT p.id,p.name,p.sku,p.barcode,p.brand,p.manufacturer,p.model,p.description,p.unit,p.status,p.track_stock AS "trackStock",p.track_expiry AS "trackExpiry",p.category_id AS "categoryId",c.name AS "categoryName",p.purchase_price AS "purchasePrice",p.sale_price AS "salePrice",p.currency,p.tax_rate AS "taxRate",p.lead_time_days AS "leadTimeDays",p.shipping_days AS "shippingDays",COALESCE(SUM(CASE WHEN ${filter} THEN s.quantity ELSE 0 END),0) AS quantity,COALESCE(SUM(CASE WHEN ${filter} THEN s.minimum_quantity ELSE 0 END),0) AS "minimumQuantity",COALESCE(SUM(CASE WHEN ${filter} THEN s.target_quantity ELSE 0 END),0) AS "targetQuantity" FROM inventory_products p LEFT JOIN inventory_stock s ON s.product_id=p.id LEFT JOIN inventory_warehouses w ON w.id=s.warehouse_id LEFT JOIN inventory_categories c ON c.id=p.category_id WHERE p.company_id=$1::text AND ($2::text IS NULL OR p.name ILIKE '%'||$2||'%' OR COALESCE(p.sku,'') ILIKE '%'||$2||'%' OR COALESCE(p.barcode,'') ILIKE '%'||$2||'%') GROUP BY p.id,c.name ORDER BY p.name`,
+      `SELECT p.id,p.name,p.sku,p.barcode,p.brand,p.manufacturer,p.model,p.description,p.unit,p.status,p.track_stock AS "trackStock",p.track_expiry AS "trackExpiry",p.category_id AS "categoryId",c.name AS "categoryName",p.purchase_price AS "purchasePrice",p.sale_price AS "salePrice",p.currency,p.tax_rate AS "taxRate",p.lead_time_days AS "leadTimeDays",p.shipping_days AS "shippingDays",
+              COALESCE(SUM(CASE WHEN $3::text[] IS NULL OR w.branch_id=ANY($3::text[]) THEN s.quantity ELSE 0 END),0) AS quantity,
+              COALESCE(SUM(CASE WHEN $3::text[] IS NULL OR w.branch_id=ANY($3::text[]) THEN s.minimum_quantity ELSE 0 END),0) AS "minimumQuantity",
+              COALESCE(SUM(CASE WHEN $3::text[] IS NULL OR w.branch_id=ANY($3::text[]) THEN s.target_quantity ELSE 0 END),0) AS "targetQuantity"
+       FROM inventory_products p
+       LEFT JOIN inventory_stock s ON s.product_id=p.id
+       LEFT JOIN inventory_warehouses w ON w.id=s.warehouse_id
+       LEFT JOIN inventory_categories c ON c.id=p.category_id
+       WHERE p.company_id=$1::text
+         AND ($2::text IS NULL OR p.name ILIKE '%'||$2||'%' OR COALESCE(p.sku,'') ILIKE '%'||$2||'%' OR COALESCE(p.barcode,'') ILIKE '%'||$2||'%')
+       GROUP BY p.id,c.name ORDER BY p.name`,
       companyId,
       search?.trim() || null,
+      branchIds,
     );
   }
 
@@ -382,24 +399,22 @@ export class InventoryService {
     input: any,
   ) {
     return this.prisma.$transaction((tx) =>
-      this.linkProductSupplierWithDb(
-        tx,
-        productId,
-        supplierId,
-        input,
-      ),
+      this.linkProductSupplierWithDb(tx, productId, supplierId, input),
     );
   }
 
   private async defaultWarehouseId() {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      branchId
-        ? `SELECT id FROM inventory_warehouses WHERE company_id=$1::text AND branch_id=$2::text AND type='BRANCH' AND status='ACTIVE' LIMIT 1`
-        : `SELECT id FROM inventory_warehouses WHERE company_id=$1::text AND type='MAIN_DEPOT' AND status='ACTIVE' LIMIT 1`,
+      `SELECT id FROM inventory_warehouses
+       WHERE company_id=$1::text AND status='ACTIVE'
+         AND (
+           ($2::text[] IS NULL AND type='MAIN_DEPOT')
+           OR ($2::text[] IS NOT NULL AND branch_id=ANY($2::text[]) AND type='BRANCH')
+         )
+       ORDER BY type,id LIMIT 1`,
       companyId,
-      ...(branchId ? [branchId] : []),
+      branchIds,
     );
     if (!rows.length) {
       throw new BadRequestException('Inventory warehouse not found');
@@ -480,24 +495,24 @@ export class InventoryService {
   }
 
   async movements(limit = 80) {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT m.id,m.type,m.quantity,m.unit_cost AS "unitCost",m.note,m.created_at AS "createdAt",p.name AS "productName",p.unit,w.name AS "warehouseName"
        FROM inventory_movements m
        JOIN inventory_products p ON p.id=m.product_id
        JOIN inventory_warehouses w ON w.id=m.warehouse_id
-       WHERE m.company_id=$1::text AND ($2::text IS NULL OR w.branch_id=$2::text)
+       WHERE m.company_id=$1::text
+         AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
        ORDER BY m.created_at DESC LIMIT $3`,
       companyId,
-      branchId,
+      branchIds,
       Math.min(limit, 200),
     );
   }
 
   async serviceMaterials(serviceId: string) {
     const tenantId = this.tenantId();
-    const branchId = this.tenantContext.getBranchId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT ism.id,ism.product_id AS "productId",p.name AS "productName",p.unit,ism.quantity
        FROM inventory_service_materials ism
@@ -505,11 +520,11 @@ export class InventoryService {
        JOIN services s ON s.id=ism.service_id
        WHERE ism.service_id=$1::text
          AND s."tenantId"=$2::text
-         AND ($3::text IS NULL OR s."branchId"=$3::text)
+         AND ($3::text[] IS NULL OR s."branchId"=ANY($3::text[]))
        ORDER BY p.name`,
       serviceId,
       tenantId,
-      branchId,
+      branchIds,
     );
   }
 
@@ -560,17 +575,17 @@ export class InventoryService {
   }
 
   async purchaseRequests() {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT pr.id,p.name AS "productName",w.name AS "warehouseName",pr.current_quantity AS "currentQuantity",pr.requested_quantity AS "requestedQuantity",pr.status,pr.reason,pr.created_at AS "createdAt"
        FROM inventory_purchase_requests pr
        JOIN inventory_products p ON p.id=pr.product_id
        JOIN inventory_warehouses w ON w.id=pr.warehouse_id
-       WHERE pr.company_id=$1::text AND ($2::text IS NULL OR w.branch_id=$2::text)
+       WHERE pr.company_id=$1::text
+         AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
        ORDER BY pr.created_at DESC`,
       companyId,
-      branchId,
+      branchIds,
     );
   }
 
@@ -604,13 +619,18 @@ export class InventoryService {
   }
 
   async assets() {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     try {
       return await this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT a.id,a.asset_code AS "assetCode",a.name,a.asset_type AS "assetType",a.brand,a.model,a.serial_number AS "serialNumber",a.status,a.condition,a.branch_id AS "branchId",br.name AS "branchName",a.assigned_to_staff_id AS "assignedToStaffId",a.purchase_date AS "purchaseDate",a.purchase_price AS "purchasePrice",a.currency,a.warranty_end AS "warrantyEnd",a.next_maintenance_at AS "nextMaintenanceAt",a.category_id AS "categoryId",c.name AS "categoryName" FROM inventory_assets a LEFT JOIN branches br ON br.id=a.branch_id LEFT JOIN inventory_categories c ON c.id=a.category_id WHERE a.company_id=$1::text ${branchId ? `AND (a.branch_id=$2::text OR a.branch_id IS NULL)` : ''} ORDER BY a.name`,
+        `SELECT a.id,a.asset_code AS "assetCode",a.name,a.asset_type AS "assetType",a.brand,a.model,a.serial_number AS "serialNumber",a.status,a.condition,a.branch_id AS "branchId",br.name AS "branchName",a.assigned_to_staff_id AS "assignedToStaffId",a.purchase_date AS "purchaseDate",a.purchase_price AS "purchasePrice",a.currency,a.warranty_end AS "warrantyEnd",a.next_maintenance_at AS "nextMaintenanceAt",a.category_id AS "categoryId",c.name AS "categoryName"
+         FROM inventory_assets a
+         LEFT JOIN branches br ON br.id=a.branch_id
+         LEFT JOIN inventory_categories c ON c.id=a.category_id
+         WHERE a.company_id=$1::text
+           AND ($2::text[] IS NULL OR a.branch_id=ANY($2::text[]) OR a.branch_id IS NULL)
+         ORDER BY a.name`,
         companyId,
-        ...(branchId ? [branchId] : []),
+        branchIds,
       );
     } catch (error) {
       console.error('[inventory] assets query failed', error);
@@ -622,6 +642,7 @@ export class InventoryService {
     const tenantId = this.tenantId();
     const companyId = this.companyId();
     const contextBranchId = this.tenantContext.getBranchId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
     if (!input.name?.trim()) throw new BadRequestException('Asset name is required');
     if (!input.assetCode?.trim()) throw new BadRequestException('Asset code is required');
 
@@ -637,9 +658,13 @@ export class InventoryService {
 
       if (input.branchId) {
         const branches = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id FROM branches WHERE id=$1::text AND "companyId"=$2::text AND status='ACTIVE' LIMIT 1`,
+          `SELECT id FROM branches
+           WHERE id=$1::text AND "companyId"=$2::text AND status='ACTIVE'
+             AND ($3::text[] IS NULL OR id=ANY($3::text[]))
+           LIMIT 1`,
           input.branchId,
           companyId,
+          branchIds,
         );
         if (!branches.length) throw new NotFoundException('Branch not found');
       }
@@ -651,22 +676,24 @@ export class InventoryService {
           );
         }
         effectiveBranchId = contextBranchId;
+      } else if (effectiveBranchId && branchIds && !branchIds.includes(effectiveBranchId)) {
+        throw new BadRequestException('Asset branch is outside the active organization scope.');
       }
 
       if (input.warehouseId) {
         const warehouses = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,branch_id AS "branchId" FROM inventory_warehouses WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
+          `SELECT id,branch_id AS "branchId" FROM inventory_warehouses
+           WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE'
+             AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))
+           LIMIT 1`,
           input.warehouseId,
           companyId,
+          branchIds,
         );
         if (!warehouses.length) throw new NotFoundException('Warehouse not found');
 
         const warehouseBranchId = warehouses[0].branchId as string | null;
-        if (
-          warehouseBranchId &&
-          effectiveBranchId &&
-          warehouseBranchId !== effectiveBranchId
-        ) {
+        if (warehouseBranchId && effectiveBranchId && warehouseBranchId !== effectiveBranchId) {
           throw new BadRequestException(
             'Asset warehouse must belong to the selected branch.',
           );
@@ -678,10 +705,16 @@ export class InventoryService {
 
       if (input.assignedToStaffId) {
         const staff = await tx.$queryRawUnsafe<any[]>(
-          `SELECT s.id,s.branch_id AS "branchId" FROM staff s JOIN branches b ON b.id=s.branch_id WHERE s.id=$1::text AND s.tenant_id=$2::text AND s.status='ACTIVE' AND b."companyId"=$3::text AND b.status='ACTIVE' LIMIT 1`,
+          `SELECT s.id,s.branch_id AS "branchId"
+           FROM staff s JOIN branches b ON b.id=s.branch_id
+           WHERE s.id=$1::text AND s.tenant_id=$2::text AND s.status='ACTIVE'
+             AND b."companyId"=$3::text AND b.status='ACTIVE'
+             AND ($4::text[] IS NULL OR s.branch_id=ANY($4::text[]))
+           LIMIT 1`,
           input.assignedToStaffId,
           tenantId,
           companyId,
+          branchIds,
         );
         if (!staff.length) throw new NotFoundException('Staff not found');
 
@@ -719,9 +752,7 @@ export class InventoryService {
         input.currency || 'TRY',
         input.warrantyStart || null,
         input.warrantyEnd || null,
-        input.maintenanceIntervalDays
-          ? Number(input.maintenanceIntervalDays)
-          : null,
+        input.maintenanceIntervalDays ? Number(input.maintenanceIntervalDays) : null,
         input.nextMaintenanceAt || null,
         input.imageUrl || null,
         input.notes || null,
@@ -743,34 +774,32 @@ export class InventoryService {
   }
 
   async assetMaintenance(assetId?: string) {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT m.id,m.asset_id AS "assetId",a.name AS "assetName",m.type,m.status,m.scheduled_at AS "scheduledAt",m.completed_at AS "completedAt",m.provider,m.cost,m.currency,m.description
        FROM inventory_asset_maintenance m
        JOIN inventory_assets a ON a.id=m.asset_id
        WHERE a.company_id=$1::text
-         AND ($2::text IS NULL OR a.branch_id=$2::text OR a.branch_id IS NULL)
+         AND ($2::text[] IS NULL OR a.branch_id=ANY($2::text[]) OR a.branch_id IS NULL)
          AND ($3::text IS NULL OR m.asset_id=$3::text)
        ORDER BY COALESCE(m.scheduled_at,m.created_at) DESC`,
       companyId,
-      branchId,
+      branchIds,
       assetId ?? null,
     );
   }
 
   async createAssetMaintenance(input: any) {
     if (!input.assetId) throw new BadRequestException('Asset is required');
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     const asset = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id FROM inventory_assets
        WHERE id=$1::text AND company_id=$2::text
-         AND ($3::text IS NULL OR branch_id=$3::text OR branch_id IS NULL)
+         AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]) OR branch_id IS NULL)
        LIMIT 1`,
       input.assetId,
       companyId,
-      branchId,
+      branchIds,
     );
     if (!asset.length) throw new NotFoundException('Asset not found');
 
@@ -791,32 +820,31 @@ export class InventoryService {
   }
 
   async notifications() {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,type,title,message,branch_id AS "branchId",role_target AS "roleTarget",reference_type AS "referenceType",reference_id AS "referenceId",read_at AS "readAt",created_at AS "createdAt"
        FROM inventory_notifications
        WHERE company_id=$1::text
-         AND ($2::text IS NULL OR branch_id=$2::text OR branch_id IS NULL)
+         AND ($2::text[] IS NULL OR branch_id=ANY($2::text[]) OR branch_id IS NULL)
        ORDER BY created_at DESC LIMIT 80`,
       companyId,
-      branchId,
+      branchIds,
     );
   }
 
   async purchaseOrders() {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT po.id,po.status,po.total_amount AS "totalAmount",po.ordered_at AS "orderedAt",po.received_at AS "receivedAt",s.name AS "supplierName",w.name AS "warehouseName",COUNT(i.id)::int AS "itemCount"
        FROM inventory_purchase_orders po
        LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id
        JOIN inventory_warehouses w ON w.id=po.warehouse_id
        LEFT JOIN inventory_purchase_order_items i ON i.purchase_order_id=po.id
-       WHERE po.company_id=$1::text AND ($2::text IS NULL OR w.branch_id=$2::text)
+       WHERE po.company_id=$1::text
+         AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
        GROUP BY po.id,s.name,w.name ORDER BY po.created_at DESC`,
       companyId,
-      branchId,
+      branchIds,
     );
   }
 
@@ -878,8 +906,7 @@ export class InventoryService {
   }
 
   async transfers() {
-    const companyId = this.companyId();
-    const branchId = this.tenantContext.getBranchId();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT t.id,t.status,t.note,t.created_at AS "createdAt",s.name AS "sourceName",d.name AS "destinationName",COUNT(i.id)::int AS "itemCount"
        FROM inventory_transfers t
@@ -887,10 +914,10 @@ export class InventoryService {
        JOIN inventory_warehouses d ON d.id=t.destination_warehouse_id
        LEFT JOIN inventory_transfer_items i ON i.transfer_id=t.id
        WHERE t.company_id=$1::text
-         AND ($2::text IS NULL OR s.branch_id=$2::text OR d.branch_id=$2::text)
+         AND ($2::text[] IS NULL OR s.branch_id=ANY($2::text[]) OR d.branch_id=ANY($2::text[]))
        GROUP BY t.id,s.name,d.name ORDER BY t.created_at DESC`,
       companyId,
-      branchId,
+      branchIds,
     );
   }
 
