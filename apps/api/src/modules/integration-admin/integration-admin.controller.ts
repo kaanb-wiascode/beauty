@@ -12,7 +12,7 @@ export class IntegrationAdminController {
   constructor(private readonly service: IntegrationAdminService) {}
 
   @Get()
-  @RequirePermission('finance', 'read')
+  @RequirePermission('financial_integrations', 'read')
   catalog() {
     return this.service.catalog();
   }
