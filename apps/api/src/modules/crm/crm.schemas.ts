@@ -40,23 +40,17 @@ export const updateLeadSchema = z.object({
   sourceDetail: acquisitionText.nullable().optional(), campaignId: acquisitionText.nullable().optional(), campaignName: acquisitionText.nullable().optional(), adSetId: acquisitionText.nullable().optional(), adSetName: acquisitionText.nullable().optional(), adId: acquisitionText.nullable().optional(), adName: acquisitionText.nullable().optional(), landingPage: acquisitionUrl.nullable().optional(), referrer: acquisitionUrl.nullable().optional(), utmSource: acquisitionText.nullable().optional(), utmMedium: acquisitionText.nullable().optional(), utmCampaign: acquisitionText.nullable().optional(), utmContent: acquisitionText.nullable().optional(), utmTerm: acquisitionText.nullable().optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
   interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().nullable().optional(), estimatedBudget: z.coerce.number().min(0).nullable().optional(), budgetCurrency: currencySchema.optional(), purchaseUrgency: leadPurchaseUrgencySchema.nullable().optional(), consultationNeed: leadConsultationNeedSchema.nullable().optional(), customerIntent: z.string().trim().min(1).max(1000).nullable().optional(),
   team: z.string().trim().min(1).max(120).nullable().optional(), leadScore: leadScoreSchema.optional(), leadTemperature: leadTemperatureSchema.optional(), firstContactedAt: lifecycleTimestampSchema.nullable().optional(), firstResponseAt: lifecycleTimestampSchema.nullable().optional(),
-  interestNote: z.string().trim().max(2000).nullable().optional(), ownerUserId: z.string().uuid().nullable().optional(), status: z.enum(['NEW', 'CONTACTED', 'LOST']).optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional(),
+  interestNote: z.string().trim().max(2000).nullable().optional(), ownerUserId: z.string().uuid().nullable().optional(), status: z.enum(['NEW', 'CONTACTED']).optional(),
 });
 
 export const duplicateCandidateSchema = z.object({
   phone: z.string().trim().min(3).max(40).optional(), alternativePhone: z.string().trim().min(3).max(40).optional(), email: z.string().trim().email().max(254).optional(), providerContactId: externalIdentity.optional(), whatsappIdentity: externalIdentity.optional(), excludeLeadId: z.string().uuid().optional(),
 }).refine((value) => value.phone || value.alternativePhone || value.email || value.providerContactId || value.whatsappIdentity, { message: 'Duplicate search requires at least one identity signal.' });
 
-export const mergeLeadSchema = z.object({
-  targetLeadId: z.string().uuid(),
-  sourceVersion: z.coerce.number().int().min(1),
-  targetVersion: z.coerce.number().int().min(1),
-  reason: z.string().trim().min(3).max(1000),
-});
-
+export const mergeLeadSchema = z.object({ targetLeadId: z.string().uuid(), sourceVersion: z.coerce.number().int().min(1), targetVersion: z.coerce.number().int().min(1), reason: z.string().trim().min(3).max(1000) });
 export const qualifyLeadSchema = z.object({ version: z.coerce.number().int().min(1), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional() });
 export const createOpportunitySchema = z.object({ customerId: z.string().uuid(), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional() });
-export const transitionOpportunitySchema = z.object({ version: z.coerce.number().int().min(1), stage: opportunityStageSchema, probability: z.coerce.number().int().min(0).max(100).optional(), estimatedValue: z.coerce.number().min(0).nullable().optional(), expectedCloseDate: z.coerce.date().nullable().optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional() });
+export const transitionOpportunitySchema = z.object({ version: z.coerce.number().int().min(1), stage: z.enum(['QUALIFIED','NEEDS_ANALYSIS','PROPOSAL','NEGOTIATION','WON']), probability: z.coerce.number().int().min(0).max(100).optional(), estimatedValue: z.coerce.number().min(0).nullable().optional(), expectedCloseDate: z.coerce.date().nullable().optional() });
 export const createFollowUpSchema = z.object({ leadId: z.string().uuid().optional(), opportunityId: z.string().uuid().optional(), assignedUserId: z.string().uuid(), channel: leadContactChannelSchema, dueAt: z.coerce.date(), note: z.string().trim().max(2000).optional() }).refine((value) => Number(Boolean(value.leadId)) + Number(Boolean(value.opportunityId)) === 1, { message: 'Takip görevi tam olarak bir lead veya fırsata bağlanmalıdır.' });
 export const completeFollowUpSchema = z.object({ version: z.coerce.number().int().min(1), outcome: z.string().trim().min(1).max(2000) });
 export const rescheduleFollowUpSchema = z.object({ version: z.coerce.number().int().min(1), dueAt: z.coerce.date(), assignedUserId: z.string().uuid().optional(), channel: leadContactChannelSchema.optional(), note: z.string().trim().max(2000).nullable().optional() });
