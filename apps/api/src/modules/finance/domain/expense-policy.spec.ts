@@ -17,6 +17,12 @@ describe('expense policy', () => {
     );
   });
 
+  it('requires reversal-aware workflow after approval instead of direct cancellation', () => {
+    expect(() => assertExpenseApprovalTransition('APPROVED', 'CANCELLED')).toThrow(
+      'Invalid expense approval transition',
+    );
+  });
+
   it('blocks payment progress until approval', () => {
     expect(() =>
       assertExpensePaymentTransition({
