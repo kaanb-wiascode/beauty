@@ -31,6 +31,13 @@ export class MembershipsController {
     return this.membershipsService.findAll();
   }
 
+  @Get(':id/effective-permissions')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('roles', 'read')
+  async effectivePermissions(@Param('id') id: string) {
+    return this.membershipsService.findEffectivePermissions(id);
+  }
+
   @Patch(':id/status')
   @UseGuards(PermissionsGuard)
   @RequirePermission('roles', 'update')
