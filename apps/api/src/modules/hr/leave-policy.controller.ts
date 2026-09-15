@@ -10,22 +10,13 @@ import { LeavePolicyService } from './leave-policy.service';
 @RequirePermission('hr','read')
 export class LeavePolicyController {
   constructor(private readonly leave: LeavePolicyService) {}
-
-  @Get('types')
-  leaveTypes(){ return this.leave.leaveTypes(); }
-
-  @Post('policies')
-  @RequirePermissions({resource:'hr',action:'manage'})
-  createPolicy(@Body() body:any){ return this.leave.createPolicy(body); }
-
-  @Get('employees/:staffId/balances/:leaveTypeId')
-  balance(@Param('staffId') staffId:string,@Param('leaveTypeId') leaveTypeId:string,@Query('year',ParseIntPipe) year:number){
-    return this.leave.balance(staffId,leaveTypeId,year);
-  }
-
-  @Post('employees/:staffId/balances/:leaveTypeId/accrual')
-  @RequirePermissions({resource:'hr',action:'manage'})
-  accrue(@Param('staffId') staffId:string,@Param('leaveTypeId') leaveTypeId:string,@Body() body:any){
-    return this.leave.accrue(staffId,leaveTypeId,Number(body.year),Number(body.month));
-  }
+  @Get('types') leaveTypes(){return this.leave.leaveTypes();}
+  @Get('policies') policies(){return this.leave.policies();}
+  @Post('policies') @RequirePermissions({resource:'hr',action:'manage'}) createPolicy(@Body() body:any){return this.leave.createPolicy(body);}
+  @Get('employees/:staffId/balances/:leaveTypeId') balance(@Param('staffId') staffId:string,@Param('leaveTypeId') leaveTypeId:string,@Query('year',ParseIntPipe) year:number){return this.leave.balance(staffId,leaveTypeId,year);}
+  @Post('employees/:staffId/balances/:leaveTypeId/accrual') @RequirePermissions({resource:'hr',action:'manage'}) accrue(@Param('staffId') staffId:string,@Param('leaveTypeId') leaveTypeId:string,@Body() body:any){return this.leave.accrue(staffId,leaveTypeId,Number(body.year),Number(body.month));}
+  @Get('requests') requests(@Query('staffId') staffId?:string){return this.leave.requests(staffId);}
+  @Post('employees/:staffId/requests') @RequirePermissions({resource:'hr',action:'manage'}) request(@Param('staffId') staffId:string,@Body() body:any){return this.leave.request(staffId,body);}
+  @Post('requests/:id/review') @RequirePermissions({resource:'hr',action:'manage'}) review(@Param('id') id:string,@Body() body:any){return this.leave.review(id,body.status,body.actorId,body.note);}
+  @Post('requests/:id/cancel') @RequirePermissions({resource:'hr',action:'manage'}) cancel(@Param('id') id:string,@Body() body:any){return this.leave.cancel(id,body.actorId,body.note);}
 }
