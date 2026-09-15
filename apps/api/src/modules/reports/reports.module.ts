@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ObjectStorageModule } from '../../common/storage/object-storage.module';
+import { AppointmentsModule } from '../appointments/appointments.module';
 import { CustomersModule } from '../customers/customers.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { SalesModule } from '../sales/sales.module';
@@ -34,41 +35,17 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
 @Module({
-  imports: [
-    ObjectStorageModule,
-    CustomersModule,
-    SalesModule,
-    StaffModule,
-    ServicesModule,
-    PaymentsModule,
-  ],
+  imports: [ObjectStorageModule, AppointmentsModule, CustomersModule, SalesModule, StaffModule, ServicesModule, PaymentsModule],
   controllers: [ReportsController],
   providers: [
-    ReportsService,
-    ReportComparisonService,
-    ReportDrilldownService,
-    ReportExportJobsRepository,
-    ReportSavedViewsRepository,
-    ReportSavedViewsService,
-    ReportSchedulesRepository,
-    ReportSchedulesService,
-    ReportScheduleRunsRepository,
-    ReportScheduleExecutionService,
-    ReportExportExpiryRepository,
-    ReportExportStaleRepository,
-    ReportExportAuthorizationService,
-    ReportExportBrandingService,
-    ReportExportPolicyService,
-    ReportExportWorkerContextService,
-    ReportExportStorageService,
-    ReportExportExpiryService,
-    ReportExportStaleService,
-    ReportExportProcessorService,
-    ReportExportWorkerRunnerService,
-    ReportExportDownloadService,
-    ReportCsvGenerator,
-    ReportXlsxGenerator,
-    ReportPdfGenerator,
+    ReportsService, ReportComparisonService, ReportDrilldownService,
+    ReportExportJobsRepository, ReportSavedViewsRepository, ReportSavedViewsService,
+    ReportSchedulesRepository, ReportSchedulesService, ReportScheduleRunsRepository,
+    ReportScheduleExecutionService, ReportExportExpiryRepository, ReportExportStaleRepository,
+    ReportExportAuthorizationService, ReportExportBrandingService, ReportExportPolicyService,
+    ReportExportWorkerContextService, ReportExportStorageService, ReportExportExpiryService,
+    ReportExportStaleService, ReportExportProcessorService, ReportExportWorkerRunnerService,
+    ReportExportDownloadService, ReportCsvGenerator, ReportXlsxGenerator, ReportPdfGenerator,
   ],
   exports: [ReportsService, ReportExportProcessorService],
 })
