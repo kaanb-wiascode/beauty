@@ -24,6 +24,17 @@ export class WorkforceSchedulingController {
   @RequirePermissions({ resource: 'hr', action: 'manage' })
   createTemplate(@Body() body: any, @Req() req: any) { return this.workforce.createTemplate(body, this.userId(req)); }
 
+  @Get('recurrence-rules')
+  recurrenceRules() { return this.workforce.recurrenceRules(); }
+
+  @Post('recurrence-rules')
+  @RequirePermissions({ resource: 'hr', action: 'manage' })
+  createRecurrenceRule(@Body() body: any, @Req() req: any) { return this.workforce.createRecurrenceRule(body, this.userId(req)); }
+
+  @Post('recurrence-rules/generate')
+  @RequirePermissions({ resource: 'hr', action: 'manage' })
+  generateRecurring(@Body() body: any, @Req() req: any) { return this.workforce.generateRecurring(String(body.from ?? ''), String(body.to ?? ''), this.userId(req)); }
+
   @Get('calendar')
   calendar(@Query('from') from: string, @Query('to') to: string) { return this.workforce.calendar(from, to); }
 
