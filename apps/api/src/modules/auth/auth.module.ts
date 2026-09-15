@@ -7,6 +7,7 @@ import { AuthPublicRateLimitGuard } from './auth-public-rate-limit.guard';
 import { AuthService } from './auth.service';
 import { AuthSessionRegistryService } from './auth-session-registry.service';
 import { InvitationService } from './invitation.service';
+import { MfaService } from './mfa.service';
 import { SecurityPolicyService } from './security-policy.service';
 import { JwtStrategy } from '../../common/auth/jwt.strategy';
 import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
@@ -30,6 +31,7 @@ import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
     AuthService,
     AuthSessionRegistryService,
     InvitationService,
+    MfaService,
     SecurityPolicyService,
     AuthPublicRateLimitGuard,
     JwtStrategy,
