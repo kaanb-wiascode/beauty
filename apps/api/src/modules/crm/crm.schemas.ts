@@ -4,6 +4,7 @@ export const leadStatusSchema = z.enum(['NEW', 'CONTACTED', 'QUALIFIED', 'LOST',
 export const leadContactChannelSchema = z.enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']);
 export const leadPurchaseUrgencySchema = z.enum(['IMMEDIATE', 'THIS_WEEK', 'THIS_MONTH', 'LATER', 'UNKNOWN']);
 export const leadConsultationNeedSchema = z.enum(['REQUIRED', 'REQUESTED', 'NOT_NEEDED', 'UNKNOWN']);
+export const leadTemperatureSchema = z.enum(['COLD', 'WARM', 'HOT']);
 
 const acquisitionText = z.string().trim().min(1).max(255);
 const acquisitionUrl = z.string().trim().url().max(2048);
@@ -13,6 +14,8 @@ const clickIdentifiersSchema = z.record(z.string(), z.string().trim().min(1).max
 );
 const interestIdsSchema = z.array(z.string().uuid()).max(50).transform((ids) => [...new Set(ids)]);
 const currencySchema = z.string().trim().length(3).transform((value) => value.toUpperCase());
+const leadScoreSchema = z.coerce.number().int().min(0).max(100);
+const lifecycleTimestampSchema = z.coerce.date();
 
 export const opportunityStageSchema = z.enum(['QUALIFIED', 'NEEDS_ANALYSIS', 'PROPOSAL', 'NEGOTIATION', 'WON', 'LOST']);
 
@@ -30,14 +33,14 @@ export const createLeadSchema = z.object({
   adSetId: acquisitionText.optional(), adSetName: acquisitionText.optional(), adId: acquisitionText.optional(), adName: acquisitionText.optional(),
   landingPage: acquisitionUrl.optional(), referrer: acquisitionUrl.optional(), utmSource: acquisitionText.optional(), utmMedium: acquisitionText.optional(),
   utmCampaign: acquisitionText.optional(), utmContent: acquisitionText.optional(), utmTerm: acquisitionText.optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
-  interestedServiceIds: interestIdsSchema.optional(),
-  interestedPackageIds: interestIdsSchema.optional(),
-  preferredBranchId: z.string().uuid().optional(),
-  estimatedBudget: z.coerce.number().min(0).optional(),
-  budgetCurrency: currencySchema.default('TRY'),
-  purchaseUrgency: leadPurchaseUrgencySchema.optional(),
-  consultationNeed: leadConsultationNeedSchema.optional(),
-  customerIntent: z.string().trim().min(1).max(1000).optional(),
+  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().optional(),
+  estimatedBudget: z.coerce.number().min(0).optional(), budgetCurrency: currencySchema.default('TRY'), purchaseUrgency: leadPurchaseUrgencySchema.optional(),
+  consultationNeed: leadConsultationNeedSchema.optional(), customerIntent: z.string().trim().min(1).max(1000).optional(),
+  team: z.string().trim().min(1).max(120).optional(),
+  leadScore: leadScoreSchema.default(0),
+  leadTemperature: leadTemperatureSchema.default('COLD'),
+  firstContactedAt: lifecycleTimestampSchema.optional(),
+  firstResponseAt: lifecycleTimestampSchema.optional(),
   interestNote: z.string().trim().max(2000).optional(), ownerUserId: z.string().uuid().optional(), customerId: z.string().uuid().optional(),
 }).refine((value) => value.phone || value.alternativePhone || value.email, {
   message: 'Lead için telefon, alternatif telefon veya e-posta gereklidir.',
@@ -52,14 +55,14 @@ export const updateLeadSchema = z.object({
   adSetId: acquisitionText.nullable().optional(), adSetName: acquisitionText.nullable().optional(), adId: acquisitionText.nullable().optional(), adName: acquisitionText.nullable().optional(),
   landingPage: acquisitionUrl.nullable().optional(), referrer: acquisitionUrl.nullable().optional(), utmSource: acquisitionText.nullable().optional(), utmMedium: acquisitionText.nullable().optional(),
   utmCampaign: acquisitionText.nullable().optional(), utmContent: acquisitionText.nullable().optional(), utmTerm: acquisitionText.nullable().optional(), clickIdentifiers: clickIdentifiersSchema.optional(),
-  interestedServiceIds: interestIdsSchema.optional(),
-  interestedPackageIds: interestIdsSchema.optional(),
-  preferredBranchId: z.string().uuid().nullable().optional(),
-  estimatedBudget: z.coerce.number().min(0).nullable().optional(),
-  budgetCurrency: currencySchema.optional(),
-  purchaseUrgency: leadPurchaseUrgencySchema.nullable().optional(),
-  consultationNeed: leadConsultationNeedSchema.nullable().optional(),
-  customerIntent: z.string().trim().min(1).max(1000).nullable().optional(),
+  interestedServiceIds: interestIdsSchema.optional(), interestedPackageIds: interestIdsSchema.optional(), preferredBranchId: z.string().uuid().nullable().optional(),
+  estimatedBudget: z.coerce.number().min(0).nullable().optional(), budgetCurrency: currencySchema.optional(), purchaseUrgency: leadPurchaseUrgencySchema.nullable().optional(),
+  consultationNeed: leadConsultationNeedSchema.nullable().optional(), customerIntent: z.string().trim().min(1).max(1000).nullable().optional(),
+  team: z.string().trim().min(1).max(120).nullable().optional(),
+  leadScore: leadScoreSchema.optional(),
+  leadTemperature: leadTemperatureSchema.optional(),
+  firstContactedAt: lifecycleTimestampSchema.nullable().optional(),
+  firstResponseAt: lifecycleTimestampSchema.nullable().optional(),
   interestNote: z.string().trim().max(2000).nullable().optional(), ownerUserId: z.string().uuid().nullable().optional(),
   status: z.enum(['NEW', 'CONTACTED', 'LOST']).optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional(),
 });
