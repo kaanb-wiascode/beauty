@@ -528,7 +528,7 @@ export class ReportsService {
       revenue,
       collected,
       refunded,
-      netCollected: collected - refunded,
+      netCollected: collected,
       outstanding,
       discountTotal,
       averageBasket: rows.length ? revenue / rows.length : 0,
