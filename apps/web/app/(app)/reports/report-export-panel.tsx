@@ -41,29 +41,38 @@ function formatDateTime(value: string) {
 
 export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
   const [jobs, setJobs] = useState<ReportExportJob[]>([]);
+  const [page, setPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
   const [downloadingId, setDownloadingId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  const relevantJobs = useMemo(
-    () => jobs.filter((job) => job.reportKey === reportKey).slice(0, 8),
-    [jobs, reportKey],
-  );
-  const hasPending = relevantJobs.some(
-    (job) => job.status === "QUEUED" || job.status === "PROCESSING",
+  const hasPending = useMemo(
+    () => jobs.some((job) => job.status === "QUEUED" || job.status === "PROCESSING"),
+    [jobs],
   );
 
   const refresh = useCallback(async () => {
     try {
-      const result = await listReportExports(30);
-      setJobs(result);
+      const result = await listReportExports({
+        page,
+        limit: 8,
+        reportKey,
+        mine: true,
+      });
+      setJobs(result.data);
+      setTotalPages(result.meta.totalPages);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Dışa Aktarım Geçmişi Yüklenemedi.");
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [page, reportKey]);
+
+  useEffect(() => {
+    setPage(1);
+  }, [reportKey]);
 
   useEffect(() => {
     void refresh();
@@ -91,6 +100,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
         columns,
         sort,
       });
+      setPage(1);
       await refresh();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "CSV Dışa Aktarım Başlatılamadı.");
@@ -132,34 +142,43 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
 
       {loading ? (
         <div className="px-5 py-6 text-[12px] text-[var(--muted)]">Dışa Aktarım Geçmişi Yükleniyor...</div>
-      ) : relevantJobs.length === 0 ? (
+      ) : jobs.length === 0 ? (
         <div className="px-5 py-6 text-[12px] text-[var(--muted)]">Henüz Bu Rapor İçin Dışa Aktarım Bulunmuyor.</div>
       ) : (
-        <div className="divide-y divide-[var(--line)]">
-          {relevantJobs.map((job) => (
-            <div key={job.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="text-[12px] font-semibold text-[var(--ink)]">{job.format}</span>
-                  <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] text-[var(--muted)]">{STATUS_LABELS[job.status]}</span>
-                  {job.rowCount !== null ? <span className="text-[10px] text-[var(--muted-soft)]">{job.rowCount.toLocaleString("tr-TR")} satır</span> : null}
+        <>
+          <div className="divide-y divide-[var(--line)]">
+            {jobs.map((job) => (
+              <div key={job.id} className="flex flex-col gap-3 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-[12px] font-semibold text-[var(--ink)]">{job.format}</span>
+                    <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] text-[var(--muted)]">{STATUS_LABELS[job.status]}</span>
+                    {job.rowCount !== null ? <span className="text-[10px] text-[var(--muted-soft)]">{job.rowCount.toLocaleString("tr-TR")} satır</span> : null}
+                  </div>
+                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{formatDateTime(job.requestedAt)}</p>
+                  {job.errorSummary ? <p className="mt-1 text-[10px] text-red-600">{job.errorSummary}</p> : null}
                 </div>
-                <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{formatDateTime(job.requestedAt)}</p>
-                {job.errorSummary ? <p className="mt-1 text-[10px] text-red-600">{job.errorSummary}</p> : null}
+                {job.status === "READY" ? (
+                  <button
+                    type="button"
+                    onClick={() => void download(job)}
+                    disabled={downloadingId === job.id}
+                    className="h-9 rounded-lg border border-[var(--line)] px-3 text-[11px] font-semibold text-[var(--ink)] disabled:opacity-50"
+                  >
+                    {downloadingId === job.id ? "İndiriliyor..." : "İndir"}
+                  </button>
+                ) : null}
               </div>
-              {job.status === "READY" ? (
-                <button
-                  type="button"
-                  onClick={() => void download(job)}
-                  disabled={downloadingId === job.id}
-                  className="h-9 rounded-lg border border-[var(--line)] px-3 text-[11px] font-semibold text-[var(--ink)] disabled:opacity-50"
-                >
-                  {downloadingId === job.id ? "İndiriliyor..." : "İndir"}
-                </button>
-              ) : null}
+            ))}
+          </div>
+          {totalPages > 1 ? (
+            <div className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
+              <button type="button" disabled={page <= 1} onClick={() => setPage((value) => value - 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Önceki</button>
+              <span className="text-[11px] text-[var(--muted)]">{page} / {totalPages}</span>
+              <button type="button" disabled={page >= totalPages} onClick={() => setPage((value) => value + 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button>
             </div>
-          ))}
-        </div>
+          ) : null}
+        </>
       )}
     </section>
   );
