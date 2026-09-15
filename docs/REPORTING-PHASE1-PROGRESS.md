@@ -6,6 +6,10 @@ Branch: `feature/core-commerce-foundation`
 
 This file records incremental implementation progress without replacing the canonical roadmap.
 
+## Phase 1 status
+
+**Code complete; final monorepo quality verification pending.**
+
 ## Completed foundation items
 
 - Server-owned report keys and `ReportDefinition` metadata.
@@ -30,15 +34,19 @@ This file records incremental implementation progress without replacing the cano
 - Timezone-offset and date-boundary DTO tests.
 - Scope-override rejection tests.
 - Staff report tenant/company/branch scope regression tests for BRANCH and CENTRAL-no-branch contexts.
+- Service report tenant/company/branch scope regression tests for BRANCH and CENTRAL-no-branch contexts.
+- Payment report scope regression tests for branch and central company-wide contexts.
+- Payment reporting integrity tests keeping completed collections, refunds and net values separate.
+- Authenticated HTTP/E2E coverage for `/reports/catalog` and `/reports/preview`.
+- HTTP boundary rejects unauthenticated requests and arbitrary preview scope/query fields.
 
-## Phase 1 items still worth tightening before Phase 2
+## Phase 1 completion gate
 
-- Add equivalent scope regression coverage for Service and Payment report handlers.
-- Add payment-specific financial integrity tests for refunded/completed boundary behavior through the reporting preview layer.
-- Add explicit service empty-dataset regression coverage if handler behavior diverges in the future.
-- Add end-to-end HTTP authorization tests for `/reports/catalog` and `/reports/preview` when the test harness can exercise authenticated tenant context cheaply.
-- Confirm final monorepo quality run is green after concurrent branch activity settles.
+The implementation satisfies the current Reporting Foundation Definition of Done in code and automated-test coverage. The remaining gate is operational rather than architectural:
+
+- confirm a complete `Monorepo quality` run passes after concurrent branch activity settles;
+- fix any reporting-related failure found by that run before beginning Phase 2.
 
 ## Phase 2 entry criteria
 
-Begin the Export Engine only after the remaining Phase 1 tests above are either completed or intentionally deferred with a documented reason. Export must reuse the same report definitions, filters, permissions, scope rules and authorized columns as interactive preview.
+Begin the Export Engine only after the final quality run is green. Export must reuse the same report definitions, filters, permissions, scope rules and authorized columns as interactive preview. PDF/XLSX/CSV generation must not introduce a second authorization or business-logic path.
