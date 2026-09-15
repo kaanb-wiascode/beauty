@@ -65,17 +65,27 @@ describe('reporting foundation', () => {
         staffService,
         servicesService,
         paymentsService,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
+        {} as never,
         exportJobs,
       ),
     };
   }
 
-  it('keeps report definitions server-owned and stable', () => {
-    expect(reportDefinitions.map((report) => report.key)).toEqual([
-      reportKeys.staffPerformance,
-      reportKeys.servicePerformance,
-      reportKeys.paymentSummary,
-    ]);
+  it('keeps foundation report definitions in the server-owned catalog', () => {
+    expect(reportDefinitions.map((report) => report.key)).toEqual(
+      expect.arrayContaining([
+        reportKeys.staffPerformance,
+        reportKeys.servicePerformance,
+        reportKeys.paymentSummary,
+      ]),
+    );
   });
 
   it('returns only reports whose layered permissions are granted', async () => {
@@ -96,7 +106,7 @@ describe('reporting foundation', () => {
     );
   });
 
-  it('returns all foundation reports when all required permissions are granted', async () => {
+  it('returns the foundation reports when their permissions are granted', async () => {
     const { service } = createService([
       { resource: 'reports', action: 'read' },
       { resource: 'staff', action: 'read' },
@@ -106,7 +116,13 @@ describe('reporting foundation', () => {
 
     const catalog = await service.getCatalog(user);
 
-    expect(catalog).toEqual(reportDefinitions);
+    expect(catalog.map((report) => report.key)).toEqual(
+      expect.arrayContaining([
+        reportKeys.staffPerformance,
+        reportKeys.servicePerformance,
+        reportKeys.paymentSummary,
+      ]),
+    );
   });
 
   it('prepares an export only from server-owned exportable columns', async () => {
@@ -233,9 +249,33 @@ describe('reporting foundation', () => {
     ]);
 
     jest.spyOn(staffService, 'performance').mockResolvedValue([
-      { id: 'staff-1', name: 'Ada Yılmaz', status: 'ACTIVE', branchId: 'branch-1', appointmentCount: 4, completedAppointments: 3, collected: 900 },
-      { id: 'staff-2', name: 'Bora Demir', status: 'ACTIVE', branchId: 'branch-1', appointmentCount: 5, completedAppointments: 5, collected: 1500 },
-      { id: 'staff-3', name: 'Cem Kaya', status: 'ACTIVE', branchId: 'branch-1', appointmentCount: 2, completedAppointments: 1, collected: 300 },
+      {
+        id: 'staff-1',
+        name: 'Ada Yılmaz',
+        status: 'ACTIVE',
+        branchId: 'branch-1',
+        appointmentCount: 4,
+        completedAppointments: 3,
+        collected: 900,
+      },
+      {
+        id: 'staff-2',
+        name: 'Bora Demir',
+        status: 'ACTIVE',
+        branchId: 'branch-1',
+        appointmentCount: 5,
+        completedAppointments: 5,
+        collected: 1500,
+      },
+      {
+        id: 'staff-3',
+        name: 'Cem Kaya',
+        status: 'ACTIVE',
+        branchId: 'branch-1',
+        appointmentCount: 2,
+        completedAppointments: 1,
+        collected: 300,
+      },
     ]);
 
     const result = await service.preview(user, {
@@ -251,8 +291,8 @@ describe('reporting foundation', () => {
     });
 
     expect(result.data).toEqual([
-      { name: 'Bora Demir', collected: 1500 },
-      { name: 'Ada Yılmaz', collected: 900 },
+      { name: 'Bora Demir', collected: 1500, _rowId: 'staff-2' },
+      { name: 'Ada Yılmaz', collected: 900, _rowId: 'staff-1' },
     ]);
     expect(result.meta).toEqual({
       page: 1,
