@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ObjectStorageModule } from '../../common/storage/object-storage.module';
 import { AppointmentsModule } from '../appointments/appointments.module';
 import { CustomersModule } from '../customers/customers.module';
+import { FinanceModule } from '../finance/finance.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { SalesModule } from '../sales/sales.module';
 import { ServicesModule } from '../services/services.module';
@@ -35,7 +36,16 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
 @Module({
-  imports: [ObjectStorageModule, AppointmentsModule, CustomersModule, SalesModule, StaffModule, ServicesModule, PaymentsModule],
+  imports: [
+    ObjectStorageModule,
+    AppointmentsModule,
+    CustomersModule,
+    FinanceModule,
+    SalesModule,
+    StaffModule,
+    ServicesModule,
+    PaymentsModule,
+  ],
   controllers: [ReportsController],
   providers: [
     ReportsService, ReportComparisonService, ReportDrilldownService,
