@@ -6,101 +6,115 @@ Branch: `feature/core-commerce-foundation`
 
 This file records incremental Phase 2 implementation progress without replacing the canonical roadmap.
 
-## Completed export foundation items
+## Current status
 
-- Server-owned export capabilities on each `ReportDefinition`.
-- Explicit `exportableColumns` separate from preview-visible columns.
-- Export capability advertisement is implementation-aware: definitions currently expose only `CSV`; `PDF` and `XLSX` remain transport-contract values for future generators but cannot be queued until implemented.
-- Strict export request DTO with no arbitrary SQL, Prisma, storage, tenant, company or branch controls.
-- Export preparation reuses the same report/domain permission checks as preview.
-- Internal scope columns such as `branchId` cannot be re-enabled through export parameters.
-- Persistent `report_export_jobs` migration with scope snapshot, requester, format, filters, columns, sort, lifecycle timestamps, row count, storage reference and bounded failure metadata.
-- Export job authorization snapshot includes requester membership and role identifiers for later revalidation.
-- Export job lifecycle states: `QUEUED`, `PROCESSING`, `READY`, `FAILED`, `EXPIRED`.
-- Scoped export history API:
-  - `POST /reports/exports`
-  - `GET /reports/exports`
-  - `GET /reports/exports/:id`
-  - `GET /reports/exports/:id/download`
-- Export history reads are constrained by authenticated tenant/company/branch context.
-- Export history supports bounded `page`/`limit` pagination plus allow-listed `reportKey`, `status` and `format` filters.
-- Personal-history filtering is server-derived through `mine=true`; arbitrary `requestedBy`, tenant or company filters are rejected.
-- History responses return `{ data, meta }` with page, limit, total and totalPages. The Export Center requests only the authenticated user's jobs for the selected report and paginates eight rows at a time.
-- Export artifact downloads are restricted to the original requester, require `READY` and non-expired state, and revalidate current report/source-domain permissions before storage access.
-- Download responses use `private, no-store`; storage keys are never exposed as public artifact paths.
-- Atomic worker claiming using `FOR UPDATE SKIP LOCKED` to prevent duplicate processing.
-- Guarded `PROCESSING -> READY` and `PROCESSING -> FAILED` transitions.
-- Stale `PROCESSING` jobs are recovered with a bounded watchdog before expiry cleanup and new queue processing. Jobs older than `REPORT_EXPORT_STALE_PROCESSING_MINUTES` are atomically marked `FAILED` with `WORKER_TIMEOUT` using `FOR UPDATE SKIP LOCKED`.
-- Stale jobs are intentionally not auto-requeued: a worker may have written an artifact immediately before crashing, so automatic retry could create duplicate artifacts or repeat expensive domain work after an ambiguous failure.
-- Worker revalidates current active membership, current role scope, branch access and all report/source-domain permissions before materializing data.
-- Background export creates an isolated Nest request context and initializes request-scoped `TenantContext` from the revalidated trusted job snapshot.
-- Export materialization reuses existing Staff/Service/Payment domain services instead of duplicating business calculations.
-- Opt-in internal worker runner controlled by `REPORT_EXPORT_WORKER_ENABLED`; no public process endpoint is exposed.
-- Worker polling, processing, stale-recovery and expiry batch sizes are bounded and same-process overlapping iterations are blocked.
-- Worker startup/tick/failure events emit structured JSON logs containing only operational counters/configuration (`processed`, `staleFailed`, `expired`, `deleted`, batch sizes, duration); tenant/job payloads and secrets are not logged.
-- Report export storage is driver-based: local/dev defaults to contained filesystem storage, while `REPORT_EXPORT_STORAGE_DRIVER=object` reuses the shared private S3-compatible `ObjectStorageService` for multi-instance deployments.
-- Object-storage writes use server-generated keys and signed PUT requests; reads use signed GET requests; expiry cleanup uses authenticated DELETE requests. Client input never supplies storage URLs or storage keys.
-- Object-storage tests cover PUT/GET/DELETE integration, content type propagation, generated keys and fail-closed upload errors.
-- CSV processor pipeline: claim -> revalidate authorization -> revalidate stored payload -> materialize -> generate -> store -> mark READY/FAILED.
-- Successful jobs persist row count, storage reference, completion state and configurable retention expiry (`REPORT_EXPORT_RETENTION_DAYS`, bounded 1-365; default 7).
-- Expired READY jobs are atomically marked `EXPIRED` using `FOR UPDATE SKIP LOCKED` and their stored artifacts are deleted by the worker cleanup cycle.
-- Expiry cleanup has bounded batch size and continues safely when a single storage deletion fails.
-- UTF-8 BOM CSV generator with RFC-style quoting for commas, quotes and line breaks.
-- Spreadsheet formula-injection neutralization for exported string cells.
-- CSV tests cover Turkish characters, quoting, multiline values, structured values and formula-injection safety.
-- Storage tests cover generated keys, read-back and path traversal containment.
-- Worker tests cover successful CSV processing, revoked authorization, tampered stored payload, unimplemented formats, an empty queue, bounded batches, stale-recovery ordering and no-overlap behavior.
-- Stale-recovery tests cover threshold calculation, bounded fallback settings and safe failure counts.
-- Expiry tests cover bounded cleanup, storage deletion and partial storage failures.
-- Download tests cover requester ownership, readiness, expiry and current permission revalidation.
-- Reporting E2E covers export job creation, paginated/filtered personal history retrieval, get-by-id, unauthenticated rejection, arbitrary export-field rejection and rejection of arbitrary requester filters.
-- Export history DTO tests cover controlled filters/defaults and reject unsupported report/format/requester/scope/oversized-limit inputs.
-- Web export client supports queue creation, paginated scoped history retrieval and authenticated artifact download.
-- Reusable `ReportExportPanel` shows queued/processing/ready/failed/expired states, paginates personal history and polls only while work is pending.
-- `/reports/exports` provides a permission-aware Export Center for Staff, Service and Payment reports with shared date filters, CSV queue creation, history and download actions.
-- Reports navigation exposes the Export Center only to users with `reports.read`; source-domain report choices are additionally filtered by the user's current domain permissions.
-- Shared report date validation now rejects missing, malformed and inverted date ranges before ISO conversion, preventing cleared date inputs from throwing `Invalid Date` errors in preview/export flows.
-- `.env.example` documents export storage driver, local storage directory, retention, worker enablement and stale-processing recovery settings.
+The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions now advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**.
 
-## Intentional implementation note
+## Completed export foundation
 
-`report_export_jobs` is currently created by explicit migrations and accessed through server-owned, parameterized Prisma SQL fragments. Client input is never interpolated as SQL identifiers, table names, expressions or raw query fragments.
+- Server-owned `exportableColumns`, export format capabilities and layered source-domain permissions.
+- Strict export DTOs; clients cannot supply tenant/company/branch scope, SQL, Prisma selections, storage keys or arbitrary report identifiers.
+- Persistent `report_export_jobs` queue with authenticated scope, membership/role snapshot, requester, filters, columns, sort, lifecycle timestamps, row count, retention and bounded failure metadata.
+- Lifecycle states: `QUEUED`, `PROCESSING`, `READY`, `FAILED`, `EXPIRED`.
+- `POST /reports/exports`, paginated/filterable `GET /reports/exports`, get-by-id and authenticated download endpoints.
+- Personal history filtering through server-derived `mine=true`; arbitrary requester/scope filters are rejected.
+- Download is restricted to the original requester, READY/non-expired jobs and current report/source-domain permissions.
+- Atomic worker claiming with `FOR UPDATE SKIP LOCKED` and guarded PROCESSING transitions.
+- Worker-time membership, role, branch and domain-permission revalidation.
+- Request-scoped `TenantContext` reconstruction for background materialization.
+- Existing Staff/Service/Payment services remain authoritative for report calculations.
+- Opt-in worker runner with bounded polling/batches, no same-process overlap, structured operational logs and no public process endpoint.
+- Stale PROCESSING watchdog marks timed-out jobs FAILED with `WORKER_TIMEOUT` instead of blindly requeueing ambiguous external side effects.
+- Artifact reconciliation protects the upload -> READY boundary: exact orphan artifacts are best-effort deleted when READY did not commit; artifacts are preserved when the READY commit may have succeeded but acknowledgement was lost.
+- Configurable filesystem/object-storage driver. Object mode reuses the platform's private S3-compatible `ObjectStorageService` using server-generated keys, signed PUT/GET and authenticated delete.
+- Configurable retention and expiry cleanup.
 
-The generated Prisma schema model still requires synchronization. The active `schema.prisma` is receiving concurrent HR/Finance changes on the shared branch and the available GitHub write path replaces the complete file rather than applying a line patch, so this pass deliberately did not risk overwriting unrelated schema work. Until a safe schema patch can be applied, do not generate future migrations that attempt to recreate or drop `report_export_jobs` based on schema drift.
+## Implemented formats
 
-The filesystem provider remains the safe local/default option. Multi-instance deployments can now select the existing private S3-compatible object storage through `REPORT_EXPORT_STORAGE_DRIVER=object` without changing export-job semantics or exposing public storage paths.
+### CSV
 
-No XLSX/workbook library is currently declared in the API workspace, and CI installs with `pnpm install --frozen-lockfile`. Do not add an XLSX dependency through `package.json` alone; the workspace lockfile must be regenerated and committed atomically with that dependency before XLSX implementation is enabled.
+- UTF-8 BOM.
+- Predictable quoting for commas, quotes and multiline values.
+- Turkish-character coverage.
+- Structured-value serialization.
+- Spreadsheet formula-injection neutralization.
 
-The web workspace currently has no frontend test runner configured. Adding React/UI tests requires a deliberate dependency + lockfile change; until then, web changes continue to be covered by lint/typecheck/build in the monorepo quality workflow and by pure shared validation helpers where possible.
+### XLSX
 
-A stale-processing watchdog fails jobs rather than automatically requeueing them. This is deliberate: after a process crash it may be impossible to know whether an external/object-storage side effect completed. Automatic requeue would weaken at-most-once artifact semantics. Future orphan-artifact reconciliation can be added independently of job retry policy.
+- Dependency-free controlled OOXML workbook writer, avoiding an uncoordinated package/lockfile change on the shared branch.
+- Real `.xlsx` ZIP/OOXML artifact generation.
+- Summary, Detail and Filters/Metadata worksheets.
+- Typed numeric/date/string cells where applicable.
+- Frozen detail header and autofilter.
+- Server-owned selected columns only; unauthorized/internal columns cannot reappear in the workbook.
+- Worker/storage/download integration and frontend Excel selection.
+
+### PDF
+
+- Dependency-free server-side PDF writer.
+- Report title, report key, reporting period and generation timestamp.
+- Optional summary metrics.
+- Detail table output.
+- Automatic multi-page splitting and page numbering.
+- Worker/storage/download integration and frontend PDF selection.
+- Current Base14-font implementation normalizes non-ASCII/Turkish glyphs for deterministic rendering. Embedded Unicode brand fonts, company logo, richer layout and charts remain a presentation-quality follow-up rather than an authorization/export-pipeline blocker.
+
+## Frontend
+
+- Permission-aware `/reports/exports` Export Center.
+- Reusable `ReportExportPanel`.
+- PDF / Excel (.xlsx) / CSV selector.
+- Personal paginated export history.
+- QUEUED / PROCESSING / READY / FAILED / EXPIRED states.
+- Polling only while jobs are pending.
+- Authenticated artifact download with format-aware filename fallback.
+- Shared date validation prevents missing/malformed/inverted date ranges from reaching export creation.
+
+## Tests added
+
+- Report definition/export permission and column policy tests.
+- Export request DTO and scope-bypass tests.
+- Worker success/failure, authorization revalidation and tampered-payload tests.
+- Artifact reconciliation tests for pre-commit failure, acknowledgement loss, cleanup failure and unverifiable persisted state.
+- CSV generator tests.
+- XLSX generator and worker integration tests.
+- PDF generator tests including metadata/detail output and multi-page pagination.
+- Storage filesystem/object-driver tests.
+- Stale worker, expiry and download tests.
+- Reporting HTTP/E2E coverage for queue creation, history, get-by-id and invalid requester/scope fields.
+
+## Intentional implementation notes
+
+`report_export_jobs` is currently created by explicit migrations and accessed through server-owned parameterized Prisma SQL fragments. The generated Prisma schema model still requires synchronization. Because the shared `schema.prisma` receives concurrent HR/Finance changes and the current GitHub write path replaces the complete file, do not overwrite it without a coordinated safe patch window.
+
+The in-process worker is appropriate for the current incremental implementation. A dedicated queue/worker deployment remains the production scaling target.
+
+The web workspace still has no dedicated frontend test runner. UI changes currently depend on monorepo lint/typecheck/build plus backend contract tests until a coordinated dependency/lockfile change introduces a web test harness.
 
 ## Current CI note
 
-Recent monorepo quality runs validate the Prisma schema but have been stopping during migration deployment in the unrelated Platform migration `20260915150000_platform_privileged_governance`, because that migration inserts into `platform_permissions` before that relation exists at that point in migration order. Do not classify Reporting CI as green until a descendant run passes migration deployment and reaches API typecheck/tests/E2E/build.
+Do not classify Reporting as green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build. Recent runs have previously stopped at an unrelated Platform migration ordering issue before reaching Reporting checks.
 
 ## Next Phase 2 increments
 
-1. Synchronize `ReportExportJob` into the active Prisma schema when a safe line-level schema patch or coordinated database window is available.
-2. Add XLSX workbook generation with typed numeric/date cells, column widths and metadata sheets after an XLSX dependency and lockfile are committed atomically.
-3. Add server-side PDF report generation.
-4. Add export audit events once the shared AuditLog persistence/service is implemented.
-5. Add orphan-artifact reconciliation/operational tooling for ambiguous worker crashes without automatically requeueing jobs.
-6. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
-7. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions when a web test runner is introduced.
+1. Synchronize `ReportExportJob` into the active Prisma schema during a coordinated schema patch window.
+2. Add export audit events when the shared AuditLog persistence/service is available.
+3. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
+4. Add export concurrency/rate/row-limit policies based on production workload.
+5. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
+6. Add frontend tests for permission filtering, polling lifecycle and download transitions when the web test runner is introduced.
+7. Continue the roadmap into saved reports, favorites/recent reports, scheduled reports, drill-down/comparison and additional report domains.
 
 ## Security invariants
 
-- Export permissions can never be broader than preview/source-domain permissions.
+- Export permissions can never exceed preview/source-domain permissions.
 - Tenant/company/branch scope comes from authenticated context or a trusted job snapshot, never request parameters.
-- Export-history requester filtering is derived from the authenticated principal; clients cannot name another requester.
-- Storage keys are server-generated and are not accepted from clients.
-- Unauthorized/internal columns are rejected before a job is queued.
-- Background processing preserves the scope snapshot and never defaults to tenant-wide access.
-- Worker authorization is re-evaluated at processing time; queued access is not treated as permanent permission.
+- Export requester filters are derived from the authenticated principal.
+- Storage keys are server-generated and never accepted from clients.
+- Unauthorized/internal columns are rejected before queueing.
+- Worker authorization is re-evaluated at processing time.
 - Stored job JSON is revalidated before materialization.
-- Stale-processing recovery is bounded, concurrency-safe and fail-closed; it does not silently widen scope or retry ambiguous side effects.
-- Artifact downloads re-evaluate current permissions and requester ownership.
-- Failed jobs expose bounded business-safe failure summaries, not stack traces or secrets.
-- Spreadsheet-formula strings are neutralized in CSV artifacts.
+- Downloads re-evaluate current permissions and requester ownership.
+- Failed jobs expose bounded business-safe summaries rather than stack traces or secrets.
+- CSV spreadsheet-formula strings are neutralized.
+- XLSX/PDF generation receives only the already-authorized materialized column set.
