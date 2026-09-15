@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
+import { ReportExportExpiryService } from './report-export-expiry.service';
 import { ReportExportProcessorService } from './report-export-processor.service';
 
 @Injectable()
@@ -18,6 +19,7 @@ export class ReportExportWorkerRunnerService
 
   constructor(
     private readonly processor: ReportExportProcessorService,
+    private readonly expiry: ReportExportExpiryService,
     private readonly config: ConfigService,
   ) {}
 
@@ -45,6 +47,8 @@ export class ReportExportWorkerRunnerService
     this.running = true;
 
     try {
+      await this.expiry.cleanup(this.expiryBatchSize());
+
       let processed = 0;
       const batchSize = this.batchSize();
 
@@ -82,6 +86,15 @@ export class ReportExportWorkerRunnerService
       5,
       1,
       20,
+    );
+  }
+
+  private expiryBatchSize() {
+    return this.boundedInteger(
+      this.config.get<string>('REPORT_EXPORT_EXPIRY_BATCH_SIZE'),
+      100,
+      1,
+      500,
     );
   }
 
