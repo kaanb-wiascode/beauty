@@ -15,9 +15,9 @@ export const reportExportListSchema = z
       .optional(),
     format: z.enum(['CSV', 'PDF', 'XLSX']).optional(),
     mine: z
-      .union([z.literal('true'), z.literal('false')])
-      .transform((value) => value === 'true')
-      .default(false),
+      .literal('true')
+      .optional()
+      .transform(() => true),
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
