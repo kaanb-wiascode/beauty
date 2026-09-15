@@ -29,6 +29,7 @@ type WaitlistRow = {
   desiredTo: Date;
   preferredTimeStart: string | null;
   preferredTimeEnd: string | null;
+  timeZone: string;
   priority: number;
   contactChannel: 'ANY' | 'PHONE' | 'SMS' | 'WHATSAPP' | 'EMAIL';
   status:
@@ -90,6 +91,7 @@ export class OperationsWaitlistService {
               w.desired_from AS "desiredFrom", w.desired_to AS "desiredTo",
               w.preferred_time_start::text AS "preferredTimeStart",
               w.preferred_time_end::text AS "preferredTimeEnd",
+              w.time_zone AS "timeZone",
               w.priority, w.contact_channel AS "contactChannel",
               w.status, w.matched_slot_from AS "matchedSlotFrom",
               w.matched_slot_to AS "matchedSlotTo",
@@ -153,6 +155,7 @@ export class OperationsWaitlistService {
                   desired_from AS "desiredFrom", desired_to AS "desiredTo",
                   preferred_time_start::text AS "preferredTimeStart",
                   preferred_time_end::text AS "preferredTimeEnd",
+                  time_zone AS "timeZone",
                   priority, contact_channel AS "contactChannel", status,
                   matched_slot_from AS "matchedSlotFrom", matched_slot_to AS "matchedSlotTo",
                   booked_appointment_id AS "bookedAppointmentId", note,
@@ -164,6 +167,7 @@ export class OperationsWaitlistService {
              AND desired_from = $7 AND desired_to = $8
              AND preferred_time_start IS NOT DISTINCT FROM $9::time
              AND preferred_time_end IS NOT DISTINCT FROM $10::time
+             AND time_zone = $11
              AND status IN ('WAITING', 'MATCH_FOUND', 'CONTACTED')
            LIMIT 1`,
           tenantId,
@@ -176,6 +180,7 @@ export class OperationsWaitlistService {
           input.desiredTo,
           input.preferredTimeStart ?? null,
           input.preferredTimeEnd ?? null,
+          input.timeZone,
         );
         if (duplicate[0]) return { entry: duplicate[0], duplicate: true };
 
@@ -183,14 +188,15 @@ export class OperationsWaitlistService {
           `INSERT INTO operations_waitlist_entries (
              tenant_id, company_id, branch_id, customer_id, service_id,
              preferred_staff_id, desired_from, desired_to,
-             preferred_time_start, preferred_time_end, priority,
+             preferred_time_start, preferred_time_end, time_zone, priority,
              contact_channel, note, expires_at, created_by_membership_id
-           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15)
+           ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16)
            RETURNING id, customer_id AS "customerId", service_id AS "serviceId",
                      preferred_staff_id AS "preferredStaffId",
                      desired_from AS "desiredFrom", desired_to AS "desiredTo",
                      preferred_time_start::text AS "preferredTimeStart",
                      preferred_time_end::text AS "preferredTimeEnd",
+                     time_zone AS "timeZone",
                      priority, contact_channel AS "contactChannel", status,
                      matched_slot_from AS "matchedSlotFrom", matched_slot_to AS "matchedSlotTo",
                      booked_appointment_id AS "bookedAppointmentId", note,
@@ -205,6 +211,7 @@ export class OperationsWaitlistService {
           input.desiredTo,
           input.preferredTimeStart ?? null,
           input.preferredTimeEnd ?? null,
+          input.timeZone,
           input.priority,
           input.contactChannel,
           input.note ?? null,
@@ -247,6 +254,7 @@ export class OperationsWaitlistService {
                   desired_from AS "desiredFrom", desired_to AS "desiredTo",
                   preferred_time_start::text AS "preferredTimeStart",
                   preferred_time_end::text AS "preferredTimeEnd",
+                  time_zone AS "timeZone",
                   priority, contact_channel AS "contactChannel", status,
                   matched_slot_from AS "matchedSlotFrom", matched_slot_to AS "matchedSlotTo",
                   booked_appointment_id AS "bookedAppointmentId", note,
@@ -282,6 +290,7 @@ export class OperationsWaitlistService {
                      desired_from AS "desiredFrom", desired_to AS "desiredTo",
                      preferred_time_start::text AS "preferredTimeStart",
                      preferred_time_end::text AS "preferredTimeEnd",
+                     time_zone AS "timeZone",
                      priority, contact_channel AS "contactChannel", status,
                      matched_slot_from AS "matchedSlotFrom", matched_slot_to AS "matchedSlotTo",
                      booked_appointment_id AS "bookedAppointmentId", note,
