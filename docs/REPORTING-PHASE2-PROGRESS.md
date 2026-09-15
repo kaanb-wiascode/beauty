@@ -30,12 +30,14 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Download responses use `private, no-store`; storage keys are never exposed as public artifact paths.
 - Atomic worker claiming using `FOR UPDATE SKIP LOCKED` to prevent duplicate processing.
 - Guarded `PROCESSING -> READY` and `PROCESSING -> FAILED` transitions.
+- Stale `PROCESSING` jobs are recovered with a bounded watchdog before expiry cleanup and new queue processing. Jobs older than `REPORT_EXPORT_STALE_PROCESSING_MINUTES` are atomically marked `FAILED` with `WORKER_TIMEOUT` using `FOR UPDATE SKIP LOCKED`.
+- Stale jobs are intentionally not auto-requeued: a worker may have written an artifact immediately before crashing, so automatic retry could create duplicate artifacts or repeat expensive domain work after an ambiguous failure.
 - Worker revalidates current active membership, current role scope, branch access and all report/source-domain permissions before materializing data.
 - Background export creates an isolated Nest request context and initializes request-scoped `TenantContext` from the revalidated trusted job snapshot.
 - Export materialization reuses existing Staff/Service/Payment domain services instead of duplicating business calculations.
 - Opt-in internal worker runner controlled by `REPORT_EXPORT_WORKER_ENABLED`; no public process endpoint is exposed.
-- Worker polling and batch sizes are bounded and same-process overlapping iterations are blocked.
-- Worker startup/tick/failure events emit structured JSON logs containing only operational counters/configuration (`processed`, `expired`, `deleted`, batch sizes, duration); tenant/job payloads and secrets are not logged.
+- Worker polling, processing, stale-recovery and expiry batch sizes are bounded and same-process overlapping iterations are blocked.
+- Worker startup/tick/failure events emit structured JSON logs containing only operational counters/configuration (`processed`, `staleFailed`, `expired`, `deleted`, batch sizes, duration); tenant/job payloads and secrets are not logged.
 - Report export storage is driver-based: local/dev defaults to contained filesystem storage, while `REPORT_EXPORT_STORAGE_DRIVER=object` reuses the shared private S3-compatible `ObjectStorageService` for multi-instance deployments.
 - Object-storage writes use server-generated keys and signed PUT requests; reads use signed GET requests; expiry cleanup uses authenticated DELETE requests. Client input never supplies storage URLs or storage keys.
 - Object-storage tests cover PUT/GET/DELETE integration, content type propagation, generated keys and fail-closed upload errors.
@@ -47,7 +49,8 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Spreadsheet formula-injection neutralization for exported string cells.
 - CSV tests cover Turkish characters, quoting, multiline values, structured values and formula-injection safety.
 - Storage tests cover generated keys, read-back and path traversal containment.
-- Worker tests cover successful CSV processing, revoked authorization, tampered stored payload, unimplemented formats, an empty queue, bounded batches and no-overlap behavior.
+- Worker tests cover successful CSV processing, revoked authorization, tampered stored payload, unimplemented formats, an empty queue, bounded batches, stale-recovery ordering and no-overlap behavior.
+- Stale-recovery tests cover threshold calculation, bounded fallback settings and safe failure counts.
 - Expiry tests cover bounded cleanup, storage deletion and partial storage failures.
 - Download tests cover requester ownership, readiness, expiry and current permission revalidation.
 - Reporting E2E covers export job creation, paginated/filtered personal history retrieval, get-by-id, unauthenticated rejection, arbitrary export-field rejection and rejection of arbitrary requester filters.
@@ -57,7 +60,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 - `/reports/exports` provides a permission-aware Export Center for Staff, Service and Payment reports with shared date filters, CSV queue creation, history and download actions.
 - Reports navigation exposes the Export Center only to users with `reports.read`; source-domain report choices are additionally filtered by the user's current domain permissions.
 - Shared report date validation now rejects missing, malformed and inverted date ranges before ISO conversion, preventing cleared date inputs from throwing `Invalid Date` errors in preview/export flows.
-- `.env.example` documents export storage driver, local storage directory, retention and worker enablement settings.
+- `.env.example` documents export storage driver, local storage directory, retention, worker enablement and stale-processing recovery settings.
 
 ## Intentional implementation note
 
@@ -71,9 +74,11 @@ No XLSX/workbook library is currently declared in the API workspace, and CI inst
 
 The web workspace currently has no frontend test runner configured. Adding React/UI tests requires a deliberate dependency + lockfile change; until then, web changes continue to be covered by lint/typecheck/build in the monorepo quality workflow and by pure shared validation helpers where possible.
 
+A stale-processing watchdog fails jobs rather than automatically requeueing them. This is deliberate: after a process crash it may be impossible to know whether an external/object-storage side effect completed. Automatic requeue would weaken at-most-once artifact semantics. Future orphan-artifact reconciliation can be added independently of job retry policy.
+
 ## Current CI note
 
-Recent monorepo quality runs validate the Prisma schema but have been stopping during migration deployment in the unrelated Platform migration `20260915150000_platform_privileged_governance`, because that migration inserts into `platform_permissions` before that relation exists at that point in migration order. The newest descendant workflow was still pending with no jobs at the last check. Do not classify Reporting CI as green until a descendant run passes migration deployment and reaches API typecheck/tests/E2E/build.
+Recent monorepo quality runs validate the Prisma schema but have been stopping during migration deployment in the unrelated Platform migration `20260915150000_platform_privileged_governance`, because that migration inserts into `platform_permissions` before that relation exists at that point in migration order. Do not classify Reporting CI as green until a descendant run passes migration deployment and reaches API typecheck/tests/E2E/build.
 
 ## Next Phase 2 increments
 
@@ -81,8 +86,9 @@ Recent monorepo quality runs validate the Prisma schema but have been stopping d
 2. Add XLSX workbook generation with typed numeric/date cells, column widths and metadata sheets after an XLSX dependency and lockfile are committed atomically.
 3. Add server-side PDF report generation.
 4. Add export audit events once the shared AuditLog persistence/service is implemented.
-5. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
-6. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions when a web test runner is introduced.
+5. Add orphan-artifact reconciliation/operational tooling for ambiguous worker crashes without automatically requeueing jobs.
+6. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
+7. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions when a web test runner is introduced.
 
 ## Security invariants
 
@@ -94,6 +100,7 @@ Recent monorepo quality runs validate the Prisma schema but have been stopping d
 - Background processing preserves the scope snapshot and never defaults to tenant-wide access.
 - Worker authorization is re-evaluated at processing time; queued access is not treated as permanent permission.
 - Stored job JSON is revalidated before materialization.
+- Stale-processing recovery is bounded, concurrency-safe and fail-closed; it does not silently widen scope or retry ambiguous side effects.
 - Artifact downloads re-evaluate current permissions and requester ownership.
 - Failed jobs expose bounded business-safe failure summaries, not stack traces or secrets.
 - Spreadsheet-formula strings are neutralized in CSV artifacts.
