@@ -250,6 +250,6 @@ describe('ServiceExecutionsService', () => {
       data: { status: 'COMPLETED' },
     });
     expect(result.packageSessionRequiresExplicitConsumption).toBe(true);
-    expect(result.appointment.session.status).toBe('RESERVED');
+    expect(result.appointment?.session?.status).toBe('RESERVED');
   });
 });
