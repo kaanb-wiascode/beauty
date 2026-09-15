@@ -2,6 +2,8 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
+type TrainingCourseDb = Pick<PrismaService, '$queryRawUnsafe'> | Prisma.TransactionClient;
+
 @Injectable()
 export class TrainingCourseModuleService {
   constructor(
@@ -16,7 +18,7 @@ export class TrainingCourseModuleService {
     };
   }
 
-  private async assertDraftVersion(versionId: string, tx: any = this.prisma) {
+  private async assertDraftVersion(versionId: string, tx: TrainingCourseDb = this.prisma) {
     const c = this.context();
     const rows = await tx.$queryRawUnsafe<any[]>(
       `SELECT v.id
@@ -32,7 +34,7 @@ export class TrainingCourseModuleService {
     if (!rows.length) throw new NotFoundException('Draft course version not found.');
   }
 
-  private async module(moduleId: string, tx: any = this.prisma) {
+  private async module(moduleId: string, tx: TrainingCourseDb = this.prisma) {
     const c = this.context();
     const rows = await tx.$queryRawUnsafe<any[]>(
       `SELECT m.id,m.course_version_id AS "versionId",m.sequence,m.title,m.description
