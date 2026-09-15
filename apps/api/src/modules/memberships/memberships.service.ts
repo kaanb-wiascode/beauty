@@ -22,13 +22,19 @@ export class MembershipsService {
     return this.tenantContext.getTenantId();
   }
 
+  private getCompanyId(): string {
+    return this.tenantContext.getCompanyId();
+  }
+
   private async getActorUserId(): Promise<string> {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
     const membershipId = this.tenantContext.getMembershipId();
     const membership = await this.prisma.membership.findFirst({
       where: {
         id: membershipId,
         tenantId,
+        companyId,
       },
       select: {
         userId: true,
@@ -84,10 +90,12 @@ export class MembershipsService {
 
   async findAll() {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     return this.prisma.membership.findMany({
       where: {
         tenantId,
+        companyId,
       },
       orderBy: {
         createdAt: 'asc',
@@ -114,11 +122,13 @@ export class MembershipsService {
 
   async findEffectivePermissions(id: string) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const membership = await this.prisma.membership.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       include: {
         user: {
@@ -226,38 +236,37 @@ export class MembershipsService {
     input: UpdateMembershipStatusInput,
   ) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
-    const membership =
-      await this.prisma.membership.findFirst({
-        where: {
-          id,
-          tenantId,
-        },
-        include: {
-          role: {
-            select: {
-              id: true,
-              slug: true,
-            },
-          },
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-            },
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id,
+        tenantId,
+        companyId,
+      },
+      include: {
+        role: {
+          select: {
+            id: true,
+            slug: true,
           },
         },
-      });
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
+          },
+        },
+      },
+    });
 
     if (!membership) {
       throw new NotFoundException('Membership not found');
     }
 
-    if (
-      membership.status === input.status
-    ) {
+    if (membership.status === input.status) {
       return membership;
     }
 
@@ -265,20 +274,21 @@ export class MembershipsService {
       input.status === 'SUSPENDED' &&
       membership.role.slug === 'owner'
     ) {
-      const ownerCount =
-        await this.prisma.membership.count({
-          where: {
-            tenantId,
-            role: {
-              slug: 'owner',
-            },
-            status: 'ACTIVE',
+      const ownerCount = await this.prisma.membership.count({
+        where: {
+          tenantId,
+          companyId,
+          role: {
+            slug: 'owner',
+            companyId,
           },
-        });
+          status: 'ACTIVE',
+        },
+      });
 
       if (ownerCount <= 1) {
         throw new BadRequestException(
-          'Tenant must have at least one active Owner',
+          'Company must have at least one active Owner',
         );
       }
     }
@@ -328,11 +338,13 @@ export class MembershipsService {
 
   async remove(id: string) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const membership = await this.prisma.membership.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       include: {
         role: {
@@ -367,8 +379,10 @@ export class MembershipsService {
       const ownerCount = await this.prisma.membership.count({
         where: {
           tenantId,
+          companyId,
           role: {
             slug: 'owner',
+            companyId,
           },
           status: 'ACTIVE',
         },
@@ -376,7 +390,7 @@ export class MembershipsService {
 
       if (ownerCount <= 1) {
         throw new BadRequestException(
-          'Tenant must have at least one active Owner',
+          'Company must have at least one active Owner',
         );
       }
     }
@@ -429,36 +443,36 @@ export class MembershipsService {
     input: UpdateMembershipRoleInput,
   ) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
-    const membership =
-      await this.prisma.membership.findFirst({
-        where: {
-          id,
-          tenantId,
-          status: 'ACTIVE',
-        },
-        include: {
-          user: {
-            select: {
-              id: true,
-              email: true,
-              firstName: true,
-              lastName: true,
-            },
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id,
+        tenantId,
+        companyId,
+        status: 'ACTIVE',
+      },
+      include: {
+        user: {
+          select: {
+            id: true,
+            email: true,
+            firstName: true,
+            lastName: true,
           },
         },
-      });
+      },
+    });
 
     if (!membership) {
-      throw new NotFoundException(
-        'Membership not found',
-      );
+      throw new NotFoundException('Membership not found');
     }
 
     const role = await this.prisma.role.findFirst({
       where: {
         id: input.roleId,
         tenantId,
+        companyId,
       },
       select: {
         id: true,
@@ -468,15 +482,14 @@ export class MembershipsService {
     });
 
     if (!role) {
-      throw new BadRequestException(
-        'Role not found',
-      );
+      throw new BadRequestException('Role not found');
     }
 
     const currentRole = await this.prisma.role.findFirst({
       where: {
         id: membership.roleId,
         tenantId,
+        companyId,
       },
       select: {
         id: true,
@@ -490,8 +503,12 @@ export class MembershipsService {
     }
 
     if (membership.roleId === role.id) {
-      return this.prisma.membership.findUnique({
-        where: { id: membership.id },
+      return this.prisma.membership.findFirst({
+        where: {
+          id: membership.id,
+          tenantId,
+          companyId,
+        },
         include: {
           user: {
             select: {
@@ -512,20 +529,19 @@ export class MembershipsService {
       });
     }
 
-    // Son aktif Owner'ın Owner rolünü bırakmasını engelle.
     if (currentRole.slug === 'owner') {
-      const ownerCount =
-        await this.prisma.membership.count({
-          where: {
-            tenantId,
-            roleId: currentRole.id,
-            status: 'ACTIVE',
-          },
-        });
+      const ownerCount = await this.prisma.membership.count({
+        where: {
+          tenantId,
+          companyId,
+          roleId: currentRole.id,
+          status: 'ACTIVE',
+        },
+      });
 
       if (ownerCount <= 1) {
         throw new BadRequestException(
-          'Tenant must have at least one active Owner',
+          'Company must have at least one active Owner',
         );
       }
     }
@@ -575,12 +591,14 @@ export class MembershipsService {
 
   async replaceBranchAccess(id: string, requestedBranchIds: string[]) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
     const branchIds = [...new Set(requestedBranchIds)].sort();
 
     const membership = await this.prisma.membership.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
         status: 'ACTIVE',
       },
       select: {
@@ -626,7 +644,7 @@ export class MembershipsService {
       ? await this.prisma.branch.findMany({
           where: {
             id: { in: branchIds },
-            companyId: membership.companyId,
+            companyId,
             status: 'ACTIVE',
             company: {
               tenantId,
