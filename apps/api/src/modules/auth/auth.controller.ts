@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  Param,
   Post,
   UnauthorizedException,
   UseGuards,
@@ -10,6 +11,7 @@ import { PrismaService } from '@beauty-erp/database';
 import { z } from 'zod';
 
 import { AuthService } from './auth.service';
+import { InvitationService } from './invitation.service';
 import {
   AuthPublicRateLimit,
   AuthPublicRateLimitGuard,
@@ -36,11 +38,26 @@ const refreshTokenSchema = z.object({
   refreshToken: z.string().uuid(),
 });
 
+const createInvitationSchema = z.object({
+  email: z.string().trim().email().max(254),
+  roleId: z.string().uuid(),
+  branchIds: z.array(z.string().uuid()).max(200).default([]),
+  expiresInHours: z.number().int().min(1).max(168).default(72),
+});
+
+const acceptInvitationSchema = z.object({
+  token: z.string().trim().min(32).max(512),
+  password: z.string().min(8).max(200),
+  firstName: z.string().trim().min(1).max(100),
+  lastName: z.string().trim().min(1).max(100),
+});
+
 @Controller('auth')
 @UseGuards(AuthPublicRateLimitGuard)
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly invitationService: InvitationService,
     private readonly tenantContext: TenantContext,
     private readonly prisma: PrismaService,
   ) {}
@@ -65,6 +82,47 @@ export class AuthController {
       this.tenantContext.getCompanyId(),
       this.tenantContext.getBranchId(),
     );
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  @Post('invitations')
+  async createInvitation(@Body() body: unknown) {
+    const input = createInvitationSchema.parse(body);
+    const context = this.tenantContext.getContext();
+    return this.invitationService.create(input, {
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      actorMembershipId: context.membershipId,
+    });
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'read')
+  @Get('invitations')
+  async invitations() {
+    return this.invitationService.list(
+      this.tenantContext.getTenantId(),
+      this.tenantContext.getCompanyId(),
+    );
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  @Post('invitations/:id/revoke')
+  async revokeInvitation(@Param('id') id: string) {
+    const context = this.tenantContext.getContext();
+    return this.invitationService.revoke(id, {
+      tenantId: context.tenantId,
+      companyId: context.companyId,
+      actorMembershipId: context.membershipId,
+    });
+  }
+
+  @Post('invitations/accept')
+  @AuthPublicRateLimit('invitation-accept', 10, 300)
+  async acceptInvitation(@Body() body: unknown) {
+    return this.invitationService.accept(acceptInvitationSchema.parse(body));
   }
 
   @Post('login')
