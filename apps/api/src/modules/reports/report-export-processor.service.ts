@@ -9,6 +9,7 @@ import { ZodError } from 'zod';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { reportExportSchema } from './dto/report-export.dto';
 import { ReportCsvGenerator } from './report-csv.generator';
+import { getReportDefinition } from './report-definition';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
 import {
   ReportExportJobsRepository,
@@ -16,6 +17,7 @@ import {
 } from './report-export-jobs.repository';
 import { ReportExportStorageService } from './report-export-storage.service';
 import { ReportExportWorkerContextService } from './report-export-worker-context.service';
+import { ReportPdfGenerator } from './report-pdf.generator';
 import { ReportXlsxGenerator } from './report-xlsx.generator';
 
 @Injectable()
@@ -26,6 +28,7 @@ export class ReportExportProcessorService {
     private readonly workerContext: ReportExportWorkerContextService,
     private readonly csv: ReportCsvGenerator,
     private readonly xlsx: ReportXlsxGenerator,
+    private readonly pdf: ReportPdfGenerator,
     private readonly storage: ReportExportStorageService,
     private readonly config: ConfigService,
   ) {}
@@ -46,15 +49,13 @@ export class ReportExportProcessorService {
         includeCharts: job.includeCharts,
       });
 
-      if (input.format === 'PDF') {
-        return this.jobs.markFailed(job.id, {
-          errorCode: 'FORMAT_NOT_IMPLEMENTED',
-          errorSummary: 'PDF export generation is not available yet.',
-        });
-      }
-
       const materialized = await this.workerContext.materialize(user, input);
       const generatedAt = new Date();
+      const summary = input.includeSummary
+        ? (materialized.summary as Record<string, unknown> | null)
+        : null;
+      const definition = getReportDefinition(input.reportKey);
+
       const generated =
         input.format === 'XLSX'
           ? {
@@ -62,9 +63,7 @@ export class ReportExportProcessorService {
               content: this.xlsx.generate({
                 columns: materialized.columns,
                 rows: materialized.rows,
-                summary: input.includeSummary
-                  ? (materialized.summary as Record<string, unknown> | null)
-                  : null,
+                summary,
                 metadata: {
                   reportKey: input.reportKey,
                   from: input.filters.from,
@@ -73,13 +72,29 @@ export class ReportExportProcessorService {
                 },
               }),
             }
-          : {
-              extension: 'csv' as const,
-              content: this.csv.generate(
-                materialized.columns,
-                materialized.rows,
-              ),
-            };
+          : input.format === 'PDF'
+            ? {
+                extension: 'pdf' as const,
+                content: this.pdf.generate({
+                  title: definition?.title ?? input.reportKey,
+                  columns: materialized.columns,
+                  rows: materialized.rows,
+                  summary,
+                  metadata: {
+                    reportKey: input.reportKey,
+                    from: input.filters.from,
+                    to: input.filters.to,
+                    generatedAt,
+                  },
+                }),
+              }
+            : {
+                extension: 'csv' as const,
+                content: this.csv.generate(
+                  materialized.columns,
+                  materialized.rows,
+                ),
+              };
 
       const storageKey = await this.storage.write({
         tenantId: job.tenantId,
