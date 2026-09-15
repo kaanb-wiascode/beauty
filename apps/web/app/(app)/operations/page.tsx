@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
-import type { Customer, Paginated, Visit, VisitStatus } from "@/lib/types";
+import type { Appointment, Customer, Paginated, Visit, VisitStatus } from "@/lib/types";
 
 const STATUS_LABELS: Record<VisitStatus, string> = {
   EXPECTED: "Bekleniyor",
@@ -54,9 +54,29 @@ function visitAgeStart(visit: Visit) {
   return visit.checkedInAt ?? visit.arrivedAt ?? visit.createdAt;
 }
 
+function startOfToday() {
+  const date = new Date();
+  date.setHours(0, 0, 0, 0);
+  return date.toISOString();
+}
+
+function endOfToday() {
+  const date = new Date();
+  date.setHours(23, 59, 59, 999);
+  return date.toISOString();
+}
+
+function timeLabel(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
 export default function OperationsPage() {
   const canUpdate = hasPermission("appointments", "update");
   const [visits, setVisits] = useState<Visit[]>([]);
+  const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -65,6 +85,7 @@ export default function OperationsPage() {
   async function load() {
     if (!hasActiveBranch()) {
       setVisits([]);
+      setAppointments([]);
       setCustomers([]);
       setLoading(false);
       setError("Canlı operasyon ekranı için önce çalışma kapsamından bir şube seçin.");
@@ -74,11 +95,18 @@ export default function OperationsPage() {
     setLoading(true);
     setError("");
     try {
-      const [visitResult, customerResult] = await Promise.all([
+      const [visitResult, appointmentResult, customerResult] = await Promise.all([
         api<Visit[]>(withQuery("/visits", { limit: 200 })),
+        api<Paginated<Appointment>>(withQuery("/appointments", {
+          page: 1,
+          limit: 200,
+          from: startOfToday(),
+          to: endOfToday(),
+        })),
         api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 200 })),
       ]);
       setVisits(visitResult);
+      setAppointments(appointmentResult.data);
       setCustomers(customerResult.data);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Operasyon verileri yüklenemedi.");
@@ -107,12 +135,41 @@ export default function OperationsPage() {
     [visits],
   );
 
+  const expectedAppointments = useMemo(() => {
+    const activeAppointmentIds = new Set(
+      visits.flatMap((visit) => visit.appointmentIds ?? []),
+    );
+
+    return appointments
+      .filter((appointment) => ["SCHEDULED", "CONFIRMED"].includes(appointment.status))
+      .filter((appointment) => !activeAppointmentIds.has(appointment.id))
+      .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
+  }, [appointments, visits]);
+
   const counts = useMemo(() => ({
-    checkedIn: visits.filter((visit) => visit.status === "CHECKED_IN").length,
-    waiting: visits.filter((visit) => visit.status === "WAITING").length,
+    expected: expectedAppointments.length,
+    waiting: visits.filter((visit) => visit.status === "WAITING" || visit.status === "CHECKED_IN").length,
     inService: visits.filter((visit) => visit.status === "IN_SERVICE").length,
     checkout: visits.filter((visit) => visit.status === "CHECKOUT_PENDING").length,
-  }), [visits]);
+  }), [expectedAppointments.length, visits]);
+
+  async function checkInAppointment(appointment: Appointment) {
+    if (!canUpdate) return;
+
+    setUpdatingId(appointment.id);
+    setError("");
+    try {
+      await api("/visits/check-in", {
+        method: "POST",
+        body: { appointmentId: appointment.id },
+      });
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Müşteri check-in işlemi tamamlanamadı.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
 
   async function advance(visit: Visit) {
     const action = NEXT_ACTION[visit.status];
@@ -159,8 +216,8 @@ export default function OperationsPage() {
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
-          ["Giriş Yapıldı", counts.checkedIn],
-          ["Sırada", counts.waiting],
+          ["Beklenen", counts.expected],
+          ["Bekleyen", counts.waiting],
           ["Hizmette", counts.inService],
           ["Çıkış Bekliyor", counts.checkout],
         ].map(([label, value]) => (
@@ -169,6 +226,33 @@ export default function OperationsPage() {
             <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p>
           </div>
         ))}
+      </section>
+
+      <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
+        <div className="border-b border-[var(--line)] px-6 py-4">
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Bugün Beklenen Müşteriler</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">Check-in bekleyen {expectedAppointments.length} randevu</p>
+        </div>
+        {expectedAppointments.length ? (
+          <div className="divide-y divide-[var(--line)]">
+            {expectedAppointments.map((appointment) => (
+              <div key={appointment.id} className="grid gap-4 px-6 py-4 md:grid-cols-[90px_minmax(0,1fr)_auto] md:items-center">
+                <div className="text-sm font-semibold text-[var(--ink)]">{timeLabel(appointment.startAt)}</div>
+                <div className="min-w-0">
+                  <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(appointment.customerId) ?? "Müşteri"}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">{appointment.status === "CONFIRMED" ? "Onaylı randevu" : "Planlı randevu"}</p>
+                </div>
+                {canUpdate ? (
+                  <Button disabled={updatingId === appointment.id} onClick={() => void checkInAppointment(appointment)}>
+                    {updatingId === appointment.id ? "Giriş Yapılıyor..." : "Check-in"}
+                  </Button>
+                ) : null}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Check-in bekleyen randevu bulunmuyor.</div>
+        )}
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
