@@ -15,16 +15,11 @@ export const reportPreviewSchema = z
       reportKeys.financePerformance,
       reportKeys.inventoryPerformance,
       reportKeys.procurementPerformance,
+      reportKeys.crmPerformance,
     ]),
     filters: reportDateRangeSchema,
     columns: z.array(z.string().min(1)).max(20).optional(),
-    sort: z
-      .object({
-        key: z.string().min(1),
-        direction: z.enum(['asc', 'desc']),
-      })
-      .strict()
-      .optional(),
+    sort: z.object({ key: z.string().min(1), direction: z.enum(['asc', 'desc']) }).strict().optional(),
     page: z.coerce.number().int().min(1).default(1),
     limit: z.coerce.number().int().min(1).max(100).default(25),
   })
