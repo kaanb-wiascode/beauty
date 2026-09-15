@@ -27,6 +27,15 @@ export class ReportExportWorkerRunnerService
     if (!this.enabled()) return;
 
     const intervalMs = this.pollIntervalMs();
+    this.logger.log(
+      JSON.stringify({
+        event: 'report_export_worker_started',
+        pollIntervalMs: intervalMs,
+        batchSize: this.batchSize(),
+        expiryBatchSize: this.expiryBatchSize(),
+      }),
+    );
+
     this.timer = setInterval(() => {
       void this.tick();
     }, intervalMs);
@@ -45,22 +54,42 @@ export class ReportExportWorkerRunnerService
   async tick() {
     if (this.running) return 0;
     this.running = true;
+    const startedAt = Date.now();
+    const batchSize = this.batchSize();
+    const expiryBatchSize = this.expiryBatchSize();
 
     try {
-      await this.expiry.cleanup(this.expiryBatchSize());
+      const cleanup = await this.expiry.cleanup(expiryBatchSize);
 
       let processed = 0;
-      const batchSize = this.batchSize();
-
       while (processed < batchSize) {
         const result = await this.processor.processNext();
         if (!result) break;
         processed += 1;
       }
 
+      if (processed > 0 || cleanup.expired > 0) {
+        this.logger.log(
+          JSON.stringify({
+            event: 'report_export_worker_tick',
+            processed,
+            expired: cleanup.expired,
+            deleted: cleanup.deleted,
+            durationMs: Date.now() - startedAt,
+          }),
+        );
+      }
+
       return processed;
     } catch {
-      this.logger.error('Report export worker iteration failed');
+      this.logger.error(
+        JSON.stringify({
+          event: 'report_export_worker_failed',
+          batchSize,
+          expiryBatchSize,
+          durationMs: Date.now() - startedAt,
+        }),
+      );
       return 0;
     } finally {
       this.running = false;
