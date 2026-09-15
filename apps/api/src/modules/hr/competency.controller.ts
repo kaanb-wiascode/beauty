@@ -27,13 +27,14 @@ export class CompetencyController {
  setPositionRequirement(@Param('positionId')positionId:string,@Body()body:any){return this.competencies.setPositionRequirement(positionId,body)}
 
  @Get('employees/:id/competencies')
+ @RequirePermissions({resource:'hr_sensitive',action:'read'})
  employeeMatrix(@Param('id')id:string){return this.competencies.employeeMatrix(id)}
 
  @Post('employees/:id/competencies/assessments')
- @RequirePermissions({resource:'hr',action:'manage'})
+ @RequirePermissions({resource:'hr',action:'manage'},{resource:'hr_sensitive',action:'read'})
  assess(@Param('id')id:string,@Body()body:any,@Req()req:any){return this.competencies.assess(id,body,this.userId(req))}
 
  @Post('employees/:id/competencies/development-actions')
- @RequirePermissions({resource:'hr',action:'manage'})
+ @RequirePermissions({resource:'hr',action:'manage'},{resource:'hr_sensitive',action:'read'})
  createDevelopmentAction(@Param('id')id:string,@Body()body:any,@Req()req:any){return this.competencies.createDevelopmentAction(id,body,this.userId(req))}
 }
