@@ -39,9 +39,12 @@ describe('TenantAuthGuard', () => {
   function executionContext(
     user?: Record<string, unknown>,
     method = 'GET',
+    url = '/customers',
   ) {
     return {
-      switchToHttp: () => ({ getRequest: () => ({ user, method }) }),
+      switchToHttp: () => ({
+        getRequest: () => ({ user, method, url, originalUrl: `/api${url}` }),
+      }),
       getHandler: () => executionContext,
       getClass: () => TenantAuthGuard,
     } as unknown as ExecutionContext;
@@ -104,14 +107,38 @@ describe('TenantAuthGuard', () => {
     expect(setContext).toHaveBeenCalledTimes(1);
   });
 
-  it('lets an active override take effect through the resolved configured value', async () => {
+  it.each([
+    ['/crm/opportunities', 'crm.enabled'],
+    ['/hr/employees', 'hr.enabled'],
+    ['/finance/expenses', 'finance.enabled'],
+  ])('enforces the configured entitlement for the %s route family', async (url) => {
     queryRaw
       .mockResolvedValueOnce([{ state: 'ACTIVE' }])
       .mockResolvedValueOnce([{ configured: true, effectiveValue: false }]);
-    entitlementKey = 'hr.enabled';
 
-    await expect(guard.canActivate(executionContext(user)))
+    await expect(guard.canActivate(executionContext(user, 'GET', url)))
       .rejects.toBeInstanceOf(ForbiddenException);
+    expect(setContext).not.toHaveBeenCalled();
+  });
+
+  it('does not infer an entitlement for unrelated tenant routes', async () => {
+    queryRaw.mockResolvedValueOnce([{ state: 'ACTIVE' }]);
+
+    await expect(guard.canActivate(executionContext(user, 'GET', '/customers')))
+      .resolves.toBe(true);
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    expect(setContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets explicit metadata override route-family inference', async () => {
+    queryRaw
+      .mockResolvedValueOnce([{ state: 'ACTIVE' }])
+      .mockResolvedValueOnce([{ configured: true, effectiveValue: true }]);
+    entitlementKey = 'reporting.advanced.enabled';
+
+    await expect(guard.canActivate(executionContext(user, 'GET', '/finance/reports')))
+      .resolves.toBe(true);
+    expect(setContext).toHaveBeenCalledTimes(1);
   });
 
   it('blocks restricted tenant mutations on protected surfaces', async () => {
