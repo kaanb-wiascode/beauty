@@ -21,6 +21,7 @@ const OPERATIONS_TABS = [
   { href: "/operations/engagement", label: "Hatırlatma & Onay" },
   { href: "/operations/journey", label: "Timeline & Güvenilirlik" },
   { href: "/operations/intelligence", label: "Yönetici İçgörüleri" },
+  { href: "/operations/optimization", label: "Optimizasyon" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
