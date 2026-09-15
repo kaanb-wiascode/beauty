@@ -6,6 +6,7 @@ import { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { IncomeRecordsService } from './income-records.service';
 
 const createIncomeSchema = z.object({
@@ -38,6 +39,7 @@ const reasonSchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
 @Controller('finance/income')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RestrictTenantMutations()
 @RequirePermission('finance', 'read')
 export class IncomeRecordsController {
   constructor(private readonly service: IncomeRecordsService) {}
