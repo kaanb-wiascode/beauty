@@ -26,6 +26,13 @@ enum FinanceAccountingStatus {
   REVERSED
 }
 
+enum IncomeCollectionStatus {
+  UNCOLLECTED
+  PARTIALLY_COLLECTED
+  COLLECTED
+  CANCELLED
+}
+
 model FinanceCostCenter {
   id        String   @id @default(uuid())
   tenantId  String   @map("tenant_id")
@@ -177,4 +184,120 @@ model ExpensePaymentReversal {
 
   @@index([tenantId, companyId, createdAt], map: "expense_payment_reversals_tenant_company_created_at_idx")
   @@map("expense_payment_reversals")
+}
+
+model IncomeCategory {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  companyId String?  @map("company_id")
+  parentId  String?  @map("parent_id")
+  code      String
+  name      String
+  system    Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, companyId, code], map: "income_categories_tenant_company_code_key")
+  @@index([tenantId, companyId, active], map: "income_categories_tenant_company_active_idx")
+  @@index([parentId], map: "income_categories_parent_idx")
+  @@map("income_categories")
+}
+
+model IncomeRecord {
+  id                    String                      @id @default(uuid())
+  tenantId              String                      @map("tenant_id")
+  companyId             String                      @map("company_id")
+  branchId              String?                     @map("branch_id")
+  costCenterId          String?                     @map("cost_center_id")
+  categoryId            String                      @map("category_id")
+  counterpartyName      String?                     @map("counterparty_name")
+  counterpartyTaxNumber String?                     @map("counterparty_tax_number")
+  documentType          String?                     @map("document_type")
+  documentNumber        String?                     @map("document_number")
+  documentDate          DateTime?                   @map("document_date")
+  documentUrl           String?                     @map("document_url")
+  transactionDate       DateTime                    @map("transaction_date")
+  dueDate               DateTime?                   @map("due_date")
+  grossAmount           Decimal                     @map("gross_amount") @db.Decimal(14, 2)
+  netAmount             Decimal                     @map("net_amount") @db.Decimal(14, 2)
+  taxAmount             Decimal                     @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  currency              String                      @default("TRY") @db.VarChar(3)
+  exchangeRate          Decimal                     @default(1) @map("exchange_rate") @db.Decimal(18, 8)
+  description           String?
+  approvalStatus        FinanceApprovalStatus       @default(DRAFT) @map("approval_status")
+  collectionStatus      IncomeCollectionStatus      @default(UNCOLLECTED) @map("collection_status")
+  reconciliationStatus  FinanceReconciliationStatus @default(UNRECONCILED) @map("reconciliation_status")
+  accountingStatus      FinanceAccountingStatus     @default(UNPOSTED) @map("accounting_status")
+  sourceType            String?                     @map("source_type")
+  sourceId              String?                     @map("source_id")
+  version               Int                         @default(1)
+  createdBy             String                      @map("created_by")
+  createdAt             DateTime                    @default(now()) @map("created_at")
+  updatedAt             DateTime                    @updatedAt @map("updated_at")
+
+  @@index([tenantId, companyId, transactionDate], map: "income_records_tenant_company_transaction_date_idx")
+  @@index([tenantId, branchId, transactionDate], map: "income_records_tenant_branch_transaction_date_idx")
+  @@index([tenantId, companyId, approvalStatus], map: "income_records_tenant_company_approval_idx")
+  @@index([tenantId, companyId, collectionStatus], map: "income_records_tenant_company_collection_idx")
+  @@index([tenantId, companyId, accountingStatus], map: "income_records_tenant_company_accounting_idx")
+  @@index([costCenterId], map: "income_records_cost_center_idx")
+  @@index([categoryId], map: "income_records_category_idx")
+  @@map("income_records")
+}
+
+model IncomeAccountingMapping {
+  id                  String   @id @default(uuid())
+  tenantId            String   @map("tenant_id")
+  companyId           String   @map("company_id")
+  categoryId          String   @map("category_id")
+  revenueAccountId    String   @map("revenue_account_id")
+  taxAccountId        String?  @map("tax_account_id")
+  receivableAccountId String   @map("receivable_account_id")
+  active              Boolean  @default(true)
+  createdAt           DateTime @default(now()) @map("created_at")
+  updatedAt           DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, categoryId], map: "income_accounting_mappings_company_category_key")
+  @@map("income_accounting_mappings")
+}
+
+model IncomeAuditEvent {
+  id             String   @id @default(uuid())
+  tenantId       String   @map("tenant_id")
+  companyId      String   @map("company_id")
+  branchId       String?  @map("branch_id")
+  incomeRecordId String   @map("income_record_id")
+  actorId        String   @map("actor_id")
+  eventType      String   @map("event_type")
+  reason         String?
+  beforeState    Json?    @map("before_state")
+  afterState     Json?    @map("after_state")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([incomeRecordId, createdAt], map: "income_audit_events_income_created_at_idx")
+  @@index([tenantId, companyId, createdAt], map: "income_audit_events_tenant_company_idx")
+  @@map("income_audit_events")
+}
+
+model IncomeCollection {
+  id                  String   @id @default(uuid())
+  tenantId            String   @map("tenant_id")
+  companyId           String   @map("company_id")
+  branchId            String?  @map("branch_id")
+  incomeRecordId      String   @map("income_record_id")
+  collectionAccountId String   @map("collection_account_id")
+  amount              Decimal  @db.Decimal(14, 2)
+  method              String
+  reference           String?
+  note                String?
+  collectedAt         DateTime @map("collected_at")
+  sourceType          String?  @map("source_type")
+  sourceId            String?  @map("source_id")
+  createdBy           String   @map("created_by")
+  createdAt           DateTime @default(now()) @map("created_at")
+
+  @@index([incomeRecordId, createdAt], map: "income_collections_income_created_at_idx")
+  @@index([tenantId, companyId, collectedAt], map: "income_collections_tenant_company_collected_at_idx")
+  @@map("income_collections")
 }
