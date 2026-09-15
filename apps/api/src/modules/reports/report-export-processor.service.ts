@@ -16,6 +16,7 @@ import {
 } from './report-export-jobs.repository';
 import { ReportExportStorageService } from './report-export-storage.service';
 import { ReportExportWorkerContextService } from './report-export-worker-context.service';
+import { ReportXlsxGenerator } from './report-xlsx.generator';
 
 @Injectable()
 export class ReportExportProcessorService {
@@ -24,6 +25,7 @@ export class ReportExportProcessorService {
     private readonly authorization: ReportExportAuthorizationService,
     private readonly workerContext: ReportExportWorkerContextService,
     private readonly csv: ReportCsvGenerator,
+    private readonly xlsx: ReportXlsxGenerator,
     private readonly storage: ReportExportStorageService,
     private readonly config: ConfigService,
   ) {}
@@ -44,23 +46,49 @@ export class ReportExportProcessorService {
         includeCharts: job.includeCharts,
       });
 
-      if (input.format !== 'CSV') {
+      if (input.format === 'PDF') {
         return this.jobs.markFailed(job.id, {
           errorCode: 'FORMAT_NOT_IMPLEMENTED',
-          errorSummary: `${input.format} export generation is not available yet.`,
+          errorSummary: 'PDF export generation is not available yet.',
         });
       }
 
       const materialized = await this.workerContext.materialize(user, input);
-      const content = this.csv.generate(materialized.columns, materialized.rows);
+      const generatedAt = new Date();
+      const generated =
+        input.format === 'XLSX'
+          ? {
+              extension: 'xlsx' as const,
+              content: this.xlsx.generate({
+                columns: materialized.columns,
+                rows: materialized.rows,
+                summary: input.includeSummary
+                  ? (materialized.summary as Record<string, unknown> | null)
+                  : null,
+                metadata: {
+                  reportKey: input.reportKey,
+                  from: input.filters.from,
+                  to: input.filters.to,
+                  generatedAt,
+                },
+              }),
+            }
+          : {
+              extension: 'csv' as const,
+              content: this.csv.generate(
+                materialized.columns,
+                materialized.rows,
+              ),
+            };
+
       const storageKey = await this.storage.write({
         tenantId: job.tenantId,
         jobId: job.id,
-        extension: 'csv',
-        content,
+        extension: generated.extension,
+        content: generated.content,
       });
       const expiresAt = new Date(
-        Date.now() + this.retentionDays() * 24 * 60 * 60 * 1000,
+        generatedAt.getTime() + this.retentionDays() * 24 * 60 * 60 * 1000,
       );
 
       return await this.completeReadyTransition(user, job.id, storageKey, {
