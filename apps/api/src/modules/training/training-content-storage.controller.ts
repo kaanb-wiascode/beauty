@@ -27,7 +27,7 @@ export class TrainingContentStorageController {
   }
 
   @Get('lessons/:lessonId/document')
-  @RequirePermission('training', 'read')
+  @RequirePermission('training', 'manage')
   download(@Param('lessonId') lessonId: string) {
     return this.content.downloadLessonDocument(lessonId);
   }
