@@ -73,7 +73,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'completionRate',
       'collected',
     ],
-    exportFormats: ['PDF', 'XLSX', 'CSV'],
+    exportFormats: ['CSV'],
     pagination: true,
   },
   {
@@ -121,7 +121,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'completionRate',
       'collected',
     ],
-    exportFormats: ['PDF', 'XLSX', 'CSV'],
+    exportFormats: ['CSV'],
     pagination: true,
   },
   {
@@ -161,7 +161,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'methods',
     ],
     sortableColumns: [],
-    exportFormats: ['PDF', 'XLSX', 'CSV'],
+    exportFormats: ['CSV'],
     pagination: false,
   },
 ]);
