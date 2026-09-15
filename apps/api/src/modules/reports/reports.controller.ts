@@ -1,10 +1,12 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   InternalServerErrorException,
   Optional,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -22,12 +24,17 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { reportExportSchema } from './dto/report-export.dto';
 import { reportExportListSchema } from './dto/report-export-list.dto';
 import { reportPreviewSchema } from './dto/report-preview.dto';
+import {
+  createReportSavedViewSchema,
+  updateReportSavedViewSchema,
+} from './dto/report-saved-view.dto';
 import { ReportExportDownloadService } from './report-export-download.service';
 import { ReportExportPolicyService } from './report-export-policy.service';
 import {
   toPublicReportExportJob,
   toPublicReportExportList,
 } from './report-export.presenter';
+import { ReportSavedViewsService } from './report-saved-views.service';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -37,6 +44,7 @@ export class ReportsController {
     private readonly reportsService: ReportsService,
     private readonly exportDownloads: ReportExportDownloadService,
     @Optional() private readonly exportPolicy?: ReportExportPolicyService,
+    @Optional() private readonly savedViews?: ReportSavedViewsService,
   ) {}
 
   @Get('catalog')
@@ -53,6 +61,51 @@ export class ReportsController {
   ) {
     const input = reportPreviewSchema.parse(body);
     return this.reportsService.preview(request.user, input);
+  }
+
+  @Post('saved-reports')
+  @RequirePermission('reports', 'read')
+  createSavedReport(
+    @Req() request: { user: JwtPayload },
+    @Body() body: unknown,
+  ) {
+    const input = createReportSavedViewSchema.parse(body);
+    return this.requireSavedViews().create(request.user, input);
+  }
+
+  @Get('saved-reports')
+  @RequirePermission('reports', 'read')
+  listSavedReports(@Req() request: { user: JwtPayload }) {
+    return this.requireSavedViews().list(request.user);
+  }
+
+  @Get('saved-reports/:id')
+  @RequirePermission('reports', 'read')
+  getSavedReport(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.requireSavedViews().get(request.user, id);
+  }
+
+  @Patch('saved-reports/:id')
+  @RequirePermission('reports', 'read')
+  updateSavedReport(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = updateReportSavedViewSchema.parse(body);
+    return this.requireSavedViews().update(request.user, id, input);
+  }
+
+  @Delete('saved-reports/:id')
+  @RequirePermission('reports', 'read')
+  deleteSavedReport(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.requireSavedViews().delete(request.user, id);
   }
 
   @Post('exports')
@@ -106,5 +159,12 @@ export class ReportsController {
   ) {
     const job = await this.reportsService.getExportJob(request.user, id);
     return toPublicReportExportJob(job);
+  }
+
+  private requireSavedViews() {
+    if (!this.savedViews) {
+      throw new InternalServerErrorException('Saved report service unavailable');
+    }
+    return this.savedViews;
   }
 }
