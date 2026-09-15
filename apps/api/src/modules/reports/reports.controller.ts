@@ -22,6 +22,7 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { reportComparisonSchema } from './dto/report-comparison.dto';
+import { reportDrilldownSchema } from './dto/report-drilldown.dto';
 import { reportExportSchema } from './dto/report-export.dto';
 import { reportExportListSchema } from './dto/report-export-list.dto';
 import { reportPreviewSchema } from './dto/report-preview.dto';
@@ -34,6 +35,7 @@ import {
   updateReportScheduleSchema,
 } from './dto/report-schedule.dto';
 import { ReportComparisonService } from './report-comparison.service';
+import { ReportDrilldownService } from './report-drilldown.service';
 import { ReportExportDownloadService } from './report-export-download.service';
 import { ReportExportPolicyService } from './report-export-policy.service';
 import {
@@ -54,6 +56,7 @@ export class ReportsController {
     @Optional() private readonly savedViews?: ReportSavedViewsService,
     @Optional() private readonly schedules?: ReportSchedulesService,
     @Optional() private readonly comparisons?: ReportComparisonService,
+    @Optional() private readonly drilldowns?: ReportDrilldownService,
   ) {}
 
   @Get('catalog')
@@ -83,6 +86,19 @@ export class ReportsController {
       throw new InternalServerErrorException('Report comparison service unavailable');
     }
     return this.comparisons.compare(request.user, input);
+  }
+
+  @Post('drilldown')
+  @RequirePermission('reports', 'read')
+  drilldown(
+    @Req() request: { user: JwtPayload },
+    @Body() body: unknown,
+  ) {
+    const input = reportDrilldownSchema.parse(body);
+    if (!this.drilldowns) {
+      throw new InternalServerErrorException('Report drilldown service unavailable');
+    }
+    return this.drilldowns.drilldown(request.user, input);
   }
 
   @Post('saved-reports')
