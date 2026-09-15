@@ -9,11 +9,15 @@ import { ExecutionChecklistPanel } from "./service-executions/execution-checklis
 import { ExecutionConsumablesPanel } from "./service-executions/execution-consumables-panel";
 import { ExecutionCorrectionActions } from "./service-executions/execution-correction-actions";
 import { ExecutionStaffPanel } from "./service-executions/execution-staff-panel";
+import { WalkInExecutionLauncher } from "./service-executions/walk-in-execution-launcher";
 
 type ServiceExecution = {
   id: string;
   visitId: string;
-  appointmentId: string;
+  appointmentId: string | null;
+  walkInCommercialContextId: string | null;
+  saleItemId: string | null;
+  source: "APPOINTMENT" | "WALK_IN";
   serviceId: string;
   staffId: string;
   roomId: string | null;
@@ -27,6 +31,9 @@ type ServiceExecution = {
   appointmentStatus: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | null;
   packageSessionId: string | null;
   packageSessionStatus: "AVAILABLE" | "RESERVED" | "CONSUMED" | "CANCELLED" | null;
+  walkInSaleId: string | null;
+  walkInSaleStatus: string | null;
+  walkInServiceDescription: string | null;
 };
 
 export function ServiceExecutionPanel({
@@ -107,6 +114,16 @@ export function ServiceExecutionPanel({
           (!execution.packageSessionId || execution.packageSessionStatus === "CONSUMED"),
       );
 
+  const walkInExecutions = executions.filter(
+    (execution) => execution.source === "WALK_IN" && execution.status !== "CANCELLED",
+  );
+  const walkInCompleted =
+    visit.source === "WALK_IN" &&
+    walkInExecutions.length > 0 &&
+    walkInExecutions.every((execution) => execution.status === "COMPLETED");
+  const serviceFlowCompleted =
+    visit.source === "WALK_IN" ? walkInCompleted : handoffsCompleted;
+
   async function startExecution() {
     const appointmentId = selectedAppointmentId || executableAppointmentIds[0];
     if (!appointmentId || !canUpdate) return;
@@ -147,7 +164,7 @@ export function ServiceExecutionPanel({
   }
 
   async function completeAppointment(execution: ServiceExecution) {
-    if (!canUpdate || execution.status !== "COMPLETED") return;
+    if (!canUpdate || execution.status !== "COMPLETED" || !execution.appointmentId) return;
     setBusyId(`appointment:${execution.id}`);
     setError("");
     try {
@@ -192,7 +209,7 @@ export function ServiceExecutionPanel({
   }
 
   async function completeVisitService() {
-    if (!canUpdate || !handoffsCompleted) return;
+    if (!canUpdate || !serviceFlowCompleted) return;
     setBusyId(`visit:${visit.id}`);
     setError("");
     try {
@@ -223,14 +240,14 @@ export function ServiceExecutionPanel({
             Service Execution
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Fiziksel hizmet, personel sorumluluğu, SOP checklist, sarf tüketimi, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
+            Fiziksel hizmet, personel sorumluluğu, SOP checklist, sarf tüketimi ve ticari handoff ayrı ve izlenebilir aksiyonlardır.
           </p>
         </div>
-        {handoffsCompleted ? (
+        {serviceFlowCompleted ? (
           <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[#2d6a49]">
             Checkout için hizmet akışı hazır
           </span>
-        ) : allCompleted ? (
+        ) : allCompleted && visit.source === "APPOINTMENT" ? (
           <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">
             Handoff bekleniyor
           </span>
@@ -257,7 +274,9 @@ export function ServiceExecutionPanel({
               <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-xs font-semibold text-[var(--ink)]">
-                    Randevu {execution.appointmentId.slice(0, 8)}
+                    {execution.source === "WALK_IN"
+                      ? `Walk-in · ${execution.walkInServiceDescription ?? execution.serviceId.slice(0, 8)}`
+                      : `Randevu ${execution.appointmentId?.slice(0, 8) ?? "-"}`}
                   </p>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
                     {execution.status === "IN_PROGRESS"
@@ -324,18 +343,27 @@ export function ServiceExecutionPanel({
                   />
                   <div className="mt-3 flex flex-col gap-3 border-t border-[var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-[11px] text-[var(--muted)]">
-                      <p>
-                        Randevu: {execution.appointmentStatus === "COMPLETED" ? "Tamamlandı" : execution.appointmentStatus ?? "Bilinmiyor"}
-                      </p>
-                      {execution.packageSessionId ? (
-                        <p className="mt-1">
-                          Paket seansı: {execution.packageSessionStatus === "CONSUMED" ? "Tüketildi" : execution.packageSessionStatus ?? "Bilinmiyor"}
-                        </p>
+                      {execution.source === "WALK_IN" ? (
+                        <>
+                          <p>Ticari kaynak: Satış {execution.walkInSaleId?.slice(0, 8) ?? "-"}</p>
+                          <p className="mt-1">Satış durumu: {execution.walkInSaleStatus ?? "Bilinmiyor"}</p>
+                        </>
                       ) : (
-                        <p className="mt-1">Paket seansı: Yok</p>
+                        <>
+                          <p>
+                            Randevu: {execution.appointmentStatus === "COMPLETED" ? "Tamamlandı" : execution.appointmentStatus ?? "Bilinmiyor"}
+                          </p>
+                          {execution.packageSessionId ? (
+                            <p className="mt-1">
+                              Paket seansı: {execution.packageSessionStatus === "CONSUMED" ? "Tüketildi" : execution.packageSessionStatus ?? "Bilinmiyor"}
+                            </p>
+                          ) : (
+                            <p className="mt-1">Paket seansı: Yok</p>
+                          )}
+                        </>
                       )}
                     </div>
-                    {canUpdate ? (
+                    {canUpdate && execution.source === "APPOINTMENT" ? (
                       <div className="flex flex-wrap gap-2">
                         {execution.appointmentStatus !== "COMPLETED" ? (
                           <Button
@@ -368,7 +396,16 @@ export function ServiceExecutionPanel({
             </div>
           ))}
 
-          {executableAppointmentIds.length && visit.status === "IN_SERVICE" ? (
+          {visit.source === "WALK_IN" && visit.status === "IN_SERVICE" ? (
+            <WalkInExecutionLauncher
+              visitId={visit.id}
+              canUpdate={canUpdate}
+              onChanged={load}
+              onError={setError}
+            />
+          ) : null}
+
+          {visit.source === "APPOINTMENT" && executableAppointmentIds.length && visit.status === "IN_SERVICE" ? (
             <div className="flex flex-col gap-3 rounded-[14px] border border-dashed border-[var(--line)] p-3 sm:flex-row sm:items-end">
               <label className="min-w-0 flex-1">
                 <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">
@@ -399,13 +436,13 @@ export function ServiceExecutionPanel({
             </div>
           ) : null}
 
-          {allCompleted && !handoffsCompleted ? (
+          {allCompleted && !handoffsCompleted && visit.source === "APPOINTMENT" ? (
             <p className="rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
               Ziyaret hizmetini tamamlamadan önce her hizmet için SOP/checklist kanıtını, sarf kontrolünü ve randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
             </p>
           ) : null}
 
-          {handoffsCompleted && visit.status === "IN_SERVICE" && canUpdate ? (
+          {serviceFlowCompleted && visit.status === "IN_SERVICE" && canUpdate ? (
             <div className="flex justify-end">
               <Button
                 disabled={busyId === `visit:${visit.id}`}
