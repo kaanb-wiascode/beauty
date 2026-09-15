@@ -10,6 +10,7 @@ import { ReportExportDownloadService } from './report-export-download.service';
 import { ReportExportExpiryRepository } from './report-export-expiry.repository';
 import { ReportExportExpiryService } from './report-export-expiry.service';
 import { ReportExportJobsRepository } from './report-export-jobs.repository';
+import { ReportExportPolicyService } from './report-export-policy.service';
 import { ReportExportProcessorService } from './report-export-processor.service';
 import { ReportExportStaleRepository } from './report-export-stale.repository';
 import { ReportExportStaleService } from './report-export-stale.service';
@@ -30,6 +31,7 @@ import { ReportsService } from './reports.service';
     ReportExportExpiryRepository,
     ReportExportStaleRepository,
     ReportExportAuthorizationService,
+    ReportExportPolicyService,
     ReportExportWorkerContextService,
     ReportExportStorageService,
     ReportExportExpiryService,
