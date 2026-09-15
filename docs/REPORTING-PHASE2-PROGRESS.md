@@ -23,6 +23,9 @@ This file records incremental Phase 2 implementation progress without replacing 
   - `GET /reports/exports/:id`
   - `GET /reports/exports/:id/download`
 - Export history reads are constrained by authenticated tenant/company/branch context.
+- Export history supports bounded `page`/`limit` pagination plus allow-listed `reportKey`, `status` and `format` filters.
+- Personal-history filtering is server-derived through `mine=true`; arbitrary `requestedBy`, tenant or company filters are rejected.
+- History responses return `{ data, meta }` with page, limit, total and totalPages. The Export Center requests only the authenticated user's jobs for the selected report and paginates eight rows at a time.
 - Export artifact downloads are restricted to the original requester, require `READY` and non-expired state, and revalidate current report/source-domain permissions before storage access.
 - Download responses use `private, no-store`; storage keys are never exposed as public artifact paths.
 - Atomic worker claiming using `FOR UPDATE SKIP LOCKED` to prevent duplicate processing.
@@ -32,6 +35,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Export materialization reuses existing Staff/Service/Payment domain services instead of duplicating business calculations.
 - Opt-in internal worker runner controlled by `REPORT_EXPORT_WORKER_ENABLED`; no public process endpoint is exposed.
 - Worker polling and batch sizes are bounded and same-process overlapping iterations are blocked.
+- Worker startup/tick/failure events emit structured JSON logs containing only operational counters/configuration (`processed`, `expired`, `deleted`, batch sizes, duration); tenant/job payloads and secrets are not logged.
 - Report export storage is driver-based: local/dev defaults to contained filesystem storage, while `REPORT_EXPORT_STORAGE_DRIVER=object` reuses the shared private S3-compatible `ObjectStorageService` for multi-instance deployments.
 - Object-storage writes use server-generated keys and signed PUT requests; reads use signed GET requests; expiry cleanup uses authenticated DELETE requests. Client input never supplies storage URLs or storage keys.
 - Object-storage tests cover PUT/GET/DELETE integration, content type propagation, generated keys and fail-closed upload errors.
@@ -46,9 +50,10 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Worker tests cover successful CSV processing, revoked authorization, tampered stored payload, unimplemented formats, an empty queue, bounded batches and no-overlap behavior.
 - Expiry tests cover bounded cleanup, storage deletion and partial storage failures.
 - Download tests cover requester ownership, readiness, expiry and current permission revalidation.
-- Reporting E2E covers export job creation, scoped history retrieval, get-by-id, unauthenticated rejection and arbitrary export-field rejection.
-- Web export client supports queue creation, scoped history retrieval and authenticated artifact download.
-- Reusable `ReportExportPanel` shows queued/processing/ready/failed/expired states and polls only while work is pending.
+- Reporting E2E covers export job creation, paginated/filtered personal history retrieval, get-by-id, unauthenticated rejection, arbitrary export-field rejection and rejection of arbitrary requester filters.
+- Export history DTO tests cover controlled filters/defaults and reject unsupported report/format/requester/scope/oversized-limit inputs.
+- Web export client supports queue creation, paginated scoped history retrieval and authenticated artifact download.
+- Reusable `ReportExportPanel` shows queued/processing/ready/failed/expired states, paginates personal history and polls only while work is pending.
 - `/reports/exports` provides a permission-aware Export Center for Staff, Service and Payment reports with shared date filters, CSV queue creation, history and download actions.
 - Reports navigation exposes the Export Center only to users with `reports.read`; source-domain report choices are additionally filtered by the user's current domain permissions.
 - Shared report date validation now rejects missing, malformed and inverted date ranges before ISO conversion, preventing cleared date inputs from throwing `Invalid Date` errors in preview/export flows.
@@ -83,6 +88,7 @@ Recent monorepo quality runs validate the Prisma schema but have been stopping d
 
 - Export permissions can never be broader than preview/source-domain permissions.
 - Tenant/company/branch scope comes from authenticated context or a trusted job snapshot, never request parameters.
+- Export-history requester filtering is derived from the authenticated principal; clients cannot name another requester.
 - Storage keys are server-generated and are not accepted from clients.
 - Unauthorized/internal columns are rejected before a job is queued.
 - Background processing preserves the scope snapshot and never defaults to tenant-wide access.
