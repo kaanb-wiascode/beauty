@@ -10,6 +10,7 @@ import { PrismaService } from '@beauty-erp/database';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { AppointmentReportingService } from '../appointments/appointment-reporting.service';
 import { CustomerReportingService } from '../customers/customer-reporting.service';
+import { FinanceReportingService } from '../finance/finance-reporting.service';
 import { PaymentsService } from '../payments/payments.service';
 import { SalesReportingService } from '../sales/sales-reporting.service';
 import { ServicesService } from '../services/services.service';
@@ -35,6 +36,7 @@ export class ReportsService {
     private readonly customerReporting: CustomerReportingService,
     private readonly salesReporting: SalesReportingService,
     private readonly appointmentReporting: AppointmentReportingService,
+    private readonly financeReporting: FinanceReportingService,
     private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
@@ -182,6 +184,18 @@ export class ReportsService {
       };
     }
 
+    if (definition.key === reportKeys.financePerformance) {
+      const rows = await this.financeReporting.performance(input.filters);
+      const sorted = this.sortRows(rows, prepared.sort);
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildFinanceSummary(rows) : null,
+      };
+    }
+
     const summary = await this.paymentsService.summary(input.filters);
     return {
       reportKey: prepared.reportKey,
@@ -282,6 +296,17 @@ export class ReportsService {
         rows,
         input,
         this.buildAppointmentSummary(rows),
+      );
+    }
+
+    if (definition.key === reportKeys.financePerformance) {
+      const rows = await this.financeReporting.performance(input.filters);
+      return this.buildTablePreview(
+        definition,
+        columns,
+        rows,
+        input,
+        this.buildFinanceSummary(rows),
       );
     }
 
@@ -493,6 +518,7 @@ export class ReportsService {
   private buildAppointmentSummary(rows: readonly Record<string, unknown>[]) {
     const appointmentCount = rows.reduce((t, r) => t + this.numberValue(r.appointmentCount), 0);
     const completedCount = rows.reduce((t, r) => t + this.numberValue(r.completedCount), 0);
+    const completedCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.completedCustomerCount), 0);
     const cancelledCount = rows.reduce((t, r) => t + this.numberValue(r.cancelledCount), 0);
     const noShowCount = rows.reduce((t, r) => t + this.numberValue(r.noShowCount), 0);
     const newCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.newCustomerCount), 0);
@@ -504,6 +530,7 @@ export class ReportsService {
       rowCount: rows.length,
       appointmentCount,
       completedCount,
+      completedCustomerCount,
       cancelledCount,
       noShowCount,
       completionRate: resolved ? Math.round((completedCount / resolved) * 100) : 0,
@@ -512,10 +539,40 @@ export class ReportsService {
       newCustomerCount,
       repeatCustomerCount,
       rebookedCustomerCount,
-      rebookingRate: completedCount
-        ? Math.round((rebookedCustomerCount / completedCount) * 100)
+      rebookingRate: completedCustomerCount
+        ? Math.round((rebookedCustomerCount / completedCustomerCount) * 100)
         : 0,
       collected,
+    };
+  }
+
+  private buildFinanceSummary(rows: readonly Record<string, unknown>[]) {
+    const incomeRecognized = rows.reduce((t, r) => t + this.numberValue(r.incomeRecognized), 0);
+    const expenseRecognized = rows.reduce((t, r) => t + this.numberValue(r.expenseRecognized), 0);
+    const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
+    const paid = rows.reduce((t, r) => t + this.numberValue(r.paid), 0);
+    const receivableOutstanding = rows.reduce((t, r) => t + this.numberValue(r.receivableOutstanding), 0);
+    const payableOutstanding = rows.reduce((t, r) => t + this.numberValue(r.payableOutstanding), 0);
+    const incomeRecordCount = rows.reduce((t, r) => t + this.numberValue(r.incomeRecordCount), 0);
+    const expenseRecordCount = rows.reduce((t, r) => t + this.numberValue(r.expenseRecordCount), 0);
+    return {
+      rowCount: rows.length,
+      incomeRecognized,
+      expenseRecognized,
+      operatingMargin: incomeRecognized - expenseRecognized,
+      collected,
+      paid,
+      netCashMovement: collected - paid,
+      receivableOutstanding,
+      payableOutstanding,
+      incomeRecordCount,
+      expenseRecordCount,
+      collectionRate: incomeRecognized
+        ? Math.round((collected / incomeRecognized) * 100)
+        : 0,
+      paymentRate: expenseRecognized
+        ? Math.round((paid / expenseRecognized) * 100)
+        : 0,
     };
   }
 
