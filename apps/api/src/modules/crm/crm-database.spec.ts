@@ -14,6 +14,7 @@ describe('CRM database invariants', () => {
   const commercialContextMigration = readMigration('20260915175500_crm_lead_commercial_context');
   const salesContextMigration = readMigration('20260915180500_crm_lead_sales_context');
   const salesLifecycleMigration = readMigration('20260915181000_crm_lead_sales_lifecycle_guard');
+  const mergeMigration = readMigration('20260915184500_crm_lead_merge_foundation');
 
   it('locks organization and subject scope at database level', () => {
     expect(migration).toContain('validate_crm_scope');
@@ -99,5 +100,15 @@ describe('CRM database invariants', () => {
     expect(salesLifecycleMigration).toContain('disqualified_at := NOW()');
     expect(salesLifecycleMigration).toContain('crm_leads_preserve_first_lifecycle_facts');
     expect(salesLifecycleMigration).toContain('OLD.first_response_at');
+  });
+
+  it('keeps controlled lead merges scoped and auditable without hard deletion', () => {
+    expect(mergeMigration).toContain('merged_into_lead_id');
+    expect(mergeMigration).toContain('merged_at');
+    expect(mergeMigration).toContain('merged_by_user_id');
+    expect(mergeMigration).toContain('crm_leads_merge_scope_guard');
+    expect(mergeMigration).toContain('lead merge target scope mismatch');
+    expect(mergeMigration).toContain('idx_crm_leads_merged_target_scope');
+    expect(mergeMigration).not.toContain('DELETE FROM crm_leads');
   });
 });
