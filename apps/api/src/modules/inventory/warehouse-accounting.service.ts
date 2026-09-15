@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { InventoryScopeService } from './inventory-scope.service';
 
 export type WarehouseAdjustmentInput = {
   warehouseId: string;
@@ -16,13 +17,13 @@ export class WarehouseAccountingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
+    private readonly inventoryScope: InventoryScopeService,
   ) {}
 
   private context() {
     return {
       tenantId: this.tenant.getTenantId(),
       companyId: this.tenant.getCompanyId(),
-      branchId: this.tenant.getBranchId(),
     };
   }
 
@@ -51,7 +52,9 @@ export class WarehouseAccountingService {
   }
 
   async receiveTransfer(id: string) {
-    const { tenantId, companyId, branchId } = this.context();
+    const { tenantId, companyId } = this.context();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<any[]>(
         `SELECT t.id,t.status,t.source_warehouse_id AS "sourceWarehouseId",t.destination_warehouse_id AS "destinationWarehouseId",
@@ -60,9 +63,9 @@ export class WarehouseAccountingService {
          JOIN inventory_warehouses sw ON sw.id=t.source_warehouse_id
          JOIN inventory_warehouses dw ON dw.id=t.destination_warehouse_id
          WHERE t.id=$1::text AND t.tenant_id=$2::text AND t.company_id=$3::text
-           AND ($4::text IS NULL OR sw.branch_id=$4::text OR dw.branch_id=$4::text)
+           AND ($4::text[] IS NULL OR sw.branch_id=ANY($4::text[]) OR dw.branch_id=ANY($4::text[]))
          FOR UPDATE`,
-        id, tenantId, companyId, branchId,
+        id, tenantId, companyId, branchIds,
       );
       if (!rows.length) throw new NotFoundException('Transfer not found.');
       const transfer = rows[0];
@@ -145,7 +148,8 @@ export class WarehouseAccountingService {
   }
 
   async postAdjustment(input: WarehouseAdjustmentInput) {
-    const { tenantId, companyId, branchId } = this.context();
+    const { tenantId, companyId } = this.context();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
     const reason = input.reason?.trim();
     if (!reason) throw new BadRequestException('Adjustment reason is required.');
     if (!input.items?.length) throw new BadRequestException('Adjustment must contain at least one item.');
@@ -156,9 +160,9 @@ export class WarehouseAccountingService {
       const warehouses = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,branch_id AS "branchId" FROM inventory_warehouses
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='ACTIVE'
-           AND ($4::text IS NULL OR branch_id=$4::text)
+           AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
          FOR UPDATE`,
-        input.warehouseId, tenantId, companyId, branchId,
+        input.warehouseId, tenantId, companyId, branchIds,
       );
       if (!warehouses.length) throw new NotFoundException('Warehouse not found.');
       const warehouse = warehouses[0];
@@ -265,7 +269,8 @@ export class WarehouseAccountingService {
   }
 
   async valuation() {
-    const { tenantId, companyId, branchId } = this.context();
+    const { tenantId, companyId } = this.context();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT w.id AS "warehouseId",w.name AS "warehouseName",w.type AS "warehouseType",w.branch_id AS "branchId",
               COUNT(DISTINCT s.product_id)::int AS "productCount",
@@ -274,23 +279,24 @@ export class WarehouseAccountingService {
        FROM inventory_warehouses w
        LEFT JOIN inventory_stock s ON s.warehouse_id=w.id
        WHERE w.tenant_id=$1::text AND w.company_id=$2::text AND w.status='ACTIVE'
-         AND ($3::text IS NULL OR w.branch_id=$3::text)
+         AND ($3::text[] IS NULL OR w.branch_id=ANY($3::text[]))
        GROUP BY w.id
        ORDER BY w.type,w.name`,
-      tenantId, companyId, branchId,
+      tenantId, companyId, branchIds,
     );
   }
 
   async reconciliation() {
-    const { tenantId, companyId, branchId } = this.context();
+    const { tenantId, companyId } = this.context();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
     const [valuationRows, glRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT COALESCE(SUM(s.quantity*s.cost_per_unit),0)::numeric AS value
          FROM inventory_stock s
          JOIN inventory_warehouses w ON w.id=s.warehouse_id
          WHERE w.tenant_id=$1::text AND w.company_id=$2::text AND w.status='ACTIVE'
-           AND ($3::text IS NULL OR w.branch_id=$3::text)`,
-        tenantId, companyId, branchId,
+           AND ($3::text[] IS NULL OR w.branch_id=ANY($3::text[]))`,
+        tenantId, companyId, branchIds,
       ),
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS value
@@ -298,21 +304,26 @@ export class WarehouseAccountingService {
          JOIN journal_entries je ON je.id=jel."journalEntryId"
          JOIN chart_of_accounts coa ON coa.id=jel."accountId"
          WHERE je."tenantId"=$1::text AND je."companyId"=$2::text AND je.status='POSTED' AND coa.code='150'
-           AND ($3::text IS NULL OR je."branchId"=$3::text)`,
-        tenantId, companyId, branchId,
+           AND ($3::text[] IS NULL OR je."branchId"=ANY($3::text[]))`,
+        tenantId, companyId, branchIds,
       ),
     ]);
     const subledgerValue = this.round(Number(valuationRows[0]?.value ?? 0));
     const glBalance = this.round(Number(glRows[0]?.value ?? 0));
+    const scope = branchIds === null
+      ? 'COMPANY'
+      : branchIds.length === 1
+        ? 'BRANCH'
+        : 'ASSIGNED_BRANCHES';
     return {
       subledgerValue,
       glBalance,
       variance: this.round(subledgerValue - glBalance),
       reconciled: Math.abs(subledgerValue - glBalance) <= 0.01,
-      scope: branchId ? 'BRANCH' : 'COMPANY',
-      note: branchId
-        ? 'Branch GL comparison uses journal branch attribution; intra-company warehouse transfers do not change company 150 balance.'
-        : 'Company-level 150 inventory control account is reconciled to warehouse stock valuation.',
+      scope,
+      note: branchIds === null
+        ? 'Company-level 150 inventory control account is reconciled to warehouse stock valuation.'
+        : 'Scoped GL comparison uses assigned branch journal attribution; intra-company warehouse transfers do not change company 150 balance.',
     };
   }
 }
