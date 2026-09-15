@@ -12,10 +12,16 @@ export class TrainingCertificateController {
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
 
   @Get() @RequirePermission('training','read')
-  list(@Query('staffId')staffId?:string,@Query('status')status?:string,@Query('limit')limit?:string){return this.certificates.list({staffId:staffId||undefined,status:status||undefined,limit:limit?Number(limit):undefined});}
+  list(@Query('staffId')staffId?:string,@Query('status')status?:string,@Query('limit')limit?:string,@Query('warningDays')warningDays?:string){return this.certificates.list({staffId:staffId||undefined,status:status||undefined,limit:limit?Number(limit):undefined,warningDays:warningDays?Number(warningDays):undefined});}
+
+  @Get('lifecycle') @RequirePermission('training','read')
+  lifecycle(@Query('warningDays')warningDays?:string,@Query('limit')limit?:string){return this.certificates.lifecycle({warningDays:warningDays?Number(warningDays):undefined,limit:limit?Number(limit):undefined});}
 
   @Post('process-expired') @RequirePermission('training','manage')
   processExpired(@Query('limit')limit:string|undefined,@Req()req:{user?:{sub?:string}}){return this.certificates.processExpired(this.userId(req),limit?Number(limit):100);}
+
+  @Post('process-recertification') @RequirePermission('training','manage')
+  processRecertification(@Query('warningDays')warningDays:string|undefined,@Query('limit')limit:string|undefined,@Req()req:{user?:{sub?:string}}){return this.certificates.processRecertification(this.userId(req),{warningDays:warningDays?Number(warningDays):undefined,limit:limit?Number(limit):undefined});}
 
   @Post(':id/revoke') @RequirePermission('training','manage')
   revoke(@Param('id')id:string,@Body()body:{reason:string},@Req()req:{user?:{sub?:string}}){return this.certificates.revoke(id,body.reason,this.userId(req));}
