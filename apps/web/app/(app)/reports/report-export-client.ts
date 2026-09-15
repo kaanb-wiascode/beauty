@@ -8,10 +8,12 @@ export type ReportExportStatus =
   | "FAILED"
   | "EXPIRED";
 
+export type ReportExportFormat = "CSV" | "PDF" | "XLSX";
+
 export type ReportExportJob = {
   id: string;
   reportKey: string;
-  format: "CSV" | "PDF" | "XLSX";
+  format: ReportExportFormat;
   status: ReportExportStatus;
   rowCount: number | null;
   errorSummary: string | null;
@@ -27,6 +29,7 @@ export type ReportExportListResult = {
 
 export type CreateReportExportInput = {
   reportKey: "staff.performance" | "service.performance" | "payments.summary";
+  format?: Extract<ReportExportFormat, "CSV" | "XLSX">;
   filters: { from: string; to: string };
   columns?: readonly string[];
   sort?: { key: string; direction: "asc" | "desc" };
@@ -37,7 +40,7 @@ export function createReportExport(input: CreateReportExportInput) {
     method: "POST",
     body: {
       reportKey: input.reportKey,
-      format: "CSV",
+      format: input.format ?? "CSV",
       filters: input.filters,
       columns: input.columns,
       sort: input.sort,
@@ -67,7 +70,7 @@ export function listReportExports(input: {
   );
 }
 
-export async function downloadReportExport(job: Pick<ReportExportJob, "id">) {
+export async function downloadReportExport(job: Pick<ReportExportJob, "id" | "format">) {
   const token = getAccessToken();
   if (!token) {
     throw new ApiError("Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.", 401);
@@ -97,9 +100,10 @@ export async function downloadReportExport(job: Pick<ReportExportJob, "id">) {
   const blob = await response.blob();
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
+  const extension = job.format === "XLSX" ? "xlsx" : job.format === "PDF" ? "pdf" : "csv";
   const fileName = encodedName
     ? decodeURIComponent(encodedName)
-    : `report-${job.id}.csv`;
+    : `report-${job.id}.${extension}`;
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
