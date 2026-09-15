@@ -9,7 +9,8 @@ export type ReportCatalogKey =
   | "appointments.performance"
   | "finance.performance"
   | "inventory.performance"
-  | "procurement.performance";
+  | "procurement.performance"
+  | "crm.performance";
 
 export type ReportCatalogItem = {
   key: ReportCatalogKey;
@@ -24,7 +25,8 @@ export type ReportCatalogItem = {
     | "appointments"
     | "finance"
     | "inventory"
-    | "procurement";
+    | "procurement"
+    | "crm";
   route: string;
   resultKind: "table" | "summary";
   availableColumns: readonly string[];
