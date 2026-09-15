@@ -5,6 +5,7 @@ import { PlatformJwtStrategy } from '../../common/auth/platform-jwt.strategy';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
 import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformControlPlaneController } from './platform-control-plane.controller';
+import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformReadModelService } from './platform-read-model.service';
 
@@ -13,6 +14,7 @@ import { PlatformReadModelService } from './platform-read-model.service';
   providers: [
     PlatformReadModelService,
     PlatformIamReadService,
+    PlatformIamMutationService,
     PlatformAuditReadService,
     PlatformJwtStrategy,
     PlatformJwtAuthGuard,
