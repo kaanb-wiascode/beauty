@@ -137,7 +137,7 @@ describe('reporting foundation', () => {
     );
   });
 
-  it('rejects formats that are declared by the transport contract but not implemented yet', async () => {
+  it('accepts XLSX now that generation is implemented and rejects PDF', async () => {
     const { service } = createService([
       { resource: 'reports', action: 'read' },
       { resource: 'staff', action: 'read' },
@@ -147,6 +147,19 @@ describe('reporting foundation', () => {
       service.prepareExport(user, {
         reportKey: reportKeys.staffPerformance,
         format: 'XLSX',
+        filters: {
+          from: new Date('2026-09-01T00:00:00.000Z'),
+          to: new Date('2026-09-30T23:59:59.999Z'),
+        },
+        includeSummary: true,
+        includeCharts: false,
+      }),
+    ).resolves.toEqual(expect.objectContaining({ format: 'XLSX' }));
+
+    await expect(
+      service.prepareExport(user, {
+        reportKey: reportKeys.staffPerformance,
+        format: 'PDF',
         filters: {
           from: new Date('2026-09-01T00:00:00.000Z'),
           to: new Date('2026-09-30T23:59:59.999Z'),
@@ -231,33 +244,9 @@ describe('reporting foundation', () => {
     ]);
 
     jest.spyOn(staffService, 'performance').mockResolvedValue([
-      {
-        id: 'staff-1',
-        name: 'Ada Yılmaz',
-        status: 'ACTIVE',
-        branchId: 'branch-1',
-        appointmentCount: 4,
-        completedAppointments: 3,
-        collected: 900,
-      },
-      {
-        id: 'staff-2',
-        name: 'Bora Demir',
-        status: 'ACTIVE',
-        branchId: 'branch-1',
-        appointmentCount: 5,
-        completedAppointments: 5,
-        collected: 1500,
-      },
-      {
-        id: 'staff-3',
-        name: 'Cem Kaya',
-        status: 'ACTIVE',
-        branchId: 'branch-1',
-        appointmentCount: 2,
-        completedAppointments: 1,
-        collected: 300,
-      },
+      { id: 'staff-1', name: 'Ada Yılmaz', status: 'ACTIVE', branchId: 'branch-1', appointmentCount: 4, completedAppointments: 3, collected: 900 },
+      { id: 'staff-2', name: 'Bora Demir', status: 'ACTIVE', branchId: 'branch-1', appointmentCount: 5, completedAppointments: 5, collected: 1500 },
+      { id: 'staff-3', name: 'Cem Kaya', status: 'ACTIVE', branchId: 'branch-1', appointmentCount: 2, completedAppointments: 1, collected: 300 },
     ]);
 
     const result = await service.preview(user, {
@@ -355,9 +344,10 @@ describe('reporting foundation', () => {
       ReportsController.prototype.listExports,
       ReportsController.prototype.getExport,
     ]) {
-      expect(
-        Reflect.getMetadata(REQUIRED_PERMISSION_KEY, handler),
-      ).toEqual({ resource: 'reports', action: 'read' });
+      expect(Reflect.getMetadata(REQUIRED_PERMISSION_KEY, handler)).toEqual({
+        resource: 'reports',
+        action: 'read',
+      });
     }
   });
 });
