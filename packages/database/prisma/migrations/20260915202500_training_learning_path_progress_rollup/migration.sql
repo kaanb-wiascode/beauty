@@ -66,23 +66,23 @@ BEGIN
          updated_at = now()
    WHERE id = pa.id;
 
-  INSERT INTO training_program_events(
-    tenant_id, company_id, branch_id, program_id, program_version_id,
-    program_assignment_id, event_type, actor_user_id, metadata
-  ) VALUES (
-    pa.tenant_id, pa.company_id, pa.branch_id, pa.program_id, pa.program_version_id,
-    pa.id,
-    CASE WHEN next_status = 'COMPLETED' THEN 'COMPLETED' ELSE 'COURSE_ASSIGNMENTS_CREATED' END,
-    actor_id,
-    jsonb_build_object(
-      'fromStatus', pa.status,
-      'toStatus', next_status,
-      'requiredItems', required_count,
-      'completedRequiredItems', completed_required_count,
-      'sourceAssignmentId', NEW.id,
-      'rollup', true
-    )
-  );
+  IF next_status = 'COMPLETED' THEN
+    INSERT INTO training_program_events(
+      tenant_id, company_id, branch_id, program_id, program_version_id,
+      program_assignment_id, event_type, actor_user_id, metadata
+    ) VALUES (
+      pa.tenant_id, pa.company_id, pa.branch_id, pa.program_id, pa.program_version_id,
+      pa.id, 'COMPLETED', actor_id,
+      jsonb_build_object(
+        'fromStatus', pa.status,
+        'toStatus', next_status,
+        'requiredItems', required_count,
+        'completedRequiredItems', completed_required_count,
+        'sourceAssignmentId', NEW.id,
+        'rollup', true
+      )
+    );
+  END IF;
 
   RETURN NEW;
 END;
