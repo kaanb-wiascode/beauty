@@ -96,7 +96,7 @@ describe('VisitCheckoutReadinessService', () => {
     expect(readiness.blockers).toEqual([]);
   });
 
-  it('warns but does not hard-block a walk-in without linked commercial context', async () => {
+  it('hard-blocks a walk-in without linked commercial context', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([
         { id: 'visit-1', status: 'CHECKOUT_PENDING', source: 'WALK_IN' },
@@ -105,9 +105,10 @@ describe('VisitCheckoutReadinessService', () => {
 
     const readiness = await service.getReadiness('visit-1');
 
-    expect(readiness.canCheckout).toBe(true);
-    expect(readiness.warnings).toEqual([
+    expect(readiness.canCheckout).toBe(false);
+    expect(readiness.blockers).toEqual([
       expect.objectContaining({ code: 'COMMERCIAL_CONTEXT_UNVERIFIED' }),
     ]);
+    expect(readiness.warnings).toEqual([]);
   });
 });
