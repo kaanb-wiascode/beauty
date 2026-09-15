@@ -1,6 +1,6 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 export type PlatformAuditRecordInput = {
   actorUserId: string;
@@ -15,6 +15,8 @@ export type PlatformAuditRecordInput = {
   metadata?: unknown;
   correlationId?: string | null;
 };
+
+type PlatformAuditQueryClient = Pick<Prisma.TransactionClient, '$queryRaw'>;
 
 const REDACTED = '[REDACTED]';
 
@@ -57,7 +59,10 @@ export function redactPlatformAuditPayload(value: unknown): unknown {
 export class PlatformAuditService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async record(input: PlatformAuditRecordInput) {
+  async record(
+    input: PlatformAuditRecordInput,
+    client?: PlatformAuditQueryClient,
+  ) {
     const actorUserId = input.actorUserId.trim();
     const resource = input.resource.trim();
     const action = input.action.trim();
@@ -77,8 +82,9 @@ export class PlatformAuditService {
     const metadata = JSON.stringify(
       redactPlatformAuditPayload(input.metadata ?? {}),
     );
+    const db: PlatformAuditQueryClient = client ?? this.prisma;
 
-    const rows = await this.prisma.$queryRaw<
+    const rows = await db.$queryRaw<
       Array<{ id: string; createdAt: Date }>
     >`
       INSERT INTO platform_audit_events (
