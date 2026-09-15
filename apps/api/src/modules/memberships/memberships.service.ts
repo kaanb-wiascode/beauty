@@ -572,4 +572,121 @@ export class MembershipsService {
       return updated;
     });
   }
+
+  async replaceBranchAccess(id: string, requestedBranchIds: string[]) {
+    const tenantId = this.getTenantId();
+    const branchIds = [...new Set(requestedBranchIds)].sort();
+
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id,
+        tenantId,
+        status: 'ACTIVE',
+      },
+      select: {
+        id: true,
+        userId: true,
+        companyId: true,
+        role: {
+          select: {
+            scope: true,
+          },
+        },
+        branchAccesses: {
+          select: {
+            branchId: true,
+          },
+        },
+      },
+    });
+
+    if (!membership) {
+      throw new NotFoundException('Membership not found');
+    }
+
+    if (membership.role.scope === 'CENTRAL') {
+      throw new BadRequestException(
+        'Central memberships do not use explicit branch assignments',
+      );
+    }
+
+    if (!membership.companyId) {
+      throw new BadRequestException(
+        'Company assignment is required before branch access can be managed',
+      );
+    }
+
+    if (membership.role.scope === 'BRANCH' && branchIds.length === 0) {
+      throw new BadRequestException(
+        'Branch-scoped memberships require at least one branch assignment',
+      );
+    }
+
+    const branches = branchIds.length
+      ? await this.prisma.branch.findMany({
+          where: {
+            id: { in: branchIds },
+            companyId: membership.companyId,
+            status: 'ACTIVE',
+            company: {
+              tenantId,
+            },
+          },
+          select: {
+            id: true,
+            name: true,
+            code: true,
+            status: true,
+          },
+        })
+      : [];
+
+    if (branches.length !== branchIds.length) {
+      throw new BadRequestException(
+        'One or more branches are outside the membership company or inactive',
+      );
+    }
+
+    const beforeBranchIds = membership.branchAccesses
+      .map((item) => item.branchId)
+      .sort();
+
+    if (
+      beforeBranchIds.length === branchIds.length &&
+      beforeBranchIds.every((branchId, index) => branchId === branchIds[index])
+    ) {
+      return branches.sort((a, b) => a.name.localeCompare(b.name));
+    }
+
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.membershipBranchAccess.deleteMany({
+        where: {
+          membershipId: membership.id,
+        },
+      });
+
+      for (const branchId of branchIds) {
+        await tx.membershipBranchAccess.create({
+          data: {
+            membershipId: membership.id,
+            branchId,
+          },
+        });
+      }
+
+      await this.recordMembershipAudit(
+        tx,
+        actorUserId,
+        'branch_access.update',
+        membership.id,
+        membership.userId,
+        { branchIds: beforeBranchIds },
+        { branchIds },
+      );
+    });
+
+    return branches.sort((a, b) => a.name.localeCompare(b.name));
+  }
 }
