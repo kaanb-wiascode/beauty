@@ -5,6 +5,8 @@ import { ExpensePaymentsController } from './expense-payments.controller';
 import { ExpensePaymentsService } from './expense-payments.service';
 import { ExpensesController } from './expenses.controller';
 import { ExpensesService } from './expenses.service';
+import { FinanceConfigurationAuditController } from './finance-configuration-audit.controller';
+import { FinanceConfigurationAuditService } from './finance-configuration-audit.service';
 import { FinanceSetupController } from './finance-setup.controller';
 import { FinanceSetupService } from './finance-setup.service';
 import { IncomeAccountingController } from './income-accounting.controller';
@@ -18,6 +20,7 @@ import { IncomeRecordsService } from './income-records.service';
   controllers: [
     ExpensesController,
     FinanceSetupController,
+    FinanceConfigurationAuditController,
     ExpenseAccountingController,
     ExpensePaymentsController,
     IncomeRecordsController,
@@ -27,6 +30,7 @@ import { IncomeRecordsService } from './income-records.service';
   providers: [
     ExpensesService,
     FinanceSetupService,
+    FinanceConfigurationAuditService,
     ExpenseAccountingService,
     ExpensePaymentsService,
     IncomeRecordsService,
@@ -36,6 +40,7 @@ import { IncomeRecordsService } from './income-records.service';
   exports: [
     ExpensesService,
     FinanceSetupService,
+    FinanceConfigurationAuditService,
     ExpenseAccountingService,
     ExpensePaymentsService,
     IncomeRecordsService,
