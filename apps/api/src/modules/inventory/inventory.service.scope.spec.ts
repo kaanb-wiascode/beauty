@@ -59,7 +59,7 @@ describe('InventoryService organization scope', () => {
 
     await service.products('serum');
 
-    const productsCall = query.mock.calls.at(-1)!;
+    const productsCall = query.mock.calls[query.mock.calls.length - 1];
     expect(String(productsCall[0])).toContain('w.branch_id=ANY($3::text[])');
     expect(String(productsCall[0])).not.toContain("branch-a'::text");
     expect(productsCall.slice(1)).toEqual([
@@ -71,7 +71,10 @@ describe('InventoryService organization scope', () => {
 
   it('blocks warehouse mutations outside assigned organization scope', async () => {
     const tx = {
-      $queryRawUnsafe: jest.fn().mockResolvedValue([]),
+      $queryRawUnsafe: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'product-a' }])
+        .mockResolvedValueOnce([]),
       $executeRawUnsafe: jest.fn(),
     };
     const prisma = {
