@@ -18,6 +18,7 @@ import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
 import { CrmInboundOptOutService } from './crm-inbound-opt-out.service';
+import { CrmLeadService } from './crm-lead.service';
 import { CrmMessageController } from './crm-message.controller';
 import { CrmMessageProviderConnectionsController } from './crm-message-provider-connections.controller';
 import { CrmMessageProviderConnectionsService } from './crm-message-provider-connections.service';
@@ -62,6 +63,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
   ],
   providers: [
     CrmService,
+    CrmLeadService,
     CrmOpportunityService,
     CrmOperationsService,
     CrmOpportunityCommercialService,
@@ -91,6 +93,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
   ],
   exports: [
     CrmService,
+    CrmLeadService,
     CrmOpportunityService,
     CrmOperationsService,
     CrmMessageService,
