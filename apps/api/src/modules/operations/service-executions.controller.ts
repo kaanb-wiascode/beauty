@@ -17,15 +17,20 @@ import {
   completeServiceExecutionSchema,
   startServiceExecutionSchema,
 } from './dto/service-execution.dto';
+import { startWalkInServiceExecutionSchema } from './dto/walk-in-service-execution.dto';
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
 import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
+import { ServiceExecutionReadService } from './service-execution-read.service';
 import { ServiceExecutionsService } from './service-executions.service';
+import { WalkInServiceExecutionsService } from './walk-in-service-executions.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 @Controller('operations/service-executions')
 export class ServiceExecutionsController {
   constructor(
     private readonly executions: ServiceExecutionsService,
+    private readonly executionRead: ServiceExecutionReadService,
+    private readonly walkInExecutions: WalkInServiceExecutionsService,
     private readonly checklists: OperationsServiceChecklistsService,
     private readonly eligibility: OperationsStaffEligibilityService,
   ) {}
@@ -34,7 +39,7 @@ export class ServiceExecutionsController {
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'read')
   listByVisit(@Param('visitId', new ParseUUIDPipe()) visitId: string) {
-    return this.executions.listByVisit(visitId);
+    return this.executionRead.listByVisit(visitId);
   }
 
   @Post('visits/:visitId/start')
@@ -47,6 +52,19 @@ export class ServiceExecutionsController {
     const input = startServiceExecutionSchema.parse(body);
     await this.eligibility.assertAppointmentExecutionEligible(input.appointmentId);
     return this.executions.start(visitId, input);
+  }
+
+  @Post('visits/:visitId/start-walk-in')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'update')
+  startWalkIn(
+    @Param('visitId', new ParseUUIDPipe()) visitId: string,
+    @Body() body: unknown,
+  ) {
+    return this.walkInExecutions.start(
+      visitId,
+      startWalkInServiceExecutionSchema.parse(body),
+    );
   }
 
   @Post(':executionId/complete')
