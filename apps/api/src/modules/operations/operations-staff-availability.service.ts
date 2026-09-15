@@ -102,7 +102,7 @@ export class OperationsStaffAvailabilityService {
          FROM operations_service_executions e
          JOIN services s ON s.id = e.service_id
          WHERE e.tenant_id = $1 AND e.branch_id = $2 AND e.staff_id = st.id
-           AND e.status = 'IN_PROGRESS'::"ServiceExecutionStatus"
+           AND e.status::text = 'IN_PROGRESS'
            AND e.started_at <= $3
            AND (e.completed_at IS NULL OR e.completed_at > $3)
          ORDER BY e.started_at DESC
@@ -114,7 +114,7 @@ export class OperationsStaffAvailabilityService {
          FROM appointments a
          JOIN services s ON s.id = a."serviceId"
          WHERE a."tenantId" = $1 AND a."branchId" = $2 AND a."staffId" = st.id
-           AND a.status NOT IN ('CANCELLED'::"AppointmentStatus", 'NO_SHOW'::"AppointmentStatus")
+           AND a.status::text NOT IN ('CANCELLED', 'NO_SHOW')
            AND a."startAt" <= $3 AND a."endAt" > $3
          ORDER BY a."startAt" ASC
          LIMIT 1
@@ -125,7 +125,7 @@ export class OperationsStaffAvailabilityService {
          FROM appointments a
          JOIN services s ON s.id = a."serviceId"
          WHERE a."tenantId" = $1 AND a."branchId" = $2 AND a."staffId" = st.id
-           AND a.status NOT IN ('CANCELLED'::"AppointmentStatus", 'NO_SHOW'::"AppointmentStatus")
+           AND a.status::text NOT IN ('CANCELLED', 'NO_SHOW')
            AND a."startAt" > $3
          ORDER BY a."startAt" ASC
          LIMIT 1
