@@ -49,7 +49,7 @@ describe('TrainingCertificateService',()=>{
   });
 
   it('uses the existing renewal engine for recertification candidates and keeps branch scope in discovery',async()=>{
-    const query=jest.fn(async()=>[{id:'cert1'},{id:'cert2'}]);
+    const query=jest.fn(async(..._args:unknown[])=>[{id:'cert1'},{id:'cert2'}]);
     const prisma={$queryRawUnsafe:query};
     const tenant={getTenantId:()=> 't1',getCompanyId:()=> 'co1',getBranchId:()=> 'b1'};
     const service=new TrainingCertificateService(prisma as any,tenant as any);
