@@ -22,13 +22,32 @@ describe('HrReportingService', () => {
     expect(result[0]).toMatchObject({ absenceRate: 10, workedMinutes: 4320, approvedLeaveDays: 1.5 });
   });
 
-  it('keeps payroll aggregate only and computes remaining salary safely', async () => {
+  it('keeps payroll aggregate scoped and computes salary and liability settlement safely', async () => {
     const queryRaw = jest.fn().mockResolvedValue([{
       periodDate: new Date('2026-09-01T00:00:00.000Z'), status: 'POSTED', employeeCount: 8,
-      gross: '800000', net: '600000', employerCost: '980000', salaryPaid: '450000', taxLiability: '90000', socialLiability: '120000',
+      gross: '800000', net: '600000', employerCost: '980000', salaryPaid: '450000',
+      taxLiability: '90000', taxPaid: '60000', socialLiability: '120000', socialPaid: '100000',
     }]);
     const result = await service(queryRaw).payroll({ from: new Date('2026-09-01'), to: new Date('2026-09-30') });
-    expect(result[0]).toMatchObject({ employeeCount: 8, net: 600000, salaryPaid: 450000, salaryRemaining: 150000, payrollSettlementRate: 75 });
+    const sql = queryRaw.mock.calls[0][0] as string;
+
+    expect(sql).toContain('sp.tenant_id=$1::text');
+    expect(sql).toContain('sp.company_id=$2::text');
+    expect(sql).toContain('plp.tenant_id=$1::text');
+    expect(sql).toContain('plp.company_id=$2::text');
+    expect(result[0]).toMatchObject({
+      employeeCount: 8,
+      net: 600000,
+      salaryPaid: 450000,
+      salaryRemaining: 150000,
+      taxLiability: 90000,
+      taxPaid: 60000,
+      taxRemaining: 30000,
+      socialLiability: 120000,
+      socialPaid: 100000,
+      socialRemaining: 20000,
+      payrollSettlementRate: 75,
+    });
     expect(result[0]).not.toHaveProperty('staffId');
     expect(result[0]).not.toHaveProperty('employeeName');
   });
