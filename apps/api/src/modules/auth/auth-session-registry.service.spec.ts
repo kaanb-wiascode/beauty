@@ -112,4 +112,79 @@ describe('AuthSessionRegistryService', () => {
     );
     expect(auditRecord).toHaveBeenCalledTimes(1);
   });
+
+  it('revokes every registered session for the current user', async () => {
+    await service.register({
+      refreshId: '00000000-0000-4000-8000-000000000010',
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-1',
+      branchId: null,
+      roleScope: 'COMPANY',
+    });
+    await service.register({
+      refreshId: '00000000-0000-4000-8000-000000000011',
+      userId: 'user-1',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-1',
+      companyId: 'company-2',
+      branchId: null,
+      roleScope: 'COMPANY',
+    });
+
+    await expect(
+      service.revokeAll({
+        actorUserId: 'user-1',
+        targetUserId: 'user-1',
+        tenantId: 'tenant-1',
+      }),
+    ).resolves.toEqual({ revokedCount: 2 });
+
+    expect(await service.list('user-1', 'tenant-1')).toHaveLength(0);
+    expect(auditRecord).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets an administrator revoke only sessions in the active company', async () => {
+    const companySession = await service.register({
+      refreshId: '00000000-0000-4000-8000-000000000020',
+      userId: 'target-user',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-company-1',
+      companyId: 'company-1',
+      branchId: null,
+      roleScope: 'COMPANY',
+    });
+    const otherCompanySession = await service.register({
+      refreshId: '00000000-0000-4000-8000-000000000021',
+      userId: 'target-user',
+      tenantId: 'tenant-1',
+      membershipId: 'membership-company-2',
+      companyId: 'company-2',
+      branchId: null,
+      roleScope: 'COMPANY',
+    });
+
+    await expect(
+      service.revokeForAdmin({
+        id: otherCompanySession.id,
+        actorUserId: 'admin-user',
+        targetUserId: 'target-user',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    await expect(
+      service.revokeForAdmin({
+        id: companySession.id,
+        actorUserId: 'admin-user',
+        targetUserId: 'target-user',
+        tenantId: 'tenant-1',
+        companyId: 'company-1',
+      }),
+    ).resolves.toEqual({ id: companySession.id, revoked: true });
+
+    expect(await service.listForCompany('target-user', 'tenant-1', 'company-2')).toHaveLength(1);
+  });
 });
