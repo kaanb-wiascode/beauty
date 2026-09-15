@@ -28,6 +28,119 @@ export class FinanceReconciliationService {
     return this.match('INCOME_COLLECTION', collectionId, bankTransactionId, actorId);
   }
 
+  async suggestExpensePayment(paymentId: string, days = 3) {
+    return this.suggest('EXPENSE_PAYMENT', paymentId, days);
+  }
+
+  async suggestIncomeCollection(collectionId: string, days = 3) {
+    return this.suggest('INCOME_COLLECTION', collectionId, days);
+  }
+
+  private async suggest(targetType: TargetType, targetId: string, days = 3) {
+    const ctx = this.context();
+    const target = await this.getTarget(targetType, targetId, ctx);
+    const expectedSignedAmount = targetType === 'EXPENSE_PAYMENT' ? -Number(target.amount) : Number(target.amount);
+    const boundedDays = Math.min(Math.max(days, 1), 14);
+
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT bt.id,bt.bank_account_id AS "bankAccountId",bt.booked_at AS "bookedAt",bt.amount,bt.currency,
+              bt.description,
+              ABS(EXTRACT(EPOCH FROM (bt.booked_at-$1::timestamptz))/86400.0) AS "dayDistance"
+       FROM bank_transactions bt
+       WHERE bt.tenant_id=$2::text AND bt.company_id=$3::text
+         AND ($4::text IS NULL OR bt.branch_id=$4::text)
+         AND bt.reconciliation_status='UNMATCHED'
+         AND bt.currency=$5
+         AND ABS(bt.amount-$6::numeric)<=0.01
+         AND bt.booked_at BETWEEN $1::timestamptz-($7::text||' days')::interval
+                             AND $1::timestamptz+($7::text||' days')::interval
+         AND NOT EXISTS (
+           SELECT 1 FROM finance_reconciliation_matches m
+           WHERE m.bank_transaction_id=bt.id AND m.reversed_at IS NULL
+         )
+       ORDER BY "dayDistance" ASC,bt.booked_at ASC
+       LIMIT 20`,
+      target.occurredAt,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      target.currency,
+      expectedSignedAmount,
+      boundedDays,
+    );
+
+    const normalizedReference = String(target.reference ?? '').trim().toLowerCase();
+    const suggestions = rows.map((row) => {
+      const dayDistance = Number(row.dayDistance ?? 99);
+      const description = String(row.description ?? '').toLowerCase();
+      let confidence = 70;
+      if (dayDistance <= 0.5) confidence += 20;
+      else if (dayDistance <= 1) confidence += 15;
+      else if (dayDistance <= 2) confidence += 10;
+      if (normalizedReference && description.includes(normalizedReference)) confidence += 10;
+      return { ...row, confidence: Math.min(confidence, 100) };
+    });
+
+    return { targetType, targetId, suggestions };
+  }
+
+  async autoMatch(actorId: string, limit = 100) {
+    const ctx = this.context();
+    const boundedLimit = Math.min(Math.max(limit, 1), 500);
+    const targets = await this.prisma.$queryRawUnsafe<Array<{ targetType: TargetType; targetId: string }>>(
+      `SELECT * FROM (
+         SELECT 'EXPENSE_PAYMENT'::text AS "targetType",ep.id AS "targetId",ep.paid_at AS occurred_at
+         FROM expense_payments ep
+         LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
+         LEFT JOIN finance_reconciliation_matches m ON m.expense_payment_id=ep.id AND m.reversed_at IS NULL
+         WHERE ep.tenant_id=$1::text AND ep.company_id=$2::text
+           AND ($3::text IS NULL OR ep.branch_id=$3::text)
+           AND r.id IS NULL AND m.id IS NULL
+         UNION ALL
+         SELECT 'INCOME_COLLECTION'::text AS "targetType",ic.id AS "targetId",ic.collected_at AS occurred_at
+         FROM income_collections ic
+         LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
+         LEFT JOIN finance_reconciliation_matches m ON m.income_collection_id=ic.id AND m.reversed_at IS NULL
+         WHERE ic.tenant_id=$1::text AND ic.company_id=$2::text
+           AND ($3::text IS NULL OR ic.branch_id=$3::text)
+           AND r.id IS NULL AND m.id IS NULL
+       ) candidates
+       ORDER BY occurred_at ASC
+       LIMIT $4`,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      boundedLimit,
+    );
+
+    let matched = 0;
+    let ambiguous = 0;
+    let noCandidate = 0;
+    let conflicted = 0;
+
+    for (const target of targets) {
+      const result = await this.suggest(target.targetType, target.targetId, 3);
+      const best = result.suggestions[0];
+      const second = result.suggestions[1];
+      if (!best) {
+        noCandidate += 1;
+        continue;
+      }
+      if (best.confidence < 90 || (second && second.confidence === best.confidence)) {
+        ambiguous += 1;
+        continue;
+      }
+      try {
+        await this.match(target.targetType, target.targetId, best.id, actorId);
+        matched += 1;
+      } catch {
+        conflicted += 1;
+      }
+    }
+
+    return { scanned: targets.length, matched, ambiguous, noCandidate, conflicted };
+  }
+
   private async match(targetType: TargetType, targetId: string, bankTransactionId: string, actorId: string) {
     const ctx = this.context();
     return this.prisma.$transaction(async (tx) => {
@@ -165,6 +278,37 @@ export class FinanceReconciliationService {
       ctx.branchId,
       Math.min(Math.max(limit, 1), 500),
     );
+  }
+
+  private async getTarget(
+    targetType: TargetType,
+    targetId: string,
+    ctx: { tenantId: string; companyId: string; branchId: string | null },
+  ) {
+    const query = targetType === 'EXPENSE_PAYMENT'
+      ? `SELECT ep.id,ep.amount,e.currency,ep.branch_id AS "branchId",ep.expense_id AS "aggregateId",
+                ep.paid_at AS "occurredAt",ep.reference
+         FROM expense_payments ep
+         JOIN expenses e ON e.id=ep.expense_id
+         LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
+         LEFT JOIN finance_reconciliation_matches m ON m.expense_payment_id=ep.id AND m.reversed_at IS NULL
+         WHERE ep.id=$1::text AND ep.tenant_id=$2::text AND ep.company_id=$3::text
+           AND ($4::text IS NULL OR ep.branch_id=$4::text) AND r.id IS NULL AND m.id IS NULL
+         LIMIT 1`
+      : `SELECT ic.id,ic.amount,i.currency,ic.branch_id AS "branchId",ic.income_record_id AS "aggregateId",
+                ic.collected_at AS "occurredAt",ic.reference
+         FROM income_collections ic
+         JOIN income_records i ON i.id=ic.income_record_id
+         LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
+         LEFT JOIN finance_reconciliation_matches m ON m.income_collection_id=ic.id AND m.reversed_at IS NULL
+         WHERE ic.id=$1::text AND ic.tenant_id=$2::text AND ic.company_id=$3::text
+           AND ($4::text IS NULL OR ic.branch_id=$4::text) AND r.id IS NULL AND m.id IS NULL
+         LIMIT 1`;
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(query, targetId, ctx.tenantId, ctx.companyId, ctx.branchId);
+    if (!rows.length) {
+      throw new NotFoundException(targetType === 'EXPENSE_PAYMENT' ? 'Unmatched active expense payment not found.' : 'Unmatched active income collection not found.');
+    }
+    return rows[0];
   }
 
   private async lockTarget(
