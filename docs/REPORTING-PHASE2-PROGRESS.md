@@ -32,7 +32,9 @@ This file records incremental Phase 2 implementation progress without replacing 
 - Export materialization reuses existing Staff/Service/Payment domain services instead of duplicating business calculations.
 - Opt-in internal worker runner controlled by `REPORT_EXPORT_WORKER_ENABLED`; no public process endpoint is exposed.
 - Worker polling and batch sizes are bounded and same-process overlapping iterations are blocked.
-- Server-controlled filesystem storage abstraction with generated keys and storage-root containment checks.
+- Report export storage is driver-based: local/dev defaults to contained filesystem storage, while `REPORT_EXPORT_STORAGE_DRIVER=object` reuses the shared private S3-compatible `ObjectStorageService` for multi-instance deployments.
+- Object-storage writes use server-generated keys and signed PUT requests; reads use signed GET requests; expiry cleanup uses authenticated DELETE requests. Client input never supplies storage URLs or storage keys.
+- Object-storage tests cover PUT/GET/DELETE integration, content type propagation, generated keys and fail-closed upload errors.
 - CSV processor pipeline: claim -> revalidate authorization -> revalidate stored payload -> materialize -> generate -> store -> mark READY/FAILED.
 - Successful jobs persist row count, storage reference, completion state and configurable retention expiry (`REPORT_EXPORT_RETENTION_DAYS`, bounded 1-365; default 7).
 - Expired READY jobs are atomically marked `EXPIRED` using `FOR UPDATE SKIP LOCKED` and their stored artifacts are deleted by the worker cleanup cycle.
@@ -50,14 +52,15 @@ This file records incremental Phase 2 implementation progress without replacing 
 - `/reports/exports` provides a permission-aware Export Center for Staff, Service and Payment reports with shared date filters, CSV queue creation, history and download actions.
 - Reports navigation exposes the Export Center only to users with `reports.read`; source-domain report choices are additionally filtered by the user's current domain permissions.
 - Shared report date validation now rejects missing, malformed and inverted date ranges before ISO conversion, preventing cleared date inputs from throwing `Invalid Date` errors in preview/export flows.
+- `.env.example` documents export storage driver, local storage directory, retention and worker enablement settings.
 
 ## Intentional implementation note
 
 `report_export_jobs` is currently created by explicit migrations and accessed through server-owned, parameterized Prisma SQL fragments. Client input is never interpolated as SQL identifiers, table names, expressions or raw query fragments.
 
-The generated Prisma schema model is intentionally not being force-written while concurrent Finance/HR/Platform development is modifying the database area on the same shared branch. A schema synchronization pass should add the corresponding Prisma model once concurrent database edits settle. Until then, do not generate future migrations that attempt to recreate or drop `report_export_jobs` based on schema drift.
+The generated Prisma schema model still requires synchronization. The active `schema.prisma` is receiving concurrent HR/Finance changes on the shared branch and the available GitHub write path replaces the complete file rather than applying a line patch, so this pass deliberately did not risk overwriting unrelated schema work. Until a safe schema patch can be applied, do not generate future migrations that attempt to recreate or drop `report_export_jobs` based on schema drift.
 
-The current filesystem storage provider is suitable as a development/default provider. A production object-storage provider should replace it before multi-instance production export delivery, while retaining the same server-generated-key and authorization rules.
+The filesystem provider remains the safe local/default option. Multi-instance deployments can now select the existing private S3-compatible object storage through `REPORT_EXPORT_STORAGE_DRIVER=object` without changing export-job semantics or exposing public storage paths.
 
 No XLSX/workbook library is currently declared in the API workspace, and CI installs with `pnpm install --frozen-lockfile`. Do not add an XLSX dependency through `package.json` alone; the workspace lockfile must be regenerated and committed atomically with that dependency before XLSX implementation is enabled.
 
@@ -65,17 +68,16 @@ The web workspace currently has no frontend test runner configured. Adding React
 
 ## Current CI note
 
-Recent monorepo quality runs validate the Prisma schema but stop during migration deployment in the unrelated Platform migration `20260915150000_platform_privileged_governance`, because that migration inserts into `platform_permissions` before that relation exists at that point in migration order. Reporting migrations are not reached in those failed runs. Do not classify Reporting CI as green until a later descendant run passes migration deployment and reaches API typecheck/tests/E2E/build.
+Recent monorepo quality runs validate the Prisma schema but have been stopping during migration deployment in the unrelated Platform migration `20260915150000_platform_privileged_governance`, because that migration inserts into `platform_permissions` before that relation exists at that point in migration order. The newest descendant workflow was still pending with no jobs at the last check. Do not classify Reporting CI as green until a descendant run passes migration deployment and reaches API typecheck/tests/E2E/build.
 
 ## Next Phase 2 increments
 
-1. Synchronize `ReportExportJob` into the active Prisma schema after concurrent database edits settle.
+1. Synchronize `ReportExportJob` into the active Prisma schema when a safe line-level schema patch or coordinated database window is available.
 2. Add XLSX workbook generation with typed numeric/date cells, column widths and metadata sheets after an XLSX dependency and lockfile are committed atomically.
 3. Add server-side PDF report generation.
 4. Add export audit events once the shared AuditLog persistence/service is implemented.
-5. Replace/default-switch filesystem storage with object storage before multi-instance production deployment.
-6. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
-7. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions when a web test runner is introduced.
+5. Move the opt-in in-process runner to a dedicated queue/worker deployment when production infrastructure is available.
+6. Add frontend tests for export-center permission filtering, polling lifecycle and download state transitions when a web test runner is introduced.
 
 ## Security invariants
 
