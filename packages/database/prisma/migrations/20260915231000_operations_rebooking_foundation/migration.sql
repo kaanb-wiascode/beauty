@@ -49,10 +49,10 @@ CREATE TABLE operations_rebookings (
     CHECK (source_appointment_id <> target_appointment_id)
 );
 
+CREATE UNIQUE INDEX operations_rebookings_source_appointment_key
+  ON operations_rebookings(source_appointment_id);
 CREATE UNIQUE INDEX operations_rebookings_target_appointment_key
   ON operations_rebookings(target_appointment_id);
-CREATE INDEX operations_rebookings_source_appointment_idx
-  ON operations_rebookings(tenant_id, branch_id, source_appointment_id);
 CREATE INDEX operations_rebookings_customer_created_idx
   ON operations_rebookings(tenant_id, branch_id, customer_id, created_at DESC);
 CREATE INDEX operations_rebookings_service_created_idx
