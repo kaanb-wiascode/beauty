@@ -20,18 +20,43 @@ const DEFAULT_PRESETS = [
   { label: "90 Gün", days: 89 },
 ] as const;
 
+const DATE_INPUT_PATTERN = /^\d{4}-\d{2}-\d{2}$/;
+
 export function reportDateInputValue(date: Date) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-export function reportRangeIsInvalid({ from, to }: ReportDateRange) {
-  return Boolean(from && to && from > to);
+function isValidDateInput(value: string) {
+  if (!DATE_INPUT_PATTERN.test(value)) return false;
+  const [year, month, day] = value.split("-").map(Number);
+  const date = new Date(year, month - 1, day);
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
 }
 
-export function reportRangeToQuery({ from, to }: ReportDateRange) {
+export function getReportRangeError({ from, to }: ReportDateRange) {
+  if (!from || !to) return "Başlangıç ve bitiş tarihleri zorunludur.";
+  if (!isValidDateInput(from) || !isValidDateInput(to)) {
+    return "Geçerli bir tarih aralığı seçin.";
+  }
+  if (from > to) return "Başlangıç tarihi bitiş tarihinden sonra olamaz.";
+  return null;
+}
+
+export function reportRangeIsInvalid(range: ReportDateRange) {
+  return getReportRangeError(range) !== null;
+}
+
+export function reportRangeToQuery(range: ReportDateRange) {
+  const error = getReportRangeError(range);
+  if (error) throw new Error(error);
+
   return {
-    from: new Date(`${from}T00:00:00`).toISOString(),
-    to: new Date(`${to}T23:59:59.999`).toISOString(),
+    from: new Date(`${range.from}T00:00:00`).toISOString(),
+    to: new Date(`${range.to}T23:59:59.999`).toISOString(),
   };
 }
 
