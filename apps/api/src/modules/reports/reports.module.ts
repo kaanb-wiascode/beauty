@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 
 import { ObjectStorageModule } from '../../common/storage/object-storage.module';
+import { CustomersModule } from '../customers/customers.module';
 import { PaymentsModule } from '../payments/payments.module';
 import { ServicesModule } from '../services/services.module';
 import { StaffModule } from '../staff/staff.module';
@@ -32,7 +33,13 @@ import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
 @Module({
-  imports: [ObjectStorageModule, StaffModule, ServicesModule, PaymentsModule],
+  imports: [
+    ObjectStorageModule,
+    CustomersModule,
+    StaffModule,
+    ServicesModule,
+    PaymentsModule,
+  ],
   controllers: [ReportsController],
   providers: [
     ReportsService,
