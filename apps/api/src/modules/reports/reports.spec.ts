@@ -160,6 +160,42 @@ describe('reporting foundation', () => {
     });
   });
 
+  it('returns stable empty table metadata and zero aggregates', async () => {
+    const { service, staffService } = createService([
+      { resource: 'reports', action: 'read' },
+      { resource: 'staff', action: 'read' },
+    ]);
+
+    jest.spyOn(staffService, 'performance').mockResolvedValue([]);
+
+    const result = await service.preview(user, {
+      reportKey: reportKeys.staffPerformance,
+      filters: {
+        from: new Date('2026-09-01T00:00:00.000Z'),
+        to: new Date('2026-09-30T23:59:59.999Z'),
+      },
+      page: 1,
+      limit: 25,
+    });
+
+    expect(result.data).toEqual([]);
+    expect(result.meta).toEqual({
+      page: 1,
+      limit: 25,
+      total: 0,
+      totalPages: 0,
+      sort: null,
+      summary: {
+        rowCount: 0,
+        appointmentCount: 0,
+        completedAppointments: 0,
+        completionRate: 0,
+        collected: 0,
+        averageCollectedPerCompleted: 0,
+      },
+    });
+  });
+
   it('does not allow preview to bypass domain permission', async () => {
     const { service } = createService([
       { resource: 'reports', action: 'read' },
