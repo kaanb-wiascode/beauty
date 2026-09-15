@@ -9,6 +9,7 @@ import { FinanceConfigurationAuditController } from './finance-configuration-aud
 import { FinanceConfigurationAuditService } from './finance-configuration-audit.service';
 import { FinanceReconciliationController } from './finance-reconciliation.controller';
 import { FinanceReconciliationService } from './finance-reconciliation.service';
+import { FinanceReportingService } from './finance-reporting.service';
 import { FinanceSetupController } from './finance-setup.controller';
 import { FinanceSetupService } from './finance-setup.service';
 import { FinancialObligationRulesService } from './financial-obligation-rules.service';
@@ -39,6 +40,7 @@ import { IncomeRecordsService } from './income-records.service';
     FinanceSetupService,
     FinanceConfigurationAuditService,
     FinanceReconciliationService,
+    FinanceReportingService,
     FinancialObligationsService,
     FinancialObligationRulesService,
     ExpenseAccountingService,
@@ -52,6 +54,7 @@ import { IncomeRecordsService } from './income-records.service';
     FinanceSetupService,
     FinanceConfigurationAuditService,
     FinanceReconciliationService,
+    FinanceReportingService,
     FinancialObligationsService,
     FinancialObligationRulesService,
     ExpenseAccountingService,
