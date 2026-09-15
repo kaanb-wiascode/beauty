@@ -6,6 +6,7 @@ import { ServicesModule } from '../services/services.module';
 import { StaffModule } from '../staff/staff.module';
 import { ReportCsvGenerator } from './report-csv.generator';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
+import { ReportExportBrandingService } from './report-export-branding.service';
 import { ReportExportDownloadService } from './report-export-download.service';
 import { ReportExportExpiryRepository } from './report-export-expiry.repository';
 import { ReportExportExpiryService } from './report-export-expiry.service';
@@ -43,6 +44,7 @@ import { ReportsService } from './reports.service';
     ReportExportExpiryRepository,
     ReportExportStaleRepository,
     ReportExportAuthorizationService,
+    ReportExportBrandingService,
     ReportExportPolicyService,
     ReportExportWorkerContextService,
     ReportExportStorageService,
