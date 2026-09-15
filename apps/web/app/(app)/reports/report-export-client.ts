@@ -9,6 +9,7 @@ export type ReportExportStatus =
   | "EXPIRED";
 
 export type ReportExportFormat = "CSV" | "PDF" | "XLSX";
+export type ReportExportColumnMode = "VISIBLE" | "ALL_PERMITTED";
 
 export type ReportExportJob = {
   id: string;
@@ -32,7 +33,9 @@ export type CreateReportExportInput = {
   format?: ReportExportFormat;
   filters: { from: string; to: string };
   columns?: readonly string[];
+  columnMode?: ReportExportColumnMode;
   sort?: { key: string; direction: "asc" | "desc" };
+  includeSummary?: boolean;
 };
 
 export function createReportExport(input: CreateReportExportInput) {
@@ -43,8 +46,9 @@ export function createReportExport(input: CreateReportExportInput) {
       format: input.format ?? "CSV",
       filters: input.filters,
       columns: input.columns,
+      columnMode: input.columnMode ?? "VISIBLE",
       sort: input.sort,
-      includeSummary: true,
+      includeSummary: input.includeSummary ?? true,
       includeCharts: false,
     },
   });
