@@ -9,6 +9,7 @@ import {
   createReportExport,
   downloadReportExport,
   listReportExports,
+  type ReportExportColumnMode,
   type ReportExportFormat,
   type ReportExportJob,
 } from "./report-export-client";
@@ -44,6 +45,8 @@ function formatDateTime(value: string) {
 export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
   const [jobs, setJobs] = useState<ReportExportJob[]>([]);
   const [format, setFormat] = useState<SupportedExportFormat>("XLSX");
+  const [columnMode, setColumnMode] = useState<ReportExportColumnMode>("VISIBLE");
+  const [includeSummary, setIncludeSummary] = useState(true);
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
@@ -66,6 +69,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
       });
       setJobs(result.data);
       setTotalPages(result.meta.totalPages);
+      setError("");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Dışa Aktarım Geçmişi Yüklenemedi.");
     } finally {
@@ -101,8 +105,10 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
         reportKey,
         format,
         filters: reportRangeToQuery(range),
-        columns,
+        columns: columnMode === "VISIBLE" ? columns : undefined,
+        columnMode,
         sort,
+        includeSummary,
       });
       setPage(1);
       await refresh();
@@ -127,30 +133,61 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
 
   return (
     <section className="overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface)]">
-      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h2 className="text-[15px] font-semibold text-[var(--ink)]">Dışa Aktarım</h2>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">PDF, Excel veya CSV dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
+      <div className="border-b border-[var(--line)] px-5 py-4">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Dışa Aktarım</h2>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">PDF, Excel veya CSV dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <select
+              value={format}
+              onChange={(event) => setFormat(event.target.value as SupportedExportFormat)}
+              className="h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-[12px] font-semibold text-[var(--ink)]"
+              aria-label="Dışa aktarım formatı"
+            >
+              <option value="PDF">PDF</option>
+              <option value="XLSX">Excel (.xlsx)</option>
+              <option value="CSV">CSV</option>
+            </select>
+            <button
+              type="button"
+              onClick={() => void createExport()}
+              disabled={creating}
+              className="h-10 rounded-xl border border-[var(--line)] bg-white px-4 text-[12px] font-semibold text-[var(--ink)] disabled:opacity-50"
+            >
+              {creating ? "Kuyruğa Alınıyor..." : `${format} Oluştur`}
+            </button>
+          </div>
         </div>
-        <div className="flex items-center gap-2">
-          <select
-            value={format}
-            onChange={(event) => setFormat(event.target.value as SupportedExportFormat)}
-            className="h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-[12px] font-semibold text-[var(--ink)]"
-            aria-label="Dışa aktarım formatı"
-          >
-            <option value="PDF">PDF</option>
-            <option value="XLSX">Excel (.xlsx)</option>
-            <option value="CSV">CSV</option>
-          </select>
-          <button
-            type="button"
-            onClick={() => void createExport()}
-            disabled={creating}
-            className="h-10 rounded-xl border border-[var(--line)] bg-white px-4 text-[12px] font-semibold text-[var(--ink)] disabled:opacity-50"
-          >
-            {creating ? "Kuyruğa Alınıyor..." : `${format} Oluştur`}
-          </button>
+
+        <div className="mt-4 flex flex-wrap items-center gap-4 text-[11px] text-[var(--muted)]">
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={`export-columns-${reportKey}`}
+              checked={columnMode === "VISIBLE"}
+              onChange={() => setColumnMode("VISIBLE")}
+            />
+            Görünen kolonlar
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="radio"
+              name={`export-columns-${reportKey}`}
+              checked={columnMode === "ALL_PERMITTED"}
+              onChange={() => setColumnMode("ALL_PERMITTED")}
+            />
+            İzin verilen tüm kolonlar
+          </label>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={includeSummary}
+              onChange={(event) => setIncludeSummary(event.target.checked)}
+            />
+            Özeti dahil et
+          </label>
         </div>
       </div>
 
