@@ -8,7 +8,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports is implemented end-to-end for personal views with requester ownership, favorites, permission revalidation and recent-use tracking.
+The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports is implemented end-to-end for personal views with requester ownership, favorites, permission revalidation and recent-use tracking. Scheduled Reports now has a secure personal persistence/API/timezone foundation; automatic due execution is intentionally pending an idempotent schedule-run ledger.
 
 ## Completed export foundation
 
@@ -77,6 +77,18 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Recent Exports reuses requester-private export history across all authorized report keys and supports READY artifact download.
 - Sharing is intentionally not enabled yet.
 
+## Scheduled Reports foundation
+
+- Persistent `report_schedules` table and separate multi-file Prisma model.
+- Personal ownership only; tenant/company/branch/owner and membership/role snapshots are derived from authenticated context and never accepted from request bodies.
+- Strict DAILY / WEEKLY / MONTHLY schedules with bounded local hour/minute, ISO weekday and monthly day 1-28 rules.
+- IANA timezone validation and timezone-aware calculation of `next_run_at`.
+- Dynamic date presets (`TODAY`, `YESTERDAY`, `LAST_7_DAYS`, `LAST_30_DAYS`, `THIS_MONTH`, `PREVIOUS_MONTH`) replace stale absolute date ranges for recurring execution.
+- Schedule create/list/get/update/delete endpoints under `/reports/schedules`.
+- Report permission, export format, exportable columns and sortable columns are revalidated against server-owned report definitions.
+- Arbitrary recipient addresses are not accepted. Delivery is DOWNLOAD_ONLY until a verified-recipient/notification model exists.
+- Automatic due execution is not enabled yet. The next increment requires an idempotent schedule-run ledger so multi-worker retries cannot create duplicate export jobs.
+
 ## Frontend
 
 - Permission-aware `/reports/exports` Export Center.
@@ -107,13 +119,15 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Storage filesystem/object-driver tests.
 - Stale worker, expiry and download tests.
 - Saved Report DTO boundary, permission-revalidation and recent-open tracking tests.
+- Scheduled Report DTO shape/scope/recipient boundary tests.
+- Scheduled Report timezone, recurring next-run and dynamic-date-preset tests.
 - Reporting HTTP/E2E coverage for queue creation, requester-private history, get-by-id and invalid requester/scope fields.
 
 ## Intentional implementation notes
 
 `report_export_jobs` is created by explicit migrations and continues to be accessed by server-owned, parameterized Prisma SQL fragments in the repository. The multi-file Prisma schema is synchronized through `prisma/reporting.prisma`.
 
-Saved Reports are deliberately personal in the first implementation. Shared/team reports require an explicit permission and ownership model before they are exposed.
+Saved Reports and Scheduled Reports are deliberately personal in the first implementation. Shared/team reports require an explicit permission and ownership model before they are exposed.
 
 The in-process worker is appropriate for the current incremental implementation. A dedicated queue/worker deployment remains the production scaling target.
 
@@ -125,23 +139,25 @@ Prisma schema validation passes. The latest observed quality pipeline stopped on
 
 ## Next Phase 2 increments
 
-1. Add export audit events when the shared AuditLog persistence/service is available.
-2. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
-3. Add scheduled reports with timezone, recipient, format and retry/history controls.
-4. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
-5. Add frontend tests for permission filtering, polling lifecycle, saved reports and download transitions when the web test runner is introduced.
-6. Continue the roadmap into drill-down/comparison and additional report domains.
+1. Add an idempotent schedule-run ledger and due-schedule worker that creates export jobs without duplicate execution across retries/workers.
+2. Add export audit events when the shared AuditLog persistence/service is available.
+3. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
+4. Add Scheduled Reports frontend management after automatic execution is wired.
+5. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
+6. Add frontend tests for permission filtering, polling lifecycle, saved reports and download transitions when the web test runner is introduced.
+7. Continue the roadmap into drill-down/comparison and additional report domains.
 
 ## Security invariants
 
 - Export permissions can never exceed preview/source-domain permissions.
 - Tenant/company/branch scope comes from authenticated context or a trusted job snapshot, never request parameters.
 - Export requester filters are derived from the authenticated principal.
-- Saved Report scope and ownership are derived from the authenticated principal.
-- Saved Reports re-evaluate current source-domain permissions before opening or mutation.
+- Saved Report and Scheduled Report scope/ownership are derived from the authenticated principal.
+- Saved Reports and Scheduled Reports re-evaluate current source-domain permissions before sensitive operations.
 - Recent Report usage timestamps are written only after permission-safe reopen.
+- Scheduled Reports do not accept arbitrary recipient addresses before a verified-recipient delivery model exists.
 - Storage keys are server-generated and never accepted from clients.
-- Unauthorized/internal columns are rejected before queueing or saving a report view.
+- Unauthorized/internal columns are rejected before queueing or saving a report view/schedule.
 - Worker authorization is re-evaluated at processing time.
 - Stored job JSON is revalidated before materialization.
 - Downloads re-evaluate current permissions and requester ownership.
