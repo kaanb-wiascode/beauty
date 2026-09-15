@@ -19,6 +19,8 @@ import { CrmController } from './crm.controller';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmInboundContactResolverService } from './crm-inbound-contact-resolver.service';
 import { CrmInboundOptOutService } from './crm-inbound-opt-out.service';
+import { CrmLeadDuplicateService } from './crm-lead-duplicate.service';
+import { CrmLeadIdentityService } from './crm-lead-identity.service';
 import { CrmLeadService } from './crm-lead.service';
 import { CrmMessageController } from './crm-message.controller';
 import { CrmMessageProviderConnectionsController } from './crm-message-provider-connections.controller';
@@ -45,62 +47,8 @@ import { TwilioSmsConnectionController } from './twilio-sms-connection.controlle
 import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
 
 @Module({
-  controllers: [
-    CrmController,
-    CrmOperationsController,
-    CrmCommercialController,
-    CrmCommunicationComplianceController,
-    CrmConversationController,
-    CrmConversationAnalyticsController,
-    CrmConversationOperationsController,
-    CrmAutomationRulesController,
-    CrmMessageController,
-    CrmMessageProviderConnectionsController,
-    TwilioSmsConnectionController,
-    ResendEmailConnectionController,
-    CrmMessageWebhookController,
-    CrmMessageWebhookHistoryController,
-    CrmUnresolvedInboundController,
-  ],
-  providers: [
-    CrmService,
-    CrmLeadService,
-    CrmAcquisitionService,
-    CrmOpportunityService,
-    CrmOperationsService,
-    CrmOpportunityCommercialService,
-    CrmCustomer360Service,
-    CrmReminderService,
-    CrmCommunicationComplianceService,
-    CrmConversationService,
-    CrmConversationAnalyticsService,
-    CrmConversationOperationsService,
-    CrmAutomationRulesService,
-    CrmAutomationService,
-    CrmAutomationMessageActionService,
-    CrmAutomationObservabilityService,
-    CrmAutomationSchedulerService,
-    CrmInboundContactResolverService,
-    CrmInboundOptOutService,
-    CrmMessageProviderRegistryService,
-    CrmMessageProviderConnectionsService,
-    CrmMessageProviderVaultService,
-    MetaWhatsAppMessageProvider,
-    TwilioSmsMessageProvider,
-    ResendEmailMessageProvider,
-    CrmMessageService,
-    CrmMessageWebhookService,
-    CrmMessageWebhookHistoryService,
-    CrmUnresolvedInboundService,
-  ],
-  exports: [
-    CrmService,
-    CrmLeadService,
-    CrmAcquisitionService,
-    CrmOpportunityService,
-    CrmOperationsService,
-    CrmMessageService,
-    CrmMessageProviderRegistryService,
-  ],
+  controllers: [CrmController,CrmOperationsController,CrmCommercialController,CrmCommunicationComplianceController,CrmConversationController,CrmConversationAnalyticsController,CrmConversationOperationsController,CrmAutomationRulesController,CrmMessageController,CrmMessageProviderConnectionsController,TwilioSmsConnectionController,ResendEmailConnectionController,CrmMessageWebhookController,CrmMessageWebhookHistoryController,CrmUnresolvedInboundController],
+  providers: [CrmService,CrmLeadService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmAcquisitionService,CrmOpportunityService,CrmOperationsService,CrmOpportunityCommercialService,CrmCustomer360Service,CrmReminderService,CrmCommunicationComplianceService,CrmConversationService,CrmConversationAnalyticsService,CrmConversationOperationsService,CrmAutomationRulesService,CrmAutomationService,CrmAutomationMessageActionService,CrmAutomationObservabilityService,CrmAutomationSchedulerService,CrmInboundContactResolverService,CrmInboundOptOutService,CrmMessageProviderRegistryService,CrmMessageProviderConnectionsService,CrmMessageProviderVaultService,MetaWhatsAppMessageProvider,TwilioSmsMessageProvider,ResendEmailMessageProvider,CrmMessageService,CrmMessageWebhookService,CrmMessageWebhookHistoryService,CrmUnresolvedInboundService],
+  exports: [CrmService,CrmLeadService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmAcquisitionService,CrmOpportunityService,CrmOperationsService,CrmMessageService,CrmMessageProviderRegistryService],
 })
 export class CrmModule {}
