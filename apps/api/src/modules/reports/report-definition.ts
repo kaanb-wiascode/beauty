@@ -26,6 +26,7 @@ export type ReportDefinition = Readonly<{
   exportableColumns: readonly string[];
   sortableColumns: readonly string[];
   exportFormats: readonly ReportExportFormat[];
+  drilldowns: readonly string[];
   pagination: boolean;
 }>;
 
@@ -74,6 +75,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'collected',
     ],
     exportFormats: ['CSV', 'XLSX', 'PDF'],
+    drilldowns: ['appointments'],
     pagination: true,
   },
   {
@@ -122,6 +124,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
       'collected',
     ],
     exportFormats: ['CSV', 'XLSX', 'PDF'],
+    drilldowns: ['appointments'],
     pagination: true,
   },
   {
@@ -162,6 +165,7 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     ],
     sortableColumns: [],
     exportFormats: ['CSV', 'XLSX', 'PDF'],
+    drilldowns: [],
     pagination: false,
   },
 ]);
