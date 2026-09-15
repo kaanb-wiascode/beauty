@@ -1,5 +1,7 @@
 import { Module } from '@nestjs/common';
 
+import { OperationsAlertsController } from './operations-alerts.controller';
+import { OperationsAlertsService } from './operations-alerts.service';
 import { OperationsAllocationService } from './operations-allocation.service';
 import { OperationsBranchChecklistsController } from './operations-branch-checklists.controller';
 import { OperationsBranchChecklistsService } from './operations-branch-checklists.service';
@@ -33,6 +35,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsServiceChecklistsController,
     OperationsBranchChecklistsController,
     OperationsIncidentsController,
+    OperationsAlertsController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -47,6 +50,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsServiceChecklistsService,
     OperationsBranchChecklistsService,
     OperationsIncidentsService,
+    OperationsAlertsService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
