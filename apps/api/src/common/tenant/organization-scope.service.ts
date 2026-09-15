@@ -18,6 +18,20 @@ export type BranchScopedWhere =
       branch: { companyId: string };
     };
 
+export type PaymentScopedWhere =
+  | {
+      tenantId: string;
+      appointment: {
+        branchId: string | { in: string[] };
+      };
+    }
+  | {
+      tenantId: string;
+      appointment: {
+        branch: { companyId: string };
+      };
+    };
+
 @Injectable()
 export class OrganizationScopeService {
   constructor(
@@ -62,6 +76,26 @@ export class OrganizationScopeService {
       tenantId,
       branchId: {
         in: [],
+      },
+    };
+  }
+
+  async getPaymentScopedWhere(): Promise<PaymentScopedWhere> {
+    const scope = await this.getBranchScopedWhere();
+
+    if ('branchId' in scope) {
+      return {
+        tenantId: scope.tenantId,
+        appointment: {
+          branchId: scope.branchId,
+        },
+      };
+    }
+
+    return {
+      tenantId: scope.tenantId,
+      appointment: {
+        branch: scope.branch,
       },
     };
   }
