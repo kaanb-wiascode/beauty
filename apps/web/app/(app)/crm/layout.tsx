@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 const CRM_NAV = [
   ["Genel Bakış", "/crm"],
   ["Potansiyel Müşteriler", "/crm/leads"],
+  ["Lead Yönlendirme", "/crm/routing"],
   ["Satış Süreci", "/crm/pipeline"],
   ["Takipler", "/crm/follow-ups"],
   ["Birleşik Inbox", "/crm/conversations"],
