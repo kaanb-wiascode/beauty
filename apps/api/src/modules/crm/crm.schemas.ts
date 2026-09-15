@@ -47,6 +47,13 @@ export const duplicateCandidateSchema = z.object({
   phone: z.string().trim().min(3).max(40).optional(), alternativePhone: z.string().trim().min(3).max(40).optional(), email: z.string().trim().email().max(254).optional(), providerContactId: externalIdentity.optional(), whatsappIdentity: externalIdentity.optional(), excludeLeadId: z.string().uuid().optional(),
 }).refine((value) => value.phone || value.alternativePhone || value.email || value.providerContactId || value.whatsappIdentity, { message: 'Duplicate search requires at least one identity signal.' });
 
+export const mergeLeadSchema = z.object({
+  targetLeadId: z.string().uuid(),
+  sourceVersion: z.coerce.number().int().min(1),
+  targetVersion: z.coerce.number().int().min(1),
+  reason: z.string().trim().min(3).max(1000),
+});
+
 export const qualifyLeadSchema = z.object({ version: z.coerce.number().int().min(1), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional() });
 export const createOpportunitySchema = z.object({ customerId: z.string().uuid(), title: z.string().trim().min(1).max(200), estimatedValue: z.coerce.number().min(0).optional(), currency: currencySchema.default('TRY'), probability: z.coerce.number().int().min(0).max(100).default(25), expectedCloseDate: z.coerce.date().optional(), ownerUserId: z.string().uuid().optional() });
 export const transitionOpportunitySchema = z.object({ version: z.coerce.number().int().min(1), stage: opportunityStageSchema, probability: z.coerce.number().int().min(0).max(100).optional(), estimatedValue: z.coerce.number().min(0).nullable().optional(), expectedCloseDate: z.coerce.date().nullable().optional(), lostReason: z.string().trim().min(1).max(1000).nullable().optional() });
@@ -58,6 +65,7 @@ export const cancelFollowUpSchema = z.object({ version: z.coerce.number().int().
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
 export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
 export type DuplicateCandidateInput = z.infer<typeof duplicateCandidateSchema>;
+export type MergeLeadInput = z.infer<typeof mergeLeadSchema>;
 export type QualifyLeadInput = z.infer<typeof qualifyLeadSchema>;
 export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>;
 export type TransitionOpportunityInput = z.infer<typeof transitionOpportunitySchema>;
