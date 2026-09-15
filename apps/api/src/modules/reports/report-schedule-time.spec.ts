@@ -1,4 +1,7 @@
-import { nextReportScheduleRun } from './report-schedule-time';
+import {
+  nextReportScheduleRun,
+  resolveReportScheduleDateRange,
+} from './report-schedule-time';
 
 describe('nextReportScheduleRun', () => {
   it('calculates the next Istanbul daily run in UTC', () => {
@@ -42,5 +45,29 @@ describe('nextReportScheduleRun', () => {
     );
 
     expect(result.toISOString()).toBe('2026-09-21T08:00:00.000Z');
+  });
+});
+
+describe('resolveReportScheduleDateRange', () => {
+  it('resolves LAST_7_DAYS using the schedule timezone', () => {
+    const range = resolveReportScheduleDateRange(
+      'LAST_7_DAYS',
+      'Europe/Istanbul',
+      new Date('2026-09-15T12:00:00.000Z'),
+    );
+
+    expect(range.from.toISOString()).toBe('2026-09-08T21:00:00.000Z');
+    expect(range.to.toISOString()).toBe('2026-09-15T20:59:59.999Z');
+  });
+
+  it('resolves the previous local month without fixed-date drift', () => {
+    const range = resolveReportScheduleDateRange(
+      'PREVIOUS_MONTH',
+      'Europe/Istanbul',
+      new Date('2026-09-15T12:00:00.000Z'),
+    );
+
+    expect(range.from.toISOString()).toBe('2026-07-31T21:00:00.000Z');
+    expect(range.to.toISOString()).toBe('2026-08-31T20:59:59.999Z');
   });
 });
