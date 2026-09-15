@@ -19,12 +19,16 @@ import {
   checkOutVisitSchema,
   transitionVisitSchema,
 } from './dto/transition-visit.dto';
+import { VisitCheckoutReadinessService } from './visit-checkout-readiness.service';
 import { VisitsService } from './visits.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 @Controller('visits')
 export class VisitsController {
-  constructor(private readonly visitsService: VisitsService) {}
+  constructor(
+    private readonly visitsService: VisitsService,
+    private readonly checkoutReadiness: VisitCheckoutReadinessService,
+  ) {}
 
   @Post('check-in')
   @UseGuards(PermissionsGuard)
@@ -38,6 +42,15 @@ export class VisitsController {
   @RequirePermission('appointments', 'read')
   async findAll(@Query() query: unknown) {
     return this.visitsService.findAll(listVisitsSchema.parse(query));
+  }
+
+  @Get(':id/checkout-readiness')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  async checkoutReadinessForVisit(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.checkoutReadiness.getReadiness(id);
   }
 
   @Get(':id')
@@ -67,9 +80,8 @@ export class VisitsController {
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
   ) {
-    return this.visitsService.checkOut(
-      id,
-      checkOutVisitSchema.parse(body),
-    );
+    const input = checkOutVisitSchema.parse(body);
+    await this.checkoutReadiness.assertCanCheckout(id);
+    return this.visitsService.checkOut(id, input);
   }
 }
