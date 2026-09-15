@@ -15,7 +15,9 @@ import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformOnboardingController } from './platform-onboarding.controller';
 import { PlatformOnboardingService } from './platform-onboarding.service';
+import { PlatformOwnerInvitationDispatcherService } from './platform-owner-invitation-dispatcher.service';
 import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
+import { PlatformOwnerInvitationWebhookProvider } from './platform-owner-invitation-webhook.provider';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformProvisioningController } from './platform-provisioning.controller';
@@ -51,6 +53,8 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformProvisioningFailureService,
     PlatformProvisioningOperationsService,
     PlatformOwnerInvitationService,
+    PlatformOwnerInvitationWebhookProvider,
+    PlatformOwnerInvitationDispatcherService,
     PlatformTenantBootstrapService,
     PlatformTenantConfigurationBootstrapService,
     PlatformOnboardingService,
@@ -74,6 +78,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformProvisioningCoordinatorService,
     PlatformProvisioningOperationsService,
     PlatformOwnerInvitationService,
+    PlatformOwnerInvitationDispatcherService,
     PlatformOnboardingService,
   ],
 })
