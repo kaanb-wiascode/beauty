@@ -11,6 +11,7 @@ import { FinanceReconciliationService } from './finance-reconciliation.service';
 
 const matchSchema = z.object({
   bankTransactionId: z.string().uuid(),
+  amount: z.coerce.number().positive().optional(),
 });
 
 const reversalSchema = z.object({
@@ -66,7 +67,7 @@ export class FinanceReconciliationController {
     @CurrentUser() user: JwtPayload,
   ) {
     const input = matchSchema.parse(body);
-    return this.service.matchExpensePayment(paymentId, input.bankTransactionId, user.sub);
+    return this.service.matchExpensePayment(paymentId, input.bankTransactionId, user.sub, input.amount);
   }
 
   @Post('income-collections/:collectionId/match')
@@ -77,7 +78,7 @@ export class FinanceReconciliationController {
     @CurrentUser() user: JwtPayload,
   ) {
     const input = matchSchema.parse(body);
-    return this.service.matchIncomeCollection(collectionId, input.bankTransactionId, user.sub);
+    return this.service.matchIncomeCollection(collectionId, input.bankTransactionId, user.sub, input.amount);
   }
 
   @Post(':matchId/reverse')
