@@ -43,12 +43,8 @@ export class OperationsBranchWorkingHoursService {
       `SELECT version FROM operations_branch_working_hours WHERE tenant_id=$1 AND company_id=$2 AND branch_id=$3 AND weekday=$4 LIMIT 1`,
       tenantId, companyId, branchId, input.weekday,
     );
-    if (current[0] && current[0].version !== input.expectedVersion) {
-      throw new ConflictException('Working-hours rule changed since it was read. Refresh and retry.');
-    }
-    if (!current[0] && input.expectedVersion !== 0) {
-      throw new ConflictException('Working-hours rule no longer matches the expected version.');
-    }
+    if (current[0] && current[0].version !== input.expectedVersion) throw new ConflictException('Working-hours rule changed since it was read. Refresh and retry.');
+    if (!current[0] && input.expectedVersion !== 0) throw new ConflictException('Working-hours rule no longer matches the expected version.');
     const rows = await this.prisma.$queryRawUnsafe<HoursRow[]>(
       `INSERT INTO operations_branch_working_hours(tenant_id,company_id,branch_id,weekday,is_closed,opens_at,closes_at,crosses_midnight,time_zone)
        VALUES($1,$2,$3,$4,$5,$6::time,$7::time,$8,$9)
@@ -73,9 +69,7 @@ export class OperationsBranchWorkingHoursService {
       `SELECT COUNT(*)::int AS count FROM operations_branch_working_hours WHERE tenant_id=$1 AND company_id=$2 AND branch_id=$3`,
       tenantId, companyId, branchId,
     );
-    if (!configured[0]?.count) {
-      return { configured: false, allowed: true, reason: 'BRANCH_HOURS_NOT_CONFIGURED' as const, rule: null };
-    }
+    if (!configured[0]?.count) return { configured: false, allowed: true, reason: 'BRANCH_HOURS_NOT_CONFIGURED' as const, rule: null };
     const rules = await this.prisma.$queryRawUnsafe<HoursRow[]>(
       `SELECT id,weekday,is_closed AS "isClosed",opens_at::text AS "opensAt",closes_at::text AS "closesAt",crosses_midnight AS "crossesMidnight",time_zone AS "timeZone",version
        FROM operations_branch_working_hours
@@ -84,17 +78,15 @@ export class OperationsBranchWorkingHoursService {
        LIMIT 1`, tenantId, companyId, branchId, input.startAt,
     );
     const rule = rules[0];
-    if (!rule || rule.isClosed || !rule.opensAt || !rule.closesAt) {
-      return { configured: true, allowed: false, reason: 'BRANCH_CLOSED' as const, rule: rule ?? null };
-    }
+    if (!rule || rule.isClosed || !rule.opensAt || !rule.closesAt) return { configured: true, allowed: false, reason: 'BRANCH_CLOSED' as const, rule: rule ?? null };
     const result = await this.prisma.$queryRawUnsafe<Array<{ allowed: boolean }>>(
-      `SELECT CASE WHEN $7::boolean THEN
-          (($4::timestamptz AT TIME ZONE $6)::time >= $5::time OR ($4::timestamptz AT TIME ZONE $6)::time < $8::time)
-          AND (($9::timestamptz AT TIME ZONE $6)::time > $5::time OR ($9::timestamptz AT TIME ZONE $6)::time <= $8::time)
+      `SELECT CASE WHEN $4::boolean THEN
+          (($1::timestamptz AT TIME ZONE $3)::time >= $2::time OR ($1::timestamptz AT TIME ZONE $3)::time < $5::time)
+          AND (($6::timestamptz AT TIME ZONE $3)::time > $2::time OR ($6::timestamptz AT TIME ZONE $3)::time <= $5::time)
         ELSE
-          (($4::timestamptz AT TIME ZONE $6)::time >= $5::time AND ($9::timestamptz AT TIME ZONE $6)::time <= $8::time)
+          (($1::timestamptz AT TIME ZONE $3)::time >= $2::time AND ($6::timestamptz AT TIME ZONE $3)::time <= $5::time)
         END AS allowed`,
-      tenantId, companyId, branchId, input.startAt, rule.opensAt, rule.timeZone, rule.crossesMidnight, rule.closesAt, input.endAt,
+      input.startAt, rule.opensAt, rule.timeZone, rule.crossesMidnight, rule.closesAt, input.endAt,
     );
     return { configured: true, allowed: Boolean(result[0]?.allowed), reason: result[0]?.allowed ? 'WITHIN_BRANCH_HOURS' as const : 'OUTSIDE_BRANCH_HOURS' as const, rule };
   }
