@@ -8,9 +8,9 @@ This document tracks implementation progress conservatively. A phase is not cons
 
 ## Overall estimate
 
-Current implementation estimate: **~97%** of the Operations roadmap.
+Current implementation estimate: **~98%** of the Operations roadmap.
 
-The remaining work is concentrated in walk-in depth, broader operational tasks, precise permissions, strict transaction-bound configuration revalidation and full branch-wide CI/E2E verification.
+The remaining work is concentrated in broader operational tasks, precise permissions, strict transaction-bound configuration revalidation, walk-in inventory-posting depth and full branch-wide CI/E2E verification.
 
 ## Phase 1 — Visit & Operational Lifecycle
 
@@ -25,10 +25,13 @@ Implemented:
 - Checkout readiness and authoritative blockers for payment/package/commercial context.
 - Backend checkout guard.
 - Long-wait/checkout exception signals.
+- Walk-in Visit commercial linkage to confirmed same-customer/same-branch Sale context.
+- Walk-in checkout readiness derived from Sale/SalePayment state with outstanding-balance warning semantics.
+- Appointmentless walk-in ServiceExecution linked to immutable commercial context + SaleItem.
+- Database guard requiring completed walk-in execution and no active execution before SERVICE_COMPLETED.
 
 Still open:
 
-- Full walk-in commercial/service-execution linkage.
 - Formal idempotency-key coverage on every Visit mutation.
 - Full lifecycle E2E suite on the current branch HEAD.
 
@@ -51,6 +54,7 @@ Implemented:
 - Branch-configurable Operations eligibility policy with OFF/WARN/BLOCK modes.
 - ServiceExecution start revalidates staff eligibility before physical execution begins.
 - Explicit branch working-hours source with weekday/open/closed/cross-midnight/time-zone rules.
+- Walk-in execution directly validates required room/equipment availability without creating a synthetic Appointment.
 
 Still open:
 
@@ -77,13 +81,16 @@ Implemented:
 - Serializable staff handoff with optimistic assignment versioning and append-only execution events.
 - Handoff target eligibility validation against Operations OFF/WARN/BLOCK policy.
 - Controlled IN_PROGRESS cancellation with reason snapshot, optimistic versioning and immutable correction audit.
-- Controlled COMPLETED reversal to CANCELLED only before Appointment completion and before Inventory consumption posting.
-- Correction actions close active staff assignments and preserve the prior execution as auditable history before a restart.
+- Controlled COMPLETED reversal to CANCELLED only before downstream Appointment/Inventory posting.
+- Correction actions close active staff assignments and preserve prior execution as auditable history before restart.
 - Service Execution UI includes active assignment history, assistant assignment, responsibility handoff and controlled cancel/reversal actions.
+- Appointmentless walk-in execution source invariant: execution is either Appointment-backed or CommercialContext/SaleItem-backed.
+- Walk-in execution supports staff eligibility, Service duration, room/device requirements, checklist, multi-staff handoff, correction and unified Visit read-model.
+- Walk-in execution UI can link a confirmed Sale and start the selected service line without generating a synthetic Appointment.
 
 Still open:
 
-- Walk-in ServiceExecution completion model.
+- Explicit walk-in consumable inventory-posting handoff verification beyond the current ServiceExecution reference read-model.
 - Deeper Training/Quality reference integration for SOP templates.
 
 ## Phase 4 — Capacity, Waitlist & Recovery
@@ -186,7 +193,7 @@ Do **not** interpret a pending, in-progress or superseded run as a successful va
 ## Remaining highest-priority work
 
 1. Verify a current branch HEAD through the complete quality workflow.
-2. Complete walk-in ServiceExecution/commercial linkage.
+2. Verify/complete walk-in consumable inventory posting using ServiceExecution as the commercial execution reference.
 3. Expand lightweight Operational Tasks beyond opening/closing.
 4. Move waitlist branch-hours/eligibility revalidation into the serializable acceptance transaction.
 5. Complete roadmap E2E scenarios and permission refinement.
