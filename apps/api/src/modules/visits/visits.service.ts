@@ -23,7 +23,7 @@ import {
   VisitStatus,
 } from './visit-lifecycle';
 
-interface VisitRow {
+export interface VisitRow {
   id: string;
   tenantId: string;
   companyId: string;
@@ -46,11 +46,11 @@ interface VisitRow {
   updatedAt: Date;
 }
 
-interface VisitListRow extends VisitRow {
+export interface VisitListRow extends VisitRow {
   appointmentIds: string[];
 }
 
-interface VisitEventRow {
+export interface VisitEventRow {
   id: string;
   visitId: string;
   actorMembershipId: string;
