@@ -20,6 +20,9 @@ type ServiceExecution = {
   note: string | null;
   completionNote: string | null;
   version: number;
+  appointmentStatus: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW" | null;
+  packageSessionId: string | null;
+  packageSessionStatus: "AVAILABLE" | "RESERVED" | "CONSUMED" | "CANCELLED" | null;
 };
 
 export function ServiceExecutionPanel({
@@ -89,6 +92,16 @@ export function ServiceExecutionPanel({
       ),
     );
 
+  const handoffsCompleted =
+    allCompleted &&
+    executions
+      .filter((execution) => execution.status === "COMPLETED")
+      .every(
+        (execution) =>
+          execution.appointmentStatus === "COMPLETED" &&
+          (!execution.packageSessionId || execution.packageSessionStatus === "CONSUMED"),
+      );
+
   async function startExecution() {
     const appointmentId = selectedAppointmentId || executableAppointmentIds[0];
     if (!appointmentId || !canUpdate) return;
@@ -111,7 +124,7 @@ export function ServiceExecutionPanel({
 
   async function completeExecution(execution: ServiceExecution) {
     if (!canUpdate) return;
-    setBusyId(execution.id);
+    setBusyId(`execution:${execution.id}`);
     setError("");
     try {
       await api(`/operations/service-executions/${execution.id}/complete`, {
@@ -128,8 +141,53 @@ export function ServiceExecutionPanel({
     }
   }
 
+  async function completeAppointment(execution: ServiceExecution) {
+    if (!canUpdate || execution.status !== "COMPLETED") return;
+    setBusyId(`appointment:${execution.id}`);
+    setError("");
+    try {
+      await api(
+        `/operations/service-executions/${execution.id}/complete-appointment`,
+        { method: "POST" },
+      );
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Randevu tamamlanamadı.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function consumePackageSession(execution: ServiceExecution) {
+    if (
+      !canUpdate ||
+      execution.appointmentStatus !== "COMPLETED" ||
+      !execution.packageSessionId ||
+      execution.packageSessionStatus !== "RESERVED"
+    ) {
+      return;
+    }
+
+    setBusyId(`session:${execution.packageSessionId}`);
+    setError("");
+    try {
+      await api(`/sessions/${execution.packageSessionId}/consume`, {
+        method: "POST",
+      });
+      await load();
+    } catch (err) {
+      setError(
+        err instanceof ApiError ? err.message : "Paket seansı tüketilemedi.",
+      );
+    } finally {
+      setBusyId(null);
+    }
+  }
+
   async function completeVisitService() {
-    if (!canUpdate || !allCompleted) return;
+    if (!canUpdate || !handoffsCompleted) return;
     setBusyId(`visit:${visit.id}`);
     setError("");
     try {
@@ -160,12 +218,16 @@ export function ServiceExecutionPanel({
             Service Execution
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Fiziksel hizmet icrası Appointment durumundan ve paket Session tüketiminden ayrı kaydedilir.
+            Fiziksel hizmet, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
           </p>
         </div>
-        {allCompleted ? (
+        {handoffsCompleted ? (
           <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[#2d6a49]">
-            Tüm hizmetler tamamlandı
+            Checkout için hizmet akışı hazır
+          </span>
+        ) : allCompleted ? (
+          <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">
+            Handoff bekleniyor
           </span>
         ) : null}
       </div>
@@ -185,29 +247,77 @@ export function ServiceExecutionPanel({
           {executions.map((execution) => (
             <div
               key={execution.id}
-              className="flex flex-col gap-3 rounded-[14px] bg-[var(--surface-2)] p-3 sm:flex-row sm:items-center sm:justify-between"
+              className="rounded-[14px] bg-[var(--surface-2)] p-3"
             >
-              <div>
-                <p className="text-xs font-semibold text-[var(--ink)]">
-                  Randevu {execution.appointmentId.slice(0, 8)}
-                </p>
-                <p className="mt-1 text-[11px] text-[var(--muted)]">
-                  {execution.status === "IN_PROGRESS"
-                    ? "Hizmet devam ediyor"
-                    : execution.status === "COMPLETED"
-                      ? "Hizmet tamamlandı"
-                      : "Hizmet iptal edildi"}
-                  {execution.roomId ? ` · Oda ${execution.roomId.slice(0, 8)}` : ""}
-                  {execution.assetId ? ` · Cihaz ${execution.assetId.slice(0, 8)}` : ""}
-                </p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-xs font-semibold text-[var(--ink)]">
+                    Randevu {execution.appointmentId.slice(0, 8)}
+                  </p>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">
+                    {execution.status === "IN_PROGRESS"
+                      ? "Hizmet devam ediyor"
+                      : execution.status === "COMPLETED"
+                        ? "Hizmet tamamlandı"
+                        : "Hizmet iptal edildi"}
+                    {execution.roomId ? ` · Oda ${execution.roomId.slice(0, 8)}` : ""}
+                    {execution.assetId ? ` · Cihaz ${execution.assetId.slice(0, 8)}` : ""}
+                  </p>
+                </div>
+                {execution.status === "IN_PROGRESS" && canUpdate ? (
+                  <Button
+                    disabled={busyId === `execution:${execution.id}`}
+                    onClick={() => void completeExecution(execution)}
+                  >
+                    {busyId === `execution:${execution.id}`
+                      ? "Tamamlanıyor..."
+                      : "Hizmeti Tamamla"}
+                  </Button>
+                ) : null}
               </div>
-              {execution.status === "IN_PROGRESS" && canUpdate ? (
-                <Button
-                  disabled={busyId === execution.id}
-                  onClick={() => void completeExecution(execution)}
-                >
-                  {busyId === execution.id ? "Tamamlanıyor..." : "Hizmeti Tamamla"}
-                </Button>
+
+              {execution.status === "COMPLETED" ? (
+                <div className="mt-3 flex flex-col gap-3 border-t border-[var(--line)] pt-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="text-[11px] text-[var(--muted)]">
+                    <p>
+                      Randevu: {execution.appointmentStatus === "COMPLETED" ? "Tamamlandı" : execution.appointmentStatus ?? "Bilinmiyor"}
+                    </p>
+                    {execution.packageSessionId ? (
+                      <p className="mt-1">
+                        Paket seansı: {execution.packageSessionStatus === "CONSUMED" ? "Tüketildi" : execution.packageSessionStatus ?? "Bilinmiyor"}
+                      </p>
+                    ) : (
+                      <p className="mt-1">Paket seansı: Yok</p>
+                    )}
+                  </div>
+                  {canUpdate ? (
+                    <div className="flex flex-wrap gap-2">
+                      {execution.appointmentStatus !== "COMPLETED" ? (
+                        <Button
+                          variant="secondary"
+                          disabled={Boolean(busyId)}
+                          onClick={() => void completeAppointment(execution)}
+                        >
+                          {busyId === `appointment:${execution.id}`
+                            ? "Randevu Tamamlanıyor..."
+                            : "Randevuyu Tamamla"}
+                        </Button>
+                      ) : null}
+                      {execution.appointmentStatus === "COMPLETED" &&
+                      execution.packageSessionId &&
+                      execution.packageSessionStatus === "RESERVED" ? (
+                        <Button
+                          disabled={Boolean(busyId)}
+                          onClick={() => void consumePackageSession(execution)}
+                        >
+                          {busyId === `session:${execution.packageSessionId}`
+                            ? "Seans Tüketiliyor..."
+                            : "Paket Seansını Tüket"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
               ) : null}
             </div>
           ))}
@@ -243,7 +353,13 @@ export function ServiceExecutionPanel({
             </div>
           ) : null}
 
-          {allCompleted && visit.status === "IN_SERVICE" && canUpdate ? (
+          {allCompleted && !handoffsCompleted ? (
+            <p className="rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
+              Ziyaret hizmetini tamamlamadan önce her hizmet için randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
+            </p>
+          ) : null}
+
+          {handoffsCompleted && visit.status === "IN_SERVICE" && canUpdate ? (
             <div className="flex justify-end">
               <Button
                 disabled={busyId === `visit:${visit.id}`}
