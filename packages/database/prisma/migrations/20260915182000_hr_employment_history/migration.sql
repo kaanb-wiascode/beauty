@@ -24,7 +24,7 @@ CREATE INDEX IF NOT EXISTS hr_employment_history_branch_idx ON hr_employment_his
 CREATE UNIQUE INDEX IF NOT EXISTS hr_employment_history_active_idx ON hr_employment_history(tenant_id,staff_id) WHERE effective_to IS NULL;
 
 INSERT INTO hr_employment_history(id,tenant_id,company_id,branch_id,staff_id,event_type,effective_from,employment_type,gross_salary,salary_type,reason,metadata)
-SELECT 'employment-' || emr.staff_id,emr.tenant_id,b.company_id,emr.branch_id,emr.staff_id,'HIRED',COALESCE(emr.hire_date,s."createdAt"::date),emr.employment_type,emr.gross_salary,emr.salary_type,'INITIAL_BACKFILL','{}'::jsonb
+SELECT 'employment-' || emr.staff_id,emr.tenant_id,b."companyId",emr.branch_id,emr.staff_id,'HIRED',COALESCE(emr.hire_date,s."createdAt"::date),emr.employment_type,emr.gross_salary,emr.salary_type,'INITIAL_BACKFILL','{}'::jsonb
 FROM employee_master_records emr JOIN branches b ON b.id=emr.branch_id JOIN staff s ON s.id=emr.staff_id
 WHERE NOT EXISTS (SELECT 1 FROM hr_employment_history h WHERE h.tenant_id=emr.tenant_id AND h.staff_id=emr.staff_id)
 ON CONFLICT DO NOTHING;
