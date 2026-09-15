@@ -11,7 +11,9 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { AppointmentReportingService } from '../appointments/appointment-reporting.service';
 import { CustomerReportingService } from '../customers/customer-reporting.service';
 import { FinanceReportingService } from '../finance/finance-reporting.service';
+import { InventoryReportingService } from '../inventory/inventory-reporting.service';
 import { PaymentsService } from '../payments/payments.service';
+import { ProcurementReportingService } from '../procurement/procurement-reporting.service';
 import { SalesReportingService } from '../sales/sales-reporting.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
@@ -37,6 +39,8 @@ export class ReportsService {
     private readonly salesReporting: SalesReportingService,
     private readonly appointmentReporting: AppointmentReportingService,
     private readonly financeReporting: FinanceReportingService,
+    private readonly inventoryReporting: InventoryReportingService,
+    private readonly procurementReporting: ProcurementReportingService,
     private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
@@ -196,6 +200,30 @@ export class ReportsService {
       };
     }
 
+    if (definition.key === reportKeys.inventoryPerformance) {
+      const rows = await this.inventoryReporting.performance(input.filters);
+      const sorted = this.sortRows(rows, prepared.sort);
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildInventorySummary(rows) : null,
+      };
+    }
+
+    if (definition.key === reportKeys.procurementPerformance) {
+      const rows = await this.procurementReporting.performance(input.filters);
+      const sorted = this.sortRows(rows, prepared.sort);
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildProcurementSummary(rows) : null,
+      };
+    }
+
     const summary = await this.paymentsService.summary(input.filters);
     return {
       reportKey: prepared.reportKey,
@@ -307,6 +335,28 @@ export class ReportsService {
         rows,
         input,
         this.buildFinanceSummary(rows),
+      );
+    }
+
+    if (definition.key === reportKeys.inventoryPerformance) {
+      const rows = await this.inventoryReporting.performance(input.filters);
+      return this.buildTablePreview(
+        definition,
+        columns,
+        rows,
+        input,
+        this.buildInventorySummary(rows),
+      );
+    }
+
+    if (definition.key === reportKeys.procurementPerformance) {
+      const rows = await this.procurementReporting.performance(input.filters);
+      return this.buildTablePreview(
+        definition,
+        columns,
+        rows,
+        input,
+        this.buildProcurementSummary(rows),
       );
     }
 
@@ -575,6 +625,34 @@ export class ReportsService {
       paymentRate: payableAmount
         ? Math.round((paid / payableAmount) * 100)
         : 0,
+    };
+  }
+
+  private buildInventorySummary(rows: readonly Record<string, unknown>[]) {
+    const movementCount = rows.reduce((t, r) => t + this.numberValue(r.movementCount), 0);
+    const quantity = rows.reduce((t, r) => t + this.numberValue(r.quantity), 0);
+    const movementValue = rows.reduce((t, r) => t + this.numberValue(r.movementValue), 0);
+    return {
+      rowCount: rows.length,
+      movementCount,
+      quantity,
+      movementValue,
+    };
+  }
+
+  private buildProcurementSummary(rows: readonly Record<string, unknown>[]) {
+    const orderCount = rows.reduce((t, r) => t + this.numberValue(r.orderCount), 0);
+    const totalAmount = rows.reduce((t, r) => t + this.numberValue(r.totalAmount), 0);
+    const itemCount = rows.reduce((t, r) => t + this.numberValue(r.itemCount), 0);
+    const receivedCount = rows.reduce((t, r) => t + this.numberValue(r.receivedCount), 0);
+    return {
+      rowCount: rows.length,
+      orderCount,
+      totalAmount,
+      itemCount,
+      receivedCount,
+      receiptRate: orderCount ? Math.round((receivedCount / orderCount) * 100) : 0,
+      averageOrderValue: orderCount ? totalAmount / orderCount : 0,
     };
   }
 
