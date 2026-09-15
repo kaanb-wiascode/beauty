@@ -10,6 +10,7 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PaymentsService } from '../payments/payments.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
+import type { ReportExportInput } from './dto/report-export.dto';
 import type { ReportPreviewInput } from './dto/report-preview.dto';
 import {
   getReportDefinition,
@@ -35,10 +36,7 @@ export class ReportsService {
         roleId: user.roleId,
         role: {
           tenantId: user.tenantId,
-          OR: [
-            { companyId: null },
-            { companyId: user.companyId },
-          ],
+          OR: [{ companyId: null }, { companyId: user.companyId }],
         },
       },
       select: {
@@ -53,8 +51,7 @@ export class ReportsService {
 
     const granted = new Set(
       rolePermissions.map(
-        ({ permission }) =>
-          `${permission.resource}:${permission.action}`,
+        ({ permission }) => `${permission.resource}:${permission.action}`,
       ),
     );
 
@@ -65,22 +62,37 @@ export class ReportsService {
     );
   }
 
+  async prepareExport(
+    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
+    input: ReportExportInput,
+  ) {
+    const definition = await this.authorizeDefinition(user, input.reportKey);
+
+    if (!definition.exportFormats.includes(input.format)) {
+      throw new BadRequestException(
+        `Unsupported report export format: ${input.format}`,
+      );
+    }
+
+    const columns = this.resolveExportColumns(definition, input.columns);
+    this.validateSort(definition, input.sort?.key);
+
+    return {
+      reportKey: definition.key,
+      format: input.format,
+      filters: input.filters,
+      columns,
+      sort: input.sort ?? null,
+      includeSummary: input.includeSummary,
+      includeCharts: input.includeCharts,
+    };
+  }
+
   async preview(
     user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
     input: ReportPreviewInput,
   ) {
-    const definition = getReportDefinition(input.reportKey);
-    if (!definition) {
-      throw new BadRequestException('Unsupported report');
-    }
-
-    const catalog = await this.getCatalog(user);
-    if (!catalog.some((report) => report.key === definition.key)) {
-      throw new ForbiddenException(
-        'You do not have permission to view this report',
-      );
-    }
-
+    const definition = await this.authorizeDefinition(user, input.reportKey);
     const columns = this.resolveColumns(definition, input.columns);
     this.validateSort(definition, input.sort?.key);
 
@@ -136,6 +148,25 @@ export class ReportsService {
     };
   }
 
+  private async authorizeDefinition(
+    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
+    reportKey: ReportPreviewInput['reportKey'],
+  ) {
+    const definition = getReportDefinition(reportKey);
+    if (!definition) {
+      throw new BadRequestException('Unsupported report');
+    }
+
+    const catalog = await this.getCatalog(user);
+    if (!catalog.some((report) => report.key === definition.key)) {
+      throw new ForbiddenException(
+        'You do not have permission to view this report',
+      );
+    }
+
+    return definition;
+  }
+
   private resolveColumns(
     definition: ReportDefinition,
     requested?: readonly string[],
@@ -157,14 +188,30 @@ export class ReportsService {
     return columns;
   }
 
-  private validateSort(
+  private resolveExportColumns(
     definition: ReportDefinition,
-    sortKey?: string,
+    requested?: readonly string[],
   ) {
-    if (
-      sortKey &&
-      !definition.sortableColumns.includes(sortKey)
-    ) {
+    const defaults = definition.defaultColumns.filter((column) =>
+      definition.exportableColumns.includes(column),
+    );
+    const columns = requested?.length ? [...new Set(requested)] : defaults;
+
+    const invalid = columns.filter(
+      (column) => !definition.exportableColumns.includes(column),
+    );
+
+    if (invalid.length) {
+      throw new BadRequestException(
+        `Unsupported report export columns: ${invalid.join(', ')}`,
+      );
+    }
+
+    return columns;
+  }
+
+  private validateSort(definition: ReportDefinition, sortKey?: string) {
+    if (sortKey && !definition.sortableColumns.includes(sortKey)) {
       throw new BadRequestException(
         `Unsupported report sort: ${sortKey}`,
       );
@@ -210,9 +257,7 @@ export class ReportsService {
     };
   }
 
-  private buildAggregateSummary(
-    rows: readonly Record<string, unknown>[],
-  ) {
+  private buildAggregateSummary(rows: readonly Record<string, unknown>[]) {
     const appointmentCount = rows.reduce(
       (total, row) => total + this.numberValue(row.appointmentCount),
       0,
