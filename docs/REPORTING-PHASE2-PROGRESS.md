@@ -8,12 +8,12 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared reporting/export foundation is implemented for Staff Performance, Service Performance and Payment Summary. CSV, XLSX and PDF generation are active. Saved Reports, favorites, Recent Reports and Recent Exports are implemented for personal use. Scheduled Reports has persistence, API management, timezone-aware recurrence, idempotent automatic execution, personal run history and a dedicated frontend workspace. Previous-period comparison is now available for all current report definitions.
+The shared reporting/export foundation is implemented for Staff Performance, Service Performance and Payment Summary. CSV, XLSX and PDF generation are active. Saved Reports, favorites, Recent Reports and Recent Exports are implemented for personal use. Scheduled Reports has persistence, API management, timezone-aware recurrence, idempotent automatic execution, personal run history and a dedicated frontend workspace. Previous-period comparison is available for all current report definitions. A scoped appointment drill-down backend is now available for Staff Performance and Service Performance.
 
 ## Reporting / export foundation
 
-- Server-owned report definitions, report keys, columns, sort fields, export formats and layered source-domain permissions.
-- Strict date/filter/export DTOs. Client requests cannot supply tenant/company/branch scope, storage keys, requester identity, SQL or arbitrary Prisma selections.
+- Server-owned report definitions, report keys, columns, sort fields, export formats, drill-down capabilities and layered source-domain permissions.
+- Strict date/filter/export/drill-down DTOs. Client requests cannot supply tenant/company/branch scope, storage keys, requester identity, SQL or arbitrary Prisma selections.
 - Permission-aware report catalog and centralized preview orchestration.
 - Persistent `report_export_jobs` queue with authenticated scope and membership/role snapshots.
 - Export lifecycle: `QUEUED`, `PROCESSING`, `READY`, `FAILED`, `EXPIRED`.
@@ -39,7 +39,18 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Only finite numeric summary values are exposed as comparison metrics.
 - Each metric includes current, previous, absolute delta and percentage delta; percentage is `null` when the previous value is zero.
 - `/reports/compare` provides a dedicated frontend workspace using the authoritative permission-aware report catalog.
-- Drill-down remains intentionally separate until a real child-scope/detail-query contract is implemented; no fake drill-down capability is advertised.
+
+## Drill-down
+
+- `POST /reports/drilldown` accepts only server-defined report keys, the `appointments` dimension, a UUID row identity, the existing date range and bounded pagination.
+- Staff Performance drill-down first validates the requested staff entity through the existing branch-scoped Staff service before querying child appointments.
+- Service Performance drill-down first validates the requested service entity through the existing branch-scoped Services service before querying child appointments.
+- Child appointment queries are additionally constrained by authenticated `tenantId`, the validated entity id and the requested report period.
+- Current source-domain permissions are re-evaluated through the authoritative report catalog before child rows are queried.
+- Returned child rows expose only appointment timing/status and payment amount/status; customer identity, notes and other sensitive fields are not included.
+- Report definitions now advertise `drilldowns: ['appointments']` only for Staff and Service Performance. Payment Summary deliberately advertises no drill-down capability until a separate sensitive payment-detail permission model exists.
+- Arbitrary dimensions, tenant/company/branch overrides, Prisma selections and raw query controls are rejected.
+- Frontend row-key plumbing/detail drawer remains the next drill-down increment; the backend contract is complete and permission-safe.
 
 ## Export formats
 
@@ -114,6 +125,7 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Dedicated `/reports/schedules` workspace is linked from Reports navigation.
 - Dedicated `/reports/compare` workspace compares current KPI aggregates with the server-computed previous period.
 - Schedule creation uses permission-aware report catalog, report-owned export formats, exportable columns and current report sort contract.
+- Drill-down frontend row actions/detail drawer are pending; backend capabilities are already server-advertised.
 
 ## Tests / safety coverage
 
@@ -121,6 +133,8 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Scope-bypass and DTO validation tests.
 - Comparison DTO rejects scope overrides and arbitrary previous periods.
 - Comparison service tests equal-length previous-period calculation, absolute deltas and zero-baseline percentage handling.
+- Drill-down DTO tests reject unsupported reports/dimensions and arbitrary scope/query controls.
+- Drill-down service tests permission revocation, parent entity scope validation and tenant-scoped child appointment queries.
 - Public presenter metadata-leak tests.
 - Worker authorization, stored-payload, stale-worker, expiry, storage and download tests.
 - CSV/XLSX/PDF generator tests.
@@ -137,7 +151,7 @@ Prisma schema validation passes. The latest observed quality run reaches migrati
 
 ## Next Phase 2 increments
 
-1. Implement a real drill-down contract with server-controlled child dimensions/detail scope.
+1. Wire server-owned drill-down row identities into report preview and add the frontend detail drawer.
 2. Add export/schedule audit events when the shared AuditLog service is available.
 3. Add an authoritative brand asset model and embedded Unicode font support before enabling true Unicode/logo PDF rendering.
 4. Add verified-recipient delivery only after the platform notification/recipient model exists.
@@ -147,9 +161,10 @@ Prisma schema validation passes. The latest observed quality run reaches migrati
 
 ## Security invariants
 
-- Report/export permissions can never exceed current source-domain permissions.
+- Report/export/drill-down permissions can never exceed current source-domain permissions.
 - Tenant/company/branch and ownership come from authenticated context/trusted snapshots, never client scope parameters.
 - Previous-period comparison ranges are derived server-side; callers cannot inject a second arbitrary scope/range.
+- Drill-down dimensions are server allow-listed and child rows are constrained by authenticated tenant plus a scope-validated parent entity.
 - PDF company/branch branding is resolved from authenticated server context, never arbitrary client strings.
 - Storage keys and scheduled-run idempotency keys are server-generated only.
 - Unauthorized/internal columns cannot reappear through saved reports, schedules or exports.
