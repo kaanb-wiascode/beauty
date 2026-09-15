@@ -8,7 +8,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared reporting/export foundation is implemented for Staff Performance, Service Performance and Payment Summary. CSV, XLSX and PDF generation are active. Saved Reports, favorites, Recent Reports and Recent Exports are implemented for personal use. Scheduled Reports has persistence, API management, timezone-aware recurrence, idempotent automatic execution, personal run history and a dedicated frontend workspace. Previous-period comparison is available for all current report definitions. Scoped appointment drill-down is available end-to-end for Staff Performance and Service Performance.
+The shared reporting/export foundation is implemented for Staff Performance, Service Performance, Payment Summary and Customer Performance. CSV, XLSX and PDF generation are active. Saved Reports, favorites, Recent Reports and Recent Exports are implemented for personal use. Scheduled Reports has persistence, API management, timezone-aware recurrence, idempotent automatic execution, personal run history and a dedicated frontend workspace. Previous-period comparison is available for all current report definitions. Scoped appointment drill-down is available end-to-end for Staff Performance and Service Performance.
 
 ## Reporting / export foundation
 
@@ -29,6 +29,17 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Workload guards: bounded active requester jobs and materialized row limits.
 - Export Center supports visible columns vs server-owned all-permitted columns and optional summary output.
 
+## Customer Performance
+
+- `customers.performance` is the first new domain report added after the shared Reporting foundation.
+- It consumes a dedicated `CustomerReportingService` in the Customers domain rather than embedding customer business queries in the Reporting module.
+- Customer and appointment reads reuse `OrganizationScopeService.getBranchScopedWhere()` so tenant/company/branch restrictions remain source-domain owned.
+- Current output includes customer name, acquisition source, customer-since date, visit counts, completed visits, first/last completed visit, collected revenue and average collected value per completed visit.
+- Phone, email, birth date, health data, consent data and care notes are deliberately excluded from the initial report contract and exports.
+- The report requires both `reports.read` and `customers.read`.
+- Customer Performance is available through normal preview, CSV/XLSX/PDF export, Saved Reports, Scheduled Reports and previous-period comparison contracts.
+- `/reports/customers` provides the initial customer reporting workspace with KPI cards, date filtering, server-side sorting/pagination and PII-minimized rows.
+
 ## Period comparison
 
 - `POST /reports/compare` provides permission-safe aggregate KPI comparison for the current report set.
@@ -48,10 +59,10 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Child appointment queries are additionally constrained by authenticated `tenantId`, the validated entity id and the requested report period.
 - Current source-domain permissions are re-evaluated through the authoritative report catalog before child rows are queried.
 - Returned child rows expose only appointment timing/status and payment amount/status; customer identity, notes and other sensitive fields are not included.
-- Report definitions advertise `drilldowns: ['appointments']` only for Staff and Service Performance. Payment Summary deliberately advertises no drill-down capability until a separate sensitive payment-detail permission model exists.
+- Report definitions advertise `drilldowns: ['appointments']` only for Staff and Service Performance. Payment Summary and Customer Performance deliberately advertise no drill-down capability until their sensitive detail permission models are explicitly designed.
 - Table previews include a server-owned `_rowId` only when the report definition is drillable and the source row has a trusted entity id.
 - `_rowId` is not part of available/exportable columns and is never emitted by export materialization.
-- Staff and Service report tables now open a reusable appointment detail panel from the server-owned row identity, with bounded pagination and the same selected report date range.
+- Staff and Service report tables open a reusable appointment detail panel from the server-owned row identity, with bounded pagination and the same selected report date range.
 - Arbitrary dimensions, tenant/company/branch overrides, Prisma selections and raw query controls are rejected.
 
 ## Export formats
@@ -126,6 +137,7 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Authenticated binary download shares normal refresh-token behavior.
 - Dedicated `/reports/schedules` workspace is linked from Reports navigation.
 - Dedicated `/reports/compare` workspace compares current KPI aggregates with the server-computed previous period.
+- Dedicated `/reports/customers` workspace provides the first privacy-minimized customer analytics page.
 - Schedule creation uses permission-aware report catalog, report-owned export formats, exportable columns and current report sort contract.
 - Staff and Service tables expose appointment drill-down only when the preview returns a trusted `_rowId`.
 - The reusable drill-down panel shows bounded appointment timing/status/payment fields and paginates independently from the parent report.
@@ -134,6 +146,7 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 
 - Report definition, permission and export-column policy tests.
 - Scope-bypass and DTO validation tests.
+- Customer reporting tests verify branch-scoped reads and completed-payment aggregation without exposing PII fields.
 - Comparison DTO rejects scope overrides and arbitrary previous periods.
 - Comparison service tests equal-length previous-period calculation, absolute deltas and zero-baseline percentage handling.
 - Drill-down DTO tests reject unsupported reports/dimensions and arbitrary scope/query controls.
@@ -151,21 +164,22 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 
 ## Current CI note
 
-Prisma schema validation passes. The latest observed quality run reaches migration deployment but currently fails in unrelated Operations migration `20260915232000_waitlist_timezone_foundation` because it alters `operations_waitlist_entries` before that relation exists in the migration chain. Reporting migrations apply successfully before that blocker. Reporting must not be called fully green until a descendant quality run reaches and passes API typecheck/tests/E2E/build plus web lint/typecheck/build.
+Prisma schema validation passes. The latest observed quality runs have been blocked before API typecheck by unrelated migration-chain failures outside Reporting. Reporting migrations apply before those blockers. Reporting must not be called fully green until a descendant quality run reaches and passes API typecheck/tests/E2E/build plus web lint/typecheck/build.
 
 ## Next Phase 2 increments
 
-1. Add export/schedule audit events when the shared AuditLog service is available.
-2. Add an authoritative brand asset model and embedded Unicode font support before enabling true Unicode/logo PDF rendering.
-3. Add verified-recipient delivery only after the platform notification/recipient model exists.
-4. Move in-process scheduling/export execution to a dedicated queue/worker deployment when infrastructure is available.
-5. Add coordinated frontend test infrastructure.
-6. Continue into additional report domains.
+1. Continue additional report domains, with Sales / Appointments as the next high-value candidates.
+2. Add export/schedule audit events when the shared AuditLog service is available.
+3. Add an authoritative brand asset model and embedded Unicode font support before enabling true Unicode/logo PDF rendering.
+4. Add verified-recipient delivery only after the platform notification/recipient model exists.
+5. Move in-process scheduling/export execution to a dedicated queue/worker deployment when infrastructure is available.
+6. Add coordinated frontend test infrastructure.
 
 ## Security invariants
 
 - Report/export/drill-down permissions can never exceed current source-domain permissions.
 - Tenant/company/branch and ownership come from authenticated context/trusted snapshots, never client scope parameters.
+- Customer reporting excludes direct-contact, birth-date, health and consent fields until explicit field-level permission/audit controls exist.
 - Previous-period comparison ranges are derived server-side; callers cannot inject a second arbitrary scope/range.
 - Drill-down dimensions are server allow-listed and child rows are constrained by authenticated tenant plus a scope-validated parent entity.
 - Drill-down row identities are server-originated preview metadata and never exportable user-selected columns.
