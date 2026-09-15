@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmLeadRoutingService } from './crm-lead-routing.service';
 import type { CreateLeadInput, UpdateLeadInput } from './crm.schemas';
 
 interface CrmLeadRow {
@@ -20,6 +21,7 @@ export class CrmLeadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly routing: CrmLeadRoutingService,
   ) {}
 
   private context() {
@@ -110,7 +112,8 @@ export class CrmLeadService {
     return this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
       `SELECT l.id,l.first_name AS "firstName",l.last_name AS "lastName",l.phone,l.alternative_phone AS "alternativePhone",l.email,
               l.preferred_contact_channel AS "preferredContactChannel",l.language,l.timezone,
-              ${this.acquisitionSelect()},${this.commercialSelect()},l.status,l.interest_note AS "interestNote",l.customer_id AS "customerId",
+              ${this.acquisitionSelect()},${this.commercialSelect()},l.status,l.team,l.lead_score AS "leadScore",
+              l.lead_temperature AS "leadTemperature",l.interest_note AS "interestNote",l.customer_id AS "customerId",
               l.owner_user_id AS "ownerUserId",l.version,l.created_at AS "createdAt",l.updated_at AS "updatedAt",
               o.id AS "opportunityId",o.stage AS "opportunityStage",o.estimated_value AS "estimatedValue"
        FROM crm_leads l LEFT JOIN crm_opportunities o ON o.lead_id=l.id
@@ -131,7 +134,8 @@ export class CrmLeadService {
       `SELECT l.id,l.branch_id AS "branchId",l.first_name AS "firstName",l.last_name AS "lastName",
               l.phone,l.alternative_phone AS "alternativePhone",l.email,
               l.preferred_contact_channel AS "preferredContactChannel",l.language,l.timezone,
-              ${this.acquisitionSelect()},${this.commercialSelect()},l.status,l.interest_note AS "interestNote",l.lost_reason AS "lostReason",
+              ${this.acquisitionSelect()},${this.commercialSelect()},l.status,l.team,l.lead_score AS "leadScore",
+              l.lead_temperature AS "leadTemperature",l.interest_note AS "interestNote",l.lost_reason AS "lostReason",
               l.customer_id AS "customerId",l.owner_user_id AS "ownerUserId",l.version,
               l.created_at AS "createdAt",l.updated_at AS "updatedAt"
        FROM crm_leads l
@@ -200,9 +204,10 @@ export class CrmLeadService {
                    click_identifiers AS "clickIdentifiers",interested_service_ids AS "interestedServiceIds",
                    interested_package_ids AS "interestedPackageIds",preferred_branch_id AS "preferredBranchId",
                    estimated_budget AS "estimatedBudget",budget_currency AS "budgetCurrency",purchase_urgency AS "purchaseUrgency",
-                   consultation_need AS "consultationNeed",customer_intent AS "customerIntent",status,interest_note AS "interestNote",
+                   consultation_need AS "consultationNeed",customer_intent AS "customerIntent",status,team,
+                   lead_score AS "leadScore",lead_temperature AS "leadTemperature",interest_note AS "interestNote",
                    owner_user_id AS "ownerUserId",customer_id AS "customerId",version`,
-        context.tenantId, context.companyId, branchId, input.customerId ?? null, input.ownerUserId ?? actorUserId,
+        context.tenantId, context.companyId, branchId, input.customerId ?? null, input.ownerUserId ?? null,
         input.firstName, input.lastName, input.phone ?? null, input.alternativePhone ?? null, input.email?.toLowerCase() ?? null,
         input.preferredContactChannel ?? null, input.language ?? null, input.timezone ?? null, input.source,
         input.sourceDetail ?? null, input.campaignId ?? null, input.campaignName ?? null, input.adSetId ?? null, input.adSetName ?? null,
@@ -221,6 +226,25 @@ export class CrmLeadService {
           commercialContextCaptured: Boolean(input.interestedServiceIds?.length || input.interestedPackageIds?.length ||
             input.preferredBranchId || input.estimatedBudget !== undefined || input.purchaseUrgency || input.consultationNeed || input.customerIntent) }),
       );
+
+      if (!input.ownerUserId) {
+        const routingDecision = await this.routing.routeNewLead(tx, rows[0].id, actorUserId);
+        if (routingDecision) {
+          rows[0].ownerUserId = routingDecision.ownerUserId;
+          rows[0].team = routingDecision.team;
+        } else {
+          await tx.$executeRawUnsafe(
+            `UPDATE crm_leads SET owner_user_id=$5::text
+             WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+            rows[0].id,
+            context.tenantId,
+            context.companyId,
+            branchId,
+            actorUserId,
+          );
+          rows[0].ownerUserId = actorUserId;
+        }
+      }
       return rows[0];
     });
   }
