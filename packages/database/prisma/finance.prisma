@@ -1,0 +1,139 @@
+enum FinanceApprovalStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum FinancePaymentStatus {
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  CANCELLED
+}
+
+enum FinanceReconciliationStatus {
+  UNRECONCILED
+  PARTIALLY_RECONCILED
+  RECONCILED
+}
+
+enum FinanceAccountingStatus {
+  UNPOSTED
+  READY_TO_POST
+  POSTED
+  REVERSED
+}
+
+model FinanceCostCenter {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  companyId String   @map("company_id")
+  code      String
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, code], map: "finance_cost_centers_company_code_key")
+  @@index([tenantId, companyId, active], map: "finance_cost_centers_tenant_company_idx")
+  @@map("finance_cost_centers")
+}
+
+model ExpenseCategory {
+  id        String   @id @default(uuid())
+  tenantId  String   @map("tenant_id")
+  companyId String?  @map("company_id")
+  parentId  String?  @map("parent_id")
+  code      String
+  name      String
+  system    Boolean  @default(false)
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([tenantId, companyId, code], map: "expense_categories_tenant_company_code_key")
+  @@index([tenantId, companyId, active], map: "expense_categories_tenant_company_active_idx")
+  @@index([parentId], map: "expense_categories_parent_idx")
+  @@map("expense_categories")
+}
+
+model Expense {
+  id                   String                      @id @default(uuid())
+  tenantId             String                      @map("tenant_id")
+  companyId            String                      @map("company_id")
+  branchId             String?                     @map("branch_id")
+  costCenterId         String?                     @map("cost_center_id")
+  categoryId           String                      @map("category_id")
+  counterpartyName     String?                     @map("counterparty_name")
+  counterpartyTaxNumber String?                    @map("counterparty_tax_number")
+  documentType         String?                     @map("document_type")
+  documentNumber       String?                     @map("document_number")
+  documentDate         DateTime?                   @map("document_date")
+  documentUrl          String?                     @map("document_url")
+  transactionDate      DateTime                    @map("transaction_date")
+  dueDate              DateTime?                   @map("due_date")
+  grossAmount          Decimal                     @map("gross_amount") @db.Decimal(14, 2)
+  netAmount            Decimal                     @map("net_amount") @db.Decimal(14, 2)
+  taxAmount            Decimal                     @default(0) @map("tax_amount") @db.Decimal(14, 2)
+  withholdingAmount    Decimal                     @default(0) @map("withholding_amount") @db.Decimal(14, 2)
+  currency             String                      @default("TRY") @db.VarChar(3)
+  exchangeRate         Decimal                     @default(1) @map("exchange_rate") @db.Decimal(18, 8)
+  description          String?
+  approvalStatus       FinanceApprovalStatus       @default(DRAFT) @map("approval_status")
+  paymentStatus        FinancePaymentStatus        @default(UNPAID) @map("payment_status")
+  reconciliationStatus FinanceReconciliationStatus @default(UNRECONCILED) @map("reconciliation_status")
+  accountingStatus     FinanceAccountingStatus     @default(UNPOSTED) @map("accounting_status")
+  sourceType           String?                     @map("source_type")
+  sourceId             String?                     @map("source_id")
+  version              Int                         @default(1)
+  createdBy            String                      @map("created_by")
+  createdAt            DateTime                    @default(now()) @map("created_at")
+  updatedAt            DateTime                    @updatedAt @map("updated_at")
+
+  @@index([tenantId, companyId, transactionDate], map: "expenses_tenant_company_transaction_date_idx")
+  @@index([tenantId, branchId, transactionDate], map: "expenses_tenant_branch_transaction_date_idx")
+  @@index([tenantId, companyId, approvalStatus], map: "expenses_tenant_company_approval_idx")
+  @@index([tenantId, companyId, paymentStatus], map: "expenses_tenant_company_payment_idx")
+  @@index([tenantId, companyId, accountingStatus], map: "expenses_tenant_company_accounting_idx")
+  @@index([costCenterId], map: "expenses_cost_center_idx")
+  @@index([categoryId], map: "expenses_category_idx")
+  @@map("expenses")
+}
+
+model ExpenseAccountingMapping {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  companyId            String   @map("company_id")
+  categoryId           String   @map("category_id")
+  expenseAccountId     String   @map("expense_account_id")
+  taxAccountId         String?  @map("tax_account_id")
+  payableAccountId     String?  @map("payable_account_id")
+  withholdingAccountId String?  @map("withholding_account_id")
+  active               Boolean  @default(true)
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@unique([companyId, categoryId], map: "expense_accounting_mappings_company_category_key")
+  @@index([withholdingAccountId], map: "expense_accounting_mappings_withholding_account_idx")
+  @@map("expense_accounting_mappings")
+}
+
+model ExpenseAuditEvent {
+  id          String   @id @default(uuid())
+  tenantId    String   @map("tenant_id")
+  companyId   String   @map("company_id")
+  branchId    String?  @map("branch_id")
+  expenseId   String   @map("expense_id")
+  actorId     String   @map("actor_id")
+  eventType   String   @map("event_type")
+  reason      String?
+  beforeState Json?    @map("before_state")
+  afterState  Json?    @map("after_state")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  @@index([expenseId, createdAt], map: "expense_audit_events_expense_created_at_idx")
+  @@index([tenantId, companyId, createdAt], map: "expense_audit_events_tenant_company_idx")
+  @@map("expense_audit_events")
+}
