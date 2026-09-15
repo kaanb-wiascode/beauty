@@ -14,6 +14,7 @@ export const reportExportListSchema = z
         reportKeys.customerPerformance,
         reportKeys.salesPerformance,
         reportKeys.appointmentPerformance,
+        reportKeys.financePerformance,
       ])
       .optional(),
     format: z.enum(['CSV', 'PDF', 'XLSX']).optional(),
