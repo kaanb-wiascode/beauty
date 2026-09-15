@@ -7,6 +7,8 @@ import { api, ApiError } from "@/lib/api";
 import type { Visit } from "@/lib/types";
 import { ExecutionChecklistPanel } from "./service-executions/execution-checklist-panel";
 import { ExecutionConsumablesPanel } from "./service-executions/execution-consumables-panel";
+import { ExecutionCorrectionActions } from "./service-executions/execution-correction-actions";
+import { ExecutionStaffPanel } from "./service-executions/execution-staff-panel";
 
 type ServiceExecution = {
   id: string;
@@ -221,7 +223,7 @@ export function ServiceExecutionPanel({
             Service Execution
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Fiziksel hizmet, SOP checklist, sarf tüketimi, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
+            Fiziksel hizmet, personel sorumluluğu, SOP checklist, sarf tüketimi, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
           </p>
         </div>
         {handoffsCompleted ? (
@@ -267,22 +269,39 @@ export function ServiceExecutionPanel({
                     {execution.assetId ? ` · Cihaz ${execution.assetId.slice(0, 8)}` : ""}
                   </p>
                 </div>
-                {execution.status === "IN_PROGRESS" && canUpdate ? (
-                  <Button
-                    disabled={
-                      busyId === `execution:${execution.id}` ||
-                      checklistBlocked[execution.id] !== false
-                    }
-                    onClick={() => void completeExecution(execution)}
-                  >
-                    {busyId === `execution:${execution.id}`
-                      ? "Tamamlanıyor..."
-                      : checklistBlocked[execution.id] !== false
-                        ? "Checklist Bekliyor"
-                        : "Hizmeti Tamamla"}
-                  </Button>
-                ) : null}
+                <div className="flex flex-wrap gap-2">
+                  {execution.status === "IN_PROGRESS" && canUpdate ? (
+                    <Button
+                      disabled={
+                        busyId === `execution:${execution.id}` ||
+                        checklistBlocked[execution.id] !== false
+                      }
+                      onClick={() => void completeExecution(execution)}
+                    >
+                      {busyId === `execution:${execution.id}`
+                        ? "Tamamlanıyor..."
+                        : checklistBlocked[execution.id] !== false
+                          ? "Checklist Bekliyor"
+                          : "Hizmeti Tamamla"}
+                    </Button>
+                  ) : null}
+                  <ExecutionCorrectionActions
+                    execution={execution}
+                    canUpdate={canUpdate}
+                    onChanged={load}
+                    onError={setError}
+                  />
+                </div>
               </div>
+
+              {execution.status !== "CANCELLED" ? (
+                <ExecutionStaffPanel
+                  executionId={execution.id}
+                  canUpdate={canUpdate && execution.status === "IN_PROGRESS"}
+                  onChanged={load}
+                  onError={setError}
+                />
+              ) : null}
 
               {execution.status !== "CANCELLED" ? (
                 <ExecutionChecklistPanel
