@@ -7,26 +7,23 @@ export class CrmInboundContactResolverService {
 
   async resolveIdentity(
     scope: { tenantId: string; companyId: string; branchId: string },
-    identity: { providerContactId?: string | null; whatsappIdentity?: string | null; phone?: string | null },
+    identity: { providerKey?: string | null; providerContactId?: string | null; whatsappIdentity?: string | null; phone?: string | null },
   ) {
+    const providerKey = identity.providerKey?.trim().toLowerCase() || null;
     const providerContactId = identity.providerContactId?.trim() || null;
     const whatsappRaw = identity.whatsappIdentity?.trim() || null;
-    const whatsappIdentity = whatsappRaw
-      ? (whatsappRaw.replace(/\D/g, '') || whatsappRaw.toLowerCase())
-      : null;
+    const whatsappIdentity = whatsappRaw ? (whatsappRaw.replace(/\D/g, '') || whatsappRaw.toLowerCase()) : null;
 
-    if (providerContactId || whatsappIdentity) {
+    if ((providerKey && providerContactId) || whatsappIdentity) {
       const rows = await this.prisma.$queryRawUnsafe<Array<{ kind: string; id: string }>>(
         `SELECT 'LEAD' kind,l.id FROM crm_leads l
          WHERE l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
-           AND (($4::text IS NOT NULL AND l.provider_contact_id=$4::text)
-             OR ($5::text IS NOT NULL AND l.whatsapp_identity=$5::text))
+           AND l.merged_into_lead_id IS NULL
+           AND (($4::text IS NOT NULL AND $5::text IS NOT NULL
+                 AND l.provider_contact_provider_key=$4::text AND l.provider_contact_id=$5::text)
+             OR ($6::text IS NOT NULL AND l.whatsapp_identity=$6::text))
          LIMIT 3`,
-        scope.tenantId,
-        scope.companyId,
-        scope.branchId,
-        providerContactId,
-        whatsappIdentity,
+        scope.tenantId, scope.companyId, scope.branchId, providerKey, providerContactId, whatsappIdentity,
       );
       if (rows.length === 1) return { matched: true as const, customerId: null, leadId: rows[0].id };
       if (rows.length > 1) return { matched: false as const, reason: 'AMBIGUOUS' as const };
@@ -36,10 +33,7 @@ export class CrmInboundContactResolverService {
     const resolved = await this.resolvePhone(scope, identity.phone);
     if (!resolved.matched || !resolved.leadId) return resolved;
 
-    await this.persistLearnedLeadIdentity(scope, resolved.leadId, {
-      providerContactId,
-      whatsappIdentity,
-    });
+    await this.persistLearnedLeadIdentity(scope, resolved.leadId, { providerKey, providerContactId, whatsappIdentity });
     return resolved;
   }
 
@@ -54,12 +48,10 @@ export class CrmInboundContactResolverService {
        UNION ALL
        SELECT 'LEAD' kind,l.id FROM crm_leads l
        WHERE l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
+         AND l.merged_into_lead_id IS NULL
          AND (l.normalized_phone=$4 OR l.normalized_alternative_phone=$4 OR l.whatsapp_identity=$4)
        LIMIT 3`,
-      scope.tenantId,
-      scope.companyId,
-      scope.branchId,
-      phone,
+      scope.tenantId, scope.companyId, scope.branchId, phone,
     );
     if (!rows.length) return { matched: false as const, reason: 'NOT_FOUND' as const };
     if (rows.length !== 1) return { matched: false as const, reason: 'AMBIGUOUS' as const };
@@ -71,59 +63,55 @@ export class CrmInboundContactResolverService {
   private async persistLearnedLeadIdentity(
     scope: { tenantId: string; companyId: string; branchId: string },
     leadId: string,
-    identity: { providerContactId: string | null; whatsappIdentity: string | null },
+    identity: { providerKey: string | null; providerContactId: string | null; whatsappIdentity: string | null },
   ) {
-    if (!identity.providerContactId && !identity.whatsappIdentity) return;
+    const canLearnProvider = Boolean(identity.providerKey && identity.providerContactId);
+    if (!canLearnProvider && !identity.whatsappIdentity) return;
 
-    // Only mutate the lead if at least one supplied identity can actually be claimed.
-    // This prevents collision/no-op attempts from incrementing optimistic versions.
     await this.prisma.$executeRawUnsafe(
       `UPDATE crm_leads l
-       SET provider_contact_id = CASE
-             WHEN l.provider_contact_id IS NULL
-              AND $5::text IS NOT NULL
+       SET provider_contact_provider_key = CASE
+             WHEN l.provider_contact_id IS NULL AND l.provider_contact_provider_key IS NULL
+              AND $5::text IS NOT NULL AND $6::text IS NOT NULL
               AND NOT EXISTS (
                 SELECT 1 FROM crm_leads other
                 WHERE other.tenant_id=$1::text AND other.company_id=$2::text
                   AND other.id<>l.id AND other.merged_into_lead_id IS NULL
-                  AND other.provider_contact_id=$5::text
-              )
-             THEN $5::text ELSE l.provider_contact_id END,
+                  AND other.provider_contact_provider_key=$5::text AND other.provider_contact_id=$6::text
+              ) THEN $5::text ELSE l.provider_contact_provider_key END,
+           provider_contact_id = CASE
+             WHEN l.provider_contact_id IS NULL AND l.provider_contact_provider_key IS NULL
+              AND $5::text IS NOT NULL AND $6::text IS NOT NULL
+              AND NOT EXISTS (
+                SELECT 1 FROM crm_leads other
+                WHERE other.tenant_id=$1::text AND other.company_id=$2::text
+                  AND other.id<>l.id AND other.merged_into_lead_id IS NULL
+                  AND other.provider_contact_provider_key=$5::text AND other.provider_contact_id=$6::text
+              ) THEN $6::text ELSE l.provider_contact_id END,
            whatsapp_identity = CASE
-             WHEN l.whatsapp_identity IS NULL
-              AND $6::text IS NOT NULL
+             WHEN l.whatsapp_identity IS NULL AND $7::text IS NOT NULL
               AND NOT EXISTS (
                 SELECT 1 FROM crm_leads other
                 WHERE other.tenant_id=$1::text AND other.company_id=$2::text
                   AND other.id<>l.id AND other.merged_into_lead_id IS NULL
-                  AND other.whatsapp_identity=$6::text
-              )
-             THEN $6::text ELSE l.whatsapp_identity END,
-           updated_at = NOW(),
-           version = version + 1
+                  AND other.whatsapp_identity=$7::text
+              ) THEN $7::text ELSE l.whatsapp_identity END,
+           updated_at=NOW(),version=version+1
        WHERE l.id=$4::text AND l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
          AND l.merged_into_lead_id IS NULL
          AND (
-           (l.provider_contact_id IS NULL AND $5::text IS NOT NULL AND NOT EXISTS (
-             SELECT 1 FROM crm_leads other
-             WHERE other.tenant_id=$1::text AND other.company_id=$2::text
-               AND other.id<>l.id AND other.merged_into_lead_id IS NULL
-               AND other.provider_contact_id=$5::text
-           ))
+           (l.provider_contact_id IS NULL AND l.provider_contact_provider_key IS NULL
+            AND $5::text IS NOT NULL AND $6::text IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM crm_leads other WHERE other.tenant_id=$1::text AND other.company_id=$2::text
+                AND other.id<>l.id AND other.merged_into_lead_id IS NULL
+                AND other.provider_contact_provider_key=$5::text AND other.provider_contact_id=$6::text))
            OR
-           (l.whatsapp_identity IS NULL AND $6::text IS NOT NULL AND NOT EXISTS (
-             SELECT 1 FROM crm_leads other
-             WHERE other.tenant_id=$1::text AND other.company_id=$2::text
-               AND other.id<>l.id AND other.merged_into_lead_id IS NULL
-               AND other.whatsapp_identity=$6::text
-           ))
+           (l.whatsapp_identity IS NULL AND $7::text IS NOT NULL AND NOT EXISTS (
+              SELECT 1 FROM crm_leads other WHERE other.tenant_id=$1::text AND other.company_id=$2::text
+                AND other.id<>l.id AND other.merged_into_lead_id IS NULL AND other.whatsapp_identity=$7::text))
          )`,
-      scope.tenantId,
-      scope.companyId,
-      scope.branchId,
-      leadId,
-      identity.providerContactId,
-      identity.whatsappIdentity,
+      scope.tenantId, scope.companyId, scope.branchId, leadId,
+      identity.providerKey, identity.providerContactId, identity.whatsappIdentity,
     );
   }
 }
