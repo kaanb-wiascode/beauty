@@ -14,6 +14,11 @@ export type PlatformAuditRecordInput = {
   afterState?: unknown;
   metadata?: unknown;
   correlationId?: string | null;
+  requestId?: string | null;
+  sourceIp?: string | null;
+  userAgent?: string | null;
+  riskLevel?: string | null;
+  approvalRequestId?: string | null;
 };
 
 export type TenantAuditFilter = {
@@ -44,7 +49,8 @@ const SENSITIVE_KEY_FRAGMENTS = [
   'credential',
 ];
 
-const normalizeKey = (key: string) => key.toLowerCase().replace(/[^a-z0-9]/g, '');
+const normalizeKey = (key: string) =>
+  key.toLowerCase().replace(/[^a-z0-9]/g, '');
 
 const isSensitiveKey = (key: string) => {
   const normalized = normalizeKey(key);
@@ -116,7 +122,12 @@ export class PlatformAuditService {
         before_state,
         after_state,
         metadata,
-        correlation_id
+        correlation_id,
+        request_id,
+        source_ip,
+        user_agent,
+        risk_level,
+        approval_request_id
       ) VALUES (
         ${actorUserId},
         ${resource},
@@ -128,7 +139,12 @@ export class PlatformAuditService {
         ${beforeState}::jsonb,
         ${afterState}::jsonb,
         ${metadata}::jsonb,
-        ${input.correlationId ?? null}
+        ${input.correlationId ?? null},
+        ${input.requestId ?? null},
+        ${input.sourceIp ?? null},
+        ${input.userAgent ?? null},
+        ${input.riskLevel ?? null},
+        ${input.approvalRequestId ?? null}
       )
       RETURNING id, created_at AS "createdAt"
     `;
