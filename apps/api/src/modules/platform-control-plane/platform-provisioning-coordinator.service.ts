@@ -3,6 +3,8 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { PlatformOnboardingService } from './platform-onboarding.service';
+import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
+import { PlatformProvisioningFailureService } from './platform-provisioning-failure.service';
 import { PlatformProvisioningService } from './platform-provisioning.service';
 import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
 import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
@@ -18,6 +20,7 @@ type ProvisioningStartInput = {
   primaryBranchCode?: string;
   sourceType?: 'MANUAL' | 'OPPORTUNITY';
   sourceId?: string;
+  ownerEmail?: string;
 };
 
 type ProvisioningSnapshot = {
@@ -36,8 +39,10 @@ export class PlatformProvisioningCoordinatorService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly provisioning: PlatformProvisioningService,
+    private readonly provisioningFailure: PlatformProvisioningFailureService,
     private readonly tenantBootstrap: PlatformTenantBootstrapService,
     private readonly configurationBootstrap: PlatformTenantConfigurationBootstrapService,
+    private readonly ownerInvitation: PlatformOwnerInvitationService,
     private readonly onboarding: PlatformOnboardingService,
     private readonly platformAudit: PlatformAuditService,
   ) {}
@@ -48,8 +53,27 @@ export class PlatformProvisioningCoordinatorService {
     reason: string,
     correlationId?: string | null,
   ) {
-    const result = await this.provisioning.start(input, actorUserId, reason, correlationId);
-    return this.advance(result as ProvisioningSnapshot, actorUserId, reason, correlationId);
+    let result: unknown;
+    try {
+      result = await this.provisioning.start(input, actorUserId, reason, correlationId);
+    } catch (error) {
+      await this.provisioningFailure.recordCoreFailureByIdempotencyKey(
+        input.idempotencyKey,
+        error,
+        actorUserId,
+        reason,
+        correlationId,
+      );
+      throw error;
+    }
+
+    return this.advance(
+      result as ProvisioningSnapshot,
+      actorUserId,
+      reason,
+      correlationId,
+      input.ownerEmail,
+    );
   }
 
   get(runId: string) {
@@ -62,8 +86,26 @@ export class PlatformProvisioningCoordinatorService {
     reason: string,
     correlationId?: string | null,
   ) {
-    const result = await this.provisioning.resume(runId, actorUserId, reason, correlationId);
-    return this.advance(result as ProvisioningSnapshot, actorUserId, reason, correlationId);
+    let result: unknown;
+    try {
+      result = await this.provisioning.resume(runId, actorUserId, reason, correlationId);
+    } catch (error) {
+      await this.provisioningFailure.recordCoreFailure(
+        runId,
+        error,
+        actorUserId,
+        reason,
+        correlationId,
+      );
+      throw error;
+    }
+
+    return this.advance(
+      result as ProvisioningSnapshot,
+      actorUserId,
+      reason,
+      correlationId,
+    );
   }
 
   private async advance(
@@ -71,6 +113,7 @@ export class PlatformProvisioningCoordinatorService {
     actorUserId: string,
     reason: string,
     correlationId?: string | null,
+    ownerEmail?: string,
   ) {
     if (!run.tenantId) return this.provisioning.get(run.id);
     const tenantId = run.tenantId;
@@ -89,6 +132,15 @@ export class PlatformProvisioningCoordinatorService {
           tx,
         ),
     );
+
+    if (ownerEmail?.trim()) {
+      await this.ownerInvitation.bindAndQueue(
+        run.id,
+        ownerEmail,
+        actorUserId,
+        { reason, correlationId },
+      );
+    }
 
     await this.completeStep(
       run.id,
@@ -191,16 +243,27 @@ export class PlatformProvisioningCoordinatorService {
       });
     } catch (error) {
       const message = error instanceof Error ? error.message : 'Provisioning extension step failed.';
-      await this.prisma.$executeRaw`
-        UPDATE platform_provisioning_steps
-        SET status = 'FAILED', last_error = ${message}, updated_at = CURRENT_TIMESTAMP
-        WHERE run_id = ${runId} AND step_key = ${stepKey}
-      `;
-      await this.prisma.$executeRaw`
-        UPDATE platform_provisioning_runs
-        SET status = 'FAILED', last_error = ${message}, updated_at = CURRENT_TIMESTAMP
-        WHERE id = ${runId}
-      `;
+      await this.prisma.$transaction(async (tx) => {
+        await tx.$queryRaw`
+          SELECT pg_advisory_xact_lock(hashtext('platform-provisioning'), hashtext(${runId}))
+        `;
+        await tx.$executeRaw`
+          UPDATE platform_provisioning_steps
+          SET status = 'FAILED',
+              attempt_count = attempt_count + 1,
+              last_error = ${message},
+              started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
+              updated_at = CURRENT_TIMESTAMP
+          WHERE run_id = ${runId}
+            AND step_key = ${stepKey}
+            AND status <> 'COMPLETED'
+        `;
+        await tx.$executeRaw`
+          UPDATE platform_provisioning_runs
+          SET status = 'FAILED', last_error = ${message}, updated_at = CURRENT_TIMESTAMP
+          WHERE id = ${runId} AND status <> 'COMPLETED'
+        `;
+      });
       throw error;
     }
   }
