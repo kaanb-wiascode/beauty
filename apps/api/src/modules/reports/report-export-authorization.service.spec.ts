@@ -25,6 +25,7 @@ const job: ReportExportJobRecord = {
   includeCharts: false,
   rowCount: null,
   storageKey: null,
+  scheduleRunId: null,
   errorCode: null,
   errorSummary: null,
   requestedAt: new Date(),
