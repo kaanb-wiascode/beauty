@@ -1,7 +1,5 @@
 import { Injectable } from '@nestjs/common';
 
-type PdfValue = string | number | boolean | Date | null | undefined | object;
-
 type GeneratePdfInput = {
   title: string;
   columns: readonly string[];
@@ -133,7 +131,7 @@ export class ReportPdfGenerator {
     return commands.join('\n');
   }
 
-  private formatValue(value: PdfValue) {
+  private formatValue(value: unknown) {
     if (value === null || value === undefined) return '';
     if (value instanceof Date) return this.dateTime(value);
     if (typeof value === 'object') return this.normalize(JSON.stringify(value));
