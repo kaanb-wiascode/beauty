@@ -18,7 +18,7 @@ type AssignmentRow = {
 
 type ExecutionContext = {
   id: string;
-  appointmentId: string;
+  appointmentId: string | null;
   serviceId: string;
   status: string;
   startAt: Date;
@@ -163,8 +163,11 @@ export class ServiceExecutionStaffService {
   private async requireExecution(db: Pick<PrismaService,'$queryRawUnsafe'> | Prisma.TransactionClient, executionId: string, tenantId: string, companyId: string, branchId: string, forUpdate = false) {
     const rows = await db.$queryRawUnsafe<ExecutionContext[]>(
       `SELECT e.id,e.appointment_id AS "appointmentId",e.service_id AS "serviceId",e.status::text AS status,
-              a."startAt" AS "startAt",a."endAt" AS "endAt"
-       FROM operations_service_executions e JOIN appointments a ON a.id=e.appointment_id
+              COALESCE(a."startAt", e.started_at) AS "startAt",
+              COALESCE(a."endAt", e.started_at + (svc."durationMinutes" * INTERVAL '1 minute')) AS "endAt"
+       FROM operations_service_executions e
+       LEFT JOIN appointments a ON a.id=e.appointment_id
+       JOIN services svc ON svc.id=e.service_id
        WHERE e.id=$1 AND e.tenant_id=$2 AND e.company_id=$3 AND e.branch_id=$4${forUpdate ? ' FOR UPDATE OF e' : ''}`,
       executionId,tenantId,companyId,branchId,
     );
