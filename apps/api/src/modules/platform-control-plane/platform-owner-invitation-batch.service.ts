@@ -3,6 +3,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { PlatformOwnerInvitationDispatcherService } from './platform-owner-invitation-dispatcher.service';
 
+type DueDeliveryRow = {
+  provisioningRunId: string;
+  createdByPlatformUserId: string;
+};
+
 @Injectable()
 export class PlatformOwnerInvitationBatchService {
   constructor(
@@ -11,7 +16,7 @@ export class PlatformOwnerInvitationBatchService {
   ) {}
 
   async dispatchDue(
-    actorUserId: string,
+    actorUserId: string | null,
     reason: string,
     limit = 10,
     correlationId?: string | null,
@@ -24,8 +29,10 @@ export class PlatformOwnerInvitationBatchService {
       throw new BadRequestException('limit must be an integer between 1 and 50.');
     }
 
-    const rows = await this.prisma.$queryRaw<Array<{ provisioningRunId: string }>>`
-      SELECT provisioning_run_id AS "provisioningRunId"
+    const rows = await this.prisma.$queryRaw<DueDeliveryRow[]>`
+      SELECT
+        provisioning_run_id AS "provisioningRunId",
+        created_by_platform_user_id AS "createdByPlatformUserId"
       FROM platform_owner_invitation_deliveries
       WHERE status IN ('PENDING','RETRY')
         AND next_attempt_at <= CURRENT_TIMESTAMP
@@ -44,7 +51,7 @@ export class PlatformOwnerInvitationBatchService {
       try {
         await this.dispatcher.dispatch(
           row.provisioningRunId,
-          actorUserId,
+          actorUserId?.trim() || row.createdByPlatformUserId,
           normalizedReason,
           correlationId,
         );
