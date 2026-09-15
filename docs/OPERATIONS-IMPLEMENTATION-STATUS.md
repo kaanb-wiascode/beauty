@@ -8,9 +8,9 @@ This document tracks implementation progress conservatively. A phase is not cons
 
 ## Overall estimate
 
-Current implementation estimate: **~92%** of the Operations roadmap.
+Current implementation estimate: **~94%** of the Operations roadmap.
 
-The remaining work is concentrated in branch working-hours, multi-staff execution, controlled reversals, broader operational tasks, precise permissions and full branch-wide CI/E2E verification.
+The remaining work is concentrated in multi-staff execution, controlled reversals, broader operational tasks, precise permissions and full branch-wide CI/E2E verification.
 
 ## Phase 1 — Visit & Operational Lifecycle
 
@@ -50,10 +50,10 @@ Implemented:
 - HR published-shift, approved-leave, certification and competency eligibility reused through `SkillBasedSchedulingService`.
 - Branch-configurable Operations eligibility policy with OFF/WARN/BLOCK modes.
 - ServiceExecution start revalidates staff eligibility before physical execution begins.
+- Explicit branch working-hours source with weekday/open/closed/cross-midnight/time-zone rules.
 
 Still open:
 
-- Explicit branch working-hours source distinct from staff shifts.
 - Multi-resource quantity requirements.
 
 ## Phase 3 — Service Execution
@@ -92,6 +92,8 @@ Implemented:
 - Resource-aware slot matching.
 - Approved-leave-aware matching and acceptance.
 - Staff eligibility guard at waitlist booking acceptance, including shift/certification/competency policy.
+- Waitlist suggestions pre-filtered by branch working hours and full HR eligibility policy before `MATCH_FOUND`.
+- Branch working-hours revalidation during waitlist booking acceptance.
 - Serializable slot acceptance with Appointment + allocation + waitlist transition in one transaction.
 - Cancellation slot recovery and priority ranking.
 - Resource bottleneck analysis.
@@ -99,9 +101,8 @@ Implemented:
 
 Still open:
 
-- Branch working-hours integration.
-- Pre-filtering waitlist match suggestions by the full HR eligibility policy; final acceptance is already protected.
 - Automated offer/expiry delivery on top of CRM Communications.
+- Move branch-hours/eligibility acceptance revalidation fully inside the serializable booking transaction for strict configuration-race protection.
 
 ## Phase 5 — Branch Operations
 
@@ -165,7 +166,6 @@ Implemented:
 Still open:
 
 - Stronger forecasting with seasonality/holiday/branch-hours context.
-- Eligibility-aware ranking of every suggested staff/slot candidate before display.
 - Recommendation outcome tracking and model-quality telemetry.
 - Optional ML layer only after sufficient production-quality data exists.
 
@@ -180,9 +180,8 @@ Do **not** interpret a pending, in-progress or superseded run as a successful va
 ## Remaining highest-priority work
 
 1. Verify a current branch HEAD through the complete quality workflow.
-2. Add explicit branch working-hours integration where it differs from HR staff shifts.
-3. Filter waitlist match suggestions by full eligibility before marking `MATCH_FOUND`; booking acceptance is already guarded.
-4. Add multiple-staff ServiceExecution handoffs.
-5. Add controlled execution reversal/cancellation semantics.
-6. Expand lightweight Operational Tasks beyond opening/closing.
-7. Complete roadmap E2E scenarios and permission refinement.
+2. Move waitlist branch-hours/eligibility revalidation into the serializable acceptance transaction.
+3. Add multiple-staff ServiceExecution handoffs.
+4. Add controlled execution reversal/cancellation semantics.
+5. Expand lightweight Operational Tasks beyond opening/closing.
+6. Complete roadmap E2E scenarios and permission refinement.
