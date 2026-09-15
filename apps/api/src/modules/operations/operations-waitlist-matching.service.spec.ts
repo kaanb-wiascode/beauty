@@ -105,4 +105,35 @@ describe('OperationsWaitlistMatchingService', () => {
 
     expect(appointmentCreate).not.toHaveBeenCalled();
   });
+
+  it('rejects accepting a slot when the selected staff has approved leave', async () => {
+    const staffId = '00000000-0000-4000-8000-000000000010';
+    queryRawUnsafe
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([{ ...target, status: 'MATCH_FOUND', version: 1 }])
+      .mockResolvedValueOnce([{ id: 'leave-1' }]);
+    staffFindFirst.mockResolvedValueOnce({ id: staffId });
+
+    const service = new OperationsWaitlistMatchingService(prisma, tenantContext);
+
+    await expect(
+      service.acceptMatch('waitlist-1', {
+        expectedVersion: 1,
+        staffId,
+        startAt: new Date('2026-09-20T07:00:00.000Z'),
+        endAt: new Date('2026-09-20T08:00:00.000Z'),
+        roomId: null,
+        assetId: null,
+      }),
+    ).rejects.toMatchObject({
+      response: expect.objectContaining({
+        code: 'STAFF_APPROVED_LEAVE',
+        staffId,
+      }),
+    });
+
+    expect(appointmentFindFirst).not.toHaveBeenCalled();
+    expect(appointmentCreate).not.toHaveBeenCalled();
+  });
 });
