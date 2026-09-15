@@ -54,10 +54,12 @@ import { OperationsWalkInCommercialController } from './operations-walk-in-comme
 import { OperationsWalkInCommercialService } from './operations-walk-in-commercial.service';
 import { ServiceExecutionCorrectionsController } from './service-execution-corrections.controller';
 import { ServiceExecutionCorrectionsService } from './service-execution-corrections.service';
+import { ServiceExecutionReadService } from './service-execution-read.service';
 import { ServiceExecutionStaffController } from './service-execution-staff.controller';
 import { ServiceExecutionStaffService } from './service-execution-staff.service';
 import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
+import { WalkInServiceExecutionsService } from './walk-in-service-executions.service';
 
 @Module({
   imports: [VisitsModule, CrmModule, HrModule],
@@ -117,8 +119,10 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsWaitlistRecoveryService,
     OperationsWalkInCommercialService,
     ServiceExecutionCorrectionsService,
+    ServiceExecutionReadService,
     ServiceExecutionStaffService,
     ServiceExecutionsService,
+    WalkInServiceExecutionsService,
   ],
 })
 export class OperationsModule {}
