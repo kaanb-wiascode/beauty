@@ -32,6 +32,11 @@ export const envSchema = z.object({
   QUALITY_NOTIFICATION_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(5000),
   QUALITY_FEEDBACK_PUBLIC_TOKEN_SECRET: z.string().min(32).optional(),
 
+  PLATFORM_INVITATION_WEBHOOK_URL: z.string().url().optional(),
+  PLATFORM_INVITATION_WEBHOOK_SECRET: z.string().min(32).optional(),
+  PLATFORM_INVITATION_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(5000),
+  PLATFORM_INVITATION_TOKEN_TTL_HOURS: z.coerce.number().int().min(1).max(168).default(72),
+
   OBJECT_STORAGE_BUCKET: z.string().trim().min(1).optional(),
   OBJECT_STORAGE_REGION: z.string().trim().min(1).optional(),
   OBJECT_STORAGE_ENDPOINT: z.string().url().optional(),
@@ -67,6 +72,16 @@ export const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: 'QUALITY_NOTIFICATION_WEBHOOK_URL and QUALITY_NOTIFICATION_WEBHOOK_SECRET must be configured together',
       path: ['QUALITY_NOTIFICATION_WEBHOOK_URL'],
+    });
+  }
+
+  const hasPlatformInvitationUrl = Boolean(env.PLATFORM_INVITATION_WEBHOOK_URL);
+  const hasPlatformInvitationSecret = Boolean(env.PLATFORM_INVITATION_WEBHOOK_SECRET);
+  if (hasPlatformInvitationUrl !== hasPlatformInvitationSecret) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'PLATFORM_INVITATION_WEBHOOK_URL and PLATFORM_INVITATION_WEBHOOK_SECRET must be configured together',
+      path: ['PLATFORM_INVITATION_WEBHOOK_URL'],
     });
   }
 
