@@ -144,7 +144,9 @@ model ExpensePayment {
   companyId        String   @map("company_id")
   branchId         String?  @map("branch_id")
   expenseId        String   @map("expense_id")
+  payableAccountId String   @map("payable_account_id")
   paymentAccountId String   @map("payment_account_id")
+  journalEntryId   String   @unique(map: "expense_payments_journal_entry_key") @map("journal_entry_id")
   amount           Decimal  @db.Decimal(14, 2)
   method           String
   reference        String?
@@ -166,7 +168,7 @@ model ExpensePaymentReversal {
   companyId        String   @map("company_id")
   branchId         String?  @map("branch_id")
   expensePaymentId String   @unique(map: "expense_payment_reversals_payment_key") @map("expense_payment_id")
-  journalEntryId   String   @map("journal_entry_id")
+  journalEntryId   String   @unique(map: "expense_payment_reversals_journal_entry_key") @map("journal_entry_id")
   reason           String
   sourceType       String?  @map("source_type")
   sourceId         String?  @map("source_id")
