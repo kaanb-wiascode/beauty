@@ -49,9 +49,7 @@ describe('TenantQuotaService', () => {
 
     await expect(
       createService().assertUserActivationAllowed('tenant-1', 'user-3', tx),
-    ).rejects.toMatchObject<Partial<ConflictException>>({
-      status: 409,
-    });
+    ).rejects.toBeInstanceOf(ConflictException);
   });
 
   it('rejects branch activation when the configured tenant branch limit is reached', async () => {
