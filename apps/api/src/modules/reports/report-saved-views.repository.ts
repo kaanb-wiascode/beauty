@@ -8,10 +8,11 @@ import type {
   CreateReportSavedViewInput,
   UpdateReportSavedViewInput,
 } from './dto/report-saved-view.dto';
+import type { ReportKey } from './report-definition';
 
 export type ReportSavedViewRecord = {
   id: string;
-  reportKey: string;
+  reportKey: ReportKey;
   name: string;
   filters: unknown;
   columns: unknown;
