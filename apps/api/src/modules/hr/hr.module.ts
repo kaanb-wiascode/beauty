@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { HrController } from './hr.controller';
 import { HrService } from './hr.service';
+import { HrOrganizationService } from './hr-organization.service';
 import { PayrollAccountingService } from './payroll-accounting.service';
 import { PayrollPeriodService } from './payroll-period.service';
 import { PayrollSettlementService } from './payroll-settlement.service';
@@ -18,6 +19,7 @@ import { PayrollPolicyService } from './payroll-policy.service';
   controllers: [HrController],
   providers: [
     HrService,
+    HrOrganizationService,
     PayrollAccountingService,
     PayrollPeriodService,
     PayrollSettlementService,
@@ -33,6 +35,7 @@ import { PayrollPolicyService } from './payroll-policy.service';
   ],
   exports: [
     HrService,
+    HrOrganizationService,
     PayrollAccountingService,
     PayrollPeriodService,
     PayrollSettlementService,
