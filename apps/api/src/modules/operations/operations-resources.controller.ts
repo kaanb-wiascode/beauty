@@ -7,6 +7,7 @@ import {
   Patch,
   Post,
   Put,
+  Query,
   UseGuards,
 } from '@nestjs/common';
 
@@ -17,11 +18,13 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import {
   allocateAppointmentResourcesSchema,
   createRoomSchema,
+  operationsCapacityQuerySchema,
   releaseAllocationSchema,
   updateRoomStatusSchema,
   upsertServiceOperationalRequirementSchema,
 } from './dto/operations-resource.dto';
 import { OperationsAllocationService } from './operations-allocation.service';
+import { OperationsCapacityService } from './operations-capacity.service';
 import { OperationsResourcesService } from './operations-resources.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -30,7 +33,16 @@ export class OperationsResourcesController {
   constructor(
     private readonly resources: OperationsResourcesService,
     private readonly allocations: OperationsAllocationService,
+    private readonly capacity: OperationsCapacityService,
   ) {}
+
+  @Get('capacity')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  getCapacity(@Query() query: Record<string, unknown>) {
+    const input = operationsCapacityQuerySchema.parse(query);
+    return this.capacity.summary(input);
+  }
 
   @Get('rooms')
   @UseGuards(PermissionsGuard)
