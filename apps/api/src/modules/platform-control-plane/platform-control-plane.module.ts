@@ -10,6 +10,7 @@ import { PlatformCustomerContextController } from './platform-customer-context.c
 import { PlatformCustomerContextService } from './platform-customer-context.service';
 import { PlatformEntitlementsController } from './platform-entitlements.controller';
 import { PlatformEntitlementsService } from './platform-entitlements.service';
+import { PlatformGoLiveService } from './platform-go-live.service';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformOnboardingController } from './platform-onboarding.controller';
@@ -47,6 +48,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformTenantBootstrapService,
     PlatformTenantConfigurationBootstrapService,
     PlatformOnboardingService,
+    PlatformGoLiveService,
     PlatformIamReadService,
     PlatformIamMutationService,
     PlatformAuditReadService,
