@@ -1,4 +1,7 @@
-import type { CreateReportScheduleInput } from './dto/report-schedule.dto';
+import type {
+  CreateReportScheduleInput,
+  reportScheduleDatePresets,
+} from './dto/report-schedule.dto';
 
 type LocalParts = {
   year: number;
@@ -8,6 +11,8 @@ type LocalParts = {
   minute: number;
   weekday: number;
 };
+
+type DatePreset = (typeof reportScheduleDatePresets)[number];
 
 const weekdayMap: Record<string, number> = {
   Mon: 1,
@@ -77,6 +82,73 @@ function zonedLocalToUtc(
     return null;
   }
   return result;
+}
+
+function localDateShift(
+  value: Pick<LocalParts, 'year' | 'month' | 'day'>,
+  days: number,
+) {
+  const shifted = new Date(Date.UTC(value.year, value.month - 1, value.day));
+  shifted.setUTCDate(shifted.getUTCDate() + days);
+  return {
+    year: shifted.getUTCFullYear(),
+    month: shifted.getUTCMonth() + 1,
+    day: shifted.getUTCDate(),
+  };
+}
+
+function localBoundary(
+  value: Pick<LocalParts, 'year' | 'month' | 'day'>,
+  timeZone: string,
+) {
+  const result = zonedLocalToUtc(
+    value.year,
+    value.month,
+    value.day,
+    0,
+    0,
+    timeZone,
+  );
+  if (!result) throw new Error('Unable to resolve scheduled report date boundary');
+  return result;
+}
+
+export function resolveReportScheduleDateRange(
+  preset: DatePreset,
+  timeZone: string,
+  now = new Date(),
+) {
+  const current = localParts(now, timeZone);
+  const today = { year: current.year, month: current.month, day: current.day };
+  let startLocal = today;
+  let endExclusiveLocal = localDateShift(today, 1);
+
+  if (preset === 'YESTERDAY') {
+    startLocal = localDateShift(today, -1);
+    endExclusiveLocal = today;
+  } else if (preset === 'LAST_7_DAYS') {
+    startLocal = localDateShift(today, -6);
+  } else if (preset === 'LAST_30_DAYS') {
+    startLocal = localDateShift(today, -29);
+  } else if (preset === 'THIS_MONTH') {
+    startLocal = { year: current.year, month: current.month, day: 1 };
+    endExclusiveLocal = localDateShift(
+      { year: current.year, month: current.month + 1, day: 1 },
+      0,
+    );
+  } else if (preset === 'PREVIOUS_MONTH') {
+    endExclusiveLocal = { year: current.year, month: current.month, day: 1 };
+    const previousMonth = new Date(Date.UTC(current.year, current.month - 2, 1));
+    startLocal = {
+      year: previousMonth.getUTCFullYear(),
+      month: previousMonth.getUTCMonth() + 1,
+      day: 1,
+    };
+  }
+
+  const from = localBoundary(startLocal, timeZone);
+  const nextBoundary = localBoundary(endExclusiveLocal, timeZone);
+  return { from, to: new Date(nextBoundary.getTime() - 1) };
 }
 
 export function nextReportScheduleRun(
