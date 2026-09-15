@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-policy.decorator';
 import { FinanceSetupService } from './finance-setup.service';
 
 const categorySchema = z.object({
@@ -19,6 +20,7 @@ const costCenterSchema = z.object({
 
 @Controller('finance/setup')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
+@RestrictTenantMutations()
 @RequirePermission('finance', 'read')
 export class FinanceSetupController {
   constructor(private readonly service: FinanceSetupService) {}
