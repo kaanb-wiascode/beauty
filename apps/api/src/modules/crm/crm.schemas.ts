@@ -57,12 +57,16 @@ export const rescheduleFollowUpSchema = z.object({ version: z.coerce.number().in
 export const cancelFollowUpSchema = z.object({ version: z.coerce.number().int().min(1), reason: z.string().trim().min(1).max(1000) });
 
 export type CreateLeadInput = z.infer<typeof createLeadSchema>;
-export type UpdateLeadInput = z.infer<typeof updateLeadSchema>;
+type ParsedUpdateLeadInput = z.infer<typeof updateLeadSchema>;
+type ParsedTransitionOpportunityInput = z.infer<typeof transitionOpportunitySchema>;
+/** Legacy service compatibility only. Public schemas deliberately reject LOST and lostReason. */
+export type UpdateLeadInput = Omit<ParsedUpdateLeadInput, 'status'> & { status?: 'NEW' | 'CONTACTED' | 'LOST'; lostReason?: string };
 export type DuplicateCandidateInput = z.infer<typeof duplicateCandidateSchema>;
 export type MergeLeadInput = z.infer<typeof mergeLeadSchema>;
 export type QualifyLeadInput = z.infer<typeof qualifyLeadSchema>;
 export type CreateOpportunityInput = z.infer<typeof createOpportunitySchema>;
-export type TransitionOpportunityInput = z.infer<typeof transitionOpportunitySchema>;
+/** Legacy service compatibility only. LOST must use the structured lost transition endpoint. */
+export type TransitionOpportunityInput = Omit<ParsedTransitionOpportunityInput, 'stage'> & { stage: ParsedTransitionOpportunityInput['stage'] | 'LOST'; lostReason?: string };
 export type CreateFollowUpInput = z.infer<typeof createFollowUpSchema>;
 export type CompleteFollowUpInput = z.infer<typeof completeFollowUpSchema>;
 export type RescheduleFollowUpInput = z.infer<typeof rescheduleFollowUpSchema>;
