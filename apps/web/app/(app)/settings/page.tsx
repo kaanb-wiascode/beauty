@@ -10,6 +10,7 @@ const sections = [
   { href: "/settings/temporary-access", title: "Geçici Erişim", description: "Süreli, Şube Kapsamlı Ve Denetlenebilir Ek Yetkileri Yönetin.", glyph: "◷" },
   { href: "/settings/break-glass", title: "Break-Glass Erişimi", description: "Parola + MFA İle Yeniden Doğrulanan, En Fazla 60 Dakikalık Acil Yetkileri Yönetin.", glyph: "!" },
   { href: "/settings/permission-simulation", title: "Yetki Simülasyonu", description: "Bir Kullanıcının Etkin Rol, Şube, Geçici Ve Yüksek Riskli Yetkilerini Güvenli Şekilde Önizleyin.", glyph: "◉" },
+  { href: "/settings/field-security", title: "Alan Güvenliği", description: "TCKN, IBAN, Ücret Ve Bordro Gibi Yüksek Riskli Alanları Ayrı Permission Politikalarıyla Koruyun.", glyph: "▤" },
   { href: "/settings/security", title: "Güvenlik Merkezi", description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.", glyph: "□" },
   { href: "/settings/roles", title: "Roller Ve Yetkiler", description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.", glyph: "◇" },
   { href: "/settings/role-templates", title: "Rol Şablonları", description: "Hazır Başlangıç Reçetelerinden Şirkete Ait Özelleştirilebilir Roller Oluşturun.", glyph: "◇*" },
