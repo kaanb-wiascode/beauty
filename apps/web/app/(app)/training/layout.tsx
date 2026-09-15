@@ -10,9 +10,10 @@ import { cx } from "@/lib/format";
 const ITEMS = [
   { href: "/training", label: "Genel Bakış", permission: "read" },
   { href: "/training/my-learning", label: "Eğitimlerim", permission: "read" },
+  { href: "/training/my-learning/paths", label: "Akademilerim", permission: "read" },
   { href: "/training/courses", label: "Kurslar", permission: "read" },
   { href: "/training/authoring", label: "Kurs Yazarlığı", permission: "manage" },
-  { href: "/training/learning-paths", label: "Akademiler", permission: "read" },
+  { href: "/training/learning-paths", label: "Akademiler", permission: "manage" },
   { href: "/training/assignments", label: "Atamalar", permission: "read" },
   { href: "/training/assessments", label: "Değerlendirmeler", permission: "manage" },
   { href: "/training/staff", label: "Personel Gelişimi", permission: "read" },
@@ -24,6 +25,7 @@ const ITEMS = [
 
 function isActive(pathname: string, href: string) {
   if (href === "/training") return pathname === href;
+  if (href === "/training/my-learning") return pathname === href || (pathname.startsWith(`${href}/`) && !pathname.startsWith("/training/my-learning/paths"));
   if (href === "/training/courses") return pathname === href || (pathname.startsWith(`${href}/`) && !pathname.startsWith("/training/authoring"));
   return pathname === href || pathname.startsWith(`${href}/`);
 }
