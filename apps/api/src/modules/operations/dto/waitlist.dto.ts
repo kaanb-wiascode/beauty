@@ -9,6 +9,15 @@ export const waitlistStatusSchema = z.enum([
   'CANCELLED',
 ]);
 
+function isValidTimeZone(value: string) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: value }).format();
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export const createWaitlistEntrySchema = z
   .object({
     customerId: z.string().uuid(),
@@ -26,7 +35,13 @@ export const createWaitlistEntrySchema = z
       .regex(/^([01]\d|2[0-3]):[0-5]\d$/)
       .nullable()
       .optional(),
-    timeZone: z.string().trim().min(1).max(80).default('Europe/Istanbul'),
+    timeZone: z
+      .string()
+      .trim()
+      .min(1)
+      .max(80)
+      .default('Europe/Istanbul')
+      .refine(isValidTimeZone, 'Invalid IANA time zone.'),
     priority: z.coerce.number().int().min(0).max(100).default(50),
     contactChannel: z
       .enum(['ANY', 'PHONE', 'SMS', 'WHATSAPP', 'EMAIL'])
