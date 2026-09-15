@@ -4,6 +4,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { TrainingDevelopmentAutomationService } from './training-development-automation.service';
 import { TrainingDevelopmentPlanService } from './training-development-plan.service';
 import { TrainingPlanningService } from './training-planning.service';
 
@@ -37,6 +38,7 @@ export class TrainingPlanningController {
   constructor(
     private readonly planning: TrainingPlanningService,
     private readonly developmentPlans: TrainingDevelopmentPlanService,
+    private readonly developmentAutomation: TrainingDevelopmentAutomationService,
   ) {}
 
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
@@ -50,7 +52,19 @@ export class TrainingPlanningController {
   @Get('development-plans') @RequirePermission('training','read') plans(@Query('staffId')staffId?:string){return this.planning.listPlans(staffId||undefined);}
   @Get('development-plans/:id') @RequirePermission('training','read') planDetail(@Param('id')id:string){return this.developmentPlans.detail(uuid.parse(id));}
   @Post('development-plans') @RequirePermission('training','manage') plan(@Body()body:unknown,@Req()req:{user?:{sub?:string}}){return this.planning.createPlan(createDevelopmentPlanSchema.parse(body),this.userId(req));}
-  @Post('development-plans/:id/items') @RequirePermission('training','manage') item(@Param('id')id:string,@Body()body:unknown,@Req()req:{user?:{sub?:string}}){return this.developmentPlans.addItem(uuid.parse(id),developmentPlanItemSchema.parse(body),this.userId(req));}
+  @Post('development-plans/:id/items')
+  @RequirePermission('training','manage')
+  async item(@Param('id')id:string,@Body()body:unknown,@Req()req:{user?:{sub?:string}}){
+    const planId=uuid.parse(id),actor=this.userId(req),input=developmentPlanItemSchema.parse(body);
+    const item=await this.developmentPlans.addItem(planId,input,actor);
+    if(input.itemType==='COURSE'||input.itemType==='PROGRAM'){
+      const assignment=await this.developmentAutomation.materialize(planId,item.id,actor);
+      return {...item,assignment};
+    }
+    return item;
+  }
+  @Post('development-plans/:id/items/:itemId/materialize') @RequirePermission('training','manage') materialize(@Param('id')id:string,@Param('itemId')itemId:string,@Req()req:{user?:{sub?:string}}){return this.developmentAutomation.materialize(uuid.parse(id),uuid.parse(itemId),this.userId(req));}
+  @Post('development-plans/synchronize') @RequirePermission('training','manage') synchronize(@Query('limit')limit:string|undefined,@Req()req:{user?:{sub?:string}}){return this.developmentAutomation.synchronize(this.userId(req),limit?Number(limit):undefined);}
   @Post('development-plans/:id/items/:itemId/:status') @RequirePermission('training','manage') itemStatus(@Param('id')id:string,@Param('itemId')itemId:string,@Param('status')status:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionPlanItem(uuid.parse(id),uuid.parse(itemId),status,this.userId(req));}
   @Post('development-plans/:id/:status') @RequirePermission('training','manage') planStatus(@Param('id')id:string,@Param('status')status:string,@Req()req:{user?:{sub?:string}}){return this.planning.transitionPlan(uuid.parse(id),status,this.userId(req));}
 }
