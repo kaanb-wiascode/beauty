@@ -11,6 +11,7 @@ const ITEMS = [
   { href: "/training", label: "Genel Bakış", permission: "read" },
   { href: "/training/my-learning", label: "Eğitimlerim", permission: "read" },
   { href: "/training/my-learning/paths", label: "Akademilerim", permission: "read" },
+  { href: "/training/my-development", label: "Gelişimim", permission: "read" },
   { href: "/training/courses", label: "Kurslar", permission: "read" },
   { href: "/training/authoring", label: "Kurs Yazarlığı", permission: "manage" },
   { href: "/training/learning-paths", label: "Akademiler", permission: "manage" },
