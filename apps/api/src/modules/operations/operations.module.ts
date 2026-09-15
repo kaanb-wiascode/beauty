@@ -10,6 +10,8 @@ import { OperationsResourcesController } from './operations-resources.controller
 import { OperationsResourcesService } from './operations-resources.service';
 import { OperationsServiceChecklistsController } from './operations-service-checklists.controller';
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
+import { OperationsStaffAvailabilityController } from './operations-staff-availability.controller';
+import { OperationsStaffAvailabilityService } from './operations-staff-availability.service';
 import { OperationsUtilizationController } from './operations-utilization.controller';
 import { OperationsUtilizationService } from './operations-utilization.service';
 import { OperationsWaitlistController } from './operations-waitlist.controller';
@@ -25,6 +27,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsResourceBlocksController,
     OperationsConsumablesController,
     OperationsServiceChecklistsController,
+    OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
     ServiceExecutionsController,
@@ -36,6 +39,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsResourceBlocksService,
     OperationsConsumablesService,
     OperationsServiceChecklistsService,
+    OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
     OperationsWaitlistMatchingService,
