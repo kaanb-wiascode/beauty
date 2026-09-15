@@ -8,6 +8,7 @@ const OPERATIONS_TABS = [
   { href: "/operations", label: "Canlı Operasyon" },
   { href: "/operations/resources", label: "Kaynaklar ve Kapasite" },
   { href: "/operations/service-executions", label: "Hizmet İcraları" },
+  { href: "/operations/checklists", label: "SOP / Checklist" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
