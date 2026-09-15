@@ -24,11 +24,13 @@ const saved = {
   columns: ['name', 'collected'],
   sort: null,
   isFavorite: true,
+  lastOpenedAt: null,
   createdAt: new Date(),
   updatedAt: new Date(),
 };
 
 function createService(catalogKeys: readonly string[]) {
+  const opened = { ...saved, lastOpenedAt: new Date() };
   const repository = {
     create: jest.fn().mockResolvedValue(saved),
     list: jest.fn().mockResolvedValue([
@@ -36,6 +38,7 @@ function createService(catalogKeys: readonly string[]) {
       { ...saved, id: 'saved-2', reportKey: reportKeys.paymentSummary },
     ]),
     findById: jest.fn().mockResolvedValue(saved),
+    markOpened: jest.fn().mockResolvedValue(opened),
     update: jest.fn().mockResolvedValue(saved),
     delete: jest.fn().mockResolvedValue(true),
   } as any;
@@ -47,6 +50,7 @@ function createService(catalogKeys: readonly string[]) {
   return {
     repository,
     reports,
+    opened,
     service: new ReportSavedViewsService(repository, reports),
   };
 }
@@ -59,11 +63,21 @@ describe('ReportSavedViewsService', () => {
   });
 
   it('revalidates source-domain permission when opening a saved report', async () => {
-    const { service } = createService([]);
+    const { service, repository } = createService([]);
 
     await expect(service.get(user as any, saved.id)).rejects.toBeInstanceOf(
       ForbiddenException,
     );
+    expect(repository.markOpened).not.toHaveBeenCalled();
+  });
+
+  it('marks an authorized saved report as recently opened', async () => {
+    const { service, repository, opened } = createService([
+      reportKeys.staffPerformance,
+    ]);
+
+    await expect(service.get(user as any, saved.id)).resolves.toEqual(opened);
+    expect(repository.markOpened).toHaveBeenCalledWith(user, saved.id);
   });
 
   it('rejects unsupported columns before persistence', async () => {
