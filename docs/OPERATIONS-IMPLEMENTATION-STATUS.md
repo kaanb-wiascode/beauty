@@ -8,9 +8,9 @@ This document tracks implementation progress conservatively. A phase is not cons
 
 ## Overall estimate
 
-Current implementation estimate: **~94%** of the Operations roadmap.
+Current implementation estimate: **~95%** of the Operations roadmap.
 
-The remaining work is concentrated in multi-staff execution, controlled reversals, broader operational tasks, precise permissions and full branch-wide CI/E2E verification.
+The remaining work is concentrated in controlled reversals, broader operational tasks, precise permissions, walk-in depth and full branch-wide CI/E2E verification.
 
 ## Phase 1 — Visit & Operational Lifecycle
 
@@ -72,13 +72,17 @@ Implemented:
 - Explicit Appointment completion handoff.
 - Explicit package Session consumption handoff.
 - Dedicated Service Execution workspace.
+- Multi-staff execution assignments with PRIMARY / ASSISTANT / HANDOFF roles.
+- Automatic PRIMARY assignment seeding for every execution.
+- Serializable staff handoff with optimistic assignment versioning and append-only execution events.
+- Handoff target eligibility validation against Operations OFF/WARN/BLOCK policy.
 
 Still open:
 
 - Walk-in ServiceExecution completion model.
-- Multiple staff/handoffs and responsibility timeline.
 - Controlled execution cancellation/reversal semantics.
 - Deeper Training/Quality reference integration for SOP templates.
+- Richer multi-staff frontend controls beyond the API foundation.
 
 ## Phase 4 — Capacity, Waitlist & Recovery
 
@@ -180,8 +184,9 @@ Do **not** interpret a pending, in-progress or superseded run as a successful va
 ## Remaining highest-priority work
 
 1. Verify a current branch HEAD through the complete quality workflow.
-2. Move waitlist branch-hours/eligibility revalidation into the serializable acceptance transaction.
-3. Add multiple-staff ServiceExecution handoffs.
-4. Add controlled execution reversal/cancellation semantics.
+2. Add controlled ServiceExecution cancellation/reversal semantics.
+3. Add richer multi-staff handoff controls to the Service Execution workspace.
+4. Complete walk-in ServiceExecution/commercial linkage.
 5. Expand lightweight Operational Tasks beyond opening/closing.
-6. Complete roadmap E2E scenarios and permission refinement.
+6. Move waitlist branch-hours/eligibility revalidation into the serializable acceptance transaction.
+7. Complete roadmap E2E scenarios and permission refinement.
