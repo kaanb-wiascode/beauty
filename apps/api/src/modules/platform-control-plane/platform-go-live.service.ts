@@ -68,14 +68,62 @@ export class PlatformGoLiveService {
         });
       }
 
-      const onboardingRows = await tx.$queryRaw<Array<{ id: string; status: string }>>`
-        SELECT id, status
+      const ownerRows = await tx.$queryRaw<
+        Array<{ userId: string; invitationId: string; membershipId: string }>
+      >`
+        SELECT
+          u.id AS "userId",
+          i.id AS "invitationId",
+          m.id AS "membershipId"
+        FROM platform_owner_invitation_deliveries d
+        JOIN user_invitations i
+          ON i.id = d.invitation_id
+         AND i."acceptedAt" IS NOT NULL
+         AND i."revokedAt" IS NULL
+        JOIN users u
+          ON lower(u.email) = lower(i.email)
+        JOIN memberships m
+          ON m."userId" = u.id
+         AND m."tenantId" = i."tenantId"
+         AND m."companyId" = i."companyId"
+         AND m.status = 'ACTIVE'
+        JOIN roles r
+          ON r.id = m."roleId"
+         AND r.id = i."roleId"
+         AND r."tenantId" = i."tenantId"
+         AND r."companyId" = i."companyId"
+         AND r.slug = 'owner'
+         AND r.scope = 'CENTRAL'
+        WHERE d.provisioning_run_id = ${runId}
+          AND d.tenant_id = ${run.tenantId}
+          AND d.status = 'SENT'
+        LIMIT 1
+      `;
+      const owner = ownerRows[0];
+      if (!owner) {
+        throw new ConflictException({
+          code: 'OWNER_ACCESS_NOT_ACTIVATED',
+          message:
+            'The primary Owner must accept the provisioning invitation and have an active Owner membership before go-live.',
+        });
+      }
+
+      const onboardingRows = await tx.$queryRaw<
+        Array<{ id: string; status: string; ownerUserId: string | null }>
+      >`
+        SELECT id, status, owner_user_id AS "ownerUserId"
         FROM platform_tenant_onboarding
         WHERE tenant_id = ${run.tenantId}
         FOR UPDATE
       `;
       const onboarding = onboardingRows[0];
       if (!onboarding) throw new ConflictException('Tenant onboarding is missing.');
+      if (onboarding.ownerUserId !== owner.userId) {
+        throw new ConflictException({
+          code: 'OWNER_ONBOARDING_IDENTITY_MISMATCH',
+          message: 'Onboarding Owner identity is not synchronized with the accepted Owner invitation.',
+        });
+      }
 
       const readinessRows = await tx.$queryRaw<
         Array<{ remaining: bigint; blocked: bigint }>
@@ -118,7 +166,11 @@ export class PlatformGoLiveService {
         UPDATE platform_provisioning_steps
         SET status = 'COMPLETED',
             attempt_count = attempt_count + 1,
-            output = ${JSON.stringify({ activatedAt })}::jsonb,
+            output = ${JSON.stringify({
+              activatedAt,
+              ownerUserId: owner.userId,
+              ownerMembershipId: owner.membershipId,
+            })}::jsonb,
             started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
             completed_at = CURRENT_TIMESTAMP,
             last_error = NULL,
@@ -144,6 +196,8 @@ export class PlatformGoLiveService {
           afterState: {
             status: 'COMPLETED',
             onboardingStatus: 'COMPLETED',
+            ownerUserId: owner.userId,
+            ownerMembershipId: owner.membershipId,
             activatedAt,
           },
           correlationId: correlationId ?? null,
@@ -154,6 +208,8 @@ export class PlatformGoLiveService {
       return {
         runId,
         tenantId: run.tenantId,
+        ownerUserId: owner.userId,
+        ownerMembershipId: owner.membershipId,
         status: 'COMPLETED' as const,
         onboardingStatus: 'COMPLETED' as const,
         activatedAt,
