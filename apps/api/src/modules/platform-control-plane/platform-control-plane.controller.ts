@@ -26,6 +26,7 @@ import {
 import { PlatformReadModelService } from './platform-read-model.service';
 
 type PlatformRequest = PlatformRequestLike & { user?: { sub?: string } };
+type TenantLifecycleState = 'ACTIVE' | 'RESTRICTED' | 'SUSPENDED';
 
 @Controller('platform')
 @UseGuards(PlatformJwtAuthGuard, PlatformPermissionsGuard)
@@ -63,6 +64,40 @@ export class PlatformControlPlaneController {
   @RequirePlatformPermission('customers', 'read')
   getCustomer360(@Param('tenantId') tenantId: string) {
     return this.readModel.getTenant360(tenantId);
+  }
+
+  @Post('customers/:tenantId/lifecycle')
+  @RequirePlatformPermission('customers', 'manage')
+  requestCustomerLifecycleChange(
+    @Req() request: PlatformRequest,
+    @Param('tenantId') tenantId: string,
+    @Body() body: { state?: string; expectedVersion?: number; reason?: string },
+  ) {
+    const state = (body.state ?? '').trim().toUpperCase() as TenantLifecycleState;
+    const actionByState: Record<TenantLifecycleState, string> = {
+      ACTIVE: 'lifecycle.reactivate',
+      RESTRICTED: 'lifecycle.restrict',
+      SUSPENDED: 'lifecycle.suspend',
+    };
+    const action = actionByState[state];
+    if (!action) {
+      throw new BadRequestException('Tenant lifecycle state must be ACTIVE, RESTRICTED, or SUSPENDED.');
+    }
+    if (!Number.isInteger(body.expectedVersion) || (body.expectedVersion as number) < 0) {
+      throw new BadRequestException('expectedVersion must be a non-negative integer.');
+    }
+
+    return this.privilegedOperations.create({
+      actorUserId: this.actor(request),
+      resource: 'customers',
+      action,
+      targetEntityType: 'tenant',
+      targetEntityId: tenantId,
+      targetTenantId: tenantId,
+      reason: body.reason ?? '',
+      payload: { tenantId, expectedVersion: body.expectedVersion },
+      context: getPlatformOperationContext(request),
+    });
   }
 
   @Get('iam')
