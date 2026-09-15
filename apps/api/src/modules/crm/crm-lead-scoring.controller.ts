@@ -28,7 +28,6 @@ const policySchema = z.object({
 });
 const overrideSchema = z.object({
   score: z.coerce.number().int().min(0).max(100),
-  temperature: z.enum(['COLD', 'WARM', 'HOT']),
   reason: z.string().trim().min(3).max(1000),
   version: z.coerce.number().int().min(1),
 });
