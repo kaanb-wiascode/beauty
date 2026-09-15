@@ -10,6 +10,7 @@ import { PrismaService } from '@beauty-erp/database';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { CustomerReportingService } from '../customers/customer-reporting.service';
 import { PaymentsService } from '../payments/payments.service';
+import { SalesReportingService } from '../sales/sales-reporting.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportExportInput } from './dto/report-export.dto';
@@ -31,6 +32,7 @@ export class ReportsService {
     private readonly servicesService: ServicesService,
     private readonly paymentsService: PaymentsService,
     private readonly customerReporting: CustomerReportingService,
+    private readonly salesReporting: SalesReportingService,
     private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
@@ -174,6 +176,18 @@ export class ReportsService {
       };
     }
 
+    if (definition.key === reportKeys.salesPerformance) {
+      const rows = await this.salesReporting.performance(input.filters);
+      const sorted = this.sortRows(rows, prepared.sort);
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildSalesSummary(rows) : null,
+      };
+    }
+
     const summary = await this.paymentsService.summary(input.filters);
     return {
       reportKey: prepared.reportKey,
@@ -264,6 +278,17 @@ export class ReportsService {
         rows,
         input,
         this.buildCustomerSummary(rows),
+      );
+    }
+
+    if (definition.key === reportKeys.salesPerformance) {
+      const rows = await this.salesReporting.performance(input.filters);
+      return this.buildTablePreview(
+        definition,
+        columns,
+        rows,
+        input,
+        this.buildSalesSummary(rows),
       );
     }
 
@@ -472,6 +497,42 @@ export class ReportsService {
       averageCollectedPerCompletedVisit: completedVisits
         ? collected / completedVisits
         : 0,
+    };
+  }
+
+  private buildSalesSummary(rows: readonly Record<string, unknown>[]) {
+    const revenue = rows.reduce(
+      (total, row) => total + this.numberValue(row.revenue),
+      0,
+    );
+    const collected = rows.reduce(
+      (total, row) => total + this.numberValue(row.collected),
+      0,
+    );
+    const refunded = rows.reduce(
+      (total, row) => total + this.numberValue(row.refunded),
+      0,
+    );
+    const outstanding = rows.reduce(
+      (total, row) => total + this.numberValue(row.outstanding),
+      0,
+    );
+    const discountTotal = rows.reduce(
+      (total, row) => total + this.numberValue(row.discountTotal),
+      0,
+    );
+
+    return {
+      rowCount: rows.length,
+      saleCount: rows.length,
+      revenue,
+      collected,
+      refunded,
+      netCollected: collected - refunded,
+      outstanding,
+      discountTotal,
+      averageBasket: rows.length ? revenue / rows.length : 0,
+      collectionRate: revenue ? Math.round((collected / revenue) * 100) : 0,
     };
   }
 
