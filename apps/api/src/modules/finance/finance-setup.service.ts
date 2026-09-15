@@ -29,11 +29,27 @@ export class FinanceSetupService {
   }
 
   async listCategories() {
+    return this.listCategoryTable('expense_categories');
+  }
+
+  async createCategory(input: CreateCategoryInput) {
+    return this.createCategoryInTable('expense_categories', input, 'Expense');
+  }
+
+  async listIncomeCategories() {
+    return this.listCategoryTable('income_categories');
+  }
+
+  async createIncomeCategory(input: CreateCategoryInput) {
+    return this.createCategoryInTable('income_categories', input, 'Income');
+  }
+
+  private async listCategoryTable(table: 'expense_categories' | 'income_categories') {
     const { tenantId, companyId } = this.context();
     return this.prisma.$queryRawUnsafe(
       `SELECT id, code, name, parent_id AS "parentId", system, active,
               company_id AS "companyId", created_at AS "createdAt", updated_at AS "updatedAt"
-       FROM expense_categories
+       FROM ${table}
        WHERE tenant_id=$1::text AND (company_id IS NULL OR company_id=$2::text)
        ORDER BY parent_id NULLS FIRST, name ASC`,
       tenantId,
@@ -41,12 +57,16 @@ export class FinanceSetupService {
     );
   }
 
-  async createCategory(input: CreateCategoryInput) {
+  private async createCategoryInTable(
+    table: 'expense_categories' | 'income_categories',
+    input: CreateCategoryInput,
+    label: 'Expense' | 'Income',
+  ) {
     const { tenantId, companyId } = this.context();
 
     if (input.parentId) {
       const parent = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id FROM expense_categories
+        `SELECT id FROM ${table}
          WHERE id=$1::text AND tenant_id=$2::text
            AND (company_id IS NULL OR company_id=$3::text) AND active=true
          LIMIT 1`,
@@ -54,12 +74,12 @@ export class FinanceSetupService {
         tenantId,
         companyId,
       );
-      if (!parent.length) throw new NotFoundException('Parent expense category not found');
+      if (!parent.length) throw new NotFoundException(`${label} parent category not found`);
     }
 
     try {
       const rows = await this.prisma.$queryRawUnsafe(
-        `INSERT INTO expense_categories(
+        `INSERT INTO ${table}(
            id,tenant_id,company_id,parent_id,code,name,system,active,updated_at
          ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,false,true,CURRENT_TIMESTAMP)
          RETURNING id,code,name,parent_id AS "parentId",system,active,
@@ -74,7 +94,7 @@ export class FinanceSetupService {
       return (rows as unknown[])[0];
     } catch (error) {
       if ((error as { code?: string }).code === 'P2002' || (error as { code?: string }).code === '23505') {
-        throw new ConflictException('Expense category code already exists for this company.');
+        throw new ConflictException(`${label} category code already exists for this company.`);
       }
       throw error;
     }
