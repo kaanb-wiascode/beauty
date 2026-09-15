@@ -75,6 +75,57 @@ describe('PlatformAuditService', () => {
     expect(serializedCall).not.toContain('Bearer value');
   });
 
+  it('uses the supplied transaction client for atomic audit writes', async () => {
+    const transactionQueryRaw = jest.fn().mockResolvedValue([
+      { id: 'audit-tx', createdAt: new Date('2026-09-15T14:31:00.000Z') },
+    ]);
+
+    await service.record(
+      {
+        actorUserId: 'user-1',
+        resource: 'roles',
+        action: 'update',
+        targetTenantId: 'tenant-1',
+      },
+      { $queryRaw: transactionQueryRaw } as never,
+    );
+
+    expect(transactionQueryRaw).toHaveBeenCalledTimes(1);
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
+  it('reads audit events only through an explicit tenant predicate and bounded filters', async () => {
+    queryRaw.mockResolvedValue([]);
+
+    await service.findTenantEvents(' tenant-1 ', {
+      resource: ' roles ',
+      action: ' update ',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      limit: 500,
+    });
+
+    expect(queryRaw).toHaveBeenCalledTimes(1);
+    const serializedCall = JSON.stringify(queryRaw.mock.calls[0]);
+    expect(serializedCall).toContain('tenant-1');
+    expect(serializedCall).toContain('roles');
+    expect(serializedCall).toContain('update');
+    expect(serializedCall).toContain('company-1');
+    expect(serializedCall).toContain('branch-1');
+    expect(serializedCall).toContain('200');
+  });
+
+  it('rejects an invalid tenant audit date range before querying', async () => {
+    await expect(
+      service.findTenantEvents('tenant-1', {
+        from: new Date('2026-09-16T00:00:00.000Z'),
+        to: new Date('2026-09-15T00:00:00.000Z'),
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
+
+    expect(queryRaw).not.toHaveBeenCalled();
+  });
+
   it('rejects incomplete audit identity and action context', async () => {
     await expect(
       service.record({
