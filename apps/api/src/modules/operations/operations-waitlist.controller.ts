@@ -20,6 +20,7 @@ import {
   findWaitlistMatchesSchema,
   listWaitlistEntriesSchema,
 } from './dto/waitlist.dto';
+import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
 import { OperationsWaitlistMatchingService } from './operations-waitlist-matching.service';
 import { OperationsWaitlistRecoveryService } from './operations-waitlist-recovery.service';
 import { OperationsWaitlistService } from './operations-waitlist.service';
@@ -31,6 +32,7 @@ export class OperationsWaitlistController {
     private readonly waitlist: OperationsWaitlistService,
     private readonly matching: OperationsWaitlistMatchingService,
     private readonly recovery: OperationsWaitlistRecoveryService,
+    private readonly eligibility: OperationsStaffEligibilityService,
   ) {}
 
   @Get()
@@ -68,11 +70,13 @@ export class OperationsWaitlistController {
 
   @Post(':entryId/accept-match')
   @RequirePermission('appointments', 'update')
-  acceptMatch(
+  async acceptMatch(
     @Param('entryId', new ParseUUIDPipe()) entryId: string,
     @Body() body: unknown,
   ) {
-    return this.matching.acceptMatch(entryId, acceptWaitlistMatchSchema.parse(body));
+    const input = acceptWaitlistMatchSchema.parse(body);
+    await this.eligibility.assertWaitlistEntryEligible(entryId, input);
+    return this.matching.acceptMatch(entryId, input);
   }
 
   @Post(':entryId/cancel')
