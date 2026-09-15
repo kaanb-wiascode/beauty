@@ -4,8 +4,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { UpdateMembershipRoleInput } from './dto/update-membership-role.dto';
 import { UpdateMembershipStatusInput } from './dto/update-membership-status.dto';
 
@@ -14,10 +15,71 @@ export class MembershipsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly platformAudit: PlatformAuditService,
   ) {}
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
+  }
+
+  private async getActorUserId(): Promise<string> {
+    const tenantId = this.getTenantId();
+    const membershipId = this.tenantContext.getMembershipId();
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id: membershipId,
+        tenantId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException(
+        'Active membership is required for membership administration',
+      );
+    }
+
+    return membership.userId;
+  }
+
+  private auditMetadata() {
+    const context = this.tenantContext.getContext();
+    return {
+      membershipId: context.membershipId,
+      companyId: context.companyId,
+      branchId: context.branchId,
+      roleScope: context.roleScope,
+    };
+  }
+
+  private async recordMembershipAudit(
+    tx: Prisma.TransactionClient,
+    actorUserId: string,
+    action: string,
+    membershipId: string,
+    targetUserId: string,
+    beforeState: unknown,
+    afterState: unknown,
+  ) {
+    await this.platformAudit.record(
+      {
+        actorUserId,
+        resource: 'memberships',
+        action,
+        targetTenantId: this.getTenantId(),
+        targetEntityType: 'membership',
+        targetEntityId: membershipId,
+        beforeState,
+        afterState,
+        metadata: {
+          ...this.auditMetadata(),
+          targetUserId,
+        },
+      },
+      tx,
+    );
   }
 
   async findAll() {
@@ -221,32 +283,49 @@ export class MembershipsService {
       }
     }
 
-    return this.prisma.membership.update({
-      where: {
-        id: membership.id,
-      },
-      data: {
-        status: input.status,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+    const actorUserId = await this.getActorUserId();
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.membership.update({
+        where: {
+          id: membership.id,
+        },
+        data: {
+          status: input.status,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
           },
         },
-        role: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-      },
+      });
+
+      await this.recordMembershipAudit(
+        tx,
+        actorUserId,
+        'status.update',
+        membership.id,
+        membership.user.id,
+        { status: membership.status },
+        { status: updated.status },
+      );
+
+      return updated;
     });
   }
+
   async remove(id: string) {
     const tenantId = this.getTenantId();
 
@@ -302,30 +381,46 @@ export class MembershipsService {
       }
     }
 
-    return this.prisma.membership.update({
-      where: {
-        id: membership.id,
-      },
-      data: {
-        status: 'REMOVED',
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+    const actorUserId = await this.getActorUserId();
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.membership.update({
+        where: {
+          id: membership.id,
+        },
+        data: {
+          status: 'REMOVED',
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
           },
         },
-        role: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-      },
+      });
+
+      await this.recordMembershipAudit(
+        tx,
+        actorUserId,
+        'remove',
+        membership.id,
+        membership.user.id,
+        { status: membership.status },
+        { status: updated.status },
+      );
+
+      return updated;
     });
   }
 
@@ -378,64 +473,103 @@ export class MembershipsService {
       );
     }
 
-    // Son aktif Owner'ın Owner rolünü bırakmasını engelle.
-    if (
-      membership.roleId !== role.id
-    ) {
-      const currentRole =
-        await this.prisma.role.findFirst({
-          where: {
-            id: membership.roleId,
-            tenantId,
-            slug: 'owner',
+    const currentRole = await this.prisma.role.findFirst({
+      where: {
+        id: membership.roleId,
+        tenantId,
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+      },
+    });
+
+    if (!currentRole) {
+      throw new BadRequestException('Current role not found');
+    }
+
+    if (membership.roleId === role.id) {
+      return this.prisma.membership.findUnique({
+        where: { id: membership.id },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
           },
-          select: {
-            id: true,
+          role: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
+          },
+        },
+      });
+    }
+
+    // Son aktif Owner'ın Owner rolünü bırakmasını engelle.
+    if (currentRole.slug === 'owner') {
+      const ownerCount =
+        await this.prisma.membership.count({
+          where: {
+            tenantId,
+            roleId: currentRole.id,
+            status: 'ACTIVE',
           },
         });
 
-      if (currentRole) {
-        const ownerCount =
-          await this.prisma.membership.count({
-            where: {
-              tenantId,
-              roleId: currentRole.id,
-              status: 'ACTIVE',
-            },
-          });
-
-        if (ownerCount <= 1) {
-          throw new BadRequestException(
-            'Tenant must have at least one active Owner',
-          );
-        }
+      if (ownerCount <= 1) {
+        throw new BadRequestException(
+          'Tenant must have at least one active Owner',
+        );
       }
     }
 
-    return this.prisma.membership.update({
-      where: {
-        id: membership.id,
-      },
-      data: {
-        roleId: role.id,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            email: true,
-            firstName: true,
-            lastName: true,
+    const actorUserId = await this.getActorUserId();
+
+    return this.prisma.$transaction(async (tx) => {
+      const updated = await tx.membership.update({
+        where: {
+          id: membership.id,
+        },
+        data: {
+          roleId: role.id,
+        },
+        include: {
+          user: {
+            select: {
+              id: true,
+              email: true,
+              firstName: true,
+              lastName: true,
+            },
+          },
+          role: {
+            select: {
+              id: true,
+              name: true,
+              slug: true,
+            },
           },
         },
-        role: {
-          select: {
-            id: true,
-            name: true,
-            slug: true,
-          },
-        },
-      },
+      });
+
+      await this.recordMembershipAudit(
+        tx,
+        actorUserId,
+        'role.update',
+        membership.id,
+        membership.user.id,
+        { role: currentRole },
+        { role },
+      );
+
+      return updated;
     });
   }
 }
