@@ -4,6 +4,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type TargetType = 'EXPENSE_PAYMENT' | 'INCOME_COLLECTION';
+const MONEY_TOLERANCE = 0.01;
 
 @Injectable()
 export class FinanceReconciliationService {
@@ -20,12 +21,12 @@ export class FinanceReconciliationService {
     };
   }
 
-  async matchExpensePayment(paymentId: string, bankTransactionId: string, actorId: string) {
-    return this.match('EXPENSE_PAYMENT', paymentId, bankTransactionId, actorId);
+  async matchExpensePayment(paymentId: string, bankTransactionId: string, actorId: string, amount?: number) {
+    return this.match('EXPENSE_PAYMENT', paymentId, bankTransactionId, actorId, amount);
   }
 
-  async matchIncomeCollection(collectionId: string, bankTransactionId: string, actorId: string) {
-    return this.match('INCOME_COLLECTION', collectionId, bankTransactionId, actorId);
+  async matchIncomeCollection(collectionId: string, bankTransactionId: string, actorId: string, amount?: number) {
+    return this.match('INCOME_COLLECTION', collectionId, bankTransactionId, actorId, amount);
   }
 
   async suggestExpensePayment(paymentId: string, days = 3) {
@@ -39,25 +40,33 @@ export class FinanceReconciliationService {
   private async suggest(targetType: TargetType, targetId: string, days = 3) {
     const ctx = this.context();
     const target = await this.getTarget(targetType, targetId, ctx);
-    const expectedSignedAmount = targetType === 'EXPENSE_PAYMENT' ? -Number(target.amount) : Number(target.amount);
-    const boundedDays = Math.min(Math.max(days, 1), 14);
+    const targetRemaining = Math.max(0, Number(target.amount) - Number(target.allocatedAmount ?? 0));
+    if (targetRemaining <= MONEY_TOLERANCE) {
+      return { targetType, targetId, remainingAmount: 0, suggestions: [] };
+    }
 
+    const boundedDays = Math.min(Math.max(days, 1), 14);
+    const sign = targetType === 'EXPENSE_PAYMENT' ? -1 : 1;
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT bt.id,bt.bank_account_id AS "bankAccountId",bt.booked_at AS "bookedAt",bt.amount,bt.currency,
               bt.description,
+              GREATEST(ABS(bt.amount)-COALESCE((
+                SELECT SUM(m.amount) FROM finance_reconciliation_matches m
+                WHERE m.bank_transaction_id=bt.id AND m.reversed_at IS NULL
+              ),0),0)::numeric AS "remainingAmount",
               ABS(EXTRACT(EPOCH FROM (bt.booked_at-$1::timestamptz))/86400.0) AS "dayDistance"
        FROM bank_transactions bt
        WHERE bt.tenant_id=$2::text AND bt.company_id=$3::text
          AND ($4::text IS NULL OR bt.branch_id=$4::text)
          AND bt.reconciliation_status='UNMATCHED'
          AND bt.currency=$5
-         AND ABS(bt.amount-$6::numeric)<=0.01
+         AND SIGN(bt.amount)=$6
          AND bt.booked_at BETWEEN $1::timestamptz-($7::text||' days')::interval
                              AND $1::timestamptz+($7::text||' days')::interval
-         AND NOT EXISTS (
-           SELECT 1 FROM finance_reconciliation_matches m
+         AND ABS(bt.amount)-COALESCE((
+           SELECT SUM(m.amount) FROM finance_reconciliation_matches m
            WHERE m.bank_transaction_id=bt.id AND m.reversed_at IS NULL
-         )
+         ),0) > 0.01
        ORDER BY "dayDistance" ASC,bt.booked_at ASC
        LIMIT 20`,
       target.occurredAt,
@@ -65,23 +74,32 @@ export class FinanceReconciliationService {
       ctx.companyId,
       ctx.branchId,
       target.currency,
-      expectedSignedAmount,
+      sign,
       boundedDays,
     );
 
     const normalizedReference = String(target.reference ?? '').trim().toLowerCase();
     const suggestions = rows.map((row) => {
       const dayDistance = Number(row.dayDistance ?? 99);
+      const bankRemaining = Number(row.remainingAmount ?? 0);
+      const allocationAmount = Math.min(targetRemaining, bankRemaining);
+      const exactResidual = Math.abs(bankRemaining - targetRemaining) <= MONEY_TOLERANCE;
       const description = String(row.description ?? '').toLowerCase();
-      let confidence = 70;
+      let confidence = exactResidual ? 70 : 55;
       if (dayDistance <= 0.5) confidence += 20;
       else if (dayDistance <= 1) confidence += 15;
       else if (dayDistance <= 2) confidence += 10;
       if (normalizedReference && description.includes(normalizedReference)) confidence += 10;
-      return { ...row, confidence: Math.min(confidence, 100) };
+      return {
+        ...row,
+        remainingAmount: bankRemaining,
+        allocationAmount,
+        exactResidual,
+        confidence: Math.min(confidence, 100),
+      };
     });
 
-    return { targetType, targetId, suggestions };
+    return { targetType, targetId, remainingAmount: targetRemaining, suggestions };
   }
 
   async autoMatch(actorId: string, limit = 100) {
@@ -92,18 +110,18 @@ export class FinanceReconciliationService {
          SELECT 'EXPENSE_PAYMENT'::text AS "targetType",ep.id AS "targetId",ep.paid_at AS occurred_at
          FROM expense_payments ep
          LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
-         LEFT JOIN finance_reconciliation_matches m ON m.expense_payment_id=ep.id AND m.reversed_at IS NULL
          WHERE ep.tenant_id=$1::text AND ep.company_id=$2::text
            AND ($3::text IS NULL OR ep.branch_id=$3::text)
-           AND r.id IS NULL AND m.id IS NULL
+           AND r.id IS NULL
+           AND ep.amount-COALESCE((SELECT SUM(m.amount) FROM finance_reconciliation_matches m WHERE m.expense_payment_id=ep.id AND m.reversed_at IS NULL),0)>0.01
          UNION ALL
          SELECT 'INCOME_COLLECTION'::text AS "targetType",ic.id AS "targetId",ic.collected_at AS occurred_at
          FROM income_collections ic
          LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
-         LEFT JOIN finance_reconciliation_matches m ON m.income_collection_id=ic.id AND m.reversed_at IS NULL
          WHERE ic.tenant_id=$1::text AND ic.company_id=$2::text
            AND ($3::text IS NULL OR ic.branch_id=$3::text)
-           AND r.id IS NULL AND m.id IS NULL
+           AND r.id IS NULL
+           AND ic.amount-COALESCE((SELECT SUM(m.amount) FROM finance_reconciliation_matches m WHERE m.income_collection_id=ic.id AND m.reversed_at IS NULL),0)>0.01
        ) candidates
        ORDER BY occurred_at ASC
        LIMIT $4`,
@@ -126,12 +144,12 @@ export class FinanceReconciliationService {
         noCandidate += 1;
         continue;
       }
-      if (best.confidence < 90 || (second && second.confidence === best.confidence)) {
+      if (!best.exactResidual || best.confidence < 90 || (second && second.confidence === best.confidence)) {
         ambiguous += 1;
         continue;
       }
       try {
-        await this.match(target.targetType, target.targetId, best.id, actorId);
+        await this.match(target.targetType, target.targetId, best.id, actorId, best.allocationAmount);
         matched += 1;
       } catch {
         conflicted += 1;
@@ -141,7 +159,13 @@ export class FinanceReconciliationService {
     return { scanned: targets.length, matched, ambiguous, noCandidate, conflicted };
   }
 
-  private async match(targetType: TargetType, targetId: string, bankTransactionId: string, actorId: string) {
+  private async match(
+    targetType: TargetType,
+    targetId: string,
+    bankTransactionId: string,
+    actorId: string,
+    requestedAmount?: number,
+  ) {
     const ctx = this.context();
     return this.prisma.$transaction(async (tx) => {
       const target = await this.lockTarget(tx, targetType, targetId, ctx);
@@ -158,28 +182,40 @@ export class FinanceReconciliationService {
       );
       if (!bankRows.length) throw new NotFoundException('Bank transaction not found.');
       const bank = bankRows[0];
-      if (bank.reconciliationStatus !== 'UNMATCHED') {
-        throw new BadRequestException('Bank transaction is already reconciled.');
+      if (bank.reconciliationStatus === 'IGNORED' || bank.reconciliationStatus === 'MATCHED') {
+        throw new BadRequestException('Bank transaction is not available for allocation.');
       }
       if (bank.currency !== target.currency) {
         throw new BadRequestException('Finance target and bank transaction currencies do not match.');
       }
-
-      const expectedSignedAmount = targetType === 'EXPENSE_PAYMENT' ? -Number(target.amount) : Number(target.amount);
-      if (Math.abs(Number(bank.amount) - expectedSignedAmount) > 0.01) {
-        throw new BadRequestException('Finance target amount does not match bank transaction amount.');
+      if (targetType === 'EXPENSE_PAYMENT' && Number(bank.amount) >= 0) {
+        throw new BadRequestException('Expense payment requires a negative bank transaction.');
+      }
+      if (targetType === 'INCOME_COLLECTION' && Number(bank.amount) <= 0) {
+        throw new BadRequestException('Income collection requires a positive bank transaction.');
       }
 
-      const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id FROM finance_reconciliation_matches
-         WHERE reversed_at IS NULL
-           AND (bank_transaction_id=$1::text OR expense_payment_id=$2::text OR income_collection_id=$3::text)
-         LIMIT 1`,
+      const [bankAllocation] = await tx.$queryRawUnsafe<Array<{ allocated: number }>>(
+        `SELECT COALESCE(SUM(amount),0)::numeric AS allocated FROM finance_reconciliation_matches
+         WHERE bank_transaction_id=$1::text AND reversed_at IS NULL`,
         bankTransactionId,
-        targetType === 'EXPENSE_PAYMENT' ? targetId : null,
-        targetType === 'INCOME_COLLECTION' ? targetId : null,
       );
-      if (existing.length) throw new BadRequestException('Finance target or bank transaction is already matched.');
+      const targetColumn = targetType === 'EXPENSE_PAYMENT' ? 'expense_payment_id' : 'income_collection_id';
+      const [targetAllocation] = await tx.$queryRawUnsafe<Array<{ allocated: number }>>(
+        `SELECT COALESCE(SUM(amount),0)::numeric AS allocated FROM finance_reconciliation_matches
+         WHERE ${targetColumn}=$1::text AND reversed_at IS NULL`,
+        targetId,
+      );
+
+      const bankRemaining = Math.max(0, Math.abs(Number(bank.amount)) - Number(bankAllocation?.allocated ?? 0));
+      const targetRemaining = Math.max(0, Number(target.amount) - Number(targetAllocation?.allocated ?? 0));
+      if (bankRemaining <= MONEY_TOLERANCE) throw new BadRequestException('Bank transaction is fully allocated.');
+      if (targetRemaining <= MONEY_TOLERANCE) throw new BadRequestException('Finance target is fully reconciled.');
+
+      const amount = requestedAmount ?? Math.min(bankRemaining, targetRemaining);
+      if (!Number.isFinite(amount) || amount <= 0) throw new BadRequestException('Allocation amount must be greater than zero.');
+      if (amount - bankRemaining > MONEY_TOLERANCE) throw new BadRequestException('Allocation exceeds bank transaction remaining amount.');
+      if (amount - targetRemaining > MONEY_TOLERANCE) throw new BadRequestException('Allocation exceeds finance target remaining amount.');
 
       const id = randomUUID();
       await tx.$executeRawUnsafe(
@@ -194,13 +230,16 @@ export class FinanceReconciliationService {
         bankTransactionId,
         targetType === 'EXPENSE_PAYMENT' ? targetId : null,
         targetType === 'INCOME_COLLECTION' ? targetId : null,
-        Number(target.amount),
+        amount,
         target.currency,
         actorId,
       );
+
+      const bankFullyAllocated = bankRemaining - amount <= MONEY_TOLERANCE;
       await tx.$executeRawUnsafe(
-        `UPDATE bank_transactions SET reconciliation_status='MATCHED' WHERE id=$1::text`,
+        `UPDATE bank_transactions SET reconciliation_status=$2 WHERE id=$1::text`,
         bankTransactionId,
+        bankFullyAllocated ? 'MATCHED' : 'UNMATCHED',
       );
       await this.recalculateAggregate(tx, targetType, target.aggregateId, ctx.tenantId, ctx.companyId);
       return this.getMatchWith(tx, id, ctx.tenantId, ctx.companyId);
@@ -287,26 +326,26 @@ export class FinanceReconciliationService {
   ) {
     const query = targetType === 'EXPENSE_PAYMENT'
       ? `SELECT ep.id,ep.amount,e.currency,ep.branch_id AS "branchId",ep.expense_id AS "aggregateId",
-                ep.paid_at AS "occurredAt",ep.reference
+                ep.paid_at AS "occurredAt",ep.reference,
+                COALESCE((SELECT SUM(m.amount) FROM finance_reconciliation_matches m WHERE m.expense_payment_id=ep.id AND m.reversed_at IS NULL),0)::numeric AS "allocatedAmount"
          FROM expense_payments ep
          JOIN expenses e ON e.id=ep.expense_id
          LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
-         LEFT JOIN finance_reconciliation_matches m ON m.expense_payment_id=ep.id AND m.reversed_at IS NULL
          WHERE ep.id=$1::text AND ep.tenant_id=$2::text AND ep.company_id=$3::text
-           AND ($4::text IS NULL OR ep.branch_id=$4::text) AND r.id IS NULL AND m.id IS NULL
+           AND ($4::text IS NULL OR ep.branch_id=$4::text) AND r.id IS NULL
          LIMIT 1`
       : `SELECT ic.id,ic.amount,i.currency,ic.branch_id AS "branchId",ic.income_record_id AS "aggregateId",
-                ic.collected_at AS "occurredAt",ic.reference
+                ic.collected_at AS "occurredAt",ic.reference,
+                COALESCE((SELECT SUM(m.amount) FROM finance_reconciliation_matches m WHERE m.income_collection_id=ic.id AND m.reversed_at IS NULL),0)::numeric AS "allocatedAmount"
          FROM income_collections ic
          JOIN income_records i ON i.id=ic.income_record_id
          LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
-         LEFT JOIN finance_reconciliation_matches m ON m.income_collection_id=ic.id AND m.reversed_at IS NULL
          WHERE ic.id=$1::text AND ic.tenant_id=$2::text AND ic.company_id=$3::text
-           AND ($4::text IS NULL OR ic.branch_id=$4::text) AND r.id IS NULL AND m.id IS NULL
+           AND ($4::text IS NULL OR ic.branch_id=$4::text) AND r.id IS NULL
          LIMIT 1`;
     const rows = await this.prisma.$queryRawUnsafe<any[]>(query, targetId, ctx.tenantId, ctx.companyId, ctx.branchId);
     if (!rows.length) {
-      throw new NotFoundException(targetType === 'EXPENSE_PAYMENT' ? 'Unmatched active expense payment not found.' : 'Unmatched active income collection not found.');
+      throw new NotFoundException(targetType === 'EXPENSE_PAYMENT' ? 'Active expense payment not found.' : 'Active income collection not found.');
     }
     return rows[0];
   }
@@ -347,13 +386,16 @@ export class FinanceReconciliationService {
     companyId: string,
   ) {
     if (targetType === 'EXPENSE_PAYMENT') {
-      const rows = await tx.$queryRawUnsafe<Array<{ total: number; matched: number }>>(
-        `SELECT COUNT(*)::int AS total,
-                COUNT(m.id) FILTER (WHERE m.reversed_at IS NULL)::int AS matched
-         FROM expense_payments ep
-         LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
-         LEFT JOIN finance_reconciliation_matches m ON m.expense_payment_id=ep.id AND m.reversed_at IS NULL
-         WHERE ep.expense_id=$1::text AND ep.tenant_id=$2::text AND ep.company_id=$3::text AND r.id IS NULL`,
+      const rows = await tx.$queryRawUnsafe<Array<{ totalAmount: number; allocatedAmount: number }>>(
+        `SELECT
+           COALESCE((SELECT SUM(ep.amount) FROM expense_payments ep
+             LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
+             WHERE ep.expense_id=$1::text AND ep.tenant_id=$2::text AND ep.company_id=$3::text AND r.id IS NULL),0)::numeric AS "totalAmount",
+           COALESCE((SELECT SUM(m.amount) FROM finance_reconciliation_matches m
+             JOIN expense_payments ep ON ep.id=m.expense_payment_id
+             LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
+             WHERE ep.expense_id=$1::text AND ep.tenant_id=$2::text AND ep.company_id=$3::text
+               AND r.id IS NULL AND m.reversed_at IS NULL),0)::numeric AS "allocatedAmount"`,
         aggregateId,
         tenantId,
         companyId,
@@ -361,13 +403,17 @@ export class FinanceReconciliationService {
       await this.updateReconciliationStatus(tx, 'expenses', aggregateId, rows[0]);
       return;
     }
-    const rows = await tx.$queryRawUnsafe<Array<{ total: number; matched: number }>>(
-      `SELECT COUNT(*)::int AS total,
-              COUNT(m.id) FILTER (WHERE m.reversed_at IS NULL)::int AS matched
-       FROM income_collections ic
-       LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
-       LEFT JOIN finance_reconciliation_matches m ON m.income_collection_id=ic.id AND m.reversed_at IS NULL
-       WHERE ic.income_record_id=$1::text AND ic.tenant_id=$2::text AND ic.company_id=$3::text AND r.id IS NULL`,
+
+    const rows = await tx.$queryRawUnsafe<Array<{ totalAmount: number; allocatedAmount: number }>>(
+      `SELECT
+         COALESCE((SELECT SUM(ic.amount) FROM income_collections ic
+           LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
+           WHERE ic.income_record_id=$1::text AND ic.tenant_id=$2::text AND ic.company_id=$3::text AND r.id IS NULL),0)::numeric AS "totalAmount",
+         COALESCE((SELECT SUM(m.amount) FROM finance_reconciliation_matches m
+           JOIN income_collections ic ON ic.id=m.income_collection_id
+           LEFT JOIN income_collection_reversals r ON r.income_collection_id=ic.id
+           WHERE ic.income_record_id=$1::text AND ic.tenant_id=$2::text AND ic.company_id=$3::text
+             AND r.id IS NULL AND m.reversed_at IS NULL),0)::numeric AS "allocatedAmount"`,
       aggregateId,
       tenantId,
       companyId,
@@ -379,13 +425,13 @@ export class FinanceReconciliationService {
     tx: Prisma.TransactionClient,
     table: 'expenses' | 'income_records',
     aggregateId: string,
-    counts?: { total: number; matched: number },
+    amounts?: { totalAmount: number; allocatedAmount: number },
   ) {
-    const total = Number(counts?.total ?? 0);
-    const matched = Number(counts?.matched ?? 0);
-    const status = total === 0 || matched === 0
+    const total = Number(amounts?.totalAmount ?? 0);
+    const allocated = Number(amounts?.allocatedAmount ?? 0);
+    const status = total <= MONEY_TOLERANCE || allocated <= MONEY_TOLERANCE
       ? 'UNRECONCILED'
-      : matched === total
+      : total - allocated <= MONEY_TOLERANCE
         ? 'RECONCILED'
         : 'PARTIALLY_RECONCILED';
     await tx.$executeRawUnsafe(
@@ -395,7 +441,12 @@ export class FinanceReconciliationService {
     );
   }
 
-  private async getMatchWith(client: Prisma.TransactionClient | PrismaService, id: string, tenantId: string, companyId: string) {
+  private async getMatchWith(
+    client: Prisma.TransactionClient | PrismaService,
+    id: string,
+    tenantId: string,
+    companyId: string,
+  ) {
     const rows = await client.$queryRawUnsafe<any[]>(
       `SELECT id,bank_transaction_id AS "bankTransactionId",expense_payment_id AS "expensePaymentId",
               income_collection_id AS "incomeCollectionId",amount,currency,matched_by AS "matchedBy",
