@@ -43,10 +43,14 @@ export class ReportExportStorageService {
         key,
         CONTENT_TYPES[input.extension],
       );
+      const body =
+        typeof input.content === 'string'
+          ? input.content
+          : Uint8Array.from(input.content);
       const response = await fetch(signed.url, {
         method: 'PUT',
         headers: signed.requiredHeaders,
-        body: input.content,
+        body,
       });
       if (!response.ok) {
         throw new Error(`Report export object upload failed (${response.status})`);
