@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, Field, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { Alert, Button, Field, Spinner, TextArea, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -79,7 +79,6 @@ export function LeadScoringPanel({ leadId }: { leadId: string }) {
   const [error, setError] = useState("");
   const [overrideOpen, setOverrideOpen] = useState(false);
   const [overrideScore, setOverrideScore] = useState("80");
-  const [overrideTemperature, setOverrideTemperature] = useState<LeadTemperature>("HOT");
   const [overrideReason, setOverrideReason] = useState("");
 
   const load = useCallback(async () => {
@@ -112,7 +111,6 @@ export function LeadScoringPanel({ leadId }: { leadId: string }) {
   function openOverride() {
     if (!score || !requireBranch()) return;
     setOverrideScore(String(score.score));
-    setOverrideTemperature(score.temperature);
     setOverrideReason(score.overrideReason ?? "");
     setOverrideOpen(true);
     setError("");
@@ -138,7 +136,6 @@ export function LeadScoringPanel({ leadId }: { leadId: string }) {
         method: "POST",
         body: {
           score: numericScore,
-          temperature: overrideTemperature,
           reason: overrideReason.trim(),
           version: score.scoreVersion,
         },
@@ -268,21 +265,15 @@ export function LeadScoringPanel({ leadId }: { leadId: string }) {
 
       {overrideOpen ? (
         <div className="border-t border-[var(--line)] bg-[var(--surface-subtle)] px-5 py-5">
-          <form onSubmit={submitOverride} className="grid gap-4 lg:grid-cols-3">
+          <form onSubmit={submitOverride} className="grid gap-4 lg:grid-cols-2">
             <Field label="Skor">
               <TextInput type="number" min={0} max={100} value={overrideScore} onChange={(event) => setOverrideScore(event.target.value)} />
+              <p className="mt-1 text-[9px] text-[var(--muted)]">Sıcaklık tenant eşiklerine göre otomatik türetilir; manuel seçilemez.</p>
             </Field>
-            <Field label="Sıcaklık">
-              <Select value={overrideTemperature} onChange={(event) => setOverrideTemperature(event.target.value as LeadTemperature)}>
-                <option value="COLD">COLD</option><option value="WARM">WARM</option><option value="HOT">HOT</option>
-              </Select>
+            <Field label="Değişiklik Gerekçesi">
+              <TextArea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Manuel skor değişikliğinin nedenini yazın..." />
             </Field>
-            <div className="lg:col-span-3">
-              <Field label="Değişiklik Gerekçesi">
-                <TextArea value={overrideReason} onChange={(event) => setOverrideReason(event.target.value)} placeholder="Manuel skor değişikliğinin nedenini yazın..." />
-              </Field>
-            </div>
-            <div className="flex gap-2 lg:col-span-3">
+            <div className="flex gap-2 lg:col-span-2">
               <Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : "Override Kaydet"}</Button>
               <Button type="button" variant="secondary" onClick={() => setOverrideOpen(false)} disabled={saving}>Vazgeç</Button>
             </div>
