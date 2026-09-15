@@ -63,4 +63,30 @@ describe('Financial obligations', () => {
     const periodKeys = prisma.$executeRawUnsafe.mock.calls.map((call) => call[6]);
     expect(periodKeys).toEqual(['2026-01-31', '2026-02-28', '2026-03-31']);
   });
+
+  it('scopes active rule scanning and keeps generating when one rule fails', async () => {
+    const from = new Date('2026-09-01T00:00:00.000Z');
+    const to = new Date('2026-10-31T00:00:00.000Z');
+    const prisma = {
+      $queryRawUnsafe: jest.fn().mockResolvedValueOnce([{ id: 'rule-1' }, { id: 'rule-2' }]),
+    };
+    const service = new FinancialObligationRulesService(prisma as never, tenant as never);
+    jest.spyOn(service, 'generate')
+      .mockResolvedValueOnce({ generated: 2, skipped: 1, occurrences: 3 })
+      .mockRejectedValueOnce(new Error('rule failure'));
+
+    const result = await service.generateActive(from, to, 'actor-1', 999);
+
+    expect(prisma.$queryRawUnsafe.mock.calls[0].slice(1)).toEqual([
+      'tenant-1', 'company-1', 'branch-1', to, from, 500,
+    ]);
+    expect(result).toEqual({
+      scannedRules: 2,
+      generated: 2,
+      skipped: 1,
+      occurrences: 3,
+      failed: 1,
+      failures: [{ ruleId: 'rule-2', error: 'rule failure' }],
+    });
+  });
 });
