@@ -44,6 +44,16 @@ export const releaseAllocationSchema = z.object({
   expectedVersion: z.coerce.number().int().positive(),
 });
 
+export const operationsCapacityQuerySchema = z
+  .object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+  })
+  .refine((value) => value.from < value.to, {
+    message: 'Capacity from must be before to.',
+    path: ['to'],
+  });
+
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;
 export type UpdateRoomStatusInput = z.infer<typeof updateRoomStatusSchema>;
 export type UpsertServiceOperationalRequirementInput = z.infer<
@@ -53,3 +63,6 @@ export type AllocateAppointmentResourcesInput = z.infer<
   typeof allocateAppointmentResourcesSchema
 >;
 export type ReleaseAllocationInput = z.infer<typeof releaseAllocationSchema>;
+export type OperationsCapacityQueryInput = z.infer<
+  typeof operationsCapacityQuerySchema
+>;
