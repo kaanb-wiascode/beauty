@@ -15,16 +15,22 @@ import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import {
+  allocateAppointmentResourcesSchema,
   createRoomSchema,
+  releaseAllocationSchema,
   updateRoomStatusSchema,
   upsertServiceOperationalRequirementSchema,
 } from './dto/operations-resource.dto';
+import { OperationsAllocationService } from './operations-allocation.service';
 import { OperationsResourcesService } from './operations-resources.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 @Controller('operations/resources')
 export class OperationsResourcesController {
-  constructor(private readonly resources: OperationsResourcesService) {}
+  constructor(
+    private readonly resources: OperationsResourcesService,
+    private readonly allocations: OperationsAllocationService,
+  ) {}
 
   @Get('rooms')
   @UseGuards(PermissionsGuard)
@@ -79,6 +85,41 @@ export class OperationsResourcesController {
     return this.resources.upsertServiceRequirement(
       serviceId,
       upsertServiceOperationalRequirementSchema.parse(body),
+    );
+  }
+
+  @Get('appointments/:appointmentId/allocations')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'read')
+  listAppointmentAllocations(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+  ) {
+    return this.allocations.listAppointmentAllocations(appointmentId);
+  }
+
+  @Post('appointments/:appointmentId/allocations')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'update')
+  allocateAppointmentResources(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Body() body: unknown,
+  ) {
+    return this.allocations.allocate(
+      appointmentId,
+      allocateAppointmentResourcesSchema.parse(body),
+    );
+  }
+
+  @Post('allocations/:allocationId/release')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'update')
+  releaseAllocation(
+    @Param('allocationId', new ParseUUIDPipe()) allocationId: string,
+    @Body() body: unknown,
+  ) {
+    return this.allocations.release(
+      allocationId,
+      releaseAllocationSchema.parse(body),
     );
   }
 }
