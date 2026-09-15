@@ -1,5 +1,4 @@
-import { API_BASE_URL, ApiError, api, withQuery } from "@/lib/api";
-import { getAccessToken } from "@/lib/auth";
+import { ApiError, api, apiResponse, withQuery } from "@/lib/api";
 
 export type ReportExportStatus =
   | "QUEUED"
@@ -75,20 +74,7 @@ export function listReportExports(input: {
 }
 
 export async function downloadReportExport(job: Pick<ReportExportJob, "id" | "format">) {
-  const token = getAccessToken();
-  if (!token) {
-    throw new ApiError("Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.", 401);
-  }
-
-  let response: Response;
-  try {
-    response = await fetch(`${API_BASE_URL}/reports/exports/${job.id}/download`, {
-      headers: { Authorization: `Bearer ${token}` },
-      credentials: "include",
-    });
-  } catch {
-    throw new ApiError("Rapor Dosyasına Ulaşılamadı.", 0);
-  }
+  const response = await apiResponse(`/reports/exports/${job.id}/download`);
 
   if (!response.ok) {
     throw new ApiError(
@@ -105,9 +91,16 @@ export async function downloadReportExport(job: Pick<ReportExportJob, "id" | "fo
   const disposition = response.headers.get("Content-Disposition") ?? "";
   const encodedName = disposition.match(/filename\*=UTF-8''([^;]+)/i)?.[1];
   const extension = job.format === "XLSX" ? "xlsx" : job.format === "PDF" ? "pdf" : "csv";
-  const fileName = encodedName
-    ? decodeURIComponent(encodedName)
-    : `report-${job.id}.${extension}`;
+  let fileName = `report-${job.id}.${extension}`;
+
+  if (encodedName) {
+    try {
+      fileName = decodeURIComponent(encodedName);
+    } catch {
+      // Keep the deterministic server-independent fallback when a header is malformed.
+    }
+  }
+
   const url = URL.createObjectURL(blob);
   const anchor = document.createElement("a");
   anchor.href = url;
