@@ -130,6 +130,26 @@ export class TrainingQuestionBankService {
     );
   }
 
+  async listDraftExams() {
+    const c = this.context();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT e.id,e.title,e.pass_score AS "passScore",e.max_attempts AS "maxAttempts",
+              v.id AS "courseVersionId",v.version,c.id AS "courseId",c.code AS "courseCode",c.title AS "courseTitle",
+              COUNT(q.id)::int AS "questionCount"
+       FROM training_exams e
+       JOIN training_course_versions v ON v.id=e.course_version_id
+       JOIN training_courses c ON c.id=v.course_id
+       LEFT JOIN training_exam_questions q ON q.exam_id=e.id
+       WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+         AND v.tenant_id=$1::text AND v.company_id=$2::text AND v.status='DRAFT'
+         AND c.tenant_id=$1::text AND c.company_id=$2::text AND c.is_active=true
+       GROUP BY e.id,v.id,c.id
+       ORDER BY c.title,v.version DESC,e.created_at,e.id`,
+      c.tenantId,
+      c.companyId,
+    );
+  }
+
   async publish(questionId: string, actorUserId: string) {
     const c = this.context();
     return this.prisma.$transaction(
@@ -212,6 +232,18 @@ export class TrainingQuestionBankService {
         if (!questions.length) throw new NotFoundException('Published question bank item not found.');
         const question = questions[0];
         const points = overridePoints ?? Number(question.defaultPoints);
+        const existing = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id FROM training_exam_questions
+           WHERE tenant_id=$1::text AND company_id=$2::text AND exam_id=$3::text
+             AND question_bank_id=$4::text AND question_bank_version=$5
+           LIMIT 1`,
+          c.tenantId,
+          c.companyId,
+          examId,
+          question.id,
+          Number(question.version),
+        );
+        if (existing.length) return { id: existing[0].id, duplicate: true };
 
         const inserted = await tx.$queryRawUnsafe<any[]>(
           `INSERT INTO training_exam_questions(
@@ -233,7 +265,7 @@ export class TrainingQuestionBankService {
           question.id,
           Number(question.version),
         );
-        return inserted[0];
+        return { ...inserted[0], duplicate: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
