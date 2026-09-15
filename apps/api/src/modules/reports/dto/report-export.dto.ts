@@ -13,7 +13,7 @@ export const reportExportSchema = z
     format: z.enum(['PDF', 'XLSX', 'CSV']),
     filters: reportDateRangeSchema,
     columns: z.array(z.string().min(1)).max(20).optional(),
-    columnMode: z.enum(['VISIBLE', 'ALL_PERMITTED']).default('VISIBLE'),
+    columnMode: z.enum(['VISIBLE', 'ALL_PERMITTED']).optional(),
     sort: z
       .object({
         key: z.string().min(1),
