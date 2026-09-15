@@ -22,6 +22,7 @@ type Props = {
   range: ReportDateRange;
   columns?: readonly string[];
   sort?: { key: string; direction: "asc" | "desc" };
+  onExportCreated?: () => void;
 };
 
 const STATUS_LABELS: Record<ReportExportJob["status"], string> = {
@@ -42,7 +43,7 @@ function formatDateTime(value: string) {
   }).format(new Date(value));
 }
 
-export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
+export function ReportExportPanel({ reportKey, range, columns, sort, onExportCreated }: Props) {
   const [jobs, setJobs] = useState<ReportExportJob[]>([]);
   const [format, setFormat] = useState<SupportedExportFormat>("XLSX");
   const [columnMode, setColumnMode] = useState<ReportExportColumnMode>("VISIBLE");
@@ -112,6 +113,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort }: Props) {
       });
       setPage(1);
       await refresh();
+      onExportCreated?.();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : `${format} Dışa Aktarım Başlatılamadı.`);
     } finally {
