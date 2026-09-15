@@ -54,6 +54,23 @@ export const operationsCapacityQuerySchema = z
     path: ['to'],
   });
 
+export const resourceCalendarQuerySchema = z
+  .object({
+    from: z.coerce.date(),
+    to: z.coerce.date(),
+  })
+  .refine((value) => value.from < value.to, {
+    message: 'Resource calendar from must be before to.',
+    path: ['to'],
+  })
+  .refine(
+    (value) => value.to.getTime() - value.from.getTime() <= 31 * 24 * 60 * 60 * 1000,
+    {
+      message: 'Resource calendar range cannot exceed 31 days.',
+      path: ['to'],
+    },
+  );
+
 export const createResourceBlockSchema = z
   .object({
     roomId: z.string().uuid().optional(),
@@ -95,6 +112,9 @@ export type AllocateAppointmentResourcesInput = z.infer<
 export type ReleaseAllocationInput = z.infer<typeof releaseAllocationSchema>;
 export type OperationsCapacityQueryInput = z.infer<
   typeof operationsCapacityQuerySchema
+>;
+export type ResourceCalendarQueryInput = z.infer<
+  typeof resourceCalendarQuerySchema
 >;
 export type CreateResourceBlockInput = z.infer<
   typeof createResourceBlockSchema
