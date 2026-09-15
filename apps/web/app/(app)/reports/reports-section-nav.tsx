@@ -12,6 +12,7 @@ const REPORT_NAV_ITEMS = [
   { href: "/reports/staff", label: "Personel Performansı", permission: ["reports", "read"] as const },
   { href: "/reports/services", label: "Hizmet Performansı", permission: ["reports", "read"] as const },
   { href: "/reports/exports", label: "Dışa Aktarım", permission: ["reports", "read"] as const },
+  { href: "/reports/schedules", label: "Zamanlanmış Raporlar", permission: ["reports", "read"] as const },
   { href: "/quality", label: "Kalite Merkezi", permission: ["quality", "read"] as const },
 ] as const;
 
