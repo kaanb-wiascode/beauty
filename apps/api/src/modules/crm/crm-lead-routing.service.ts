@@ -2,11 +2,17 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
-export type LeadRoutingStrategy = 'ROUND_ROBIN' | 'LEAST_ACTIVE';
+export type LeadRoutingStrategy =
+  | 'DIRECT_OWNER'
+  | 'ROUND_ROBIN'
+  | 'LEAST_OPEN_LEADS'
+  | 'LEAST_ACTIVE'
+  | 'FALLBACK_QUEUE';
 export type LeadRoutingTemperature = 'COLD' | 'WARM' | 'HOT';
 
 export interface LeadRoutingConditions {
   sources?: string[];
+  campaignIds?: string[];
   temperatures?: LeadRoutingTemperature[];
   minScore?: number;
   maxScore?: number;
@@ -43,6 +49,7 @@ type Scope = { tenantId: string; companyId: string; branchId: string };
 type LeadRoutingLead = {
   id: string;
   source: string;
+  campaignId: string | null;
   preferredContactChannel: string | null;
   purchaseUrgency: string | null;
   leadScore: number;
@@ -65,7 +72,8 @@ type RoutingTargetRow = {
   id: string;
   userId: string;
   position: number;
-  activeCount: bigint | number | string;
+  activeConversationCount: bigint | number | string;
+  openLeadCount: bigint | number | string;
 };
 
 @Injectable()
@@ -128,7 +136,10 @@ export class CrmLeadRoutingService {
   async createRule(input: LeadRoutingRuleInput, actorUserId: string) {
     const scope = this.scope();
     return this.prisma.$transaction(async (tx) => {
-      await this.assertAssignableUsers(input.targetUserIds, scope, tx);
+      this.validateTargetConfiguration(input.strategy, input.targetUserIds);
+      if (input.targetUserIds.length) {
+        await this.assertAssignableUsers(input.targetUserIds, scope, tx);
+      }
       const rows = await tx.$queryRawUnsafe<Array<{ id: string; version: number }>>(
         `INSERT INTO crm_lead_routing_rules(
            tenant_id,company_id,branch_id,name,priority,strategy,conditions,team,enabled,
@@ -164,8 +175,8 @@ export class CrmLeadRoutingService {
   async updateRule(ruleId: string, input: LeadRoutingRuleUpdateInput, actorUserId: string) {
     const scope = this.scope();
     return this.prisma.$transaction(async (tx) => {
-      const current = await tx.$queryRawUnsafe<Array<{ id: string; version: number }>>(
-        `SELECT id,version FROM crm_lead_routing_rules
+      const current = await tx.$queryRawUnsafe<Array<{ id: string; version: number; strategy: LeadRoutingStrategy }>>(
+        `SELECT id,version,strategy FROM crm_lead_routing_rules
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
          LIMIT 1 FOR UPDATE`,
         ruleId,
@@ -177,7 +188,20 @@ export class CrmLeadRoutingService {
       if (current[0].version !== input.version) {
         throw new ConflictException('Lead routing rule changed. Refresh and retry.');
       }
-      if (input.targetUserIds) {
+
+      const currentTargetRows = await tx.$queryRawUnsafe<Array<{ userId: string }>>(
+        `SELECT assigned_user_id AS "userId" FROM crm_lead_routing_targets
+         WHERE routing_rule_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text AND enabled=TRUE
+         ORDER BY position,id`,
+        ruleId,
+        scope.tenantId,
+        scope.companyId,
+        scope.branchId,
+      );
+      const nextStrategy = input.strategy ?? current[0].strategy;
+      const nextTargetUserIds = input.targetUserIds ?? currentTargetRows.map((row) => row.userId);
+      this.validateTargetConfiguration(nextStrategy, nextTargetUserIds);
+      if (input.targetUserIds?.length) {
         await this.assertAssignableUsers(input.targetUserIds, scope, tx);
       }
 
@@ -233,7 +257,7 @@ export class CrmLeadRoutingService {
   async routeNewLead(tx: Prisma.TransactionClient, leadId: string, actorUserId: string) {
     const scope = this.scope();
     const leadRows = await tx.$queryRawUnsafe<LeadRoutingLead[]>(
-      `SELECT id,source,preferred_contact_channel AS "preferredContactChannel",
+      `SELECT id,source,campaign_id AS "campaignId",preferred_contact_channel AS "preferredContactChannel",
               purchase_urgency AS "purchaseUrgency",lead_score AS "leadScore",
               lead_temperature AS "leadTemperature",interested_service_ids AS "interestedServiceIds",
               interested_package_ids AS "interestedPackageIds"
@@ -271,6 +295,38 @@ export class CrmLeadRoutingService {
     );
     if (!lockedRule[0]) return null;
 
+    if (rule.strategy === 'FALLBACK_QUEUE') {
+      const queued = await tx.$queryRawUnsafe<Array<{ team: string | null }>>(
+        `UPDATE crm_leads SET owner_user_id=NULL,team=COALESCE($5::text,team),updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+         RETURNING team`,
+        leadId,
+        scope.tenantId,
+        scope.companyId,
+        scope.branchId,
+        rule.team,
+      );
+      if (!queued[0]) throw new ConflictException('Lead fallback queue could not be applied.');
+      await tx.$executeRawUnsafe(
+        `DELETE FROM crm_conversation_assignments
+         WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text AND lead_id=$4::text`,
+        scope.tenantId,
+        scope.companyId,
+        scope.branchId,
+        leadId,
+      );
+      await this.appendRoutingEvent(tx, scope, leadId, actorUserId, rule, null, queued[0].team, {
+        queue: true,
+      });
+      return {
+        ruleId: rule.id,
+        ruleName: rule.name,
+        strategy: rule.strategy,
+        ownerUserId: null,
+        team: queued[0].team,
+      };
+    }
+
     const targets = await tx.$queryRawUnsafe<RoutingTargetRow[]>(
       `SELECT t.id,t.assigned_user_id AS "userId",t.position,
               (
@@ -288,7 +344,14 @@ export class CrmLeadRoutingService {
                         (a.opportunity_id IS NOT NULL AND s.opportunity_id=a.opportunity_id)
                       )
                   )
-              ) AS "activeCount"
+              ) AS "activeConversationCount",
+              (
+                SELECT COUNT(*)::bigint
+                FROM crm_leads workload
+                WHERE workload.tenant_id=$2::text AND workload.company_id=$3::text AND workload.branch_id=$4::text
+                  AND workload.owner_user_id=t.assigned_user_id
+                  AND workload.status NOT IN ('CONVERTED','LOST')
+              ) AS "openLeadCount"
        FROM crm_lead_routing_targets t
        WHERE t.routing_rule_id=$1::text
          AND t.tenant_id=$2::text AND t.company_id=$3::text AND t.branch_id=$4::text
@@ -313,7 +376,9 @@ export class CrmLeadRoutingService {
     if (!targets.length) return null;
 
     let selected: RoutingTargetRow;
-    if (rule.strategy === 'ROUND_ROBIN') {
+    if (rule.strategy === 'DIRECT_OWNER') {
+      selected = targets[0];
+    } else if (rule.strategy === 'ROUND_ROBIN') {
       await tx.$executeRawUnsafe(
         `INSERT INTO crm_lead_routing_cursors(routing_rule_id,next_index,updated_at)
          VALUES($1::text,0,NOW()) ON CONFLICT(routing_rule_id) DO NOTHING`,
@@ -331,19 +396,14 @@ export class CrmLeadRoutingService {
          WHERE routing_rule_id=$1::text`,
         rule.id,
       );
+    } else if (rule.strategy === 'LEAST_OPEN_LEADS') {
+      selected = this.leastLoaded(targets, 'openLeadCount');
     } else {
-      selected = [...targets].sort((left, right) => {
-        const leftCount = BigInt(left.activeCount ?? 0);
-        const rightCount = BigInt(right.activeCount ?? 0);
-        if (leftCount < rightCount) return -1;
-        if (leftCount > rightCount) return 1;
-        if (left.position !== right.position) return left.position - right.position;
-        return left.id.localeCompare(right.id);
-      })[0];
+      selected = this.leastLoaded(targets, 'activeConversationCount');
     }
 
     const updated = await tx.$queryRawUnsafe<Array<{ ownerUserId: string; team: string | null }>>(
-      `UPDATE crm_leads SET owner_user_id=$5::text,team=COALESCE($6::text,team)
+      `UPDATE crm_leads SET owner_user_id=$5::text,team=COALESCE($6::text,team),updated_at=NOW()
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
        RETURNING owner_user_id AS "ownerUserId",team`,
       leadId,
@@ -370,23 +430,10 @@ export class CrmLeadRoutingService {
       actorUserId,
     );
 
-    await tx.$executeRawUnsafe(
-      `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
-       VALUES($1::text,$2::text,$3::text,$4::text,'LEAD_ROUTED',$5::text,$6::jsonb)`,
-      scope.tenantId,
-      scope.companyId,
-      scope.branchId,
-      leadId,
-      actorUserId,
-      JSON.stringify({
-        routingRuleId: rule.id,
-        routingRuleName: rule.name,
-        strategy: rule.strategy,
-        ownerUserId: selected.userId,
-        team: updated[0].team,
-        activeConversationCount: String(selected.activeCount ?? 0),
-      }),
-    );
+    await this.appendRoutingEvent(tx, scope, leadId, actorUserId, rule, selected.userId, updated[0].team, {
+      activeConversationCount: String(selected.activeConversationCount ?? 0),
+      openLeadCount: String(selected.openLeadCount ?? 0),
+    });
 
     return {
       ruleId: rule.id,
@@ -403,6 +450,7 @@ export class CrmLeadRoutingService {
       !values?.length || Boolean(value && values.some((item) => item.toLowerCase() === value.toLowerCase()));
 
     if (!includesCaseInsensitive(conditions.sources, lead.source)) return false;
+    if (!includesCaseInsensitive(conditions.campaignIds, lead.campaignId)) return false;
     if (conditions.temperatures?.length && !conditions.temperatures.includes(lead.leadTemperature)) return false;
     if (conditions.minScore !== undefined && lead.leadScore < conditions.minScore) return false;
     if (conditions.maxScore !== undefined && lead.leadScore > conditions.maxScore) return false;
@@ -420,9 +468,33 @@ export class CrmLeadRoutingService {
     return value as LeadRoutingConditions;
   }
 
+  private validateTargetConfiguration(strategy: LeadRoutingStrategy, userIds: string[]) {
+    const uniqueCount = new Set(userIds).size;
+    if (uniqueCount !== userIds.length) {
+      throw new BadRequestException('Lead routing target users must be unique.');
+    }
+    if (strategy === 'FALLBACK_QUEUE') return;
+    if (strategy === 'DIRECT_OWNER' && userIds.length !== 1) {
+      throw new BadRequestException('Direct owner routing requires exactly one target user.');
+    }
+    if (!userIds.length) {
+      throw new BadRequestException('Lead routing requires at least one target user.');
+    }
+  }
+
+  private leastLoaded(targets: RoutingTargetRow[], metric: 'activeConversationCount' | 'openLeadCount') {
+    return [...targets].sort((left, right) => {
+      const leftCount = BigInt(left[metric] ?? 0);
+      const rightCount = BigInt(right[metric] ?? 0);
+      if (leftCount < rightCount) return -1;
+      if (leftCount > rightCount) return 1;
+      if (left.position !== right.position) return left.position - right.position;
+      return left.id.localeCompare(right.id);
+    })[0];
+  }
+
   private async assertAssignableUsers(userIds: string[], scope: Scope, tx: DbClient) {
     const uniqueUserIds = [...new Set(userIds)];
-    if (!uniqueUserIds.length) throw new BadRequestException('Lead routing requires at least one target user.');
     const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT DISTINCT u.id
        FROM users u
@@ -454,6 +526,7 @@ export class CrmLeadRoutingService {
       scope.companyId,
       scope.branchId,
     );
+    if (!userIds.length) return;
     await tx.$executeRawUnsafe(
       `INSERT INTO crm_lead_routing_targets(
          routing_rule_id,tenant_id,company_id,branch_id,assigned_user_id,position
@@ -465,6 +538,35 @@ export class CrmLeadRoutingService {
       scope.companyId,
       scope.branchId,
       userIds,
+    );
+  }
+
+  private appendRoutingEvent(
+    tx: Prisma.TransactionClient,
+    scope: Scope,
+    leadId: string,
+    actorUserId: string,
+    rule: RoutingRuleRow,
+    ownerUserId: string | null,
+    team: string | null,
+    extra: Record<string, unknown>,
+  ) {
+    return tx.$executeRawUnsafe(
+      `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
+       VALUES($1::text,$2::text,$3::text,$4::text,'LEAD_ROUTED',$5::text,$6::jsonb)`,
+      scope.tenantId,
+      scope.companyId,
+      scope.branchId,
+      leadId,
+      actorUserId,
+      JSON.stringify({
+        routingRuleId: rule.id,
+        routingRuleName: rule.name,
+        strategy: rule.strategy,
+        ownerUserId,
+        team,
+        ...extra,
+      }),
     );
   }
 
