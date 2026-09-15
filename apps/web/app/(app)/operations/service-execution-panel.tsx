@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Visit } from "@/lib/types";
+import { ExecutionChecklistPanel } from "./service-executions/execution-checklist-panel";
 import { ExecutionConsumablesPanel } from "./service-executions/execution-consumables-panel";
 
 type ServiceExecution = {
@@ -40,6 +41,7 @@ export function ServiceExecutionPanel({
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(
     appointmentIds[0] ?? "",
   );
+  const [checklistBlocked, setChecklistBlocked] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
@@ -124,7 +126,7 @@ export function ServiceExecutionPanel({
   }
 
   async function completeExecution(execution: ServiceExecution) {
-    if (!canUpdate) return;
+    if (!canUpdate || checklistBlocked[execution.id] !== false) return;
     setBusyId(`execution:${execution.id}`);
     setError("");
     try {
@@ -219,7 +221,7 @@ export function ServiceExecutionPanel({
             Service Execution
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Fiziksel hizmet, sarf tüketimi, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
+            Fiziksel hizmet, SOP checklist, sarf tüketimi, randevu tamamlama ve paket seans tüketimi ayrı ve izlenebilir aksiyonlardır.
           </p>
         </div>
         {handoffsCompleted ? (
@@ -267,15 +269,33 @@ export function ServiceExecutionPanel({
                 </div>
                 {execution.status === "IN_PROGRESS" && canUpdate ? (
                   <Button
-                    disabled={busyId === `execution:${execution.id}`}
+                    disabled={
+                      busyId === `execution:${execution.id}` ||
+                      checklistBlocked[execution.id] !== false
+                    }
                     onClick={() => void completeExecution(execution)}
                   >
                     {busyId === `execution:${execution.id}`
                       ? "Tamamlanıyor..."
-                      : "Hizmeti Tamamla"}
+                      : checklistBlocked[execution.id] !== false
+                        ? "Checklist Bekliyor"
+                        : "Hizmeti Tamamla"}
                   </Button>
                 ) : null}
               </div>
+
+              {execution.status !== "CANCELLED" ? (
+                <ExecutionChecklistPanel
+                  executionId={execution.id}
+                  canUpdate={canUpdate && execution.status === "IN_PROGRESS"}
+                  onChanged={(blocked) =>
+                    setChecklistBlocked((current) => ({
+                      ...current,
+                      [execution.id]: blocked,
+                    }))
+                  }
+                />
+              ) : null}
 
               {execution.status === "COMPLETED" ? (
                 <>
@@ -362,7 +382,7 @@ export function ServiceExecutionPanel({
 
           {allCompleted && !handoffsCompleted ? (
             <p className="rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
-              Ziyaret hizmetini tamamlamadan önce her hizmet için sarf kontrolü ve randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
+              Ziyaret hizmetini tamamlamadan önce her hizmet için SOP/checklist kanıtını, sarf kontrolünü ve randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
             </p>
           ) : null}
 
