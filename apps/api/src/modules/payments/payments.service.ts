@@ -7,6 +7,7 @@ import {
 
 import { PrismaService } from '@beauty-erp/database';
 
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CreatePaymentInput } from './dto/create-payment.dto';
 import { ListPaymentsInput } from './dto/list-payments.dto';
@@ -19,22 +20,11 @@ export class PaymentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
   ) {}
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
-  }
-
-  private requireBranchId(): string {
-    const branchId = this.tenantContext.getBranchId();
-
-    if (!branchId) {
-      throw new BadRequestException(
-        'A branch must be selected for this operation.',
-      );
-    }
-
-    return branchId;
   }
 
   private isUniqueConstraintError(error: unknown): boolean {
@@ -46,87 +36,11 @@ export class PaymentsService {
     );
   }
 
-  /**
-   * CENTRAL without an active branch may see the whole company.
-   * Once a branch is selected, all branch-scoped operations are
-   * restricted to that branch.
-   */
-  private getAppointmentScope() {
-    const tenantId = this.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
-  /**
-   * Payments do not have branchId directly; branch isolation is
-   * enforced through the related appointment.
-   */
-  private getPaymentScope() {
-    const tenantId = this.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        appointment: {
-          branch: {
-            companyId,
-          },
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      appointment: {
-        branchId: this.requireBranchId(),
-      },
-    };
-  }
-
-  private getBranchEntityScope() {
-    const tenantId = this.getTenantId();
-    const companyId = this.tenantContext.getCompanyId();
-    const branchId = this.tenantContext.getBranchId();
-    const roleScope = this.tenantContext.getRoleScope();
-
-    if (roleScope === 'CENTRAL' && branchId === null) {
-      return {
-        tenantId,
-        branch: {
-          companyId,
-        },
-      };
-    }
-
-    return {
-      tenantId,
-      branchId: this.requireBranchId(),
-    };
-  }
-
   private async buildPeriodMetrics(
     from: Date,
     to: Date,
   ) {
-    const tenantId = this.getTenantId();
+    const branchScope = await this.organizationScope.getBranchScopedWhere();
 
     const [summary, appointments, newCustomers] =
       await Promise.all([
@@ -136,7 +50,7 @@ export class PaymentsService {
         }),
         this.prisma.appointment.findMany({
           where: {
-            ...this.getAppointmentScope(),
+            ...branchScope,
             startAt: {
               gte: from,
               lte: to,
@@ -148,7 +62,7 @@ export class PaymentsService {
         }),
         this.prisma.customer.count({
           where: {
-            ...this.getBranchEntityScope(),
+            ...branchScope,
             createdAt: {
               gte: from,
               lte: to,
@@ -177,12 +91,13 @@ export class PaymentsService {
 
   async create(input: CreatePaymentInput) {
     const tenantId = this.getTenantId();
+    const appointmentScope = await this.organizationScope.getBranchScopedWhere();
 
     const appointment =
       await this.prisma.appointment.findFirst({
         where: {
           id: input.appointmentId,
-          ...this.getAppointmentScope(),
+          ...appointmentScope,
         },
         include: {
           service: {
@@ -246,12 +161,11 @@ export class PaymentsService {
   }
 
   async findAll(input: ListPaymentsInput) {
-    const tenantId = this.getTenantId();
-
     const skip = (input.page - 1) * input.limit;
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const where = {
-      ...this.getPaymentScope(),
+      ...paymentScope,
       ...(input.method
         ? { method: input.method }
         : {}),
@@ -299,12 +213,12 @@ export class PaymentsService {
   }
 
   async refund(id: string, input: RefundPaymentInput) {
-    const tenantId = this.getTenantId();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const payment = await this.prisma.payment.findFirst({
       where: {
         id,
-        ...this.getPaymentScope(),
+        ...paymentScope,
       },
       select: {
         id: true,
@@ -348,12 +262,12 @@ export class PaymentsService {
   }
 
   async summary(input: PaymentSummaryInput) {
-    const tenantId = this.getTenantId();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const [completed, refunded] = await Promise.all([
       this.prisma.payment.aggregate({
         where: {
-          ...this.getPaymentScope(),
+          ...paymentScope,
           status: 'COMPLETED',
           paidAt: {
             gte: input.from,
@@ -370,7 +284,7 @@ export class PaymentsService {
 
       this.prisma.payment.aggregate({
         where: {
-          ...this.getPaymentScope(),
+          ...paymentScope,
           status: 'REFUNDED',
           refundedAt: {
             gte: input.from,
@@ -389,7 +303,7 @@ export class PaymentsService {
     const methods = await this.prisma.payment.groupBy({
       by: ['method'],
       where: {
-        ...this.getPaymentScope(),
+        ...paymentScope,
         status: 'COMPLETED',
         paidAt: {
           gte: input.from,
@@ -425,8 +339,8 @@ export class PaymentsService {
   }
 
   async dashboardReport(input: DashboardReportInput) {
-    const tenantId = this.getTenantId();
     const now = new Date();
+    const branchScope = await this.organizationScope.getBranchScopedWhere();
 
     const last7From = new Date(input.from);
     last7From.setDate(last7From.getDate() - 6);
@@ -453,7 +367,7 @@ export class PaymentsService {
       }),
       this.prisma.appointment.findMany({
         where: {
-          ...this.getAppointmentScope(),
+          ...branchScope,
           startAt: {
             gte: input.from,
             lte: input.to,
@@ -495,23 +409,23 @@ export class PaymentsService {
         },
       }),
       this.prisma.customer.count({
-        where: this.getBranchEntityScope(),
+        where: branchScope,
       }),
       this.prisma.staff.count({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
       }),
       this.prisma.service.count({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
       }),
       this.prisma.staff.findMany({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
         select: {
@@ -522,7 +436,7 @@ export class PaymentsService {
       }),
       this.prisma.service.findMany({
         where: {
-          ...this.getBranchEntityScope(),
+          ...branchScope,
           status: 'ACTIVE',
         },
         select: {
@@ -532,7 +446,7 @@ export class PaymentsService {
       }),
       this.prisma.appointment.findMany({
         where: {
-          ...this.getAppointmentScope(),
+          ...branchScope,
           startAt: {
             gt: now,
           },
@@ -713,7 +627,7 @@ export class PaymentsService {
         activeStaff,
         activeServices,
         appointments: await this.prisma.appointment.count({
-          where: this.getAppointmentScope(),
+          where: branchScope,
         }),
       },
 
@@ -739,13 +653,13 @@ export class PaymentsService {
   }
 
   async findOne(id: string) {
-    const tenantId = this.getTenantId();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const payment =
       await this.prisma.payment.findFirst({
         where: {
           id,
-          ...this.getPaymentScope(),
+          ...paymentScope,
         },
         include: {
           appointment: true,
