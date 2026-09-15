@@ -108,7 +108,18 @@ export class TrainingAuthoringService {
       versionId,
       objectKey,
     ) as any[];
-    if (!rows.length) throw new BadRequestException('DOCUMENT contentRef must reference a verified private training document.');
+    if (!rows.length) {
+      throw new BadRequestException('DOCUMENT contentRef must reference a verified private training document.');
+    }
+  }
+
+  private temporarySequenceBase(rows: Array<{ sequence?: unknown }>, itemCount: number) {
+    const maxSequence = rows.reduce((max, row) => Math.max(max, Number(row.sequence) || 0), 0);
+    const base = Math.max(maxSequence, itemCount) + itemCount + 1000;
+    if (base + itemCount >= 2_147_483_647) {
+      throw new BadRequestException('Sequence range is exhausted.');
+    }
+    return base;
   }
 
   async detail(versionId: string) {
@@ -173,13 +184,8 @@ export class TrainingAuthoringService {
 
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `UPDATE training_course_versions
-       SET title=$4,
-           description=$5,
-           theory_pass_score=$6,
-           practical_pass_score=$7,
-           effective_from=$8::date,
-           effective_to=$9::date,
-           updated_at=now()
+       SET title=$4,description=$5,theory_pass_score=$6,practical_pass_score=$7,
+           effective_from=$8::date,effective_to=$9::date,updated_at=now()
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
        RETURNING id,course_id AS "courseId",version,status,title,description,delivery_type AS "deliveryType",
                  theory_pass_score AS "theoryPassScore",practical_pass_score AS "practicalPassScore",
@@ -199,15 +205,19 @@ export class TrainingAuthoringService {
     return rows[0];
   }
 
-  async createLesson(versionId: string, input: {
-    sequence: number;
-    title: string;
-    contentType: string;
-    contentText?: string | null;
-    contentRef?: string | null;
-    durationMinutes?: number | null;
-    isRequired?: boolean;
-  }, actorUserId: string) {
+  async createLesson(
+    versionId: string,
+    input: {
+      sequence: number;
+      title: string;
+      contentType: string;
+      contentText?: string | null;
+      contentRef?: string | null;
+      durationMinutes?: number | null;
+      isRequired?: boolean;
+    },
+    actorUserId: string,
+  ) {
     await this.assertDraftVersion(versionId);
     const c = this.context();
     const sequence = Math.trunc(Number(input.sequence));
@@ -226,10 +236,12 @@ export class TrainingAuthoringService {
       await this.assertManagedDocument(versionId, contentRef);
     }
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO training_lessons(tenant_id,company_id,course_version_id,sequence,title,content_type,content_text,content_ref,duration_minutes,is_required,created_by_user_id)
-       VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11::text)
-       RETURNING id,sequence,title,content_type AS "contentType",content_text AS "contentText",content_ref AS "contentRef",
-                 duration_minutes AS "durationMinutes",is_required AS "isRequired"`,
+      `INSERT INTO training_lessons(
+         tenant_id,company_id,course_version_id,sequence,title,content_type,content_text,content_ref,
+         duration_minutes,is_required,created_by_user_id
+       ) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11::text)
+       RETURNING id,sequence,title,content_type AS "contentType",content_text AS "contentText",
+                 content_ref AS "contentRef",duration_minutes AS "durationMinutes",is_required AS "isRequired"`,
       c.tenantId,
       c.companyId,
       versionId,
@@ -245,14 +257,17 @@ export class TrainingAuthoringService {
     return rows[0];
   }
 
-  async updateLesson(lessonId: string, input: {
-    title?: string;
-    contentType?: string;
-    contentText?: string | null;
-    contentRef?: string | null;
-    durationMinutes?: number | null;
-    isRequired?: boolean;
-  }) {
+  async updateLesson(
+    lessonId: string,
+    input: {
+      title?: string;
+      contentType?: string;
+      contentText?: string | null;
+      contentRef?: string | null;
+      durationMinutes?: number | null;
+      isRequired?: boolean;
+    },
+  ) {
     const c = this.context();
     const lesson = await this.draftLesson(lessonId);
     const title = input.title === undefined ? lesson.title : input.title.trim();
@@ -272,8 +287,8 @@ export class TrainingAuthoringService {
       `UPDATE training_lessons
        SET title=$4,content_type=$5,content_text=$6,content_ref=$7,duration_minutes=$8,is_required=$9,updated_at=now()
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
-       RETURNING id,sequence,title,content_type AS "contentType",content_text AS "contentText",content_ref AS "contentRef",
-                 duration_minutes AS "durationMinutes",is_required AS "isRequired"`,
+       RETURNING id,sequence,title,content_type AS "contentType",content_text AS "contentText",
+                 content_ref AS "contentRef",duration_minutes AS "durationMinutes",is_required AS "isRequired"`,
       lessonId,
       c.tenantId,
       c.companyId,
@@ -305,41 +320,57 @@ export class TrainingAuthoringService {
     return this.prisma.$transaction(async tx => {
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `training-lessons:${versionId}`);
       const rows = await tx.$queryRawUnsafe(
-        `SELECT id FROM training_lessons
+        `SELECT id,sequence FROM training_lessons
          WHERE tenant_id=$1::text AND company_id=$2::text AND course_version_id=$3::text
          ORDER BY sequence,id FOR UPDATE`,
         c.tenantId,
         c.companyId,
         versionId,
-      ) as any[];
+      ) as Array<{ id: string; sequence: number }>;
       const currentIds = rows.map(row => String(row.id));
-      if (currentIds.length !== lessonIds.length || currentIds.some(id => !lessonIds.includes(id)) || new Set(lessonIds).size !== lessonIds.length) {
+      if (
+        currentIds.length !== lessonIds.length ||
+        currentIds.some(id => !lessonIds.includes(id)) ||
+        new Set(lessonIds).size !== lessonIds.length
+      ) {
         throw new BadRequestException('lessonIds must contain every lesson in the draft exactly once.');
       }
+      const temporaryBase = this.temporarySequenceBase(rows, lessonIds.length);
       for (let index = 0; index < lessonIds.length; index += 1) {
         await tx.$executeRawUnsafe(
           `UPDATE training_lessons SET sequence=$4,updated_at=now()
            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
-          lessonIds[index], c.tenantId, c.companyId, -(index + 1),
+          lessonIds[index],
+          c.tenantId,
+          c.companyId,
+          temporaryBase + index,
         );
       }
       for (let index = 0; index < lessonIds.length; index += 1) {
         await tx.$executeRawUnsafe(
           `UPDATE training_lessons SET sequence=$4,updated_at=now()
            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
-          lessonIds[index], c.tenantId, c.companyId, index + 1,
+          lessonIds[index],
+          c.tenantId,
+          c.companyId,
+          index + 1,
         );
       }
       return { versionId, lessonIds };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
-  async updateExam(examId: string, input: { title?: string; passScore?: number; maxAttempts?: number | null; isActive?: boolean }) {
+  async updateExam(
+    examId: string,
+    input: { title?: string; passScore?: number; maxAttempts?: number | null; isActive?: boolean },
+  ) {
     const c = this.context();
     const exam = await this.draftExam(examId);
     const title = input.title === undefined ? exam.title : input.title.trim();
     if (!title) throw new BadRequestException('Exam title is required.');
-    const passScore = input.passScore === undefined ? Number(exam.passScore) : this.validateScore(input.passScore, 'passScore');
+    const passScore = input.passScore === undefined
+      ? Number(exam.passScore)
+      : this.validateScore(input.passScore, 'passScore');
     const maxAttempts = input.maxAttempts === undefined ? exam.maxAttempts : input.maxAttempts;
     if (maxAttempts != null && (!Number.isInteger(Number(maxAttempts)) || Number(maxAttempts) < 1)) {
       throw new BadRequestException('maxAttempts must be at least 1.');
@@ -365,13 +396,15 @@ export class TrainingAuthoringService {
     await this.draftExam(examId);
     return this.prisma.$transaction(async tx => {
       await tx.$executeRawUnsafe(
-        `DELETE FROM training_exam_questions WHERE exam_id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+        `DELETE FROM training_exam_questions
+         WHERE exam_id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         examId,
         c.tenantId,
         c.companyId,
       );
       const deleted = await tx.$executeRawUnsafe(
-        `DELETE FROM training_exams WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+        `DELETE FROM training_exams
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         examId,
         c.tenantId,
         c.companyId,
@@ -380,21 +413,30 @@ export class TrainingAuthoringService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
-  async updateQuestion(questionId: string, input: {
-    questionType?: string;
-    prompt?: string;
-    options?: unknown;
-    correctAnswer?: unknown;
-    points?: number;
-  }) {
+  async updateQuestion(
+    questionId: string,
+    input: {
+      questionType?: string;
+      prompt?: string;
+      options?: unknown;
+      correctAnswer?: unknown;
+      points?: number;
+    },
+  ) {
     const c = this.context();
     const question = await this.draftQuestion(questionId);
-    const questionType = input.questionType === undefined ? question.questionType : input.questionType.trim().toUpperCase();
-    if (!['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE'].includes(questionType)) throw new BadRequestException('Invalid questionType.');
+    const questionType = input.questionType === undefined
+      ? question.questionType
+      : input.questionType.trim().toUpperCase();
+    if (!['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE'].includes(questionType)) {
+      throw new BadRequestException('Invalid questionType.');
+    }
     const prompt = input.prompt === undefined ? question.prompt : input.prompt.trim();
     if (!prompt) throw new BadRequestException('Question prompt is required.');
     const points = input.points === undefined ? Number(question.points) : Number(input.points);
-    if (!Number.isFinite(points) || points <= 0 || points > 10000) throw new BadRequestException('points must be between 0 and 10000.');
+    if (!Number.isFinite(points) || points <= 0 || points > 10000) {
+      throw new BadRequestException('points must be between 0 and 10000.');
+    }
     const correctAnswer = input.correctAnswer === undefined ? question.correctAnswer : input.correctAnswer;
     if (correctAnswer === undefined) throw new BadRequestException('correctAnswer is required.');
     const options = input.options === undefined ? question.options : input.options;
@@ -402,7 +444,8 @@ export class TrainingAuthoringService {
       `UPDATE training_exam_questions
        SET question_type=$4,prompt=$5,options=$6::jsonb,correct_answer=$7::jsonb,points=$8,updated_at=now()
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
-       RETURNING id,sequence,question_type AS "questionType",prompt,options,correct_answer AS "correctAnswer",points`,
+       RETURNING id,sequence,question_type AS "questionType",prompt,options,
+                 correct_answer AS "correctAnswer",points`,
       questionId,
       c.tenantId,
       c.companyId,
@@ -419,7 +462,8 @@ export class TrainingAuthoringService {
     const c = this.context();
     await this.draftQuestion(questionId);
     const deleted = await this.prisma.$executeRawUnsafe(
-      `DELETE FROM training_exam_questions WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+      `DELETE FROM training_exam_questions
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
       questionId,
       c.tenantId,
       c.companyId,
@@ -433,29 +477,40 @@ export class TrainingAuthoringService {
     return this.prisma.$transaction(async tx => {
       await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `training-questions:${examId}`);
       const rows = await tx.$queryRawUnsafe(
-        `SELECT id FROM training_exam_questions
+        `SELECT id,sequence FROM training_exam_questions
          WHERE tenant_id=$1::text AND company_id=$2::text AND exam_id=$3::text
          ORDER BY sequence,id FOR UPDATE`,
         c.tenantId,
         c.companyId,
         examId,
-      ) as any[];
+      ) as Array<{ id: string; sequence: number }>;
       const currentIds = rows.map(row => String(row.id));
-      if (currentIds.length !== questionIds.length || currentIds.some(id => !questionIds.includes(id)) || new Set(questionIds).size !== questionIds.length) {
+      if (
+        currentIds.length !== questionIds.length ||
+        currentIds.some(id => !questionIds.includes(id)) ||
+        new Set(questionIds).size !== questionIds.length
+      ) {
         throw new BadRequestException('questionIds must contain every question in the exam exactly once.');
       }
+      const temporaryBase = this.temporarySequenceBase(rows, questionIds.length);
       for (let index = 0; index < questionIds.length; index += 1) {
         await tx.$executeRawUnsafe(
           `UPDATE training_exam_questions SET sequence=$4,updated_at=now()
            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
-          questionIds[index], c.tenantId, c.companyId, -(index + 1),
+          questionIds[index],
+          c.tenantId,
+          c.companyId,
+          temporaryBase + index,
         );
       }
       for (let index = 0; index < questionIds.length; index += 1) {
         await tx.$executeRawUnsafe(
           `UPDATE training_exam_questions SET sequence=$4,updated_at=now()
            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
-          questionIds[index], c.tenantId, c.companyId, index + 1,
+          questionIds[index],
+          c.tenantId,
+          c.companyId,
+          index + 1,
         );
       }
       return { examId, questionIds };
