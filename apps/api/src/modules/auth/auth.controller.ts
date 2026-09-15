@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -93,10 +94,18 @@ export class AuthController {
   @Post('users')
   async createUser(@Body() body: unknown) {
     const input = createTenantUserSchema.parse(body);
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const policy = await this.securityPolicyService.get(tenantId, companyId);
+    if (input.password.length < Number(policy.passwordMinLength)) {
+      throw new BadRequestException(
+        `Password must be at least ${Number(policy.passwordMinLength)} characters`,
+      );
+    }
     return this.authService.createTenantUser(
       input,
-      this.tenantContext.getTenantId(),
-      this.tenantContext.getCompanyId(),
+      tenantId,
+      companyId,
       this.tenantContext.getBranchId(),
     );
   }
