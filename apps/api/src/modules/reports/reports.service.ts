@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
+import { AppointmentReportingService } from '../appointments/appointment-reporting.service';
 import { CustomerReportingService } from '../customers/customer-reporting.service';
 import { PaymentsService } from '../payments/payments.service';
 import { SalesReportingService } from '../sales/sales-reporting.service';
@@ -33,6 +34,7 @@ export class ReportsService {
     private readonly paymentsService: PaymentsService,
     private readonly customerReporting: CustomerReportingService,
     private readonly salesReporting: SalesReportingService,
+    private readonly appointmentReporting: AppointmentReportingService,
     private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
@@ -48,12 +50,7 @@ export class ReportsService {
         },
       },
       select: {
-        permission: {
-          select: {
-            resource: true,
-            action: true,
-          },
-        },
+        permission: { select: { resource: true, action: true } },
       },
     });
 
@@ -75,20 +72,17 @@ export class ReportsService {
     input: ReportExportInput,
   ) {
     const definition = await this.authorizeDefinition(user, input.reportKey);
-
     if (!definition.exportFormats.includes(input.format)) {
       throw new BadRequestException(
         `Unsupported report export format: ${input.format}`,
       );
     }
-
     const columns = this.resolveExportColumns(
       definition,
       input.columns,
       input.columnMode,
     );
     this.validateSort(definition, input.sort?.key);
-
     return {
       reportKey: definition.key,
       format: input.format,
@@ -112,23 +106,16 @@ export class ReportsService {
       const rows = sourceRows.map((row) => ({
         ...row,
         completionRate: row.appointmentCount
-          ? Math.round(
-              (row.completedAppointments / row.appointmentCount) * 100,
-            )
+          ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
           : 0,
       }));
       const sorted = this.sortRows(rows, prepared.sort);
-
       return {
         reportKey: prepared.reportKey,
         resultKind: definition.resultKind,
         columns: prepared.columns,
-        rows: sorted.map((row) =>
-          this.selectColumns(row, prepared.columns),
-        ),
-        summary: prepared.includeSummary
-          ? this.buildAggregateSummary(rows)
-          : null,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildAggregateSummary(rows) : null,
       };
     }
 
@@ -143,24 +130,17 @@ export class ReportsService {
         appointmentCount: row.appointmentCount,
         completedAppointments: row.completedAppointments,
         completionRate: row.appointmentCount
-          ? Math.round(
-              (row.completedAppointments / row.appointmentCount) * 100,
-            )
+          ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
           : 0,
         collected: row.collected,
       }));
       const sorted = this.sortRows(rows, prepared.sort);
-
       return {
         reportKey: prepared.reportKey,
         resultKind: definition.resultKind,
         columns: prepared.columns,
-        rows: sorted.map((row) =>
-          this.selectColumns(row, prepared.columns),
-        ),
-        summary: prepared.includeSummary
-          ? this.buildAggregateSummary(rows)
-          : null,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildAggregateSummary(rows) : null,
       };
     }
 
@@ -188,6 +168,20 @@ export class ReportsService {
       };
     }
 
+    if (definition.key === reportKeys.appointmentPerformance) {
+      const rows = await this.appointmentReporting.performance(input.filters);
+      const sorted = this.sortRows(rows, prepared.sort);
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary
+          ? this.buildAppointmentSummary(rows)
+          : null,
+      };
+    }
+
     const summary = await this.paymentsService.summary(input.filters);
     return {
       reportKey: prepared.reportKey,
@@ -200,12 +194,7 @@ export class ReportsService {
 
   async createExportJob(user: JwtPayload, input: ReportExportInput) {
     const prepared = await this.prepareExport(user, input);
-
-    return this.exportJobs.create({
-      user,
-      input,
-      columns: prepared.columns,
-    });
+    return this.exportJobs.create({ user, input, columns: prepared.columns });
   }
 
   listExportJobs(user: JwtPayload, input: ReportExportListInput) {
@@ -214,10 +203,7 @@ export class ReportsService {
 
   async getExportJob(user: JwtPayload, id: string) {
     const job = await this.exportJobs.findById(user, id);
-    if (!job) {
-      throw new NotFoundException('Report export job not found');
-    }
-
+    if (!job) throw new NotFoundException('Report export job not found');
     return job;
   }
 
@@ -237,9 +223,7 @@ export class ReportsService {
         rows.map((row) => ({
           ...row,
           completionRate: row.appointmentCount
-            ? Math.round(
-                (row.completedAppointments / row.appointmentCount) * 100,
-              )
+            ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
             : 0,
         })),
         input,
@@ -260,9 +244,7 @@ export class ReportsService {
           appointmentCount: row.appointmentCount,
           completedAppointments: row.completedAppointments,
           completionRate: row.appointmentCount
-            ? Math.round(
-                (row.completedAppointments / row.appointmentCount) * 100,
-              )
+            ? Math.round((row.completedAppointments / row.appointmentCount) * 100)
             : 0,
           collected: row.collected,
         })),
@@ -292,6 +274,17 @@ export class ReportsService {
       );
     }
 
+    if (definition.key === reportKeys.appointmentPerformance) {
+      const rows = await this.appointmentReporting.performance(input.filters);
+      return this.buildTablePreview(
+        definition,
+        columns,
+        rows,
+        input,
+        this.buildAppointmentSummary(rows),
+      );
+    }
+
     const summary = await this.paymentsService.summary(input.filters);
     return {
       report: {
@@ -310,17 +303,13 @@ export class ReportsService {
     reportKey: ReportPreviewInput['reportKey'],
   ) {
     const definition = getReportDefinition(reportKey);
-    if (!definition) {
-      throw new BadRequestException('Unsupported report');
-    }
-
+    if (!definition) throw new BadRequestException('Unsupported report');
     const catalog = await this.getCatalog(user);
     if (!catalog.some((report) => report.key === definition.key)) {
       throw new ForbiddenException(
         'You do not have permission to view this report',
       );
     }
-
     return definition;
   }
 
@@ -331,17 +320,14 @@ export class ReportsService {
     const columns = requested?.length
       ? [...new Set(requested)]
       : [...definition.defaultColumns];
-
     const invalid = columns.filter(
       (column) => !definition.availableColumns.includes(column),
     );
-
     if (invalid.length) {
       throw new BadRequestException(
         `Unsupported report columns: ${invalid.join(', ')}`,
       );
     }
-
     return columns;
   }
 
@@ -350,33 +336,25 @@ export class ReportsService {
     requested?: readonly string[],
     mode: ReportExportInput['columnMode'] = 'VISIBLE',
   ) {
-    if (mode === 'ALL_PERMITTED') {
-      return [...definition.exportableColumns];
-    }
-
+    if (mode === 'ALL_PERMITTED') return [...definition.exportableColumns];
     const defaults = definition.defaultColumns.filter((column) =>
       definition.exportableColumns.includes(column),
     );
     const columns = requested?.length ? [...new Set(requested)] : defaults;
-
     const invalid = columns.filter(
       (column) => !definition.exportableColumns.includes(column),
     );
-
     if (invalid.length) {
       throw new BadRequestException(
         `Unsupported report export columns: ${invalid.join(', ')}`,
       );
     }
-
     return columns;
   }
 
   private validateSort(definition: ReportDefinition, sortKey?: string) {
     if (sortKey && !definition.sortableColumns.includes(sortKey)) {
-      throw new BadRequestException(
-        `Unsupported report sort: ${sortKey}`,
-      );
+      throw new BadRequestException(`Unsupported report sort: ${sortKey}`);
     }
   }
 
@@ -386,7 +364,6 @@ export class ReportsService {
   ) {
     const sorted = [...rows];
     if (!sort) return sorted;
-
     sorted.sort((a, b) => {
       const result = this.compareValues(a[sort.key], b[sort.key]);
       return sort.direction === 'asc' ? result : -result;
@@ -404,18 +381,13 @@ export class ReportsService {
     const sorted = [...rows];
     if (input.sort) {
       sorted.sort((a, b) => {
-        const result = this.compareValues(
-          a[input.sort!.key],
-          b[input.sort!.key],
-        );
+        const result = this.compareValues(a[input.sort!.key], b[input.sort!.key]);
         return input.sort!.direction === 'asc' ? result : -result;
       });
     }
-
     const total = sorted.length;
     const start = (input.page - 1) * input.limit;
     const pageRows = sorted.slice(start, start + input.limit);
-
     return {
       report: {
         key: definition.key,
@@ -453,7 +425,6 @@ export class ReportsService {
       (total, row) => total + this.numberValue(row.collected),
       0,
     );
-
     return {
       rowCount: rows.length,
       appointmentCount,
@@ -484,7 +455,6 @@ export class ReportsService {
     const customersWithVisits = rows.filter(
       (row) => this.numberValue(row.visitCount) > 0,
     ).length;
-
     return {
       rowCount: rows.length,
       customersWithVisits,
@@ -501,27 +471,11 @@ export class ReportsService {
   }
 
   private buildSalesSummary(rows: readonly Record<string, unknown>[]) {
-    const revenue = rows.reduce(
-      (total, row) => total + this.numberValue(row.revenue),
-      0,
-    );
-    const collected = rows.reduce(
-      (total, row) => total + this.numberValue(row.collected),
-      0,
-    );
-    const refunded = rows.reduce(
-      (total, row) => total + this.numberValue(row.refunded),
-      0,
-    );
-    const outstanding = rows.reduce(
-      (total, row) => total + this.numberValue(row.outstanding),
-      0,
-    );
-    const discountTotal = rows.reduce(
-      (total, row) => total + this.numberValue(row.discountTotal),
-      0,
-    );
-
+    const revenue = rows.reduce((t, r) => t + this.numberValue(r.revenue), 0);
+    const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
+    const refunded = rows.reduce((t, r) => t + this.numberValue(r.refunded), 0);
+    const outstanding = rows.reduce((t, r) => t + this.numberValue(r.outstanding), 0);
+    const discountTotal = rows.reduce((t, r) => t + this.numberValue(r.discountTotal), 0);
     return {
       rowCount: rows.length,
       saleCount: rows.length,
@@ -536,6 +490,35 @@ export class ReportsService {
     };
   }
 
+  private buildAppointmentSummary(rows: readonly Record<string, unknown>[]) {
+    const appointmentCount = rows.reduce((t, r) => t + this.numberValue(r.appointmentCount), 0);
+    const completedCount = rows.reduce((t, r) => t + this.numberValue(r.completedCount), 0);
+    const cancelledCount = rows.reduce((t, r) => t + this.numberValue(r.cancelledCount), 0);
+    const noShowCount = rows.reduce((t, r) => t + this.numberValue(r.noShowCount), 0);
+    const newCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.newCustomerCount), 0);
+    const repeatCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.repeatCustomerCount), 0);
+    const rebookedCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.rebookedCustomerCount), 0);
+    const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
+    const resolved = completedCount + cancelledCount + noShowCount;
+    return {
+      rowCount: rows.length,
+      appointmentCount,
+      completedCount,
+      cancelledCount,
+      noShowCount,
+      completionRate: resolved ? Math.round((completedCount / resolved) * 100) : 0,
+      cancellationRate: resolved ? Math.round((cancelledCount / resolved) * 100) : 0,
+      noShowRate: resolved ? Math.round((noShowCount / resolved) * 100) : 0,
+      newCustomerCount,
+      repeatCustomerCount,
+      rebookedCustomerCount,
+      rebookingRate: completedCount
+        ? Math.round((rebookedCustomerCount / completedCount) * 100)
+        : 0,
+      collected,
+    };
+  }
+
   private numberValue(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
@@ -544,23 +527,14 @@ export class ReportsService {
     value: Record<string, unknown>,
     columns: readonly string[],
   ) {
-    return Object.fromEntries(
-      columns.map((column) => [column, value[column]]),
-    );
+    return Object.fromEntries(columns.map((column) => [column, value[column]]));
   }
 
   private compareValues(a: unknown, b: unknown) {
-    if (typeof a === 'number' && typeof b === 'number') {
-      return a - b;
-    }
-
-    if (a instanceof Date && b instanceof Date) {
-      return a.getTime() - b.getTime();
-    }
-
+    if (typeof a === 'number' && typeof b === 'number') return a - b;
+    if (a instanceof Date && b instanceof Date) return a.getTime() - b.getTime();
     if (a instanceof Date) return 1;
     if (b instanceof Date) return -1;
-
     return String(a ?? '').localeCompare(String(b ?? ''), 'tr-TR');
   }
 }
