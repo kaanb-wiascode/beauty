@@ -1,8 +1,9 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
+import { buildExpensePostingLines } from './domain/expense-accounting-policy';
 import { assertExpenseAccountingTransition } from './domain/expense-policy';
 
 interface UpsertExpenseAccountingMappingInput {
@@ -10,6 +11,7 @@ interface UpsertExpenseAccountingMappingInput {
   expenseAccountId: string;
   taxAccountId?: string;
   payableAccountId: string;
+  withholdingAccountId?: string;
 }
 
 type AccountType = 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE';
@@ -40,6 +42,7 @@ interface MappingRow {
   expenseAccountId: string;
   taxAccountId: string | null;
   payableAccountId: string | null;
+  withholdingAccountId: string | null;
   active: boolean;
 }
 
@@ -89,12 +92,14 @@ export class ExpenseAccountingService {
               m.expense_account_id AS "expenseAccountId",ea.code AS "expenseAccountCode",ea.name AS "expenseAccountName",
               m.tax_account_id AS "taxAccountId",ta.code AS "taxAccountCode",ta.name AS "taxAccountName",
               m.payable_account_id AS "payableAccountId",pa.code AS "payableAccountCode",pa.name AS "payableAccountName",
+              m.withholding_account_id AS "withholdingAccountId",wa.code AS "withholdingAccountCode",wa.name AS "withholdingAccountName",
               m.active,m.created_at AS "createdAt",m.updated_at AS "updatedAt"
        FROM expense_accounting_mappings m
        JOIN expense_categories c ON c.id=m.category_id
        JOIN chart_of_accounts ea ON ea.id=m.expense_account_id
        LEFT JOIN chart_of_accounts ta ON ta.id=m.tax_account_id
        LEFT JOIN chart_of_accounts pa ON pa.id=m.payable_account_id
+       LEFT JOIN chart_of_accounts wa ON wa.id=m.withholding_account_id
        WHERE m.tenant_id=$1::text AND m.company_id=$2::text
        ORDER BY c.name ASC`,
       tenantId,
@@ -118,19 +123,24 @@ export class ExpenseAccountingService {
     await this.validateAccount(input.expenseAccountId, ['EXPENSE'], 'Expense account');
     await this.validateAccount(input.payableAccountId, ['LIABILITY'], 'Payable account');
     if (input.taxAccountId) await this.validateAccount(input.taxAccountId, ['ASSET', 'LIABILITY'], 'Tax account');
+    if (input.withholdingAccountId) {
+      await this.validateAccount(input.withholdingAccountId, ['LIABILITY'], 'Withholding account');
+    }
 
     const rows = await this.prisma.$queryRawUnsafe(
       `INSERT INTO expense_accounting_mappings(
-         id,tenant_id,company_id,category_id,expense_account_id,tax_account_id,payable_account_id,active,updated_at
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,true,CURRENT_TIMESTAMP)
+         id,tenant_id,company_id,category_id,expense_account_id,tax_account_id,payable_account_id,withholding_account_id,active,updated_at
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,true,CURRENT_TIMESTAMP)
        ON CONFLICT (company_id,category_id) DO UPDATE SET
          expense_account_id=EXCLUDED.expense_account_id,
          tax_account_id=EXCLUDED.tax_account_id,
          payable_account_id=EXCLUDED.payable_account_id,
+         withholding_account_id=EXCLUDED.withholding_account_id,
          active=true,
          updated_at=CURRENT_TIMESTAMP
        RETURNING id,category_id AS "categoryId",expense_account_id AS "expenseAccountId",
-                 tax_account_id AS "taxAccountId",payable_account_id AS "payableAccountId",active,
+                 tax_account_id AS "taxAccountId",payable_account_id AS "payableAccountId",
+                 withholding_account_id AS "withholdingAccountId",active,
                  created_at AS "createdAt",updated_at AS "updatedAt"`,
       randomUUID(),
       tenantId,
@@ -139,6 +149,7 @@ export class ExpenseAccountingService {
       input.expenseAccountId,
       input.taxAccountId ?? null,
       input.payableAccountId,
+      input.withholdingAccountId ?? null,
     );
     return (rows as unknown[])[0];
   }
@@ -157,7 +168,7 @@ export class ExpenseAccountingService {
       } catch (error) {
         throw new BadRequestException((error as Error).message);
       }
-      this.assertPostingAmounts(expense, mapping);
+      this.buildPostingLines(expense, mapping);
 
       await tx.$executeRawUnsafe(
         `UPDATE expenses SET accounting_status='READY_TO_POST',version=version+1,updated_at=CURRENT_TIMESTAMP
@@ -198,7 +209,7 @@ export class ExpenseAccountingService {
         throw new BadRequestException(`Expense cannot be posted from ${expense.accountingStatus}.`);
       }
 
-      this.assertPostingAmounts(expense, mapping);
+      const lines = this.buildPostingLines(expense, mapping);
       await this.acquireLock(tx, `expense-post:${expense.companyId}`, expense.id);
 
       const existing = await tx.journalEntry.findFirst({
@@ -213,16 +224,6 @@ export class ExpenseAccountingService {
         return { id: expense.id, accountingStatus: 'POSTED', journalEntryId: existing.id, idempotent: true };
       }
 
-      const net = Number(expense.netAmount);
-      const tax = Number(expense.taxAmount);
-      const gross = Number(expense.grossAmount);
-      const lines = [
-        { accountId: mapping.expenseAccountId, debit: net, credit: 0, memo: 'Gider tahakkuku' },
-        ...(tax > 0 && mapping.taxAccountId
-          ? [{ accountId: mapping.taxAccountId, debit: tax, credit: 0, memo: 'Vergi' }]
-          : []),
-        { accountId: mapping.payableAccountId!, debit: 0, credit: gross, memo: 'Gider borcu' },
-      ];
       try {
         validateJournalLines(lines);
       } catch (error) {
@@ -281,7 +282,7 @@ export class ExpenseAccountingService {
     const { tenantId, companyId } = this.context();
     const rows = await tx.$queryRawUnsafe<MappingRow[]>(
       `SELECT id,category_id AS "categoryId",expense_account_id AS "expenseAccountId",tax_account_id AS "taxAccountId",
-              payable_account_id AS "payableAccountId",active
+              payable_account_id AS "payableAccountId",withholding_account_id AS "withholdingAccountId",active
        FROM expense_accounting_mappings
        WHERE tenant_id=$1::text AND company_id=$2::text AND category_id=$3::text AND active=true
        LIMIT 1`,
@@ -292,23 +293,25 @@ export class ExpenseAccountingService {
     return rows[0] ?? null;
   }
 
-  private assertPostingAmounts(expense: ExpenseAccountingRow, mapping: MappingRow | null) {
+  private buildPostingLines(expense: ExpenseAccountingRow, mapping: MappingRow | null) {
     if (!mapping?.payableAccountId) throw new BadRequestException('Payable account mapping is required.');
-    const gross = Number(expense.grossAmount);
-    const net = Number(expense.netAmount);
-    const tax = Number(expense.taxAmount);
-    const withholding = Number(expense.withholdingAmount);
     if (expense.currency !== 'TRY' && Number(expense.exchangeRate) <= 0) {
       throw new BadRequestException('A positive exchange rate is required for foreign-currency expenses.');
     }
-    if (withholding > 0) {
-      throw new BadRequestException('Withholding posting requires a dedicated withholding account mapping before accounting can continue.');
-    }
-    if (tax > 0 && !mapping.taxAccountId) {
-      throw new BadRequestException('Tax account mapping is required when tax amount is greater than zero.');
-    }
-    if (Math.abs(net + tax - gross) > 0.01) {
-      throw new BadRequestException('Expense accounting requires net amount plus tax amount to equal gross amount.');
+
+    try {
+      return buildExpensePostingLines({
+        grossAmount: Number(expense.grossAmount),
+        netAmount: Number(expense.netAmount),
+        taxAmount: Number(expense.taxAmount),
+        withholdingAmount: Number(expense.withholdingAmount),
+        expenseAccountId: mapping.expenseAccountId,
+        taxAccountId: mapping.taxAccountId,
+        payableAccountId: mapping.payableAccountId,
+        withholdingAccountId: mapping.withholdingAccountId,
+      });
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Invalid expense posting.');
     }
   }
 
