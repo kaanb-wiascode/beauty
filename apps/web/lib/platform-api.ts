@@ -81,10 +81,12 @@ export type PlatformIamOverview = {
   }>;
 };
 
-export type PlatformAdminMutationResult = {
-  userId: string;
-  status: string;
-  roles: string[];
+export type PlatformAdminMutationResult = { userId: string; status: string; roles: string[] };
+export type PlatformApprovalRequestResult = {
+  id: string;
+  createdAt: string;
+  expiresAt: string;
+  riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
 };
 
 export type PlatformAuditList = {
@@ -141,56 +143,52 @@ export type PlatformPrivilegedOperationList = {
 export function getPlatformCommandCenter() {
   return api<PlatformCommandCenter>("/platform/command-center");
 }
-
 export function listPlatformCustomers(params: { search?: string; limit?: number; offset?: number } = {}) {
   return api<PlatformCustomerList>(withQuery("/platform/customers", params));
 }
-
 export function getPlatformCustomer360(tenantId: string) {
   return api<PlatformCustomer360>(`/platform/customers/${tenantId}`);
 }
-
 export function getPlatformIamOverview() {
   return api<PlatformIamOverview>("/platform/iam");
 }
 
 export function provisionPlatformAdmin(input: { userId: string; roleSlug?: string; reason: string }) {
-  return api<PlatformAdminMutationResult>("/platform/iam/admins", { method: "POST", body: input });
+  return api<PlatformApprovalRequestResult>("/platform/iam/admins", { method: "POST", body: input });
 }
-
+export function setPlatformAdminStatus(userId: string, input: { status: "ACTIVE"; reason: string }): Promise<PlatformAdminMutationResult>;
+export function setPlatformAdminStatus(userId: string, input: { status: "SUSPENDED"; reason: string }): Promise<PlatformApprovalRequestResult>;
 export function setPlatformAdminStatus(userId: string, input: { status: "ACTIVE" | "SUSPENDED"; reason: string }) {
-  return api<PlatformAdminMutationResult>(`/platform/iam/admins/${userId}/status`, { method: "POST", body: input });
+  return api<PlatformAdminMutationResult | PlatformApprovalRequestResult>(`/platform/iam/admins/${userId}/status`, {
+    method: "POST",
+    body: input,
+  });
 }
-
 export function assignPlatformRole(userId: string, input: { roleSlug: string; reason: string }) {
-  return api<PlatformAdminMutationResult>(`/platform/iam/admins/${userId}/roles`, { method: "POST", body: input });
+  return api<PlatformApprovalRequestResult>(`/platform/iam/admins/${userId}/roles`, { method: "POST", body: input });
 }
-
 export function removePlatformRole(userId: string, roleSlug: string, reason: string) {
-  return api<PlatformAdminMutationResult>(`/platform/iam/admins/${userId}/roles/${roleSlug}/remove`, {
+  return api<PlatformApprovalRequestResult>(`/platform/iam/admins/${userId}/roles/${roleSlug}/remove`, {
     method: "POST",
     body: { reason },
   });
 }
-
 export function grantPlatformRolePermission(roleSlug: string, input: { resource: string; action: string; reason: string }) {
-  return api<{ roleSlug: string; permissions: Array<{ resource: string; action: string }> }>(
-    `/platform/iam/roles/${roleSlug}/permissions`,
-    { method: "POST", body: input },
-  );
+  return api<PlatformApprovalRequestResult>(`/platform/iam/roles/${roleSlug}/permissions`, {
+    method: "POST",
+    body: input,
+  });
 }
-
 export function revokePlatformRolePermission(roleSlug: string, input: { resource: string; action: string; reason: string }) {
-  return api<{ roleSlug: string; permissions: Array<{ resource: string; action: string }> }>(
-    `/platform/iam/roles/${roleSlug}/permissions/revoke`,
-    { method: "POST", body: input },
-  );
+  return api<PlatformApprovalRequestResult>(`/platform/iam/roles/${roleSlug}/permissions/revoke`, {
+    method: "POST",
+    body: input,
+  });
 }
 
 export function listPlatformPrivilegedOperations(params: { status?: string; limit?: number; offset?: number } = {}) {
   return api<PlatformPrivilegedOperationList>(withQuery("/platform/privileged-operations", params));
 }
-
 export function createPlatformPrivilegedOperation(input: {
   resource: string;
   action: string;
@@ -200,12 +198,8 @@ export function createPlatformPrivilegedOperation(input: {
   reason: string;
   payload?: unknown;
 }) {
-  return api<{ id: string; createdAt: string; expiresAt: string; riskLevel: string }>(
-    "/platform/privileged-operations",
-    { method: "POST", body: input },
-  );
+  return api<PlatformApprovalRequestResult>("/platform/privileged-operations", { method: "POST", body: input });
 }
-
 export function decidePlatformPrivilegedOperation(
   requestId: string,
   input: { decision: "APPROVED" | "REJECTED"; reason: string },
@@ -214,6 +208,12 @@ export function decidePlatformPrivilegedOperation(
     method: "POST",
     body: input,
   });
+}
+export function executePlatformPrivilegedOperation(requestId: string) {
+  return api<{ id: string; status: "EXECUTED" | "EXPIRED"; result?: unknown }>(
+    `/platform/privileged-operations/${requestId}/execute`,
+    { method: "POST" },
+  );
 }
 
 export function listPlatformAuditEvents(params: {
