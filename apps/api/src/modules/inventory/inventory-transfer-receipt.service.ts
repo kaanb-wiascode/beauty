@@ -1,12 +1,14 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { InventoryScopeService } from './inventory-scope.service';
 
 @Injectable()
 export class InventoryTransferReceiptService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
+    private readonly inventoryScope: InventoryScopeService,
   ) {}
 
   private round(value: number) {
@@ -16,7 +18,8 @@ export class InventoryTransferReceiptService {
   async receive(id: string, userId: string) {
     const tenantId = this.tenant.getTenantId();
     const companyId = this.tenant.getCompanyId();
-    const branchId = this.tenant.getBranchId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<any[]>(
         `SELECT t.id,t.status,t.destination_warehouse_id AS "destinationWarehouseId",t.total_value AS "totalValue",
@@ -25,9 +28,12 @@ export class InventoryTransferReceiptService {
          JOIN inventory_warehouses dw ON dw.id=t.destination_warehouse_id
          JOIN inventory_warehouses sw ON sw.id=t.source_warehouse_id
          WHERE t.id=$1::text AND t.tenant_id=$2::text AND t.company_id=$3::text
-           AND ($4::text IS NULL OR sw.branch_id=$4::text OR dw.branch_id=$4::text)
+           AND ($4::text[] IS NULL OR sw.branch_id=ANY($4::text[]) OR dw.branch_id=ANY($4::text[]))
          FOR UPDATE`,
-        id, tenantId, companyId, branchId,
+        id,
+        tenantId,
+        companyId,
+        branchIds,
       );
       if (!rows.length) throw new NotFoundException('Transfer not found.');
       const transfer = rows[0];
@@ -40,7 +46,8 @@ export class InventoryTransferReceiptService {
          FROM inventory_transfer_items i
          JOIN inventory_products p ON p.id=i.product_id AND p.company_id=$2::text
          WHERE i.transfer_id=$1::text ORDER BY i.id FOR UPDATE`,
-        id, companyId,
+        id,
+        companyId,
       );
       if (!items.length) throw new BadRequestException('Transfer has no items.');
       let receivedValue = 0;
@@ -53,7 +60,8 @@ export class InventoryTransferReceiptService {
         const destination = await tx.$queryRawUnsafe<any[]>(
           `SELECT quantity,cost_per_unit AS "costPerUnit" FROM inventory_stock
            WHERE product_id=$1::text AND warehouse_id=$2::text FOR UPDATE`,
-          item.productId, transfer.destinationWarehouseId,
+          item.productId,
+          transfer.destinationWarehouseId,
         );
         const oldQty = Number(destination[0]?.quantity ?? 0);
         const oldCost = Number(destination[0]?.costPerUnit ?? 0);
@@ -64,21 +72,34 @@ export class InventoryTransferReceiptService {
            VALUES($1::text,$2::text,$3,$4)
            ON CONFLICT(product_id,warehouse_id)
            DO UPDATE SET quantity=inventory_stock.quantity+EXCLUDED.quantity,cost_per_unit=$4,updated_at=NOW()`,
-          item.productId, transfer.destinationWarehouseId, quantity, weightedCost,
+          item.productId,
+          transfer.destinationWarehouseId,
+          quantity,
+          weightedCost,
         );
         await tx.$executeRawUnsafe(
           `INSERT INTO inventory_movements(tenant_id,company_id,product_id,warehouse_id,type,quantity,unit_cost,reference_type,reference_id,note,created_by_user_id)
            VALUES($1::text,$2::text,$3::text,$4::text,'TRANSFER_IN',$5,$6,'WAREHOUSE_TRANSFER',$7::text,'Transfer teslim alındı',$8::text)`,
-          tenantId, companyId, item.productId, transfer.destinationWarehouseId, quantity, unitCost, id, userId,
+          tenantId,
+          companyId,
+          item.productId,
+          transfer.destinationWarehouseId,
+          quantity,
+          unitCost,
+          id,
+          userId,
         );
         await tx.$executeRawUnsafe(
-          `UPDATE inventory_transfer_items SET received_quantity=quantity WHERE id=$1::text`, item.id,
+          `UPDATE inventory_transfer_items SET received_quantity=quantity WHERE id=$1::text`,
+          item.id,
         );
       }
       const updated = await tx.$executeRawUnsafe(
         `UPDATE inventory_transfers SET status='RECEIVED',received_at=NOW(),updated_at=NOW()
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='IN_TRANSIT'`,
-        id, tenantId, companyId,
+        id,
+        tenantId,
+        companyId,
       );
       if (updated !== 1) throw new BadRequestException('Transfer changed concurrently.');
       return { transferId: id, status: 'RECEIVED', totalValue: receivedValue };
