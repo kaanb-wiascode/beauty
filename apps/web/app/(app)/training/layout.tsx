@@ -10,6 +10,7 @@ import { cx } from "@/lib/format";
 const ITEMS = [
   { href: "/training", label: "Genel Bakış", permission: "read" },
   { href: "/training/courses", label: "Kurslar", permission: "read" },
+  { href: "/training/authoring", label: "Kurs Yazarlığı", permission: "manage" },
   { href: "/training/staff", label: "Personel Gelişimi", permission: "read" },
   { href: "/training/question-bank", label: "Soru Bankası", permission: "manage" },
   { href: "/training/analytics", label: "Analitik", permission: "read" },
@@ -17,6 +18,7 @@ const ITEMS = [
 
 function isActive(pathname: string, href: string) {
   if (href === "/training") return pathname === href;
+  if (href === "/training/courses") return pathname === href || (pathname.startsWith(`${href}/`) && !pathname.startsWith("/training/authoring"));
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
