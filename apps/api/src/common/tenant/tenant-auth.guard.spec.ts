@@ -3,6 +3,7 @@ import {
   ForbiddenException,
   UnauthorizedException,
 } from '@nestjs/common';
+import { Reflector } from '@nestjs/core';
 
 import { PrismaService } from '@beauty-erp/database';
 import { TenantAuthGuard } from './tenant-auth.guard';
@@ -11,18 +12,27 @@ import { TenantContext } from './tenant-context';
 describe('TenantAuthGuard', () => {
   const setContext = jest.fn();
   const queryRaw = jest.fn();
+  const getAllAndOverride = jest.fn();
   const tenantContext = { setContext } as unknown as TenantContext;
   const prisma = { $queryRaw: queryRaw } as unknown as PrismaService;
-  const guard = new TenantAuthGuard(tenantContext, prisma);
+  const reflector = { getAllAndOverride } as unknown as Reflector;
+  const guard = new TenantAuthGuard(tenantContext, prisma, reflector);
 
   beforeEach(() => {
     setContext.mockReset();
     queryRaw.mockReset();
+    getAllAndOverride.mockReset();
+    getAllAndOverride.mockReturnValue(false);
   });
 
-  function executionContext(user?: Record<string, unknown>) {
+  function executionContext(
+    user?: Record<string, unknown>,
+    method = 'GET',
+  ) {
     return {
-      switchToHttp: () => ({ getRequest: () => ({ user }) }),
+      switchToHttp: () => ({ getRequest: () => ({ user, method }) }),
+      getHandler: () => executionContext,
+      getClass: () => TenantAuthGuard,
     } as unknown as ExecutionContext;
   }
 
@@ -50,16 +60,35 @@ describe('TenantAuthGuard', () => {
     expect(setContext).not.toHaveBeenCalled();
   });
 
-  it.each(['ACTIVE', 'RESTRICTED'])('allows %s tenant access and establishes context', async (state) => {
-    queryRaw.mockResolvedValueOnce([{ state }]);
+  it('blocks restricted tenant mutations on protected surfaces', async () => {
+    queryRaw.mockResolvedValueOnce([{ state: 'RESTRICTED' }]);
+    getAllAndOverride.mockReturnValueOnce(true);
 
-    await expect(guard.canActivate(executionContext(user))).resolves.toBe(true);
-    expect(setContext).toHaveBeenCalledWith({
-      tenantId: 'tenant-1',
-      membershipId: 'membership-1',
-      companyId: 'company-1',
-      branchId: null,
-      roleScope: 'CENTRAL',
-    });
+    await expect(guard.canActivate(executionContext(user, 'POST')))
+      .rejects.toBeInstanceOf(ForbiddenException);
+    expect(setContext).not.toHaveBeenCalled();
+  });
+
+  it('allows restricted tenant reads on protected surfaces', async () => {
+    queryRaw.mockResolvedValueOnce([{ state: 'RESTRICTED' }]);
+    getAllAndOverride.mockReturnValueOnce(true);
+
+    await expect(guard.canActivate(executionContext(user, 'GET'))).resolves.toBe(true);
+    expect(setContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows restricted tenant mutations on surfaces without the restricted policy marker', async () => {
+    queryRaw.mockResolvedValueOnce([{ state: 'RESTRICTED' }]);
+
+    await expect(guard.canActivate(executionContext(user, 'POST'))).resolves.toBe(true);
+    expect(setContext).toHaveBeenCalledTimes(1);
+  });
+
+  it('allows active tenant mutations on protected surfaces', async () => {
+    queryRaw.mockResolvedValueOnce([{ state: 'ACTIVE' }]);
+    getAllAndOverride.mockReturnValueOnce(true);
+
+    await expect(guard.canActivate(executionContext(user, 'PATCH'))).resolves.toBe(true);
+    expect(setContext).toHaveBeenCalledTimes(1);
   });
 });
