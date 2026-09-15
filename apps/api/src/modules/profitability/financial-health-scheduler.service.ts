@@ -68,7 +68,7 @@ export class FinancialHealthSchedulerService
   }
 
   private async claimRun(runDate: Date) {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `INSERT INTO financial_health_daily_job_runs(
          run_date,status,started_at,completed_at,failed_at,error_message,
          company_count,branch_count,snapshot_count
@@ -84,11 +84,11 @@ export class FinancialHealthSchedulerService
        RETURNING id`,
       runDate,
     );
-    return rows[0]?.id as string | undefined;
+    return rows[0]?.id;
   }
 
   private async targets(): Promise<SnapshotTarget[]> {
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+    return this.prisma.$queryRawUnsafe<SnapshotTarget[]>(
       `SELECT c."tenantId" AS "tenantId",c.id AS "companyId",NULL::text AS "branchId"
        FROM companies c
        WHERE c.status='ACTIVE'
@@ -99,7 +99,6 @@ export class FinancialHealthSchedulerService
        WHERE c.status='ACTIVE' AND b.status='ACTIVE'
        ORDER BY "companyId","branchId" NULLS FIRST`,
     );
-    return rows;
   }
 
   private async captureTarget(target: SnapshotTarget, asOf: Date) {
@@ -107,7 +106,7 @@ export class FinancialHealthSchedulerService
     const tenantContext = await this.moduleRef.resolve(TenantContext, contextId, {
       strict: false,
     });
-    tenantContext.setContext({
+    tenantContext.setSystemContext({
       tenantId: target.tenantId,
       companyId: target.companyId,
       branchId: target.branchId,
