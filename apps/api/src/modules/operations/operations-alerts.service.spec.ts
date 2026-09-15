@@ -142,7 +142,7 @@ describe('OperationsAlertsService', () => {
       severity: 'HIGH',
       sourceId: 'visit-1',
     });
-    expect(result.alerts[0].message).toContain('PACKAGE_SESSION_NOT_CONSUMED');
+    expect(result.alerts[0]?.message).toContain('PACKAGE_SESSION_NOT_CONSUMED');
     expect(result.counts.HIGH).toBe(1);
     expect(getReadiness).toHaveBeenCalledWith('visit-1');
   });
