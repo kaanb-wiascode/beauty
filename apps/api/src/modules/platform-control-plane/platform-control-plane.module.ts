@@ -8,6 +8,8 @@ import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformControlPlaneController } from './platform-control-plane.controller';
 import { PlatformCustomerContextController } from './platform-customer-context.controller';
 import { PlatformCustomerContextService } from './platform-customer-context.service';
+import { PlatformEntitlementsController } from './platform-entitlements.controller';
+import { PlatformEntitlementsService } from './platform-entitlements.service';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
@@ -23,12 +25,14 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformControlPlaneController,
     PlatformCustomerContextController,
     PlatformSubscriptionsController,
+    PlatformEntitlementsController,
   ],
   providers: [
     PlatformReadModelService,
     PlatformTenantGovernanceReadService,
     PlatformCustomerContextService,
     PlatformSubscriptionsService,
+    PlatformEntitlementsService,
     PlatformIamReadService,
     PlatformIamMutationService,
     PlatformAuditReadService,
@@ -43,6 +47,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformTenantGovernanceReadService,
     PlatformCustomerContextService,
     PlatformSubscriptionsService,
+    PlatformEntitlementsService,
   ],
 })
 export class PlatformControlPlaneModule {}
