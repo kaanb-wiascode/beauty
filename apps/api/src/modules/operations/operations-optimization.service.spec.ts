@@ -2,29 +2,29 @@ import { OperationsOptimizationService } from './operations-optimization.service
 
 describe('OperationsOptimizationService', () => {
   const queryRawUnsafe = jest.fn();
-  const prisma = { $queryRawUnsafe: queryRawUnsafe } as never;
+  const prisma = { $queryRawUnsafe: queryRawUnsafe };
   const tenantContext = {
     getTenantId: () => 'tenant-1',
     getCompanyId: () => 'company-1',
     getBranchId: () => 'branch-1',
-  } as never;
-  const capacity = { summary: jest.fn() } as never;
-  const utilization = { summary: jest.fn() } as never;
-  const workforceCapacity = { analyze: jest.fn() } as never;
+  };
+  const capacity = { summary: jest.fn() };
+  const utilization = { summary: jest.fn() };
+  const workforceCapacity = { analyze: jest.fn() };
 
   beforeEach(() => {
     queryRawUnsafe.mockReset();
-    (capacity.summary as jest.Mock).mockReset();
-    (utilization.summary as jest.Mock).mockReset();
-    (workforceCapacity.analyze as jest.Mock).mockReset();
-    (workforceCapacity.analyze as jest.Mock).mockResolvedValue({
+    capacity.summary.mockReset();
+    utilization.summary.mockReset();
+    workforceCapacity.analyze.mockReset();
+    workforceCapacity.analyze.mockResolvedValue({
       branches: [{ branchId: 'branch-1', utilizationPercent: 70, shortageMinutes: 0, shortageHours: 0 }],
     });
   });
 
   it('recommends balancing staff load and preserves deterministic scheduling authority', async () => {
-    (capacity.summary as jest.Mock).mockResolvedValue({ bottlenecks: [], totals: { utilizationPercent: 40 } });
-    (utilization.summary as jest.Mock).mockResolvedValue({
+    capacity.summary.mockResolvedValue({ bottlenecks: [], totals: { utilizationPercent: 40 } });
+    utilization.summary.mockResolvedValue({
       shiftAware: false,
       totals: { activeStaff: 2, utilizationPercent: 62.5 },
       staff: [
@@ -37,11 +37,11 @@ describe('OperationsOptimizationService', () => {
     ]);
 
     const service = new OperationsOptimizationService(
-      prisma,
-      tenantContext,
-      capacity,
-      utilization,
-      workforceCapacity,
+      prisma as never,
+      tenantContext as never,
+      capacity as never,
+      utilization as never,
+      workforceCapacity as never,
     );
     const result = await service.overview(24);
 
@@ -53,13 +53,13 @@ describe('OperationsOptimizationService', () => {
   });
 
   it('surfaces a published-shift workforce shortage', async () => {
-    (capacity.summary as jest.Mock).mockResolvedValue({ bottlenecks: [], totals: { utilizationPercent: 35 } });
-    (utilization.summary as jest.Mock).mockResolvedValue({
+    capacity.summary.mockResolvedValue({ bottlenecks: [], totals: { utilizationPercent: 35 } });
+    utilization.summary.mockResolvedValue({
       shiftAware: false,
       totals: { activeStaff: 1, utilizationPercent: 30 },
       staff: [{ staffId: 'staff-1', staffName: 'Staff', utilizationPercent: 30 }],
     });
-    (workforceCapacity.analyze as jest.Mock).mockResolvedValue({
+    workforceCapacity.analyze.mockResolvedValue({
       branches: [{ branchId: 'branch-1', utilizationPercent: 120, shortageMinutes: 90, shortageHours: 1.5 }],
     });
     queryRawUnsafe.mockResolvedValueOnce([]).mockResolvedValueOnce([
@@ -67,11 +67,11 @@ describe('OperationsOptimizationService', () => {
     ]);
 
     const service = new OperationsOptimizationService(
-      prisma,
-      tenantContext,
-      capacity,
-      utilization,
-      workforceCapacity,
+      prisma as never,
+      tenantContext as never,
+      capacity as never,
+      utilization as never,
+      workforceCapacity as never,
     );
     const result = await service.overview(24);
 
@@ -84,8 +84,8 @@ describe('OperationsOptimizationService', () => {
   });
 
   it('detects a no-show spike from recent operational outcomes', async () => {
-    (capacity.summary as jest.Mock).mockResolvedValue({ bottlenecks: [], totals: { utilizationPercent: 35 } });
-    (utilization.summary as jest.Mock).mockResolvedValue({
+    capacity.summary.mockResolvedValue({ bottlenecks: [], totals: { utilizationPercent: 35 } });
+    utilization.summary.mockResolvedValue({
       shiftAware: false,
       totals: { activeStaff: 1, utilizationPercent: 30 },
       staff: [{ staffId: 'staff-1', staffName: 'Staff', utilizationPercent: 30 }],
@@ -95,11 +95,11 @@ describe('OperationsOptimizationService', () => {
     ]);
 
     const service = new OperationsOptimizationService(
-      prisma,
-      tenantContext,
-      capacity,
-      utilization,
-      workforceCapacity,
+      prisma as never,
+      tenantContext as never,
+      capacity as never,
+      utilization as never,
+      workforceCapacity as never,
     );
     const result = await service.overview(24);
 
