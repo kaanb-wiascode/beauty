@@ -14,6 +14,7 @@ const ITEMS = [
   { href: "/training/courses", label: "Kurslar", permission: "read" },
   { href: "/training/authoring", label: "Kurs Yazarlığı", permission: "manage" },
   { href: "/training/learning-paths", label: "Akademiler", permission: "manage" },
+  { href: "/training/role-academies", label: "Rol Akademileri", permission: "manage" },
   { href: "/training/assignments", label: "Atamalar", permission: "read" },
   { href: "/training/assessments", label: "Değerlendirmeler", permission: "manage" },
   { href: "/training/staff", label: "Personel Gelişimi", permission: "read" },
