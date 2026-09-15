@@ -4,11 +4,12 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
+import { ReportDrilldownPanel } from "../report-drilldown-panel";
 import { ReportFilterBar, reportDateInputValue, reportRangeIsInvalid, reportRangeToQuery, type ReportDateRange } from "../report-filter-bar";
 import { fetchReportPreview, type ReportPreviewSummary, type TableReportPreview } from "../report-preview-client";
 import { useReportTableState } from "../use-report-table-state";
 
-type Row = { name: string; status: string; branchId: string; appointmentCount: number; completedAppointments: number; completionRate: number; collected: number };
+type Row = { _rowId?: string; name: string; status: string; branchId: string; appointmentCount: number; completedAppointments: number; completionRate: number; collected: number };
 type ColumnKey = "name" | "appointmentCount" | "completedAppointments" | "completionRate" | "collected";
 const COLUMNS: readonly ColumnKey[] = ["name", "appointmentCount", "completedAppointments", "completionRate", "collected"];
 const LABELS: Record<ColumnKey, string> = { name: "Personel", appointmentCount: "Randevu", completedAppointments: "Tamamlanan", completionRate: "Başarı", collected: "Tahsilat" };
@@ -23,13 +24,14 @@ export default function StaffReportPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
   const table = useReportTableState<ColumnKey, ColumnKey>({ columns: COLUMNS, initialSort: { key: "collected", direction: "desc" } });
 
   useEffect(() => {
-    if (reportRangeIsInvalid(range)) { setRows([]); setSummary(EMPTY_SUMMARY); setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz."); setLoading(false); return; }
+    if (reportRangeIsInvalid(range)) { setRows([]); setSummary(EMPTY_SUMMARY); setSelected(null); setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz."); setLoading(false); return; }
     let cancelled = false;
     async function load() {
-      setLoading(true); setError("");
+      setLoading(true); setError(""); setSelected(null);
       try {
         const result = await fetchReportPreview<TableReportPreview<Row>>({ reportKey: "staff.performance", filters: reportRangeToQuery(range), columns: COLUMNS, sort: table.sort, page: meta.page, limit: 25 });
         if (!cancelled) { setRows(result.data); setSummary(result.meta.summary); setMeta({ page: result.meta.page, total: result.meta.total, totalPages: result.meta.totalPages || 1 }); }
@@ -55,10 +57,11 @@ export default function StaffReportPage() {
         <Metric label="Ortalama İşlem" value={money(summary.averageCollectedPerCompleted)} detail="Tamamlanan Başına" />
       </section>
       <Panel>
-        <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-[16px] font-semibold text-[var(--ink)]">Personel Detayları</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Sıralama sunucuda, kolon seçimi server allow-list üzerinden uygulanır.</p></div><div className="flex gap-2"><input aria-label="Personel Ara" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Bu Sayfada Ara..." className="h-9 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px]" /><details className="relative"><summary className="flex h-9 cursor-pointer list-none items-center rounded-xl border border-[var(--line)] px-3 text-[12px]">Sütunlar</summary><div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-lg">{COLUMNS.map((column) => <label key={column} className="flex items-center gap-2 px-2 py-2 text-[12px]"><input type="checkbox" checked={table.visibleColumns.has(column)} onChange={() => table.toggleColumn(column)} />{LABELS[column]}</label>)}</div></details></div></div>
-        {filtered.length === 0 ? <Empty /> : <TableWrap><thead><tr>{table.visibleColumnList.map((column) => <Th key={column}><SortButton label={LABELS[column]} active={table.sort.key === column} direction={table.sort.direction} onClick={() => table.toggleSort(column)} /></Th>)}</tr></thead><tbody>{filtered.map((row) => <tr key={`${row.branchId}-${row.name}`}>{table.visibleColumns.has("name") ? <Td label="Personel"><span className="font-medium">{row.name}</span><span className="ml-2 text-[10px] text-[var(--muted)]">{userLabel(row.status)}</span></Td> : null}{table.visibleColumns.has("appointmentCount") ? <Td label="Randevu">{row.appointmentCount}</Td> : null}{table.visibleColumns.has("completedAppointments") ? <Td label="Tamamlanan">{row.completedAppointments}</Td> : null}{table.visibleColumns.has("completionRate") ? <Td label="Başarı">%{row.completionRate}</Td> : null}{table.visibleColumns.has("collected") ? <Td label="Tahsilat" className="font-semibold">{money(row.collected)}</Td> : null}</tr>)}</tbody></TableWrap>}
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 lg:flex-row lg:items-center lg:justify-between"><div><h2 className="text-[16px] font-semibold text-[var(--ink)]">Personel Detayları</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Personel adına tıklayarak yetkili randevu drill-down görünümünü açabilirsiniz.</p></div><div className="flex gap-2"><input aria-label="Personel Ara" value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Bu Sayfada Ara..." className="h-9 rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px]" /><details className="relative"><summary className="flex h-9 cursor-pointer list-none items-center rounded-xl border border-[var(--line)] px-3 text-[12px]">Sütunlar</summary><div className="absolute right-0 z-20 mt-2 min-w-44 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-lg">{COLUMNS.map((column) => <label key={column} className="flex items-center gap-2 px-2 py-2 text-[12px]"><input type="checkbox" checked={table.visibleColumns.has(column)} onChange={() => table.toggleColumn(column)} />{LABELS[column]}</label>)}</div></details></div></div>
+        {filtered.length === 0 ? <Empty /> : <TableWrap><thead><tr>{table.visibleColumnList.map((column) => <Th key={column}><SortButton label={LABELS[column]} active={table.sort.key === column} direction={table.sort.direction} onClick={() => table.toggleSort(column)} /></Th>)}</tr></thead><tbody>{filtered.map((row) => <tr key={row._rowId ?? `${row.branchId}-${row.name}`}>{table.visibleColumns.has("name") ? <Td label="Personel"><button type="button" disabled={!row._rowId} onClick={() => row._rowId && setSelected(row)} className="font-medium text-left enabled:hover:text-[var(--accent)] disabled:cursor-default">{row.name}</button><span className="ml-2 text-[10px] text-[var(--muted)]">{userLabel(row.status)}</span></Td> : null}{table.visibleColumns.has("appointmentCount") ? <Td label="Randevu">{row.appointmentCount}</Td> : null}{table.visibleColumns.has("completedAppointments") ? <Td label="Tamamlanan">{row.completedAppointments}</Td> : null}{table.visibleColumns.has("completionRate") ? <Td label="Başarı">%{row.completionRate}</Td> : null}{table.visibleColumns.has("collected") ? <Td label="Tahsilat" className="font-semibold">{money(row.collected)}</Td> : null}</tr>)}</tbody></TableWrap>}
         <Pagination page={meta.page} totalPages={meta.totalPages} onChange={(page) => setMeta((current) => ({ ...current, page }))} />
       </Panel>
+      {selected?._rowId ? <ReportDrilldownPanel reportKey="staff.performance" rowId={selected._rowId} title={selected.name} filters={reportRangeToQuery(range)} onClose={() => setSelected(null)} /> : null}
     </>}
   </div>;
 }
