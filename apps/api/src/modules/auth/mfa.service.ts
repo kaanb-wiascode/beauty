@@ -67,14 +67,15 @@ export class MfaService {
 
     const issuer = 'VALOO';
     const label = encodeURIComponent(`${issuer}:${email}`);
-    const uri = `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`;
-    return { secret, otpauthUri: uri };
+    return {
+      secret,
+      otpauthUri: `otpauth://totp/${label}?secret=${secret}&issuer=${encodeURIComponent(issuer)}&algorithm=SHA1&digits=6&period=30`,
+    };
   }
 
   async confirm(userId: string, code: string, tenantId: string) {
     const row = await this.requireRow(userId);
-    const secret = this.decrypt(row);
-    if (!this.verifyTotp(secret, code)) {
+    if (!this.verifyTotp(this.decrypt(row), code)) {
       throw new BadRequestException('Invalid verification code');
     }
 
@@ -99,11 +100,7 @@ export class MfaService {
   async beginLoginChallenge(result: LoginResult) {
     const state = await this.status(result.user.id);
     const challengeId = randomUUID();
-    await this.redis.set(
-      `auth:mfa-challenge:${challengeId}`,
-      JSON.stringify(result),
-      CHALLENGE_TTL_SECONDS,
-    );
+    await this.redis.set(this.challengeKey(challengeId), JSON.stringify(result), CHALLENGE_TTL_SECONDS);
     return {
       mfaRequired: true as const,
       enrollmentRequired: !state.enrolled,
@@ -115,12 +112,23 @@ export class MfaService {
     };
   }
 
-  async verifyLoginChallenge(challengeId: string, code: string) {
-    const key = `auth:mfa-challenge:${challengeId}`;
-    const raw = await this.redis.getAndDelete(key);
-    if (!raw) throw new UnauthorizedException('MFA challenge is invalid or expired');
+  async setupLoginChallenge(challengeId: string) {
+    const result = await this.readChallenge(challengeId);
+    const state = await this.status(result.user.id);
+    if (state.enrolled) throw new BadRequestException('MFA is already enrolled');
+    return this.setup(result.user.id, result.user.email);
+  }
 
-    const result = JSON.parse(raw) as LoginResult;
+  async completeEnrollmentChallenge(challengeId: string, code: string) {
+    const result = await this.consumeChallenge(challengeId);
+    const state = await this.status(result.user.id);
+    if (state.enrolled) throw new BadRequestException('MFA is already enrolled');
+    await this.confirm(result.user.id, code, result.tenant.id);
+    return result;
+  }
+
+  async verifyLoginChallenge(challengeId: string, code: string) {
+    const result = await this.consumeChallenge(challengeId);
     const row = await this.requireRow(result.user.id);
     if (!row.enabledAt) throw new UnauthorizedException('MFA enrollment is incomplete');
     if (!this.verifyTotp(this.decrypt(row), code)) {
@@ -137,6 +145,22 @@ export class MfaService {
       metadata: { companyId: result.company.id },
     });
     return result;
+  }
+
+  private challengeKey(id: string) {
+    return `auth:mfa-challenge:${id}`;
+  }
+
+  private async readChallenge(challengeId: string) {
+    const raw = await this.redis.get(this.challengeKey(challengeId));
+    if (!raw) throw new UnauthorizedException('MFA challenge is invalid or expired');
+    return JSON.parse(raw) as LoginResult;
+  }
+
+  private async consumeChallenge(challengeId: string) {
+    const raw = await this.redis.getAndDelete(this.challengeKey(challengeId));
+    if (!raw) throw new UnauthorizedException('MFA challenge is invalid or expired');
+    return JSON.parse(raw) as LoginResult;
   }
 
   private async requireRow(userId: string): Promise<StoredMfaRow> {
@@ -172,9 +196,8 @@ export class MfaService {
   }
 
   private encrypt(secret: string) {
-    const key = this.encryptionKey();
     const iv = randomBytes(12);
-    const cipher = createCipheriv('aes-256-gcm', key, iv);
+    const cipher = createCipheriv('aes-256-gcm', this.encryptionKey(), iv);
     const value = Buffer.concat([cipher.update(secret, 'utf8'), cipher.final()]);
     return {
       value: value.toString('base64'),
@@ -202,8 +225,7 @@ export class MfaService {
     for (const byte of input) bits += byte.toString(2).padStart(8, '0');
     let output = '';
     for (let index = 0; index < bits.length; index += 5) {
-      const chunk = bits.slice(index, index + 5).padEnd(5, '0');
-      output += BASE32_ALPHABET[Number.parseInt(chunk, 2)];
+      output += BASE32_ALPHABET[Number.parseInt(bits.slice(index, index + 5).padEnd(5, '0'), 2)];
     }
     return output;
   }
