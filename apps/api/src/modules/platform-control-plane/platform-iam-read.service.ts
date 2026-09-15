@@ -64,24 +64,29 @@ export class PlatformIamReadService {
         pr.name,
         pr.description,
         pr.system,
-        COUNT(DISTINCT paur.user_id)::int AS "userCount",
+        (
+          SELECT COUNT(*)::int
+          FROM platform_admin_user_roles paur
+          WHERE paur.role_slug = pr.slug
+        ) AS "userCount",
         COALESCE(
-          jsonb_agg(
-            jsonb_build_object(
-              'resource', pp.resource,
-              'action', pp.action,
-              'description', pp.description
-            ) ORDER BY pp.resource, pp.action
-          ) FILTER (WHERE pp.resource IS NOT NULL),
+          (
+            SELECT jsonb_agg(
+              jsonb_build_object(
+                'resource', pp.resource,
+                'action', pp.action,
+                'description', pp.description
+              ) ORDER BY pp.resource, pp.action
+            )
+            FROM platform_role_permissions prp
+            INNER JOIN platform_permissions pp
+              ON pp.resource = prp.resource
+             AND pp.action = prp.action
+            WHERE prp.role_slug = pr.slug
+          ),
           '[]'::jsonb
         ) AS permissions
       FROM platform_roles pr
-      LEFT JOIN platform_admin_user_roles paur ON paur.role_slug = pr.slug
-      LEFT JOIN platform_role_permissions prp ON prp.role_slug = pr.slug
-      LEFT JOIN platform_permissions pp
-        ON pp.resource = prp.resource
-       AND pp.action = prp.action
-      GROUP BY pr.slug, pr.name, pr.description, pr.system
       ORDER BY pr.slug ASC
     `;
 
