@@ -81,6 +81,8 @@ export default function OperationsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [walkInCustomerId, setWalkInCustomerId] = useState("");
+  const [walkInRequestKey, setWalkInRequestKey] = useState<string | null>(null);
 
   async function load() {
     if (!hasActiveBranch()) {
@@ -173,6 +175,32 @@ export default function OperationsPage() {
     }
   }
 
+  async function checkInWalkIn() {
+    if (!canUpdate || !walkInCustomerId) return;
+
+    const requestKey = walkInRequestKey ?? `walk-in-${crypto.randomUUID()}`;
+    setWalkInRequestKey(requestKey);
+    setUpdatingId(`walk-in:${walkInCustomerId}`);
+    setError("");
+
+    try {
+      await api("/visits/check-in", {
+        method: "POST",
+        body: {
+          customerId: walkInCustomerId,
+          idempotencyKey: requestKey,
+        },
+      });
+      setWalkInCustomerId("");
+      setWalkInRequestKey(null);
+      await load();
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Walk-in check-in işlemi tamamlanamadı.");
+    } finally {
+      setUpdatingId(null);
+    }
+  }
+
   async function advance(visit: Visit) {
     const action = NEXT_ACTION[visit.status];
     if (!action || !canUpdate) return;
@@ -228,6 +256,33 @@ export default function OperationsPage() {
             <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p>
           </div>
         ))}
+      </section>
+
+      <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+          <label className="block">
+            <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Walk-in müşteri</span>
+            <select
+              value={walkInCustomerId}
+              onChange={(event) => {
+                setWalkInCustomerId(event.target.value);
+                setWalkInRequestKey(null);
+              }}
+              className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)] outline-none focus:ring-4 focus:ring-[var(--accent-soft)]"
+            >
+              <option value="">Müşteri seçin</option>
+              {customers.map((customer) => (
+                <option key={customer.id} value={customer.id}>{customerMap.get(customer.id)}</option>
+              ))}
+            </select>
+          </label>
+          <Button
+            disabled={!walkInCustomerId || updatingId === `walk-in:${walkInCustomerId}` || !canUpdate}
+            onClick={() => void checkInWalkIn()}
+          >
+            {updatingId === `walk-in:${walkInCustomerId}` ? "Giriş Yapılıyor..." : "Walk-in Check-in"}
+          </Button>
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
