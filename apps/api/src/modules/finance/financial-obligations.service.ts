@@ -125,6 +125,58 @@ export class FinancialObligationsService {
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
+  async refreshDueStatuses() {
+    const ctx = this.ctx();
+    return this.prisma.$transaction(async (tx) => {
+      const overdue = await tx.$executeRawUnsafe(
+        `UPDATE financial_obligations
+         SET status='OVERDUE'::"FinancialObligationStatus",updated_at=CURRENT_TIMESTAMP
+         WHERE tenant_id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3)
+           AND due_date<CURRENT_DATE
+           AND status IN ('SCHEDULED','DUE')`,
+        ctx.tenantId, ctx.companyId, ctx.branchId,
+      );
+      const due = await tx.$executeRawUnsafe(
+        `UPDATE financial_obligations
+         SET status='DUE'::"FinancialObligationStatus",updated_at=CURRENT_TIMESTAMP
+         WHERE tenant_id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3)
+           AND due_date=CURRENT_DATE
+           AND status='SCHEDULED'`,
+        ctx.tenantId, ctx.companyId, ctx.branchId,
+      );
+      return { due, overdue, updated: due + overdue };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async calendarEntries(from: Date, to: Date, limit = 250) {
+    if (to < from) throw new BadRequestException('Calendar end date must be on or after start date.');
+    const ctx = this.ctx();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,branch_id AS "branchId",rule_id AS "ruleId",obligation_type AS "obligationType",
+              title,counterparty,amount,currency,due_date AS "dueDate",status,priority,
+              cost_center_id AS "costCenterId",category_id AS "categoryId",
+              CASE
+                WHEN due_date<CURRENT_DATE AND status NOT IN ('PAID','RECONCILED','POSTED','CANCELLED') THEN 'OVERDUE'
+                WHEN due_date=CURRENT_DATE AND status NOT IN ('PAID','RECONCILED','POSTED','CANCELLED') THEN 'TODAY'
+                ELSE 'UPCOMING'
+              END AS "calendarBucket"
+       FROM financial_obligations
+       WHERE tenant_id=$1 AND company_id=$2 AND ($3::text IS NULL OR branch_id=$3)
+         AND due_date BETWEEN $4::date AND $5::date
+         AND status<>'CANCELLED'
+       ORDER BY due_date ASC,
+                CASE priority WHEN 'CRITICAL' THEN 1 WHEN 'HIGH' THEN 2 WHEN 'NORMAL' THEN 3 ELSE 4 END,
+                created_at ASC
+       LIMIT $6`,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      from,
+      to,
+      Math.min(Math.max(limit, 1), 500),
+    );
+  }
+
   async calendar() {
     const ctx = this.ctx();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
