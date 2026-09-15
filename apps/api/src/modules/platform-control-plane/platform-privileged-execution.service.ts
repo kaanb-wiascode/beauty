@@ -31,6 +31,15 @@ type ApprovalRequest = {
 };
 
 type AdminSnapshot = { userId: string; status: string; roles: string[] };
+type TenantLifecycleState = 'ACTIVE' | 'RESTRICTED' | 'SUSPENDED';
+type TenantLifecycleSnapshot = {
+  tenantId: string;
+  tenantName: string;
+  state: TenantLifecycleState;
+  reason: string | null;
+  version: number;
+  updatedAt: Date | null;
+};
 type TxClient = Pick<PrismaService, '$queryRaw' | '$executeRaw'>;
 
 @Injectable()
@@ -56,11 +65,16 @@ export class PlatformPrivilegedExecutionService {
         `;
         return { id: requestId, status: 'EXPIRED' as const };
       }
-      if (request.resource !== 'platform_iam') {
+
+      const result = request.resource === 'platform_iam'
+        ? await this.executePlatformIam(tx, actorUserId, request)
+        : request.resource === 'customers'
+          ? await this.executeCustomerLifecycle(tx, actorUserId, request)
+          : null;
+
+      if (!result) {
         throw new BadRequestException('This privileged operation resource is not executable yet.');
       }
-
-      const result = await this.executePlatformIam(tx, actorUserId, request);
 
       const updated = await tx.$executeRaw`
         UPDATE platform_privileged_action_requests
@@ -74,6 +88,84 @@ export class PlatformPrivilegedExecutionService {
       await this.auditExecution(tx, actorUserId, request, input.context, result.before, result.after);
       return { id: requestId, status: 'EXECUTED' as const, result: result.after };
     });
+  }
+
+  private async executeCustomerLifecycle(client: TxClient, actorUserId: string, request: ApprovalRequest) {
+    const payload = this.payloadObject(request.payload);
+    const tenantId = this.requiredString(payload.tenantId, 'payload.tenantId');
+    const expectedVersion = this.requiredNonNegativeInteger(payload.expectedVersion, 'payload.expectedVersion');
+
+    if (
+      request.targetEntityType !== 'tenant' ||
+      request.targetEntityId !== tenantId ||
+      request.targetTenantId !== tenantId
+    ) {
+      throw new BadRequestException('Approved target does not match the stored tenant lifecycle payload.');
+    }
+
+    const nextState = this.lifecycleStateForAction(request.action);
+    const before = await this.requireTenantLifecycle(client, tenantId);
+    if (before.version !== expectedVersion) {
+      throw new BadRequestException('Tenant lifecycle state changed after approval was requested. Create a new request.');
+    }
+    if (before.state === nextState) {
+      throw new BadRequestException(`Tenant lifecycle is already ${nextState}.`);
+    }
+
+    if (before.version === 0) {
+      await client.$executeRaw`
+        INSERT INTO platform_tenant_lifecycle (
+          tenant_id, state, reason, updated_by_user_id, version, created_at, updated_at
+        ) VALUES (
+          ${tenantId}, ${nextState}, ${request.reason}, ${actorUserId}, 1,
+          CURRENT_TIMESTAMP, CURRENT_TIMESTAMP
+        )
+      `;
+    } else {
+      const updated = await client.$executeRaw`
+        UPDATE platform_tenant_lifecycle
+        SET state = ${nextState}, reason = ${request.reason},
+            updated_by_user_id = ${actorUserId}, version = version + 1,
+            updated_at = CURRENT_TIMESTAMP
+        WHERE tenant_id = ${tenantId} AND version = ${expectedVersion}
+      `;
+      if (updated !== 1) {
+        throw new BadRequestException('Tenant lifecycle update lost a concurrency race. Create a new request.');
+      }
+    }
+
+    return { before, after: await this.requireTenantLifecycle(client, tenantId) };
+  }
+
+  private lifecycleStateForAction(action: string): TenantLifecycleState {
+    switch (action) {
+      case 'lifecycle.restrict':
+        return 'RESTRICTED';
+      case 'lifecycle.suspend':
+        return 'SUSPENDED';
+      case 'lifecycle.reactivate':
+        return 'ACTIVE';
+      default:
+        throw new BadRequestException('Unsupported customer lifecycle privileged action.');
+    }
+  }
+
+  private async requireTenantLifecycle(client: TxClient, tenantId: string): Promise<TenantLifecycleSnapshot> {
+    const rows = await client.$queryRaw<TenantLifecycleSnapshot[]>`
+      SELECT
+        t.id AS "tenantId",
+        t.name AS "tenantName",
+        COALESCE(ptl.state, 'ACTIVE')::text AS state,
+        ptl.reason,
+        COALESCE(ptl.version, 0)::int AS version,
+        ptl.updated_at AS "updatedAt"
+      FROM tenants t
+      LEFT JOIN platform_tenant_lifecycle ptl ON ptl.tenant_id = t.id
+      WHERE t.id = ${tenantId}
+      LIMIT 1
+    `;
+    if (!rows[0]) throw new NotFoundException('Platform customer tenant was not found.');
+    return rows[0];
   }
 
   private async executePlatformIam(client: TxClient, actorUserId: string, request: ApprovalRequest) {
@@ -334,6 +426,13 @@ export class PlatformPrivilegedExecutionService {
       throw new BadRequestException(`${field} is required.`);
     }
     return value.trim();
+  }
+
+  private requiredNonNegativeInteger(value: unknown, field: string) {
+    if (typeof value !== 'number' || !Number.isInteger(value) || value < 0) {
+      throw new BadRequestException(`${field} must be a non-negative integer.`);
+    }
+    return value;
   }
 
   private optionalString(value: unknown) {
