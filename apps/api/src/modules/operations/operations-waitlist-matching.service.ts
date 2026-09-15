@@ -165,6 +165,13 @@ export class OperationsWaitlistMatchingService {
            AND ap.status::text NOT IN ('CANCELLED', 'NO_SHOW')
            AND ap."startAt" < sl.end_at AND ap."endAt" > sl.start_at
        )
+         AND NOT EXISTS (
+           SELECT 1 FROM leave_requests lr
+           WHERE lr.tenant_id = $1 AND lr.branch_id = $3 AND lr.staff_id = sc.id
+             AND upper(lr.status) = 'APPROVED'
+             AND lr.start_date <= (sl.end_at AT TIME ZONE 'UTC')::date
+             AND lr.end_date >= (sl.start_at AT TIME ZONE 'UTC')::date
+         )
          AND ($13::text IS NULL OR room.id IS NOT NULL)
          AND (($14::text IS NULL AND $15::text IS NULL) OR asset.id IS NOT NULL)
        ORDER BY sl.start_at ASC, sc.name ASC
@@ -266,6 +273,28 @@ export class OperationsWaitlistMatchingService {
         if (!staff) throw new NotFoundException('Staff not found');
         if (target.preferredStaffId && target.preferredStaffId !== input.staffId) {
           throw new BadRequestException('Selected staff does not match the waitlist preference.');
+        }
+
+        const approvedLeave = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT lr.id
+           FROM leave_requests lr
+           WHERE lr.tenant_id = $1 AND lr.branch_id = $2 AND lr.staff_id = $3
+             AND upper(lr.status) = 'APPROVED'
+             AND lr.start_date <= ($5::timestamptz AT TIME ZONE 'UTC')::date
+             AND lr.end_date >= ($4::timestamptz AT TIME ZONE 'UTC')::date
+           LIMIT 1`,
+          tenantId,
+          branchId,
+          input.staffId,
+          input.startAt,
+          input.endAt,
+        );
+        if (approvedLeave[0]) {
+          throw new ConflictException({
+            code: 'STAFF_APPROVED_LEAVE',
+            staffId: input.staffId,
+            message: 'Selected staff is on approved leave during the requested slot.',
+          });
         }
 
         const overlap = await tx.appointment.findFirst({
