@@ -15,6 +15,7 @@ const certificationSchema=z.object({courseId:uuid,hrCertificationTypeId:uuid}).s
 export class TrainingOperationsBridgeController{
   constructor(private readonly bridge:TrainingOperationsBridgeService){}
   private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
+  @Get('catalogs') @RequirePermission('training','manage') catalogs(){return this.bridge.catalogs();}
   @Get('mappings') @RequirePermission('training','manage') mappings(){return this.bridge.mappings();}
   @Post('competencies') @RequirePermission('training','manage') mapCompetency(@Body()body:unknown,@Req()req:{user?:{sub?:string}}){return this.bridge.mapCompetency(competencySchema.parse(body),this.userId(req));}
   @Post('certifications') @RequirePermission('training','manage') mapCertification(@Body()body:unknown,@Req()req:{user?:{sub?:string}}){return this.bridge.mapCertification(certificationSchema.parse(body),this.userId(req));}
