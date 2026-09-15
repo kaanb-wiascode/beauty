@@ -131,6 +131,7 @@ export class ReportsService {
     if (definition.key === reportKeys.servicePerformance) {
       const sourceRows = await this.servicesService.performance(input.filters);
       const rows = sourceRows.map((row) => ({
+        id: row.service.id,
         name: row.service.name,
         price: Number(row.service.price),
         status: row.service.status,
@@ -223,6 +224,7 @@ export class ReportsService {
         definition,
         columns,
         rows.map((row) => ({
+          id: row.service.id,
           name: row.service.name,
           price: Number(row.service.price),
           status: row.service.status,
@@ -245,6 +247,7 @@ export class ReportsService {
       report: {
         key: definition.key,
         resultKind: definition.resultKind,
+        drilldowns: definition.drilldowns,
       },
       columns,
       data: this.selectColumns(summary, columns),
@@ -366,9 +369,15 @@ export class ReportsService {
       report: {
         key: definition.key,
         resultKind: definition.resultKind,
+        drilldowns: definition.drilldowns,
       },
       columns,
-      data: pageRows.map((row) => this.selectColumns(row, columns)),
+      data: pageRows.map((row) => {
+        const selected = this.selectColumns(row, columns);
+        return definition.drilldowns.length > 0 && typeof row.id === 'string'
+          ? { ...selected, _rowId: row.id }
+          : selected;
+      }),
       meta: {
         page: input.page,
         limit: input.limit,
