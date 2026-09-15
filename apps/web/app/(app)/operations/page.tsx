@@ -136,13 +136,15 @@ export default function OperationsPage() {
   );
 
   const expectedAppointments = useMemo(() => {
-    const activeAppointmentIds = new Set(
-      visits.flatMap((visit) => visit.appointmentIds ?? []),
+    const activeAppointmentCustomerIds = new Set(
+      visits
+        .filter((visit) => visit.source === "APPOINTMENT" && visit.status !== "CHECKED_OUT" && visit.status !== "CANCELLED")
+        .map((visit) => visit.customerId),
     );
 
     return appointments
       .filter((appointment) => ["SCHEDULED", "CONFIRMED"].includes(appointment.status))
-      .filter((appointment) => !activeAppointmentIds.has(appointment.id))
+      .filter((appointment) => !activeAppointmentCustomerIds.has(appointment.customerId))
       .sort((a, b) => new Date(a.startAt).getTime() - new Date(b.startAt).getTime());
   }, [appointments, visits]);
 
