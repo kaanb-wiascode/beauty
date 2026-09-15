@@ -52,4 +52,13 @@ export class ServiceExecutionsController {
       completeServiceExecutionSchema.parse(body),
     );
   }
+
+  @Post(':executionId/complete-appointment')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('appointments', 'update')
+  completeAppointment(
+    @Param('executionId', new ParseUUIDPipe()) executionId: string,
+  ) {
+    return this.executions.completeAppointmentHandoff(executionId);
+  }
 }
