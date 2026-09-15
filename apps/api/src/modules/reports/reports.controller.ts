@@ -21,6 +21,10 @@ import { reportExportSchema } from './dto/report-export.dto';
 import { reportExportListSchema } from './dto/report-export-list.dto';
 import { reportPreviewSchema } from './dto/report-preview.dto';
 import { ReportExportDownloadService } from './report-export-download.service';
+import {
+  toPublicReportExportJob,
+  toPublicReportExportList,
+} from './report-export.presenter';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -49,22 +53,24 @@ export class ReportsController {
 
   @Post('exports')
   @RequirePermission('reports', 'read')
-  createExport(
+  async createExport(
     @Req() request: { user: JwtPayload },
     @Body() body: unknown,
   ) {
     const input = reportExportSchema.parse(body);
-    return this.reportsService.createExportJob(request.user, input);
+    const job = await this.reportsService.createExportJob(request.user, input);
+    return toPublicReportExportJob(job);
   }
 
   @Get('exports')
   @RequirePermission('reports', 'read')
-  listExports(
+  async listExports(
     @Req() request: { user: JwtPayload },
     @Query() query: unknown,
   ) {
     const input = reportExportListSchema.parse(query);
-    return this.reportsService.listExportJobs(request.user, input);
+    const result = await this.reportsService.listExportJobs(request.user, input);
+    return toPublicReportExportList(result);
   }
 
   @Get('exports/:id/download')
@@ -86,10 +92,11 @@ export class ReportsController {
 
   @Get('exports/:id')
   @RequirePermission('reports', 'read')
-  getExport(
+  async getExport(
     @Req() request: { user: JwtPayload },
     @Param('id') id: string,
   ) {
-    return this.reportsService.getExportJob(request.user, id);
+    const job = await this.reportsService.getExportJob(request.user, id);
+    return toPublicReportExportJob(job);
   }
 }
