@@ -33,6 +33,10 @@ type OpportunityListRow = Omit<OpportunityRow, 'customerId'> & {
 type OpportunityDetailRow = OpportunityRow & {
   leadId: string | null;
   lostReason: string | null;
+  lostReasonId: string | null;
+  lostReasonCode: string | null;
+  lostReasonLabel: string | null;
+  lostReasonNote: string | null;
   saleId: string | null;
   commercialSnapshot: unknown;
   convertedAt: Date | null;
@@ -174,14 +178,27 @@ export class CrmOpportunityService {
               o.owner_user_id AS "ownerUserId",o.title,o.stage,
               o.estimated_value AS "estimatedValue",o.currency,o.probability,
               o.expected_close_date AS "expectedCloseDate",o.lost_reason AS "lostReason",
+              o.lost_reason_id AS "lostReasonId",lr.code AS "lostReasonCode",lr.label AS "lostReasonLabel",
+              o.lost_reason_note AS "lostReasonNote",
               o.sale_id AS "saleId",o.commercial_snapshot AS "commercialSnapshot",
               o.converted_at AS "convertedAt",o.version,
               o.created_at AS "createdAt",o.updated_at AS "updatedAt",
               l.first_name AS "leadFirstName",l.last_name AS "leadLastName",
               c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName"
        FROM crm_opportunities o
-       LEFT JOIN crm_leads l ON l.id=o.lead_id
-       LEFT JOIN customers c ON c.id=o.customer_id AND c."tenantId"=o.tenant_id
+       LEFT JOIN crm_leads l
+         ON l.id=o.lead_id
+        AND l.tenant_id=o.tenant_id
+        AND l.company_id=o.company_id
+        AND l.branch_id=o.branch_id
+       LEFT JOIN customers c
+         ON c.id=o.customer_id
+        AND c."tenantId"=o.tenant_id
+        AND c."branchId"=o.branch_id
+       LEFT JOIN crm_lost_reasons lr
+         ON lr.id=o.lost_reason_id
+        AND lr.tenant_id=o.tenant_id
+        AND lr.company_id=o.company_id
        WHERE o.id=$1::text AND o.tenant_id=$2::text AND o.company_id=$3::text
          AND ($4::text IS NULL OR o.branch_id=$4::text)
        LIMIT 1`,
