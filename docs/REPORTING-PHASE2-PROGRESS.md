@@ -8,14 +8,14 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 ## Current status
 
-The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions now advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**.
+The shared export foundation is implemented for the current Staff Performance, Service Performance and Payment Summary reports. Server-owned report definitions advertise the formats that have an implemented worker generator: **CSV, XLSX and PDF**. Saved Reports foundation is now implemented on the backend with requester ownership and permission revalidation.
 
 ## Completed export foundation
 
 - Server-owned `exportableColumns`, export format capabilities and layered source-domain permissions.
 - Strict export DTOs; clients cannot supply tenant/company/branch scope, SQL, Prisma selections, storage keys or arbitrary report identifiers.
 - Persistent `report_export_jobs` queue with authenticated scope, membership/role snapshot, requester, filters, columns, sort, lifecycle timestamps, row count, retention and bounded failure metadata.
-- Multi-file Prisma schema now includes `ReportExportJob` in `packages/database/prisma/reporting.prisma`, matching the migration-owned table and representable indexes. The PostgreSQL partial branch index remains migration-owned because Prisma schema syntax does not represent partial indexes.
+- Multi-file Prisma schema includes `ReportExportJob` in `packages/database/prisma/reporting.prisma`, matching the migration-owned table and representable indexes. The PostgreSQL partial branch index remains migration-owned because Prisma schema syntax does not represent partial indexes.
 - Lifecycle states: `QUEUED`, `PROCESSING`, `READY`, `FAILED`, `EXPIRED`.
 - `POST /reports/exports`, paginated/filterable `GET /reports/exports`, get-by-id and authenticated download endpoints.
 - Export history is requester-private by default; arbitrary requester/scope filters and `mine=false` are rejected until an explicit shared-history permission model exists.
@@ -31,6 +31,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Configurable filesystem/object-storage driver. Object mode reuses the platform's private S3-compatible `ObjectStorageService` using server-generated keys, signed PUT/GET and authenticated delete.
 - Configurable retention and expiry cleanup.
 - Export UI supports visible columns vs server-owned all-permitted columns plus optional summary inclusion. `ALL_PERMITTED` resolves only from `ReportDefinition.exportableColumns`; preview-only/internal columns cannot reappear.
+- Workload guards bound active requester jobs and materialized row counts. Defaults: 3 active jobs/requester and 50,000 rows/export, both server-configurable within bounded ranges.
 
 ## Implemented formats
 
@@ -62,9 +63,20 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Worker/storage/download integration and frontend PDF selection.
 - Current Base14-font implementation normalizes non-ASCII/Turkish glyphs for deterministic rendering. Embedded Unicode brand fonts, company logo, richer layout and charts remain a presentation-quality follow-up rather than an authorization/export-pipeline blocker.
 
+## Saved Reports foundation
+
+- Persistent `report_saved_views` storage and multi-file Prisma model.
+- Personal ownership only; tenant/company/branch/owner scope is derived from authenticated context and never accepted from the client.
+- Strict create/update DTOs for report key, date range, columns, sort, favorite state and name.
+- CRUD endpoints under `/reports/saved-reports`.
+- Saved report list/get/update re-evaluates current report/source-domain permission instead of trusting permissions from save time.
+- Saved columns and sort keys are checked against server-owned report definitions before persistence.
+- Favorites are represented by `isFavorite`; sharing is intentionally not enabled yet.
+
 ## Frontend
 
 - Permission-aware `/reports/exports` Export Center.
+- Export Center now uses the server-owned `/reports/catalog` rather than local cached permission state to determine available reports.
 - Reusable `ReportExportPanel`.
 - PDF / Excel (.xlsx) / CSV selector.
 - Visible-columns vs all-permitted-columns export mode.
@@ -72,7 +84,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Personal paginated export history.
 - QUEUED / PROCESSING / READY / FAILED / EXPIRED states.
 - Polling only while jobs are pending.
-- Authenticated artifact download with format-aware filename fallback.
+- Authenticated artifact download shares the normal API refresh-token behavior and uses format-aware filename fallback.
 - Shared date validation prevents missing/malformed/inverted date ranges from reaching export creation.
 
 ## Tests added
@@ -82,16 +94,20 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Public export presenter tests preventing internal metadata leakage.
 - Worker success/failure, authorization revalidation and tampered-payload tests.
 - Artifact reconciliation tests for pre-commit failure, acknowledgement loss, cleanup failure and unverifiable persisted state.
+- Workload policy and oversized-materialization tests.
 - CSV generator tests.
 - XLSX generator and worker integration tests.
 - PDF generator tests including metadata/detail output and multi-page pagination.
 - Storage filesystem/object-driver tests.
 - Stale worker, expiry and download tests.
+- Saved Report DTO boundary tests and permission-revalidation tests.
 - Reporting HTTP/E2E coverage for queue creation, requester-private history, get-by-id and invalid requester/scope fields.
 
 ## Intentional implementation notes
 
-`report_export_jobs` is created by explicit migrations and continues to be accessed by server-owned, parameterized Prisma SQL fragments in the repository. The multi-file Prisma schema is now synchronized through `prisma/reporting.prisma`; this removes the previous schema-drift gap without overwriting the concurrently edited core schema.
+`report_export_jobs` is created by explicit migrations and continues to be accessed by server-owned, parameterized Prisma SQL fragments in the repository. The multi-file Prisma schema is synchronized through `prisma/reporting.prisma`.
+
+Saved Reports are deliberately personal in the first foundation increment. Shared/team reports require an explicit permission and ownership model before they are exposed.
 
 The in-process worker is appropriate for the current incremental implementation. A dedicated queue/worker deployment remains the production scaling target.
 
@@ -99,24 +115,27 @@ The web workspace still has no dedicated frontend test runner. UI changes curren
 
 ## Current CI note
 
-The latest observed quality run reached Prisma validation but stopped on an unrelated Finance schema index-map name that exceeded PostgreSQL/Prisma's 63-byte identifier limit. That map has been aligned to the database's 63-byte identifier. Do not classify Reporting as green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build.
+Prisma schema validation now passes. The latest observed quality pipeline then stopped on an unrelated HR migration seed referencing `companies.tenant_id` while the existing table exposes `"tenantId"`. Reporting migrations, including `report_export_jobs`, applied successfully before that blocker. Do not classify Reporting as fully green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build.
 
 ## Next Phase 2 increments
 
 1. Add export audit events when the shared AuditLog persistence/service is available.
 2. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
-3. Add export concurrency/rate/row-limit policies based on production workload.
-4. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
-5. Add frontend tests for permission filtering, polling lifecycle and download transitions when the web test runner is introduced.
-6. Continue the roadmap into saved reports, favorites/recent reports, scheduled reports, drill-down/comparison and additional report domains.
+3. Add Saved Reports frontend UX, favorites/recent reports and permission-safe reopen flows.
+4. Add scheduled reports with timezone, recipient, format and retry/history controls.
+5. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
+6. Add frontend tests for permission filtering, polling lifecycle, saved reports and download transitions when the web test runner is introduced.
+7. Continue the roadmap into drill-down/comparison and additional report domains.
 
 ## Security invariants
 
 - Export permissions can never exceed preview/source-domain permissions.
 - Tenant/company/branch scope comes from authenticated context or a trusted job snapshot, never request parameters.
 - Export requester filters are derived from the authenticated principal.
+- Saved Report scope and ownership are derived from the authenticated principal.
+- Saved Reports re-evaluate current source-domain permissions before opening or mutation.
 - Storage keys are server-generated and never accepted from clients.
-- Unauthorized/internal columns are rejected before queueing.
+- Unauthorized/internal columns are rejected before queueing or saving a report view.
 - Worker authorization is re-evaluated at processing time.
 - Stored job JSON is revalidated before materialization.
 - Downloads re-evaluate current permissions and requester ownership.
