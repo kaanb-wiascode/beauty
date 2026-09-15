@@ -112,6 +112,8 @@ export class HrReportingService {
       taxPaid: unknown;
       socialLiability: unknown;
       socialPaid: unknown;
+      otherLiability: unknown;
+      otherPaid: unknown;
     }>>(
       `WITH period_rows AS (
          SELECT pp.id,make_date(pp.year,pp.month,1) AS period_date,pp.status,
@@ -120,7 +122,8 @@ export class HrReportingService {
                 COALESCE(SUM(pi.net_amount),0)::numeric AS net,
                 COALESCE(SUM(pi.employer_cost),0)::numeric AS "employerCost",
                 COALESCE(SUM(pi.income_tax+pi.stamp_tax),0)::numeric AS "taxLiability",
-                COALESCE(SUM(pi.employee_social_security+pi.unemployment_employee+pi.employer_social_security+pi.unemployment_employer),0)::numeric AS "socialLiability"
+                COALESCE(SUM(pi.employee_social_security+pi.unemployment_employee+pi.employer_social_security+pi.unemployment_employer),0)::numeric AS "socialLiability",
+                COALESCE(SUM(pi.other_deductions),0)::numeric AS "otherLiability"
          FROM payroll_periods pp
          LEFT JOIN payroll_items pi ON pi.period_id=pp.id AND pi.tenant_id=pp.tenant_id AND pi.company_id=pp.company_id
          WHERE pp.tenant_id=$1::text AND pp.company_id=$2::text
@@ -142,7 +145,12 @@ export class HrReportingService {
               COALESCE((SELECT SUM(plp.amount) FROM payroll_liability_payments plp
                         WHERE plp.period_id=p.id AND plp.tenant_id=$1::text AND plp.company_id=$2::text
                           AND ($3::text[] IS NULL OR plp.branch_id=ANY($3::text[]))
-                          AND plp.type='SOCIAL_SECURITY' AND plp.status='PAID'),0)::numeric AS "socialPaid"
+                          AND plp.type='SOCIAL_SECURITY' AND plp.status='PAID'),0)::numeric AS "socialPaid",
+              p."otherLiability",
+              COALESCE((SELECT SUM(plp.amount) FROM payroll_liability_payments plp
+                        WHERE plp.period_id=p.id AND plp.tenant_id=$1::text AND plp.company_id=$2::text
+                          AND ($3::text[] IS NULL OR plp.branch_id=ANY($3::text[]))
+                          AND plp.type='OTHER' AND plp.status='PAID'),0)::numeric AS "otherPaid"
        FROM period_rows p ORDER BY p.period_date ASC`,
       tenantId,
       companyId,
@@ -166,6 +174,9 @@ export class HrReportingService {
       socialLiability: Number(row.socialLiability ?? 0),
       socialPaid: Number(row.socialPaid ?? 0),
       socialRemaining: Math.max(0, Number(row.socialLiability ?? 0) - Number(row.socialPaid ?? 0)),
+      otherLiability: Number(row.otherLiability ?? 0),
+      otherPaid: Number(row.otherPaid ?? 0),
+      otherRemaining: Math.max(0, Number(row.otherLiability ?? 0) - Number(row.otherPaid ?? 0)),
       payrollSettlementRate: Number(row.net ?? 0)
         ? Math.round((Number(row.salaryPaid ?? 0) / Number(row.net ?? 0)) * 100)
         : 0,
