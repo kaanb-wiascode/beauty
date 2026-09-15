@@ -36,14 +36,20 @@ export class OrganizationAdminService {
 
   private async actorUserId() {
     const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
     const membershipId = this.tenantContext.getMembershipId();
     const membership = await this.prisma.membership.findFirst({
-      where: { id: membershipId, tenantId, status: 'ACTIVE' },
+      where: {
+        id: membershipId,
+        tenantId,
+        companyId,
+        status: 'ACTIVE',
+      },
       select: { userId: true },
     });
 
     if (!membership) {
-      throw new BadRequestException('Active membership is required');
+      throw new BadRequestException('Active company membership is required');
     }
 
     return membership.userId;
