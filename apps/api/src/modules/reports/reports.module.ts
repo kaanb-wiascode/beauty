@@ -6,6 +6,7 @@ import { StaffModule } from '../staff/staff.module';
 import { ReportCsvGenerator } from './report-csv.generator';
 import { ReportExportAuthorizationService } from './report-export-authorization.service';
 import { ReportExportJobsRepository } from './report-export-jobs.repository';
+import { ReportExportWorkerContextService } from './report-export-worker-context.service';
 import { ReportsController } from './reports.controller';
 import { ReportsService } from './reports.service';
 
@@ -16,6 +17,7 @@ import { ReportsService } from './reports.service';
     ReportsService,
     ReportExportJobsRepository,
     ReportExportAuthorizationService,
+    ReportExportWorkerContextService,
     ReportCsvGenerator,
   ],
   exports: [ReportsService],
