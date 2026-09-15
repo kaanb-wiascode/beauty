@@ -15,6 +15,12 @@ const sections = [
     description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.",
     glyph: "◇",
   },
+  {
+    href: "/settings/audit",
+    title: "Denetim Kayıtları",
+    description: "Kritik Yönetim Değişikliklerini, Aktörleri Ve Önce/Sonra Durumlarını İnceleyin.",
+    glyph: "≋",
+  },
 ];
 
 export default function SettingsPage() {
@@ -35,10 +41,10 @@ export default function SettingsPage() {
       <section aria-labelledby="settings-sections" className="space-y-3">
         <div>
           <h2 id="settings-sections" className="text-sm font-semibold text-[var(--ink)]">
-            Erişim Yönetimi
+            Erişim Ve Güvenlik Yönetimi
           </h2>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Kullanıcıları Ve Yetkilendirme Yapısını Ayrı Yönetim Alanlarından Yönetin.
+            Kullanıcıları, Yetkilendirme Yapısını Ve Kritik Yönetim Değişikliklerini Ayrı Yönetim Alanlarından Yönetin.
           </p>
         </div>
 
