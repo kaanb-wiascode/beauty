@@ -18,9 +18,17 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CrmLeadRoutingService } from './crm-lead-routing.service';
 
 const uuid = z.string().uuid();
-const targetUserIdsSchema = z.array(uuid).min(1).max(100).transform((ids) => [...new Set(ids)]);
+const strategySchema = z.enum([
+  'DIRECT_OWNER',
+  'ROUND_ROBIN',
+  'LEAST_OPEN_LEADS',
+  'LEAST_ACTIVE',
+  'FALLBACK_QUEUE',
+]);
+const targetUserIdsSchema = z.array(uuid).max(100).transform((ids) => [...new Set(ids)]);
 const routingConditionsSchema = z.object({
   sources: z.array(z.string().trim().min(1).max(60)).max(50).optional(),
+  campaignIds: z.array(z.string().trim().min(1).max(255)).max(50).optional(),
   temperatures: z.array(z.enum(['COLD', 'WARM', 'HOT'])).max(3).optional(),
   minScore: z.coerce.number().int().min(0).max(100).optional(),
   maxScore: z.coerce.number().int().min(0).max(100).optional(),
@@ -33,26 +41,35 @@ const routingConditionsSchema = z.object({
   { message: 'minScore must be lower than or equal to maxScore.', path: ['maxScore'] },
 );
 
+function validateTargets(value: { strategy?: z.infer<typeof strategySchema>; targetUserIds?: string[] }, ctx: z.RefinementCtx) {
+  if (!value.strategy || value.targetUserIds === undefined) return;
+  if (value.strategy === 'DIRECT_OWNER' && value.targetUserIds.length !== 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'DIRECT_OWNER requires exactly one target user.', path: ['targetUserIds'] });
+  } else if (value.strategy !== 'FALLBACK_QUEUE' && value.targetUserIds.length < 1) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'This routing strategy requires at least one target user.', path: ['targetUserIds'] });
+  }
+}
+
 const createRoutingRuleSchema = z.object({
   name: z.string().trim().min(1).max(120),
   priority: z.coerce.number().int().min(0).max(10000).default(100),
-  strategy: z.enum(['ROUND_ROBIN', 'LEAST_ACTIVE']),
+  strategy: strategySchema,
   conditions: routingConditionsSchema.default({}),
   team: z.string().trim().min(1).max(120).nullable().optional(),
   enabled: z.coerce.boolean().default(true),
-  targetUserIds: targetUserIdsSchema,
-}).strict();
+  targetUserIds: targetUserIdsSchema.default([]),
+}).strict().superRefine(validateTargets);
 
 const updateRoutingRuleSchema = z.object({
   version: z.coerce.number().int().min(1),
   name: z.string().trim().min(1).max(120).optional(),
   priority: z.coerce.number().int().min(0).max(10000).optional(),
-  strategy: z.enum(['ROUND_ROBIN', 'LEAST_ACTIVE']).optional(),
+  strategy: strategySchema.optional(),
   conditions: routingConditionsSchema.optional(),
   team: z.string().trim().min(1).max(120).nullable().optional(),
   enabled: z.coerce.boolean().optional(),
   targetUserIds: targetUserIdsSchema.optional(),
-}).strict();
+}).strict().superRefine(validateTargets);
 
 const listEventsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).optional(),
