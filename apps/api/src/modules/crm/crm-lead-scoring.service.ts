@@ -53,27 +53,33 @@ export class CrmLeadScoringService {
     }
 
     return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{
-        warmMin: number;
-        hotMin: number;
-        version: number;
-        updatedAt: Date;
-      }>>(
-        `INSERT INTO crm_lead_scoring_policies(tenant_id,warm_min,hot_min,version,updated_by_user_id,updated_at)
-         VALUES($1::text,$2,$3,1,$4::text,NOW())
-         ON CONFLICT(tenant_id) DO UPDATE SET
-           warm_min=EXCLUDED.warm_min,hot_min=EXCLUDED.hot_min,
-           version=crm_lead_scoring_policies.version+1,
-           updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at=NOW()
-         WHERE crm_lead_scoring_policies.version=$5
-         RETURNING warm_min AS "warmMin",hot_min AS "hotMin",version,updated_at AS "updatedAt"`,
-        context.tenantId,
-        input.warmMin,
-        input.hotMin,
-        actorUserId,
-        input.version,
-      );
-      if (!rows.length) throw new ConflictException('Lead scoring policy changed. Refresh and retry.');
+      let rows: Array<{ warmMin: number; hotMin: number; version: number; updatedAt: Date }>;
+      if (input.version === 0) {
+        rows = await tx.$queryRawUnsafe(
+          `INSERT INTO crm_lead_scoring_policies(tenant_id,warm_min,hot_min,version,updated_by_user_id,updated_at)
+           VALUES($1::text,$2,$3,1,$4::text,NOW())
+           ON CONFLICT(tenant_id) DO NOTHING
+           RETURNING warm_min AS "warmMin",hot_min AS "hotMin",version,updated_at AS "updatedAt"`,
+          context.tenantId,
+          input.warmMin,
+          input.hotMin,
+          actorUserId,
+        );
+        if (!rows.length) throw new ConflictException('Lead scoring policy already exists. Refresh and retry.');
+      } else {
+        rows = await tx.$queryRawUnsafe(
+          `UPDATE crm_lead_scoring_policies SET
+             warm_min=$2,hot_min=$3,version=version+1,updated_by_user_id=$4::text,updated_at=NOW()
+           WHERE tenant_id=$1::text AND version=$5
+           RETURNING warm_min AS "warmMin",hot_min AS "hotMin",version,updated_at AS "updatedAt"`,
+          context.tenantId,
+          input.warmMin,
+          input.hotMin,
+          actorUserId,
+          input.version,
+        );
+        if (!rows.length) throw new ConflictException('Lead scoring policy changed. Refresh and retry.');
+      }
 
       await tx.$queryRawUnsafe(
         `SELECT set_config('crm.actor_user_id',$1::text,TRUE)`,
