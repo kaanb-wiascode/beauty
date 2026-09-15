@@ -1,17 +1,28 @@
 import { PrismaService } from '@beauty-erp/database';
 
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { StaffService } from './staff.service';
 
-describe('StaffService performance scope', () => {
+describe('StaffService organization scope', () => {
   function createService(context: {
     tenantId: string;
     companyId: string;
     branchId: string | null;
     roleScope: 'CENTRAL' | 'COMPANY' | 'BRANCH';
+    assignedBranchIds?: string[];
   }) {
     const prisma = {
-      staff: { findMany: jest.fn().mockResolvedValue([]) },
+      branch: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
+      },
+      staff: {
+        findMany: jest.fn().mockResolvedValue([]),
+        findFirst: jest.fn(),
+        count: jest.fn().mockResolvedValue(0),
+        create: jest.fn(),
+      },
       appointment: { findMany: jest.fn().mockResolvedValue([]) },
     } as unknown as PrismaService;
 
@@ -22,7 +33,30 @@ describe('StaffService performance scope', () => {
       getRoleScope: () => context.roleScope,
     } as TenantContext;
 
-    return { prisma, service: new StaffService(prisma, tenantContext) };
+    const organizationScope = {
+      getBranchScopedWhere: jest.fn().mockResolvedValue(
+        context.branchId
+          ? { tenantId: context.tenantId, branchId: context.branchId }
+          : context.roleScope === 'CENTRAL'
+            ? {
+                tenantId: context.tenantId,
+                branch: { companyId: context.companyId },
+              }
+            : {
+                tenantId: context.tenantId,
+                branchId: { in: context.assignedBranchIds ?? [] },
+              },
+      ),
+      getAssignedActiveBranchIds: jest
+        .fn()
+        .mockResolvedValue(context.assignedBranchIds ?? []),
+    } as unknown as OrganizationScopeService;
+
+    return {
+      prisma,
+      organizationScope,
+      service: new StaffService(prisma, tenantContext, organizationScope),
+    };
   }
 
   const input = {
@@ -74,14 +108,53 @@ describe('StaffService performance scope', () => {
         },
       }),
     );
-    expect(prisma.appointment.findMany).toHaveBeenCalledWith(
+  });
+
+  it('restricts company no-branch reads to assigned branches', async () => {
+    const { prisma, service } = createService({
+      tenantId: 'tenant-a',
+      companyId: 'company-a',
+      branchId: null,
+      roleScope: 'COMPANY',
+      assignedBranchIds: ['branch-a', 'branch-b'],
+    });
+
+    await service.findAll({ page: 1, limit: 20 } as any);
+
+    expect(prisma.staff.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({
           tenantId: 'tenant-a',
-          branch: { companyId: 'company-a' },
-          startAt: { gte: input.from, lte: input.to },
+          branchId: { in: ['branch-a', 'branch-b'] },
         }),
       }),
     );
+  });
+
+  it('creates company-scoped staff only in the single assigned active branch', async () => {
+    const { prisma, service } = createService({
+      tenantId: 'tenant-a',
+      companyId: 'company-a',
+      branchId: null,
+      roleScope: 'COMPANY',
+      assignedBranchIds: ['branch-a'],
+    });
+
+    (prisma.staff.create as jest.Mock).mockResolvedValue({ id: 'staff-a' });
+
+    await service.create({
+      firstName: 'Ada',
+      lastName: 'Lovelace',
+    } as any);
+
+    expect(prisma.staff.create).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          tenantId: 'tenant-a',
+          branchId: 'branch-a',
+        }),
+      }),
+    );
+    expect(prisma.branch.findMany).not.toHaveBeenCalled();
   });
 });
