@@ -52,6 +52,12 @@ const sections = [
     glyph: "◇+",
   },
   {
+    href: "/settings/approval-workflows",
+    title: "Onay Akışları",
+    description: "Finance, HR Ve Operasyonlar İçin Versiyonlu Merkezi Onay Politikaları Tanımlayın.",
+    glyph: "⇢",
+  },
+  {
     href: "/settings/organization",
     title: "Şirket Ve Şubeler",
     description: "Şirket Kapsamını, Şubeleri Ve Organizasyon Kullanımını Görüntüleyin.",
