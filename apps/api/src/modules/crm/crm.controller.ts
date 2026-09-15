@@ -6,6 +6,7 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { cancelFollowUpSchema,completeFollowUpSchema,createFollowUpSchema,createLeadSchema,createOpportunitySchema,duplicateCandidateSchema,leadStatusSchema,mergeLeadSchema,opportunityStageSchema,qualifyLeadSchema,rescheduleFollowUpSchema,transitionOpportunitySchema,updateLeadSchema } from './crm.schemas';
 import { CrmAcquisitionService } from './crm-acquisition.service';
+import { CrmCommercialOptionsService } from './crm-commercial-options.service';
 import { CrmLeadDuplicateService } from './crm-lead-duplicate.service';
 import { CrmLeadIdentityService } from './crm-lead-identity.service';
 import { CrmLeadMergeService } from './crm-lead-merge.service';
@@ -20,10 +21,11 @@ const listFollowUpsSchema=z.object({status:z.enum(['OPEN','COMPLETED','CANCELLED
 const operationsSummarySchema=z.object({dayStart:z.coerce.date(),dayEnd:z.coerce.date()}).refine(v=>v.dayEnd>v.dayStart,{message:'dayEnd must be after dayStart.',path:['dayEnd']});
 @Controller('crm') @UseGuards(JwtAuthGuard,TenantAuthGuard,PermissionsGuard)
 export class CrmController{
- constructor(private readonly crm:CrmService,private readonly leads:CrmLeadService,private readonly duplicates:CrmLeadDuplicateService,private readonly identities:CrmLeadIdentityService,private readonly mergeService:CrmLeadMergeService,private readonly acquisition:CrmAcquisitionService,private readonly opportunities:CrmOpportunityService,private readonly operations:CrmOperationsService){}
+ constructor(private readonly crm:CrmService,private readonly leads:CrmLeadService,private readonly duplicates:CrmLeadDuplicateService,private readonly identities:CrmLeadIdentityService,private readonly mergeService:CrmLeadMergeService,private readonly acquisition:CrmAcquisitionService,private readonly commercialOptions:CrmCommercialOptionsService,private readonly opportunities:CrmOpportunityService,private readonly operations:CrmOperationsService){}
  private userId(r:{user?:{sub?:string}}){const id=r.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
  @Get('operations-summary') @RequirePermission('crm','read') getOperationsSummary(@Query() q:unknown){const f=operationsSummarySchema.parse(q);return this.operations.getSummary(f.dayStart,f.dayEnd);}
  @Get('assignees') @RequirePermission('crm','read') listAssignees(){return this.crm.listAssignees();}
+ @Get('commercial-options') @RequirePermission('crm','read') listCommercialOptions(){return this.commercialOptions.list();}
  @Get('leads') @RequirePermission('crm','read') listLeads(@Query() q:unknown){return this.leads.list(listLeadsSchema.parse(q));}
  @Post('leads/duplicate-candidates') @RequirePermission('crm','read') findDuplicateCandidates(@Body() b:unknown){const i=duplicateCandidateSchema.parse(b);return this.duplicates.findCandidates(i,i.excludeLeadId);}
  @Get('leads/:id/duplicate-candidates') @RequirePermission('crm','read') getLeadDuplicateCandidates(@Param('id') id:string){return this.duplicates.findCandidatesForLead(uuid.parse(id));}
