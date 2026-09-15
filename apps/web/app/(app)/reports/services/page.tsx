@@ -10,7 +10,11 @@ import {
   reportRangeToQuery,
   type ReportDateRange,
 } from "../report-filter-bar";
-import { fetchReportPreview, type TableReportPreview } from "../report-preview-client";
+import {
+  fetchReportPreview,
+  type ReportPreviewSummary,
+  type TableReportPreview,
+} from "../report-preview-client";
 import { useReportTableState } from "../use-report-table-state";
 
 type Row = {
@@ -47,6 +51,15 @@ const LABELS: Record<ColumnKey, string> = {
   collected: "Tahsilat",
 };
 
+const EMPTY_SUMMARY: ReportPreviewSummary = {
+  rowCount: 0,
+  appointmentCount: 0,
+  completedAppointments: 0,
+  completionRate: 0,
+  collected: 0,
+  averageCollectedPerCompleted: 0,
+};
+
 const money = (value: number) =>
   new Intl.NumberFormat("tr-TR", {
     style: "currency",
@@ -61,6 +74,7 @@ export default function ServiceReportPage() {
   });
   const [rows, setRows] = useState<Row[]>([]);
   const [meta, setMeta] = useState({ page: 1, total: 0, totalPages: 1 });
+  const [summary, setSummary] = useState<ReportPreviewSummary>(EMPTY_SUMMARY);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -72,6 +86,7 @@ export default function ServiceReportPage() {
   useEffect(() => {
     if (reportRangeIsInvalid(range)) {
       setRows([]);
+      setSummary(EMPTY_SUMMARY);
       setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz.");
       setLoading(false);
       return;
@@ -93,6 +108,7 @@ export default function ServiceReportPage() {
 
         if (!cancelled) {
           setRows(result.data);
+          setSummary(result.meta.summary);
           setMeta({
             page: result.meta.page,
             total: result.meta.total,
@@ -123,23 +139,6 @@ export default function ServiceReportPage() {
     return rows.filter((row) => row.name.toLocaleLowerCase("tr-TR").includes(normalized));
   }, [query, rows]);
 
-  const totals = useMemo(
-    () =>
-      rows.reduce(
-        (total, row) => ({
-          appointments: total.appointments + row.appointmentCount,
-          completed: total.completed + row.completedAppointments,
-          collected: total.collected + row.collected,
-        }),
-        { appointments: 0, completed: 0, collected: 0 },
-      ),
-    [rows],
-  );
-
-  const completion = totals.appointments
-    ? Math.round((totals.completed / totals.appointments) * 100)
-    : 0;
-
   return (
     <div className="mx-auto max-w-6xl space-y-5">
       <PageHeader
@@ -154,10 +153,10 @@ export default function ServiceReportPage() {
       ) : (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-            <Metric label="Sayfadaki Tahsilat" value={money(totals.collected)} detail={`${meta.total} Hizmet İçinden`} />
-            <Metric label="Tamamlanan" value={totals.completed.toLocaleString("tr-TR")} detail={`%${completion} Tamamlanma`} />
-            <Metric label="Randevu" value={totals.appointments.toLocaleString("tr-TR")} detail={`Sayfa ${meta.page}/${meta.totalPages}`} />
-            <Metric label="Toplam Hizmet" value={meta.total.toLocaleString("tr-TR")} detail="Yetkili Scope" />
+            <Metric label="Toplam Tahsilat" value={money(summary.collected)} detail="Seçilen Dönem" />
+            <Metric label="Tamamlanan" value={summary.completedAppointments.toLocaleString("tr-TR")} detail={`%${summary.completionRate} Tamamlanma`} />
+            <Metric label="Toplam Randevu" value={summary.appointmentCount.toLocaleString("tr-TR")} detail={`${summary.rowCount} Hizmet`} />
+            <Metric label="Ortalama İşlem" value={money(summary.averageCollectedPerCompleted)} detail="Tamamlanan Başına" />
           </section>
 
           <Panel>
