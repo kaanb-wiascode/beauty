@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -17,6 +18,7 @@ import {
   RequirePermission,
   RequirePermissions,
 } from '../../common/auth/permissions.decorator';
+import { BusinessPolicyService } from '../business-policies/business-policy.service';
 
 import { PaymentsService } from './payments.service';
 import { createPaymentSchema } from './dto/create-payment.dto';
@@ -31,6 +33,7 @@ import { paymentSummarySchema } from './dto/payment-summary.dto';
 export class PaymentsController {
   constructor(
     private readonly paymentsService: PaymentsService,
+    private readonly businessPolicies: BusinessPolicyService,
   ) {}
 
   @UseGuards(PermissionsGuard)
@@ -83,6 +86,16 @@ export class PaymentsController {
     @Body() body: unknown,
   ) {
     const input = refundPaymentSchema.parse(body);
+    const payment = await this.paymentsService.findOne(id);
+    const decision = await this.businessPolicies.evaluate({
+      policyKey: 'payments.refund',
+      facts: { amount: Number(payment.amount) },
+    });
+    if (!decision.allowed) {
+      throw new BadRequestException(
+        `Refund blocked by business policy: ${decision.reason}`,
+      );
+    }
 
     return this.paymentsService.refund(id, input);
   }
