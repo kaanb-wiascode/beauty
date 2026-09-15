@@ -9,6 +9,8 @@ export type AppointmentReportingInput = Readonly<{
   to: Date;
 }>;
 
+const REBOOKING_WINDOW_MS = 90 * 24 * 60 * 60 * 1000;
+
 @Injectable()
 export class AppointmentReportingService {
   constructor(
@@ -54,19 +56,25 @@ export class AppointmentReportingService {
           .map((item) => item.customerId),
       ),
     ];
-    const laterAppointments = completedCustomerIds.length
+    const rebookingWindowEnd = new Date(input.to.getTime() + REBOOKING_WINDOW_MS);
+    const candidateAppointments = completedCustomerIds.length
       ? await this.prisma.appointment.findMany({
           where: {
             ...scope,
             customerId: { in: completedCustomerIds },
-            startAt: { gt: input.to },
+            startAt: { gt: input.from, lte: rebookingWindowEnd },
             status: { in: ['SCHEDULED', 'CONFIRMED', 'COMPLETED'] },
           },
-          select: { customerId: true },
-          distinct: ['customerId'],
+          select: { id: true, customerId: true, startAt: true },
+          orderBy: { startAt: 'asc' },
         })
       : [];
-    const rebookedCustomers = new Set(laterAppointments.map((item) => item.customerId));
+    const candidatesByCustomer = new Map<string, Array<{ id: string; startAt: Date }>>();
+    for (const candidate of candidateAppointments) {
+      const current = candidatesByCustomer.get(candidate.customerId) ?? [];
+      current.push({ id: candidate.id, startAt: candidate.startAt });
+      candidatesByCustomer.set(candidate.customerId, current);
+    }
 
     const buckets = new Map<string, {
       date: string;
@@ -124,11 +132,15 @@ export class AppointmentReportingService {
         bucket.repeatCustomerCount += 1;
       }
 
-      if (
-        appointment.status === 'COMPLETED' &&
-        rebookedCustomers.has(appointment.customerId)
-      ) {
-        bucket.rebooked.add(appointment.customerId);
+      if (appointment.status === 'COMPLETED') {
+        const rebookBy = appointment.startAt.getTime() + REBOOKING_WINDOW_MS;
+        const hasRebooking = (candidatesByCustomer.get(appointment.customerId) ?? []).some(
+          (candidate) =>
+            candidate.id !== appointment.id &&
+            candidate.startAt.getTime() > appointment.startAt.getTime() &&
+            candidate.startAt.getTime() <= rebookBy,
+        );
+        if (hasRebooking) bucket.rebooked.add(appointment.customerId);
       }
 
       if (appointment.payment?.status === 'COMPLETED') {
