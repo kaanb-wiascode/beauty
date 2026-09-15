@@ -1,4 +1,5 @@
 import { ApiError, api, apiResponse, withQuery } from "@/lib/api";
+import type { ReportCatalogKey } from "./report-catalog-client";
 
 export type ReportExportStatus =
   | "QUEUED"
@@ -28,7 +29,7 @@ export type ReportExportListResult = {
 };
 
 export type CreateReportExportInput = {
-  reportKey: "staff.performance" | "service.performance" | "payments.summary";
+  reportKey: ReportCatalogKey;
   format?: ReportExportFormat;
   filters: { from: string; to: string };
   columns?: readonly string[];
