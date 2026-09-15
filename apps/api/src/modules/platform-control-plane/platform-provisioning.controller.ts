@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -14,6 +15,7 @@ import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard'
 import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
 import { PlatformGoLiveService } from './platform-go-live.service';
+import { PlatformOwnerInvitationDispatcherService } from './platform-owner-invitation-dispatcher.service';
 import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
 import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
 import { PlatformProvisioningOperationsService } from './platform-provisioning-operations.service';
@@ -30,6 +32,7 @@ export class PlatformProvisioningController {
     private readonly provisioning: PlatformProvisioningCoordinatorService,
     private readonly operations: PlatformProvisioningOperationsService,
     private readonly ownerInvitation: PlatformOwnerInvitationService,
+    private readonly ownerInvitationDispatcher: PlatformOwnerInvitationDispatcherService,
     private readonly goLive: PlatformGoLiveService,
   ) {}
 
@@ -119,6 +122,25 @@ export class PlatformProvisioningController {
         reason: body.reason ?? null,
         correlationId: this.correlationId(request),
       },
+    );
+  }
+
+  @Post(':runId/owner-invitation/dispatch')
+  @RequirePlatformPermission('provisioning', 'manage')
+  dispatchOwnerInvitation(
+    @Req() request: PlatformRequest,
+    @Param('runId') runId: string,
+    @Body() body: { reason?: string },
+  ) {
+    const reason = body.reason?.trim();
+    if (!reason) {
+      throw new BadRequestException('Owner invitation dispatch requires a reason.');
+    }
+    return this.ownerInvitationDispatcher.dispatch(
+      runId,
+      this.actor(request),
+      reason,
+      this.correlationId(request),
     );
   }
 
