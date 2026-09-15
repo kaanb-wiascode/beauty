@@ -10,15 +10,26 @@ import { PlatformCustomerContextController } from './platform-customer-context.c
 import { PlatformCustomerContextService } from './platform-customer-context.service';
 import { PlatformEntitlementsController } from './platform-entitlements.controller';
 import { PlatformEntitlementsService } from './platform-entitlements.service';
+import { PlatformGoLiveService } from './platform-go-live.service';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
+import { PlatformOnboardingController } from './platform-onboarding.controller';
+import { PlatformOnboardingService } from './platform-onboarding.service';
+import { PlatformOwnerInvitationDispatcherService } from './platform-owner-invitation-dispatcher.service';
+import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
+import { PlatformOwnerInvitationWebhookProvider } from './platform-owner-invitation-webhook.provider';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformProvisioningController } from './platform-provisioning.controller';
+import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
+import { PlatformProvisioningFailureService } from './platform-provisioning-failure.service';
+import { PlatformProvisioningOperationsService } from './platform-provisioning-operations.service';
 import { PlatformProvisioningService } from './platform-provisioning.service';
 import { PlatformReadModelService } from './platform-read-model.service';
 import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
 import { PlatformSubscriptionsService } from './platform-subscriptions.service';
+import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
+import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
 import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
 
 @Module({
@@ -29,6 +40,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformSubscriptionsController,
     PlatformEntitlementsController,
     PlatformProvisioningController,
+    PlatformOnboardingController,
   ],
   providers: [
     PlatformReadModelService,
@@ -37,6 +49,16 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
+    PlatformProvisioningCoordinatorService,
+    PlatformProvisioningFailureService,
+    PlatformProvisioningOperationsService,
+    PlatformOwnerInvitationService,
+    PlatformOwnerInvitationWebhookProvider,
+    PlatformOwnerInvitationDispatcherService,
+    PlatformTenantBootstrapService,
+    PlatformTenantConfigurationBootstrapService,
+    PlatformOnboardingService,
+    PlatformGoLiveService,
     PlatformIamReadService,
     PlatformIamMutationService,
     PlatformAuditReadService,
@@ -53,6 +75,11 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
+    PlatformProvisioningCoordinatorService,
+    PlatformProvisioningOperationsService,
+    PlatformOwnerInvitationService,
+    PlatformOwnerInvitationDispatcherService,
+    PlatformOnboardingService,
   ],
 })
 export class PlatformControlPlaneModule {}
