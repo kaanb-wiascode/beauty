@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import type { ReportCatalogKey } from "./report-catalog-client";
 
 export type ReportPreviewSort = {
   key: string;
@@ -38,14 +39,7 @@ export type SummaryReportPreview<TSummary> = {
 };
 
 type PreviewRequest = {
-  reportKey:
-    | "staff.performance"
-    | "service.performance"
-    | "payments.summary"
-    | "customers.performance"
-    | "sales.performance"
-    | "appointments.performance"
-    | "finance.performance";
+  reportKey: ReportCatalogKey;
   filters: { from: string; to: string };
   columns?: readonly string[];
   sort?: ReportPreviewSort;
