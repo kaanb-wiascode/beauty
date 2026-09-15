@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { VisitCheckoutReadinessService } from '../visits/visit-checkout-readiness.service';
 import type { OperationsAlertQuery } from './dto/operations-alert.dto';
 
 type AlertSeverity = 'INFO' | 'WARNING' | 'HIGH' | 'CRITICAL';
@@ -35,6 +36,7 @@ export class OperationsAlertsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly checkoutReadiness: VisitCheckoutReadinessService,
   ) {}
 
   private context() {
@@ -306,7 +308,29 @@ export class OperationsAlertsService {
       input.limit,
     );
 
-    const counts = rows.reduce<Record<AlertSeverity, number>>(
+    const alerts = await Promise.all(
+      rows.map(async (row) => {
+        if (row.type !== 'CHECKOUT_STALE') return row;
+        try {
+          const readiness = await this.checkoutReadiness.getReadiness(row.sourceId);
+          if (readiness.canCheckout || readiness.blockers.length === 0) return row;
+          const reasons = readiness.blockers.map((blocker) => blocker.code).join(', ');
+          return {
+            ...row,
+            type: 'CHECKOUT_BLOCKED',
+            severity: 'HIGH' as const,
+            title: 'Checkout blocker nedeniyle tamamlanamıyor',
+            message: `${row.message} Blokaj: ${reasons}.`,
+            suggestedAction:
+              'Checkout readiness detayını aç; ödeme, paket seansı veya walk-in ticari bağlantı blockerını gider.',
+          };
+        } catch {
+          return row;
+        }
+      }),
+    );
+
+    const counts = alerts.reduce<Record<AlertSeverity, number>>(
       (acc, row) => {
         acc[row.severity] += 1;
         return acc;
@@ -321,7 +345,7 @@ export class OperationsAlertsService {
         checkoutMinutes: input.checkoutMinutes,
       },
       counts,
-      alerts: rows,
+      alerts,
     };
   }
 }
