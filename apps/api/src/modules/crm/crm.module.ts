@@ -23,6 +23,7 @@ import { CrmLeadDuplicateService } from './crm-lead-duplicate.service';
 import { CrmLeadIdentityService } from './crm-lead-identity.service';
 import { CrmLeadMergeService } from './crm-lead-merge.service';
 import { CrmLeadService } from './crm-lead.service';
+import { CrmLostReasonController } from './crm-lost-reason.controller';
 import { CrmLostReasonService } from './crm-lost-reason.service';
 import { CrmLostTransitionService } from './crm-lost-transition.service';
 import { CrmMessageController } from './crm-message.controller';
@@ -50,7 +51,7 @@ import { TwilioSmsConnectionController } from './twilio-sms-connection.controlle
 import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
 
 @Module({
-  controllers: [CrmController,CrmOperationsController,CrmCommercialController,CrmCommunicationComplianceController,CrmConversationController,CrmConversationAnalyticsController,CrmConversationOperationsController,CrmAutomationRulesController,CrmMessageController,CrmMessageProviderConnectionsController,TwilioSmsConnectionController,ResendEmailConnectionController,CrmMessageWebhookController,CrmMessageWebhookHistoryController,CrmUnresolvedInboundController],
+  controllers: [CrmController,CrmLostReasonController,CrmOperationsController,CrmCommercialController,CrmCommunicationComplianceController,CrmConversationController,CrmConversationAnalyticsController,CrmConversationOperationsController,CrmAutomationRulesController,CrmMessageController,CrmMessageProviderConnectionsController,TwilioSmsConnectionController,ResendEmailConnectionController,CrmMessageWebhookController,CrmMessageWebhookHistoryController,CrmUnresolvedInboundController],
   providers: [CrmService,CrmLeadService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmLeadMergeService,CrmLostReasonService,CrmLostTransitionService,CrmAcquisitionService,CrmOpportunityService,CrmOperationsService,CrmOpportunityCommercialService,CrmCustomer360Service,CrmReminderService,CrmCommunicationComplianceService,CrmConversationService,CrmConversationAnalyticsService,CrmConversationOperationsService,CrmAutomationRulesService,CrmAutomationService,CrmAutomationMessageActionService,CrmAutomationObservabilityService,CrmAutomationSchedulerService,CrmInboundContactResolverService,CrmInboundOptOutService,CrmMessageProviderRegistryService,CrmMessageProviderConnectionsService,CrmMessageProviderVaultService,MetaWhatsAppMessageProvider,TwilioSmsMessageProvider,ResendEmailMessageProvider,CrmMessageService,CrmMessageWebhookService,CrmMessageWebhookHistoryService,CrmUnresolvedInboundService],
   exports: [CrmService,CrmLeadService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmLeadMergeService,CrmLostReasonService,CrmLostTransitionService,CrmAcquisitionService,CrmOpportunityService,CrmOperationsService,CrmMessageService,CrmMessageProviderRegistryService],
 })
