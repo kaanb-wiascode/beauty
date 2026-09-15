@@ -69,7 +69,7 @@ export class ServiceExecutionsService {
 
   async listByVisit(visitId: string) {
     const { tenantId, companyId, branchId } = this.context();
-    return this.prisma.$queryRawUnsafe<ExecutionRow[]>(
+    const executions = await this.prisma.$queryRawUnsafe<ExecutionRow[]>(
       `SELECT e.id, e.visit_id AS "visitId", e.appointment_id AS "appointmentId",
               e.service_id AS "serviceId", e.staff_id AS "staffId",
               e.room_id AS "roomId", e.inventory_asset_id AS "assetId",
@@ -84,6 +84,39 @@ export class ServiceExecutionsService {
       companyId,
       branchId,
     );
+
+    if (!executions.length) return [];
+
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        id: { in: executions.map((execution) => execution.appointmentId) },
+        tenantId,
+        branchId,
+      },
+      select: {
+        id: true,
+        status: true,
+        session: {
+          select: {
+            id: true,
+            status: true,
+          },
+        },
+      },
+    });
+    const appointmentMap = new Map(
+      appointments.map((appointment) => [appointment.id, appointment]),
+    );
+
+    return executions.map((execution) => {
+      const appointment = appointmentMap.get(execution.appointmentId);
+      return {
+        ...execution,
+        appointmentStatus: appointment?.status ?? null,
+        packageSessionId: appointment?.session?.id ?? null,
+        packageSessionStatus: appointment?.session?.status ?? null,
+      };
+    });
   }
 
   async start(visitId: string, input: StartServiceExecutionInput) {
@@ -379,6 +412,115 @@ export class ServiceExecutionsService {
         return {
           execution: completed[0],
           visitCanCompleteService: Number(remaining[0]?.count ?? 0) === 0,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async completeAppointmentHandoff(executionId: string) {
+    const { tenantId, companyId, branchId, membershipId } = this.context();
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        await tx.$queryRawUnsafe(
+          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `${tenantId}:${branchId}`,
+          `execution-handoff:${executionId}`,
+        );
+
+        const executions = await tx.$queryRawUnsafe<ExecutionRow[]>(
+          `SELECT id, visit_id AS "visitId", appointment_id AS "appointmentId",
+                  service_id AS "serviceId", staff_id AS "staffId",
+                  room_id AS "roomId", inventory_asset_id AS "assetId",
+                  status, started_at AS "startedAt", completed_at AS "completedAt",
+                  note, completion_note AS "completionNote", version
+           FROM operations_service_executions
+           WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
+           LIMIT 1`,
+          executionId,
+          tenantId,
+          companyId,
+          branchId,
+        );
+        const execution = executions[0];
+        if (!execution) throw new NotFoundException('Service execution not found');
+        if (execution.status !== 'COMPLETED') {
+          throw new BadRequestException(
+            'Service execution must be completed before completing its appointment.',
+          );
+        }
+
+        await tx.$queryRawUnsafe(
+          `SELECT pg_advisory_xact_lock(hashtext($1))`,
+          `appointment:${execution.appointmentId}`,
+        );
+
+        const appointment = await tx.appointment.findFirst({
+          where: {
+            id: execution.appointmentId,
+            tenantId,
+            branchId,
+          },
+          include: {
+            session: {
+              select: {
+                id: true,
+                status: true,
+              },
+            },
+          },
+        });
+        if (!appointment) throw new NotFoundException('Appointment not found');
+        if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') {
+          throw new ConflictException(
+            'Cancelled or no-show appointment cannot be completed from execution handoff.',
+          );
+        }
+
+        if (appointment.status !== 'COMPLETED') {
+          if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
+            throw new ConflictException(
+              `Appointment cannot be completed from ${appointment.status}.`,
+            );
+          }
+          await tx.appointment.update({
+            where: { id: appointment.id },
+            data: { status: 'COMPLETED' },
+          });
+
+          await tx.$executeRawUnsafe(
+            `INSERT INTO operations_service_execution_events (
+               execution_id, tenant_id, branch_id, actor_membership_id,
+               event_type, from_status, to_status, note
+             ) VALUES ($1,$2,$3,$4,'APPOINTMENT_COMPLETED_HANDOFF','COMPLETED','COMPLETED',$5)`,
+            execution.id,
+            tenantId,
+            branchId,
+            membershipId,
+            `Appointment ${appointment.id} completed; package session consumption remains a separate action.`,
+          );
+        }
+
+        const refreshed = await tx.appointment.findUnique({
+          where: { id: appointment.id },
+          select: {
+            id: true,
+            status: true,
+            session: {
+              select: {
+                id: true,
+                status: true,
+              },
+            },
+          },
+        });
+
+        return {
+          executionId: execution.id,
+          appointment: refreshed,
+          packageSessionRequiresExplicitConsumption:
+            refreshed?.session?.status === 'RESERVED',
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
