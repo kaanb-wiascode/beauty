@@ -14,20 +14,20 @@ export type ReportPreviewSummary = {
   averageCollectedPerCompleted: number;
 };
 
-export type ReportPreviewMeta = {
+export type ReportPreviewMeta<TSummary = ReportPreviewSummary> = {
   page: number;
   limit: number;
   total: number;
   totalPages: number;
   sort: ReportPreviewSort | null;
-  summary: ReportPreviewSummary;
+  summary: TSummary;
 };
 
-export type TableReportPreview<TRow> = {
+export type TableReportPreview<TRow, TSummary = ReportPreviewSummary> = {
   report: { key: string; resultKind: "table"; drilldowns: string[] };
   columns: string[];
   data: TRow[];
-  meta: ReportPreviewMeta;
+  meta: ReportPreviewMeta<TSummary>;
 };
 
 export type SummaryReportPreview<TSummary> = {
@@ -38,7 +38,11 @@ export type SummaryReportPreview<TSummary> = {
 };
 
 type PreviewRequest = {
-  reportKey: "staff.performance" | "service.performance" | "payments.summary";
+  reportKey:
+    | "staff.performance"
+    | "service.performance"
+    | "payments.summary"
+    | "customers.performance";
   filters: { from: string; to: string };
   columns?: readonly string[];
   sort?: ReportPreviewSort;
