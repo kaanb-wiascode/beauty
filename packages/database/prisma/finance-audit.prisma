@@ -10,7 +10,7 @@ model FinanceConfigurationAuditEvent {
   afterState  Json?    @map("after_state")
   createdAt   DateTime @default(now()) @map("created_at")
 
-  @@index([tenantId, companyId, createdAt], map: "finance_configuration_audit_events_tenant_company_created_at_idx")
+  @@index([tenantId, companyId, createdAt], map: "finance_configuration_audit_events_tenant_company_created_at_id")
   @@index([entityType, entityId, createdAt], map: "finance_configuration_audit_events_entity_idx")
   @@map("finance_configuration_audit_events")
 }
