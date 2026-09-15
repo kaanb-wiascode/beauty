@@ -16,6 +16,8 @@ import { OperationsCustomerEngagementController } from './operations-customer-en
 import { OperationsCustomerEngagementService } from './operations-customer-engagement.service';
 import { OperationsIncidentsController } from './operations-incidents.controller';
 import { OperationsIncidentsService } from './operations-incidents.service';
+import { OperationsIntelligenceController } from './operations-intelligence.controller';
+import { OperationsIntelligenceService } from './operations-intelligence.service';
 import { OperationsRebookingAnalyticsController } from './operations-rebooking-analytics.controller';
 import { OperationsRebookingAnalyticsService } from './operations-rebooking-analytics.service';
 import { OperationsRebookingController } from './operations-rebooking.controller';
@@ -60,6 +62,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsCustomerEngagementController,
     OperationsReliabilityController,
     OperationsTimelineController,
+    OperationsIntelligenceController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -82,6 +85,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsCustomerEngagementService,
     OperationsReliabilityService,
     OperationsTimelineService,
+    OperationsIntelligenceService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
