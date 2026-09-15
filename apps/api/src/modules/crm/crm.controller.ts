@@ -28,6 +28,7 @@ import {
   transitionOpportunitySchema,
   updateLeadSchema,
 } from './crm.schemas';
+import { CrmLeadService } from './crm-lead.service';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmService } from './crm.service';
@@ -67,6 +68,7 @@ const operationsSummarySchema = z
 export class CrmController {
   constructor(
     private readonly crm: CrmService,
+    private readonly leads: CrmLeadService,
     private readonly opportunities: CrmOpportunityService,
     private readonly operations: CrmOperationsService,
   ) {}
@@ -93,25 +95,25 @@ export class CrmController {
   @Get('leads')
   @RequirePermission('crm', 'read')
   listLeads(@Query() query: unknown) {
-    return this.crm.listLeads(listLeadsSchema.parse(query));
+    return this.leads.list(listLeadsSchema.parse(query));
   }
 
   @Get('leads/:id')
   @RequirePermission('crm', 'read')
   getLead(@Param('id') id: string) {
-    return this.crm.getLead(uuid.parse(id));
+    return this.leads.get(uuid.parse(id));
   }
 
   @Post('leads')
   @RequirePermission('crm', 'manage')
   createLead(@Body() body: unknown, @Req() request: { user?: { sub?: string } }) {
-    return this.crm.createLead(createLeadSchema.parse(body), this.userId(request));
+    return this.leads.create(createLeadSchema.parse(body), this.userId(request));
   }
 
   @Patch('leads/:id')
   @RequirePermission('crm', 'manage')
   updateLead(@Param('id') id: string, @Body() body: unknown, @Req() request: { user?: { sub?: string } }) {
-    return this.crm.updateLead(uuid.parse(id), updateLeadSchema.parse(body), this.userId(request));
+    return this.leads.update(uuid.parse(id), updateLeadSchema.parse(body), this.userId(request));
   }
 
   @Post('leads/:id/qualify')
