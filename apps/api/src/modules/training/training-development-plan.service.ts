@@ -51,6 +51,51 @@ export class TrainingDevelopmentPlanService {
     return value;
   }
 
+  async detail(planId: string) {
+    const c = this.context();
+    const plans = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT p.id,p.branch_id AS "branchId",p.staff_id AS "staffId",p.title,p.status,
+              p.start_date AS "startDate",p.target_date AS "targetDate",p.owner_user_id AS "ownerUserId",
+              p.created_at AS "createdAt",p.completed_at AS "completedAt",
+              s."firstName" AS "staffFirstName",s."lastName" AS "staffLastName"
+       FROM staff_development_plans p
+       JOIN staff s ON s.id=p.staff_id AND s."tenantId"=p.tenant_id AND s."branchId"=p.branch_id
+       WHERE p.id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text
+         AND ($4::text IS NULL OR p.branch_id=$4::text)
+       LIMIT 1`,
+      planId,c.tenantId,c.companyId,c.branchId,
+    );
+    if (!plans.length) throw new NotFoundException('Development plan not found.');
+
+    const items = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT i.id,i.sequence,i.item_type AS "itemType",i.status,
+              i.competency_id AS "competencyId",cd.code AS "competencyCode",cd.name AS "competencyName",
+              i.course_id AS "courseId",tc.code AS "courseCode",tc.title AS "courseTitle",
+              i.program_id AS "programId",tp.code AS "programCode",tp.title AS "programTitle",
+              i.target_level AS "targetLevel",i.note,i.due_date AS "dueDate",
+              i.activity_title AS "activityTitle",i.activity_description AS "activityDescription",
+              i.facilitator_staff_id AS "facilitatorStaffId",fs."firstName" AS "facilitatorFirstName",fs."lastName" AS "facilitatorLastName",
+              i.completed_at AS "completedAt",i.status_updated_at AS "statusUpdatedAt"
+       FROM staff_development_plan_items i
+       LEFT JOIN competency_definitions cd ON cd.id=i.competency_id AND cd.tenant_id=i.tenant_id AND cd.company_id=i.company_id
+       LEFT JOIN training_courses tc ON tc.id=i.course_id AND tc.tenant_id=i.tenant_id AND tc.company_id=i.company_id
+       LEFT JOIN training_programs tp ON tp.id=i.program_id AND tp.tenant_id=i.tenant_id AND tp.company_id=i.company_id
+       LEFT JOIN staff fs ON fs.id=i.facilitator_staff_id AND fs."tenantId"=i.tenant_id
+       WHERE i.plan_id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
+       ORDER BY i.sequence,i.created_at,i.id`,
+      planId,c.tenantId,c.companyId,
+    );
+
+    const completedItemCount = items.filter((item) => item.status === 'COMPLETED').length;
+    return {
+      ...plans[0],
+      itemCount: items.length,
+      completedItemCount,
+      progressPercent: items.length ? Math.round((completedItemCount / items.length) * 100) : 0,
+      items,
+    };
+  }
+
   private async validateResource(
     tx: Prisma.TransactionClient,
     type: DevelopmentPlanItemType,
