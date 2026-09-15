@@ -34,9 +34,9 @@ export class TenantQuotaService {
     if (alreadyActive) return;
 
     const rows = await tx.$queryRaw<Array<{ count: bigint }>>`
-      SELECT COUNT(DISTINCT m.user_id)::bigint AS count
+      SELECT COUNT(DISTINCT m."userId")::bigint AS count
       FROM memberships m
-      WHERE m.tenant_id = ${tenantId}
+      WHERE m."tenantId" = ${tenantId}
         AND m.status = 'ACTIVE'
     `;
     const current = Number(rows[0]?.count ?? 0n);
@@ -66,8 +66,8 @@ export class TenantQuotaService {
     const rows = await tx.$queryRaw<Array<{ count: bigint }>>`
       SELECT COUNT(*)::bigint AS count
       FROM branches b
-      INNER JOIN companies c ON c.id = b.company_id
-      WHERE c.tenant_id = ${tenantId}
+      INNER JOIN companies c ON c.id = b."companyId"
+      WHERE c."tenantId" = ${tenantId}
         AND b.status = 'ACTIVE'
     `;
     const current = Number(rows[0]?.count ?? 0n);
