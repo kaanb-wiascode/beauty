@@ -89,9 +89,10 @@ export class ServiceExecutionsController {
   @Post(':executionId/complete-appointment')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'update')
-  completeAppointment(
+  async completeAppointment(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
   ) {
+    await this.executionRead.assertAppointmentBacked(executionId);
     return this.executions.completeAppointmentHandoff(executionId);
   }
 }
