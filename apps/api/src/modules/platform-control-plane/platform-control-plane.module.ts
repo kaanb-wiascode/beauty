@@ -8,6 +8,8 @@ import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformControlPlaneController } from './platform-control-plane.controller';
 import { PlatformCustomerContextController } from './platform-customer-context.controller';
 import { PlatformCustomerContextService } from './platform-customer-context.service';
+import { PlatformCustomerSuccessController } from './platform-customer-success.controller';
+import { PlatformCustomerSuccessService } from './platform-customer-success.service';
 import { PlatformEntitlementsController } from './platform-entitlements.controller';
 import { PlatformEntitlementsService } from './platform-entitlements.service';
 import { PlatformGoLiveService } from './platform-go-live.service';
@@ -33,12 +35,14 @@ import { PlatformSubscriptionsService } from './platform-subscriptions.service';
 import { PlatformTenantBootstrapService } from './platform-tenant-bootstrap.service';
 import { PlatformTenantConfigurationBootstrapService } from './platform-tenant-configuration-bootstrap.service';
 import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
+import { PlatformTenantHealthService } from './platform-tenant-health.service';
 
 @Module({
   imports: [PlatformAuditModule],
   controllers: [
     PlatformControlPlaneController,
     PlatformCustomerContextController,
+    PlatformCustomerSuccessController,
     PlatformSubscriptionsController,
     PlatformEntitlementsController,
     PlatformProvisioningController,
@@ -48,6 +52,8 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformReadModelService,
     PlatformTenantGovernanceReadService,
     PlatformCustomerContextService,
+    PlatformCustomerSuccessService,
+    PlatformTenantHealthService,
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
@@ -76,6 +82,8 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformReadModelService,
     PlatformTenantGovernanceReadService,
     PlatformCustomerContextService,
+    PlatformCustomerSuccessService,
+    PlatformTenantHealthService,
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
     PlatformProvisioningService,
