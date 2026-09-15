@@ -105,6 +105,20 @@ export class FinancialObligationsController {
     return this.rules.list(parsedLimit);
   }
 
+  @Post('rules/generate-active')
+  @RequirePermission('finance', 'manage')
+  generateActiveRules(
+    @Query('from') from: string,
+    @Query('to') to: string,
+    @Query('limit') limit: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const fromDate = z.coerce.date().parse(from);
+    const toDate = z.coerce.date().parse(to);
+    const parsedLimit = z.coerce.number().int().min(1).max(500).default(250).parse(limit ?? 250);
+    return this.rules.generateActive(fromDate, toDate, user.sub, parsedLimit);
+  }
+
   @Get(':id')
   get(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.obligations.get(id);
