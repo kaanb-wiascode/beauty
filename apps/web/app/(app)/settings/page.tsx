@@ -58,6 +58,18 @@ const sections = [
     glyph: "⇢",
   },
   {
+    href: "/settings/approval-inbox",
+    title: "Onay Kutusu",
+    description: "Bekleyen Merkezi Onay Taleplerini İnceleyin, Onaylayın Veya Reddedin.",
+    glyph: "✓",
+  },
+  {
+    href: "/settings/approval-delegations",
+    title: "Onay Delegasyonları",
+    description: "Geçici Vekaletleri Domain, Süre Ve Gerekçeyle Yönetin.",
+    glyph: "↔",
+  },
+  {
     href: "/settings/organization",
     title: "Şirket Ve Şubeler",
     description: "Şirket Kapsamını, Şubeleri Ve Organizasyon Kullanımını Görüntüleyin.",
