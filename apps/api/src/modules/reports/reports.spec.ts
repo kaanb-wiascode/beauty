@@ -91,7 +91,7 @@ describe('reporting foundation', () => {
     expect(catalog).toEqual(reportDefinitions);
   });
 
-  it('sorts, paginates and projects staff preview on the server', async () => {
+  it('sorts, paginates, projects and aggregates staff preview on the server', async () => {
     const { service, staffService } = createService([
       { resource: 'reports', action: 'read' },
       { resource: 'staff', action: 'read' },
@@ -149,6 +149,14 @@ describe('reporting foundation', () => {
       total: 3,
       totalPages: 2,
       sort: { key: 'collected', direction: 'desc' },
+      summary: {
+        rowCount: 3,
+        appointmentCount: 11,
+        completedAppointments: 9,
+        completionRate: 82,
+        collected: 2700,
+        averageCollectedPerCompleted: 300,
+      },
     });
   });
 
