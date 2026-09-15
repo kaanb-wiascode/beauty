@@ -137,37 +137,26 @@ describe('reporting foundation', () => {
     );
   });
 
-  it('accepts XLSX now that generation is implemented and rejects PDF', async () => {
+  it('accepts every export format implemented by the worker', async () => {
     const { service } = createService([
       { resource: 'reports', action: 'read' },
       { resource: 'staff', action: 'read' },
     ]);
 
-    await expect(
-      service.prepareExport(user, {
-        reportKey: reportKeys.staffPerformance,
-        format: 'XLSX',
-        filters: {
-          from: new Date('2026-09-01T00:00:00.000Z'),
-          to: new Date('2026-09-30T23:59:59.999Z'),
-        },
-        includeSummary: true,
-        includeCharts: false,
-      }),
-    ).resolves.toEqual(expect.objectContaining({ format: 'XLSX' }));
-
-    await expect(
-      service.prepareExport(user, {
-        reportKey: reportKeys.staffPerformance,
-        format: 'PDF',
-        filters: {
-          from: new Date('2026-09-01T00:00:00.000Z'),
-          to: new Date('2026-09-30T23:59:59.999Z'),
-        },
-        includeSummary: true,
-        includeCharts: false,
-      }),
-    ).rejects.toBeInstanceOf(BadRequestException);
+    for (const format of ['CSV', 'XLSX', 'PDF'] as const) {
+      await expect(
+        service.prepareExport(user, {
+          reportKey: reportKeys.staffPerformance,
+          format,
+          filters: {
+            from: new Date('2026-09-01T00:00:00.000Z'),
+            to: new Date('2026-09-30T23:59:59.999Z'),
+          },
+          includeSummary: true,
+          includeCharts: false,
+        }),
+      ).resolves.toEqual(expect.objectContaining({ format }));
+    }
   });
 
   it('queues a validated export with the authenticated scope snapshot', async () => {
