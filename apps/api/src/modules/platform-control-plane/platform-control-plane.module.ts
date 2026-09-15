@@ -7,6 +7,7 @@ import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformControlPlaneController } from './platform-control-plane.controller';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
+import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformReadModelService } from './platform-read-model.service';
 
@@ -18,6 +19,7 @@ import { PlatformReadModelService } from './platform-read-model.service';
     PlatformIamMutationService,
     PlatformAuditReadService,
     PlatformPrivilegedOperationsService,
+    PlatformPrivilegedExecutionService,
     PlatformJwtStrategy,
     PlatformJwtAuthGuard,
     PlatformPermissionsGuard,
