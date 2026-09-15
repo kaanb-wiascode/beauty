@@ -16,6 +16,12 @@ const sections = [
     glyph: "+",
   },
   {
+    href: "/settings/security",
+    title: "Güvenlik Merkezi",
+    description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.",
+    glyph: "□",
+  },
+  {
     href: "/settings/roles",
     title: "Roller Ve Yetkiler",
     description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.",
