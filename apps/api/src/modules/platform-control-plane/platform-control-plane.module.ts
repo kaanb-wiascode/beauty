@@ -14,6 +14,8 @@ import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
+import { PlatformProvisioningController } from './platform-provisioning.controller';
+import { PlatformProvisioningService } from './platform-provisioning.service';
 import { PlatformReadModelService } from './platform-read-model.service';
 import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
 import { PlatformSubscriptionsService } from './platform-subscriptions.service';
@@ -26,6 +28,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformCustomerContextController,
     PlatformSubscriptionsController,
     PlatformEntitlementsController,
+    PlatformProvisioningController,
   ],
   providers: [
     PlatformReadModelService,
@@ -33,6 +36,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformCustomerContextService,
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
+    PlatformProvisioningService,
     PlatformIamReadService,
     PlatformIamMutationService,
     PlatformAuditReadService,
@@ -48,6 +52,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformCustomerContextService,
     PlatformSubscriptionsService,
     PlatformEntitlementsService,
+    PlatformProvisioningService,
   ],
 })
 export class PlatformControlPlaneModule {}
