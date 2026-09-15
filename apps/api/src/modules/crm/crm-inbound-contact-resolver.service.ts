@@ -1,5 +1,7 @@
 import { Injectable } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
+
+type DbClient = PrismaService | Prisma.TransactionClient;
 
 @Injectable()
 export class CrmInboundContactResolverService {
@@ -8,6 +10,7 @@ export class CrmInboundContactResolverService {
   async resolveIdentity(
     scope: { tenantId: string; companyId: string; branchId: string },
     identity: { providerKey?: string | null; providerContactId?: string | null; whatsappIdentity?: string | null; phone?: string | null },
+    db: DbClient = this.prisma,
   ) {
     const providerKey = identity.providerKey?.trim().toLowerCase() || null;
     const providerContactId = identity.providerContactId?.trim() || null;
@@ -15,7 +18,7 @@ export class CrmInboundContactResolverService {
     const whatsappIdentity = whatsappRaw ? (whatsappRaw.replace(/\D/g, '') || whatsappRaw.toLowerCase()) : null;
 
     if ((providerKey && providerContactId) || whatsappIdentity) {
-      const rows = await this.prisma.$queryRawUnsafe<Array<{ kind: string; id: string }>>(
+      const rows = await db.$queryRawUnsafe<Array<{ kind: string; id: string }>>(
         `SELECT 'LEAD' kind,l.id FROM crm_leads l
          WHERE l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
            AND l.merged_into_lead_id IS NULL
@@ -30,18 +33,18 @@ export class CrmInboundContactResolverService {
     }
 
     if (!identity.phone) return { matched: false as const, reason: 'NOT_FOUND' as const };
-    const resolved = await this.resolvePhone(scope, identity.phone);
+    const resolved = await this.resolvePhone(scope, identity.phone, db);
     if (!resolved.matched || !resolved.leadId) return resolved;
 
-    await this.persistLearnedLeadIdentity(scope, resolved.leadId, { providerKey, providerContactId, whatsappIdentity });
+    await this.persistLearnedLeadIdentity(scope, resolved.leadId, { providerKey, providerContactId, whatsappIdentity }, db);
     return resolved;
   }
 
-  async resolvePhone(scope: { tenantId: string; companyId: string; branchId: string }, rawPhone: string) {
+  async resolvePhone(scope: { tenantId: string; companyId: string; branchId: string }, rawPhone: string, db: DbClient = this.prisma) {
     const raw = rawPhone.replace(/\D/g, '');
     const phone = raw.startsWith('00') ? raw.slice(2) : raw;
     if (phone.length < 8) return { matched: false as const, reason: 'INVALID_PHONE' as const };
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ kind: string; id: string }>>(
+    const rows = await db.$queryRawUnsafe<Array<{ kind: string; id: string }>>(
       `SELECT 'CUSTOMER' kind,c.id FROM customers c
        WHERE c."tenantId"=$1::text AND c."branchId"=$3::text
          AND regexp_replace(COALESCE(c.phone,''),'[^0-9]','','g')=$4
@@ -64,11 +67,12 @@ export class CrmInboundContactResolverService {
     scope: { tenantId: string; companyId: string; branchId: string },
     leadId: string,
     identity: { providerKey: string | null; providerContactId: string | null; whatsappIdentity: string | null },
+    db: DbClient = this.prisma,
   ) {
     const canLearnProvider = Boolean(identity.providerKey && identity.providerContactId);
     if (!canLearnProvider && !identity.whatsappIdentity) return;
 
-    await this.prisma.$executeRawUnsafe(
+    await db.$executeRawUnsafe(
       `UPDATE crm_leads l
        SET provider_contact_provider_key = CASE
              WHEN l.provider_contact_id IS NULL AND l.provider_contact_provider_key IS NULL
