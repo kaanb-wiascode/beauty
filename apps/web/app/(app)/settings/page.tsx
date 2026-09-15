@@ -10,6 +10,12 @@ const sections = [
     glyph: "◎",
   },
   {
+    href: "/settings/invitations",
+    title: "Kullanıcı Davetleri",
+    description: "Tek Kullanımlık, Süreli Davetlerle Güvenli Kullanıcı Onboarding Sürecini Yönetin.",
+    glyph: "+",
+  },
+  {
     href: "/settings/roles",
     title: "Roller Ve Yetkiler",
     description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.",
