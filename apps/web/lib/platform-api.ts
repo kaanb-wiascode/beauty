@@ -35,11 +35,7 @@ export type PlatformCustomerSummary = {
 
 export type PlatformCustomerList = {
   items: PlatformCustomerSummary[];
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
+  pagination: { total: number; limit: number; offset: number };
 };
 
 export type PlatformCustomer360 = {
@@ -54,20 +50,11 @@ export type PlatformCustomer360 = {
     branchCount: number;
     activeBranchCount: number;
   }>;
-  membershipBreakdown: Array<{
-    role: string;
-    status: string;
-    count: number;
-  }>;
+  membershipBreakdown: Array<{ role: string; status: string; count: number }>;
 };
 
 export type PlatformIamOverview = {
-  summary: {
-    adminCount: number;
-    activeAdminCount: number;
-    roleCount: number;
-    permissionCount: number;
-  };
+  summary: { adminCount: number; activeAdminCount: number; roleCount: number; permissionCount: number };
   admins: Array<{
     userId: string;
     email: string;
@@ -84,11 +71,7 @@ export type PlatformIamOverview = {
     description: string | null;
     system: boolean;
     userCount: number;
-    permissions: Array<{
-      resource: string;
-      action: string;
-      description: string | null;
-    }>;
+    permissions: Array<{ resource: string; action: string; description: string | null }>;
   }>;
   permissions: Array<{
     resource: string;
@@ -121,24 +104,45 @@ export type PlatformAuditList = {
     afterState: unknown;
     metadata: unknown;
     correlationId: string | null;
+    requestId: string | null;
+    sourceIp: string | null;
+    userAgent: string | null;
+    riskLevel: string | null;
+    approvalRequestId: string | null;
     createdAt: string;
   }>;
-  pagination: {
-    total: number;
-    limit: number;
-    offset: number;
-  };
+  pagination: { total: number; limit: number; offset: number };
+};
+
+export type PlatformPrivilegedOperationList = {
+  items: Array<{
+    id: string;
+    requesterUserId: string;
+    requesterEmail: string;
+    approverUserId: string | null;
+    approverEmail: string | null;
+    resource: string;
+    action: string;
+    riskLevel: "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
+    status: string;
+    targetEntityType: string | null;
+    targetEntityId: string | null;
+    targetTenantId: string | null;
+    reason: string;
+    decisionReason: string | null;
+    createdAt: string;
+    decidedAt: string | null;
+    executedAt: string | null;
+    expiresAt: string;
+  }>;
+  pagination: { total: number; limit: number; offset: number };
 };
 
 export function getPlatformCommandCenter() {
   return api<PlatformCommandCenter>("/platform/command-center");
 }
 
-export function listPlatformCustomers(params: {
-  search?: string;
-  limit?: number;
-  offset?: number;
-} = {}) {
+export function listPlatformCustomers(params: { search?: string; limit?: number; offset?: number } = {}) {
   return api<PlatformCustomerList>(withQuery("/platform/customers", params));
 }
 
@@ -183,12 +187,44 @@ export function revokePlatformRolePermission(roleSlug: string, input: { resource
   );
 }
 
+export function listPlatformPrivilegedOperations(params: { status?: string; limit?: number; offset?: number } = {}) {
+  return api<PlatformPrivilegedOperationList>(withQuery("/platform/privileged-operations", params));
+}
+
+export function createPlatformPrivilegedOperation(input: {
+  resource: string;
+  action: string;
+  targetEntityType?: string | null;
+  targetEntityId?: string | null;
+  targetTenantId?: string | null;
+  reason: string;
+  payload?: unknown;
+}) {
+  return api<{ id: string; createdAt: string; expiresAt: string; riskLevel: string }>(
+    "/platform/privileged-operations",
+    { method: "POST", body: input },
+  );
+}
+
+export function decidePlatformPrivilegedOperation(
+  requestId: string,
+  input: { decision: "APPROVED" | "REJECTED"; reason: string },
+) {
+  return api<{ id: string; status: string }>(`/platform/privileged-operations/${requestId}/decision`, {
+    method: "POST",
+    body: input,
+  });
+}
+
 export function listPlatformAuditEvents(params: {
   actorUserId?: string;
   resource?: string;
   action?: string;
   targetTenantId?: string;
   correlationId?: string;
+  requestId?: string;
+  riskLevel?: string;
+  approvalRequestId?: string;
   limit?: number;
   offset?: number;
 } = {}) {
