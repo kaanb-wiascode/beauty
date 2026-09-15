@@ -3,6 +3,7 @@ import { BadRequestException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { InvitationService } from './invitation.service';
+import { SecurityPolicyService } from './security-policy.service';
 
 describe('InvitationService', () => {
   const roleFindFirst = jest.fn();
@@ -13,6 +14,7 @@ describe('InvitationService', () => {
   const queryRaw = jest.fn();
   const transaction = jest.fn();
   const auditRecord = jest.fn();
+  const policyGet = jest.fn().mockResolvedValue({ passwordMinLength: 8 });
 
   const tx = {
     $executeRaw: executeRaw,
@@ -29,7 +31,8 @@ describe('InvitationService', () => {
   } as unknown as PrismaService;
 
   const audit = { record: auditRecord } as unknown as PlatformAuditService;
-  const service = new InvitationService(prisma, audit);
+  const policy = { get: policyGet } as unknown as SecurityPolicyService;
+  const service = new InvitationService(prisma, audit, policy);
 
   beforeEach(() => {
     jest.clearAllMocks();
@@ -45,6 +48,7 @@ describe('InvitationService', () => {
     branchFindMany.mockResolvedValue([]);
     executeRaw.mockResolvedValue(1);
     auditRecord.mockResolvedValue({ id: 'audit-1' });
+    policyGet.mockResolvedValue({ passwordMinLength: 8 });
   });
 
   it('rejects explicit branch assignments for CENTRAL roles', async () => {
