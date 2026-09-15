@@ -42,7 +42,9 @@ export class ReportSavedViewsService {
   async get(user: JwtPayload, id: string) {
     const row = await this.requireOwned(user, id);
     await this.authorize(user, row.reportKey);
-    return row;
+    const opened = await this.repository.markOpened(user, id);
+    if (!opened) throw new NotFoundException('Saved report not found');
+    return opened;
   }
 
   async update(user: JwtPayload, id: string, input: UpdateReportSavedViewInput) {
