@@ -117,7 +117,7 @@ describe('reporting foundation', () => {
 
     const result = await service.prepareExport(user, {
       reportKey: reportKeys.staffPerformance,
-      format: 'XLSX',
+      format: 'CSV',
       filters: {
         from: new Date('2026-09-01T00:00:00.000Z'),
         to: new Date('2026-09-30T23:59:59.999Z'),
@@ -131,10 +131,30 @@ describe('reporting foundation', () => {
     expect(result).toEqual(
       expect.objectContaining({
         reportKey: reportKeys.staffPerformance,
-        format: 'XLSX',
+        format: 'CSV',
         columns: ['name', 'collected'],
       }),
     );
+  });
+
+  it('rejects formats that are declared by the transport contract but not implemented yet', async () => {
+    const { service } = createService([
+      { resource: 'reports', action: 'read' },
+      { resource: 'staff', action: 'read' },
+    ]);
+
+    await expect(
+      service.prepareExport(user, {
+        reportKey: reportKeys.staffPerformance,
+        format: 'XLSX',
+        filters: {
+          from: new Date('2026-09-01T00:00:00.000Z'),
+          to: new Date('2026-09-30T23:59:59.999Z'),
+        },
+        includeSummary: true,
+        includeCharts: false,
+      }),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('queues a validated export with the authenticated scope snapshot', async () => {
