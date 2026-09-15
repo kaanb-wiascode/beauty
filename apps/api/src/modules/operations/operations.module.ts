@@ -13,6 +13,8 @@ import { OperationsConsumablesController } from './operations-consumables.contro
 import { OperationsConsumablesService } from './operations-consumables.service';
 import { OperationsIncidentsController } from './operations-incidents.controller';
 import { OperationsIncidentsService } from './operations-incidents.service';
+import { OperationsRebookingController } from './operations-rebooking.controller';
+import { OperationsRebookingService } from './operations-rebooking.service';
 import { OperationsResourceBlocksController } from './operations-resource-blocks.controller';
 import { OperationsResourceBlocksService } from './operations-resource-blocks.service';
 import { OperationsResourceCalendarController } from './operations-resource-calendar.controller';
@@ -44,6 +46,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsIncidentsController,
     OperationsAlertsController,
     OperationsAppointmentOutcomesController,
+    OperationsRebookingController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -61,6 +64,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsIncidentsService,
     OperationsAlertsService,
     OperationsAppointmentOutcomesService,
+    OperationsRebookingService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
