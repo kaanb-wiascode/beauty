@@ -6,6 +6,7 @@ import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions
 import { PlatformAuditModule } from '../platform-audit/platform-audit.module';
 import { PlatformAuditReadService } from './platform-audit-read.service';
 import { PlatformControlPlaneController } from './platform-control-plane.controller';
+import { PlatformCustomerContextController } from './platform-customer-context.controller';
 import { PlatformCustomerContextService } from './platform-customer-context.service';
 import { PlatformIamMutationService } from './platform-iam-mutation.service';
 import { PlatformIamReadService } from './platform-iam-read.service';
@@ -16,7 +17,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
 
 @Module({
   imports: [PlatformAuditModule],
-  controllers: [PlatformControlPlaneController],
+  controllers: [PlatformControlPlaneController, PlatformCustomerContextController],
   providers: [
     PlatformReadModelService,
     PlatformTenantGovernanceReadService,
