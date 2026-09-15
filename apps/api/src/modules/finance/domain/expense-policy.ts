@@ -23,7 +23,10 @@ const APPROVAL_TRANSITIONS: Record<
 > = {
   DRAFT: ['SUBMITTED', 'CANCELLED'],
   SUBMITTED: ['APPROVED', 'REJECTED', 'CANCELLED'],
-  APPROVED: ['CANCELLED'],
+  // Once approved, cancellation must be handled through the reversal-aware
+  // payment/accounting workflow. Allowing a direct approval-state change here
+  // can orphan payment or journal state from the expense aggregate.
+  APPROVED: [],
   REJECTED: ['DRAFT', 'CANCELLED'],
   CANCELLED: [],
 };
