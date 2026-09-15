@@ -14,13 +14,14 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
-type RoutingStrategy = "ROUND_ROBIN" | "LEAST_ACTIVE";
+type RoutingStrategy = "DIRECT_OWNER" | "ROUND_ROBIN" | "LEAST_OPEN_LEADS" | "LEAST_ACTIVE" | "FALLBACK_QUEUE";
 type LeadTemperature = "COLD" | "WARM" | "HOT";
 type PurchaseUrgency = "IMMEDIATE" | "THIS_WEEK" | "THIS_MONTH" | "LATER" | "UNKNOWN";
 type ContactChannel = "CALL" | "SMS" | "EMAIL" | "WHATSAPP" | "IN_PERSON" | "OTHER";
 
 type RoutingConditions = {
   sources?: string[];
+  campaignIds?: string[];
   temperatures?: LeadTemperature[];
   minScore?: number;
   maxScore?: number;
@@ -78,6 +79,7 @@ type RuleDraft = {
   enabled: boolean;
   targetUserIds: string[];
   sources: string;
+  campaignIds: string;
   temperatures: LeadTemperature[];
   minScore: string;
   maxScore: string;
@@ -110,6 +112,14 @@ const CHANNELS: Array<{ value: ContactChannel; label: string }> = [
   { value: "OTHER", label: "Diğer" },
 ];
 
+function strategyLabel(strategy: RoutingStrategy) {
+  if (strategy === "DIRECT_OWNER") return "Direct owner";
+  if (strategy === "ROUND_ROBIN") return "Round-robin";
+  if (strategy === "LEAST_OPEN_LEADS") return "Least open leads";
+  if (strategy === "LEAST_ACTIVE") return "Least active conversations";
+  return "Branch / team fallback queue";
+}
+
 function emptyDraft(): RuleDraft {
   return {
     id: null,
@@ -121,6 +131,7 @@ function emptyDraft(): RuleDraft {
     enabled: true,
     targetUserIds: [],
     sources: "",
+    campaignIds: "",
     temperatures: [],
     minScore: "",
     maxScore: "",
@@ -150,6 +161,7 @@ function draftFromRule(rule: RoutingRule): RuleDraft {
     enabled: rule.enabled,
     targetUserIds: rule.targets.filter((target) => target.enabled).sort((a, b) => a.position - b.position).map((target) => target.userId),
     sources: csv(rule.conditions.sources),
+    campaignIds: csv(rule.conditions.campaignIds),
     temperatures: rule.conditions.temperatures ?? [],
     minScore: rule.conditions.minScore === undefined ? "" : String(rule.conditions.minScore),
     maxScore: rule.conditions.maxScore === undefined ? "" : String(rule.conditions.maxScore),
@@ -163,9 +175,11 @@ function draftFromRule(rule: RoutingRule): RuleDraft {
 function conditionsFromDraft(draft: RuleDraft): RoutingConditions {
   const conditions: RoutingConditions = {};
   const sources = parseCsv(draft.sources);
+  const campaignIds = parseCsv(draft.campaignIds);
   const serviceIds = parseCsv(draft.interestedServiceIds);
   const packageIds = parseCsv(draft.interestedPackageIds);
   if (sources.length) conditions.sources = sources;
+  if (campaignIds.length) conditions.campaignIds = campaignIds;
   if (draft.temperatures.length) conditions.temperatures = draft.temperatures;
   if (draft.minScore !== "") conditions.minScore = Number(draft.minScore);
   if (draft.maxScore !== "") conditions.maxScore = Number(draft.maxScore);
@@ -276,11 +290,28 @@ export default function CrmRoutingPage() {
   }
 
   function toggleTarget(userId: string) {
+    setDraft((current) => {
+      if (current.strategy === "DIRECT_OWNER") {
+        return { ...current, targetUserIds: current.targetUserIds.includes(userId) ? [] : [userId] };
+      }
+      return {
+        ...current,
+        targetUserIds: current.targetUserIds.includes(userId)
+          ? current.targetUserIds.filter((id) => id !== userId)
+          : [...current.targetUserIds, userId],
+      };
+    });
+  }
+
+  function changeStrategy(strategy: RoutingStrategy) {
     setDraft((current) => ({
       ...current,
-      targetUserIds: current.targetUserIds.includes(userId)
-        ? current.targetUserIds.filter((id) => id !== userId)
-        : [...current.targetUserIds, userId],
+      strategy,
+      targetUserIds: strategy === "FALLBACK_QUEUE"
+        ? []
+        : strategy === "DIRECT_OWNER"
+          ? current.targetUserIds.slice(0, 1)
+          : current.targetUserIds,
     }));
   }
 
@@ -300,8 +331,12 @@ export default function CrmRoutingPage() {
       setError("Kural adı zorunludur.");
       return;
     }
-    if (!draft.targetUserIds.length) {
-      setError("En az bir routing hedefi seçin.");
+    if (draft.strategy === "DIRECT_OWNER" && draft.targetUserIds.length !== 1) {
+      setError("Direct owner stratejisi için tam olarak bir routing hedefi seçin.");
+      return;
+    }
+    if (draft.strategy !== "FALLBACK_QUEUE" && !draft.targetUserIds.length) {
+      setError("Bu strateji için en az bir routing hedefi seçin.");
       return;
     }
     const priority = Number(draft.priority);
@@ -354,7 +389,7 @@ export default function CrmRoutingPage() {
 
   const activeRuleCount = rules.filter((rule) => rule.enabled).length;
   const targetCount = new Set(rules.flatMap((rule) => rule.targets.filter((target) => target.enabled).map((target) => target.userId))).size;
-  const roundRobinCount = rules.filter((rule) => rule.enabled && rule.strategy === "ROUND_ROBIN").length;
+  const queueRuleCount = rules.filter((rule) => rule.enabled && rule.strategy === "FALLBACK_QUEUE").length;
 
   return <div className="space-y-6">
     <PageHeader
@@ -371,7 +406,7 @@ export default function CrmRoutingPage() {
     {activeBranch ? <section className="grid gap-4 md:grid-cols-3">
       <MetricCard label="Aktif Kural" value={activeRuleCount} />
       <MetricCard label="Routing Hedefi" value={targetCount} />
-      <MetricCard label="Round-robin Kuralı" value={roundRobinCount} />
+      <MetricCard label="Fallback Queue" value={queueRuleCount} />
     </section> : null}
 
     {loading ? <Spinner label="Lead routing kuralları yükleniyor..." /> : null}
@@ -395,12 +430,12 @@ export default function CrmRoutingPage() {
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0">
                 <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{rule.name}</p>
-                <p className="mt-1 text-[10px] text-[var(--muted)]">P{rule.priority} · {rule.strategy === "ROUND_ROBIN" ? "Round-robin" : "Least active"} · v{rule.version}</p>
+                <p className="mt-1 text-[10px] text-[var(--muted)]">P{rule.priority} · {strategyLabel(rule.strategy)} · v{rule.version}</p>
               </div>
               <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${rule.enabled ? "bg-[rgba(47,122,86,0.10)] text-[#2d5c45]" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>{rule.enabled ? "AKTİF" : "KAPALI"}</span>
             </div>
             <p className="mt-2 text-[10px] leading-4 text-[var(--muted)]">{conditionSummary(rule.conditions)}</p>
-            <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{rule.targets.filter((target) => target.enabled).length} hedef{rule.team ? ` · ${rule.team}` : ""}</p>
+            <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{rule.strategy === "FALLBACK_QUEUE" ? "Owner'sız queue" : `${rule.targets.filter((target) => target.enabled).length} hedef`}{rule.team ? ` · ${rule.team}` : ""}</p>
           </button>)}
         </div>
       </GlassCard>
@@ -411,6 +446,7 @@ export default function CrmRoutingPage() {
         canManage={canManage}
         saving={saving}
         onChange={(patch) => setDraft((current) => ({ ...current, ...patch }))}
+        onStrategy={changeStrategy}
         onToggleTarget={toggleTarget}
         onToggleTemperature={(value) => toggleArrayValue("temperatures", value)}
         onToggleUrgency={(value) => toggleArrayValue("purchaseUrgencies", value)}
@@ -427,8 +463,8 @@ export default function CrmRoutingPage() {
       <div className="mt-4 grid gap-3 text-[12px] leading-5 text-[var(--muted)] md:grid-cols-2">
         <p>Kurallar <strong className="text-[var(--ink)]">priority + id</strong> sırasıyla değerlendirilir; ilk eşleşen aktif kural uygulanır.</p>
         <p>Round-robin cursor aynı transaction içinde <strong className="text-[var(--ink)]">FOR UPDATE</strong> kilidiyle ilerler; eşzamanlı lead&apos;ler aynı sırayı tüketemez.</p>
-        <p>Least-active stratejisi mevcut <strong className="text-[var(--ink)]">crm_conversation_assignments</strong> ownership verisini kullanır; ikinci bir görev sahipliği modeli oluşturmaz.</p>
-        <p>Kural değişiklikleri append-only audit history&apos;de, otomatik lead atamaları ise <strong className="text-[var(--ink)]">LEAD_ROUTED</strong> CRM event&apos;inde saklanır.</p>
+        <p>Least-open-leads açık lead ownership&apos;ini, least-active-conversations ise mevcut <strong className="text-[var(--ink)]">crm_conversation_assignments</strong> verisini kullanır.</p>
+        <p>Fallback queue owner atamaz; lead branch/team kuyruğunda kalır ve SLA clock gerçek bir owner atandığında başlar. Tüm otomatik kararlar <strong className="text-[var(--ink)]">LEAD_ROUTED</strong> event&apos;i bırakır.</p>
       </div>
     </GlassCard>
   </div>;
@@ -447,6 +483,7 @@ function RuleEditor({
   canManage,
   saving,
   onChange,
+  onStrategy,
   onToggleTarget,
   onToggleTemperature,
   onToggleUrgency,
@@ -458,12 +495,14 @@ function RuleEditor({
   canManage: boolean;
   saving: boolean;
   onChange: (patch: Partial<RuleDraft>) => void;
+  onStrategy: (strategy: RoutingStrategy) => void;
   onToggleTarget: (userId: string) => void;
   onToggleTemperature: (value: LeadTemperature) => void;
   onToggleUrgency: (value: PurchaseUrgency) => void;
   onToggleChannel: (value: ContactChannel) => void;
   onSave: () => void;
 }) {
+  const queueMode = draft.strategy === "FALLBACK_QUEUE";
   return <GlassCard>
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
@@ -478,12 +517,15 @@ function RuleEditor({
 
     <div className="mt-5 grid gap-4 md:grid-cols-2">
       <Field label="Kural adı"><TextInput value={draft.name} disabled={!canManage || saving} onChange={(event) => onChange({ name: event.target.value })} placeholder="Örn. HOT inbound lead" /></Field>
-      <Field label="Ekip"><TextInput value={draft.team} disabled={!canManage || saving} onChange={(event) => onChange({ team: event.target.value })} placeholder="Örn. Inbound Sales" /></Field>
+      <Field label="Ekip / queue"><TextInput value={draft.team} disabled={!canManage || saving} onChange={(event) => onChange({ team: event.target.value })} placeholder="Örn. Inbound Sales" /></Field>
       <Field label="Öncelik"><TextInput type="number" min={0} max={10000} value={draft.priority} disabled={!canManage || saving} onChange={(event) => onChange({ priority: event.target.value })} /></Field>
       <Field label="Dağıtım stratejisi">
-        <Select value={draft.strategy} disabled={!canManage || saving} onChange={(event) => onChange({ strategy: event.target.value as RoutingStrategy })}>
+        <Select value={draft.strategy} disabled={!canManage || saving} onChange={(event) => onStrategy(event.target.value as RoutingStrategy)}>
+          <option value="DIRECT_OWNER">Direct owner</option>
           <option value="ROUND_ROBIN">Round-robin</option>
+          <option value="LEAST_OPEN_LEADS">Least open leads</option>
           <option value="LEAST_ACTIVE">Least active conversations</option>
+          <option value="FALLBACK_QUEUE">Branch / team fallback queue</option>
         </Select>
       </Field>
     </div>
@@ -493,6 +535,7 @@ function RuleEditor({
       <p className="mt-1 text-[10px] text-[var(--muted)]">Boş bırakılan alanlar wildcard kabul edilir; girilen koşullar AND mantığıyla birlikte uygulanır.</p>
       <div className="mt-4 grid gap-4 md:grid-cols-2">
         <Field label="Kaynaklar (virgülle)"><TextInput value={draft.sources} disabled={!canManage || saving} onChange={(event) => onChange({ sources: event.target.value })} placeholder="META_ADS, WEBSITE, REFERRAL" /></Field>
+        <Field label="Campaign ID'leri (virgülle)"><TextInput value={draft.campaignIds} disabled={!canManage || saving} onChange={(event) => onChange({ campaignIds: event.target.value })} placeholder="campaign-123, campaign-456" /></Field>
         <div className="grid grid-cols-2 gap-3">
           <Field label="Minimum score"><TextInput type="number" min={0} max={100} value={draft.minScore} disabled={!canManage || saving} onChange={(event) => onChange({ minScore: event.target.value })} placeholder="0" /></Field>
           <Field label="Maksimum score"><TextInput type="number" min={0} max={100} value={draft.maxScore} disabled={!canManage || saving} onChange={(event) => onChange({ maxScore: event.target.value })} placeholder="100" /></Field>
@@ -510,11 +553,11 @@ function RuleEditor({
       <div className="flex items-center justify-between gap-3">
         <div>
           <p className="text-[11px] font-semibold text-[var(--ink)]">Routing Hedefleri</p>
-          <p className="mt-1 text-[10px] text-[var(--muted)]">Sıra, seçili kullanıcıların bu listedeki branch-scope sırasına göre belirlenir.</p>
+          <p className="mt-1 text-[10px] text-[var(--muted)]">{queueMode ? "Fallback queue owner seçmez; team doluysa team kuyruğu, boşsa branch kuyruğu kullanılır." : draft.strategy === "DIRECT_OWNER" ? "Direct owner stratejisinde yalnız bir kullanıcı seçilebilir." : "Sıra, seçili kullanıcıların branch-scope sırasına göre belirlenir."}</p>
         </div>
         <span className="text-[10px] font-semibold text-[var(--accent)]">{draft.targetUserIds.length} seçili</span>
       </div>
-      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+      {!queueMode ? <div className="mt-4 grid gap-2 sm:grid-cols-2">
         {assignees.map((assignee) => <label key={assignee.id} className={`flex cursor-pointer items-start gap-3 rounded-[14px] border px-3 py-3 ${draft.targetUserIds.includes(assignee.id) ? "border-[var(--accent)] bg-[var(--surface-2)]" : "border-[var(--line)] bg-[var(--surface-2)]/35"}`}>
           <input type="checkbox" checked={draft.targetUserIds.includes(assignee.id)} disabled={!canManage || saving} onChange={() => onToggleTarget(assignee.id)} className="mt-0.5 h-4 w-4 rounded border-[var(--line)]" />
           <span className="min-w-0">
@@ -523,7 +566,7 @@ function RuleEditor({
           </span>
         </label>)}
         {!assignees.length ? <p className="text-[11px] text-[var(--muted)]">Bu branch için aktif CRM assignee bulunamadı.</p> : null}
-      </div>
+      </div> : <div className="mt-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3 text-[11px] text-[var(--muted)]">Bu kural eşleştiğinde lead owner&apos;sız kalır; create akışındaki actor fallback bilinçli olarak bypass edilir.</div>}
     </div>
 
     {canManage ? <div className="mt-6 flex justify-end"><Button disabled={saving} onClick={onSave}>{saving ? "Kaydediliyor..." : draft.id ? "Değişiklikleri Kaydet" : "Kuralı Oluştur"}</Button></div> : null}
@@ -572,6 +615,7 @@ function conditionSummary(conditions: RoutingConditions) {
   if (conditions.temperatures?.length) parts.push(conditions.temperatures.join("/"));
   if (conditions.minScore !== undefined || conditions.maxScore !== undefined) parts.push(`Score ${conditions.minScore ?? 0}–${conditions.maxScore ?? 100}`);
   if (conditions.sources?.length) parts.push(`Kaynak: ${conditions.sources.join(", ")}`);
+  if (conditions.campaignIds?.length) parts.push(`Campaign: ${conditions.campaignIds.join(", ")}`);
   if (conditions.purchaseUrgencies?.length) parts.push(`Aciliyet: ${conditions.purchaseUrgencies.join(", ")}`);
   if (conditions.preferredContactChannels?.length) parts.push(`Kanal: ${conditions.preferredContactChannels.join(", ")}`);
   if (conditions.interestedServiceIds?.length) parts.push(`${conditions.interestedServiceIds.length} servis`);
