@@ -7,6 +7,7 @@ import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Paginated, Service } from "@/lib/types";
 import { OperationsCapacityPanel } from "./capacity-panel";
+import { ResourceBlocksPanel } from "./resource-blocks-panel";
 
 type Room = {
   id: string;
@@ -165,6 +166,11 @@ export default function OperationsResourcesPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <OperationsCapacityPanel />
+
+      <ResourceBlocksPanel
+        rooms={rooms.map(({ id, name, code }) => ({ id, name, code }))}
+        assets={assets.map(({ id, name, assetCode }) => ({ id, name, assetCode }))}
+      />
 
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
