@@ -68,28 +68,33 @@ export class PlatformGoLiveService {
         });
       }
 
-      const onboardingRows = await tx.$queryRaw<
-        Array<{ id: string; status: string; remaining: bigint; blocked: bigint }>
-      >`
-        SELECT
-          o.id,
-          o.status,
-          COUNT(i.id) FILTER (WHERE i.required = TRUE AND i.status <> 'COMPLETED')::bigint AS remaining,
-          COUNT(i.id) FILTER (WHERE i.status = 'BLOCKED')::bigint AS blocked
-        FROM platform_tenant_onboarding o
-        LEFT JOIN platform_tenant_onboarding_items i ON i.onboarding_id = o.id
-        WHERE o.tenant_id = ${run.tenantId}
-        GROUP BY o.id, o.status
-        FOR UPDATE OF o
+      const onboardingRows = await tx.$queryRaw<Array<{ id: string; status: string }>>`
+        SELECT id, status
+        FROM platform_tenant_onboarding
+        WHERE tenant_id = ${run.tenantId}
+        FOR UPDATE
       `;
       const onboarding = onboardingRows[0];
       if (!onboarding) throw new ConflictException('Tenant onboarding is missing.');
-      if (Number(onboarding.remaining) > 0 || Number(onboarding.blocked) > 0) {
+
+      const readinessRows = await tx.$queryRaw<
+        Array<{ remaining: bigint; blocked: bigint }>
+      >`
+        SELECT
+          COUNT(*) FILTER (WHERE required = TRUE AND status <> 'COMPLETED')::bigint AS remaining,
+          COUNT(*) FILTER (WHERE status = 'BLOCKED')::bigint AS blocked
+        FROM platform_tenant_onboarding_items
+        WHERE onboarding_id = ${onboarding.id}
+      `;
+      const readiness = readinessRows[0];
+      const remaining = Number(readiness?.remaining ?? 0n);
+      const blocked = Number(readiness?.blocked ?? 0n);
+      if (remaining > 0 || blocked > 0) {
         throw new ConflictException({
           code: 'ONBOARDING_NOT_READY_FOR_GO_LIVE',
           message: 'Required onboarding items must be completed before go-live.',
-          remainingRequiredItems: Number(onboarding.remaining),
-          blockedItems: Number(onboarding.blocked),
+          remainingRequiredItems: remaining,
+          blockedItems: blocked,
         });
       }
 
@@ -103,6 +108,7 @@ export class PlatformGoLiveService {
         throw new ConflictException('Only ACTIVE tenants can go live.');
       }
 
+      const activatedAt = new Date().toISOString();
       await tx.$executeRaw`
         UPDATE platform_tenant_onboarding
         SET status = 'COMPLETED', completed_at = CURRENT_TIMESTAMP, updated_at = CURRENT_TIMESTAMP
@@ -112,7 +118,7 @@ export class PlatformGoLiveService {
         UPDATE platform_provisioning_steps
         SET status = 'COMPLETED',
             attempt_count = attempt_count + 1,
-            output = ${JSON.stringify({ activatedAt: new Date().toISOString() })}::jsonb,
+            output = ${JSON.stringify({ activatedAt })}::jsonb,
             started_at = COALESCE(started_at, CURRENT_TIMESTAMP),
             completed_at = CURRENT_TIMESTAMP,
             last_error = NULL,
@@ -135,7 +141,11 @@ export class PlatformGoLiveService {
           targetEntityType: 'platform_provisioning_run',
           targetEntityId: runId,
           reason: normalizedReason,
-          afterState: { status: 'COMPLETED', onboardingStatus: 'COMPLETED' },
+          afterState: {
+            status: 'COMPLETED',
+            onboardingStatus: 'COMPLETED',
+            activatedAt,
+          },
           correlationId: correlationId ?? null,
         },
         tx,
@@ -146,6 +156,7 @@ export class PlatformGoLiveService {
         tenantId: run.tenantId,
         status: 'COMPLETED' as const,
         onboardingStatus: 'COMPLETED' as const,
+        activatedAt,
       };
     });
   }
