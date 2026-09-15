@@ -6,6 +6,8 @@ export const reportKeys = {
   salesPerformance: 'sales.performance',
   appointmentPerformance: 'appointments.performance',
   financePerformance: 'finance.performance',
+  inventoryPerformance: 'inventory.performance',
+  procurementPerformance: 'procurement.performance',
 } as const;
 
 export type ReportKey = (typeof reportKeys)[keyof typeof reportKeys];
@@ -20,7 +22,7 @@ export type ReportDefinition = Readonly<{
   key: ReportKey;
   title: string;
   description: string;
-  domain: 'staff' | 'services' | 'payments' | 'customers' | 'sales' | 'appointments' | 'finance';
+  domain: 'staff' | 'services' | 'payments' | 'customers' | 'sales' | 'appointments' | 'finance' | 'inventory' | 'procurement';
   route: string;
   resultKind: 'table' | 'summary';
   requiredPermissions: readonly ReportPermission[];
@@ -119,6 +121,32 @@ export const reportDefinitions: readonly ReportDefinition[] = Object.freeze([
     defaultColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding'],
     exportableColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding','collectionRate','paymentRate','incomeRecordCount','expenseRecordCount'],
     sortableColumns: ['date','incomeRecognized','expenseRecognized','operatingMargin','collected','paid','netCashMovement','receivableOutstanding','payableOutstanding','collectionRate','paymentRate','incomeRecordCount','expenseRecordCount'],
+    exportFormats: ['CSV', 'XLSX', 'PDF'], drilldowns: [], pagination: true,
+  },
+  {
+    key: reportKeys.inventoryPerformance,
+    title: 'Stok Hareket Performansı',
+    description: 'Stok hareket türü bazında miktar, hareket sayısı ve maliyet değeri görünümü.',
+    domain: 'inventory', route: '/inventory/performance', resultKind: 'table',
+    requiredPermissions: [{ resource: 'reports', action: 'read' }, { resource: 'inventory', action: 'read' }],
+    filters: ['from', 'to'],
+    availableColumns: ['date','movementType','movementCount','quantity','movementValue'],
+    defaultColumns: ['date','movementType','movementCount','quantity','movementValue'],
+    exportableColumns: ['date','movementType','movementCount','quantity','movementValue'],
+    sortableColumns: ['date','movementType','movementCount','quantity','movementValue'],
+    exportFormats: ['CSV', 'XLSX', 'PDF'], drilldowns: [], pagination: true,
+  },
+  {
+    key: reportKeys.procurementPerformance,
+    title: 'Satın Alma Performansı',
+    description: 'Satın alma siparişlerinde hacim, tutar, kalem ve teslim alma performansı.',
+    domain: 'procurement', route: '/procurement/performance', resultKind: 'table',
+    requiredPermissions: [{ resource: 'reports', action: 'read' }, { resource: 'inventory', action: 'read' }],
+    filters: ['from', 'to'],
+    availableColumns: ['date','status','orderCount','totalAmount','itemCount','receivedCount','receiptRate'],
+    defaultColumns: ['date','status','orderCount','totalAmount','itemCount','receivedCount','receiptRate'],
+    exportableColumns: ['date','status','orderCount','totalAmount','itemCount','receivedCount','receiptRate'],
+    sortableColumns: ['date','status','orderCount','totalAmount','itemCount','receivedCount','receiptRate'],
     exportFormats: ['CSV', 'XLSX', 'PDF'], drilldowns: [], pagination: true,
   },
 ]);
