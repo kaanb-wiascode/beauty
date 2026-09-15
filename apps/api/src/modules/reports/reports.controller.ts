@@ -21,6 +21,7 @@ import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
+import { reportComparisonSchema } from './dto/report-comparison.dto';
 import { reportExportSchema } from './dto/report-export.dto';
 import { reportExportListSchema } from './dto/report-export-list.dto';
 import { reportPreviewSchema } from './dto/report-preview.dto';
@@ -32,6 +33,7 @@ import {
   createReportScheduleSchema,
   updateReportScheduleSchema,
 } from './dto/report-schedule.dto';
+import { ReportComparisonService } from './report-comparison.service';
 import { ReportExportDownloadService } from './report-export-download.service';
 import { ReportExportPolicyService } from './report-export-policy.service';
 import {
@@ -51,6 +53,7 @@ export class ReportsController {
     @Optional() private readonly exportPolicy?: ReportExportPolicyService,
     @Optional() private readonly savedViews?: ReportSavedViewsService,
     @Optional() private readonly schedules?: ReportSchedulesService,
+    @Optional() private readonly comparisons?: ReportComparisonService,
   ) {}
 
   @Get('catalog')
@@ -67,6 +70,19 @@ export class ReportsController {
   ) {
     const input = reportPreviewSchema.parse(body);
     return this.reportsService.preview(request.user, input);
+  }
+
+  @Post('compare')
+  @RequirePermission('reports', 'read')
+  compare(
+    @Req() request: { user: JwtPayload },
+    @Body() body: unknown,
+  ) {
+    const input = reportComparisonSchema.parse(body);
+    if (!this.comparisons) {
+      throw new InternalServerErrorException('Report comparison service unavailable');
+    }
+    return this.comparisons.compare(request.user, input);
   }
 
   @Post('saved-reports')
