@@ -6,7 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
 import type {
@@ -14,6 +14,21 @@ import type {
   CreateResourceBlockInput,
   ListResourceBlocksQueryInput,
 } from './dto/operations-resource.dto';
+
+type ResourceBlockRow = {
+  id: string;
+  roomId: string | null;
+  assetId: string | null;
+  roomName?: string | null;
+  assetName?: string | null;
+  blockedFrom: Date;
+  blockedTo: Date;
+  reason: string;
+  status: 'ACTIVE' | 'CANCELLED';
+  version: number;
+  createdAt?: Date;
+  cancelledAt?: Date | null;
+};
 
 @Injectable()
 export class OperationsResourceBlocksService {
@@ -39,7 +54,7 @@ export class OperationsResourceBlocksService {
 
   async list(input: ListResourceBlocksQueryInput) {
     const { tenantId, companyId, branchId } = this.context();
-    return this.prisma.$queryRawUnsafe(
+    return this.prisma.$queryRawUnsafe<ResourceBlockRow[]>(
       `SELECT b.id, b.room_id AS "roomId", b.inventory_asset_id AS "assetId",
               r.name AS "roomName", a.name AS "assetName",
               b.blocked_from AS "blockedFrom", b.blocked_to AS "blockedTo",
@@ -63,91 +78,90 @@ export class OperationsResourceBlocksService {
   async create(input: CreateResourceBlockInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(async (tx) => {
-      const resourceKey = input.roomId
-        ? `room:${input.roomId}`
-        : `asset:${input.assetId}`;
-      await tx.$queryRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
-        branchId,
-        resourceKey,
-      );
-
-      if (input.roomId) {
-        const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-          `SELECT id FROM operations_rooms
-           WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
-           LIMIT 1`,
-          input.roomId,
-          tenantId,
-          companyId,
+    return this.prisma.$transaction(
+      async (tx) => {
+        const resourceKey = input.roomId
+          ? `room:${input.roomId}`
+          : `asset:${input.assetId}`;
+        await tx.$queryRawUnsafe(
+          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
           branchId,
+          resourceKey,
         );
-        if (!rows[0]) throw new NotFoundException('Room not found');
-      } else if (input.assetId) {
-        const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-          `SELECT id FROM inventory_assets
-           WHERE id = $1 AND company_id = $2
-             AND (branch_id = $3 OR branch_id IS NULL)
-           LIMIT 1`,
-          input.assetId,
-          companyId,
-          branchId,
-        );
-        if (!rows[0]) throw new NotFoundException('Equipment asset not found');
-      }
 
-      const allocationColumn = input.roomId ? 'room_id' : 'inventory_asset_id';
-      const resourceId = input.roomId ?? input.assetId!;
-      const allocations = await tx.$queryRawUnsafe<
-        Array<{ appointmentId: string; blockedFrom: Date; blockedTo: Date }>
-      >(
-        `SELECT appointment_id AS "appointmentId", blocked_from AS "blockedFrom",
-                blocked_to AS "blockedTo"
-         FROM operations_resource_allocations
-         WHERE ${allocationColumn} = $1 AND status = 'RESERVED'
-           AND blocked_from < $3 AND blocked_to > $2
-         ORDER BY blocked_from ASC LIMIT 1`,
-        resourceId,
-        input.blockedFrom,
-        input.blockedTo,
-      );
-      if (allocations[0]) {
-        throw new ConflictException({
-          code: 'RESOURCE_BLOCK_CONFLICTS_WITH_ALLOCATION',
+        if (input.roomId) {
+          const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id FROM operations_rooms
+             WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
+             LIMIT 1`,
+            input.roomId,
+            tenantId,
+            companyId,
+            branchId,
+          );
+          if (!rows[0]) throw new NotFoundException('Room not found');
+        } else if (input.assetId) {
+          const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id FROM inventory_assets
+             WHERE id = $1 AND company_id = $2
+               AND (branch_id = $3 OR branch_id IS NULL)
+             LIMIT 1`,
+            input.assetId,
+            companyId,
+            branchId,
+          );
+          if (!rows[0]) throw new NotFoundException('Equipment asset not found');
+        }
+
+        const allocationColumn = input.roomId ? 'room_id' : 'inventory_asset_id';
+        const resourceId = input.roomId ?? input.assetId!;
+        const allocations = await tx.$queryRawUnsafe<
+          Array<{ appointmentId: string; blockedFrom: Date; blockedTo: Date }>
+        >(
+          `SELECT appointment_id AS "appointmentId", blocked_from AS "blockedFrom",
+                  blocked_to AS "blockedTo"
+           FROM operations_resource_allocations
+           WHERE ${allocationColumn} = $1 AND status = 'RESERVED'
+             AND blocked_from < $3 AND blocked_to > $2
+           ORDER BY blocked_from ASC LIMIT 1`,
           resourceId,
-          conflictingAppointmentId: allocations[0].appointmentId,
-          blockedFrom: allocations[0].blockedFrom,
-          blockedTo: allocations[0].blockedTo,
-        });
-      }
+          input.blockedFrom,
+          input.blockedTo,
+        );
+        if (allocations[0]) {
+          throw new ConflictException({
+            code: 'RESOURCE_BLOCK_CONFLICTS_WITH_ALLOCATION',
+            resourceId,
+            conflictingAppointmentId: allocations[0].appointmentId,
+            blockedFrom: allocations[0].blockedFrom,
+            blockedTo: allocations[0].blockedTo,
+          });
+        }
 
-      const duplicate = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id
-         FROM operations_resource_blocks
-         WHERE ${input.roomId ? 'room_id' : 'inventory_asset_id'} = $1
-           AND status = 'ACTIVE'
-           AND blocked_from = $2 AND blocked_to = $3 AND reason = $4
-         LIMIT 1`,
-        resourceId,
-        input.blockedFrom,
-        input.blockedTo,
-        input.reason,
-      );
-      if (duplicate[0]) {
-        return (
-          await tx.$queryRawUnsafe(
+        const duplicate = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id
+           FROM operations_resource_blocks
+           WHERE ${input.roomId ? 'room_id' : 'inventory_asset_id'} = $1
+             AND status = 'ACTIVE'
+             AND blocked_from = $2 AND blocked_to = $3 AND reason = $4
+           LIMIT 1`,
+          resourceId,
+          input.blockedFrom,
+          input.blockedTo,
+          input.reason,
+        );
+        if (duplicate[0]) {
+          const existing = await tx.$queryRawUnsafe<ResourceBlockRow[]>(
             `SELECT id, room_id AS "roomId", inventory_asset_id AS "assetId",
                     blocked_from AS "blockedFrom", blocked_to AS "blockedTo",
                     reason, status, version
              FROM operations_resource_blocks WHERE id = $1`,
             duplicate[0].id,
-          )
-        )[0];
-      }
+          );
+          return existing[0];
+        }
 
-      return (
-        await tx.$queryRawUnsafe(
+        const created = await tx.$queryRawUnsafe<ResourceBlockRow[]>(
           `INSERT INTO operations_resource_blocks (
              tenant_id, company_id, branch_id, room_id, inventory_asset_id,
              blocked_from, blocked_to, reason, created_by_membership_id
@@ -164,14 +178,16 @@ export class OperationsResourceBlocksService {
           input.blockedTo,
           input.reason,
           membershipId,
-        )
-      )[0];
-    });
+        );
+        return created[0];
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async cancel(blockId: string, input: CancelResourceBlockInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
-    const rows = await this.prisma.$queryRawUnsafe(
+    const rows = await this.prisma.$queryRawUnsafe<ResourceBlockRow[]>(
       `UPDATE operations_resource_blocks
        SET status = 'CANCELLED', version = version + 1,
            cancelled_by_membership_id = $5, cancelled_at = CURRENT_TIMESTAMP,
