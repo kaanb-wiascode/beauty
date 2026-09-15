@@ -92,6 +92,79 @@ export class ReportsService {
     };
   }
 
+  async materializeExport(
+    user: Pick<JwtPayload, 'roleId' | 'tenantId' | 'companyId'>,
+    input: ReportExportInput,
+  ) {
+    const prepared = await this.prepareExport(user, input);
+    const definition = getReportDefinition(prepared.reportKey)!;
+
+    if (definition.key === reportKeys.staffPerformance) {
+      const sourceRows = await this.staffService.performance(input.filters);
+      const rows = sourceRows.map((row) => ({
+        ...row,
+        completionRate: row.appointmentCount
+          ? Math.round(
+              (row.completedAppointments / row.appointmentCount) * 100,
+            )
+          : 0,
+      }));
+      const sorted = this.sortRows(rows, prepared.sort);
+
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) =>
+          this.selectColumns(row, prepared.columns),
+        ),
+        summary: prepared.includeSummary
+          ? this.buildAggregateSummary(rows)
+          : null,
+      };
+    }
+
+    if (definition.key === reportKeys.servicePerformance) {
+      const sourceRows = await this.servicesService.performance(input.filters);
+      const rows = sourceRows.map((row) => ({
+        name: row.service.name,
+        price: Number(row.service.price),
+        status: row.service.status,
+        branchId: row.service.branchId,
+        appointmentCount: row.appointmentCount,
+        completedAppointments: row.completedAppointments,
+        completionRate: row.appointmentCount
+          ? Math.round(
+              (row.completedAppointments / row.appointmentCount) * 100,
+            )
+          : 0,
+        collected: row.collected,
+      }));
+      const sorted = this.sortRows(rows, prepared.sort);
+
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) =>
+          this.selectColumns(row, prepared.columns),
+        ),
+        summary: prepared.includeSummary
+          ? this.buildAggregateSummary(rows)
+          : null,
+      };
+    }
+
+    const summary = await this.paymentsService.summary(input.filters);
+    return {
+      reportKey: prepared.reportKey,
+      resultKind: definition.resultKind,
+      columns: prepared.columns,
+      rows: [this.selectColumns(summary, prepared.columns)],
+      summary: prepared.includeSummary ? summary : null,
+    };
+  }
+
   async createExportJob(user: JwtPayload, input: ReportExportInput) {
     const prepared = await this.prepareExport(user, input);
 
@@ -243,6 +316,20 @@ export class ReportsService {
         `Unsupported report sort: ${sortKey}`,
       );
     }
+  }
+
+  private sortRows(
+    rows: readonly Record<string, unknown>[],
+    sort: ReportExportInput['sort'] | null,
+  ) {
+    const sorted = [...rows];
+    if (!sort) return sorted;
+
+    sorted.sort((a, b) => {
+      const result = this.compareValues(a[sort.key], b[sort.key]);
+      return sort.direction === 'asc' ? result : -result;
+    });
+    return sorted;
   }
 
   private buildTablePreview(
