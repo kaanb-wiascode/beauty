@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { useEffect, useState } from "react";
+import { api } from "@/lib/api";
 
 const sections = [
   { href: "/settings/users", title: "Kullanıcılar", description: "İşletme Üyeliklerini, Rolleri Ve Erişim Durumlarını Yönetin.", glyph: "◎" },
@@ -23,7 +25,33 @@ const sections = [
   { href: "/settings/audit", title: "Denetim Kayıtları", description: "Kritik Yönetim Değişikliklerini, Aktörleri Ve Önce/Sonra Durumlarını İnceleyin.", glyph: "≋" },
 ];
 
+type Dashboard = {
+  users: { active: number; suspended: number; withoutBranchScope: number; broadCentral: number };
+  invitations: { pending: number };
+  roles: { total: number };
+  branches: { active: number; inactive: number };
+  temporaryAccess: { active: number; expiringSoon: number };
+  mfa: { enrolled: number; eligible: number; coveragePercent: number };
+  integrations: { total: number; unhealthy: number };
+  recentAudit: Array<{ id: string; resource: string; action: string; createdAt: string }>;
+};
+
 export default function SettingsPage() {
+  const [dashboard, setDashboard] = useState<Dashboard | null>(null);
+
+  useEffect(() => {
+    api<Dashboard>("/admin/dashboard").then(setDashboard).catch(() => setDashboard(null));
+  }, []);
+
+  const metrics = dashboard ? [
+    ["Aktif kullanıcı", dashboard.users.active],
+    ["Bekleyen davet", dashboard.invitations.pending],
+    ["MFA kapsamı", `%${dashboard.mfa.coveragePercent}`],
+    ["Branch scope eksik", dashboard.users.withoutBranchScope],
+    ["Geçici erişim", dashboard.temporaryAccess.active],
+    ["Sorunlu entegrasyon", dashboard.integrations.unhealthy],
+  ] : [];
+
   return (
     <main className="mx-auto w-full max-w-[1240px] space-y-6 pb-10">
       <header className="border-b border-[var(--line)] pb-5">
@@ -31,6 +59,46 @@ export default function SettingsPage() {
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Yönetim Merkezi</h1>
         <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">VALOO Çalışma Alanınızı, Kullanıcı Erişimini Ve Yönetim Politikalarını Yönetin.</p>
       </header>
+
+      {dashboard && (
+        <section className="space-y-3">
+          <div>
+            <h2 className="text-sm font-semibold text-[var(--ink)]">Yapılandırma Sağlığı</h2>
+            <p className="mt-1 text-xs text-[var(--muted)]">Erişim, güvenlik ve entegrasyon tarafındaki dikkat gerektiren yönetim sinyalleri.</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {metrics.map(([label, value]) => (
+              <div key={String(label)} className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
+                <div className="text-[11px] text-[var(--muted)]">{label}</div>
+                <div className="mt-2 text-xl font-semibold text-[var(--ink)]">{value}</div>
+              </div>
+            ))}
+          </div>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
+              <div className="text-xs font-semibold text-[var(--ink)]">Erişim Riskleri</div>
+              <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[var(--muted)]">
+                <div>CENTRAL kapsamlı kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.broadCentral}</strong></div>
+                <div>24 saatte bitecek erişim <strong className="ml-1 text-[var(--ink)]">{dashboard.temporaryAccess.expiringSoon}</strong></div>
+                <div>Askıya alınmış kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.suspended}</strong></div>
+                <div>Aktif şube <strong className="ml-1 text-[var(--ink)]">{dashboard.branches.active}</strong></div>
+              </div>
+            </div>
+            <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
+              <div className="text-xs font-semibold text-[var(--ink)]">Son Yönetim Değişiklikleri</div>
+              <div className="mt-3 space-y-2">
+                {dashboard.recentAudit.length === 0 ? <div className="text-xs text-[var(--muted)]">Henüz kayıt yok.</div> : dashboard.recentAudit.slice(0, 5).map((event) => (
+                  <div key={event.id} className="flex items-center justify-between gap-3 text-xs">
+                    <span className="truncate text-[var(--ink)]">{event.resource}.{event.action}</span>
+                    <span className="shrink-0 text-[var(--muted)]">{new Date(event.createdAt).toLocaleString("tr-TR")}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </section>
+      )}
+
       <section aria-labelledby="settings-sections" className="space-y-3">
         <div>
           <h2 id="settings-sections" className="text-sm font-semibold text-[var(--ink)]">Erişim Ve Güvenlik Yönetimi</h2>
