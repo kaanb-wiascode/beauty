@@ -18,6 +18,7 @@ import {
   startServiceExecutionSchema,
 } from './dto/service-execution.dto';
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
+import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
 import { ServiceExecutionsService } from './service-executions.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -26,6 +27,7 @@ export class ServiceExecutionsController {
   constructor(
     private readonly executions: ServiceExecutionsService,
     private readonly checklists: OperationsServiceChecklistsService,
+    private readonly eligibility: OperationsStaffEligibilityService,
   ) {}
 
   @Get('visits/:visitId')
@@ -38,11 +40,13 @@ export class ServiceExecutionsController {
   @Post('visits/:visitId/start')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'update')
-  start(
+  async start(
     @Param('visitId', new ParseUUIDPipe()) visitId: string,
     @Body() body: unknown,
   ) {
-    return this.executions.start(visitId, startServiceExecutionSchema.parse(body));
+    const input = startServiceExecutionSchema.parse(body);
+    await this.eligibility.assertAppointmentExecutionEligible(input.appointmentId);
+    return this.executions.start(visitId, input);
   }
 
   @Post(':executionId/complete')
