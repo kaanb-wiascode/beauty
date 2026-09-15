@@ -2,7 +2,9 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
@@ -15,6 +17,7 @@ import {
   type ReportDefinition,
   type ReportKey,
 } from './report-definition';
+import { ReportScheduleRunsRepository } from './report-schedule-runs.repository';
 import { nextReportScheduleRun } from './report-schedule-time';
 import {
   ReportSchedulesRepository,
@@ -27,6 +30,7 @@ export class ReportSchedulesService {
   constructor(
     private readonly repository: ReportSchedulesRepository,
     private readonly reports: ReportsService,
+    @Optional() private readonly runs?: ReportScheduleRunsRepository,
   ) {}
 
   async create(user: JwtPayload, input: CreateReportScheduleInput) {
@@ -47,6 +51,15 @@ export class ReportSchedulesService {
     const row = await this.requireOwned(user, id);
     await this.authorize(user, row.reportKey);
     return row;
+  }
+
+  async listRuns(user: JwtPayload, id: string) {
+    const row = await this.requireOwned(user, id);
+    await this.authorize(user, row.reportKey);
+    if (!this.runs) {
+      throw new InternalServerErrorException('Scheduled report history unavailable');
+    }
+    return this.runs.listForOwner(user, id);
   }
 
   async update(user: JwtPayload, id: string, input: UpdateReportScheduleInput) {
