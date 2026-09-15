@@ -11,6 +11,7 @@ import { PrismaService } from '@beauty-erp/database';
 import { z } from 'zod';
 
 import { AuthService } from './auth.service';
+import { AuthSessionRegistryService } from './auth-session-registry.service';
 import { InvitationService } from './invitation.service';
 import {
   AuthPublicRateLimit,
@@ -57,6 +58,7 @@ const acceptInvitationSchema = z.object({
 export class AuthController {
   constructor(
     private readonly authService: AuthService,
+    private readonly sessionRegistry: AuthSessionRegistryService,
     private readonly invitationService: InvitationService,
     private readonly tenantContext: TenantContext,
     private readonly prisma: PrismaService,
@@ -129,8 +131,33 @@ export class AuthController {
   @AuthPublicRateLimit('login', 12, 60)
   async login(@Body() body: unknown) {
     const input: LoginInput = loginSchema.parse(body);
+    const result = await this.authService.login(input);
+    await this.sessionRegistry.register({
+      refreshId: result.refreshToken,
+      userId: result.user.id,
+      tenantId: result.tenant.id,
+      membershipId: result.membership.id,
+      companyId: result.company.id,
+      branchId: result.branch?.id ?? null,
+      roleScope: result.membership.roleScope,
+    });
+    return result;
+  }
 
-    return this.authService.login(input);
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Get('sessions')
+  async sessions(@CurrentUser() user: JwtPayload) {
+    return this.sessionRegistry.list(user.sub, this.tenantContext.getTenantId());
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Post('sessions/:id/revoke')
+  async revokeSession(@CurrentUser() user: JwtPayload, @Param('id') id: string) {
+    return this.sessionRegistry.revoke(
+      id,
+      user.sub,
+      this.tenantContext.getTenantId(),
+    );
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -197,23 +224,36 @@ export class AuthController {
     @Body() body: unknown,
   ) {
     const input = switchContextSchema.parse(body);
-    return this.authService.switchContext(
+    const result = await this.authService.switchContext(
       input.membershipId,
       input.branchId,
       user.sub,
     );
+    await this.sessionRegistry.register({
+      refreshId: result.refreshToken,
+      userId: user.sub,
+      tenantId: user.tenantId,
+      membershipId: result.membership.id,
+      companyId: result.company.id,
+      branchId: result.branch?.id ?? null,
+      roleScope: result.membership.roleScope,
+    });
+    return result;
   }
 
   @Post('refresh')
   @AuthPublicRateLimit('refresh', 30, 60)
   async refresh(@Body() body: unknown) {
     const input = refreshTokenSchema.parse(body);
-    return this.authService.refresh(input.refreshToken);
+    const result = await this.authService.refresh(input.refreshToken);
+    await this.sessionRegistry.rotate(input.refreshToken, result.refreshToken);
+    return result;
   }
 
   @Post('logout')
   async logout(@Body() body: unknown) {
     const input = refreshTokenSchema.parse(body);
+    await this.sessionRegistry.unregister(input.refreshToken);
     return this.authService.logout(input.refreshToken);
   }
 
