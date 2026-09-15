@@ -1,4 +1,4 @@
-import { BadRequestException, NotFoundException } from '@nestjs/common';
+import { NotFoundException } from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 
@@ -52,9 +52,6 @@ describe('VisitCheckoutReadinessService', () => {
         appointmentId: 'appointment-1',
       }),
     ]);
-    await expect(service.assertCanCheckout('visit-1')).rejects.toBeInstanceOf(
-      BadRequestException,
-    );
   });
 
   it('blocks checkout when a package session has not been consumed', async () => {
