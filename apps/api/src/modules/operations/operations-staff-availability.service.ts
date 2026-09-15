@@ -17,6 +17,10 @@ type AvailabilityRow = {
   attendanceStatus: string | null;
   checkIn: Date | null;
   checkOut: Date | null;
+  currentShiftId: string | null;
+  currentShiftStart: Date | null;
+  currentShiftEnd: Date | null;
+  shiftScheduleConfigured: boolean;
   executionId: string | null;
   executionServiceName: string | null;
   currentAppointmentId: string | null;
@@ -61,7 +65,7 @@ export class OperationsStaffAvailabilityService {
   }
 
   async board(input: StaffAvailabilityQueryInput) {
-    const { tenantId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const at = input.at;
 
     const rows = await this.prisma.$queryRawUnsafe<AvailabilityRow[]>(
@@ -70,6 +74,16 @@ export class OperationsStaffAvailabilityService {
               leave_now.type AS "leaveType", leave_now.status AS "leaveStatus",
               attendance.status AS "attendanceStatus",
               attendance.check_in AS "checkIn", attendance.check_out AS "checkOut",
+              current_shift.id AS "currentShiftId",
+              current_shift.starts_at AS "currentShiftStart",
+              current_shift.ends_at AS "currentShiftEnd",
+              EXISTS (
+                SELECT 1 FROM hr_scheduled_shifts configured
+                WHERE configured.tenant_id=$1 AND configured.company_id=$4
+                  AND configured.branch_id=$2 AND configured.status='PUBLISHED'
+                  AND configured.starts_at < date_trunc('day',$3::timestamptz) + INTERVAL '1 day'
+                  AND configured.ends_at > date_trunc('day',$3::timestamptz)
+              ) AS "shiftScheduleConfigured",
               execution.id AS "executionId", execution.service_name AS "executionServiceName",
               current_appt.id AS "currentAppointmentId",
               current_appt.service_name AS "currentServiceName",
@@ -97,6 +111,16 @@ export class OperationsStaffAvailabilityService {
            AND ar.work_date = ($3::timestamptz AT TIME ZONE 'UTC')::date
          LIMIT 1
        ) attendance ON TRUE
+       LEFT JOIN LATERAL (
+         SELECT sh.id, sh.starts_at, sh.ends_at
+         FROM hr_scheduled_shifts sh
+         JOIN hr_shift_assignments sa ON sa.scheduled_shift_id=sh.id
+         WHERE sh.tenant_id=$1 AND sh.company_id=$4 AND sh.branch_id=$2
+           AND sh.status='PUBLISHED' AND sa.staff_id=st.id AND sa.status<>'CANCELLED'
+           AND sh.starts_at <= $3 AND sh.ends_at > $3
+         ORDER BY sh.starts_at DESC
+         LIMIT 1
+       ) current_shift ON TRUE
        LEFT JOIN LATERAL (
          SELECT e.id, s.name AS service_name
          FROM operations_service_executions e
@@ -136,6 +160,7 @@ export class OperationsStaffAvailabilityService {
       tenantId,
       branchId,
       at,
+      companyId,
     );
 
     const staff = rows.map((row) => {
@@ -163,6 +188,9 @@ export class OperationsStaffAvailabilityService {
         reason = row.currentServiceName
           ? `Current appointment: ${row.currentServiceName}`
           : 'Current appointment.';
+      } else if (row.shiftScheduleConfigured && !row.currentShiftId) {
+        availability = 'OFF_SHIFT';
+        reason = 'Personel şu anda yayınlanmış bir HR vardiyasına atanmamış.';
       } else if (absentAttendance) {
         availability = 'OFF_SHIFT';
         reason = `Attendance status: ${row.attendanceStatus}`;
@@ -173,6 +201,13 @@ export class OperationsStaffAvailabilityService {
         staffName: row.staffName,
         availability,
         reason,
+        shift: row.currentShiftId
+          ? {
+              id: row.currentShiftId,
+              startsAt: row.currentShiftStart,
+              endsAt: row.currentShiftEnd,
+            }
+          : null,
         attendance: row.attendanceStatus
           ? {
               status: row.attendanceStatus,
@@ -218,16 +253,17 @@ export class OperationsStaffAvailabilityService {
       at,
       sourceOfTruth: {
         staff: 'HR',
+        shifts: 'HR',
         leave: 'HR',
         attendance: 'HR',
         appointments: 'Appointments',
         executions: 'Operations',
       },
-      shiftAware: false,
+      shiftAware: true,
       dateBasis: 'UTC_DATE' as const,
       limitations: [
-        'A dedicated HR shift/work-schedule source is not present yet; missing attendance is not treated as off-shift.',
-        'Training schedule is not used until a schedulable staff-training source is available.',
+        'When no published HR schedule exists for the branch/date, missing shift assignment is not interpreted as off-shift to preserve backward compatibility.',
+        'Training session conflicts are not yet a separate live availability status.',
       ],
       totals,
       staff,
