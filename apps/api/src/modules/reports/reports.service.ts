@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ForbiddenException,
   Injectable,
+  NotFoundException,
 } from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
@@ -11,7 +12,9 @@ import { PaymentsService } from '../payments/payments.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportExportInput } from './dto/report-export.dto';
+import type { ReportExportListInput } from './dto/report-export-list.dto';
 import type { ReportPreviewInput } from './dto/report-preview.dto';
+import { ReportExportJobsRepository } from './report-export-jobs.repository';
 import {
   getReportDefinition,
   reportDefinitions,
@@ -26,6 +29,7 @@ export class ReportsService {
     private readonly staffService: StaffService,
     private readonly servicesService: ServicesService,
     private readonly paymentsService: PaymentsService,
+    private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
   async getCatalog(
@@ -86,6 +90,29 @@ export class ReportsService {
       includeSummary: input.includeSummary,
       includeCharts: input.includeCharts,
     };
+  }
+
+  async createExportJob(user: JwtPayload, input: ReportExportInput) {
+    const prepared = await this.prepareExport(user, input);
+
+    return this.exportJobs.create({
+      user,
+      input,
+      columns: prepared.columns,
+    });
+  }
+
+  listExportJobs(user: JwtPayload, input: ReportExportListInput) {
+    return this.exportJobs.list(user, input);
+  }
+
+  async getExportJob(user: JwtPayload, id: string) {
+    const job = await this.exportJobs.findById(user, id);
+    if (!job) {
+      throw new NotFoundException('Report export job not found');
+    }
+
+    return job;
   }
 
   async preview(
