@@ -22,6 +22,17 @@ type SessionRecord = {
   rotatedAt: string;
 };
 
+type SessionView = {
+  id: string;
+  membershipId: string;
+  companyId: string | null;
+  branchId: string | null;
+  roleScope: string | null;
+  createdAt: string;
+  rotatedAt: string;
+  expiresInSeconds: number | null;
+};
+
 type SessionPolicy = {
   sessionMaxAgeMinutes: number;
   idleTimeoutMinutes: number;
@@ -206,10 +217,14 @@ export class AuthSessionRegistryService {
     }
   }
 
-  private async listScoped(userId: string, tenantId: string, companyId: string | null) {
+  private async listScoped(
+    userId: string,
+    tenantId: string,
+    companyId: string | null,
+  ): Promise<SessionView[]> {
     const indexKey = `auth:user-sessions:${userId}:${tenantId}`;
     const ids = await this.redis.getClient().sMembers(indexKey);
-    const result = [];
+    const result: SessionView[] = [];
 
     for (const id of ids) {
       const key = `auth:session:${id}`;
@@ -322,7 +337,10 @@ export class AuthSessionRegistryService {
     return Math.max(1, Math.floor(Math.min(remainingMaxAgeMs, idleMs) / 1_000));
   }
 
-  private publicRecord(record: SessionRecord, expiresInSeconds: number | null) {
+  private publicRecord(
+    record: SessionRecord,
+    expiresInSeconds: number | null,
+  ): SessionView {
     return {
       id: record.id,
       membershipId: record.membershipId,
