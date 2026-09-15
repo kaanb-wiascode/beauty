@@ -3,6 +3,7 @@ import { Module } from '@nestjs/common';
 import { ObjectStorageModule } from '../../common/storage/object-storage.module';
 import { CustomersModule } from '../customers/customers.module';
 import { PaymentsModule } from '../payments/payments.module';
+import { SalesModule } from '../sales/sales.module';
 import { ServicesModule } from '../services/services.module';
 import { StaffModule } from '../staff/staff.module';
 import { ReportComparisonService } from './report-comparison.service';
@@ -36,6 +37,7 @@ import { ReportsService } from './reports.service';
   imports: [
     ObjectStorageModule,
     CustomersModule,
+    SalesModule,
     StaffModule,
     ServicesModule,
     PaymentsModule,
