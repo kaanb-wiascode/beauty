@@ -12,6 +12,7 @@ import {
 import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard';
 import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
+import { PlatformGoLiveService } from './platform-go-live.service';
 import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
 
 type PlatformRequest = {
@@ -24,6 +25,7 @@ type PlatformRequest = {
 export class PlatformProvisioningController {
   constructor(
     private readonly provisioning: PlatformProvisioningCoordinatorService,
+    private readonly goLive: PlatformGoLiveService,
   ) {}
 
   @Post()
@@ -67,6 +69,21 @@ export class PlatformProvisioningController {
     @Body() body: { reason?: string },
   ) {
     return this.provisioning.resume(
+      runId,
+      this.actor(request),
+      body.reason ?? '',
+      this.correlationId(request),
+    );
+  }
+
+  @Post(':runId/go-live')
+  @RequirePlatformPermission('provisioning', 'manage')
+  activateGoLive(
+    @Req() request: PlatformRequest,
+    @Param('runId') runId: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.goLive.execute(
       runId,
       this.actor(request),
       body.reason ?? '',
