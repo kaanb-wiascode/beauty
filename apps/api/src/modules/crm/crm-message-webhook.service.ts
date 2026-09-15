@@ -16,22 +16,23 @@ export class CrmMessageWebhookService {
     if(!(await provider.verifyWebhook(request)))throw new UnauthorizedException('Invalid provider webhook signature.');
     const parsed=await provider.parseWebhook(request);this.validateEvent(parsed);
 
-    let event=parsed;
-    if(parsed.type==='INBOUND'&&!parsed.customerId&&!parsed.leadId&&!parsed.opportunityId){
-      const resolved=await this.contacts.resolveIdentity(
-        {tenantId:parsed.tenantId,companyId:parsed.companyId,branchId:parsed.branchId},
-        {providerKey:provider.key,providerContactId:parsed.providerContactId,whatsappIdentity:parsed.whatsappIdentity,phone:parsed.sender},
-      );
-      if(resolved.matched){event={...parsed,customerId:resolved.customerId,leadId:resolved.leadId};}
-    }
-
     return this.prisma.$transaction(async(tx)=>{
+      let event=parsed;
       const claimed=await tx.$queryRawUnsafe<Array<{id:string}>>(`INSERT INTO crm_message_webhook_events(tenant_id,company_id,branch_id,provider_key,external_event_id,event_type,external_message_id,outcome) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,'PROCESSED') ON CONFLICT(tenant_id,company_id,branch_id,provider_key,external_event_id) DO NOTHING RETURNING id`,event.tenantId,event.companyId,event.branchId,provider.key,event.externalEventId,event.type,event.externalMessageId);
       if(!claimed[0])return{idempotent:true,outcome:'DUPLICATE' as const};
       if(event.type==='DELIVERY'){
         const rows=await tx.$queryRawUnsafe<Array<{id:string;status:string}>>(`SELECT id,status FROM crm_messages WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text AND provider_key=$4 AND external_message_id=$5 LIMIT 1 FOR UPDATE`,event.tenantId,event.companyId,event.branchId,provider.key,event.externalMessageId);
         const message=rows[0];if(!message){await tx.$executeRawUnsafe(`UPDATE crm_message_webhook_events SET outcome='IGNORED',error_message='Message not found' WHERE id=$1::uuid`,claimed[0].id);return{idempotent:false,outcome:'IGNORED' as const};}
         const changed=await this.applyDelivery(tx,message.id,event);await tx.$executeRawUnsafe(`UPDATE crm_message_webhook_events SET message_id=$2::text,outcome=$3,error_message=$4 WHERE id=$1::uuid`,claimed[0].id,message.id,changed?'PROCESSED':'IGNORED',changed?null:'Status transition ignored');return{idempotent:false,outcome:changed?'PROCESSED' as const:'IGNORED' as const,messageId:message.id};
+      }
+      if(!event.customerId&&!event.leadId&&!event.opportunityId){
+        const phone=event.channel==='WHATSAPP'||event.channel==='SMS'?event.sender:null;
+        const resolved=await this.contacts.resolveIdentity(
+          {tenantId:event.tenantId,companyId:event.companyId,branchId:event.branchId},
+          {providerKey:provider.key,providerContactId:event.providerContactId,whatsappIdentity:event.whatsappIdentity,phone},
+          tx,
+        );
+        if(resolved.matched)event={...event,customerId:resolved.customerId,leadId:resolved.leadId};
       }
       const hasSubject=Boolean(event.customerId||event.leadId||event.opportunityId);
       if(!hasSubject){const unresolved=await tx.$queryRawUnsafe<Array<{id:string}>>(`INSERT INTO crm_unresolved_inbound_messages(tenant_id,company_id,branch_id,provider_key,external_event_id,external_message_id,channel,sender,recipient,subject,body) VALUES($1::text,$2::text,$3::text,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(tenant_id,company_id,branch_id,provider_key,external_event_id) DO NOTHING RETURNING id`,event.tenantId,event.companyId,event.branchId,provider.key,event.externalEventId,event.externalMessageId,event.channel,event.sender,event.recipient,event.subject?.trim()||null,event.body.trim());await tx.$executeRawUnsafe(`UPDATE crm_message_webhook_events SET outcome='IGNORED',error_message='Inbound subject is not mapped' WHERE id=$1::uuid`,claimed[0].id);return{idempotent:false,outcome:'IGNORED' as const,unresolvedInboxId:unresolved[0]?.id??null};}
