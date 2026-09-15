@@ -30,6 +30,34 @@ export class FinanceReconciliationController {
     return this.service.list(parsed);
   }
 
+  @Get('expense-payments/:paymentId/suggestions')
+  suggestExpensePayment(
+    @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
+    @Query('days') days?: string,
+  ) {
+    const parsedDays = z.coerce.number().int().min(1).max(14).default(3).parse(days ?? 3);
+    return this.service.suggestExpensePayment(paymentId, parsedDays);
+  }
+
+  @Get('income-collections/:collectionId/suggestions')
+  suggestIncomeCollection(
+    @Param('collectionId', new ParseUUIDPipe()) collectionId: string,
+    @Query('days') days?: string,
+  ) {
+    const parsedDays = z.coerce.number().int().min(1).max(14).default(3).parse(days ?? 3);
+    return this.service.suggestIncomeCollection(collectionId, parsedDays);
+  }
+
+  @Post('auto-match')
+  @RequirePermission('finance', 'manage')
+  autoMatch(
+    @Query('limit') limit: string | undefined,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const parsedLimit = z.coerce.number().int().min(1).max(500).default(100).parse(limit ?? 100);
+    return this.service.autoMatch(user.sub, parsedLimit);
+  }
+
   @Post('expense-payments/:paymentId/match')
   @RequirePermission('finance', 'manage')
   matchExpensePayment(
