@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CrmAcquisitionService } from './crm-acquisition.service';
 import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
 import { CrmAutomationRulesController } from './crm-automation-rules.controller';
@@ -64,6 +65,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
   providers: [
     CrmService,
     CrmLeadService,
+    CrmAcquisitionService,
     CrmOpportunityService,
     CrmOperationsService,
     CrmOpportunityCommercialService,
@@ -94,6 +96,7 @@ import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
   exports: [
     CrmService,
     CrmLeadService,
+    CrmAcquisitionService,
     CrmOpportunityService,
     CrmOperationsService,
     CrmMessageService,
