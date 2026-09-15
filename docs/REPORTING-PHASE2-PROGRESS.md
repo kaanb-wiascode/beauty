@@ -15,9 +15,11 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Server-owned `exportableColumns`, export format capabilities and layered source-domain permissions.
 - Strict export DTOs; clients cannot supply tenant/company/branch scope, SQL, Prisma selections, storage keys or arbitrary report identifiers.
 - Persistent `report_export_jobs` queue with authenticated scope, membership/role snapshot, requester, filters, columns, sort, lifecycle timestamps, row count, retention and bounded failure metadata.
+- Multi-file Prisma schema now includes `ReportExportJob` in `packages/database/prisma/reporting.prisma`, matching the migration-owned table and representable indexes. The PostgreSQL partial branch index remains migration-owned because Prisma schema syntax does not represent partial indexes.
 - Lifecycle states: `QUEUED`, `PROCESSING`, `READY`, `FAILED`, `EXPIRED`.
 - `POST /reports/exports`, paginated/filterable `GET /reports/exports`, get-by-id and authenticated download endpoints.
-- Personal history filtering through server-derived `mine=true`; arbitrary requester/scope filters are rejected.
+- Export history is requester-private by default; arbitrary requester/scope filters and `mine=false` are rejected until an explicit shared-history permission model exists.
+- Public export API responses are projected through a presenter and never expose storage keys, tenant/company/branch snapshots, membership/role identifiers or requester internals.
 - Download is restricted to the original requester, READY/non-expired jobs and current report/source-domain permissions.
 - Atomic worker claiming with `FOR UPDATE SKIP LOCKED` and guarded PROCESSING transitions.
 - Worker-time membership, role, branch and domain-permission revalidation.
@@ -28,6 +30,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Artifact reconciliation protects the upload -> READY boundary: exact orphan artifacts are best-effort deleted when READY did not commit; artifacts are preserved when the READY commit may have succeeded but acknowledgement was lost.
 - Configurable filesystem/object-storage driver. Object mode reuses the platform's private S3-compatible `ObjectStorageService` using server-generated keys, signed PUT/GET and authenticated delete.
 - Configurable retention and expiry cleanup.
+- Export UI supports visible columns vs server-owned all-permitted columns plus optional summary inclusion. `ALL_PERMITTED` resolves only from `ReportDefinition.exportableColumns`; preview-only/internal columns cannot reappear.
 
 ## Implemented formats
 
@@ -64,6 +67,8 @@ The shared export foundation is implemented for the current Staff Performance, S
 - Permission-aware `/reports/exports` Export Center.
 - Reusable `ReportExportPanel`.
 - PDF / Excel (.xlsx) / CSV selector.
+- Visible-columns vs all-permitted-columns export mode.
+- Optional summary inclusion.
 - Personal paginated export history.
 - QUEUED / PROCESSING / READY / FAILED / EXPIRED states.
 - Polling only while jobs are pending.
@@ -74,6 +79,7 @@ The shared export foundation is implemented for the current Staff Performance, S
 
 - Report definition/export permission and column policy tests.
 - Export request DTO and scope-bypass tests.
+- Public export presenter tests preventing internal metadata leakage.
 - Worker success/failure, authorization revalidation and tampered-payload tests.
 - Artifact reconciliation tests for pre-commit failure, acknowledgement loss, cleanup failure and unverifiable persisted state.
 - CSV generator tests.
@@ -81,11 +87,11 @@ The shared export foundation is implemented for the current Staff Performance, S
 - PDF generator tests including metadata/detail output and multi-page pagination.
 - Storage filesystem/object-driver tests.
 - Stale worker, expiry and download tests.
-- Reporting HTTP/E2E coverage for queue creation, history, get-by-id and invalid requester/scope fields.
+- Reporting HTTP/E2E coverage for queue creation, requester-private history, get-by-id and invalid requester/scope fields.
 
 ## Intentional implementation notes
 
-`report_export_jobs` is currently created by explicit migrations and accessed through server-owned parameterized Prisma SQL fragments. The generated Prisma schema model still requires synchronization. Because the shared `schema.prisma` receives concurrent HR/Finance changes and the current GitHub write path replaces the complete file, do not overwrite it without a coordinated safe patch window.
+`report_export_jobs` is created by explicit migrations and continues to be accessed by server-owned, parameterized Prisma SQL fragments in the repository. The multi-file Prisma schema is now synchronized through `prisma/reporting.prisma`; this removes the previous schema-drift gap without overwriting the concurrently edited core schema.
 
 The in-process worker is appropriate for the current incremental implementation. A dedicated queue/worker deployment remains the production scaling target.
 
@@ -93,17 +99,16 @@ The web workspace still has no dedicated frontend test runner. UI changes curren
 
 ## Current CI note
 
-Do not classify Reporting as green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build. Recent runs have previously stopped at an unrelated Platform migration ordering issue before reaching Reporting checks.
+The latest observed quality run reached Prisma validation but stopped on an unrelated Finance schema index-map name that exceeded PostgreSQL/Prisma's 63-byte identifier limit. That map has been aligned to the database's 63-byte identifier. Do not classify Reporting as green until a descendant `Monorepo quality` run reaches and passes API typecheck/tests/E2E/build.
 
 ## Next Phase 2 increments
 
-1. Synchronize `ReportExportJob` into the active Prisma schema during a coordinated schema patch window.
-2. Add export audit events when the shared AuditLog persistence/service is available.
-3. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
-4. Add export concurrency/rate/row-limit policies based on production workload.
-5. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
-6. Add frontend tests for permission filtering, polling lifecycle and download transitions when the web test runner is introduced.
-7. Continue the roadmap into saved reports, favorites/recent reports, scheduled reports, drill-down/comparison and additional report domains.
+1. Add export audit events when the shared AuditLog persistence/service is available.
+2. Improve PDF presentation quality: embedded Unicode font, company/legal-entity branding, logo, confidentiality labels, styled tables and optional controlled charts.
+3. Add export concurrency/rate/row-limit policies based on production workload.
+4. Move the runner to a dedicated queue/worker deployment when infrastructure is available.
+5. Add frontend tests for permission filtering, polling lifecycle and download transitions when the web test runner is introduced.
+6. Continue the roadmap into saved reports, favorites/recent reports, scheduled reports, drill-down/comparison and additional report domains.
 
 ## Security invariants
 
