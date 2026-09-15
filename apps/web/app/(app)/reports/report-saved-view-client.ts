@@ -14,6 +14,7 @@ export type ReportSavedView = {
   columns: string[];
   sort: SavedReportSort | null;
   isFavorite: boolean;
+  lastOpenedAt: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -29,6 +30,10 @@ export type CreateReportSavedViewInput = {
 
 export async function listReportSavedViews() {
   return api<ReportSavedView[]>("/reports/saved-reports");
+}
+
+export async function getReportSavedView(id: string) {
+  return api<ReportSavedView>(`/reports/saved-reports/${id}`);
 }
 
 export async function createReportSavedView(input: CreateReportSavedViewInput) {
