@@ -40,6 +40,12 @@ const sections = [
     glyph: "◇",
   },
   {
+    href: "/settings/role-templates",
+    title: "Rol Şablonları",
+    description: "Hazır Başlangıç Reçetelerinden Şirkete Ait Özelleştirilebilir Roller Oluşturun.",
+    glyph: "◇*",
+  },
+  {
     href: "/settings/role-clone",
     title: "Rol Klonlama",
     description: "Mevcut Bir Rolün Kapsam Ve Yetki Setinden Tenant-Owned Yeni Roller Türetin.",
