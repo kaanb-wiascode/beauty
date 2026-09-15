@@ -26,6 +26,20 @@ describe('reportPreviewSchema', () => {
     ).toThrow();
   });
 
+  it('rejects tenant, company and branch scope overrides', () => {
+    expect(() =>
+      reportPreviewSchema.parse({
+        ...base,
+        filters: {
+          ...base.filters,
+          tenantId: 'another-tenant',
+          companyId: 'another-company',
+          branchId: 'another-branch',
+        },
+      }),
+    ).toThrow();
+  });
+
   it('rejects limits above the server maximum', () => {
     expect(() =>
       reportPreviewSchema.parse({
