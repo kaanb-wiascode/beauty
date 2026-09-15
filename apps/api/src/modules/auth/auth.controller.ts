@@ -13,6 +13,7 @@ import { z } from 'zod';
 import { AuthService } from './auth.service';
 import { AuthSessionRegistryService } from './auth-session-registry.service';
 import { InvitationService } from './invitation.service';
+import { MfaService } from './mfa.service';
 import { SecurityPolicyService } from './security-policy.service';
 import {
   AuthPublicRateLimit,
@@ -61,6 +62,12 @@ const securityPolicySchema = z.object({
   passwordMinLength: z.number().int().min(8).max(128),
 });
 
+const mfaCodeSchema = z.object({ code: z.string().trim().regex(/^\d{6}$/) });
+const mfaChallengeSchema = z.object({
+  challengeId: z.string().uuid(),
+  code: z.string().trim().regex(/^\d{6}$/),
+});
+
 @Controller('auth')
 @UseGuards(AuthPublicRateLimitGuard)
 export class AuthController {
@@ -68,6 +75,7 @@ export class AuthController {
     private readonly authService: AuthService,
     private readonly sessionRegistry: AuthSessionRegistryService,
     private readonly invitationService: InvitationService,
+    private readonly mfaService: MfaService,
     private readonly securityPolicyService: SecurityPolicyService,
     private readonly tenantContext: TenantContext,
     private readonly prisma: PrismaService,
@@ -139,16 +147,62 @@ export class AuthController {
   async login(@Body() body: unknown) {
     const input: LoginInput = loginSchema.parse(body);
     const result = await this.authService.login(input);
-    await this.sessionRegistry.register({
-      refreshId: result.refreshToken,
-      userId: result.user.id,
-      tenantId: result.tenant.id,
-      membershipId: result.membership.id,
-      companyId: result.company.id,
-      branchId: result.branch?.id ?? null,
-      roleScope: result.membership.roleScope,
-    });
+    const policy = await this.securityPolicyService.get(result.tenant.id, result.company.id);
+
+    if (policy.requireMfa === true) {
+      return this.mfaService.beginLoginChallenge(result);
+    }
+
+    await this.registerSession(result);
     return result;
+  }
+
+  @Post('mfa/verify')
+  @AuthPublicRateLimit('mfa-verify', 10, 300)
+  async verifyMfa(@Body() body: unknown) {
+    const input = mfaChallengeSchema.parse(body);
+    const result = await this.mfaService.verifyLoginChallenge(input.challengeId, input.code);
+    await this.registerSession(result);
+    return result;
+  }
+
+  @Post('mfa/challenge/:id/setup')
+  @AuthPublicRateLimit('mfa-setup', 5, 300)
+  async setupMfaChallenge(@Param('id') id: string) {
+    return this.mfaService.setupLoginChallenge(id);
+  }
+
+  @Post('mfa/challenge/:id/enroll')
+  @AuthPublicRateLimit('mfa-enroll', 10, 300)
+  async enrollMfaChallenge(@Param('id') id: string, @Body() body: unknown) {
+    const { code } = mfaCodeSchema.parse(body);
+    const result = await this.mfaService.completeEnrollmentChallenge(id, code);
+    await this.registerSession(result);
+    return result;
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Get('mfa/status')
+  async mfaStatus(@CurrentUser() user: JwtPayload) {
+    return this.mfaService.status(user.sub);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Post('mfa/setup')
+  async setupMfa(@CurrentUser() user: JwtPayload) {
+    const account = await this.prisma.user.findUnique({
+      where: { id: user.sub },
+      select: { email: true },
+    });
+    if (!account) throw new UnauthorizedException('User account is missing');
+    return this.mfaService.setup(user.sub, account.email);
+  }
+
+  @UseGuards(JwtAuthGuard, TenantAuthGuard)
+  @Post('mfa/confirm')
+  async confirmMfa(@CurrentUser() user: JwtPayload, @Body() body: unknown) {
+    const { code } = mfaCodeSchema.parse(body);
+    return this.mfaService.confirm(user.sub, code, this.tenantContext.getTenantId());
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -299,15 +353,7 @@ export class AuthController {
   ) {
     const input = switchContextSchema.parse(body);
     const result = await this.authService.switchContext(input.membershipId, input.branchId, user.sub);
-    await this.sessionRegistry.register({
-      refreshId: result.refreshToken,
-      userId: user.sub,
-      tenantId: user.tenantId,
-      membershipId: result.membership.id,
-      companyId: result.company.id,
-      branchId: result.branch?.id ?? null,
-      roleScope: result.membership.roleScope,
-    });
+    await this.registerSession(result);
     return result;
   }
 
@@ -335,6 +381,25 @@ export class AuthController {
       user,
       tenantContext: this.tenantContext.getContext(),
     };
+  }
+
+  private async registerSession(result: {
+    refreshToken: string;
+    user: { id: string };
+    tenant: { id: string };
+    company: { id: string };
+    branch: { id: string } | null;
+    membership: { id: string; roleScope: string };
+  }) {
+    await this.sessionRegistry.register({
+      refreshId: result.refreshToken,
+      userId: result.user.id,
+      tenantId: result.tenant.id,
+      membershipId: result.membership.id,
+      companyId: result.company.id,
+      branchId: result.branch?.id ?? null,
+      roleScope: result.membership.roleScope,
+    });
   }
 
   private async requireCompanyUser(userId: string, tenantId: string, companyId: string) {
