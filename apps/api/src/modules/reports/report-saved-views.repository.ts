@@ -18,6 +18,7 @@ export type ReportSavedViewRecord = {
   columns: unknown;
   sort: unknown;
   isFavorite: boolean;
+  lastOpenedAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 };
@@ -66,6 +67,17 @@ export class ReportSavedViewsRepository {
       WHERE "id" = ${id}
         AND ${this.ownerScope(user)}
       LIMIT 1
+    `);
+    return row ?? null;
+  }
+
+  async markOpened(user: JwtPayload, id: string) {
+    const [row] = await this.prisma.$queryRaw<ReportSavedViewRecord[]>(Prisma.sql`
+      UPDATE "report_saved_views"
+      SET "last_opened_at" = CURRENT_TIMESTAMP
+      WHERE "id" = ${id}
+        AND ${this.ownerScope(user)}
+      RETURNING ${this.returningColumns()}
     `);
     return row ?? null;
   }
@@ -129,8 +141,8 @@ export class ReportSavedViewsRepository {
     return Prisma.sql`
       "id" AS "id", "report_key" AS "reportKey", "name" AS "name",
       "filters" AS "filters", "columns" AS "columns", "sort" AS "sort",
-      "is_favorite" AS "isFavorite", "created_at" AS "createdAt",
-      "updated_at" AS "updatedAt"
+      "is_favorite" AS "isFavorite", "last_opened_at" AS "lastOpenedAt",
+      "created_at" AS "createdAt", "updated_at" AS "updatedAt"
     `;
   }
 
