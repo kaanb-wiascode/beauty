@@ -20,7 +20,9 @@ import {
   findWaitlistMatchesSchema,
   listWaitlistEntriesSchema,
 } from './dto/waitlist.dto';
+import { OperationsBranchWorkingHoursService } from './operations-branch-working-hours.service';
 import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
+import { OperationsWaitlistCandidateService } from './operations-waitlist-candidate.service';
 import { OperationsWaitlistMatchingService } from './operations-waitlist-matching.service';
 import { OperationsWaitlistRecoveryService } from './operations-waitlist-recovery.service';
 import { OperationsWaitlistService } from './operations-waitlist.service';
@@ -30,9 +32,11 @@ import { OperationsWaitlistService } from './operations-waitlist.service';
 export class OperationsWaitlistController {
   constructor(
     private readonly waitlist: OperationsWaitlistService,
+    private readonly candidates: OperationsWaitlistCandidateService,
     private readonly matching: OperationsWaitlistMatchingService,
     private readonly recovery: OperationsWaitlistRecoveryService,
     private readonly eligibility: OperationsStaffEligibilityService,
+    private readonly workingHours: OperationsBranchWorkingHoursService,
   ) {}
 
   @Get()
@@ -65,7 +69,7 @@ export class OperationsWaitlistController {
     @Param('entryId', new ParseUUIDPipe()) entryId: string,
     @Body() body: unknown,
   ) {
-    return this.matching.findMatches(entryId, findWaitlistMatchesSchema.parse(body));
+    return this.candidates.findMatches(entryId, findWaitlistMatchesSchema.parse(body));
   }
 
   @Post(':entryId/accept-match')
@@ -75,6 +79,7 @@ export class OperationsWaitlistController {
     @Body() body: unknown,
   ) {
     const input = acceptWaitlistMatchSchema.parse(body);
+    await this.workingHours.assertOpen({ startAt: input.startAt, endAt: input.endAt });
     await this.eligibility.assertWaitlistEntryEligible(entryId, input);
     return this.matching.acceptMatch(entryId, input);
   }
