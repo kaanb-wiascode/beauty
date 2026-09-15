@@ -22,13 +22,13 @@ export class PlatformAdminGuard implements CanActivate {
       throw new UnauthorizedException('Authenticated user id is missing.');
     }
 
-    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
-      `SELECT user_id AS "userId"
-       FROM platform_admin_users
-       WHERE user_id=$1 AND status='ACTIVE'
-       LIMIT 1`,
-      userId,
-    );
+    const rows = await this.prisma.$queryRaw<Array<{ userId: string }>>`
+      SELECT user_id AS "userId"
+      FROM platform_admin_users
+      WHERE user_id = ${userId}
+        AND status = 'ACTIVE'
+      LIMIT 1
+    `;
 
     if (!rows.length) {
       throw new ForbiddenException('Platform administrator access is required.');
