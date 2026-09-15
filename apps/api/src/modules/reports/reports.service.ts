@@ -549,6 +549,7 @@ export class ReportsService {
   private buildFinanceSummary(rows: readonly Record<string, unknown>[]) {
     const incomeRecognized = rows.reduce((t, r) => t + this.numberValue(r.incomeRecognized), 0);
     const expenseRecognized = rows.reduce((t, r) => t + this.numberValue(r.expenseRecognized), 0);
+    const payableAmount = rows.reduce((t, r) => t + this.numberValue(r.payableAmount), 0);
     const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
     const paid = rows.reduce((t, r) => t + this.numberValue(r.paid), 0);
     const receivableOutstanding = rows.reduce((t, r) => t + this.numberValue(r.receivableOutstanding), 0);
@@ -559,6 +560,7 @@ export class ReportsService {
       rowCount: rows.length,
       incomeRecognized,
       expenseRecognized,
+      payableAmount,
       operatingMargin: incomeRecognized - expenseRecognized,
       collected,
       paid,
@@ -570,8 +572,8 @@ export class ReportsService {
       collectionRate: incomeRecognized
         ? Math.round((collected / incomeRecognized) * 100)
         : 0,
-      paymentRate: expenseRecognized
-        ? Math.round((paid / expenseRecognized) * 100)
+      paymentRate: payableAmount
+        ? Math.round((paid / payableAmount) * 100)
         : 0,
     };
   }
