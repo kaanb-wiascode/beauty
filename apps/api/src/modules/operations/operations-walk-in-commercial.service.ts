@@ -22,7 +22,7 @@ export class OperationsWalkInCommercialService {
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT c.id,c.visit_id AS "visitId",c.sale_id AS "saleId",c.note,c.version,c.linked_at AS "linkedAt",
               s.status::text AS "saleStatus",s.total::text AS "saleTotal",
-              COALESCE((SELECT SUM(sp.amount) FROM sale_payments sp WHERE sp.sale_id=s.id AND sp.tenant_id=$2 AND sp.branch_id=$4 AND sp.status::text='COMPLETED'),0)::text AS "paidTotal"
+              COALESCE((SELECT SUM(sp.amount) FROM sale_payments sp WHERE sp."saleId"=s.id AND sp."tenantId"=$2 AND sp."branchId"=$4 AND sp.status::text='COMPLETED'),0)::text AS "paidTotal"
        FROM operations_walk_in_commercial_contexts c
        JOIN sales s ON s.id=c.sale_id
        WHERE c.visit_id=$1 AND c.tenant_id=$2 AND c.company_id=$3 AND c.branch_id=$4 LIMIT 1`,
@@ -61,8 +61,8 @@ export class OperationsWalkInCommercialService {
 
       const sales = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT s.id FROM sales s
-         WHERE s.id=$1 AND s.tenant_id=$2 AND s.branch_id=$3 AND s.customer_id=$4 AND s.status::text='CONFIRMED'
-           AND EXISTS (SELECT 1 FROM sale_items si WHERE si.sale_id=s.id AND si.type::text='SERVICE' AND si.service_id IS NOT NULL)
+         WHERE s.id=$1 AND s."tenantId"=$2 AND s."branchId"=$3 AND s."customerId"=$4 AND s.status::text='CONFIRMED'
+           AND EXISTS (SELECT 1 FROM sale_items si WHERE si."saleId"=s.id AND si.type::text='SERVICE' AND si."serviceId" IS NOT NULL)
          LIMIT 1`, input.saleId, tenantId, branchId, visit.customerId,
       );
       if (!sales[0]) throw new BadRequestException('Sale must be a confirmed service sale for the same walk-in customer and branch.');
