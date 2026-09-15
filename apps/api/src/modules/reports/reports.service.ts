@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
+import { CustomerReportingService } from '../customers/customer-reporting.service';
 import { PaymentsService } from '../payments/payments.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
@@ -29,6 +30,7 @@ export class ReportsService {
     private readonly staffService: StaffService,
     private readonly servicesService: ServicesService,
     private readonly paymentsService: PaymentsService,
+    private readonly customerReporting: CustomerReportingService,
     private readonly exportJobs: ReportExportJobsRepository,
   ) {}
 
@@ -160,6 +162,18 @@ export class ReportsService {
       };
     }
 
+    if (definition.key === reportKeys.customerPerformance) {
+      const rows = await this.customerReporting.performance(input.filters);
+      const sorted = this.sortRows(rows, prepared.sort);
+      return {
+        reportKey: prepared.reportKey,
+        resultKind: definition.resultKind,
+        columns: prepared.columns,
+        rows: sorted.map((row) => this.selectColumns(row, prepared.columns)),
+        summary: prepared.includeSummary ? this.buildCustomerSummary(rows) : null,
+      };
+    }
+
     const summary = await this.paymentsService.summary(input.filters);
     return {
       reportKey: prepared.reportKey,
@@ -239,6 +253,17 @@ export class ReportsService {
           collected: row.collected,
         })),
         input,
+      );
+    }
+
+    if (definition.key === reportKeys.customerPerformance) {
+      const rows = await this.customerReporting.performance(input.filters);
+      return this.buildTablePreview(
+        definition,
+        columns,
+        rows,
+        input,
+        this.buildCustomerSummary(rows),
       );
     }
 
@@ -349,6 +374,7 @@ export class ReportsService {
     columns: readonly string[],
     rows: readonly Record<string, unknown>[],
     input: ReportPreviewInput,
+    summary: Record<string, unknown> = this.buildAggregateSummary(rows),
   ) {
     const sorted = [...rows];
     if (input.sort) {
@@ -384,7 +410,7 @@ export class ReportsService {
         total,
         totalPages: Math.ceil(total / input.limit),
         sort: input.sort ?? null,
-        summary: this.buildAggregateSummary(rows),
+        summary,
       },
     };
   }
@@ -417,6 +443,38 @@ export class ReportsService {
     };
   }
 
+  private buildCustomerSummary(rows: readonly Record<string, unknown>[]) {
+    const visitCount = rows.reduce(
+      (total, row) => total + this.numberValue(row.visitCount),
+      0,
+    );
+    const completedVisits = rows.reduce(
+      (total, row) => total + this.numberValue(row.completedVisits),
+      0,
+    );
+    const collected = rows.reduce(
+      (total, row) => total + this.numberValue(row.collected),
+      0,
+    );
+    const customersWithVisits = rows.filter(
+      (row) => this.numberValue(row.visitCount) > 0,
+    ).length;
+
+    return {
+      rowCount: rows.length,
+      customersWithVisits,
+      visitCount,
+      completedVisits,
+      collected,
+      averageCollectedPerCustomer: customersWithVisits
+        ? collected / customersWithVisits
+        : 0,
+      averageCollectedPerCompletedVisit: completedVisits
+        ? collected / completedVisits
+        : 0,
+    };
+  }
+
   private numberValue(value: unknown) {
     return typeof value === 'number' && Number.isFinite(value) ? value : 0;
   }
@@ -434,6 +492,13 @@ export class ReportsService {
     if (typeof a === 'number' && typeof b === 'number') {
       return a - b;
     }
+
+    if (a instanceof Date && b instanceof Date) {
+      return a.getTime() - b.getTime();
+    }
+
+    if (a instanceof Date) return 1;
+    if (b instanceof Date) return -1;
 
     return String(a ?? '').localeCompare(String(b ?? ''), 'tr-TR');
   }
