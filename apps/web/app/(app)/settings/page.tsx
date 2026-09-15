@@ -16,6 +16,12 @@ const sections = [
     glyph: "+",
   },
   {
+    href: "/settings/temporary-access",
+    title: "Geçici Erişim",
+    description: "Süreli, Şube Kapsamlı Ve Denetlenebilir Ek Yetkileri Yönetin.",
+    glyph: "◷",
+  },
+  {
     href: "/settings/security",
     title: "Güvenlik Merkezi",
     description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.",
