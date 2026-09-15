@@ -83,6 +83,36 @@ describe('VisitsService scope and concurrency', () => {
     });
   });
 
+  it('returns appointment links with branch-scoped visit list rows', async () => {
+    const row = {
+      id: 'visit-1',
+      tenantId: 'tenant-1',
+      companyId: 'company-1',
+      branchId: 'branch-1',
+      customerId: 'customer-1',
+      source: 'APPOINTMENT',
+      status: 'CHECKED_IN',
+      appointmentIds: ['appointment-1'],
+    };
+    queryRawUnsafe.mockResolvedValueOnce([row]);
+
+    await expect(service.findAll({ limit: 100 })).resolves.toEqual([row]);
+
+    const [query, tenantId, branchId, limit] = queryRawUnsafe.mock.calls[0] as [
+      string,
+      string,
+      string,
+      number,
+    ];
+    expect(query).toContain('"appointmentIds"');
+    expect(query).toContain('FROM "visit_appointments"');
+    expect(query).toContain('v."tenantId" = $1');
+    expect(query).toContain('v."branchId" = $2');
+    expect(tenantId).toBe('tenant-1');
+    expect(branchId).toBe('branch-1');
+    expect(limit).toBe(100);
+  });
+
   it('fails safely when a transition uses a stale version', async () => {
     queryRawUnsafe.mockResolvedValueOnce([
       {
