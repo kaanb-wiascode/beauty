@@ -35,8 +35,8 @@ INSERT INTO hr_document_requirements (
   id,tenant_id,company_id,branch_id,document_type,title,description,required,restricted,requires_expiry,warning_days
 )
 SELECT
-  'hrreq-' || md5(c.tenant_id || ':' || c.id || ':' || seed.document_type),
-  c.tenant_id,c.id,NULL,seed.document_type,seed.title,seed.description,TRUE,seed.restricted,seed.requires_expiry,seed.warning_days
+  'hrreq-' || md5(c."tenantId" || ':' || c.id || ':' || seed.document_type),
+  c."tenantId",c.id,NULL,seed.document_type,seed.title,seed.description,TRUE,seed.restricted,seed.requires_expiry,seed.warning_days
 FROM companies c
 CROSS JOIN (VALUES
   ('IDENTITY','Kimlik Belgesi','Çalışanın kimlik/kimlik fotokopisi kaydı.',TRUE,FALSE,30),
