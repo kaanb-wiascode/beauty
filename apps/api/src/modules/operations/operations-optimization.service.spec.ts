@@ -1,4 +1,10 @@
+import { Test } from '@nestjs/testing';
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { WorkforceCapacityService } from '../hr/workforce-capacity.service';
+import { OperationsCapacityService } from './operations-capacity.service';
 import { OperationsOptimizationService } from './operations-optimization.service';
+import { OperationsUtilizationService } from './operations-utilization.service';
 
 describe('OperationsOptimizationService', () => {
   const queryRawUnsafe = jest.fn();
@@ -11,8 +17,9 @@ describe('OperationsOptimizationService', () => {
   const capacity = { summary: jest.fn() };
   const utilization = { summary: jest.fn() };
   const workforceCapacity = { analyze: jest.fn() };
+  let service: OperationsOptimizationService;
 
-  beforeEach(() => {
+  beforeEach(async () => {
     queryRawUnsafe.mockReset();
     capacity.summary.mockReset();
     utilization.summary.mockReset();
@@ -20,6 +27,19 @@ describe('OperationsOptimizationService', () => {
     workforceCapacity.analyze.mockResolvedValue({
       branches: [{ branchId: 'branch-1', utilizationPercent: 70, shortageMinutes: 0, shortageHours: 0 }],
     });
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OperationsOptimizationService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenantContext },
+        { provide: OperationsCapacityService, useValue: capacity },
+        { provide: OperationsUtilizationService, useValue: utilization },
+        { provide: WorkforceCapacityService, useValue: workforceCapacity },
+      ],
+    }).compile();
+
+    service = moduleRef.get(OperationsOptimizationService);
   });
 
   it('recommends balancing staff load and preserves deterministic scheduling authority', async () => {
@@ -36,13 +56,6 @@ describe('OperationsOptimizationService', () => {
       { recentAppointments: 10, recentNoShows: 0, previousAppointments: 30, previousNoShows: 1 },
     ]);
 
-    const service = new OperationsOptimizationService(
-      prisma as never,
-      tenantContext as never,
-      capacity as never,
-      utilization as never,
-      workforceCapacity as never,
-    );
     const result = await service.overview(24);
 
     expect(result.automaticSchedulingEnabled).toBe(false);
@@ -66,13 +79,6 @@ describe('OperationsOptimizationService', () => {
       { recentAppointments: 10, recentNoShows: 0, previousAppointments: 30, previousNoShows: 1 },
     ]);
 
-    const service = new OperationsOptimizationService(
-      prisma as never,
-      tenantContext as never,
-      capacity as never,
-      utilization as never,
-      workforceCapacity as never,
-    );
     const result = await service.overview(24);
 
     expect(result.capacityRecommendations).toEqual(
@@ -94,13 +100,6 @@ describe('OperationsOptimizationService', () => {
       { recentAppointments: 10, recentNoShows: 3, previousAppointments: 40, previousNoShows: 2 },
     ]);
 
-    const service = new OperationsOptimizationService(
-      prisma as never,
-      tenantContext as never,
-      capacity as never,
-      utilization as never,
-      workforceCapacity as never,
-    );
     const result = await service.overview(24);
 
     expect(result.anomalies).toEqual(
