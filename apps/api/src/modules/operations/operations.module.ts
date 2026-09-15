@@ -12,6 +12,8 @@ import { OperationsServiceChecklistsController } from './operations-service-chec
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
 import { OperationsUtilizationController } from './operations-utilization.controller';
 import { OperationsUtilizationService } from './operations-utilization.service';
+import { OperationsWaitlistController } from './operations-waitlist.controller';
+import { OperationsWaitlistService } from './operations-waitlist.service';
 import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
 
@@ -22,6 +24,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsConsumablesController,
     OperationsServiceChecklistsController,
     OperationsUtilizationController,
+    OperationsWaitlistController,
     ServiceExecutionsController,
   ],
   providers: [
@@ -32,6 +35,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsConsumablesService,
     OperationsServiceChecklistsService,
     OperationsUtilizationService,
+    OperationsWaitlistService,
     ServiceExecutionsService,
   ],
 })
