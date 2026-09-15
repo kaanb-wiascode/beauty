@@ -27,6 +27,7 @@ describe('HrReportingService', () => {
       periodDate: new Date('2026-09-01T00:00:00.000Z'), status: 'POSTED', employeeCount: 8,
       gross: '800000', net: '600000', employerCost: '980000', salaryPaid: '450000',
       taxLiability: '90000', taxPaid: '60000', socialLiability: '120000', socialPaid: '100000',
+      otherLiability: '30000', otherPaid: '10000',
     }]);
     const result = await service(queryRaw).payroll({ from: new Date('2026-09-01'), to: new Date('2026-09-30') });
     const sql = queryRaw.mock.calls[0][0] as string;
@@ -35,6 +36,8 @@ describe('HrReportingService', () => {
     expect(sql).toContain('sp.company_id=$2::text');
     expect(sql).toContain('plp.tenant_id=$1::text');
     expect(sql).toContain('plp.company_id=$2::text');
+    expect(sql).toContain("plp.type='OTHER'");
+    expect(sql).toContain('SUM(pi.other_deductions)');
     expect(result[0]).toMatchObject({
       employeeCount: 8,
       net: 600000,
@@ -46,6 +49,9 @@ describe('HrReportingService', () => {
       socialLiability: 120000,
       socialPaid: 100000,
       socialRemaining: 20000,
+      otherLiability: 30000,
+      otherPaid: 10000,
+      otherRemaining: 20000,
       payrollSettlementRate: 75,
     });
     expect(result[0]).not.toHaveProperty('staffId');
