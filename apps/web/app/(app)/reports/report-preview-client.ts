@@ -42,7 +42,8 @@ type PreviewRequest = {
     | "staff.performance"
     | "service.performance"
     | "payments.summary"
-    | "customers.performance";
+    | "customers.performance"
+    | "sales.performance";
   filters: { from: string; to: string };
   columns?: readonly string[];
   sort?: ReportPreviewSort;
