@@ -14,13 +14,13 @@ import {
 import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard';
 import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
+import type { PlatformRequestLike } from './platform-request-context';
 import { PlatformOnboardingService } from './platform-onboarding.service';
-import {
-  getPlatformOperationContext,
-  type PlatformRequestLike,
-} from './platform-request-context';
 
-type PlatformRequest = PlatformRequestLike & { user?: { sub?: string } };
+type PlatformRequest = PlatformRequestLike & {
+  user?: { sub?: string };
+  headers?: Record<string, string | string[] | undefined>;
+};
 type ItemStatus = 'PENDING' | 'IN_PROGRESS' | 'BLOCKED' | 'COMPLETED' | 'SKIPPED';
 
 @Controller('platform/onboarding')
@@ -44,7 +44,7 @@ export class PlatformOnboardingController {
     return this.onboarding.ensureChecklist(tenantId, this.actor(request), {
       provisioningRunId: body.provisioningRunId ?? null,
       reason: body.reason ?? null,
-      correlationId: getPlatformOperationContext(request).correlationId,
+      correlationId: this.correlationId(request),
     });
   }
 
@@ -68,7 +68,7 @@ export class PlatformOnboardingController {
       {
         notes: body.notes ?? null,
         reason: body.reason ?? null,
-        correlationId: getPlatformOperationContext(request).correlationId,
+        correlationId: this.correlationId(request),
       },
     );
   }
@@ -77,5 +77,10 @@ export class PlatformOnboardingController {
     const actor = request.user?.sub?.trim();
     if (!actor) throw new UnauthorizedException('Platform actor is required.');
     return actor;
+  }
+
+  private correlationId(request: PlatformRequest) {
+    const value = request.headers?.['x-request-id'];
+    return Array.isArray(value) ? value[0] ?? null : value ?? null;
   }
 }
