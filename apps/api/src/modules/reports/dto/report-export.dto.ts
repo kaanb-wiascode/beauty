@@ -15,18 +15,13 @@ export const reportExportSchema = z
       reportKeys.financePerformance,
       reportKeys.inventoryPerformance,
       reportKeys.procurementPerformance,
+      reportKeys.crmPerformance,
     ]),
     format: z.enum(['PDF', 'XLSX', 'CSV']),
     filters: reportDateRangeSchema,
     columns: z.array(z.string().min(1)).max(20).optional(),
     columnMode: z.enum(['VISIBLE', 'ALL_PERMITTED']).optional(),
-    sort: z
-      .object({
-        key: z.string().min(1),
-        direction: z.enum(['asc', 'desc']),
-      })
-      .strict()
-      .optional(),
+    sort: z.object({ key: z.string().min(1), direction: z.enum(['asc', 'desc']) }).strict().optional(),
     includeSummary: z.boolean().default(true),
     includeCharts: z.boolean().default(false),
   })
