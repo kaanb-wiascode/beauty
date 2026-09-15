@@ -32,6 +32,7 @@ import { PlatformControlPlaneModule } from './modules/platform-control-plane/pla
 import { OrganizationAdminModule } from './modules/organization-admin/organization-admin.module';
 import { TemporaryAccessModule } from './modules/temporary-access/temporary-access.module';
 import { ApprovalWorkflowModule } from './modules/approval-workflows/approval-workflow.module';
+import { BusinessPolicyModule } from './modules/business-policies/business-policy.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -86,6 +87,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     OrganizationAdminModule,
     TemporaryAccessModule,
     ApprovalWorkflowModule,
+    BusinessPolicyModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
