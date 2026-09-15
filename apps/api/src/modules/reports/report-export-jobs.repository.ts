@@ -22,6 +22,8 @@ export type ReportExportJobRecord = {
   companyId: string;
   branchId: string | null;
   roleScope: JwtPayload['roleScope'];
+  membershipId: string;
+  roleId: string;
   requestedBy: string;
   reportKey: string;
   format: string;
@@ -64,12 +66,13 @@ export class ReportExportJobsRepository {
     const [job] = await this.prisma.$queryRaw<ReportExportJobRecord[]>(Prisma.sql`
       INSERT INTO "report_export_jobs" (
         "id", "tenant_id", "company_id", "branch_id", "role_scope",
-        "requested_by", "report_key", "format", "status", "filters",
-        "columns", "sort", "include_summary", "include_charts"
+        "membership_id", "role_id", "requested_by", "report_key", "format",
+        "status", "filters", "columns", "sort", "include_summary", "include_charts"
       ) VALUES (
         ${id}, ${user.tenantId}, ${user.companyId}, ${user.branchId},
-        ${user.roleScope}, ${user.sub}, ${input.reportKey}, ${input.format},
-        'QUEUED', CAST(${filters} AS jsonb), CAST(${selectedColumns} AS jsonb),
+        ${user.roleScope}, ${user.membershipId}, ${user.roleId}, ${user.sub},
+        ${input.reportKey}, ${input.format}, 'QUEUED', CAST(${filters} AS jsonb),
+        CAST(${selectedColumns} AS jsonb),
         ${sort === null ? Prisma.sql`NULL` : Prisma.sql`CAST(${sort} AS jsonb)`},
         ${input.includeSummary}, ${input.includeCharts}
       )
@@ -199,6 +202,8 @@ export class ReportExportJobsRepository {
       "company_id" AS "companyId",
       "branch_id" AS "branchId",
       "role_scope" AS "roleScope",
+      "membership_id" AS "membershipId",
+      "role_id" AS "roleId",
       "requested_by" AS "requestedBy",
       "report_key" AS "reportKey",
       "format" AS "format",
@@ -228,6 +233,8 @@ export class ReportExportJobsRepository {
       ${prefix}"company_id" AS "companyId",
       ${prefix}"branch_id" AS "branchId",
       ${prefix}"role_scope" AS "roleScope",
+      ${prefix}"membership_id" AS "membershipId",
+      ${prefix}"role_id" AS "roleId",
       ${prefix}"requested_by" AS "requestedBy",
       ${prefix}"report_key" AS "reportKey",
       ${prefix}"format" AS "format",
