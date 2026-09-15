@@ -9,6 +9,7 @@ const savedReportKeySchema = z.enum([
   reportKeys.paymentSummary,
   reportKeys.customerPerformance,
   reportKeys.salesPerformance,
+  reportKeys.appointmentPerformance,
 ]);
 
 const savedSortSchema = z
