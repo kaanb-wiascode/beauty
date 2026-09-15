@@ -15,6 +15,7 @@ import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard'
 import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
 import { PlatformGoLiveService } from './platform-go-live.service';
+import { PlatformOwnerInvitationBatchService } from './platform-owner-invitation-batch.service';
 import { PlatformOwnerInvitationDispatcherService } from './platform-owner-invitation-dispatcher.service';
 import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
 import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
@@ -33,6 +34,7 @@ export class PlatformProvisioningController {
     private readonly operations: PlatformProvisioningOperationsService,
     private readonly ownerInvitation: PlatformOwnerInvitationService,
     private readonly ownerInvitationDispatcher: PlatformOwnerInvitationDispatcherService,
+    private readonly ownerInvitationBatch: PlatformOwnerInvitationBatchService,
     private readonly goLive: PlatformGoLiveService,
   ) {}
 
@@ -84,6 +86,20 @@ export class PlatformProvisioningController {
   @RequirePlatformPermission('provisioning', 'read')
   summary() {
     return this.operations.summary();
+  }
+
+  @Post('owner-invitations/dispatch-due')
+  @RequirePlatformPermission('provisioning', 'manage')
+  dispatchDueOwnerInvitations(
+    @Req() request: PlatformRequest,
+    @Body() body: { reason?: string; limit?: number },
+  ) {
+    return this.ownerInvitationBatch.dispatchDue(
+      this.actor(request),
+      body.reason ?? '',
+      body.limit ?? 10,
+      this.correlationId(request),
+    );
   }
 
   @Get(':runId')
