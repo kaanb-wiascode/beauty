@@ -6,6 +6,7 @@ const sections = [
   { href: "/settings/users", title: "Kullanıcılar", description: "İşletme Üyeliklerini, Rolleri Ve Erişim Durumlarını Yönetin.", glyph: "◎" },
   { href: "/settings/invitations", title: "Kullanıcı Davetleri", description: "Tek Kullanımlık, Süreli Davetlerle Güvenli Kullanıcı Onboarding Sürecini Yönetin.", glyph: "+" },
   { href: "/settings/temporary-access", title: "Geçici Erişim", description: "Süreli, Şube Kapsamlı Ve Denetlenebilir Ek Yetkileri Yönetin.", glyph: "◷" },
+  { href: "/settings/break-glass", title: "Break-Glass Erişimi", description: "Parola + MFA İle Yeniden Doğrulanan, En Fazla 60 Dakikalık Acil Yetkileri Yönetin.", glyph: "!" },
   { href: "/settings/permission-simulation", title: "Yetki Simülasyonu", description: "Bir Kullanıcının Etkin Rol, Şube, Geçici Ve Yüksek Riskli Yetkilerini Güvenli Şekilde Önizleyin.", glyph: "◉" },
   { href: "/settings/security", title: "Güvenlik Merkezi", description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.", glyph: "□" },
   { href: "/settings/roles", title: "Roller Ve Yetkiler", description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.", glyph: "◇" },
