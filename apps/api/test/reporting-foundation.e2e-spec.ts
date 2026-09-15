@@ -30,9 +30,7 @@ describe('Reporting foundation authorization (e2e)', () => {
   });
 
   it('rejects unauthenticated reporting requests', async () => {
-    await request(app.getHttpServer())
-      .get('/reports/catalog')
-      .expect(401);
+    await request(app.getHttpServer()).get('/reports/catalog').expect(401);
 
     await request(app.getHttpServer())
       .post('/reports/preview')
@@ -117,10 +115,7 @@ describe('Reporting foundation authorization (e2e)', () => {
           resultKind: 'table',
         },
         data: expect.any(Array),
-        meta: expect.objectContaining({
-          page: 1,
-          limit: 25,
-        }),
+        meta: expect.objectContaining({ page: 1, limit: 25 }),
       }),
     );
 
@@ -151,14 +146,22 @@ describe('Reporting foundation authorization (e2e)', () => {
     );
 
     const history = await request(app.getHttpServer())
-      .get('/reports/exports?status=QUEUED&limit=10')
+      .get('/reports/exports?status=QUEUED&reportKey=staff.performance&format=CSV&mine=true&page=1&limit=10')
       .set('Authorization', `Bearer ${token}`)
       .expect(200);
 
     expect(history.body).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ id: exportJob.body.id }),
-      ]),
+      expect.objectContaining({
+        data: expect.arrayContaining([
+          expect.objectContaining({ id: exportJob.body.id }),
+        ]),
+        meta: expect.objectContaining({
+          page: 1,
+          limit: 10,
+          total: expect.any(Number),
+          totalPages: expect.any(Number),
+        }),
+      }),
     );
 
     await request(app.getHttpServer())
@@ -225,6 +228,11 @@ describe('Reporting foundation authorization (e2e)', () => {
         branchId: 'attempted-scope-override',
         storageKey: '../../unsafe.csv',
       })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .get('/reports/exports?requestedBy=someone-else')
+      .set('Authorization', `Bearer ${token}`)
       .expect(400);
   });
 });
