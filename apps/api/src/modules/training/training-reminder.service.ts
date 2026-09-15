@@ -8,7 +8,7 @@ export class TrainingReminderService {
 
   private context(){return{tenantId:this.tenant.getTenantId(),companyId:this.tenant.getCompanyId(),branchId:this.tenant.getBranchId()};}
 
-  async process(_actorUserId:string,limit=200){
+  async process(_actorUserId:string,limit?:number){
     const c=this.context(),safeLimit=Math.min(Math.max(Math.trunc(limit||200),1),500);
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRawUnsafe<any[]>(
