@@ -97,6 +97,6 @@ ON CONFLICT(tenant_id,company_id,code) DO NOTHING;
 
 UPDATE leave_requests lr SET leave_type_id=lt.id
 FROM branches b JOIN companies c ON c.id=b."companyId" JOIN hr_leave_types lt ON lt.tenant_id=c."tenantId" AND lt.company_id=c.id
-WHERE lr.branch_id=b.id AND lr.leave_type_id IS NULL AND lt.code=UPPER(COALESCE(lr.leave_type,lr.type,'ANNUAL'));
+WHERE lr.branch_id=b.id AND lr.leave_type_id IS NULL AND lt.code=UPPER(COALESCE(lr.type,'ANNUAL'));
 
 COMMIT;
