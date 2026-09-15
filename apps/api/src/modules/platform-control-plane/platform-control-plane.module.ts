@@ -10,11 +10,13 @@ import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformReadModelService } from './platform-read-model.service';
+import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
 
 @Module({
   controllers: [PlatformControlPlaneController],
   providers: [
     PlatformReadModelService,
+    PlatformTenantGovernanceReadService,
     PlatformIamReadService,
     PlatformIamMutationService,
     PlatformAuditReadService,
@@ -24,6 +26,6 @@ import { PlatformReadModelService } from './platform-read-model.service';
     PlatformJwtAuthGuard,
     PlatformPermissionsGuard,
   ],
-  exports: [PlatformReadModelService],
+  exports: [PlatformReadModelService, PlatformTenantGovernanceReadService],
 })
 export class PlatformControlPlaneModule {}
