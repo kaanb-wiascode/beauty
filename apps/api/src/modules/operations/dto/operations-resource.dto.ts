@@ -16,9 +16,7 @@ export const createRoomSchema = z.object({
   notes: z.string().trim().max(1000).optional(),
 });
 
-export const updateRoomStatusSchema = z.object({
-  status: roomStatusSchema,
-});
+export const updateRoomStatusSchema = z.object({ status: roomStatusSchema });
 
 export const upsertServiceOperationalRequirementSchema = z
   .object({
@@ -33,8 +31,25 @@ export const upsertServiceOperationalRequirementSchema = z
     'Use either requiredAssetId or requiredAssetType, not both.',
   );
 
+export const allocateAppointmentResourcesSchema = z
+  .object({
+    roomId: z.string().uuid().optional(),
+    assetId: z.string().uuid().optional(),
+  })
+  .refine((value) => Boolean(value.roomId || value.assetId), {
+    message: 'At least one room or asset must be selected.',
+  });
+
+export const releaseAllocationSchema = z.object({
+  expectedVersion: z.coerce.number().int().positive(),
+});
+
 export type CreateRoomInput = z.infer<typeof createRoomSchema>;
 export type UpdateRoomStatusInput = z.infer<typeof updateRoomStatusSchema>;
 export type UpsertServiceOperationalRequirementInput = z.infer<
   typeof upsertServiceOperationalRequirementSchema
 >;
+export type AllocateAppointmentResourcesInput = z.infer<
+  typeof allocateAppointmentResourcesSchema
+>;
+export type ReleaseAllocationInput = z.infer<typeof releaseAllocationSchema>;
