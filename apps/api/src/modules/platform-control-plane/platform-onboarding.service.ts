@@ -9,7 +9,7 @@ import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 
 const DEFAULT_CHECKLIST = [
   ['ACCOUNT_CREATED', 'Account created', 'Tenant, subscription and organization foundation is available.'],
-  ['OWNER_ACCESS', 'Owner access', 'Primary owner has a secure invitation or active membership.'],
+  ['OWNER_ACCESS', 'Owner access', 'Primary owner has accepted the secure invitation and has an active Owner membership.'],
   ['ORGANIZATION_SETUP', 'Organization setup', 'Primary company and branch structure has been confirmed.'],
   ['ROLES_PERMISSIONS', 'Roles and permissions', 'Default tenant roles and permissions have been verified.'],
   ['BUSINESS_CONFIGURATION', 'Business configuration', 'Required tenant configuration has been reviewed.'],
@@ -91,7 +91,7 @@ export class PlatformOnboardingService {
         ${tenantId},
         ${options.provisioningRunId ?? null},
         'IN_PROGRESS',
-        ${actorUserId},
+        NULL,
         CURRENT_TIMESTAMP,
         CURRENT_TIMESTAMP
       )
@@ -100,7 +100,6 @@ export class PlatformOnboardingService {
           platform_tenant_onboarding.provisioning_run_id,
           EXCLUDED.provisioning_run_id
         ),
-        owner_user_id = COALESCE(platform_tenant_onboarding.owner_user_id, EXCLUDED.owner_user_id),
         started_at = COALESCE(platform_tenant_onboarding.started_at, CURRENT_TIMESTAMP),
         status = CASE
           WHEN platform_tenant_onboarding.status = 'NOT_STARTED' THEN 'IN_PROGRESS'
@@ -129,9 +128,32 @@ export class PlatformOnboardingService {
         ) VALUES (
           ${onboarding.id}, ${itemKey}, ${title}, ${description}, ${position + 1}, TRUE
         )
-        ON CONFLICT (onboarding_id, item_key) DO NOTHING
+        ON CONFLICT (onboarding_id, item_key) DO UPDATE SET
+          title = EXCLUDED.title,
+          description = EXCLUDED.description,
+          position = EXCLUDED.position,
+          required = EXCLUDED.required,
+          updated_at = CURRENT_TIMESTAMP
       `;
     }
+
+    await this.platformAudit.record(
+      {
+        actorUserId,
+        resource: 'onboarding',
+        action: 'checklist.ensure',
+        targetTenantId: tenantId,
+        targetEntityType: 'platform_tenant_onboarding',
+        targetEntityId: onboarding.id,
+        reason: options.reason ?? null,
+        afterState: {
+          provisioningRunId: options.provisioningRunId ?? onboarding.provisioningRunId,
+          checklistItemCount: DEFAULT_CHECKLIST.length,
+        },
+        correlationId: options.correlationId ?? null,
+      },
+      client,
+    );
 
     return this.get(tenantId, db);
   }
@@ -210,6 +232,11 @@ export class PlatformOnboardingService {
   ) {
     if (!['PENDING', 'IN_PROGRESS', 'BLOCKED', 'COMPLETED', 'SKIPPED'].includes(status)) {
       throw new BadRequestException('Invalid onboarding item status.');
+    }
+    if (itemKey === 'OWNER_ACCESS' && (status === 'COMPLETED' || status === 'SKIPPED')) {
+      throw new BadRequestException(
+        'OWNER_ACCESS is derived automatically from an accepted Owner invitation and active Owner membership.',
+      );
     }
 
     return this.prisma.$transaction(async (tx) => {
