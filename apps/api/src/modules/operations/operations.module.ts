@@ -10,6 +10,8 @@ import { OperationsResourcesController } from './operations-resources.controller
 import { OperationsResourcesService } from './operations-resources.service';
 import { OperationsServiceChecklistsController } from './operations-service-checklists.controller';
 import { OperationsServiceChecklistsService } from './operations-service-checklists.service';
+import { OperationsUtilizationController } from './operations-utilization.controller';
+import { OperationsUtilizationService } from './operations-utilization.service';
 import { ServiceExecutionsController } from './service-executions.controller';
 import { ServiceExecutionsService } from './service-executions.service';
 
@@ -19,6 +21,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsResourceBlocksController,
     OperationsConsumablesController,
     OperationsServiceChecklistsController,
+    OperationsUtilizationController,
     ServiceExecutionsController,
   ],
   providers: [
@@ -28,6 +31,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsResourceBlocksService,
     OperationsConsumablesService,
     OperationsServiceChecklistsService,
+    OperationsUtilizationService,
     ServiceExecutionsService,
   ],
 })
