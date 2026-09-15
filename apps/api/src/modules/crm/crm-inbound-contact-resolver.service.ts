@@ -75,9 +75,8 @@ export class CrmInboundContactResolverService {
   ) {
     if (!identity.providerContactId && !identity.whatsappIdentity) return;
 
-    // Never overwrite a known identity and never claim an identity already attached
-    // to another lead in the same tenant/company. Ambiguities stay unresolved instead
-    // of silently merging CRM subjects.
+    // Only mutate the lead if at least one supplied identity can actually be claimed.
+    // This prevents collision/no-op attempts from incrementing optimistic versions.
     await this.prisma.$executeRawUnsafe(
       `UPDATE crm_leads l
        SET provider_contact_id = CASE
@@ -104,8 +103,21 @@ export class CrmInboundContactResolverService {
            version = version + 1
        WHERE l.id=$4::text AND l.tenant_id=$1::text AND l.company_id=$2::text AND l.branch_id=$3::text
          AND l.merged_into_lead_id IS NULL
-         AND (($5::text IS NOT NULL AND l.provider_contact_id IS NULL)
-           OR ($6::text IS NOT NULL AND l.whatsapp_identity IS NULL))`,
+         AND (
+           (l.provider_contact_id IS NULL AND $5::text IS NOT NULL AND NOT EXISTS (
+             SELECT 1 FROM crm_leads other
+             WHERE other.tenant_id=$1::text AND other.company_id=$2::text
+               AND other.id<>l.id AND other.merged_into_lead_id IS NULL
+               AND other.provider_contact_id=$5::text
+           ))
+           OR
+           (l.whatsapp_identity IS NULL AND $6::text IS NOT NULL AND NOT EXISTS (
+             SELECT 1 FROM crm_leads other
+             WHERE other.tenant_id=$1::text AND other.company_id=$2::text
+               AND other.id<>l.id AND other.merged_into_lead_id IS NULL
+               AND other.whatsapp_identity=$6::text
+           ))
+         )`,
       scope.tenantId,
       scope.companyId,
       scope.branchId,
