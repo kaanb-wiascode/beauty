@@ -48,7 +48,11 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 ### PDF
 
 - Server-side PDF generation with title, reporting period, summary, detail rows, page splitting and page numbering.
-- Current Base14 implementation normalizes non-ASCII glyphs. Embedded Unicode brand fonts, logo, richer tables and controlled charts remain a presentation-quality follow-up.
+- Company and branch names are resolved server-side from the authenticated tenant/company/branch context; clients cannot supply PDF branding text.
+- Branded hierarchy now uses regular/bold font resources, company/branch heading, report title hierarchy and a per-page `CONFIDENTIAL / GIZLI` footer.
+- Missing/inactive company metadata falls back to `WiOS 360` without leaking cross-tenant data.
+- Current Base14 implementation still normalizes non-ASCII glyphs. A real embedded Unicode font asset is required before Turkish characters can be preserved verbatim in PDF output.
+- Logo rendering is intentionally pending because the current Company model does not expose an authoritative logo/brand asset field.
 
 ## Saved Reports, Favorites and Recents
 
@@ -111,6 +115,7 @@ The shared reporting/export foundation is implemented for Staff Performance, Ser
 - Public presenter metadata-leak tests.
 - Worker authorization, stored-payload, stale-worker, expiry, storage and download tests.
 - CSV/XLSX/PDF generator tests.
+- PDF branding tests cover server-scoped company/branch lookup, safe fallback, bold hierarchy and confidentiality labeling.
 - Artifact reconciliation tests.
 - Workload-limit tests.
 - Saved Report permission/recent-open tests.
@@ -126,7 +131,7 @@ A descendant `Monorepo quality` run must reach and pass API typecheck/tests/E2E/
 ## Next Phase 2 increments
 
 1. Add export/schedule audit events when the shared AuditLog service is available.
-2. Improve PDF presentation quality with embedded Unicode font, legal-entity branding, logo, confidentiality labels, styled tables and controlled charts.
+2. Add an authoritative brand asset model and embedded Unicode font support before enabling true Unicode/logo PDF rendering.
 3. Add verified-recipient delivery only after the platform notification/recipient model exists.
 4. Move in-process scheduling/export execution to a dedicated queue/worker deployment when infrastructure is available.
 5. Add coordinated frontend test infrastructure.
@@ -136,6 +141,7 @@ A descendant `Monorepo quality` run must reach and pass API typecheck/tests/E2E/
 
 - Report/export permissions can never exceed current source-domain permissions.
 - Tenant/company/branch and ownership come from authenticated context/trusted snapshots, never client scope parameters.
+- PDF company/branch branding is resolved from authenticated server context, never arbitrary client strings.
 - Storage keys and scheduled-run idempotency keys are server-generated only.
 - Unauthorized/internal columns cannot reappear through saved reports, schedules or exports.
 - Scheduled execution revalidates membership, role, branch and permissions at run time.
