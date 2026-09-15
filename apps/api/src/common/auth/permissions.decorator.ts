@@ -18,5 +18,5 @@ export const RequirePermission = (
   } satisfies RequiredPermission);
 
 export const RequirePermissions = (
-  ...permissions: readonly RequiredPermission[]
+  ...permissions: RequiredPermission[]
 ) => SetMetadata(REQUIRED_PERMISSIONS_KEY, permissions);
