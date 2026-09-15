@@ -10,6 +10,8 @@ import { OperationsAppointmentOutcomesController } from './operations-appointmen
 import { OperationsAppointmentOutcomesService } from './operations-appointment-outcomes.service';
 import { OperationsBranchChecklistsController } from './operations-branch-checklists.controller';
 import { OperationsBranchChecklistsService } from './operations-branch-checklists.service';
+import { OperationsBranchWorkingHoursController } from './operations-branch-working-hours.controller';
+import { OperationsBranchWorkingHoursService } from './operations-branch-working-hours.service';
 import { OperationsCapacityService } from './operations-capacity.service';
 import { OperationsConsumablesController } from './operations-consumables.controller';
 import { OperationsConsumablesService } from './operations-consumables.service';
@@ -59,6 +61,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsConsumablesController,
     OperationsServiceChecklistsController,
     OperationsBranchChecklistsController,
+    OperationsBranchWorkingHoursController,
     OperationsIncidentsController,
     OperationsAlertsController,
     OperationsAppointmentOutcomesController,
@@ -84,6 +87,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsConsumablesService,
     OperationsServiceChecklistsService,
     OperationsBranchChecklistsService,
+    OperationsBranchWorkingHoursService,
     OperationsIncidentsService,
     OperationsAlertsService,
     OperationsAppointmentOutcomesService,
