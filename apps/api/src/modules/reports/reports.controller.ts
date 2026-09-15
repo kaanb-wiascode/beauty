@@ -28,6 +28,10 @@ import {
   createReportSavedViewSchema,
   updateReportSavedViewSchema,
 } from './dto/report-saved-view.dto';
+import {
+  createReportScheduleSchema,
+  updateReportScheduleSchema,
+} from './dto/report-schedule.dto';
 import { ReportExportDownloadService } from './report-export-download.service';
 import { ReportExportPolicyService } from './report-export-policy.service';
 import {
@@ -35,6 +39,7 @@ import {
   toPublicReportExportList,
 } from './report-export.presenter';
 import { ReportSavedViewsService } from './report-saved-views.service';
+import { ReportSchedulesService } from './report-schedules.service';
 import { ReportsService } from './reports.service';
 
 @Controller('reports')
@@ -45,6 +50,7 @@ export class ReportsController {
     private readonly exportDownloads: ReportExportDownloadService,
     @Optional() private readonly exportPolicy?: ReportExportPolicyService,
     @Optional() private readonly savedViews?: ReportSavedViewsService,
+    @Optional() private readonly schedules?: ReportSchedulesService,
   ) {}
 
   @Get('catalog')
@@ -108,6 +114,51 @@ export class ReportsController {
     return this.requireSavedViews().delete(request.user, id);
   }
 
+  @Post('schedules')
+  @RequirePermission('reports', 'read')
+  createSchedule(
+    @Req() request: { user: JwtPayload },
+    @Body() body: unknown,
+  ) {
+    const input = createReportScheduleSchema.parse(body);
+    return this.requireSchedules().create(request.user, input);
+  }
+
+  @Get('schedules')
+  @RequirePermission('reports', 'read')
+  listSchedules(@Req() request: { user: JwtPayload }) {
+    return this.requireSchedules().list(request.user);
+  }
+
+  @Get('schedules/:id')
+  @RequirePermission('reports', 'read')
+  getSchedule(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.requireSchedules().get(request.user, id);
+  }
+
+  @Patch('schedules/:id')
+  @RequirePermission('reports', 'read')
+  updateSchedule(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    const input = updateReportScheduleSchema.parse(body);
+    return this.requireSchedules().update(request.user, id, input);
+  }
+
+  @Delete('schedules/:id')
+  @RequirePermission('reports', 'read')
+  deleteSchedule(
+    @Req() request: { user: JwtPayload },
+    @Param('id') id: string,
+  ) {
+    return this.requireSchedules().delete(request.user, id);
+  }
+
   @Post('exports')
   @RequirePermission('reports', 'read')
   async createExport(
@@ -166,5 +217,12 @@ export class ReportsController {
       throw new InternalServerErrorException('Saved report service unavailable');
     }
     return this.savedViews;
+  }
+
+  private requireSchedules() {
+    if (!this.schedules) {
+      throw new InternalServerErrorException('Scheduled report service unavailable');
+    }
+    return this.schedules;
   }
 }
