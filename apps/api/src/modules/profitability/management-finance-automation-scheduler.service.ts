@@ -73,7 +73,7 @@ export class ManagementFinanceAutomationSchedulerService
   private async runTarget(target: AutomationTarget, asOf: Date) {
     const contextId = ContextIdFactory.create();
     const tenantContext = await this.moduleRef.resolve(TenantContext, contextId, { strict: false });
-    tenantContext.setContext({
+    tenantContext.setSystemContext({
       tenantId: target.tenantId,
       companyId: target.companyId,
       branchId: target.branchId,
