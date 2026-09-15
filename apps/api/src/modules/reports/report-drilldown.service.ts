@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { ForbiddenException, Injectable } from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 
@@ -7,6 +7,7 @@ import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportDrilldownInput } from './dto/report-drilldown.dto';
 import { reportKeys } from './report-definition';
+import { ReportsService } from './reports.service';
 
 @Injectable()
 export class ReportDrilldownService {
@@ -14,9 +15,17 @@ export class ReportDrilldownService {
     private readonly prisma: PrismaService,
     private readonly staffService: StaffService,
     private readonly servicesService: ServicesService,
+    private readonly reports: ReportsService,
   ) {}
 
   async drilldown(user: JwtPayload, input: ReportDrilldownInput) {
+    const catalog = await this.reports.getCatalog(user);
+    if (!catalog.some((report) => report.key === input.reportKey)) {
+      throw new ForbiddenException(
+        'You do not have permission to drill into this report',
+      );
+    }
+
     if (input.reportKey === reportKeys.staffPerformance) {
       await this.staffService.findOne(input.rowId);
       return this.appointments(user, input, { staffId: input.rowId });
@@ -49,7 +58,6 @@ export class ReportDrilldownService {
         orderBy: [{ startAt: 'desc' }, { id: 'desc' }],
         select: {
           id: true,
-          branchId: true,
           startAt: true,
           endAt: true,
           status: true,
