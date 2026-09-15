@@ -7,6 +7,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { WorkforceCapacityService } from '../hr/workforce-capacity.service';
 import { OperationsCapacityService } from './operations-capacity.service';
 import { OperationsUtilizationService } from './operations-utilization.service';
 
@@ -33,6 +34,7 @@ export class OperationsOptimizationService {
     private readonly tenantContext: TenantContext,
     private readonly capacity: OperationsCapacityService,
     private readonly utilization: OperationsUtilizationService,
+    private readonly workforceCapacity: WorkforceCapacityService,
   ) {}
 
   private context() {
@@ -54,9 +56,10 @@ export class OperationsOptimizationService {
     const from = new Date();
     const to = new Date(from.getTime() + safeHours * 60 * 60 * 1000);
 
-    const [capacity, utilization, demand, outcomeTrend] = await Promise.all([
+    const [capacity, utilization, workforce, demand, outcomeTrend] = await Promise.all([
       this.capacity.summary({ from, to }),
       this.utilization.summary({ from, to }),
+      this.workforceCapacity.analyze(from.toISOString(), to.toISOString(), branchId),
       this.prisma.$queryRawUnsafe<DemandRow[]>(
         `WITH historical AS (
            SELECT a."serviceId" AS service_id,
@@ -125,6 +128,23 @@ export class OperationsOptimizationService {
           ? 'Bakım/kesinti kaynaklarını kontrol et; uygun olanları kapasiteye geri kazandır.'
           : 'Yeni talebi bu kategoriye yığmadan önce alternatif kaynak veya zaman penceresi değerlendir.',
     }));
+
+    const branchWorkforce = workforce.branches.find((item: any) => item.branchId === branchId) ?? null;
+    if (branchWorkforce && Number(branchWorkforce.shortageMinutes) > 0) {
+      capacityRecommendations.push({
+        code: 'WORKFORCE_SHIFT_SHORTAGE',
+        priority: Number(branchWorkforce.utilizationPercent) >= 100 ? 'HIGH' : 'MEDIUM',
+        title: 'Yayınlanmış vardiya kapasitesi talebi karşılamıyor',
+        evidence: {
+          resourceType: 'STAFF',
+          utilizationPercent: Number(branchWorkforce.utilizationPercent),
+          remainingMinutes: 0,
+          blockedMinutes: Number(branchWorkforce.shortageMinutes),
+          unavailableResources: 0,
+        },
+        suggestedAction: `HR vardiya planını incele; yaklaşık ${branchWorkforce.shortageHours} saat workforce açığı var.`,
+      });
+    }
 
     const mostLoaded = utilization.staff[0] ?? null;
     const leastLoaded = [...utilization.staff]
@@ -216,17 +236,28 @@ export class OperationsOptimizationService {
         suggestedAction: 'Kesinti, bakım ve alternatif kaynak seçeneklerini incele; yeni booking kararını deterministik conflict engine üzerinden doğrula.',
       });
     }
+    if (branchWorkforce && Number(branchWorkforce.utilizationPercent) >= 100) {
+      anomalies.push({
+        code: 'WORKFORCE_CAPACITY_SATURATION',
+        severity: 'HIGH',
+        title: 'Personel vardiya kapasitesi doygun',
+        explanation: `Yayınlanmış vardiya kapasitesine göre workforce kullanımı %${Number(branchWorkforce.utilizationPercent).toFixed(1)}.`,
+        suggestedAction: 'HR vardiya/izin planını ve randevu yükünü birlikte incele; yeni atamaları eligibility guard ile doğrula.',
+      });
+    }
 
     return {
       horizonHours: safeHours,
-      model: 'EXPLAINABLE_OPTIMIZATION_HEURISTIC_V1',
+      model: 'EXPLAINABLE_OPTIMIZATION_HEURISTIC_V2',
       automaticSchedulingEnabled: false,
       capacityRecommendations,
       staffRecommendations,
       demandAwareSlots,
       anomalies,
+      workforce: branchWorkforce,
       evidence: {
-        utilizationShiftAware: utilization.shiftAware,
+        utilizationShiftAware: true,
+        workforceSource: 'HR_PUBLISHED_SHIFTS_AND_APPROVED_LEAVE',
         activeStaff: utilization.totals.activeStaff,
         staffUtilizationPercent: utilization.totals.utilizationPercent,
         capacityUtilizationPercent: capacity.totals.utilizationPercent,
