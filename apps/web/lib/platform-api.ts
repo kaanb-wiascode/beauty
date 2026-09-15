@@ -156,9 +156,10 @@ export function getPlatformIamOverview() {
 export function provisionPlatformAdmin(input: { userId: string; roleSlug?: string; reason: string }) {
   return api<PlatformApprovalRequestResult>("/platform/iam/admins", { method: "POST", body: input });
 }
-export function setPlatformAdminStatus(userId: string, input: { status: "ACTIVE"; reason: string }): Promise<PlatformAdminMutationResult>;
-export function setPlatformAdminStatus(userId: string, input: { status: "SUSPENDED"; reason: string }): Promise<PlatformApprovalRequestResult>;
-export function setPlatformAdminStatus(userId: string, input: { status: "ACTIVE" | "SUSPENDED"; reason: string }) {
+export function setPlatformAdminStatus(
+  userId: string,
+  input: { status: "ACTIVE" | "SUSPENDED"; reason: string },
+) {
   return api<PlatformAdminMutationResult | PlatformApprovalRequestResult>(`/platform/iam/admins/${userId}/status`, {
     method: "POST",
     body: input,
