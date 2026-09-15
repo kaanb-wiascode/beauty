@@ -10,6 +10,11 @@ import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-po
 import { FinancialObligationRulesService } from './financial-obligation-rules.service';
 import { FinancialObligationsService } from './financial-obligations.service';
 
+const obligationStatuses = [
+  'DRAFT', 'SCHEDULED', 'DUE', 'APPROVAL_PENDING', 'APPROVED', 'READY_FOR_PAYMENT',
+  'PARTIALLY_PAID', 'PAID', 'RECONCILED', 'POSTED', 'OVERDUE', 'REJECTED', 'CANCELLED',
+] as const;
+
 const obligationSchema = z.object({
   branchId: z.string().uuid().nullable().optional(),
   obligationType: z.string().trim().min(1).max(100),
@@ -44,14 +49,12 @@ const ruleSchema = z.object({
   description: z.string().trim().max(1000).nullable().optional(),
   sourceType: z.string().trim().max(100).nullable().optional(),
   sourceId: z.string().trim().max(150).nullable().optional(),
+}).refine((value) => !value.endDate || value.endDate >= value.startDate, {
+  message: 'endDate must be on or after startDate',
+  path: ['endDate'],
 });
 
-const transitionSchema = z.object({
-  status: z.enum([
-    'DRAFT', 'SCHEDULED', 'DUE', 'APPROVAL_PENDING', 'APPROVED', 'READY_FOR_PAYMENT',
-    'PARTIALLY_PAID', 'PAID', 'RECONCILED', 'POSTED', 'OVERDUE', 'REJECTED', 'CANCELLED',
-  ]),
-});
+const transitionSchema = z.object({ status: z.enum(obligationStatuses) });
 
 @Controller('finance/obligations')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -65,13 +68,35 @@ export class FinancialObligationsController {
 
   @Get()
   list(@Query('status') status?: string, @Query('limit') limit?: string) {
+    const parsedStatus = status ? z.enum(obligationStatuses).parse(status) : undefined;
     const parsedLimit = z.coerce.number().int().min(1).max(500).default(100).parse(limit ?? 100);
-    return this.obligations.list(status, parsedLimit);
+    return this.obligations.list(parsedStatus, parsedLimit);
   }
 
   @Get('calendar')
   calendar() {
     return this.obligations.calendar();
+  }
+
+  @Get('calendar/entries')
+  calendarEntries(
+    @Query('from') from?: string,
+    @Query('to') to?: string,
+    @Query('limit') limit?: string,
+  ) {
+    const now = new Date();
+    const defaultFrom = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const defaultTo = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() + 2, 0));
+    const parsedFrom = from ? z.coerce.date().parse(from) : defaultFrom;
+    const parsedTo = to ? z.coerce.date().parse(to) : defaultTo;
+    const parsedLimit = z.coerce.number().int().min(1).max(500).default(250).parse(limit ?? 250);
+    return this.obligations.calendarEntries(parsedFrom, parsedTo, parsedLimit);
+  }
+
+  @Post('calendar/refresh-statuses')
+  @RequirePermission('finance', 'manage')
+  refreshDueStatuses() {
+    return this.obligations.refreshDueStatuses();
   }
 
   @Get('rules')
