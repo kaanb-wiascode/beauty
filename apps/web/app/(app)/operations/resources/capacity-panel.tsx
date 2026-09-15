@@ -11,6 +11,7 @@ type CapacityCategory = {
   category: string;
   totalResources: number;
   unavailableResources: number;
+  blockedMinutes: number;
   capacityMinutes: number;
   allocatedMinutes: number;
   remainingMinutes: number;
@@ -22,6 +23,7 @@ type CapacityBottleneck = {
   category: string;
   utilizationPercent: number;
   remainingMinutes: number;
+  blockedMinutes: number;
   unavailableResources: number;
   reason: "NO_AVAILABLE_CAPACITY" | "CRITICAL_UTILIZATION" | "HIGH_UTILIZATION";
 };
@@ -33,6 +35,7 @@ type CapacitySummary = {
   totals: {
     resources: number;
     unavailableResources: number;
+    blockedMinutes: number;
     capacityMinutes: number;
     allocatedMinutes: number;
     remainingMinutes: number;
@@ -115,7 +118,7 @@ export function OperationsCapacityPanel() {
           </p>
           <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">Kaynak Kapasitesi</h2>
           <p className="mt-1 max-w-2xl text-xs text-[var(--muted)]">
-            Seçilen zaman penceresinde oda ve Inventory ekipmanlarının gerçek rezervasyon yükünü gösterir. Hazırlık ve temizlik tamponları allocation süresine dahildir.
+            Seçilen zaman penceresinde oda ve Inventory ekipmanlarının gerçek rezervasyon yükünü gösterir. Hazırlık/temizlik tamponları ve planlı kaynak blokları kapasite hesabına dahildir.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-[190px_190px_auto]">
@@ -140,24 +143,26 @@ export function OperationsCapacityPanel() {
 
       {summary ? (
         <>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
             <Metric label="Kaynak" value={String(summary.totals.resources)} />
             <Metric label="Kullanım" value={`%${summary.totals.utilizationPercent.toLocaleString("tr-TR")}`} />
             <Metric label="Rezerve" value={formatMinutes(summary.totals.allocatedMinutes)} />
+            <Metric label="Bloklu" value={formatMinutes(summary.totals.blockedMinutes)} />
             <Metric label="Kalan" value={formatMinutes(summary.totals.remainingMinutes)} />
             <Metric label="Kullanılamaz" value={String(summary.totals.unavailableResources)} />
           </div>
 
           <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
             <div className="overflow-hidden rounded-[18px] border border-[var(--line)]">
-              <div className="grid grid-cols-[minmax(0,1fr)_90px_100px_110px] gap-3 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
-                <span>Kategori</span><span>Kaynak</span><span>Kullanım</span><span>Kalan</span>
+              <div className="grid grid-cols-[minmax(0,1fr)_80px_90px_90px_100px] gap-3 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
+                <span>Kategori</span><span>Kaynak</span><span>Kullanım</span><span>Bloklu</span><span>Kalan</span>
               </div>
               {summary.categories.length ? summary.categories.map((category) => (
-                <div key={`${category.resourceType}:${category.category}`} className="grid grid-cols-[minmax(0,1fr)_90px_100px_110px] gap-3 border-b border-[var(--line)] px-4 py-3 text-xs last:border-b-0">
+                <div key={`${category.resourceType}:${category.category}`} className="grid grid-cols-[minmax(0,1fr)_80px_90px_90px_100px] gap-3 border-b border-[var(--line)] px-4 py-3 text-xs last:border-b-0">
                   <div><p className="font-semibold text-[var(--ink)]">{category.category}</p><p className="mt-1 text-[var(--muted)]">{category.resourceType === "ROOM" ? "Oda / Kabin" : "Cihaz / Ekipman"}{category.unavailableResources ? ` · ${category.unavailableResources} kullanılamaz` : ""}</p></div>
                   <span className="text-[var(--muted)]">{category.totalResources}</span>
                   <span className="font-semibold text-[var(--ink)]">%{category.utilizationPercent.toLocaleString("tr-TR")}</span>
+                  <span className="text-[var(--muted)]">{formatMinutes(category.blockedMinutes)}</span>
                   <span className="text-[var(--muted)]">{formatMinutes(category.remainingMinutes)}</span>
                 </div>
               )) : <div className="px-4 py-8 text-center text-sm text-[var(--muted)]">Bu şubede hesaplanabilir kaynak bulunmuyor.</div>}
@@ -173,7 +178,7 @@ export function OperationsCapacityPanel() {
                       <div><p className="text-xs font-semibold text-[var(--ink)]">{item.category}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{reasonLabel[item.reason]}</p></div>
                       <span className="text-xs font-semibold text-[var(--ink)]">%{item.utilizationPercent.toLocaleString("tr-TR")}</span>
                     </div>
-                    <p className="mt-2 text-[11px] text-[var(--muted)]">Kalan {formatMinutes(item.remainingMinutes)}{item.unavailableResources ? ` · ${item.unavailableResources} kaynak kullanılamaz` : ""}</p>
+                    <p className="mt-2 text-[11px] text-[var(--muted)]">Kalan {formatMinutes(item.remainingMinutes)}{item.blockedMinutes ? ` · ${formatMinutes(item.blockedMinutes)} bloklu` : ""}{item.unavailableResources ? ` · ${item.unavailableResources} kaynak kullanılamaz` : ""}</p>
                   </div>
                 )) : <p className="rounded-[14px] bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">Seçilen aralıkta kritik kaynak darboğazı yok.</p>}
               </div>
