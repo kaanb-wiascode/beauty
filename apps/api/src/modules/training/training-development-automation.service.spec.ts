@@ -14,7 +14,7 @@ describe('TrainingDevelopmentAutomationService', () => {
       }
       return [];
     });
-    const execute = jest.fn(async () => 1);
+    const execute = jest.fn(async (..._args: unknown[]) => 1);
     const tx = { $queryRawUnsafe: query, $executeRawUnsafe: execute };
     const prisma = { $queryRawUnsafe: query, $executeRawUnsafe: execute, $transaction: (fn: any) => fn(tx) };
     const service = new TrainingDevelopmentAutomationService(prisma as any, tenant as any, {} as any);
@@ -25,7 +25,7 @@ describe('TrainingDevelopmentAutomationService', () => {
 
   it('delegates learning-path materialization to the existing program assignment engine', async () => {
     const query = jest.fn(async () => [{ id:'i2', itemType:'PROGRAM', programId:'prog1', trainingAssignmentId:null, programAssignmentId:null, staffId:'s1', branchId:'b1' }]);
-    const execute = jest.fn(async () => 1);
+    const execute = jest.fn(async (..._args: unknown[]) => 1);
     const programs = { assign: jest.fn(async () => ({ programAssignmentId:'pa1', status:'ASSIGNED' })) };
     const prisma = { $queryRawUnsafe: query, $executeRawUnsafe: execute };
     const service = new TrainingDevelopmentAutomationService(prisma as any, tenant as any, programs as any);
@@ -36,7 +36,7 @@ describe('TrainingDevelopmentAutomationService', () => {
 
   it('closes linked IDP items when their training assignment is completed', async () => {
     const query = jest.fn(async () => [{ id:'i1', planId:'p1', status:'IN_PROGRESS', trainingAssignmentId:'a1', programAssignmentId:null, branchId:'b1', trainingStatus:'COMPLETED', programComplete:null }]);
-    const execute = jest.fn(async () => 1);
+    const execute = jest.fn(async (..._args: unknown[]) => 1);
     const tx = { $queryRawUnsafe: query, $executeRawUnsafe: execute };
     const prisma = { $transaction: (fn: any) => fn(tx) };
     const service = new TrainingDevelopmentAutomationService(prisma as any, tenant as any, {} as any);
