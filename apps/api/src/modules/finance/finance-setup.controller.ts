@@ -23,6 +23,12 @@ const costCenterSchema = z.object({
 export class FinanceSetupController {
   constructor(private readonly service: FinanceSetupService) {}
 
+  @Post('bootstrap-default-taxonomy')
+  @RequirePermission('finance', 'manage')
+  bootstrapDefaultTaxonomy() {
+    return this.service.bootstrapDefaultTaxonomy();
+  }
+
   @Get('expense-categories')
   listCategories() {
     return this.service.listCategories();
