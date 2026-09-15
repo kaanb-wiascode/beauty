@@ -4,6 +4,8 @@ import { VisitsModule } from '../visits/visits.module';
 import { OperationsAlertsController } from './operations-alerts.controller';
 import { OperationsAlertsService } from './operations-alerts.service';
 import { OperationsAllocationService } from './operations-allocation.service';
+import { OperationsAppointmentOutcomesController } from './operations-appointment-outcomes.controller';
+import { OperationsAppointmentOutcomesService } from './operations-appointment-outcomes.service';
 import { OperationsBranchChecklistsController } from './operations-branch-checklists.controller';
 import { OperationsBranchChecklistsService } from './operations-branch-checklists.service';
 import { OperationsCapacityService } from './operations-capacity.service';
@@ -41,6 +43,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsBranchChecklistsController,
     OperationsIncidentsController,
     OperationsAlertsController,
+    OperationsAppointmentOutcomesController,
     OperationsStaffAvailabilityController,
     OperationsUtilizationController,
     OperationsWaitlistController,
@@ -57,6 +60,7 @@ import { ServiceExecutionsService } from './service-executions.service';
     OperationsBranchChecklistsService,
     OperationsIncidentsService,
     OperationsAlertsService,
+    OperationsAppointmentOutcomesService,
     OperationsStaffAvailabilityService,
     OperationsUtilizationService,
     OperationsWaitlistService,
