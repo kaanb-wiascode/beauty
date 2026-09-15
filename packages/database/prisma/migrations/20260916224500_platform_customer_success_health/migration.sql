@@ -11,6 +11,29 @@ ALTER TABLE "platform_customer_accounts"
   ADD CONSTRAINT "platform_customer_accounts_risk_status_check"
     CHECK ("risk_status" IN ('LOW','MEDIUM','HIGH','CRITICAL'));
 
+INSERT INTO "platform_customer_accounts" ("tenant_id")
+SELECT t."id"
+FROM "tenants" t
+ON CONFLICT ("tenant_id") DO NOTHING;
+
+CREATE OR REPLACE FUNCTION platform_ensure_customer_account_on_tenant_insert()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+AS $$
+BEGIN
+  INSERT INTO "platform_customer_accounts" ("tenant_id")
+  VALUES (NEW."id")
+  ON CONFLICT ("tenant_id") DO NOTHING;
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS platform_ensure_customer_account_on_tenant_insert_trigger ON "tenants";
+CREATE TRIGGER platform_ensure_customer_account_on_tenant_insert_trigger
+AFTER INSERT ON "tenants"
+FOR EACH ROW
+EXECUTE FUNCTION platform_ensure_customer_account_on_tenant_insert();
+
 CREATE INDEX "platform_customer_accounts_success_portfolio_idx"
   ON "platform_customer_accounts" ("success_stage", "risk_status", "next_review_at");
 CREATE INDEX "platform_customer_accounts_segment_idx"
