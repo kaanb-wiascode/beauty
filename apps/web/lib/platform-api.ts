@@ -98,6 +98,12 @@ export type PlatformIamOverview = {
   }>;
 };
 
+export type PlatformAdminMutationResult = {
+  userId: string;
+  status: string;
+  roles: string[];
+};
+
 export type PlatformAuditList = {
   items: Array<{
     id: string;
@@ -133,9 +139,7 @@ export function listPlatformCustomers(params: {
   limit?: number;
   offset?: number;
 } = {}) {
-  return api<PlatformCustomerList>(
-    withQuery("/platform/customers", params),
-  );
+  return api<PlatformCustomerList>(withQuery("/platform/customers", params));
 }
 
 export function getPlatformCustomer360(tenantId: string) {
@@ -144,6 +148,39 @@ export function getPlatformCustomer360(tenantId: string) {
 
 export function getPlatformIamOverview() {
   return api<PlatformIamOverview>("/platform/iam");
+}
+
+export function provisionPlatformAdmin(input: { userId: string; roleSlug?: string; reason: string }) {
+  return api<PlatformAdminMutationResult>("/platform/iam/admins", { method: "POST", body: input });
+}
+
+export function setPlatformAdminStatus(userId: string, input: { status: "ACTIVE" | "SUSPENDED"; reason: string }) {
+  return api<PlatformAdminMutationResult>(`/platform/iam/admins/${userId}/status`, { method: "POST", body: input });
+}
+
+export function assignPlatformRole(userId: string, input: { roleSlug: string; reason: string }) {
+  return api<PlatformAdminMutationResult>(`/platform/iam/admins/${userId}/roles`, { method: "POST", body: input });
+}
+
+export function removePlatformRole(userId: string, roleSlug: string, reason: string) {
+  return api<PlatformAdminMutationResult>(`/platform/iam/admins/${userId}/roles/${roleSlug}/remove`, {
+    method: "POST",
+    body: { reason },
+  });
+}
+
+export function grantPlatformRolePermission(roleSlug: string, input: { resource: string; action: string; reason: string }) {
+  return api<{ roleSlug: string; permissions: Array<{ resource: string; action: string }> }>(
+    `/platform/iam/roles/${roleSlug}/permissions`,
+    { method: "POST", body: input },
+  );
+}
+
+export function revokePlatformRolePermission(roleSlug: string, input: { resource: string; action: string; reason: string }) {
+  return api<{ roleSlug: string; permissions: Array<{ resource: string; action: string }> }>(
+    `/platform/iam/roles/${roleSlug}/permissions/revoke`,
+    { method: "POST", body: input },
+  );
 }
 
 export function listPlatformAuditEvents(params: {
