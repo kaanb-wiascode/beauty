@@ -199,6 +199,6 @@ export class ReportScheduleRunsRepository {
         ${branch}
       ORDER BY r."scheduled_for" DESC, r."id" DESC
       LIMIT ${bounded}
-    `;
+    `);
   }
 }
