@@ -2,6 +2,7 @@ import {
   Body,
   Controller,
   Get,
+  InternalServerErrorException,
   Param,
   Post,
   Query,
@@ -59,6 +60,9 @@ export class ReportsController {
   ) {
     const input = reportExportSchema.parse(body);
     const job = await this.reportsService.createExportJob(request.user, input);
+    if (!job) {
+      throw new InternalServerErrorException('Report export job was not created');
+    }
     return toPublicReportExportJob(job);
   }
 
