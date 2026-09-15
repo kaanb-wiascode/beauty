@@ -19,18 +19,26 @@ describe('CRM reporting lifecycle contract', () => {
     });
   });
 
+  it('keeps open opportunity metrics available across report lifecycle columns', () => {
+    const definition = getReportDefinition(reportKeys.crmPerformance);
+    expect(definition?.availableColumns).toContain('openOpportunityCount');
+    expect(definition?.defaultColumns).toContain('openOpportunityCount');
+    expect(definition?.exportableColumns).toContain('openOpportunityCount');
+    expect(definition?.sortableColumns).toContain('openOpportunityCount');
+  });
+
   it('supports preview comparison export history saved views and schedules', () => {
     expect(reportPreviewSchema.parse({ reportKey: 'crm.performance', filters }).reportKey).toBe('crm.performance');
     expect(reportComparisonSchema.parse({ reportKey: 'crm.performance', filters }).reportKey).toBe('crm.performance');
     expect(reportExportSchema.parse({ reportKey: 'crm.performance', format: 'CSV', filters }).reportKey).toBe('crm.performance');
     expect(reportExportListSchema.parse({ reportKey: 'crm.performance' }).reportKey).toBe('crm.performance');
     expect(createReportSavedViewSchema.parse({
-      name: 'CRM görünümü', reportKey: 'crm.performance', filters, columns: ['date','leadCount'],
+      name: 'CRM görünümü', reportKey: 'crm.performance', filters, columns: ['date','leadCount','openOpportunityCount'],
     }).reportKey).toBe('crm.performance');
     expect(createReportScheduleSchema.parse({
       name: 'CRM haftalık', reportKey: 'crm.performance', frequency: 'WEEKLY', timezone: 'Europe/Istanbul',
       localHour: 9, localMinute: 0, dayOfWeek: 1, format: 'XLSX', datePreset: 'LAST_7_DAYS',
-      columns: ['date','leadCount','convertedCount'],
+      columns: ['date','leadCount','convertedCount','openOpportunityCount'],
     }).reportKey).toBe('crm.performance');
   });
 });
