@@ -36,6 +36,7 @@ import { QualityModule } from './modules/quality/quality.module';
 import { TrainingModule } from './modules/training/training.module';
 import { CrmModule } from './modules/crm/crm.module';
 import { VisitsModule } from './modules/visits/visits.module';
+import { OperationsModule } from './modules/operations/operations.module';
 import { CorporateCommunicationsModule } from './modules/corporate-communications/corporate-communications.module';
 import { MarketingVendorsController } from './modules/corporate-communications/marketing-vendors.controller';
 import { MarketingVendorsService } from './modules/corporate-communications/marketing-vendors.service';
@@ -86,6 +87,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     TrainingModule,
     CrmModule,
     VisitsModule,
+    OperationsModule,
     CorporateCommunicationsModule,
   ],
   controllers: [MarketingVendorsController, CreatorsController, PrMediaController],
