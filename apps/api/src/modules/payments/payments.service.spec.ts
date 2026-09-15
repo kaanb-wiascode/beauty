@@ -1,4 +1,4 @@
-import { ConflictException } from '@nestjs/common';
+import { ConflictException, NotFoundException } from '@nestjs/common';
 import { PaymentsService } from './payments.service';
 
 describe('PaymentsService concurrency guards', () => {
@@ -21,6 +21,8 @@ describe('PaymentsService concurrency guards', () => {
           id: 'payment-a',
           status: 'COMPLETED',
         }),
+        findMany: jest.fn().mockResolvedValue([]),
+        count: jest.fn().mockResolvedValue(0),
         create: jest.fn().mockResolvedValue({ id: 'payment-a' }),
         updateMany: jest.fn().mockResolvedValue({ count: 1 }),
         aggregate: jest.fn(),
@@ -36,10 +38,22 @@ describe('PaymentsService concurrency guards', () => {
       getRoleScope: jest.fn().mockReturnValue('BRANCH'),
     } as any;
 
+    const organizationScope = {
+      getBranchScopedWhere: jest.fn().mockResolvedValue({
+        tenantId: 'tenant-a',
+        branchId: 'branch-a',
+      }),
+      getPaymentScopedWhere: jest.fn().mockResolvedValue({
+        tenantId: 'tenant-a',
+        appointment: { branchId: 'branch-a' },
+      }),
+    } as any;
+
     return {
-      service: new PaymentsService(prisma, tenant),
+      service: new PaymentsService(prisma, tenant, organizationScope),
       prisma,
       tenant,
+      organizationScope,
     };
   }
 
@@ -135,10 +149,46 @@ describe('PaymentsService concurrency guards', () => {
     );
   });
 
+  it('scopes company payment summaries to explicitly assigned branches', async () => {
+    const { service, prisma, organizationScope } = createService();
+    organizationScope.getPaymentScopedWhere.mockResolvedValue({
+      tenantId: 'tenant-a',
+      appointment: {
+        branchId: { in: ['branch-a', 'branch-b'] },
+      },
+    });
+    prisma.payment.aggregate
+      .mockResolvedValueOnce({ _sum: { amount: 0 }, _count: { _all: 0 } })
+      .mockResolvedValueOnce({ _sum: { amount: 0 }, _count: { _all: 0 } });
+    prisma.payment.groupBy.mockResolvedValue([]);
+
+    await service.summary({
+      from: new Date('2026-09-01T00:00:00.000Z'),
+      to: new Date('2026-09-30T23:59:59.999Z'),
+    });
+
+    expect(prisma.payment.aggregate).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: 'tenant-a',
+          appointment: {
+            branchId: { in: ['branch-a', 'branch-b'] },
+          },
+        }),
+      }),
+    );
+  });
+
   it('scopes central company-wide payment summaries to the authenticated company', async () => {
-    const { service, prisma, tenant } = createService();
-    tenant.getBranchId.mockReturnValue(null);
-    tenant.getRoleScope.mockReturnValue('CENTRAL');
+    const { service, prisma, organizationScope } = createService();
+    organizationScope.getPaymentScopedWhere.mockResolvedValue({
+      tenantId: 'tenant-a',
+      appointment: {
+        branch: {
+          companyId: 'company-a',
+        },
+      },
+    });
     prisma.payment.aggregate
       .mockResolvedValueOnce({ _sum: { amount: 0 }, _count: { _all: 0 } })
       .mockResolvedValueOnce({ _sum: { amount: 0 }, _count: { _all: 0 } });
@@ -161,6 +211,36 @@ describe('PaymentsService concurrency guards', () => {
         }),
       }),
     );
+  });
+
+  it('does not refund a payment outside the effective organization scope', async () => {
+    const { service, prisma, organizationScope } = createService();
+    organizationScope.getPaymentScopedWhere.mockResolvedValue({
+      tenantId: 'tenant-a',
+      appointment: {
+        branchId: { in: ['branch-a'] },
+      },
+    });
+    prisma.payment.findFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.refund('payment-other-branch', { reason: 'Customer request' } as any),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(prisma.payment.findFirst).toHaveBeenCalledWith({
+      where: {
+        id: 'payment-other-branch',
+        tenantId: 'tenant-a',
+        appointment: {
+          branchId: { in: ['branch-a'] },
+        },
+      },
+      select: {
+        id: true,
+        status: true,
+      },
+    });
+    expect(prisma.payment.updateMany).not.toHaveBeenCalled();
   });
 
   it('keeps refunds separate from gross collections and derives net correctly', async () => {
