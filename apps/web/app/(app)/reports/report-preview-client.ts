@@ -5,12 +5,22 @@ export type ReportPreviewSort = {
   direction: "asc" | "desc";
 };
 
+export type ReportPreviewSummary = {
+  rowCount: number;
+  appointmentCount: number;
+  completedAppointments: number;
+  completionRate: number;
+  collected: number;
+  averageCollectedPerCompleted: number;
+};
+
 export type ReportPreviewMeta = {
   page: number;
   limit: number;
   total: number;
   totalPages: number;
   sort: ReportPreviewSort | null;
+  summary: ReportPreviewSummary;
 };
 
 export type TableReportPreview<TRow> = {
