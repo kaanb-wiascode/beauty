@@ -30,6 +30,7 @@ import { FinanceModule } from './modules/finance/finance.module';
 import { PlatformAuditModule } from './modules/platform-audit/platform-audit.module';
 import { PlatformControlPlaneModule } from './modules/platform-control-plane/platform-control-plane.module';
 import { OrganizationAdminModule } from './modules/organization-admin/organization-admin.module';
+import { TemporaryAccessModule } from './modules/temporary-access/temporary-access.module';
 import { TaxModule } from './modules/tax/tax.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { SupplierNetworkModule } from './modules/supplier-network/supplier-network.module';
@@ -82,6 +83,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     PlatformAuditModule,
     PlatformControlPlaneModule,
     OrganizationAdminModule,
+    TemporaryAccessModule,
     TaxModule,
     MarketplaceModule,
     SupplierNetworkModule,
