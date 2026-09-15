@@ -36,6 +36,7 @@ export type ReportExportJobRecord = {
   includeCharts: boolean;
   rowCount: number | null;
   storageKey: string | null;
+  scheduleRunId: string | null;
   errorCode: string | null;
   errorSummary: string | null;
   requestedAt: Date;
@@ -49,13 +50,14 @@ type CreateExportJob = {
   user: JwtPayload;
   input: ReportExportInput;
   columns: readonly string[];
+  scheduleRunId?: string | null;
 };
 
 @Injectable()
 export class ReportExportJobsRepository {
   constructor(private readonly prisma: PrismaService) {}
 
-  async create({ user, input, columns }: CreateExportJob) {
+  async create({ user, input, columns, scheduleRunId = null }: CreateExportJob) {
     const id = randomUUID();
     const filters = JSON.stringify({
       from: input.filters.from.toISOString(),
@@ -68,15 +70,18 @@ export class ReportExportJobsRepository {
       INSERT INTO "report_export_jobs" (
         "id", "tenant_id", "company_id", "branch_id", "role_scope",
         "membership_id", "role_id", "requested_by", "report_key", "format",
-        "status", "filters", "columns", "sort", "include_summary", "include_charts"
+        "status", "filters", "columns", "sort", "include_summary", "include_charts",
+        "schedule_run_id"
       ) VALUES (
         ${id}, ${user.tenantId}, ${user.companyId}, ${user.branchId},
         ${user.roleScope}, ${user.membershipId}, ${user.roleId}, ${user.sub},
         ${input.reportKey}, ${input.format}, 'QUEUED', CAST(${filters} AS jsonb),
         CAST(${selectedColumns} AS jsonb),
         ${sort === null ? Prisma.sql`NULL` : Prisma.sql`CAST(${sort} AS jsonb)`},
-        ${input.includeSummary}, ${input.includeCharts}
+        ${input.includeSummary}, ${input.includeCharts}, ${scheduleRunId}
       )
+      ON CONFLICT ("schedule_run_id") DO UPDATE
+      SET "schedule_run_id" = EXCLUDED."schedule_run_id"
       RETURNING ${this.returningColumns()}
     `);
 
@@ -241,6 +246,7 @@ export class ReportExportJobsRepository {
       "include_charts" AS "includeCharts",
       "row_count" AS "rowCount",
       "storage_key" AS "storageKey",
+      "schedule_run_id" AS "scheduleRunId",
       "error_code" AS "errorCode",
       "error_summary" AS "errorSummary",
       "requested_at" AS "requestedAt",
@@ -272,6 +278,7 @@ export class ReportExportJobsRepository {
       ${prefix}"include_charts" AS "includeCharts",
       ${prefix}"row_count" AS "rowCount",
       ${prefix}"storage_key" AS "storageKey",
+      ${prefix}"schedule_run_id" AS "scheduleRunId",
       ${prefix}"error_code" AS "errorCode",
       ${prefix}"error_summary" AS "errorSummary",
       ${prefix}"requested_at" AS "requestedAt",
