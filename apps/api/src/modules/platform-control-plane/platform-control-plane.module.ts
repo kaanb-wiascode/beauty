@@ -13,15 +13,22 @@ import { PlatformIamReadService } from './platform-iam-read.service';
 import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
 import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
 import { PlatformReadModelService } from './platform-read-model.service';
+import { PlatformSubscriptionsController } from './platform-subscriptions.controller';
+import { PlatformSubscriptionsService } from './platform-subscriptions.service';
 import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
 
 @Module({
   imports: [PlatformAuditModule],
-  controllers: [PlatformControlPlaneController, PlatformCustomerContextController],
+  controllers: [
+    PlatformControlPlaneController,
+    PlatformCustomerContextController,
+    PlatformSubscriptionsController,
+  ],
   providers: [
     PlatformReadModelService,
     PlatformTenantGovernanceReadService,
     PlatformCustomerContextService,
+    PlatformSubscriptionsService,
     PlatformIamReadService,
     PlatformIamMutationService,
     PlatformAuditReadService,
@@ -35,6 +42,7 @@ import { PlatformTenantGovernanceReadService } from './platform-tenant-governanc
     PlatformReadModelService,
     PlatformTenantGovernanceReadService,
     PlatformCustomerContextService,
+    PlatformSubscriptionsService,
   ],
 })
 export class PlatformControlPlaneModule {}
