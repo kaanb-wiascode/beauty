@@ -10,18 +10,33 @@ import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import type { ReportExportJobRecord } from './report-export-jobs.repository';
 import { reportDefinitions } from './report-definition';
 
+export type ReportExportAuthSnapshot = {
+  tenantId: string;
+  companyId: string;
+  branchId: string | null;
+  roleScope: JwtPayload['roleScope'];
+  membershipId: string;
+  roleId: string;
+  requestedBy: string;
+  reportKey: string;
+};
+
 @Injectable()
 export class ReportExportAuthorizationService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async validate(job: ReportExportJobRecord): Promise<JwtPayload> {
+  validate(job: ReportExportJobRecord): Promise<JwtPayload> {
+    return this.validateSnapshot(job);
+  }
+
+  async validateSnapshot(snapshot: ReportExportAuthSnapshot): Promise<JwtPayload> {
     const membership = await this.prisma.membership.findFirst({
       where: {
-        id: job.membershipId,
-        userId: job.requestedBy,
-        tenantId: job.tenantId,
-        companyId: job.companyId,
-        roleId: job.roleId,
+        id: snapshot.membershipId,
+        userId: snapshot.requestedBy,
+        tenantId: snapshot.tenantId,
+        companyId: snapshot.companyId,
+        roleId: snapshot.roleId,
         status: 'ACTIVE',
       },
       include: {
@@ -53,15 +68,15 @@ export class ReportExportAuthorizationService {
       throw new UnauthorizedException('Export role organization is invalid');
     }
 
-    if (membership.role.scope !== job.roleScope) {
+    if (membership.role.scope !== snapshot.roleScope) {
       throw new UnauthorizedException('Export role scope is out of date');
     }
 
-    if (job.branchId) {
+    if (snapshot.branchId) {
       const branch = await this.prisma.branch.findFirst({
         where: {
-          id: job.branchId,
-          companyId: job.companyId,
+          id: snapshot.branchId,
+          companyId: snapshot.companyId,
           status: 'ACTIVE',
         },
         select: { id: true },
@@ -71,20 +86,20 @@ export class ReportExportAuthorizationService {
         throw new ForbiddenException('Export branch access is no longer valid');
       }
 
-      if (job.roleScope === 'BRANCH' || job.roleScope === 'COMPANY') {
+      if (snapshot.roleScope === 'BRANCH' || snapshot.roleScope === 'COMPANY') {
         const hasBranchAccess = membership.branchAccesses.some(
-          (access) => access.branchId === job.branchId,
+          (access) => access.branchId === snapshot.branchId,
         );
         if (!hasBranchAccess) {
           throw new ForbiddenException('Export branch access is no longer valid');
         }
       }
-    } else if (job.roleScope === 'BRANCH') {
+    } else if (snapshot.roleScope === 'BRANCH') {
       throw new UnauthorizedException('Export branch context is required');
     }
 
     const definition = reportDefinitions.find(
-      (report) => report.key === job.reportKey,
+      (report) => report.key === snapshot.reportKey,
     );
     if (!definition) {
       throw new ForbiddenException('Export report definition is no longer valid');
@@ -92,7 +107,7 @@ export class ReportExportAuthorizationService {
 
     const rolePermissions = await this.prisma.rolePermission.findMany({
       where: {
-        roleId: job.roleId,
+        roleId: snapshot.roleId,
         OR: definition.requiredPermissions.map((permission) => ({
           permission: {
             resource: permission.resource,
@@ -100,8 +115,8 @@ export class ReportExportAuthorizationService {
           },
         })),
         role: {
-          tenantId: job.tenantId,
-          OR: [{ companyId: null }, { companyId: job.companyId }],
+          tenantId: snapshot.tenantId,
+          OR: [{ companyId: null }, { companyId: snapshot.companyId }],
         },
       },
       select: {
@@ -129,13 +144,13 @@ export class ReportExportAuthorizationService {
     }
 
     return {
-      sub: job.requestedBy,
-      tenantId: job.tenantId,
-      membershipId: job.membershipId,
-      roleId: job.roleId,
-      companyId: job.companyId,
-      branchId: job.branchId,
-      roleScope: job.roleScope,
+      sub: snapshot.requestedBy,
+      tenantId: snapshot.tenantId,
+      membershipId: snapshot.membershipId,
+      roleId: snapshot.roleId,
+      companyId: snapshot.companyId,
+      branchId: snapshot.branchId,
+      roleScope: snapshot.roleScope,
     };
   }
 }
