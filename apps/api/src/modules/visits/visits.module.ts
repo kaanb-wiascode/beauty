@@ -7,5 +7,6 @@ import { VisitsService } from './visits.service';
 @Module({
   controllers: [VisitsController],
   providers: [VisitsService, VisitCheckoutReadinessService],
+  exports: [VisitCheckoutReadinessService],
 })
 export class VisitsModule {}
