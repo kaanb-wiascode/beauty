@@ -1,6 +1,6 @@
 import type {
   CreateReportScheduleInput,
-  reportScheduleDatePresets,
+  ReportScheduleDatePreset,
 } from './dto/report-schedule.dto';
 
 type LocalParts = {
@@ -11,8 +11,6 @@ type LocalParts = {
   minute: number;
   weekday: number;
 };
-
-type DatePreset = (typeof reportScheduleDatePresets)[number];
 
 const weekdayMap: Record<string, number> = {
   Mon: 1,
@@ -114,7 +112,7 @@ function localBoundary(
 }
 
 export function resolveReportScheduleDateRange(
-  preset: DatePreset,
+  preset: ReportScheduleDatePreset,
   timeZone: string,
   now = new Date(),
 ) {
