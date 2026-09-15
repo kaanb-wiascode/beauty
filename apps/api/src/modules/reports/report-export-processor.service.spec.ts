@@ -2,6 +2,8 @@ import { ForbiddenException } from '@nestjs/common';
 
 import { ReportExportProcessorService } from './report-export-processor.service';
 
+const storageKey = 'tenants/tenant-1/report-exports/export-1/file.csv';
+
 const job = {
   id: 'export-1',
   tenantId: 'tenant-1',
@@ -36,6 +38,7 @@ const job = {
 function createProcessor() {
   const jobs = {
     claimNextQueued: jest.fn().mockResolvedValue(job),
+    findById: jest.fn().mockResolvedValue(job),
     markReady: jest.fn().mockResolvedValue({ ...job, status: 'READY' }),
     markFailed: jest.fn().mockResolvedValue({ ...job, status: 'FAILED' }),
   } as any;
@@ -61,9 +64,8 @@ function createProcessor() {
     generate: jest.fn().mockReturnValue('\uFEFFname,collected\r\nAda Yılmaz,1250\r\n'),
   } as any;
   const storage = {
-    write: jest.fn().mockResolvedValue(
-      'tenants/tenant-1/report-exports/export-1/file.csv',
-    ),
+    write: jest.fn().mockResolvedValue(storageKey),
+    delete: jest.fn().mockResolvedValue(undefined),
   } as any;
   const config = {
     get: jest.fn().mockReturnValue('14'),
@@ -107,11 +109,78 @@ describe('ReportExportProcessorService', () => {
       'export-1',
       expect.objectContaining({
         rowCount: 1,
-        storageKey: 'tenants/tenant-1/report-exports/export-1/file.csv',
+        storageKey,
         expiresAt: expect.any(Date),
       }),
     );
     expect(jobs.markFailed).not.toHaveBeenCalled();
+    expect(storage.delete).not.toHaveBeenCalled();
+  });
+
+  it('deletes the exact uploaded artifact when READY transition fails before commit', async () => {
+    const { processor, jobs, storage } = createProcessor();
+    jobs.markReady.mockRejectedValueOnce(new Error('database unavailable'));
+    jobs.findById.mockResolvedValueOnce(job);
+
+    await processor.processNext();
+
+    expect(jobs.findById).toHaveBeenCalledWith(
+      expect.objectContaining({ tenantId: 'tenant-1', companyId: 'company-1' }),
+      'export-1',
+    );
+    expect(storage.delete).toHaveBeenCalledWith(storageKey);
+    expect(jobs.markFailed).toHaveBeenCalledWith('export-1', {
+      errorCode: 'EXPORT_GENERATION_FAILED',
+      errorSummary: 'The export could not be generated.',
+    });
+  });
+
+  it('preserves the artifact when READY committed but acknowledgement failed', async () => {
+    const { processor, jobs, storage } = createProcessor();
+    const persistedReady = {
+      ...job,
+      status: 'READY',
+      storageKey,
+      rowCount: 1,
+      completedAt: new Date(),
+      expiresAt: new Date(),
+    };
+    jobs.markReady.mockRejectedValueOnce(new Error('connection reset after commit'));
+    jobs.findById.mockResolvedValueOnce(persistedReady);
+
+    await expect(processor.processNext()).resolves.toEqual(persistedReady);
+
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(jobs.markFailed).not.toHaveBeenCalled();
+  });
+
+  it('keeps the primary transition failure when orphan cleanup also fails', async () => {
+    const { processor, jobs, storage } = createProcessor();
+    jobs.markReady.mockRejectedValueOnce(new Error('database unavailable'));
+    jobs.findById.mockResolvedValueOnce(job);
+    storage.delete.mockRejectedValueOnce(new Error('storage unavailable'));
+
+    await processor.processNext();
+
+    expect(storage.delete).toHaveBeenCalledWith(storageKey);
+    expect(jobs.markFailed).toHaveBeenCalledWith('export-1', {
+      errorCode: 'EXPORT_GENERATION_FAILED',
+      errorSummary: 'The export could not be generated.',
+    });
+  });
+
+  it('does not delete an artifact when persisted state cannot be verified', async () => {
+    const { processor, jobs, storage } = createProcessor();
+    jobs.markReady.mockRejectedValueOnce(new Error('database unavailable'));
+    jobs.findById.mockRejectedValueOnce(new Error('database still unavailable'));
+
+    await processor.processNext();
+
+    expect(storage.delete).not.toHaveBeenCalled();
+    expect(jobs.markFailed).toHaveBeenCalledWith('export-1', {
+      errorCode: 'EXPORT_GENERATION_FAILED',
+      errorSummary: 'The export could not be generated.',
+    });
   });
 
   it('fails safely when current authorization was revoked', async () => {
