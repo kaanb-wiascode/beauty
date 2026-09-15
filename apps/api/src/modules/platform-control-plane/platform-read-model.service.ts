@@ -4,6 +4,8 @@ import { PrismaService } from '@beauty-erp/database';
 
 type CommandCenterCounts = {
   tenantCount: number;
+  restrictedTenantCount: number;
+  suspendedTenantCount: number;
   companyCount: number;
   activeCompanyCount: number;
   branchCount: number;
@@ -17,6 +19,10 @@ type TenantListRow = {
   slug: string;
   createdAt: Date;
   updatedAt: Date;
+  lifecycleState: string;
+  lifecycleReason: string | null;
+  lifecycleVersion: number;
+  lifecycleUpdatedAt: Date | null;
   companyCount: number;
   activeCompanyCount: number;
   branchCount: number;
@@ -59,6 +65,8 @@ export class PlatformReadModelService {
     const [counts] = await this.prisma.$queryRaw<CommandCenterCounts[]>`
       SELECT
         (SELECT COUNT(*)::int FROM tenants) AS "tenantCount",
+        (SELECT COUNT(*)::int FROM platform_tenant_lifecycle WHERE state = 'RESTRICTED') AS "restrictedTenantCount",
+        (SELECT COUNT(*)::int FROM platform_tenant_lifecycle WHERE state = 'SUSPENDED') AS "suspendedTenantCount",
         (SELECT COUNT(*)::int FROM companies) AS "companyCount",
         (SELECT COUNT(*)::int FROM companies WHERE status = 'ACTIVE') AS "activeCompanyCount",
         (SELECT COUNT(*)::int FROM branches) AS "branchCount",
@@ -72,6 +80,8 @@ export class PlatformReadModelService {
         name: string;
         slug: string;
         createdAt: Date;
+        lifecycleState: string;
+        lifecycleVersion: number;
         activeMembershipCount: number;
         activeBranchCount: number;
       }>
@@ -81,6 +91,8 @@ export class PlatformReadModelService {
         t.name,
         t.slug,
         t."createdAt",
+        COALESCE(ptl.state, 'ACTIVE')::text AS "lifecycleState",
+        COALESCE(ptl.version, 0)::int AS "lifecycleVersion",
         (
           SELECT COUNT(*)::int
           FROM memberships m
@@ -95,6 +107,7 @@ export class PlatformReadModelService {
             AND b.status = 'ACTIVE'
         ) AS "activeBranchCount"
       FROM tenants t
+      LEFT JOIN platform_tenant_lifecycle ptl ON ptl.tenant_id = t.id
       ORDER BY t."createdAt" DESC, t.id ASC
       LIMIT 5
     `;
@@ -102,6 +115,8 @@ export class PlatformReadModelService {
     return {
       counts: counts ?? {
         tenantCount: 0,
+        restrictedTenantCount: 0,
+        suspendedTenantCount: 0,
         companyCount: 0,
         activeCompanyCount: 0,
         branchCount: 0,
@@ -125,6 +140,10 @@ export class PlatformReadModelService {
         t.slug,
         t."createdAt",
         t."updatedAt",
+        COALESCE(ptl.state, 'ACTIVE')::text AS "lifecycleState",
+        ptl.reason AS "lifecycleReason",
+        COALESCE(ptl.version, 0)::int AS "lifecycleVersion",
+        ptl.updated_at AS "lifecycleUpdatedAt",
         (
           SELECT COUNT(*)::int FROM companies c
           WHERE c."tenantId" = t.id
@@ -150,13 +169,16 @@ export class PlatformReadModelService {
           WHERE m."tenantId" = t.id AND m.status = 'ACTIVE'
         ) AS "activeMembershipCount",
         (
-          SELECT COUNT(*)::int FROM memberships m
+          SELECT COUNT(*)::int
+          FROM memberships m
+          INNER JOIN roles r ON r.id = m."roleId"
           WHERE m."tenantId" = t.id
-            AND m.role = 'OWNER'
+            AND r.slug = 'owner'
             AND m.status = 'ACTIVE'
         ) AS "ownerCount",
         COUNT(*) OVER()::int AS "totalCount"
       FROM tenants t
+      LEFT JOIN platform_tenant_lifecycle ptl ON ptl.tenant_id = t.id
       WHERE ${search.length === 0}
          OR t.name ILIKE ${searchPattern}
          OR t.slug ILIKE ${searchPattern}
@@ -183,6 +205,10 @@ export class PlatformReadModelService {
         t.slug,
         t."createdAt",
         t."updatedAt",
+        COALESCE(ptl.state, 'ACTIVE')::text AS "lifecycleState",
+        ptl.reason AS "lifecycleReason",
+        COALESCE(ptl.version, 0)::int AS "lifecycleVersion",
+        ptl.updated_at AS "lifecycleUpdatedAt",
         (
           SELECT COUNT(*)::int FROM companies c
           WHERE c."tenantId" = t.id
@@ -208,12 +234,15 @@ export class PlatformReadModelService {
           WHERE m."tenantId" = t.id AND m.status = 'ACTIVE'
         ) AS "activeMembershipCount",
         (
-          SELECT COUNT(*)::int FROM memberships m
+          SELECT COUNT(*)::int
+          FROM memberships m
+          INNER JOIN roles r ON r.id = m."roleId"
           WHERE m."tenantId" = t.id
-            AND m.role = 'OWNER'
+            AND r.slug = 'owner'
             AND m.status = 'ACTIVE'
         ) AS "ownerCount"
       FROM tenants t
+      LEFT JOIN platform_tenant_lifecycle ptl ON ptl.tenant_id = t.id
       WHERE t.id = ${tenantId}
       LIMIT 1
     `;
@@ -240,17 +269,16 @@ export class PlatformReadModelService {
       ORDER BY c."createdAt" ASC, c.id ASC
     `;
 
-    const membershipBreakdown = await this.prisma.$queryRaw<
-      MembershipBreakdownRow[]
-    >`
+    const membershipBreakdown = await this.prisma.$queryRaw<MembershipBreakdownRow[]>`
       SELECT
-        m.role::text AS role,
+        r.slug AS role,
         m.status::text AS status,
         COUNT(*)::int AS count
       FROM memberships m
+      INNER JOIN roles r ON r.id = m."roleId"
       WHERE m."tenantId" = ${tenantId}
-      GROUP BY m.role, m.status
-      ORDER BY m.role::text ASC, m.status::text ASC
+      GROUP BY r.slug, m.status
+      ORDER BY r.slug ASC, m.status::text ASC
     `;
 
     return {
