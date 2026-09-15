@@ -4,6 +4,7 @@ import {
   Get,
   Param,
   Post,
+  Query,
   Req,
   UnauthorizedException,
   UseGuards,
@@ -13,7 +14,9 @@ import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard'
 import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
 import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
 import { PlatformGoLiveService } from './platform-go-live.service';
+import { PlatformOwnerInvitationService } from './platform-owner-invitation.service';
 import { PlatformProvisioningCoordinatorService } from './platform-provisioning-coordinator.service';
+import { PlatformProvisioningOperationsService } from './platform-provisioning-operations.service';
 
 type PlatformRequest = {
   user?: { sub?: string };
@@ -25,6 +28,8 @@ type PlatformRequest = {
 export class PlatformProvisioningController {
   constructor(
     private readonly provisioning: PlatformProvisioningCoordinatorService,
+    private readonly operations: PlatformProvisioningOperationsService,
+    private readonly ownerInvitation: PlatformOwnerInvitationService,
     private readonly goLive: PlatformGoLiveService,
   ) {}
 
@@ -44,6 +49,7 @@ export class PlatformProvisioningController {
       primaryBranchCode?: string;
       sourceType?: 'MANUAL' | 'OPPORTUNITY';
       sourceId?: string;
+      ownerEmail?: string;
       reason?: string;
     },
   ) {
@@ -53,6 +59,28 @@ export class PlatformProvisioningController {
       body.reason ?? '',
       this.correlationId(request),
     );
+  }
+
+  @Get()
+  @RequirePlatformPermission('provisioning', 'read')
+  list(
+    @Query('status') status?: string,
+    @Query('sourceType') sourceType?: string,
+    @Query('tenantId') tenantId?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.operations.list({
+      status,
+      sourceType,
+      tenantId,
+      limit: limit == null || limit.trim() === '' ? undefined : Number(limit),
+    });
+  }
+
+  @Get('summary')
+  @RequirePlatformPermission('provisioning', 'read')
+  summary() {
+    return this.operations.summary();
   }
 
   @Get(':runId')
@@ -73,6 +101,24 @@ export class PlatformProvisioningController {
       this.actor(request),
       body.reason ?? '',
       this.correlationId(request),
+    );
+  }
+
+  @Post(':runId/owner-invitation')
+  @RequirePlatformPermission('provisioning', 'manage')
+  queueOwnerInvitation(
+    @Req() request: PlatformRequest,
+    @Param('runId') runId: string,
+    @Body() body: { ownerEmail?: string; reason?: string },
+  ) {
+    return this.ownerInvitation.bindAndQueue(
+      runId,
+      body.ownerEmail ?? '',
+      this.actor(request),
+      {
+        reason: body.reason ?? null,
+        correlationId: this.correlationId(request),
+      },
     );
   }
 
