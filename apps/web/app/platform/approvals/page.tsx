@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   decidePlatformPrivilegedOperation,
+  executePlatformPrivilegedOperation,
   listPlatformPrivilegedOperations,
   type PlatformPrivilegedOperationList,
 } from "@/lib/platform-api";
@@ -19,6 +20,7 @@ export default function PlatformApprovalsPage() {
   const [offset, setOffset] = useState(0);
   const [data, setData] = useState<PlatformPrivilegedOperationList | null>(null);
   const [error, setError] = useState("");
+  const [notice, setNotice] = useState("");
   const [decisionReason, setDecisionReason] = useState("");
   const [busyId, setBusyId] = useState<string | null>(null);
   const limit = 25;
@@ -56,12 +58,33 @@ export default function PlatformApprovalsPage() {
     }
     setBusyId(requestId);
     setError("");
+    setNotice("");
     try {
       await decidePlatformPrivilegedOperation(requestId, { decision, reason });
       setDecisionReason("");
+      setNotice(decision === "APPROVED" ? "Operasyon onaylandı. Execution için hazır." : "Operasyon reddedildi.");
       await load();
     } catch (reasonValue) {
       setError(reasonValue instanceof ApiError ? reasonValue.message : "Karar kaydedilemedi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function execute(requestId: string) {
+    setBusyId(requestId);
+    setError("");
+    setNotice("");
+    try {
+      const result = await executePlatformPrivilegedOperation(requestId);
+      setNotice(
+        result.status === "EXECUTED"
+          ? "Onaylanmış operasyon atomik olarak uygulandı ve audit kaydı oluşturuldu."
+          : "Onay penceresi dolduğu için operasyon EXPIRED olarak kapatıldı.",
+      );
+      await load();
+    } catch (reasonValue) {
+      setError(reasonValue instanceof ApiError ? reasonValue.message : "Operasyon çalıştırılamadı.");
     } finally {
       setBusyId(null);
     }
@@ -73,17 +96,17 @@ export default function PlatformApprovalsPage() {
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300">Privileged governance</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">Approval Queue</h1>
-          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/45">Yüksek riskli platform operasyonları için ikinci kişi kontrolü, karar izi ve 24 saatlik onay penceresi.</p>
+          <p className="mt-3 max-w-3xl text-sm leading-6 text-white/45">Yüksek riskli platform operasyonları için ikinci kişi kontrolü, immutable karar izi ve tek kullanımlık execution gate.</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {['PENDING', 'APPROVED', 'REJECTED', 'EXECUTED', ''].map((value) => (
+          {["PENDING", "APPROVED", "REJECTED", "EXECUTED", "EXPIRED", ""].map((value) => (
             <button
-              key={value || 'ALL'}
+              key={value || "ALL"}
               type="button"
               onClick={() => { setStatus(value); setOffset(0); }}
               className={`rounded-xl border px-3 py-2 text-[10px] font-semibold transition ${status === value ? "border-violet-400/30 bg-violet-400/10 text-violet-100" : "border-white/10 bg-white/[.035] text-white/45 hover:bg-white/[.06]"}`}
             >
-              {value || 'TÜMÜ'}
+              {value || "TÜMÜ"}
             </button>
           ))}
         </div>
@@ -107,11 +130,12 @@ export default function PlatformApprovalsPage() {
               className="mt-2 w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none placeholder:text-white/20 focus:border-violet-400/30"
             />
           </label>
-          <p className="pb-3 text-[10px] text-white/30">En az 8 karakter · karar append-only audit’e yazılır</p>
+          <p className="pb-3 text-[10px] text-white/30">En az 8 karakter · requester kendi talebini karara bağlayamaz</p>
         </div>
       </section>
 
       {error ? <div className="rounded-2xl border border-red-400/20 bg-red-400/[.07] px-5 py-4 text-sm text-red-100">{error}</div> : null}
+      {notice ? <div className="rounded-2xl border border-emerald-400/20 bg-emerald-400/[.07] px-5 py-4 text-sm text-emerald-100">{notice}</div> : null}
 
       <section className="space-y-3">
         {data?.items.map((item) => (
@@ -126,11 +150,12 @@ export default function PlatformApprovalsPage() {
                 <p className="mt-4 text-sm font-semibold text-white">{item.reason}</p>
                 <div className="mt-3 grid gap-2 text-[10px] text-white/35 sm:grid-cols-2 xl:grid-cols-4">
                   <span>Requester: {item.requesterEmail}</span>
-                  <span>Target: {item.targetEntityType ?? '—'} / {item.targetEntityId ?? '—'}</span>
+                  <span>Target: {item.targetEntityType ?? "—"} / {item.targetEntityId ?? "—"}</span>
                   <span>Created: {dateTime.format(new Date(item.createdAt))}</span>
                   <span>Expires: {dateTime.format(new Date(item.expiresAt))}</span>
                 </div>
-                {item.approverEmail ? <p className="mt-2 text-[10px] text-white/35">Approver: {item.approverEmail}{item.decisionReason ? ` · ${item.decisionReason}` : ''}</p> : null}
+                {item.approverEmail ? <p className="mt-2 text-[10px] text-white/35">Approver: {item.approverEmail}{item.decisionReason ? ` · ${item.decisionReason}` : ""}</p> : null}
+                {item.executedAt ? <p className="mt-2 text-[10px] text-emerald-300/60">Executed: {dateTime.format(new Date(item.executedAt))}</p> : null}
               </div>
 
               {item.status === "PENDING" ? (
@@ -140,18 +165,23 @@ export default function PlatformApprovalsPage() {
                     disabled={busyId === item.id}
                     onClick={() => void decide(item.id, "REJECTED")}
                     className="rounded-xl border border-red-400/20 bg-red-400/[.07] px-3 py-2 text-[10px] font-semibold text-red-100 transition hover:bg-red-400/[.12] disabled:opacity-40"
-                  >
-                    Reddet
-                  </button>
+                  >Reddet</button>
                   <button
                     type="button"
                     disabled={busyId === item.id}
                     onClick={() => void decide(item.id, "APPROVED")}
                     className="rounded-xl border border-emerald-400/20 bg-emerald-400/[.08] px-3 py-2 text-[10px] font-semibold text-emerald-100 transition hover:bg-emerald-400/[.13] disabled:opacity-40"
-                  >
-                    Onayla
-                  </button>
+                  >Onayla</button>
                 </div>
+              ) : null}
+
+              {item.status === "APPROVED" ? (
+                <button
+                  type="button"
+                  disabled={busyId === item.id}
+                  onClick={() => void execute(item.id)}
+                  className="shrink-0 rounded-xl border border-violet-400/25 bg-violet-400/[.1] px-4 py-2.5 text-[10px] font-semibold text-violet-100 transition hover:bg-violet-400/[.16] disabled:opacity-40"
+                >Execute</button>
               ) : null}
             </div>
           </article>
@@ -173,12 +203,10 @@ export default function PlatformApprovalsPage() {
 function Metric({ label, value }: { label: string; value: number }) {
   return <div className="rounded-[22px] border border-white/10 bg-white/[.035] p-5"><p className="text-[9px] font-semibold uppercase tracking-[.15em] text-white/35">{label}</p><p className="mt-3 text-2xl font-semibold text-white">{value}</p></div>;
 }
-
 function Risk({ value }: { value: string }) {
   const className = value === "CRITICAL" ? "border-red-400/25 bg-red-400/[.08] text-red-200" : value === "HIGH" ? "border-amber-400/25 bg-amber-400/[.08] text-amber-200" : "border-sky-400/20 bg-sky-400/[.07] text-sky-200";
   return <span className={`rounded-full border px-2.5 py-1 text-[9px] font-semibold ${className}`}>{value}</span>;
 }
-
 function Status({ value }: { value: string }) {
   return <span className="rounded-full border border-white/10 bg-white/[.04] px-2.5 py-1 text-[9px] font-semibold text-white/50">{value}</span>;
 }
