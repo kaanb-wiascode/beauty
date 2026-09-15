@@ -4,6 +4,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { LmsService } from './lms.service';
 
 type CriterionInput={code:string;label:string;description?:string|null;weightPercent:number;minimumScore?:number|null;isRequired?:boolean};
+type TrainingPracticalRubricDb = Pick<PrismaService, '$queryRawUnsafe'> | Prisma.TransactionClient;
 
 @Injectable()
 export class TrainingPracticalRubricService {
@@ -41,7 +42,7 @@ export class TrainingPracticalRubricService {
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
-  async get(versionId:string,db:any=this.prisma){
+  async get(versionId:string,db:TrainingPracticalRubricDb=this.prisma){
     const c=this.context();
     const rows=await db.$queryRawUnsafe<any[]>(`SELECT r.id,r.title,r.instructions,r.course_version_id AS "courseVersionId",v.status,v.practical_pass_score AS "practicalPassScore" FROM training_practical_rubrics r JOIN training_course_versions v ON v.id=r.course_version_id WHERE r.tenant_id=$1::text AND r.company_id=$2::text AND r.course_version_id=$3::text LIMIT 1`,c.tenantId,c.companyId,versionId);
     if(!rows.length)throw new NotFoundException('Practical rubric not found.');
