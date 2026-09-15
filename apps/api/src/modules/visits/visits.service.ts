@@ -101,8 +101,8 @@ export class VisitsService {
 
         const existing = await tx.$queryRawUnsafe<VisitRow[]>(
           `SELECT * FROM "visits"
-           WHERE "tenantId" = $1::uuid
-             AND "branchId" = $2::uuid
+           WHERE "tenantId" = $1
+             AND "branchId" = $2
              AND "idempotencyKey" = $3
            LIMIT 1`,
           tenantId,
@@ -133,9 +133,9 @@ export class VisitsService {
           `SELECT v.*
            FROM "visits" v
            INNER JOIN "visit_appointments" va ON va."visitId" = v."id"
-           WHERE va."appointmentId" = $1::uuid
-             AND v."tenantId" = $2::uuid
-             AND v."branchId" = $3::uuid
+           WHERE va."appointmentId" = $1
+             AND v."tenantId" = $2
+             AND v."branchId" = $3
            LIMIT 1`,
           input.appointmentId,
           tenantId,
@@ -205,9 +205,9 @@ export class VisitsService {
           "source", "status", "note", "idempotencyKey", "version",
           "createdByMembershipId", "createdAt", "updatedAt"
         ) VALUES (
-          $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+          $1, $2, $3, $4, $5,
           $6::"VisitSource", 'EXPECTED'::"VisitStatus", $7, $8, 1,
-          $9::uuid, $10, $10
+          $9, $10, $10
         )`,
         visitId,
         tenantId,
@@ -224,7 +224,7 @@ export class VisitsService {
       if (appointmentId) {
         await tx.$executeRawUnsafe(
           `INSERT INTO "visit_appointments" ("visitId", "appointmentId")
-           VALUES ($1::uuid, $2::uuid)`,
+           VALUES ($1, $2)`,
           visitId,
           appointmentId,
         );
@@ -235,7 +235,7 @@ export class VisitsService {
           "id", "visitId", "tenantId", "branchId", "actorMembershipId",
           "eventType", "fromStatus", "toStatus", "note", "createdAt"
         ) VALUES (
-          $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+          $1, $2, $3, $4, $5,
           'VISIT_CREATED', NULL, 'EXPECTED'::"VisitStatus", $6, $7
         )`,
         randomUUID(),
@@ -254,7 +254,7 @@ export class VisitsService {
              "checkedInAt" = $2,
              "version" = 2,
              "updatedAt" = $2
-         WHERE "id" = $1::uuid AND "version" = 1
+         WHERE "id" = $1 AND "version" = 1
          RETURNING *`,
         visitId,
         now,
@@ -269,7 +269,7 @@ export class VisitsService {
           "id", "visitId", "tenantId", "branchId", "actorMembershipId",
           "eventType", "fromStatus", "toStatus", "note", "createdAt"
         ) VALUES (
-          $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+          $1, $2, $3, $4, $5,
           'CHECKED_IN', 'EXPECTED'::"VisitStatus",
           'CHECKED_IN'::"VisitStatus", $6, $7
         )`,
@@ -289,10 +289,7 @@ export class VisitsService {
   async findAll(input: ListVisitsInput) {
     const { tenantId, branchId } = this.context();
     const params: unknown[] = [tenantId, branchId];
-    const conditions = [
-      `v."tenantId" = $1::uuid`,
-      `v."branchId" = $2::uuid`,
-    ];
+    const conditions = [`v."tenantId" = $1`, `v."branchId" = $2`];
 
     if (input.status) {
       params.push(input.status);
@@ -301,7 +298,7 @@ export class VisitsService {
 
     if (input.customerId) {
       params.push(input.customerId);
-      conditions.push(`v."customerId" = $${params.length}::uuid`);
+      conditions.push(`v."customerId" = $${params.length}`);
     }
 
     params.push(input.limit);
@@ -320,9 +317,9 @@ export class VisitsService {
     const { tenantId, branchId } = this.context();
     const visits = await this.prisma.$queryRawUnsafe<VisitRow[]>(
       `SELECT * FROM "visits"
-       WHERE "id" = $1::uuid
-         AND "tenantId" = $2::uuid
-         AND "branchId" = $3::uuid
+       WHERE "id" = $1
+         AND "tenantId" = $2
+         AND "branchId" = $3
        LIMIT 1`,
       id,
       tenantId,
@@ -336,20 +333,19 @@ export class VisitsService {
 
     const [appointments, timeline] = await Promise.all([
       this.prisma.$queryRawUnsafe<Array<{ appointmentId: string }>>(
-        `SELECT "appointmentId"::text AS "appointmentId"
+        `SELECT "appointmentId"
          FROM "visit_appointments"
-         WHERE "visitId" = $1::uuid
+         WHERE "visitId" = $1
          ORDER BY "createdAt" ASC`,
         id,
       ),
       this.prisma.$queryRawUnsafe<VisitEventRow[]>(
-        `SELECT "id"::text, "visitId"::text,
-                "actorMembershipId"::text, "eventType", "fromStatus",
-                "toStatus", "note", "createdAt"
+        `SELECT "id", "visitId", "actorMembershipId", "eventType",
+                "fromStatus", "toStatus", "note", "createdAt"
          FROM "visit_events"
-         WHERE "visitId" = $1::uuid
-           AND "tenantId" = $2::uuid
-           AND "branchId" = $3::uuid
+         WHERE "visitId" = $1
+           AND "tenantId" = $2
+           AND "branchId" = $3
          ORDER BY "createdAt" ASC, "id" ASC`,
         id,
         tenantId,
@@ -374,9 +370,9 @@ export class VisitsService {
     return this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRawUnsafe<VisitRow[]>(
         `SELECT * FROM "visits"
-         WHERE "id" = $1::uuid
-           AND "tenantId" = $2::uuid
-           AND "branchId" = $3::uuid
+         WHERE "id" = $1
+           AND "tenantId" = $2
+           AND "branchId" = $3
          LIMIT 1`,
         id,
         tenantId,
@@ -412,9 +408,9 @@ export class VisitsService {
              "version" = "version" + 1,
              "updatedAt" = $6
              ${timestampSet}
-         WHERE "id" = $1::uuid
-           AND "tenantId" = $2::uuid
-           AND "branchId" = $3::uuid
+         WHERE "id" = $1
+           AND "tenantId" = $2
+           AND "branchId" = $3
            AND "version" = $5
          RETURNING *`,
         id,
@@ -436,7 +432,7 @@ export class VisitsService {
           "id", "visitId", "tenantId", "branchId", "actorMembershipId",
           "eventType", "fromStatus", "toStatus", "note", "createdAt"
         ) VALUES (
-          $1::uuid, $2::uuid, $3::uuid, $4::uuid, $5::uuid,
+          $1, $2, $3, $4, $5,
           $6, $7::"VisitStatus", $8::"VisitStatus", $9, $10
         )`,
         randomUUID(),
