@@ -22,6 +22,12 @@ const sections = [
     glyph: "◷",
   },
   {
+    href: "/settings/permission-simulation",
+    title: "Yetki Simülasyonu",
+    description: "Bir Kullanıcının Etkin Rol, Şube, Geçici Ve Yüksek Riskli Yetkilerini Güvenli Şekilde Önizleyin.",
+    glyph: "◉",
+  },
+  {
     href: "/settings/security",
     title: "Güvenlik Merkezi",
     description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.",
@@ -32,6 +38,12 @@ const sections = [
     title: "Roller Ve Yetkiler",
     description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.",
     glyph: "◇",
+  },
+  {
+    href: "/settings/role-clone",
+    title: "Rol Klonlama",
+    description: "Mevcut Bir Rolün Kapsam Ve Yetki Setinden Tenant-Owned Yeni Roller Türetin.",
+    glyph: "◇+",
   },
   {
     href: "/settings/organization",
