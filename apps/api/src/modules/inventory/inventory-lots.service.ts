@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
-import { TenantContext } from '../../common/tenant/tenant-context';
+import { InventoryScopeService } from './inventory-scope.service';
 
 export interface InventoryLotListInput {
   productId?: string;
@@ -28,19 +28,11 @@ export interface CreateInventoryLotInput {
 export class InventoryLotsService {
   constructor(
     private readonly prisma: PrismaService,
-    private readonly tenantContext: TenantContext,
+    private readonly inventoryScope: InventoryScopeService,
   ) {}
 
-  private context() {
-    return {
-      tenantId: this.tenantContext.getTenantId(),
-      companyId: this.tenantContext.getCompanyId(),
-      branchId: this.tenantContext.getBranchId(),
-    };
-  }
-
   async list(input: InventoryLotListInput = {}) {
-    const { companyId, branchId } = this.context();
+    const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     const expiringWithinDays = input.expiringWithinDays ?? null;
 
     return this.prisma.$queryRawUnsafe<any[]>(
@@ -64,7 +56,7 @@ export class InventoryLotsService {
        JOIN inventory_warehouses w
          ON w.id=l.warehouse_id AND w.company_id=l.company_id
        WHERE l.company_id=$1::text
-         AND ($2::text IS NULL OR w.branch_id=$2::text)
+         AND ($2::text[] IS NULL OR w.branch_id=ANY($2::text[]))
          AND ($3::text IS NULL OR l.product_id=$3::text)
          AND ($4::text IS NULL OR l.warehouse_id=$4::text)
          AND (
@@ -76,7 +68,7 @@ export class InventoryLotsService {
          )
        ORDER BY l.expires_at ASC NULLS LAST,l.created_at DESC`,
       companyId,
-      branchId,
+      branchIds,
       input.productId ?? null,
       input.warehouseId ?? null,
       expiringWithinDays,
@@ -84,7 +76,8 @@ export class InventoryLotsService {
   }
 
   async create(input: CreateInventoryLotInput) {
-    const { tenantId, companyId, branchId } = this.context();
+    const { tenantId, companyId, branchIds } =
+      await this.inventoryScope.getWarehouseScope();
     const quantity = Number(input.quantity);
     const unitCost = Number(input.unitCost ?? 0);
     const lotNumber = input.lotNumber.trim();
@@ -118,15 +111,15 @@ export class InventoryLotsService {
            WHERE id=$1::text
              AND company_id=$2::text
              AND status='ACTIVE'
-             AND ($3::text IS NULL OR branch_id=$3::text)
+             AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))
            LIMIT 1`,
           input.warehouseId,
           companyId,
-          branchId,
+          branchIds,
         );
         if (!warehouses.length) {
           throw new BadRequestException(
-            'Warehouse is outside the active branch scope.',
+            'Warehouse is outside the active organization scope.',
           );
         }
 
