@@ -21,6 +21,7 @@ import {
   listWaitlistEntriesSchema,
 } from './dto/waitlist.dto';
 import { OperationsWaitlistMatchingService } from './operations-waitlist-matching.service';
+import { OperationsWaitlistRecoveryService } from './operations-waitlist-recovery.service';
 import { OperationsWaitlistService } from './operations-waitlist.service';
 
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -29,6 +30,7 @@ export class OperationsWaitlistController {
   constructor(
     private readonly waitlist: OperationsWaitlistService,
     private readonly matching: OperationsWaitlistMatchingService,
+    private readonly recovery: OperationsWaitlistRecoveryService,
   ) {}
 
   @Get()
@@ -41,6 +43,18 @@ export class OperationsWaitlistController {
   @RequirePermission('appointments', 'update')
   create(@Body() body: unknown) {
     return this.waitlist.create(createWaitlistEntrySchema.parse(body));
+  }
+
+  @Post('recovery/:appointmentId/candidates')
+  @RequirePermission('appointments', 'read')
+  recoveryCandidates(
+    @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
+    @Body() body: unknown,
+  ) {
+    return this.recovery.candidates(
+      appointmentId,
+      findWaitlistMatchesSchema.parse(body),
+    );
   }
 
   @Post(':entryId/matches')
