@@ -55,6 +55,7 @@ const REPORT_ROUTES: Record<ReportCatalogKey, string> = {
   "customers.performance": "/reports/customers",
   "sales.performance": "/reports/sales",
   "appointments.performance": "/reports/appointments",
+  "branches.performance": "/reports/branches",
   "finance.performance": "/reports/finance",
   "inventory.performance": "/reports/inventory",
   "procurement.performance": "/reports/procurement",
