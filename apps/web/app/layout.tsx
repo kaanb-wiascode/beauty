@@ -10,8 +10,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Beauty ERP",
-  description: "Beauty salon management system",
+  title: {
+    default: "VALOO",
+    template: "%s | VALOO",
+  },
+  description: "Güzellik ve hizmet işletmeleri için operasyon, CRM ve ERP platformu.",
 };
 
 export default function RootLayout({

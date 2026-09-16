@@ -5,7 +5,9 @@ allowBuilds:
   '@prisma/client': false
   '@prisma/engines': false
   argon2: true
+  cpu-features: false
   prisma: false
+  ssh2: true
   unrs-resolver: false
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.18'

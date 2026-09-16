@@ -1,16 +1,80 @@
+import { randomUUID } from 'node:crypto';
+import type { NextFunction, Request, Response } from 'express';
 import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { PrismaExceptionFilter } from './common/database/prisma-exception.filter';
+import { ZodExceptionFilter } from './common/validation/zod-exception.filter';
+
+const LOCAL_CORS_ORIGINS = [
+  'http://localhost:3001',
+  'http://127.0.0.1:3001',
+];
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create(AppModule, { rawBody: true });
+  const express = app.getHttpAdapter().getInstance();
+
+  express.disable('x-powered-by');
+  if (process.env.TRUST_PROXY === 'true') {
+    express.set('trust proxy', 1);
+  }
+
+  app.enableShutdownHooks();
+
+  app.use((request: Request, response: Response, next: NextFunction) => {
+    const incomingRequestId = request.header('x-request-id')?.trim();
+    const requestId =
+      incomingRequestId && incomingRequestId.length <= 128
+        ? incomingRequestId
+        : randomUUID();
+    const startedAt = process.hrtime.bigint();
+
+    response.setHeader('x-request-id', requestId);
+    response.setHeader('x-content-type-options', 'nosniff');
+    response.setHeader('x-frame-options', 'DENY');
+    response.setHeader('referrer-policy', 'no-referrer');
+    response.setHeader(
+      'permissions-policy',
+      'camera=(), microphone=(), geolocation=()',
+    );
+
+    if (process.env.NODE_ENV !== 'test') {
+      response.on('finish', () => {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        process.stdout.write(
+          `${JSON.stringify({
+            type: 'http_request',
+            requestId,
+            method: request.method,
+            path: request.path,
+            statusCode: response.statusCode,
+            durationMs: Math.round(durationMs * 100) / 100,
+            timestamp: new Date().toISOString(),
+          })}\n`,
+        );
+      });
+    }
+
+    next();
+  });
+
+  app.useGlobalFilters(
+    new PrismaExceptionFilter(),
+    new ZodExceptionFilter(),
+  );
+
+  const configuredOrigins = process.env.CORS_ORIGINS?.split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
 
   app.enableCors({
-    origin: [
-      'http://localhost:3001',
-      'http://127.0.0.1:3001',
-    ],
+    origin:
+      configuredOrigins && configuredOrigins.length > 0
+        ? configuredOrigins
+        : LOCAL_CORS_ORIGINS,
     credentials: true,
   });
+
   await app.listen(process.env.PORT ?? 3000);
 }
 bootstrap();

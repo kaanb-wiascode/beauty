@@ -1,0 +1,19 @@
+model FinancialObligationPaymentAllocation {
+  id               String   @id @default(uuid())
+  tenantId         String   @map("tenant_id")
+  companyId        String   @map("company_id")
+  branchId         String?  @map("branch_id")
+  obligationId     String   @map("obligation_id")
+  expensePaymentId String   @map("expense_payment_id")
+  amount           Decimal  @db.Decimal(14, 2)
+  allocatedBy      String   @map("allocated_by")
+  allocatedAt      DateTime @default(now()) @map("allocated_at")
+  reversedBy       String?  @map("reversed_by")
+  reversedAt       DateTime? @map("reversed_at")
+  reversalReason   String?  @map("reversal_reason")
+
+  @@index([tenantId, companyId, branchId, allocatedAt], map: "financial_obligation_payment_allocations_scope_idx")
+  @@index([obligationId], map: "financial_obligation_payment_allocations_obligation_idx")
+  @@index([expensePaymentId], map: "financial_obligation_payment_allocations_payment_idx")
+  @@map("financial_obligation_payment_allocations")
+}

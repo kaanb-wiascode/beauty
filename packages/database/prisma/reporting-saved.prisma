@@ -1,0 +1,21 @@
+model ReportSavedView {
+  id           String    @id
+  tenantId     String    @map("tenant_id")
+  companyId    String    @map("company_id")
+  branchId     String?   @map("branch_id")
+  ownerId      String    @map("owner_id")
+  reportKey    String    @map("report_key")
+  name         String
+  filters      Json
+  columns      Json
+  sort         Json?
+  isFavorite   Boolean   @default(false) @map("is_favorite")
+  lastOpenedAt DateTime? @map("last_opened_at")
+  createdAt    DateTime  @default(now()) @map("created_at")
+  updatedAt    DateTime  @default(now()) @map("updated_at")
+
+  @@index([tenantId, companyId, ownerId, updatedAt], map: "report_saved_views_owner_updated_idx")
+  @@index([tenantId, companyId, ownerId, reportKey], map: "report_saved_views_owner_report_idx")
+  @@index([tenantId, companyId, ownerId, lastOpenedAt], map: "report_saved_views_owner_last_opened_idx")
+  @@map("report_saved_views")
+}

@@ -10,9 +10,45 @@ function canUseStorage() {
   return typeof window !== "undefined";
 }
 
+type AccessTokenPayload = {
+  branchId?: string | null;
+};
+
+function decodeAccessTokenPayload(token: string): AccessTokenPayload | null {
+  if (typeof window === "undefined") return null;
+
+  const [, encodedPayload] = token.split(".");
+  if (!encodedPayload) return null;
+
+  try {
+    const normalized = encodedPayload.replace(/-/g, "+").replace(/_/g, "/");
+    const padded = normalized.padEnd(
+      normalized.length + ((4 - (normalized.length % 4)) % 4),
+      "=",
+    );
+    return JSON.parse(window.atob(padded)) as AccessTokenPayload;
+  } catch {
+    return null;
+  }
+}
+
 export function getAccessToken(): string | null {
   if (!canUseStorage()) return null;
   return window.localStorage.getItem(ACCESS_TOKEN_KEY);
+}
+
+export function getActiveBranchId(): string | null {
+  const token = getAccessToken();
+  if (!token) return null;
+
+  const payload = decodeAccessTokenPayload(token);
+  return typeof payload?.branchId === "string" && payload.branchId
+    ? payload.branchId
+    : null;
+}
+
+export function hasActiveBranch(): boolean {
+  return Boolean(getActiveBranchId());
 }
 
 export function getRefreshToken(): string | null {
@@ -107,7 +143,5 @@ export function hasPermission(
   const membership = getStoredMembership();
   if (!membership) return false;
 
-  return membership.permissions.includes(
-    `${resource}.${action}`,
-  );
+  return membership.permissions.includes(`${resource}.${action}`);
 }

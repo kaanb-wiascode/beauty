@@ -1,0 +1,72 @@
+import { Module } from '@nestjs/common';
+import { ObjectStorageModule } from '../../common/storage/object-storage.module';
+import { CompetencyController } from './competency.controller';
+import { CompetencyService } from './competency.service';
+import { CompetencyReviewController } from './competency-review.controller';
+import { CompetencyReviewService } from './competency-review.service';
+import { CompetencyTrainingController } from './competency-training.controller';
+import { CompetencyTrainingService } from './competency-training.service';
+import { LmsController } from './lms.controller';
+import { LmsService } from './lms.service';
+import { PositionCompetencyController } from './position-competency.controller';
+import { PositionCompetencyService } from './position-competency.service';
+import { TrainingAnalyticsController } from './training-analytics.controller';
+import { TrainingAnalyticsService } from './training-analytics.service';
+import { TrainingAuthoringController } from './training-authoring.controller';
+import { TrainingAuthoringService } from './training-authoring.service';
+import { TrainingBranchAnalyticsController } from './training-branch-analytics.controller';
+import { TrainingBranchAnalyticsService } from './training-branch-analytics.service';
+import { TrainingBulkAssignmentController } from './training-bulk-assignment.controller';
+import { TrainingBulkAssignmentService } from './training-bulk-assignment.service';
+import { TrainingCertificateController } from './training-certificate.controller';
+import { TrainingCertificateService } from './training-certificate.service';
+import { TrainingCompetencyBridgeController } from './training-competency-bridge.controller';
+import { TrainingCompetencyBridgeService } from './training-competency-bridge.service';
+import { TrainingContentStorageController } from './training-content-storage.controller';
+import { TrainingContentStorageService } from './training-content-storage.service';
+import { TrainingCourseLifecycleController } from './training-course-lifecycle.controller';
+import { TrainingCourseLifecycleService } from './training-course-lifecycle.service';
+import { TrainingCourseModuleController } from './training-course-module.controller';
+import { TrainingCourseModuleService } from './training-course-module.service';
+import { TrainingDevelopmentAutomationService } from './training-development-automation.service';
+import { TrainingDevelopmentPlanService } from './training-development-plan.service';
+import { TrainingEffectivenessController } from './training-effectiveness.controller';
+import { TrainingEffectivenessFollowupController } from './training-effectiveness-followup.controller';
+import { TrainingEffectivenessFollowupService } from './training-effectiveness-followup.service';
+import { TrainingEffectivenessService } from './training-effectiveness.service';
+import { TrainingLearnerAssessmentController } from './training-learner-assessment.controller';
+import { TrainingLearnerAssessmentService } from './training-learner-assessment.service';
+import { TrainingLearnerController } from './training-learner.controller';
+import { TrainingLearnerDevelopmentController } from './training-learner-development.controller';
+import { TrainingLearnerDevelopmentService } from './training-learner-development.service';
+import { TrainingLearnerService } from './training-learner.service';
+import { TrainingLearnerPathController } from './training-learner-path.controller';
+import { TrainingLearnerPathService } from './training-learner-path.service';
+import { TrainingLearningPathController } from './training-learning-path.controller';
+import { TrainingLearningPathService } from './training-learning-path.service';
+import { TrainingLessonProgressController } from './training-lesson-progress.controller';
+import { TrainingLessonProgressService } from './training-lesson-progress.service';
+import { TrainingOperationsBridgeController } from './training-operations-bridge.controller';
+import { TrainingOperationsBridgeService } from './training-operations-bridge.service';
+import { TrainingPlanningController } from './training-planning.controller';
+import { TrainingPlanningService } from './training-planning.service';
+import { TrainingPracticalRubricController } from './training-practical-rubric.controller';
+import { TrainingPracticalRubricService } from './training-practical-rubric.service';
+import { TrainingProgramController } from './training-program.controller';
+import { TrainingProgramService } from './training-program.service';
+import { TrainingQuestionBankController } from './training-question-bank.controller';
+import { TrainingQuestionBankService } from './training-question-bank.service';
+import { TrainingReminderController } from './training-reminder.controller';
+import { TrainingReminderService } from './training-reminder.service';
+import { TrainingRoleAcademyController } from './training-role-academy.controller';
+import { TrainingRoleAcademyService } from './training-role-academy.service';
+import { TrainingController } from './training.controller';
+import { TrainingService } from './training.service';
+
+@Module({
+  imports: [ObjectStorageModule],
+  controllers:[TrainingController,TrainingAnalyticsController,TrainingAuthoringController,TrainingBranchAnalyticsController,TrainingBulkAssignmentController,TrainingLearnerController,TrainingLearnerDevelopmentController,TrainingLearnerAssessmentController,TrainingLearnerPathController,TrainingLearningPathController,TrainingReminderController,TrainingRoleAcademyController,TrainingPracticalRubricController,TrainingQuestionBankController,TrainingContentStorageController,TrainingCourseLifecycleController,TrainingCourseModuleController,TrainingOperationsBridgeController,CompetencyController,CompetencyReviewController,CompetencyTrainingController,LmsController,PositionCompetencyController,TrainingCertificateController,TrainingCompetencyBridgeController,TrainingEffectivenessController,TrainingEffectivenessFollowupController,TrainingLessonProgressController,TrainingPlanningController,TrainingProgramController],
+  providers:[TrainingService,TrainingAnalyticsService,TrainingAuthoringService,TrainingBranchAnalyticsService,TrainingBulkAssignmentService,TrainingLearnerService,TrainingLearnerDevelopmentService,TrainingLearnerAssessmentService,TrainingLearnerPathService,TrainingLearningPathService,TrainingReminderService,TrainingRoleAcademyService,TrainingPracticalRubricService,TrainingQuestionBankService,TrainingContentStorageService,TrainingCourseLifecycleService,TrainingCourseModuleService,TrainingDevelopmentAutomationService,TrainingDevelopmentPlanService,TrainingOperationsBridgeService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,PositionCompetencyService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingEffectivenessFollowupService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
+  exports:[TrainingService,TrainingAnalyticsService,TrainingAuthoringService,TrainingBranchAnalyticsService,TrainingBulkAssignmentService,TrainingLearnerService,TrainingLearnerDevelopmentService,TrainingLearnerAssessmentService,TrainingLearnerPathService,TrainingLearningPathService,TrainingReminderService,TrainingRoleAcademyService,TrainingPracticalRubricService,TrainingQuestionBankService,TrainingContentStorageService,TrainingCourseLifecycleService,TrainingCourseModuleService,TrainingDevelopmentAutomationService,TrainingDevelopmentPlanService,TrainingOperationsBridgeService,CompetencyService,CompetencyReviewService,CompetencyTrainingService,LmsService,PositionCompetencyService,TrainingCertificateService,TrainingCompetencyBridgeService,TrainingEffectivenessService,TrainingEffectivenessFollowupService,TrainingLessonProgressService,TrainingPlanningService,TrainingProgramService],
+})
+export class TrainingModule {}

@@ -6,6 +6,7 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { cx } from "@/lib/format";
+import { userErrorMessage, userNoticeMessage } from "@/lib/user-language";
 
 export function Alert({
   tone = "error",
@@ -17,6 +18,12 @@ export function Alert({
   onClose?: () => void;
 }) {
   const isError = tone === "error";
+  const safeChildren =
+    typeof children === "string"
+      ? isError
+        ? userErrorMessage(children)
+        : userNoticeMessage(children)
+      : children;
 
   return (
     <div
@@ -28,13 +35,13 @@ export function Alert({
           : "bg-[rgba(47,122,86,0.10)] text-[#2d5c45]",
       )}
     >
-      <p>{children}</p>
+      <p>{safeChildren}</p>
 
       {onClose ? (
         <button
           type="button"
           onClick={onClose}
-          aria-label="Uyarıyı kapat"
+          aria-label="Uyarıyı Kapat"
           className="shrink-0 rounded-lg px-1 py-0.5 text-xs font-medium opacity-60 transition-opacity duration-[180ms] hover:opacity-100 focus-visible:opacity-100"
         >
           Kapat

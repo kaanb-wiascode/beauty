@@ -1,4 +1,390 @@
 "use client";
-import {useEffect,useState} from "react";import{api,ApiError}from"@/lib/api";import{Alert,Button,Spinner}from"@/components/ui";
-type R={id:string;productName:string;warehouseName:string;currentQuantity:number|string;requestedQuantity:number|string;status:string;reason?:string;createdAt:string};const labels:any={PENDING:"Onay bekliyor",APPROVED:"Onaylandı",ORDERED:"Sipariş verildi",RECEIVED:"Teslim alındı",CANCELLED:"İptal"};
-export default function PurchasesPage(){const[rows,setRows]=useState<R[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");useEffect(()=>{api<R[]>("/inventory/purchase-requests").then(setRows).catch(e=>setError(e instanceof ApiError?e.message:"Satın alma talepleri yüklenemedi.")).finally(()=>setLoading(false))},[]);if(loading)return <div className="py-16"><Spinner label="Satın alma hazırlanıyor..."/></div>;return <div className="mx-auto max-w-[1440px] space-y-6 pb-10"><header className="flex items-end justify-between"><div><p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[#9a96a2]">SATIN ALMA</p><h1 className="text-[30px] font-semibold tracking-[-.035em] text-[#20202a]">Satın Alma Talepleri</h1><p className="mt-1 text-[14px] text-[#85828e]">Kritik stoklardan oluşan satın alma ihtiyaçlarını yönetin.</p></div><Button>+ Yeni talep</Button></header>{error&&<Alert onClose={()=>setError("")}>{error}</Alert>}<section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-white"><div className="grid grid-cols-[1.5fr_1fr_.7fr_.7fr_.9fr] border-b border-[var(--line)] bg-[#fbfafc] px-5 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[#96929d]"><span>Ürün</span><span>Lokasyon</span><span>Mevcut</span><span>Talep</span><span>Durum</span></div><div className="divide-y divide-[#f0eef2]">{rows.map(r=><div key={r.id} className="grid grid-cols-[1.5fr_1fr_.7fr_.7fr_.9fr] items-center px-5 py-4"><div><div className="text-[13px] font-semibold text-[#292833]">{r.productName}</div><div className="mt-1 text-[10px] text-[#a09ca6]">{r.reason||"Stok seviyesi düşük"}</div></div><span className="text-[12px] text-[#5f5b67]">{r.warehouseName}</span><span className="text-[12px] text-[#5f5b67]">{fmt(r.currentQuantity)}</span><span className="text-[12px] font-semibold text-[#292833]">{fmt(r.requestedQuantity)}</span><span className="w-fit rounded-full bg-[#f3effc] px-2.5 py-1 text-[9px] font-semibold text-[#7657b5]">{labels[r.status]||r.status}</span></div>)}{!rows.length&&<div className="py-16 text-center text-[13px] text-[#9995a0]">Henüz satın alma talebi yok.</div>}</div></section></div>};function fmt(v:any){return Number(v||0).toLocaleString("tr-TR",{maximumFractionDigits:3})}
+
+import Link from "next/link";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+
+import {
+  DataView,
+  DataViewMeta,
+  DataViewToolbar,
+  FilterChip,
+  SearchField,
+  ToolbarSelect,
+} from "@/components/data-view";
+import { Modal } from "@/components/modal";
+import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
+import { PurchaseOrderApprovalModal } from "./purchase-order-approval-modal";
+import { PurchaseOrderReceiptModal } from "./purchase-order-receipt-modal";
+
+type PurchaseRequest = {
+  id: string;
+  productId?: string;
+  productName: string;
+  sku?: string | null;
+  warehouseId?: string;
+  warehouseName: string;
+  currentQuantity: number | string;
+  requestedQuantity: number | string;
+  status: string;
+  reason?: string | null;
+  approvedAt?: string | null;
+  convertedAt?: string | null;
+  convertedPurchaseOrderId?: string | null;
+  createdAt: string;
+};
+
+type PurchaseOrder = {
+  id: string;
+  status: string;
+  totalAmount: number | string;
+  orderedAt: string | null;
+  receivedAt: string | null;
+  supplierName: string | null;
+  warehouseName: string;
+  itemCount: number;
+};
+
+type Supplier = {
+  id: string;
+  name: string;
+};
+
+type ViewMode = "requests" | "orders";
+
+const STATUS_LABELS: Record<string, string> = {
+  DRAFT: "Taslak",
+  PENDING: "Onay Bekliyor",
+  APPROVED: "Onaylandı",
+  ORDERED: "Sipariş Verildi",
+  RECEIVED: "Teslim Alındı",
+  CANCELLED: "İptal Edildi",
+};
+
+function statusTone(status: string) {
+  return status === "RECEIVED"
+    ? "bg-[var(--success-soft)] text-[var(--success)]"
+    : status === "CANCELLED"
+      ? "bg-[var(--danger-soft)] text-[var(--danger)]"
+      : status === "PENDING"
+        ? "bg-[var(--warning-soft)] text-[var(--warning)]"
+        : status === "ORDERED"
+          ? "bg-[var(--accent-soft)] text-[var(--accent)]"
+          : "bg-[var(--surface-2)] text-[var(--muted)]";
+}
+
+export default function PurchasesPage() {
+  const { showToast } = useToast();
+  const [requests, setRequests] = useState<PurchaseRequest[]>([]);
+  const [orders, setOrders] = useState<PurchaseOrder[]>([]);
+  const [suppliers, setSuppliers] = useState<Supplier[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [view, setView] = useState<ViewMode>("requests");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("");
+  const [busyId, setBusyId] = useState<string | null>(null);
+  const [convertTarget, setConvertTarget] = useState<PurchaseRequest | null>(null);
+  const [approvalTarget, setApprovalTarget] = useState<PurchaseOrder | null>(null);
+  const [receiptTarget, setReceiptTarget] = useState<PurchaseOrder | null>(null);
+  const [supplierId, setSupplierId] = useState("");
+  const [unitCost, setUnitCost] = useState("");
+  const [note, setNote] = useState("");
+  const canWrite = hasPermission("inventory", "write");
+
+  const load = useCallback(async (withSpinner = false) => {
+    if (withSpinner) setLoading(true);
+    setError("");
+    try {
+      const [requestRows, orderRows, supplierRows] = await Promise.all([
+        api<PurchaseRequest[]>("/procurement/purchase-requests"),
+        api<PurchaseOrder[]>("/procurement/purchase-orders"),
+        api<Supplier[]>("/inventory/suppliers"),
+      ]);
+      setRequests(requestRows);
+      setOrders(orderRows);
+      setSuppliers(supplierRows);
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Satın Alma Kayıtları Yüklenemedi.");
+    } finally {
+      if (withSpinner) setLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void load(true);
+  }, [load]);
+
+  const statuses = useMemo(() => {
+    const rows = view === "requests" ? requests : orders;
+    return Array.from(new Set(rows.map((row) => row.status))).sort();
+  }, [orders, requests, view]);
+
+  const visibleRequests = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("tr-TR");
+    return requests.filter((row) => {
+      if (status && row.status !== status) return false;
+      if (!query) return true;
+      return [row.productName, row.warehouseName, row.reason ?? "", row.sku ?? "", STATUS_LABELS[row.status] ?? row.status]
+        .some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
+    });
+  }, [requests, search, status]);
+
+  const visibleOrders = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("tr-TR");
+    return orders.filter((row) => {
+      if (status && row.status !== status) return false;
+      if (!query) return true;
+      return [row.supplierName ?? "", row.warehouseName, STATUS_LABELS[row.status] ?? row.status]
+        .some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
+    });
+  }, [orders, search, status]);
+
+  const pendingRequestCount = useMemo(() => requests.filter((row) => row.status === "PENDING").length, [requests]);
+  const openOrderCount = useMemo(() => orders.filter((row) => row.status !== "RECEIVED" && row.status !== "CANCELLED").length, [orders]);
+  const openOrderValue = useMemo(
+    () => orders.filter((row) => row.status !== "RECEIVED" && row.status !== "CANCELLED")
+      .reduce((total, row) => total + Number(row.totalAmount || 0), 0),
+    [orders],
+  );
+
+  function changeView(next: ViewMode) {
+    setView(next);
+    setSearch("");
+    setStatus("");
+  }
+
+  function openConvert(request: PurchaseRequest) {
+    setConvertTarget(request);
+    setSupplierId(suppliers[0]?.id ?? "");
+    setUnitCost("");
+    setNote("");
+    setError("");
+  }
+
+  function closeConvert() {
+    if (busyId) return;
+    setConvertTarget(null);
+    setSupplierId("");
+    setUnitCost("");
+    setNote("");
+  }
+
+  async function approveRequest(id: string) {
+    if (!canWrite || busyId) return;
+    setBusyId(id);
+    setError("");
+    try {
+      await api(`/procurement/purchase-requests/${id}/approve`, { method: "POST" });
+      showToast("Satın Alma Talebi Onaylandı.");
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Satın Alma Talebi Onaylanamadı.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function submitApproval(id: string) {
+    if (!canWrite || busyId) return;
+    setBusyId(id);
+    setError("");
+    try {
+      await api(`/procurement/purchase-orders/${id}/submit-approval`, { method: "POST" });
+      showToast("Satın Alma Siparişi Onaya Gönderildi.");
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Onay Süreci Başlatılamadı.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function orderPurchaseOrder(id: string) {
+    if (!canWrite || busyId) return;
+    setBusyId(id);
+    setError("");
+    try {
+      await api(`/procurement/purchase-orders/${id}/order`, { method: "POST" });
+      showToast("Satın Alma Siparişi Verildi.");
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Satın Alma Siparişi İlerletilemedi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  async function convertRequest(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!convertTarget || !canWrite || busyId) return;
+    const numericCost = Number(unitCost);
+    if (!supplierId || !Number.isFinite(numericCost) || numericCost < 0) {
+      setError("Tedarikçi Ve Geçerli Bir Birim Maliyet Girilmelidir.");
+      return;
+    }
+
+    setBusyId(convertTarget.id);
+    setError("");
+    try {
+      await api(`/procurement/purchase-requests/${convertTarget.id}/convert`, {
+        method: "POST",
+        body: { supplierId, unitCost: numericCost, note: note.trim() || undefined },
+      });
+      showToast("Satın Alma Talebi Siparişe Dönüştürüldü.");
+      setConvertTarget(null);
+      setSupplierId("");
+      setUnitCost("");
+      setNote("");
+      setView("orders");
+      setStatus("");
+      setSearch("");
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Satın Alma Talebi Siparişe Dönüştürülemedi.");
+    } finally {
+      setBusyId(null);
+    }
+  }
+
+  if (loading) return <div className="py-16"><Spinner label="Satın Alma Hazırlanıyor..." /></div>;
+
+  if (error && !requests.length && !orders.length && !suppliers.length) {
+    return (
+      <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
+        <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">Satın Alma</p>
+            <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Satın Alma Yönetimi</h1>
+            <p className="mt-1 text-[14px] text-[var(--muted)]">Stok İhtiyaçlarını Talepten Siparişe Ve Mal Kabule Kadar Tek Ekrandan Yönetin.</p>
+          </div>
+          <Link href="/inventory" className="inline-flex min-h-10 items-center justify-center rounded-[14px] bg-[var(--surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">Envantere Dön</Link>
+        </header>
+        <Alert onClose={() => setError("")}>{error}</Alert>
+        <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] px-6 py-14 text-center">
+          <p className="text-[15px] font-semibold text-[var(--ink)]">Satın Alma Kayıtları Yüklenemedi</p>
+          <p className="mx-auto mt-2 max-w-xl text-[12px] leading-5 text-[var(--muted)]">Satın Alma Ve Tedarikçi Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.</p>
+          <Button className="mt-5" onClick={() => void load(true)}>Tekrar Dene</Button>
+        </div>
+      </div>
+    );
+  }
+
+  const visibleCount = view === "requests" ? visibleRequests.length : visibleOrders.length;
+  const totalCount = view === "requests" ? requests.length : orders.length;
+
+  return (
+    <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
+      <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+        <div>
+          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">Satın Alma</p>
+          <h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Satın Alma Yönetimi</h1>
+          <p className="mt-1 text-[14px] text-[var(--muted)]">Stok İhtiyaçlarını Talepten Siparişe Ve Mal Kabule Kadar Tek Ekrandan Yönetin.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          <Link href="/inventory/supplier-network" className="inline-flex min-h-10 items-center justify-center rounded-[14px] bg-white/70 px-4 py-2.5 text-[13px] font-medium text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)] transition-colors hover:bg-white">Tedarikçi Ağı</Link>
+          <Link href="/inventory" className="inline-flex min-h-10 items-center justify-center rounded-[14px] bg-[var(--surface-2)] px-4 py-2.5 text-[13px] font-medium text-[var(--muted)] transition-colors hover:text-[var(--ink)]">Envantere Dön</Link>
+        </div>
+      </header>
+
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+      {!canWrite ? <Alert tone="success">Bu Görünüm Salt Okunur. Satın Alma İşlemleri İçin Yönetim Yetkisi Gereklidir.</Alert> : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric label="Açık Talep" value={String(pendingRequestCount)} />
+        <Metric label="Açık Sipariş" value={String(openOrderCount)} />
+        <Metric label="Açık Sipariş Değeri" value={formatMoney(openOrderValue)} compact />
+        <Metric label="Toplam Sipariş" value={String(orders.length)} />
+      </section>
+
+      <DataView>
+        <div className="flex flex-wrap gap-2 border-b border-[var(--line)] px-4 pt-4">
+          <button type="button" onClick={() => changeView("requests")} className={`rounded-t-[12px] border-b-2 px-4 py-2.5 text-[12px] font-semibold transition ${view === "requests" ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}>Satın Alma Talepleri · {requests.length}</button>
+          <button type="button" onClick={() => changeView("orders")} className={`rounded-t-[12px] border-b-2 px-4 py-2.5 text-[12px] font-semibold transition ${view === "orders" ? "border-[var(--accent)] text-[var(--accent)]" : "border-transparent text-[var(--muted)] hover:text-[var(--ink)]"}`}>Satın Alma Siparişleri · {orders.length}</button>
+        </div>
+
+        <DataViewToolbar
+          search={<SearchField value={search} placeholder={view === "requests" ? "Ürün, Konum Veya Neden Ara..." : "Tedarikçi, Konum Veya Durum Ara..."} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setSearch(""); }} aria-label="Satın Alma Kayıtlarında Ara" />}
+          actions={<ToolbarSelect value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Satın Alma Durumu"><option value="">Tüm Durumlar</option>{statuses.map((value) => <option key={value} value={value}>{STATUS_LABELS[value] ?? value}</option>)}</ToolbarSelect>}
+          filters={<><FilterChip active={!status} count={totalCount} onClick={() => setStatus("")}>Tümü</FilterChip>{view === "requests" ? <FilterChip active={status === "PENDING"} count={pendingRequestCount} onClick={() => setStatus("PENDING")}>Onay Bekleyen</FilterChip> : <FilterChip active={status === "ORDERED"} count={orders.filter((row) => row.status === "ORDERED").length} onClick={() => setStatus("ORDERED")}>Siparişte</FilterChip>}</>}
+        />
+
+        {view === "requests" ? <RequestList rows={visibleRequests} canWrite={canWrite} busyId={busyId} onApprove={approveRequest} onConvert={openConvert} /> : <OrderList rows={visibleOrders} canWrite={canWrite} busyId={busyId} onSubmitApproval={submitApproval} onOrder={orderPurchaseOrder} onOpenApproval={setApprovalTarget} onOpenReceipt={setReceiptTarget} />}
+
+        {!visibleCount ? <div className="px-5 py-14 text-center"><p className="text-[13px] font-medium text-[var(--ink)]">Eşleşen Satın Alma Kaydı Yok.</p><p className="mt-1 text-[11px] text-[var(--muted)]">Arama Veya Durum Filtresini Değiştirerek Tekrar Deneyin.</p></div> : null}
+        <DataViewMeta><span>{visibleCount} Kayıt Gösteriliyor</span><span>Toplam {totalCount} Kayıt</span></DataViewMeta>
+      </DataView>
+
+      <PurchaseOrderApprovalModal order={approvalTarget} canWrite={canWrite} onClose={() => setApprovalTarget(null)} onChanged={() => load()} />
+      <PurchaseOrderReceiptModal order={receiptTarget} onClose={() => setReceiptTarget(null)} onChanged={() => load()} />
+
+      <Modal open={Boolean(convertTarget)} onClose={closeConvert} title="Talebi Siparişe Dönüştür" description={convertTarget ? `${convertTarget.productName} İçin Tedarikçi Ve Birim Maliyet Seçin.` : undefined}>
+        <form className="space-y-4" onSubmit={convertRequest}>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Tedarikçi" required><Select value={supplierId} onChange={(event) => setSupplierId(event.target.value)} required><option value="">Tedarikçi Seçin</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></Field>
+            <Field label="Birim Maliyet" required><TextInput type="number" min="0" step="0.01" inputMode="decimal" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} placeholder="0,00" required /></Field>
+          </div>
+          <Field label="Not"><TextInput value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} placeholder="İsteğe Bağlı Satın Alma Notu" /></Field>
+          {convertTarget ? <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] leading-5 text-[var(--muted)]">Talep Miktarı: {formatQuantity(convertTarget.requestedQuantity)} · Tahmini Toplam: {unitCost && Number.isFinite(Number(unitCost)) ? formatMoney(Number(unitCost) * Number(convertTarget.requestedQuantity || 0)) : "—"}</div> : null}
+          <div className="flex justify-end gap-3 pt-2"><Button variant="secondary" onClick={closeConvert} disabled={Boolean(busyId)}>Vazgeç</Button><Button type="submit" disabled={Boolean(busyId) || !suppliers.length}>{busyId ? "Dönüştürülüyor..." : "Sipariş Oluştur"}</Button></div>
+        </form>
+      </Modal>
+    </div>
+  );
+}
+
+function RequestList({ rows, canWrite, busyId, onApprove, onConvert }: { rows: PurchaseRequest[]; canWrite: boolean; busyId: string | null; onApprove: (id: string) => Promise<void>; onConvert: (request: PurchaseRequest) => void; }) {
+  return <><div className="hidden md:block"><div className="grid grid-cols-[1.4fr_.9fr_.6fr_.6fr_.8fr_auto] border-b border-[var(--line)] bg-[var(--surface-2)]/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]"><span>Ürün</span><span>Konum</span><span>Mevcut</span><span>Talep</span><span>Durum</span><span>İşlem</span></div><div className="divide-y divide-[var(--line)]">{rows.map((request) => <div key={request.id} className="grid grid-cols-[1.4fr_.9fr_.6fr_.6fr_.8fr_auto] items-center gap-3 px-5 py-4"><div className="min-w-0"><div className="truncate text-[13px] font-semibold text-[var(--ink)]">{request.productName}</div><div className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">{request.reason || "Stok Seviyesi Düşük"}</div></div><span className="text-[12px] text-[var(--muted)]">{request.warehouseName}</span><span className="text-[12px] text-[var(--muted)]">{formatQuantity(request.currentQuantity)}</span><span className="text-[12px] font-semibold text-[var(--ink)]">{formatQuantity(request.requestedQuantity)}</span><StatusBadge status={request.status} /><RequestAction request={request} canWrite={canWrite} busy={busyId === request.id} disabled={Boolean(busyId) && busyId !== request.id} onApprove={onApprove} onConvert={onConvert} /></div>)}</div></div><div className="divide-y divide-[var(--line)] md:hidden">{rows.map((request) => <article key={request.id} className="space-y-3 px-4 py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-[13px] font-semibold text-[var(--ink)]">{request.productName}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{request.warehouseName}</p></div><StatusBadge status={request.status} /></div><div className="grid grid-cols-2 gap-3 rounded-[12px] bg-[var(--surface-2)]/55 p-3"><Quantity label="Mevcut" value={request.currentQuantity} /><Quantity label="Talep" value={request.requestedQuantity} accent /></div><p className="text-[10px] leading-5 text-[var(--muted)]">{request.reason || "Stok Seviyesi Düşük"}</p><RequestAction request={request} canWrite={canWrite} busy={busyId === request.id} disabled={Boolean(busyId) && busyId !== request.id} onApprove={onApprove} onConvert={onConvert} /></article>)}</div></>;
+}
+
+function RequestAction({ request, canWrite, busy, disabled, onApprove, onConvert }: { request: PurchaseRequest; canWrite: boolean; busy: boolean; disabled: boolean; onApprove: (id: string) => Promise<void>; onConvert: (request: PurchaseRequest) => void; }) {
+  if (!canWrite) return <span className="text-[10px] text-[var(--muted-soft)]">Yalnızca Görüntüleme</span>;
+  if (request.status === "PENDING") return <Button variant="secondary" className="min-h-8 px-3 py-1.5 text-[11px]" disabled={busy || disabled} onClick={() => void onApprove(request.id)}>{busy ? "Onaylanıyor..." : "Onayla"}</Button>;
+  if (request.status === "APPROVED") return <Button className="min-h-8 px-3 py-1.5 text-[11px]" disabled={busy || disabled} onClick={() => onConvert(request)}>Siparişe Dönüştür</Button>;
+  return <span className="text-[10px] text-[var(--muted-soft)]">—</span>;
+}
+
+function OrderList({ rows, canWrite, busyId, onSubmitApproval, onOrder, onOpenApproval, onOpenReceipt }: { rows: PurchaseOrder[]; canWrite: boolean; busyId: string | null; onSubmitApproval: (id: string) => Promise<void>; onOrder: (id: string) => Promise<void>; onOpenApproval: (order: PurchaseOrder) => void; onOpenReceipt: (order: PurchaseOrder) => void; }) {
+  return <><div className="hidden md:block"><div className="grid grid-cols-[1.2fr_.9fr_.5fr_.75fr_.8fr_auto] border-b border-[var(--line)] bg-[var(--surface-2)]/40 px-5 py-3 text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]"><span>Tedarikçi</span><span>Konum</span><span>Kalem</span><span>Tutar</span><span>Durum</span><span>İşlem</span></div><div className="divide-y divide-[var(--line)]">{rows.map((order) => <div key={order.id} className="grid grid-cols-[1.2fr_.9fr_.5fr_.75fr_.8fr_auto] items-center gap-3 px-5 py-4"><div className="min-w-0"><p className="truncate text-[13px] font-semibold text-[var(--ink)]">{order.supplierName || "Tedarikçi Seçilmedi"}</p></div><span className="text-[12px] text-[var(--muted)]">{order.warehouseName}</span><span className="text-[12px] text-[var(--muted)]">{order.itemCount}</span><span className="text-[12px] font-semibold text-[var(--ink)]">{formatMoney(order.totalAmount)}</span><div><StatusBadge status={order.status} /><p className="mt-1.5 text-[9px] text-[var(--muted-soft)]">{order.receivedAt ? `Teslim ${formatDate(order.receivedAt)}` : order.orderedAt ? `Sipariş ${formatDate(order.orderedAt)}` : "Henüz Sipariş Edilmedi"}</p></div><OrderAction order={order} canWrite={canWrite} busy={busyId === order.id} disabled={Boolean(busyId) && busyId !== order.id} onSubmitApproval={onSubmitApproval} onOrder={onOrder} onOpenApproval={onOpenApproval} onOpenReceipt={onOpenReceipt} /></div>)}</div></div><div className="divide-y divide-[var(--line)] md:hidden">{rows.map((order) => <article key={order.id} className="space-y-3 px-4 py-4"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="truncate text-[13px] font-semibold text-[var(--ink)]">{order.supplierName || "Tedarikçi Seçilmedi"}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{order.warehouseName}</p></div><StatusBadge status={order.status} /></div><div className="grid grid-cols-2 gap-3 rounded-[12px] bg-[var(--surface-2)]/55 p-3"><Quantity label="Kalem" value={order.itemCount} /><div><p className="text-[9px] uppercase tracking-[.08em] text-[var(--muted-soft)]">Tutar</p><p className="mt-1 text-[12px] font-semibold text-[var(--accent)]">{formatMoney(order.totalAmount)}</p></div></div><p className="text-[10px] text-[var(--muted-soft)]">{order.receivedAt ? `Teslim: ${formatDate(order.receivedAt)}` : order.orderedAt ? `Sipariş: ${formatDate(order.orderedAt)}` : "Henüz Sipariş Edilmedi"}</p><OrderAction order={order} canWrite={canWrite} busy={busyId === order.id} disabled={Boolean(busyId) && busyId !== order.id} onSubmitApproval={onSubmitApproval} onOrder={onOrder} onOpenApproval={onOpenApproval} onOpenReceipt={onOpenReceipt} /></article>)}</div></>;
+}
+
+function OrderAction({ order, canWrite, busy, disabled, onSubmitApproval, onOrder, onOpenApproval, onOpenReceipt }: { order: PurchaseOrder; canWrite: boolean; busy: boolean; disabled: boolean; onSubmitApproval: (id: string) => Promise<void>; onOrder: (id: string) => Promise<void>; onOpenApproval: (order: PurchaseOrder) => void; onOpenReceipt: (order: PurchaseOrder) => void; }) {
+  if (!canWrite) {
+    if (order.status === "PENDING") return <Button variant="ghost" className="min-h-8 px-3 py-1.5 text-[11px]" onClick={() => onOpenApproval(order)}>Onay Süreci</Button>;
+    return <span className="text-[10px] text-[var(--muted-soft)]">Yalnızca Görüntüleme</span>;
+  }
+  if (order.status === "DRAFT") return <Button variant="secondary" className="min-h-8 px-3 py-1.5 text-[11px]" disabled={busy || disabled} onClick={() => void onSubmitApproval(order.id)}>{busy ? "Gönderiliyor..." : "Onaya Gönder"}</Button>;
+  if (order.status === "PENDING") return <Button variant="secondary" className="min-h-8 px-3 py-1.5 text-[11px]" disabled={busy || disabled} onClick={() => onOpenApproval(order)}>Onay Süreci</Button>;
+  if (order.status === "APPROVED") return <Button className="min-h-8 px-3 py-1.5 text-[11px]" disabled={busy || disabled} onClick={() => void onOrder(order.id)}>{busy ? "İşleniyor..." : "Sipariş Ver"}</Button>;
+  if (order.status === "ORDERED") return <Button className="min-h-8 px-3 py-1.5 text-[11px]" disabled={busy || disabled} onClick={() => onOpenReceipt(order)}>Mal Kabul</Button>;
+  return <span className="text-[10px] text-[var(--muted-soft)]">—</span>;
+}
+
+function StatusBadge({ status }: { status: string }) {
+  return <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${statusTone(status)}`}>{STATUS_LABELS[status] ?? status}</span>;
+}
+
+function Quantity({ label, value, accent = false }: { label: string; value: number | string; accent?: boolean }) {
+  return <div><p className="text-[9px] uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className={`mt-1 text-[12px] font-semibold ${accent ? "text-[var(--accent)]" : "text-[var(--ink)]"}`}>{formatQuantity(value)}</p></div>;
+}
+
+function Metric({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><p className={`mt-3 font-semibold tracking-[-.04em] text-[var(--ink)] ${compact ? "text-[17px]" : "text-[28px]"}`}>{value}</p></div>;
+}
+
+function formatQuantity(value: number | string) {
+  return Number(value || 0).toLocaleString("tr-TR", { maximumFractionDigits: 3 });
+}
+
+function formatMoney(value: number | string) {
+  const amount = Number(value || 0);
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 }).format(Number.isFinite(amount) ? amount : 0);
+}
+
+function formatDate(value: string) {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("tr-TR", { dateStyle: "short" }).format(date);
+}

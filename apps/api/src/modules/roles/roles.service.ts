@@ -4,9 +4,10 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 import { UpdateRolePermissionsInput } from './dto/update-role-permissions.dto';
 import { CreateRoleInput } from './dto/create-role.dto';
 import { UpdateRoleInput } from './dto/update-role.dto';
@@ -16,14 +17,82 @@ export class RolesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly platformAudit: PlatformAuditService,
   ) {}
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
   }
 
+  private getCompanyId(): string {
+    return this.tenantContext.getCompanyId();
+  }
+
+  private async getActorUserId(): Promise<string> {
+    const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
+    const membershipId = this.tenantContext.getMembershipId();
+    const membership = await this.prisma.membership.findFirst({
+      where: {
+        id: membershipId,
+        tenantId,
+        companyId,
+      },
+      select: {
+        userId: true,
+      },
+    });
+
+    if (!membership) {
+      throw new BadRequestException(
+        'Active membership is required for role administration',
+      );
+    }
+
+    return membership.userId;
+  }
+
+  private auditMetadata() {
+    const context = this.tenantContext.getContext();
+    return {
+      membershipId: context.membershipId,
+      companyId: context.companyId,
+      branchId: context.branchId,
+      roleScope: context.roleScope,
+    };
+  }
+
+  private async recordRoleAudit(
+    tx: Prisma.TransactionClient,
+    actorUserId: string,
+    action: string,
+    roleId: string,
+    beforeState: unknown,
+    afterState: unknown,
+    metadata?: Record<string, unknown>,
+  ) {
+    await this.platformAudit.record(
+      {
+        actorUserId,
+        resource: 'roles',
+        action,
+        targetTenantId: this.getTenantId(),
+        targetEntityType: 'role',
+        targetEntityId: roleId,
+        beforeState,
+        afterState,
+        metadata: {
+          ...this.auditMetadata(),
+          ...metadata,
+        },
+      },
+      tx,
+    );
+  }
+
   async create(input: CreateRoleInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const slug = input.name
       .trim()
@@ -38,6 +107,7 @@ export class RolesService {
     const existing = await this.prisma.role.findFirst({
       where: {
         tenantId,
+        companyId,
         OR: [
           { name: input.name.trim() },
           { slug },
@@ -52,30 +122,54 @@ export class RolesService {
       throw new BadRequestException('Role already exists');
     }
 
-    return this.prisma.role.create({
-      data: {
-        tenantId,
-        name: input.name.trim(),
-        slug,
-        description: input.description?.trim() || null,
-      },
-      include: {
-        _count: {
-          select: {
-            memberships: true,
-            rolePermissions: true,
+    const actorUserId = await this.getActorUserId();
+
+    return this.prisma.$transaction(async (tx) => {
+      const created = await tx.role.create({
+        data: {
+          tenantId,
+          companyId,
+          name: input.name.trim(),
+          slug,
+          description: input.description?.trim() || null,
+        },
+        include: {
+          _count: {
+            select: {
+              memberships: true,
+              rolePermissions: true,
+            },
           },
         },
-      },
+      });
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'create',
+        created.id,
+        null,
+        {
+          id: created.id,
+          companyId: created.companyId,
+          name: created.name,
+          slug: created.slug,
+          description: created.description,
+        },
+      );
+
+      return created;
     });
   }
 
   async findAll() {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     return this.prisma.role.findMany({
       where: {
         tenantId,
+        companyId,
       },
       orderBy: {
         createdAt: 'asc',
@@ -102,11 +196,13 @@ export class RolesService {
 
   async findOne(id: string) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       include: {
         rolePermissions: {
@@ -136,15 +232,19 @@ export class RolesService {
 
   async update(id: string, input: UpdateRoleInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       select: {
         id: true,
+        name: true,
         slug: true,
+        description: true,
       },
     });
 
@@ -168,14 +268,14 @@ export class RolesService {
     }
 
     if (input.description !== undefined) {
-      data.description =
-        input.description?.trim() || null;
+      data.description = input.description?.trim() || null;
     }
 
     if (data.name) {
       const duplicate = await this.prisma.role.findFirst({
         where: {
           tenantId,
+          companyId,
           id: { not: id },
           name: data.name,
         },
@@ -185,15 +285,32 @@ export class RolesService {
       });
 
       if (duplicate) {
-        throw new BadRequestException(
-          'Role name already exists',
-        );
+        throw new BadRequestException('Role name already exists');
       }
     }
 
-    await this.prisma.role.update({
-      where: { id },
-      data,
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      const updated = await tx.role.update({
+        where: { id },
+        data,
+        select: {
+          id: true,
+          name: true,
+          slug: true,
+          description: true,
+        },
+      });
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'update',
+        id,
+        role,
+        updated,
+      );
     });
 
     return this.findOne(id);
@@ -201,11 +318,13 @@ export class RolesService {
 
   async remove(id: string) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       include: {
         _count: {
@@ -221,21 +340,36 @@ export class RolesService {
     }
 
     if (role.slug === 'owner') {
-      throw new BadRequestException(
-        'Owner role cannot be deleted',
-      );
+      throw new BadRequestException('Owner role cannot be deleted');
     }
 
     if (role._count.memberships > 0) {
-      throw new BadRequestException(
-        'Role is assigned to users',
-      );
+      throw new BadRequestException('Role is assigned to users');
     }
 
-    await this.prisma.role.delete({
-      where: {
-        id: role.id,
-      },
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.role.delete({
+        where: {
+          id: role.id,
+        },
+      });
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'delete',
+        role.id,
+        {
+          id: role.id,
+          companyId: role.companyId,
+          name: role.name,
+          slug: role.slug,
+          description: role.description,
+        },
+        { deleted: true },
+      );
     });
 
     return {
@@ -249,14 +383,17 @@ export class RolesService {
     input: UpdateRolePermissionsInput,
   ) {
     const tenantId = this.getTenantId();
+    const companyId = this.getCompanyId();
 
     const role = await this.prisma.role.findFirst({
       where: {
         id,
         tenantId,
+        companyId,
       },
       select: {
         id: true,
+        name: true,
         slug: true,
       },
     });
@@ -265,9 +402,7 @@ export class RolesService {
       throw new NotFoundException('Role not found');
     }
 
-    const permissionIds = [
-      ...new Set(input.permissionIds),
-    ];
+    const permissionIds = [...new Set(input.permissionIds)];
 
     const permissions = await this.prisma.permission.findMany({
       where: {
@@ -286,21 +421,18 @@ export class RolesService {
       );
     }
 
-    // Owner rolünün kendisini kilitlememek için:
-    // roles.update yetkisini kaldırmaya izin vermiyoruz.
     if (role.slug === 'owner') {
-      const rolesUpdatePermission =
-        await this.prisma.permission.findUnique({
-          where: {
-            resource_action: {
-              resource: 'roles',
-              action: 'update',
-            },
+      const rolesUpdatePermission = await this.prisma.permission.findUnique({
+        where: {
+          resource_action: {
+            resource: 'roles',
+            action: 'update',
           },
-          select: {
-            id: true,
-          },
-        });
+        },
+        select: {
+          id: true,
+        },
+      });
 
       if (
         rolesUpdatePermission &&
@@ -312,21 +444,49 @@ export class RolesService {
       }
     }
 
-    await this.prisma.$transaction([
-      this.prisma.rolePermission.deleteMany({
+    const currentPermissions = await this.prisma.rolePermission.findMany({
+      where: {
+        roleId: role.id,
+      },
+      select: {
+        permissionId: true,
+      },
+    });
+    const beforePermissionIds = currentPermissions
+      .map((item) => item.permissionId)
+      .sort();
+    const afterPermissionIds = [...permissionIds].sort();
+    const actorUserId = await this.getActorUserId();
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.rolePermission.deleteMany({
         where: {
           roleId: role.id,
         },
-      }),
-      ...permissionIds.map((permissionId) =>
-        this.prisma.rolePermission.create({
+      });
+
+      for (const permissionId of permissionIds) {
+        await tx.rolePermission.create({
           data: {
             roleId: role.id,
             permissionId,
           },
-        }),
-      ),
-    ]);
+        });
+      }
+
+      await this.recordRoleAudit(
+        tx,
+        actorUserId,
+        'permissions.update',
+        role.id,
+        { permissionIds: beforePermissionIds },
+        { permissionIds: afterPermissionIds },
+        {
+          roleName: role.name,
+          roleSlug: role.slug,
+        },
+      );
+    });
 
     return this.findOne(role.id);
   }
