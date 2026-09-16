@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -63,7 +63,7 @@ export function WalkInExecutionLauncher({
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [commercial, staffResult, roomResult, assetResult] = await Promise.all([
@@ -91,22 +91,21 @@ export function WalkInExecutionLauncher({
     } finally {
       setLoading(false);
     }
-  }
+  }, [onError, visitId]);
 
   useEffect(() => {
     void load();
-    // Visit identity is the commercial context boundary.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visitId]);
+  }, [load]);
 
   const selectedItem = context?.serviceItems.find((item) => item.saleItemId === saleItemId) ?? null;
+  const selectedServiceId = selectedItem?.serviceId ?? null;
 
   useEffect(() => {
-    if (!selectedItem) {
+    if (!selectedServiceId) {
       setRequirement(null);
       return;
     }
-    void api<Requirement>(`/operations/resources/services/${selectedItem.serviceId}/requirements`)
+    void api<Requirement>(`/operations/resources/services/${selectedServiceId}/requirements`)
       .then((value) => {
         setRequirement(value);
         setRoomId("");
@@ -115,7 +114,7 @@ export function WalkInExecutionLauncher({
       .catch((err) => {
         onError(err instanceof ApiError ? err.message : "Hizmet kaynak gereksinimleri yüklenemedi.");
       });
-  }, [selectedItem?.serviceId, onError]);
+  }, [selectedServiceId, onError]);
 
   const eligibleRooms = useMemo(
     () => rooms.filter((room) => room.status !== "OUT_OF_SERVICE" && (!requirement?.roomType || room.roomType === requirement.roomType)),
