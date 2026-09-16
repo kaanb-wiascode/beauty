@@ -7,6 +7,7 @@ export type ReportCatalogKey =
   | "customers.performance"
   | "sales.performance"
   | "appointments.performance"
+  | "branches.performance"
   | "finance.performance"
   | "inventory.performance"
   | "procurement.performance"
