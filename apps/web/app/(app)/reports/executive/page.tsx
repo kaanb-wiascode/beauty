@@ -1,20 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import {
+  fetchReportPreview,
+  type ReportPreviewSummary,
+  type SummaryReportPreview,
+  type TableReportPreview,
+} from "../report-preview-client";
 
 type CrmSummary = { newLeads: number; openOpportunities: number; weightedPipeline: number; overdueFollowUps: number; staleOpportunities: number; conversionRate: number; wonOpportunities?: number; lostOpportunities?: number };
 type IncomeSummary = { revenue: number; expense: number; netIncome: number };
 type PayableSummary = { billCount: number; grossBills: number; creditNotes: number; netBills: number; paid: number; outstanding: number; overdueCount: number };
 type Aging = { notDue: number; days0to30: number; days31to60: number; days61to90: number; days90Plus: number; total: number };
 type InventoryOverview = { totalProducts?: number; lowStockProducts?: number; totalStockValue?: number; totalAssets?: number; expiringLots?: number };
-type StaffPerformance = { id: string; name: string; appointmentCount: number; completedCount: number; cancelledCount: number; noShowCount: number; completionRate: number; revenue: number };
-type ServicePerformance = { id: string; name: string; appointmentCount: number; completedCount: number; revenue: number };
-type PaymentSummary = { totalAmount: number; paymentCount: number; methods: Array<{ method: string; amount: number; count: number }> };
+type StaffPerformance = { name: string; appointmentCount: number; completedAppointments: number; collected: number };
+type ServicePerformance = { name: string; appointmentCount: number; completedAppointments: number; collected: number };
+type RankedPerformance<T> = { top: T | null; summary: ReportPreviewSummary };
+type PaymentSummary = {
+  gross: number;
+  refunds: number;
+  net: number;
+  paymentCount: number;
+  refundCount: number;
+  methods: Record<"CASH" | "CARD" | "TRANSFER", number>;
+};
 type Load<T> = { data: T | null; error: string };
 
 const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 });
@@ -29,8 +43,8 @@ export default function ExecutiveReportsPage() {
   const [payables, setPayables] = useState<Load<PayableSummary>>({ data: null, error: "" });
   const [aging, setAging] = useState<Load<Aging>>({ data: null, error: "" });
   const [inventory, setInventory] = useState<Load<InventoryOverview>>({ data: null, error: "" });
-  const [staff, setStaff] = useState<Load<StaffPerformance[]>>({ data: null, error: "" });
-  const [services, setServices] = useState<Load<ServicePerformance[]>>({ data: null, error: "" });
+  const [staff, setStaff] = useState<Load<RankedPerformance<StaffPerformance>>>({ data: null, error: "" });
+  const [services, setServices] = useState<Load<RankedPerformance<ServicePerformance>>>({ data: null, error: "" });
   const [payments, setPayments] = useState<Load<PaymentSummary>>({ data: null, error: "" });
   const [loading, setLoading] = useState(true);
 
@@ -40,37 +54,66 @@ export default function ExecutiveReportsPage() {
     const todayEnd = new Date(todayStart); todayEnd.setDate(todayEnd.getDate() + 1);
     const from = startOfDay(29).toISOString();
     const to = endOfDay().toISOString();
+    const filters = { from, to };
+
+    const crmPromise = api<CrmSummary>(`/crm/operations-summary?dayStart=${encodeURIComponent(todayStart.toISOString())}&dayEnd=${encodeURIComponent(todayEnd.toISOString())}`);
+    const incomePromise = api<IncomeSummary>(withQuery("/accounting/reports/income-summary", { from, to }));
+    const payablesPromise = api<PayableSummary>("/accounts-payable/summary");
+    const agingPromise = api<Aging>("/accounts-payable/aging");
+    const inventoryPromise = api<InventoryOverview>("/inventory/overview");
+    const staffPromise = fetchReportPreview<TableReportPreview<StaffPerformance>>({
+      reportKey: "staff.performance",
+      filters,
+      columns: ["name", "appointmentCount", "completedAppointments", "collected"],
+      sort: { key: "collected", direction: "desc" },
+      page: 1,
+      limit: 1,
+    }).then((result) => ({ top: result.data[0] ?? null, summary: result.meta.summary }));
+    const servicesPromise = fetchReportPreview<TableReportPreview<ServicePerformance>>({
+      reportKey: "service.performance",
+      filters,
+      columns: ["name", "appointmentCount", "completedAppointments", "collected"],
+      sort: { key: "collected", direction: "desc" },
+      page: 1,
+      limit: 1,
+    }).then((result) => ({ top: result.data[0] ?? null, summary: result.meta.summary }));
+    const paymentsPromise = fetchReportPreview<SummaryReportPreview<PaymentSummary>>({
+      reportKey: "payments.summary",
+      filters,
+      columns: ["gross", "refunds", "net", "paymentCount", "refundCount", "methods"],
+    }).then((result) => result.data);
+
     const results = await Promise.allSettled([
-      api<CrmSummary>(`/crm/operations-summary?dayStart=${encodeURIComponent(todayStart.toISOString())}&dayEnd=${encodeURIComponent(todayEnd.toISOString())}`),
-      api<IncomeSummary>(withQuery("/accounting/reports/income-summary", { from, to })),
-      api<PayableSummary>("/accounts-payable/summary"),
-      api<Aging>("/accounts-payable/aging"),
-      api<InventoryOverview>("/inventory/overview"),
-      api<StaffPerformance[]>(withQuery("/reports/staff-performance", { from, to })),
-      api<ServicePerformance[]>(withQuery("/reports/service-performance", { from, to })),
-      api<PaymentSummary>(withQuery("/reports/payment-summary", { from, to })),
-    ]);
+      crmPromise,
+      incomePromise,
+      payablesPromise,
+      agingPromise,
+      inventoryPromise,
+      staffPromise,
+      servicesPromise,
+      paymentsPromise,
+    ] as const);
     const apply = <T,>(result: PromiseSettledResult<T>): Load<T> => result.status === "fulfilled"
       ? { data: result.value, error: "" }
       : { data: null, error: result.reason instanceof ApiError ? result.reason.message : "Veri yüklenemedi." };
-    setCrm(apply(results[0] as PromiseSettledResult<CrmSummary>));
-    setIncome(apply(results[1] as PromiseSettledResult<IncomeSummary>));
-    setPayables(apply(results[2] as PromiseSettledResult<PayableSummary>));
-    setAging(apply(results[3] as PromiseSettledResult<Aging>));
-    setInventory(apply(results[4] as PromiseSettledResult<InventoryOverview>));
-    setStaff(apply(results[5] as PromiseSettledResult<StaffPerformance[]>));
-    setServices(apply(results[6] as PromiseSettledResult<ServicePerformance[]>));
-    setPayments(apply(results[7] as PromiseSettledResult<PaymentSummary>));
+    setCrm(apply(results[0]));
+    setIncome(apply(results[1]));
+    setPayables(apply(results[2]));
+    setAging(apply(results[3]));
+    setInventory(apply(results[4]));
+    setStaff(apply(results[5]));
+    setServices(apply(results[6]));
+    setPayments(apply(results[7]));
     setLoading(false);
   }, []);
 
   useEffect(() => { void load(); }, [load]);
 
-  const topStaff = useMemo(() => [...(staff.data ?? [])].sort((a, b) => Number(b.revenue) - Number(a.revenue))[0], [staff.data]);
-  const topService = useMemo(() => [...(services.data ?? [])].sort((a, b) => Number(b.revenue) - Number(a.revenue))[0], [services.data]);
-  const completed = useMemo(() => (staff.data ?? []).reduce((sum, row) => sum + Number(row.completedCount ?? 0), 0), [staff.data]);
-  const appointments = useMemo(() => (staff.data ?? []).reduce((sum, row) => sum + Number(row.appointmentCount ?? 0), 0), [staff.data]);
-  const completionRate = appointments ? Math.round((completed / appointments) * 1000) / 10 : 0;
+  const topStaff = staff.data?.top ?? null;
+  const topService = services.data?.top ?? null;
+  const completed = staff.data?.summary.completedAppointments ?? 0;
+  const appointments = staff.data?.summary.appointmentCount ?? 0;
+  const completionRate = staff.data?.summary.completionRate ?? 0;
   const moduleErrors = [crm.error, income.error, payables.error, aging.error, inventory.error, staff.error, services.error, payments.error].filter(Boolean).length;
 
   if (loading && !crm.data && !income.data && !payments.data) return <div className="mx-auto max-w-[1480px] py-20"><Spinner label="Yönetim raporu hazırlanıyor..." /></div>;
@@ -88,7 +131,7 @@ export default function ExecutiveReportsPage() {
     {moduleErrors ? <Alert>{moduleErrors} veri kaynağına erişilemedi. Kullanılabilir modüller güncel verilerle gösteriliyor.</Alert> : null}
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-      <FinanceMetric label="30 Gün Tahsilat" value={money.format(Number(payments.data?.totalAmount ?? 0))} detail={`${payments.data?.paymentCount ?? 0} ödeme`} tone="success" />
+      <FinanceMetric label="30 Gün Tahsilat" value={money.format(Number(payments.data?.gross ?? 0))} detail={`${payments.data?.paymentCount ?? 0} ödeme · Net ${money.format(Number(payments.data?.net ?? 0))}`} tone="success" />
       <FinanceMetric label="Muhasebe Net Sonuç" value={money.format(Number(income.data?.netIncome ?? 0))} detail={`${money.format(Number(income.data?.revenue ?? 0))} gelir`} tone={(income.data?.netIncome ?? 0) < 0 ? "danger" : "success"} />
       <FinanceMetric label="Açık Tedarikçi Borcu" value={money.format(Number(payables.data?.outstanding ?? 0))} detail={`${payables.data?.overdueCount ?? 0} vadesi geçen`} tone={(payables.data?.overdueCount ?? 0) > 0 ? "warning" : "neutral"} />
       <FinanceMetric label="CRM Pipeline" value={money.format(Number(crm.data?.weightedPipeline ?? 0))} detail={`${crm.data?.openOpportunities ?? 0} açık fırsat`} />
@@ -98,7 +141,7 @@ export default function ExecutiveReportsPage() {
 
     <section className="grid gap-5 xl:grid-cols-2">
       <FinancePanel title="Finansal Sonuç" description="Muhasebe, tahsilat ve tedarikçi borç görünümü">
-        <Rows rows={[["Muhasebe Geliri", money.format(Number(income.data?.revenue ?? 0))], ["Muhasebe Gideri", money.format(Number(income.data?.expense ?? 0))], ["Net Sonuç", money.format(Number(income.data?.netIncome ?? 0))], ["Tahsilat", money.format(Number(payments.data?.totalAmount ?? 0))], ["Açık Tedarikçi Borcu", money.format(Number(payables.data?.outstanding ?? 0))]]} />
+        <Rows rows={[["Muhasebe Geliri", money.format(Number(income.data?.revenue ?? 0))], ["Muhasebe Gideri", money.format(Number(income.data?.expense ?? 0))], ["Net Sonuç", money.format(Number(income.data?.netIncome ?? 0))], ["Tahsilat", money.format(Number(payments.data?.gross ?? 0))], ["İade", money.format(Number(payments.data?.refunds ?? 0))], ["Net Tahsilat", money.format(Number(payments.data?.net ?? 0))], ["Açık Tedarikçi Borcu", money.format(Number(payables.data?.outstanding ?? 0))]]} />
         <Links links={[["Muhasebe", "/finance/accounting"], ["Tedarikçi Borçları", "/finance/accounts-payable"], ["Finans Cockpit", "/finance/cfo"]]} />
       </FinancePanel>
 
@@ -112,7 +155,7 @@ export default function ExecutiveReportsPage() {
       </FinancePanel>
 
       <FinancePanel title="Operasyon Performansı" description="Personel, hizmet ve stok göstergeleri">
-        <Rows rows={[["En Yüksek Personel", topStaff ? `${topStaff.name} · ${money.format(Number(topStaff.revenue))}` : "—"], ["En Yüksek Hizmet", topService ? `${topService.name} · ${money.format(Number(topService.revenue))}` : "—"], ["Toplam Ürün", inventory.data?.totalProducts ?? "—"], ["Kritik Stok", inventory.data?.lowStockProducts ?? "—"], ["Envanter Varlığı", inventory.data?.totalAssets ?? "—"]]} />
+        <Rows rows={[["En Yüksek Personel", topStaff ? `${topStaff.name} · ${money.format(Number(topStaff.collected))}` : "—"], ["En Yüksek Hizmet", topService ? `${topService.name} · ${money.format(Number(topService.collected))}` : "—"], ["Toplam Ürün", inventory.data?.totalProducts ?? "—"], ["Kritik Stok", inventory.data?.lowStockProducts ?? "—"], ["Envanter Varlığı", inventory.data?.totalAssets ?? "—"]]} />
         <Links links={[["Personel Raporu", "/reports/staff"], ["Hizmet Raporu", "/reports/services"], ["Envanter", "/inventory"]]} />
       </FinancePanel>
     </section>
