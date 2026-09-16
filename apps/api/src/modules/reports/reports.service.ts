@@ -160,6 +160,7 @@ export class ReportsService {
     if (key === reportKeys.customerPerformance) return this.customerReporting.performance(filters);
     if (key === reportKeys.salesPerformance) return this.salesReporting.performance(filters);
     if (key === reportKeys.appointmentPerformance) return this.appointmentReporting.performance(filters);
+    if (key === reportKeys.branchPerformance) return this.appointmentReporting.branchPerformance(filters);
     if (key === reportKeys.financePerformance) return this.financeReporting.performance(filters);
     if (key === reportKeys.inventoryPerformance) return this.inventoryReporting.performance(filters);
     if (key === reportKeys.procurementPerformance) return this.procurementReporting.performance(filters);
@@ -173,6 +174,7 @@ export class ReportsService {
     if (key === reportKeys.customerPerformance) return this.buildCustomerSummary(rows);
     if (key === reportKeys.salesPerformance) return this.buildSalesSummary(rows);
     if (key === reportKeys.appointmentPerformance) return this.buildAppointmentSummary(rows);
+    if (key === reportKeys.branchPerformance) return this.buildBranchSummary(rows);
     if (key === reportKeys.financePerformance) return this.buildFinanceSummary(rows);
     if (key === reportKeys.inventoryPerformance) return this.buildInventorySummary(rows);
     if (key === reportKeys.procurementPerformance) return this.buildProcurementSummary(rows);
@@ -280,6 +282,28 @@ export class ReportsService {
     const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
     const resolved = completedCount + cancelledCount + noShowCount;
     return { rowCount: rows.length, appointmentCount, completedCount, completedCustomerCount, cancelledCount, noShowCount, completionRate: resolved ? Math.round((completedCount / resolved) * 100) : 0, cancellationRate: resolved ? Math.round((cancelledCount / resolved) * 100) : 0, noShowRate: resolved ? Math.round((noShowCount / resolved) * 100) : 0, newCustomerCount, repeatCustomerCount, rebookedCustomerCount, rebookingRate: completedCustomerCount ? Math.round((rebookedCustomerCount / completedCustomerCount) * 100) : 0, collected };
+  }
+
+  private buildBranchSummary(rows: readonly Record<string, unknown>[]) {
+    const appointmentCount = rows.reduce((t, r) => t + this.numberValue(r.appointmentCount), 0);
+    const completedCount = rows.reduce((t, r) => t + this.numberValue(r.completedCount), 0);
+    const cancelledCount = rows.reduce((t, r) => t + this.numberValue(r.cancelledCount), 0);
+    const noShowCount = rows.reduce((t, r) => t + this.numberValue(r.noShowCount), 0);
+    const uniqueCustomerCount = rows.reduce((t, r) => t + this.numberValue(r.uniqueCustomerCount), 0);
+    const collected = rows.reduce((t, r) => t + this.numberValue(r.collected), 0);
+    const resolved = completedCount + cancelledCount + noShowCount;
+    return {
+      rowCount: rows.length,
+      branchCount: rows.length,
+      appointmentCount,
+      completedCount,
+      cancelledCount,
+      noShowCount,
+      completionRate: resolved ? Math.round((completedCount / resolved) * 100) : 0,
+      uniqueCustomerCount,
+      collected,
+      averageCollectedPerCompleted: completedCount ? collected / completedCount : 0,
+    };
   }
 
   private buildFinanceSummary(rows: readonly Record<string, unknown>[]) {
