@@ -34,7 +34,7 @@ export default function IntegrationsAdminPage() {
       .catch((e) => setError(e instanceof ApiError ? e.message : "Entegrasyon kataloğu yüklenemedi."));
   }, []);
 
-  if (error) return <Alert tone="danger">{error}</Alert>;
+  if (error) return <Alert tone="error">{error}</Alert>;
   if (!data) return <Spinner />;
 
   return (
