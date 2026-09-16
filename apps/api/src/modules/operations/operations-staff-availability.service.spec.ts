@@ -1,15 +1,32 @@
+import { Test } from '@nestjs/testing';
+import { PrismaService } from '@beauty-erp/database';
+
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { OperationsStaffAvailabilityService } from './operations-staff-availability.service';
 
 describe('OperationsStaffAvailabilityService', () => {
-  const queryRawUnsafe = jest.fn();
-  const prisma = { $queryRawUnsafe: queryRawUnsafe } as never;
+  const queryRawUnsafe = jest.fn(
+    async (..._args: unknown[]): Promise<unknown[]> => [],
+  );
+  const prisma = { $queryRawUnsafe: queryRawUnsafe };
   const tenantContext = {
     getTenantId: () => 'tenant-1',
     getCompanyId: () => 'company-1',
     getBranchId: () => 'branch-1',
-  } as never;
+  };
+  let service: OperationsStaffAvailabilityService;
 
-  beforeEach(() => queryRawUnsafe.mockReset());
+  beforeEach(async () => {
+    queryRawUnsafe.mockReset();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OperationsStaffAvailabilityService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenantContext },
+      ],
+    }).compile();
+    service = moduleRef.get(OperationsStaffAvailabilityService);
+  });
 
   it('prioritizes approved leave over appointments and executions', async () => {
     queryRawUnsafe.mockResolvedValue([
@@ -21,6 +38,10 @@ describe('OperationsStaffAvailabilityService', () => {
         attendanceStatus: 'PRESENT',
         checkIn: new Date('2026-09-15T06:00:00.000Z'),
         checkOut: null,
+        currentShiftId: null,
+        currentShiftStart: null,
+        currentShiftEnd: null,
+        shiftScheduleConfigured: false,
         executionId: 'execution-1',
         executionServiceName: 'Lazer',
         currentAppointmentId: 'appointment-1',
@@ -34,7 +55,6 @@ describe('OperationsStaffAvailabilityService', () => {
       },
     ]);
 
-    const service = new OperationsStaffAvailabilityService(prisma, tenantContext);
     const result = await service.board({
       at: new Date('2026-09-15T09:30:00.000Z'),
     });
@@ -58,6 +78,10 @@ describe('OperationsStaffAvailabilityService', () => {
         attendanceStatus: 'PRESENT',
         checkIn: null,
         checkOut: null,
+        currentShiftId: null,
+        currentShiftStart: null,
+        currentShiftEnd: null,
+        shiftScheduleConfigured: false,
         executionId: 'execution-1',
         executionServiceName: 'Cilt Bakımı',
         currentAppointmentId: 'appointment-1',
@@ -77,6 +101,10 @@ describe('OperationsStaffAvailabilityService', () => {
         attendanceStatus: 'ABSENT',
         checkIn: null,
         checkOut: null,
+        currentShiftId: null,
+        currentShiftStart: null,
+        currentShiftEnd: null,
+        shiftScheduleConfigured: false,
         executionId: null,
         executionServiceName: null,
         currentAppointmentId: null,
@@ -90,11 +118,10 @@ describe('OperationsStaffAvailabilityService', () => {
       },
     ]);
 
-    const service = new OperationsStaffAvailabilityService(prisma, tenantContext);
     const result = await service.board({ at: new Date() });
 
     expect(result.staff[0].availability).toBe('WITH_CUSTOMER');
     expect(result.staff[1].availability).toBe('OFF_SHIFT');
-    expect(result.shiftAware).toBe(false);
+    expect(result.shiftAware).toBe(true);
   });
 });
