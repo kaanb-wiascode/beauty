@@ -438,7 +438,7 @@ export function ServiceExecutionPanel({
 
           {allCompleted && !handoffsCompleted && visit.source === "APPOINTMENT" ? (
             <p className="rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
-              Ziyaret hizmetini tamamlamadan önce her hizmet için SOP/checklist kanıtını, sarf kontrolünü ve randevu handoff'unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
+              Ziyaret hizmetini tamamlamadan önce her hizmet için SOP/checklist kanıtını, sarf kontrolünü ve randevu handoff’unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
             </p>
           ) : null}
 
