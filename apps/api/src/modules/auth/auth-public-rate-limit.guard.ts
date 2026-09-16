@@ -45,6 +45,13 @@ export class AuthPublicRateLimitGuard implements CanActivate {
 
     if (!policy) return true;
 
+    if (
+      process.env.NODE_ENV === 'test' &&
+      process.env.AUTH_PUBLIC_RATE_LIMIT_DISABLED === 'true'
+    ) {
+      return true;
+    }
+
     const request = context.switchToHttp().getRequest<{
       ip?: string;
       socket?: { remoteAddress?: string | null };
