@@ -21,7 +21,7 @@ const scopeLabel = {
 } as const;
 
 export default function RoleClonePage() {
-  const toast = useToast();
+  const { showToast } = useToast();
   const [roles, setRoles] = useState<Role[]>([]);
   const [sourceRoleId, setSourceRoleId] = useState("");
   const [name, setName] = useState("");
@@ -60,7 +60,7 @@ export default function RoleClonePage() {
       setCreated(result);
       setName("");
       setDescription("");
-      toast.success("Rol ve yetki seti klonlandı.");
+      showToast("Rol ve yetki seti klonlandı.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Rol klonlanamadı.");
     } finally {
