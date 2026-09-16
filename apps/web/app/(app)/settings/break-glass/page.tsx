@@ -28,6 +28,7 @@ export default function BreakGlassPage() {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [now, setNow] = useState<number | null>(null);
 
   const load = async () => {
     const [p, e] = await Promise.all([
@@ -41,6 +42,13 @@ export default function BreakGlassPage() {
 
   useEffect(() => {
     load().catch((e) => setError(e instanceof ApiError ? e.message : "Break-glass verileri yüklenemedi."));
+  }, []);
+
+  useEffect(() => {
+    const refreshNow = () => setNow(Date.now());
+    refreshNow();
+    const timer = window.setInterval(refreshNow, 60_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   const reauthenticate = async (event: FormEvent) => {
@@ -127,11 +135,11 @@ export default function BreakGlassPage() {
       <section className="space-y-3">
         <h2 className="text-sm font-semibold text-[var(--ink)]">Emergency Access Geçmişi</h2>
         {events.length === 0 ? <div className="rounded-xl border border-dashed border-[var(--line)] p-6 text-sm text-[var(--muted)]">Henüz break-glass aktivasyonu yok.</div> : events.map((row) => {
-          const active = !row.revokedAt && new Date(row.endsAt).getTime() > Date.now();
+          const active = now !== null && !row.revokedAt && new Date(row.endsAt).getTime() > now;
           return <article key={row.id} className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div><div className="text-sm font-semibold text-[var(--ink)]">{row.permissionResource}.{row.permissionAction}</div><div className="mt-1 text-xs text-[var(--muted)]">{new Date(row.startsAt).toLocaleString("tr-TR")} → {new Date(row.endsAt).toLocaleString("tr-TR")} · {row.branchName ?? "Şirket geneli"}</div><div className="mt-2 text-xs text-[var(--muted)]">{row.reason}</div></div>
-              <div className="flex items-center gap-2"><span className="rounded-full border border-[var(--line)] px-2 py-1 text-xs">{row.revokedAt ? "REVOKED" : active ? "ACTIVE" : "EXPIRED"}</span>{active && <Button className="min-h-8 px-2.5 py-1 text-xs" variant="secondary" disabled={busy} onClick={() => revoke(row.id)}>Erken Kapat</Button>}</div>
+              <div className="flex items-center gap-2"><span className="rounded-full border border-[var(--line)] px-2 py-1 text-xs">{row.revokedAt ? "REVOKED" : now === null ? "…" : active ? "ACTIVE" : "EXPIRED"}</span>{active && <Button className="min-h-8 px-2.5 py-1 text-xs" variant="secondary" disabled={busy} onClick={() => revoke(row.id)}>Erken Kapat</Button>}</div>
             </div>
           </article>;
         })}
