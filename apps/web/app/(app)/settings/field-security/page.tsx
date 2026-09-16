@@ -69,7 +69,7 @@ export default function FieldSecurityPage() {
     {error ? <Alert tone="danger">{error}</Alert> : null}{notice ? <Alert>{notice}</Alert> : null}
     <section className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5">
       <h2 className="text-sm font-semibold text-[var(--ink)]">Aktif enforcement kapsamı</h2>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">İlk yüksek riskli dilim Employee 360 üzerinde aktiftir. Kimlik/banka ve ücret/bordro alanları birbirinden bağımsız değerlendirilir; geçici permission grant'leri de aynı karara dahildir.</p>
+      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">İlk yüksek riskli dilim Employee 360 üzerinde aktiftir. Kimlik/banka ve ücret/bordro alanları birbirinden bağımsız değerlendirilir; geçici permission grant’leri de aynı karara dahildir.</p>
     </section>
     <section className="grid gap-4 lg:grid-cols-2">
       {starters.map((starter) => {
