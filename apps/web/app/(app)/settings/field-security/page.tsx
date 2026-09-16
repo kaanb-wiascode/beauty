@@ -66,7 +66,7 @@ export default function FieldSecurityPage() {
       <h1 className="text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">Alan Güvenliği</h1>
       <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">Yüksek riskli veri gruplarını ayrı permission kurallarıyla koruyun. Karar API response oluşturulurken server-side uygulanır; yalnız arayüz gizleme değildir.</p>
     </header>
-    {error ? <Alert tone="danger">{error}</Alert> : null}{notice ? <Alert>{notice}</Alert> : null}
+    {error ? <Alert tone="error">{error}</Alert> : null}{notice ? <Alert>{notice}</Alert> : null}
     <section className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5">
       <h2 className="text-sm font-semibold text-[var(--ink)]">Aktif enforcement kapsamı</h2>
       <p className="mt-1 text-xs leading-5 text-[var(--muted)]">İlk yüksek riskli dilim Employee 360 üzerinde aktiftir. Kimlik/banka ve ücret/bordro alanları birbirinden bağımsız değerlendirilir; geçici permission grant’leri de aynı karara dahildir.</p>
