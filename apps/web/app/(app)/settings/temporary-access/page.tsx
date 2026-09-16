@@ -47,7 +47,7 @@ const badgeClass: Record<Grant["status"], string> = {
 };
 
 export default function TemporaryAccessPage() {
-  const toast = useToast();
+  const { showToast } = useToast();
   const [memberships, setMemberships] = useState<Membership[]>([]);
   const [permissions, setPermissions] = useState<Permission[]>([]);
   const [branches, setBranches] = useState<Branch[]>([]);
@@ -108,7 +108,7 @@ export default function TemporaryAccessPage() {
           reason,
         },
       });
-      toast.success("Geçici erişim tanımlandı.");
+      showToast("Geçici erişim tanımlandı.");
       setPermissionId("");
       setBranchId("");
       setReason("");
@@ -125,7 +125,7 @@ export default function TemporaryAccessPage() {
     try {
       setRevoking(id);
       await api(`/admin/temporary-access/${id}/revoke`, { method: "POST" });
-      toast.success("Geçici erişim iptal edildi.");
+      showToast("Geçici erişim iptal edildi.");
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Geçici erişim iptal edilemedi.");
