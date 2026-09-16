@@ -27,6 +27,9 @@ describe('AuthSessionRegistryService', () => {
   });
   const sMembers = jest.fn(async (key: string) => [...(sets.get(key) ?? [])]);
   const expire = jest.fn().mockResolvedValue(true);
+  const deleteKey = jest.fn(async (key: string) => {
+    values.delete(key);
+  });
   const auditRecord = jest.fn().mockResolvedValue({ id: 'audit-1' });
   const policyGet = jest.fn().mockResolvedValue({
     sessionMaxAgeMinutes: 10080,
@@ -38,9 +41,7 @@ describe('AuthSessionRegistryService', () => {
       values.set(key, value);
     }),
     get: jest.fn(async (key: string) => values.get(key) ?? null),
-    delete: jest.fn(async (key: string) => {
-      values.delete(key);
-    }),
+    delete: deleteKey,
     getClient: () => ({ ttl, del, sAdd, sRem, sMembers, expire }),
   } as unknown as RedisService;
 
@@ -146,7 +147,7 @@ describe('AuthSessionRegistryService', () => {
       service.revoke(session.id, 'user-1', 'tenant-1'),
     ).resolves.toEqual({ id: session.id, revoked: true });
 
-    expect(del).toHaveBeenCalledWith(
+    expect(deleteKey).toHaveBeenCalledWith(
       'auth:refresh:00000000-0000-4000-8000-000000000003',
     );
     expect(auditRecord).toHaveBeenCalledTimes(1);
