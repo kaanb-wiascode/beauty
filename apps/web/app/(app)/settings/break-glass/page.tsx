@@ -103,7 +103,7 @@ export default function BreakGlassPage() {
         <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">Acil durum erişimi yalnız CENTRAL yöneticiler için, yeniden parola ve MFA doğrulaması sonrasında, en fazla 60 dakika süreyle açılır. Her aktivasyon ve revoke denetim kaydına yazılır.</p>
       </header>
 
-      {error && <Alert tone="danger">{error}</Alert>}
+      {error && <Alert tone="error">{error}</Alert>}
 
       {!proofId ? (
         <form onSubmit={reauthenticate} className="max-w-xl space-y-4 rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5">
