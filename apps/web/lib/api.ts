@@ -25,7 +25,7 @@ export class ApiError extends Error {
 
 type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-type ApiOptions = {
+export type ApiOptions = {
   method?: ApiMethod;
   body?: unknown;
   auth?: boolean;
