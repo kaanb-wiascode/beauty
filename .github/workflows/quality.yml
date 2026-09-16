@@ -111,6 +111,8 @@ jobs:
         run: pnpm --filter api test:ci
 
       - name: Test API E2E
+        env:
+          AUTH_PUBLIC_RATE_LIMIT_DISABLED: 'true'
         run: pnpm --filter api exec jest --config ./test/jest-e2e.json --runInBand
 
       - name: Build API
