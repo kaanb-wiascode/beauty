@@ -178,7 +178,6 @@ export class Employee360Service {
       employmentType: master.employmentType ?? profile.employmentType ?? null,
       hireDate: master.hireDate ?? profile.hireDate ?? null,
       terminationDate: master.terminationDate ?? profile.terminationDate ?? null,
-      salaryType: compensationAllowed ? (master.salaryType ?? profile.salaryType ?? null) : undefined,
     };
 
     if (identityAllowed) {
@@ -193,6 +192,7 @@ export class Employee360Service {
     }
     if (compensationAllowed) {
       Object.assign(employee, {
+        salaryType: master.salaryType ?? profile.salaryType ?? null,
         grossSalary: this.amount(master.grossSalary ?? profile.salary),
       });
     }
