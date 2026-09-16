@@ -141,7 +141,6 @@ describe('Reporting foundation authorization (e2e)', () => {
         reportKey: 'staff.performance',
         format: 'CSV',
         status: 'QUEUED',
-        storageKey: null,
       }),
     );
 
