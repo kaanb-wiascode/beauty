@@ -76,6 +76,7 @@ describe('Release RBAC denials (e2e)', () => {
       ['payments', 'read'],
       ['accounting', 'read'],
       ['hr', 'read'],
+      ['hr_sensitive', 'read'],
     ] as const;
 
     for (const [resource, action] of readPermissions) {
