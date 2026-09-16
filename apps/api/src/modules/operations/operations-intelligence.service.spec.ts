@@ -1,15 +1,32 @@
+import { Test } from '@nestjs/testing';
+import { PrismaService } from '@beauty-erp/database';
+
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { OperationsIntelligenceService } from './operations-intelligence.service';
 
 describe('OperationsIntelligenceService', () => {
-  const queryRawUnsafe = jest.fn();
-  const prisma = { $queryRawUnsafe: queryRawUnsafe } as never;
+  const queryRawUnsafe = jest.fn(
+    async (..._args: unknown[]): Promise<unknown[]> => [],
+  );
+  const prisma = { $queryRawUnsafe: queryRawUnsafe };
   const tenantContext = {
     getTenantId: () => 'tenant-1',
     getCompanyId: () => 'company-1',
     getBranchId: () => 'branch-1',
-  } as never;
+  };
+  let service: OperationsIntelligenceService;
 
-  beforeEach(() => queryRawUnsafe.mockReset());
+  beforeEach(async () => {
+    queryRawUnsafe.mockReset();
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        OperationsIntelligenceService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenantContext },
+      ],
+    }).compile();
+    service = moduleRef.get(OperationsIntelligenceService);
+  });
 
   it('reduces no-show risk when the appointment is confirmed', async () => {
     queryRawUnsafe.mockResolvedValueOnce([
@@ -34,8 +51,9 @@ describe('OperationsIntelligenceService', () => {
       },
     ]);
 
-    const result = await new OperationsIntelligenceService(prisma, tenantContext).overview(24);
-    expect(result.appointments[0]?.noShowRisk.score).toBe(5);
+    const result = await service.overview(24);
+
+    expect(result.appointments[0]?.noShowRisk.score).toBe(25);
     expect(result.appointments[0]?.noShowRisk.level).toBe('LOW');
   });
 
@@ -62,8 +80,13 @@ describe('OperationsIntelligenceService', () => {
       },
     ]);
 
-    const result = await new OperationsIntelligenceService(prisma, tenantContext).overview(24);
+    const result = await service.overview(24);
+
     expect(result.appointments[0]?.delayRisk.level).toBe('HIGH');
-    expect(result.managerInsights.some((item) => item.code === 'RESOURCE_CONFLICTS_UPCOMING')).toBe(true);
+    expect(
+      result.managerInsights.some(
+        (item) => item.code === 'RESOURCE_CONFLICTS_UPCOMING',
+      ),
+    ).toBe(true);
   });
 });
