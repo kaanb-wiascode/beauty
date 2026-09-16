@@ -110,10 +110,10 @@ describe('Reporting foundation authorization (e2e)', () => {
 
     expect(preview.body).toEqual(
       expect.objectContaining({
-        report: {
+        report: expect.objectContaining({
           key: 'staff.performance',
           resultKind: 'table',
-        },
+        }),
         data: expect.any(Array),
         meta: expect.objectContaining({ page: 1, limit: 25 }),
       }),
