@@ -187,4 +187,73 @@ export class AppointmentReportingService {
       };
     });
   }
+
+  async branchPerformance(input: AppointmentReportingInput) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
+    const appointments = await this.prisma.appointment.findMany({
+      where: {
+        ...scope,
+        startAt: { gte: input.from, lte: input.to },
+      },
+      select: {
+        branchId: true,
+        customerId: true,
+        status: true,
+        branch: { select: { name: true } },
+        payment: { select: { amount: true, status: true } },
+      },
+    });
+
+    const buckets = new Map<string, {
+      branchName: string;
+      appointmentCount: number;
+      completedCount: number;
+      cancelledCount: number;
+      noShowCount: number;
+      collected: number;
+      customers: Set<string>;
+    }>();
+
+    for (const appointment of appointments) {
+      const bucket = buckets.get(appointment.branchId) ?? {
+        branchName: appointment.branch.name,
+        appointmentCount: 0,
+        completedCount: 0,
+        cancelledCount: 0,
+        noShowCount: 0,
+        collected: 0,
+        customers: new Set<string>(),
+      };
+
+      bucket.appointmentCount += 1;
+      bucket.customers.add(appointment.customerId);
+      if (appointment.status === 'COMPLETED') bucket.completedCount += 1;
+      if (appointment.status === 'CANCELLED') bucket.cancelledCount += 1;
+      if (appointment.status === 'NO_SHOW') bucket.noShowCount += 1;
+      if (appointment.payment?.status === 'COMPLETED') {
+        bucket.collected += Number(appointment.payment.amount);
+      }
+      buckets.set(appointment.branchId, bucket);
+    }
+
+    return [...buckets.values()].map((bucket) => {
+      const resolved =
+        bucket.completedCount + bucket.cancelledCount + bucket.noShowCount;
+      return {
+        branchName: bucket.branchName,
+        appointmentCount: bucket.appointmentCount,
+        completedCount: bucket.completedCount,
+        cancelledCount: bucket.cancelledCount,
+        noShowCount: bucket.noShowCount,
+        completionRate: resolved
+          ? Math.round((bucket.completedCount / resolved) * 100)
+          : 0,
+        uniqueCustomerCount: bucket.customers.size,
+        collected: bucket.collected,
+        averageCollectedPerCompleted: bucket.completedCount
+          ? bucket.collected / bucket.completedCount
+          : 0,
+      };
+    });
+  }
 }
