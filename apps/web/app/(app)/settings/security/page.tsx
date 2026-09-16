@@ -44,7 +44,7 @@ function formatExpiry(seconds: number | null) {
 }
 
 export default function SecuritySettingsPage() {
-  const toast = useToast();
+  const { showToast } = useToast();
   const [sessions, setSessions] = useState<SessionItem[]>([]);
   const [policy, setPolicy] = useState<SecurityPolicy | null>(null);
   const [mfaStatus, setMfaStatus] = useState<MfaStatus | null>(null);
@@ -76,11 +76,11 @@ export default function SecuritySettingsPage() {
           .slice(0, 12),
       );
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Güvenlik bilgileri yüklenemedi.");
+      showToast(error instanceof ApiError ? error.message : "Güvenlik bilgileri yüklenemedi.", "error");
     } finally {
       setLoading(false);
     }
-  }, [toast]);
+  }, [showToast]);
 
   useEffect(() => {
     void loadSecurity();
@@ -90,10 +90,10 @@ export default function SecuritySettingsPage() {
     try {
       setRevoking(id);
       await api(`/auth/sessions/${id}/revoke`, { method: "POST" });
-      toast.success("Oturum kapatıldı.");
+      showToast("Oturum kapatıldı.");
       await loadSecurity();
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Oturum kapatılamadı.");
+      showToast(error instanceof ApiError ? error.message : "Oturum kapatılamadı.", "error");
     } finally {
       setRevoking(null);
     }
@@ -104,10 +104,10 @@ export default function SecuritySettingsPage() {
     try {
       setRevokingAll(true);
       const result = await api<{ revokedCount: number }>("/auth/sessions/revoke-all", { method: "POST" });
-      toast.success(`${result.revokedCount} oturum kapatıldı.`);
+      showToast(`${result.revokedCount} oturum kapatıldı.`);
       await loadSecurity();
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Oturumlar kapatılamadı.");
+      showToast(error instanceof ApiError ? error.message : "Oturumlar kapatılamadı.", "error");
     } finally {
       setRevokingAll(false);
     }
@@ -127,9 +127,9 @@ export default function SecuritySettingsPage() {
         },
       });
       setPolicy(saved);
-      toast.success("Güvenlik politikası kaydedildi.");
+      showToast("Güvenlik politikası kaydedildi.");
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "Güvenlik politikası kaydedilemedi.");
+      showToast(error instanceof ApiError ? error.message : "Güvenlik politikası kaydedilemedi.", "error");
     } finally {
       setSavingPolicy(false);
     }
@@ -141,7 +141,7 @@ export default function SecuritySettingsPage() {
       setMfaSetup(await api<MfaSetup>("/auth/mfa/setup", { method: "POST" }));
       setMfaCode("");
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "MFA kurulumu başlatılamadı.");
+      showToast(error instanceof ApiError ? error.message : "MFA kurulumu başlatılamadı.", "error");
     } finally {
       setSavingMfa(false);
     }
@@ -154,10 +154,10 @@ export default function SecuritySettingsPage() {
       setMfaStatus({ enrolled: true });
       setMfaSetup(null);
       setMfaCode("");
-      toast.success("MFA etkinleştirildi.");
+      showToast("MFA etkinleştirildi.");
       await loadSecurity();
     } catch (error) {
-      toast.error(error instanceof ApiError ? error.message : "MFA doğrulaması tamamlanamadı.");
+      showToast(error instanceof ApiError ? error.message : "MFA doğrulaması tamamlanamadı.", "error");
     } finally {
       setSavingMfa(false);
     }
