@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -45,7 +45,7 @@ export function ServiceExecutionPanel({
   canUpdate: boolean;
   onChanged: () => Promise<void>;
 }) {
-  const appointmentIds = visit.appointmentIds ?? [];
+  const appointmentIds = useMemo(() => visit.appointmentIds ?? [], [visit.appointmentIds]);
   const [executions, setExecutions] = useState<ServiceExecution[]>([]);
   const [selectedAppointmentId, setSelectedAppointmentId] = useState(
     appointmentIds[0] ?? "",
@@ -55,7 +55,7 @@ export function ServiceExecutionPanel({
   const [busyId, setBusyId] = useState<string | null>(null);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -73,13 +73,11 @@ export function ServiceExecutionPanel({
     } finally {
       setLoading(false);
     }
-  }
+  }, [visit.id]);
 
   useEffect(() => {
     void load();
-    // Visit identity drives the execution list.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [visit.id]);
+  }, [load]);
 
   const executableAppointmentIds = useMemo(
     () =>
