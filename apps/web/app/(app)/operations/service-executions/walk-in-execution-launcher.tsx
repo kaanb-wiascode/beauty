@@ -119,11 +119,11 @@ export function WalkInExecutionLauncher({
 
   const eligibleRooms = useMemo(
     () => rooms.filter((room) => room.status !== "OUT_OF_SERVICE" && (!requirement?.roomType || room.roomType === requirement.roomType)),
-    [rooms, requirement?.roomType],
+    [rooms, requirement],
   );
   const eligibleAssets = useMemo(
     () => assets.filter((asset) => !asset.maintenanceBlocked && (!requirement?.requiredAssetType || asset.assetType === requirement.requiredAssetType) && (!requirement?.requiredAssetId || asset.id === requirement.requiredAssetId)),
-    [assets, requirement?.requiredAssetId, requirement?.requiredAssetType],
+    [assets, requirement],
   );
 
   async function linkSale() {
@@ -177,7 +177,7 @@ export function WalkInExecutionLauncher({
       <div className="rounded-[14px] border border-dashed border-[var(--line)] p-3">
         <p className="text-xs font-semibold text-[var(--ink)]">Walk-in ticari bağlam</p>
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Appointment oluşturmadan hizmet başlatmak için aynı müşteriye ait CONFIRMED hizmet satışını Visit'e bağlayın.
+          Appointment oluşturmadan hizmet başlatmak için aynı müşteriye ait CONFIRMED hizmet satışını Visit&apos;e bağlayın.
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
           <input
