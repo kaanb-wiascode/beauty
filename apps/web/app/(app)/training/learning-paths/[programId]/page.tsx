@@ -7,7 +7,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { hasPermission } from "@/lib/auth";
-import { api, ApiError } from "@/lib/api";
+import { api, ApiError, type ApiOptions } from "@/lib/api";
 
 type Course = { id:string; code:string; title:string; category:string; isActive:boolean };
 type Item = { id:string; sequence:number; courseId:string; courseCode:string; courseTitle:string; category:string; isRequired:boolean; dueOffsetDays?:number|null; prerequisiteItemIds:string[] };
@@ -48,7 +48,7 @@ export default function LearningPathDetailPage() {
   const published = useMemo(()=>data?.versions.find((version)=>version.status==="PUBLISHED") ?? null,[data]);
   const active = draft ?? published;
 
-  async function mutate(path:string,options:RequestInit={}) {
+  async function mutate(path:string,options:ApiOptions={}) {
     setSaving(true); setError("");
     try { await api(path,options); await load(); }
     catch (e) { setError(e instanceof ApiError ? e.message : "İşlem tamamlanamadı."); }
@@ -60,14 +60,14 @@ export default function LearningPathDetailPage() {
   async function addCourse() {
     if (!draft || !courseId) return;
     const sequence = draft.items.length ? Math.max(...draft.items.map((item)=>item.sequence))+1 : 1;
-    await mutate(`/training/programs/versions/${draft.id}/items`,{method:"POST",body:JSON.stringify({sequence,courseId,isRequired:required,dueOffsetDays:dueOffsetDays===""?null:Number(dueOffsetDays)})});
+    await mutate(`/training/programs/versions/${draft.id}/items`,{method:"POST",body:{sequence,courseId,isRequired:required,dueOffsetDays:dueOffsetDays===""?null:Number(dueOffsetDays)}});
     setCourseId(""); setDueOffsetDays("");
   }
   async function addPrerequisite(itemId:string) {
     if (!draft) return;
     const prerequisiteItemId = prerequisites[itemId];
     if (!prerequisiteItemId) return;
-    await mutate(`/training/learning-paths/versions/${draft.id}/items/${itemId}/prerequisites`,{method:"POST",body:JSON.stringify({prerequisiteItemId})});
+    await mutate(`/training/learning-paths/versions/${draft.id}/items/${itemId}/prerequisites`,{method:"POST",body:{prerequisiteItemId}});
     setPrerequisites((value)=>({...value,[itemId]:""}));
   }
   async function removePrerequisite(itemId:string, prerequisiteItemId:string) {
@@ -117,7 +117,9 @@ export default function LearningPathDetailPage() {
         {!active?.items.length ? <FinanceEmpty title="Curriculum adımı yok" description="Draft sürüme ilk kursu ekleyerek learning path'i oluşturun." /> : (
           <div className="space-y-3">
             {active.items.map((item,index) => {
-              const prerequisiteLabels = item.prerequisiteItemIds.map((id)=>active.items.find((candidate)=>candidate.id===id)).filter(Boolean) as Item[];
+              const prerequisiteLabels = item.prerequisiteItemIds
+                .map((id)=>active.items.find((candidate)=>candidate.id===id))
+                .filter((candidate): candidate is Item => candidate !== undefined);
               const possiblePrerequisites = draft?.items.filter((candidate)=>candidate.id!==item.id && !item.prerequisiteItemIds.includes(candidate.id)) ?? [];
               return <div key={item.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
