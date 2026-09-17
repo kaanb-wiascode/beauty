@@ -56,7 +56,9 @@ export class AppointmentReportingService {
           .map((item) => item.customerId),
       ),
     ];
-    const rebookingWindowEnd = new Date(input.to.getTime() + REBOOKING_WINDOW_MS);
+    const rebookingWindowEnd = new Date(
+      input.to.getTime() + REBOOKING_WINDOW_MS,
+    );
     const candidateAppointments = completedCustomerIds.length
       ? await this.prisma.appointment.findMany({
           where: {
@@ -69,30 +71,36 @@ export class AppointmentReportingService {
           orderBy: { startAt: 'asc' },
         })
       : [];
-    const candidatesByCustomer = new Map<string, Array<{ id: string; startAt: Date }>>();
+    const candidatesByCustomer = new Map<
+      string,
+      Array<{ id: string; startAt: Date }>
+    >();
     for (const candidate of candidateAppointments) {
       const current = candidatesByCustomer.get(candidate.customerId) ?? [];
       current.push({ id: candidate.id, startAt: candidate.startAt });
       candidatesByCustomer.set(candidate.customerId, current);
     }
 
-    const buckets = new Map<string, {
-      date: string;
-      appointmentCount: number;
-      scheduledCount: number;
-      confirmedCount: number;
-      completedCount: number;
-      cancelledCount: number;
-      noShowCount: number;
-      newCustomerCount: number;
-      repeatCustomerCount: number;
-      collected: number;
-      totalDurationMinutes: number;
-      hours: Map<number, number>;
-      customers: Set<string>;
-      completedCustomers: Set<string>;
-      rebooked: Set<string>;
-    }>();
+    const buckets = new Map<
+      string,
+      {
+        date: string;
+        appointmentCount: number;
+        scheduledCount: number;
+        confirmedCount: number;
+        completedCount: number;
+        cancelledCount: number;
+        noShowCount: number;
+        newCustomerCount: number;
+        repeatCustomerCount: number;
+        collected: number;
+        totalDurationMinutes: number;
+        hours: Map<number, number>;
+        customers: Set<string>;
+        completedCustomers: Set<string>;
+        rebooked: Set<string>;
+      }
+    >();
 
     for (const appointment of appointments) {
       const date = appointment.startAt.toISOString().slice(0, 10);
@@ -126,7 +134,10 @@ export class AppointmentReportingService {
       if (appointment.status === 'NO_SHOW') bucket.noShowCount += 1;
 
       const firstVisit = firstVisitByCustomer.get(appointment.customerId);
-      if (firstVisit && firstVisit.getTime() === appointment.startAt.getTime()) {
+      if (
+        firstVisit &&
+        firstVisit.getTime() === appointment.startAt.getTime()
+      ) {
         bucket.newCustomerCount += 1;
       } else {
         bucket.repeatCustomerCount += 1;
@@ -134,7 +145,9 @@ export class AppointmentReportingService {
 
       if (appointment.status === 'COMPLETED') {
         const rebookBy = appointment.startAt.getTime() + REBOOKING_WINDOW_MS;
-        const hasRebooking = (candidatesByCustomer.get(appointment.customerId) ?? []).some(
+        const hasRebooking = (
+          candidatesByCustomer.get(appointment.customerId) ?? []
+        ).some(
           (candidate) =>
             candidate.id !== appointment.id &&
             candidate.startAt.getTime() > appointment.startAt.getTime() &&
@@ -148,7 +161,9 @@ export class AppointmentReportingService {
       }
       bucket.totalDurationMinutes += Math.max(
         0,
-        Math.round((appointment.endAt.getTime() - appointment.startAt.getTime()) / 60000),
+        Math.round(
+          (appointment.endAt.getTime() - appointment.startAt.getTime()) / 60000,
+        ),
       );
       const hour = appointment.startAt.getUTCHours();
       bucket.hours.set(hour, (bucket.hours.get(hour) ?? 0) + 1);
@@ -156,10 +171,12 @@ export class AppointmentReportingService {
     }
 
     return [...buckets.values()].map((bucket) => {
-      const peakHour = [...bucket.hours.entries()].sort(
-        (a, b) => b[1] - a[1] || a[0] - b[0],
-      )[0]?.[0] ?? null;
-      const resolved = bucket.completedCount + bucket.cancelledCount + bucket.noShowCount;
+      const peakHour =
+        [...bucket.hours.entries()].sort(
+          (a, b) => b[1] - a[1] || a[0] - b[0],
+        )[0]?.[0] ?? null;
+      const resolved =
+        bucket.completedCount + bucket.cancelledCount + bucket.noShowCount;
       return {
         date: bucket.date,
         appointmentCount: bucket.appointmentCount,
@@ -168,16 +185,24 @@ export class AppointmentReportingService {
         completedCount: bucket.completedCount,
         cancelledCount: bucket.cancelledCount,
         noShowCount: bucket.noShowCount,
-        completionRate: resolved ? Math.round((bucket.completedCount / resolved) * 100) : 0,
-        cancellationRate: resolved ? Math.round((bucket.cancelledCount / resolved) * 100) : 0,
-        noShowRate: resolved ? Math.round((bucket.noShowCount / resolved) * 100) : 0,
+        completionRate: resolved
+          ? Math.round((bucket.completedCount / resolved) * 100)
+          : 0,
+        cancellationRate: resolved
+          ? Math.round((bucket.cancelledCount / resolved) * 100)
+          : 0,
+        noShowRate: resolved
+          ? Math.round((bucket.noShowCount / resolved) * 100)
+          : 0,
         uniqueCustomerCount: bucket.customers.size,
         completedCustomerCount: bucket.completedCustomers.size,
         newCustomerCount: bucket.newCustomerCount,
         repeatCustomerCount: bucket.repeatCustomerCount,
         rebookedCustomerCount: bucket.rebooked.size,
         rebookingRate: bucket.completedCustomers.size
-          ? Math.round((bucket.rebooked.size / bucket.completedCustomers.size) * 100)
+          ? Math.round(
+              (bucket.rebooked.size / bucket.completedCustomers.size) * 100,
+            )
           : 0,
         collected: bucket.collected,
         averageDurationMinutes: bucket.appointmentCount
@@ -204,15 +229,18 @@ export class AppointmentReportingService {
       },
     });
 
-    const buckets = new Map<string, {
-      branchName: string;
-      appointmentCount: number;
-      completedCount: number;
-      cancelledCount: number;
-      noShowCount: number;
-      collected: number;
-      customers: Set<string>;
-    }>();
+    const buckets = new Map<
+      string,
+      {
+        branchName: string;
+        appointmentCount: number;
+        completedCount: number;
+        cancelledCount: number;
+        noShowCount: number;
+        collected: number;
+        customers: Set<string>;
+      }
+    >();
 
     for (const appointment of appointments) {
       const bucket = buckets.get(appointment.branchId) ?? {
@@ -236,10 +264,11 @@ export class AppointmentReportingService {
       buckets.set(appointment.branchId, bucket);
     }
 
-    return [...buckets.values()].map((bucket) => {
+    return [...buckets.entries()].map(([id, bucket]) => {
       const resolved =
         bucket.completedCount + bucket.cancelledCount + bucket.noShowCount;
       return {
+        id,
         branchName: bucket.branchName,
         appointmentCount: bucket.appointmentCount,
         completedCount: bucket.completedCount,
