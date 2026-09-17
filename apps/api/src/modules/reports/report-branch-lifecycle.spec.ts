@@ -22,21 +22,25 @@ describe('branch performance report lifecycle', () => {
     ]);
     expect(definition?.availableColumns).toEqual(
       expect.arrayContaining([
-        'branchId',
         'branchName',
         'appointmentCount',
         'completedCount',
         'cancelledCount',
         'noShowCount',
         'completionRate',
-        'noShowRate',
+        'uniqueCustomerCount',
         'collected',
         'averageCollectedPerCompleted',
       ]),
     );
+    expect(definition?.availableColumns).not.toContain('branchId');
 
-    expect(reportPreviewSchema.parse({ reportKey, filters }).reportKey).toBe(reportKey);
-    expect(reportComparisonSchema.parse({ reportKey, filters }).reportKey).toBe(reportKey);
+    expect(reportPreviewSchema.parse({ reportKey, filters }).reportKey).toBe(
+      reportKey,
+    );
+    expect(reportComparisonSchema.parse({ reportKey, filters }).reportKey).toBe(
+      reportKey,
+    );
     expect(
       reportExportSchema.parse({
         reportKey,
