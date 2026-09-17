@@ -1,8 +1,13 @@
-import { ForbiddenException, Injectable } from '@nestjs/common';
+import {
+  ForbiddenException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 
 import { PrismaService } from '@beauty-erp/database';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportDrilldownInput } from './dto/report-drilldown.dto';
@@ -13,6 +18,7 @@ import { ReportsService } from './reports.service';
 export class ReportDrilldownService {
   constructor(
     private readonly prisma: PrismaService,
+    private readonly organizationScope: OrganizationScopeService,
     private readonly staffService: StaffService,
     private readonly servicesService: ServicesService,
     private readonly reports: ReportsService,
@@ -31,14 +37,51 @@ export class ReportDrilldownService {
       return this.appointments(user, input, { staffId: input.rowId });
     }
 
-    await this.servicesService.findOne(input.rowId);
-    return this.appointments(user, input, { serviceId: input.rowId });
+    if (input.reportKey === reportKeys.servicePerformance) {
+      await this.servicesService.findOne(input.rowId);
+      return this.appointments(user, input, { serviceId: input.rowId });
+    }
+
+    await this.assertBranchInScope(user, input.rowId);
+    return this.appointments(user, input, { branchId: input.rowId });
+  }
+
+  private async assertBranchInScope(user: JwtPayload, branchId: string) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
+
+    if ('branchId' in scope) {
+      const allowed =
+        typeof scope.branchId === 'string'
+          ? scope.branchId === branchId
+          : scope.branchId.in.includes(branchId);
+
+      if (!allowed) {
+        throw new NotFoundException('Report drilldown row not found');
+      }
+    }
+
+    const companyId = 'branch' in scope ? scope.branch.companyId : user.companyId;
+    const branch = await this.prisma.branch.findFirst({
+      where: {
+        id: branchId,
+        companyId,
+        status: 'ACTIVE',
+      },
+      select: { id: true },
+    });
+
+    if (!branch) {
+      throw new NotFoundException('Report drilldown row not found');
+    }
   }
 
   private async appointments(
     user: JwtPayload,
     input: ReportDrilldownInput,
-    entity: { staffId: string } | { serviceId: string },
+    entity:
+      | { staffId: string }
+      | { serviceId: string }
+      | { branchId: string },
   ) {
     const skip = (input.page - 1) * input.limit;
     const where = {
