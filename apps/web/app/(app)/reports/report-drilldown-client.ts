@@ -1,5 +1,10 @@
 import { api } from "@/lib/api";
 
+export type ReportDrilldownKey =
+  | "staff.performance"
+  | "service.performance"
+  | "branches.performance";
+
 export type ReportDrilldownRow = {
   id: string;
   startAt: string;
@@ -11,7 +16,7 @@ export type ReportDrilldownRow = {
 
 export type ReportDrilldownResponse = {
   report: {
-    key: "staff.performance" | "service.performance";
+    key: ReportDrilldownKey;
     dimension: "appointments";
     rowId: string;
   };
@@ -26,7 +31,7 @@ export type ReportDrilldownResponse = {
 };
 
 export function fetchReportDrilldown(input: {
-  reportKey: "staff.performance" | "service.performance";
+  reportKey: ReportDrilldownKey;
   rowId: string;
   filters: { from: string; to: string };
   page?: number;
