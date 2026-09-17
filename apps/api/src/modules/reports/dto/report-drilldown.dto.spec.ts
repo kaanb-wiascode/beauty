@@ -11,13 +11,24 @@ describe('reportDrilldownSchema', () => {
     },
   };
 
-  it('accepts a bounded staff appointment drilldown', () => {
+  it('accepts bounded staff and branch appointment drilldowns', () => {
     expect(reportDrilldownSchema.parse(base)).toEqual(
       expect.objectContaining({
         reportKey: 'staff.performance',
         dimension: 'appointments',
         page: 1,
         limit: 25,
+      }),
+    );
+    expect(
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'branches.performance',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        reportKey: 'branches.performance',
+        dimension: 'appointments',
       }),
     );
   });
