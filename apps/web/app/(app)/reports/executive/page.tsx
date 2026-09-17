@@ -20,7 +20,9 @@ type Aging = { notDue: number; days0to30: number; days31to60: number; days61to90
 type InventoryOverview = { totalProducts?: number; lowStockProducts?: number; totalStockValue?: number; totalAssets?: number; expiringLots?: number };
 type StaffPerformance = { name: string; appointmentCount: number; completedAppointments: number; collected: number };
 type ServicePerformance = { name: string; appointmentCount: number; completedAppointments: number; collected: number };
+type BranchPerformance = { branchName: string; appointmentCount: number; completedCount: number; completionRate: number; noShowRate: number; collected: number };
 type RankedPerformance<T> = { top: T | null; summary: ReportPreviewSummary };
+type RankedBranch = { top: BranchPerformance | null };
 type PaymentSummary = {
   gross: number;
   refunds: number;
@@ -46,6 +48,7 @@ export default function ExecutiveReportsPage() {
   const [staff, setStaff] = useState<Load<RankedPerformance<StaffPerformance>>>({ data: null, error: "" });
   const [services, setServices] = useState<Load<RankedPerformance<ServicePerformance>>>({ data: null, error: "" });
   const [payments, setPayments] = useState<Load<PaymentSummary>>({ data: null, error: "" });
+  const [branches, setBranches] = useState<Load<RankedBranch>>({ data: null, error: "" });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -82,6 +85,14 @@ export default function ExecutiveReportsPage() {
       filters,
       columns: ["gross", "refunds", "net", "paymentCount", "refundCount", "methods"],
     }).then((result) => result.data);
+    const branchesPromise = fetchReportPreview<TableReportPreview<BranchPerformance, { rowCount: number }>>({
+      reportKey: "branches.performance",
+      filters,
+      columns: ["branchName", "appointmentCount", "completedCount", "completionRate", "noShowRate", "collected"],
+      sort: { key: "collected", direction: "desc" },
+      page: 1,
+      limit: 1,
+    }).then((result) => ({ top: result.data[0] ?? null }));
 
     const results = await Promise.allSettled([
       crmPromise,
@@ -92,6 +103,7 @@ export default function ExecutiveReportsPage() {
       staffPromise,
       servicesPromise,
       paymentsPromise,
+      branchesPromise,
     ] as const);
     const apply = <T,>(result: PromiseSettledResult<T>): Load<T> => result.status === "fulfilled"
       ? { data: result.value, error: "" }
@@ -104,6 +116,7 @@ export default function ExecutiveReportsPage() {
     setStaff(apply(results[5]));
     setServices(apply(results[6]));
     setPayments(apply(results[7]));
+    setBranches(apply(results[8]));
     setLoading(false);
   }, []);
 
@@ -111,10 +124,11 @@ export default function ExecutiveReportsPage() {
 
   const topStaff = staff.data?.top ?? null;
   const topService = services.data?.top ?? null;
+  const topBranch = branches.data?.top ?? null;
   const completed = staff.data?.summary.completedAppointments ?? 0;
   const appointments = staff.data?.summary.appointmentCount ?? 0;
   const completionRate = staff.data?.summary.completionRate ?? 0;
-  const moduleErrors = [crm.error, income.error, payables.error, aging.error, inventory.error, staff.error, services.error, payments.error].filter(Boolean).length;
+  const moduleErrors = [crm.error, income.error, payables.error, aging.error, inventory.error, staff.error, services.error, payments.error, branches.error].filter(Boolean).length;
 
   if (loading && !crm.data && !income.data && !payments.data) return <div className="mx-auto max-w-[1480px] py-20"><Spinner label="Yönetim raporu hazırlanıyor..." /></div>;
 
@@ -123,7 +137,7 @@ export default function ExecutiveReportsPage() {
       <div>
         <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Analiz & BI</p>
         <h1 className="text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">ERP Yönetim Raporu</h1>
-        <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">CRM, tahsilat, muhasebe, tedarikçi borçları, stok ve operasyon performansını son 30 gün odağında tek karar destek görünümünde izleyin.</p>
+        <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">CRM, tahsilat, muhasebe, tedarikçi borçları, stok, şube ve operasyon performansını son 30 gün odağında tek karar destek görünümünde izleyin.</p>
       </div>
       <div className="flex flex-wrap gap-2"><Link href="/dashboard/management" className="rounded-[12px] border border-[var(--line)] px-4 py-2.5 text-[12px] font-semibold text-[var(--ink)]">Yönetim Cockpit</Link><Button variant="secondary" onClick={() => void load()} disabled={loading}>Yenile</Button></div>
     </header>
@@ -154,9 +168,9 @@ export default function ExecutiveReportsPage() {
         <Links links={[["CRM", "/crm"], ["Pipeline", "/crm/pipeline"], ["Aksiyon Merkezi", "/crm/actions"]]} />
       </FinancePanel>
 
-      <FinancePanel title="Operasyon Performansı" description="Personel, hizmet ve stok göstergeleri">
-        <Rows rows={[["En Yüksek Personel", topStaff ? `${topStaff.name} · ${money.format(Number(topStaff.collected))}` : "—"], ["En Yüksek Hizmet", topService ? `${topService.name} · ${money.format(Number(topService.collected))}` : "—"], ["Toplam Ürün", inventory.data?.totalProducts ?? "—"], ["Kritik Stok", inventory.data?.lowStockProducts ?? "—"], ["Envanter Varlığı", inventory.data?.totalAssets ?? "—"]]} />
-        <Links links={[["Personel Raporu", "/reports/staff"], ["Hizmet Raporu", "/reports/services"], ["Envanter", "/inventory"]]} />
+      <FinancePanel title="Operasyon Performansı" description="Şube, personel, hizmet ve stok göstergeleri">
+        <Rows rows={[["En Yüksek Şube", topBranch ? `${topBranch.branchName} · ${money.format(Number(topBranch.collected))}` : "—"], ["En Yüksek Personel", topStaff ? `${topStaff.name} · ${money.format(Number(topStaff.collected))}` : "—"], ["En Yüksek Hizmet", topService ? `${topService.name} · ${money.format(Number(topService.collected))}` : "—"], ["Toplam Ürün", inventory.data?.totalProducts ?? "—"], ["Kritik Stok", inventory.data?.lowStockProducts ?? "—"], ["Envanter Varlığı", inventory.data?.totalAssets ?? "—"]]} />
+        <Links links={[["Şube Raporu", "/reports/branches"], ["Personel Raporu", "/reports/staff"], ["Hizmet Raporu", "/reports/services"], ["Envanter", "/inventory"]]} />
       </FinancePanel>
     </section>
   </div>;
