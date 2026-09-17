@@ -14,6 +14,7 @@ import {
   Th,
 } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { ReportDrilldownPanel } from "../report-drilldown-panel";
 import {
   ReportFilterBar,
   reportDateInputValue,
@@ -27,6 +28,7 @@ import {
 } from "../report-preview-client";
 
 type BranchPerformanceRow = {
+  _rowId?: string;
   branchName: string;
   appointmentCount: number;
   completedCount: number;
@@ -107,18 +109,22 @@ function initialRange(): ReportDateRange {
 export default function BranchPerformanceReportPage() {
   const [range, setRange] = useState<ReportDateRange>(initialRange);
   const [rows, setRows] = useState<BranchPerformanceRow[]>([]);
-  const [summary, setSummary] = useState<BranchPerformanceSummary>(EMPTY_SUMMARY);
+  const [summary, setSummary] =
+    useState<BranchPerformanceSummary>(EMPTY_SUMMARY);
+  const [selected, setSelected] = useState<BranchPerformanceRow | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
   useEffect(() => {
     if (reportRangeIsInvalid(range)) {
+      setSelected(null);
       setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
       setLoading(false);
       return;
     }
 
     let cancelled = false;
+    setSelected(null);
 
     void (async () => {
       setLoading(true);
@@ -205,32 +211,60 @@ export default function BranchPerformanceReportPage() {
 
           <Panel>
             {rows.length ? (
-              <TableWrap>
-                <thead>
-                  <tr>
-                    {COLUMNS.map((column) => (
-                      <Th key={column}>{LABELS[column]}</Th>
-                    ))}
-                  </tr>
-                </thead>
-                <tbody>
-                  {rows.map((row) => (
-                    <tr key={row.branchName}>
+              <>
+                <div className="border-b border-[var(--line)] px-5 py-3 text-[11px] text-[var(--muted)]">
+                  Şube adına tıklayarak seçili dönemdeki yetkili randevu
+                  detaylarını açabilirsiniz.
+                </div>
+                <TableWrap>
+                  <thead>
+                    <tr>
                       {COLUMNS.map((column) => (
-                        <Td key={column} label={LABELS[column]}>
-                          {formatValue(column, row[column])}
-                        </Td>
+                        <Th key={column}>{LABELS[column]}</Th>
                       ))}
                     </tr>
-                  ))}
-                </tbody>
-              </TableWrap>
+                  </thead>
+                  <tbody>
+                    {rows.map((row) => (
+                      <tr key={row._rowId ?? row.branchName}>
+                        {COLUMNS.map((column) => (
+                          <Td key={column} label={LABELS[column]}>
+                            {column === "branchName" ? (
+                              <button
+                                type="button"
+                                disabled={!row._rowId}
+                                onClick={() => row._rowId && setSelected(row)}
+                                className="font-medium text-left enabled:hover:text-[var(--accent)] disabled:cursor-default"
+                              >
+                                {row.branchName}
+                              </button>
+                            ) : (
+                              formatValue(column, row[column])
+                            )}
+                          </Td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </TableWrap>
+              </>
             ) : (
               <div className="px-6 py-16 text-center text-sm text-[var(--muted)]">
-                Seçili dönemde yetkili şubeler için raporlanabilir randevu hareketi bulunmuyor.
+                Seçili dönemde yetkili şubeler için raporlanabilir randevu
+                hareketi bulunmuyor.
               </div>
             )}
           </Panel>
+
+          {selected?._rowId ? (
+            <ReportDrilldownPanel
+              reportKey="branches.performance"
+              rowId={selected._rowId}
+              title={selected.branchName}
+              filters={reportRangeToQuery(range)}
+              onClose={() => setSelected(null)}
+            />
+          ) : null}
         </>
       )}
     </div>
@@ -260,8 +294,12 @@ function Metric({
   return (
     <GlassCard>
       <p className="text-[11px] text-[var(--muted)]">{label}</p>
-      <p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">{value}</p>
-      <p className="mt-1 text-[10px] leading-5 text-[var(--muted-soft)]">{detail}</p>
+      <p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">
+        {value}
+      </p>
+      <p className="mt-1 text-[10px] leading-5 text-[var(--muted-soft)]">
+        {detail}
+      </p>
     </GlassCard>
   );
 }
