@@ -64,13 +64,23 @@ export class ReportComparisonService {
     return { from: previousFrom, to: previousTo };
   }
 
-  private numericSummary(result: any): Record<string, number> {
-    const source = result?.meta?.summary ?? result?.data ?? {};
+  private numericSummary(result: unknown): Record<string, number> {
+    if (!this.isRecord(result)) return {};
+
+    const meta = this.isRecord(result.meta) ? result.meta : null;
+    const summary = meta && this.isRecord(meta.summary) ? meta.summary : null;
+    const data = this.isRecord(result.data) ? result.data : null;
+    const source = summary ?? data ?? {};
+
     return Object.fromEntries(
       Object.entries(source).filter(
         (entry): entry is [string, number] =>
           typeof entry[1] === 'number' && Number.isFinite(entry[1]),
       ),
     );
+  }
+
+  private isRecord(value: unknown): value is Record<string, unknown> {
+    return typeof value === 'object' && value !== null && !Array.isArray(value);
   }
 }
