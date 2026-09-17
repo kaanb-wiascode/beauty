@@ -1,4 +1,7 @@
+import { Test } from '@nestjs/testing';
+
 import { ReportComparisonService } from './report-comparison.service';
+import { ReportsService } from './reports.service';
 
 const user = {
   sub: 'user-1',
@@ -10,19 +13,33 @@ const user = {
   roleScope: 'BRANCH' as const,
 };
 
+async function createSubject() {
+  const reports = {
+    preview: jest.fn(),
+  };
+  const moduleRef = await Test.createTestingModule({
+    providers: [
+      ReportComparisonService,
+      { provide: ReportsService, useValue: reports },
+    ],
+  }).compile();
+
+  return {
+    reports,
+    service: moduleRef.get(ReportComparisonService),
+  };
+}
+
 describe('ReportComparisonService', () => {
   it('compares the selected period with the immediately preceding equal period', async () => {
-    const reports = {
-      preview: jest
-        .fn()
-        .mockResolvedValueOnce({
-          meta: { summary: { collected: 1500, completedAppointments: 10 } },
-        })
-        .mockResolvedValueOnce({
-          meta: { summary: { collected: 1000, completedAppointments: 8 } },
-        }),
-    } as any;
-    const service = new ReportComparisonService(reports);
+    const { reports, service } = await createSubject();
+    reports.preview
+      .mockResolvedValueOnce({
+        meta: { summary: { collected: 1500, completedAppointments: 10 } },
+      })
+      .mockResolvedValueOnce({
+        meta: { summary: { collected: 1000, completedAppointments: 8 } },
+      });
 
     const result = await service.compare(user, {
       reportKey: 'staff.performance',
@@ -56,13 +73,10 @@ describe('ReportComparisonService', () => {
   });
 
   it('returns a null percentage when the previous value is zero', async () => {
-    const reports = {
-      preview: jest
-        .fn()
-        .mockResolvedValueOnce({ data: { net: 250 } })
-        .mockResolvedValueOnce({ data: { net: 0 } }),
-    } as any;
-    const service = new ReportComparisonService(reports);
+    const { reports, service } = await createSubject();
+    reports.preview
+      .mockResolvedValueOnce({ data: { net: 250 } })
+      .mockResolvedValueOnce({ data: { net: 0 } });
 
     const result = await service.compare(user, {
       reportKey: 'payments.summary',
@@ -79,5 +93,38 @@ describe('ReportComparisonService', () => {
       delta: 250,
       deltaPercent: null,
     });
+  });
+
+  it('ignores non-record and non-finite summary values', async () => {
+    const { reports, service } = await createSubject();
+    reports.preview
+      .mockResolvedValueOnce({
+        meta: {
+          summary: {
+            collected: 100,
+            label: 'ignored',
+            invalid: Number.NaN,
+          },
+        },
+      })
+      .mockResolvedValueOnce({ data: ['not-a-summary'] });
+
+    const result = await service.compare(user, {
+      reportKey: 'branches.performance',
+      filters: {
+        from: new Date('2026-09-15T00:00:00.000Z'),
+        to: new Date('2026-09-15T23:59:59.999Z'),
+      },
+    });
+
+    expect(result.metrics).toEqual([
+      {
+        key: 'collected',
+        current: 100,
+        previous: 0,
+        delta: 100,
+        deltaPercent: null,
+      },
+    ]);
   });
 });
