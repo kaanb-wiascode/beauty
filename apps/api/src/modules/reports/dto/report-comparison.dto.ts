@@ -1,15 +1,13 @@
 import { z } from 'zod';
-import { reportKeys } from '../report-definition';
-import { reportDateRangeSchema } from './report-filters.dto';
 
-export const reportComparisonSchema = z.object({
-  reportKey: z.enum([
-    reportKeys.staffPerformance, reportKeys.servicePerformance, reportKeys.paymentSummary,
-    reportKeys.customerPerformance, reportKeys.salesPerformance, reportKeys.appointmentPerformance,
-    reportKeys.financePerformance, reportKeys.inventoryPerformance, reportKeys.procurementPerformance,
-    reportKeys.crmPerformance, reportKeys.hrWorkforce, reportKeys.payrollSummary,
-  ]),
-  filters: reportDateRangeSchema,
-}).strict();
+import { reportDateRangeSchema } from './report-filters.dto';
+import { reportKeySchema } from './report-key.schema';
+
+export const reportComparisonSchema = z
+  .object({
+    reportKey: reportKeySchema,
+    filters: reportDateRangeSchema,
+  })
+  .strict();
 
 export type ReportComparisonInput = z.infer<typeof reportComparisonSchema>;
