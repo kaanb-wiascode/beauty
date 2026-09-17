@@ -92,6 +92,7 @@ describe('AppointmentReportingService branch performance', () => {
     });
     expect(result).toEqual([
       {
+        id: 'branch-a',
         branchName: 'Kadıköy',
         appointmentCount: 2,
         completedCount: 1,
@@ -103,6 +104,7 @@ describe('AppointmentReportingService branch performance', () => {
         averageCollectedPerCompleted: 600,
       },
       {
+        id: 'branch-b',
         branchName: 'Nişantaşı',
         appointmentCount: 2,
         completedCount: 1,
