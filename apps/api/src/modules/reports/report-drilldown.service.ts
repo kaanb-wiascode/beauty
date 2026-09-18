@@ -34,21 +34,21 @@ export class ReportDrilldownService {
 
     if (input.reportKey === reportKeys.staffPerformance) {
       await this.staffService.findOne(input.rowId);
-      return this.appointments(user, input, { staffId: input.rowId });
+      return this.appointments(input, { staffId: input.rowId });
     }
 
     if (input.reportKey === reportKeys.servicePerformance) {
       await this.servicesService.findOne(input.rowId);
-      return this.appointments(user, input, { serviceId: input.rowId });
+      return this.appointments(input, { serviceId: input.rowId });
     }
 
     if (input.reportKey === reportKeys.customerPerformance) {
       await this.assertCustomerInScope(input.rowId);
-      return this.appointments(user, input, { customerId: input.rowId });
+      return this.appointments(input, { customerId: input.rowId });
     }
 
     await this.assertBranchInScope(user, input.rowId);
-    return this.appointments(user, input, { branchId: input.rowId });
+    return this.appointments(input, { branchId: input.rowId });
   }
 
   private async assertCustomerInScope(customerId: string) {
@@ -96,7 +96,6 @@ export class ReportDrilldownService {
   }
 
   private async appointments(
-    user: JwtPayload,
     input: ReportDrilldownInput,
     entity:
       | { staffId: string }
@@ -105,8 +104,9 @@ export class ReportDrilldownService {
       | { branchId: string },
   ) {
     const skip = (input.page - 1) * input.limit;
+    const scope = await this.organizationScope.getBranchScopedWhere();
     const where = {
-      tenantId: user.tenantId,
+      ...scope,
       ...entity,
       startAt: {
         gte: input.filters.from,
