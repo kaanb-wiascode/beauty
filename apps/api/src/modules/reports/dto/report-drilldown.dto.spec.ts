@@ -11,7 +11,7 @@ describe('reportDrilldownSchema', () => {
     },
   };
 
-  it('accepts bounded staff, customer and branch appointment drilldowns', () => {
+  it('accepts bounded entity and appointment-day drilldowns', () => {
     expect(reportDrilldownSchema.parse(base)).toEqual(
       expect.objectContaining({
         reportKey: 'staff.performance',
@@ -34,6 +34,19 @@ describe('reportDrilldownSchema', () => {
     expect(
       reportDrilldownSchema.parse({
         ...base,
+        reportKey: 'appointments.performance',
+        rowId: '2026-09-15',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        reportKey: 'appointments.performance',
+        rowId: '2026-09-15',
+        dimension: 'appointments',
+      }),
+    );
+    expect(
+      reportDrilldownSchema.parse({
+        ...base,
         reportKey: 'branches.performance',
       }),
     ).toEqual(
@@ -50,6 +63,20 @@ describe('reportDrilldownSchema', () => {
     ).toThrow();
     expect(() =>
       reportDrilldownSchema.parse({ ...base, dimension: 'sql' }),
+    ).toThrow();
+    expect(() =>
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'appointments.performance',
+        rowId: '2026-02-31',
+      }),
+    ).toThrow();
+    expect(() =>
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'staff.performance',
+        rowId: '2026-09-15',
+      }),
     ).toThrow();
   });
 
