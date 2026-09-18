@@ -47,8 +47,33 @@ export class ReportDrilldownService {
       return this.appointments(input, { customerId: input.rowId });
     }
 
+    if (input.reportKey === reportKeys.appointmentPerformance) {
+      return this.appointments(
+        input,
+        null,
+        this.resolveAppointmentDayRange(input),
+      );
+    }
+
     await this.assertBranchInScope(user, input.rowId);
     return this.appointments(input, { branchId: input.rowId });
+  }
+
+  private resolveAppointmentDayRange(input: ReportDrilldownInput) {
+    const dayStart = new Date(`${input.rowId}T00:00:00.000Z`);
+    const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
+    const from = new Date(
+      Math.max(dayStart.getTime(), input.filters.from.getTime()),
+    );
+    const to = new Date(
+      Math.min(dayEnd.getTime(), input.filters.to.getTime()),
+    );
+
+    if (from.getTime() > to.getTime()) {
+      throw new NotFoundException('Report drilldown row not found');
+    }
+
+    return { from, to };
   }
 
   private async assertCustomerInScope(customerId: string) {
@@ -101,16 +126,18 @@ export class ReportDrilldownService {
       | { staffId: string }
       | { serviceId: string }
       | { customerId: string }
-      | { branchId: string },
+      | { branchId: string }
+      | null,
+    range = input.filters,
   ) {
     const skip = (input.page - 1) * input.limit;
     const scope = await this.organizationScope.getBranchScopedWhere();
     const where = {
       ...scope,
-      ...entity,
+      ...(entity ?? {}),
       startAt: {
-        gte: input.filters.from,
-        lte: input.filters.to,
+        gte: range.from,
+        lte: range.to,
       },
     };
 
