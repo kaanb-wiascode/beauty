@@ -42,8 +42,28 @@ export class ReportDrilldownService {
       return this.appointments(user, input, { serviceId: input.rowId });
     }
 
+    if (input.reportKey === reportKeys.customerPerformance) {
+      await this.assertCustomerInScope(input.rowId);
+      return this.appointments(user, input, { customerId: input.rowId });
+    }
+
     await this.assertBranchInScope(user, input.rowId);
     return this.appointments(user, input, { branchId: input.rowId });
+  }
+
+  private async assertCustomerInScope(customerId: string) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
+    const customer = await this.prisma.customer.findFirst({
+      where: {
+        id: customerId,
+        ...scope,
+      },
+      select: { id: true },
+    });
+
+    if (!customer) {
+      throw new NotFoundException('Report drilldown row not found');
+    }
   }
 
   private async assertBranchInScope(user: JwtPayload, branchId: string) {
@@ -81,6 +101,7 @@ export class ReportDrilldownService {
     entity:
       | { staffId: string }
       | { serviceId: string }
+      | { customerId: string }
       | { branchId: string },
   ) {
     const skip = (input.page - 1) * input.limit;
