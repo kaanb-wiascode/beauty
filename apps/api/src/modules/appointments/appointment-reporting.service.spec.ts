@@ -68,6 +68,7 @@ describe('AppointmentReportingService', () => {
     );
     expect(result).toEqual([
       expect.objectContaining({
+        id: '2026-09-10',
         date: '2026-09-10',
         appointmentCount: 3,
         completedCount: 2,
