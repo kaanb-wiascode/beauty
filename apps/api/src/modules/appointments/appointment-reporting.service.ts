@@ -178,6 +178,7 @@ export class AppointmentReportingService {
       const resolved =
         bucket.completedCount + bucket.cancelledCount + bucket.noShowCount;
       return {
+        id: bucket.date,
         date: bucket.date,
         appointmentCount: bucket.appointmentCount,
         scheduledCount: bucket.scheduledCount,
