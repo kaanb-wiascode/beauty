@@ -37,6 +37,7 @@ describe('ReportDrilldownService', () => {
   const appointmentFindMany = jest.fn();
   const appointmentCount = jest.fn();
   const branchFindFirst = jest.fn();
+  const customerFindFirst = jest.fn();
   const getBranchScopedWhere = jest.fn();
   const staffFindOne = jest.fn();
   const serviceFindOne = jest.fn();
@@ -55,6 +56,7 @@ describe('ReportDrilldownService', () => {
     ]);
     appointmentCount.mockReset().mockResolvedValue(1);
     branchFindFirst.mockReset();
+    customerFindFirst.mockReset();
     getBranchScopedWhere.mockReset();
     staffFindOne.mockReset().mockResolvedValue({ id: input.rowId });
     serviceFindOne.mockReset();
@@ -73,6 +75,7 @@ describe('ReportDrilldownService', () => {
               count: appointmentCount,
             },
             branch: { findFirst: branchFindFirst },
+            customer: { findFirst: customerFindFirst },
           },
         },
         {
@@ -138,6 +141,56 @@ describe('ReportDrilldownService', () => {
         }),
       }),
     );
+  });
+
+  it('queries customer appointments only after the customer is confirmed inside organization scope', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'customers.performance' }]);
+    getBranchScopedWhere.mockResolvedValueOnce({
+      tenantId: 'tenant-1',
+      branchId: { in: [user.branchId] },
+    });
+    customerFindFirst.mockResolvedValueOnce({ id: input.rowId });
+
+    await service.drilldown(user, {
+      ...input,
+      reportKey: 'customers.performance',
+    });
+
+    expect(customerFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: input.rowId,
+        tenantId: 'tenant-1',
+        branchId: { in: [user.branchId] },
+      },
+      select: { id: true },
+    });
+    expect(appointmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({
+          tenantId: user.tenantId,
+          customerId: input.rowId,
+        }),
+      }),
+    );
+  });
+
+  it('rejects customer row ids outside organization scope before any child query', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'customers.performance' }]);
+    getBranchScopedWhere.mockResolvedValueOnce({
+      tenantId: 'tenant-1',
+      branchId: { in: [user.branchId] },
+    });
+    customerFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.drilldown(user, {
+        ...input,
+        reportKey: 'customers.performance',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(appointmentFindMany).not.toHaveBeenCalled();
+    expect(appointmentCount).not.toHaveBeenCalled();
   });
 
   it('queries appointments only after an active branch is confirmed inside organization scope', async () => {
