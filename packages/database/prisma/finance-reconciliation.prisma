@@ -1,0 +1,21 @@
+model FinanceReconciliationMatch {
+  id                 String   @id @default(uuid())
+  tenantId           String   @map("tenant_id")
+  companyId          String   @map("company_id")
+  branchId           String?  @map("branch_id")
+  bankTransactionId  String   @map("bank_transaction_id")
+  expensePaymentId   String?  @map("expense_payment_id")
+  incomeCollectionId String?  @map("income_collection_id")
+  amount             Decimal  @db.Decimal(14, 2)
+  currency           String   @default("TRY") @db.VarChar(3)
+  matchedBy          String   @map("matched_by")
+  matchedAt          DateTime @default(now()) @map("matched_at")
+  reversedBy         String?  @map("reversed_by")
+  reversedAt         DateTime? @map("reversed_at")
+  reversalReason     String?  @map("reversal_reason")
+
+  @@index([tenantId, companyId, matchedAt], map: "finance_reconciliation_matches_tenant_company_idx")
+  @@index([expensePaymentId], map: "finance_reconciliation_matches_expense_payment_idx")
+  @@index([incomeCollectionId], map: "finance_reconciliation_matches_income_collection_idx")
+  @@map("finance_reconciliation_matches")
+}

@@ -5,7 +5,9 @@ import "dotenv/config";
 import { defineConfig, env } from "prisma/config";
 
 export default defineConfig({
-  schema: "prisma/schema.prisma",
+  // Prisma 6 supports multi-file schemas. Keep the existing core schema intact and
+  // load bounded-domain schema files (for example prisma/finance.prisma) alongside it.
+  schema: "prisma",
   migrations: {
     path: "prisma/migrations",
   },

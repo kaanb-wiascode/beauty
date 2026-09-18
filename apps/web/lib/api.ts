@@ -4,14 +4,14 @@ import {
   getRefreshToken,
   persistSession,
 } from "./auth";
+import { userErrorMessage } from "./user-language";
 
 /**
  * Browser requests use the same-origin `/backend` rewrite in next.config.ts,
  * which proxies to http://localhost:3000. Override with NEXT_PUBLIC_API_URL
  * if the API is reachable cross-origin.
  */
-export const API_BASE_URL =
-  process.env.NEXT_PUBLIC_API_URL ?? "/backend";
+export const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL ?? "/backend";
 
 export class ApiError extends Error {
   status: number;
@@ -23,61 +23,33 @@ export class ApiError extends Error {
   }
 }
 
-type ApiMethod = "GET" | "POST" | "PATCH" | "DELETE";
+type ApiMethod = "GET" | "POST" | "PUT" | "PATCH" | "DELETE";
 
-type ApiOptions = {
+export type ApiOptions = {
   method?: ApiMethod;
   body?: unknown;
   auth?: boolean;
 };
 
-const ERROR_MESSAGES: Record<string, string> = {
-  "Invalid email or password": "E-posta veya şifre hatalı.",
-  "No active tenant membership": "Aktif salon üyeliği bulunamadı.",
-  "You do not have permission to perform this action":
-    "Bu işlem için yetkiniz yok.",
-  "Staff already has an overlapping appointment":
-    "Bu personelin seçilen saatte çakışan bir randevusu var.",
-  "Appointment startAt must be before endAt":
-    "Randevu başlangıcı bitişten önce olmalıdır.",
-  "Invalid appointment date": "Geçersiz randevu tarihi.",
-  "Staff is not active": "Seçilen personel aktif değil.",
-  "Service is not active": "Seçilen hizmet aktif değil.",
-  "Customer not found": "Müşteri bulunamadı.",
-  "Staff not found": "Personel bulunamadı.",
-  "Service not found": "Hizmet bulunamadı.",
-  "Appointment not found": "Randevu bulunamadı.",
-  "Cancelled appointment cannot be reactivated":
-    "İptal edilen randevu yeniden aktifleştirilemez.",
-  "Appointment is already cancelled": "Randevu zaten iptal edilmiş.",
-  "Failed to create appointment": "Randevu oluşturulamadı.",
-  "Failed to update appointment": "Randevu güncellenemedi.",
-  "Failed to cancel appointment": "Randevu iptal edilemedi.",
-  "Appointment already has a payment": "Bu randevunun zaten bir ödeme kaydı var.",
-  "Cancelled or no-show appointment cannot be paid": "İptal edilmiş veya gelinmemiş randevu için ödeme alınamaz.",
-  "Payment not found": "Ödeme bulunamadı.",
-};
-
-function mapErrorMessage(message: string) {
-  return ERROR_MESSAGES[message] ?? message;
-}
-
 function readErrorMessage(payload: unknown, fallback: string) {
   if (!payload || typeof payload !== "object") {
-    return fallback;
+    return userErrorMessage(undefined, fallback);
   }
 
   const record = payload as { message?: unknown };
 
   if (typeof record.message === "string" && record.message.trim()) {
-    return mapErrorMessage(record.message);
+    return userErrorMessage(record.message, fallback);
   }
 
   if (Array.isArray(record.message) && record.message.length > 0) {
-    return record.message.map(String).join(", ");
+    const safeMessages = record.message
+      .map((message) => userErrorMessage(String(message), ""))
+      .filter(Boolean);
+    return safeMessages.length ? safeMessages.join(" ") : fallback;
   }
 
-  return fallback;
+  return userErrorMessage(undefined, fallback);
 }
 
 function redirectToLogin() {
@@ -128,6 +100,63 @@ async function refreshAccessToken(): Promise<string | null> {
   return refreshInFlight;
 }
 
+export async function apiResponse(
+  path: string,
+  options: Pick<ApiOptions, "method" | "auth"> = {},
+): Promise<Response> {
+  const { method = "GET", auth = true } = options;
+  let accessToken = auth ? getAccessToken() : null;
+
+  if (auth && !accessToken && !path.startsWith("/auth/")) {
+    accessToken = await refreshAccessToken();
+    if (!accessToken) {
+      clearSession();
+      redirectToLogin();
+      throw new ApiError(
+        "Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.",
+        401,
+      );
+    }
+  }
+
+  const request = async (token: string | null) => {
+    const headers: Record<string, string> = {};
+    if (auth && token) headers.Authorization = `Bearer ${token}`;
+
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers,
+        credentials: "include",
+      });
+    } catch {
+      throw new ApiError(
+        "Sunucuya Bağlanılamadı. Lütfen Birkaç Dakika Sonra Tekrar Deneyin.",
+        0,
+      );
+    }
+  };
+
+  let response = await request(accessToken);
+
+  if (response.status === 401 && auth && !path.startsWith("/auth/")) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) {
+      response = await request(refreshedToken);
+    } else {
+      clearSession();
+      redirectToLogin();
+    }
+  }
+
+  if (response.status === 401 && auth) {
+    clearSession();
+    redirectToLogin();
+  }
+
+  return response;
+}
+
 export async function api<T>(
   path: string,
   options: ApiOptions = {},
@@ -146,7 +175,10 @@ export async function api<T>(
     if (!accessToken) {
       clearSession();
       redirectToLogin();
-      throw new ApiError("Oturumunuz sona erdi. Lütfen tekrar giriş yapın.", 401);
+      throw new ApiError(
+        "Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.",
+        401,
+      );
     }
   }
 
@@ -164,14 +196,20 @@ export async function api<T>(
       credentials: "include",
     });
   } catch {
-    throw new ApiError("Sunucuya bağlanılamadı. Backend çalışıyor mu?", 0);
+    throw new ApiError(
+      "Sunucuya Bağlanılamadı. Lütfen Birkaç Dakika Sonra Tekrar Deneyin.",
+      0,
+    );
   }
 
   if (response.status === 401 && auth && !path.startsWith("/auth/")) {
     const refreshedToken = await refreshAccessToken();
 
     if (refreshedToken) {
-      const retryHeaders = { ...headers, Authorization: `Bearer ${refreshedToken}` };
+      const retryHeaders = {
+        ...headers,
+        Authorization: `Bearer ${refreshedToken}`,
+      };
 
       try {
         response = await fetch(`${API_BASE_URL}${path}`, {
@@ -181,7 +219,10 @@ export async function api<T>(
           credentials: "include",
         });
       } catch {
-        throw new ApiError("Sunucuya bağlanılamadı. Backend çalışıyor mu?", 0);
+        throw new ApiError(
+          "Sunucuya Bağlanılamadı. Lütfen Birkaç Dakika Sonra Tekrar Deneyin.",
+          0,
+        );
       }
     } else {
       clearSession();
@@ -206,10 +247,16 @@ export async function api<T>(
       redirectToLogin();
     }
 
-    throw new ApiError(
-      readErrorMessage(payload, "İstek başarısız oldu."),
-      response.status,
-    );
+    const fallback =
+      response.status === 403
+        ? "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor."
+        : response.status === 404
+          ? "Aradığınız Kayıt Bulunamadı."
+          : response.status >= 500
+            ? "İşlem Şu Anda Tamamlanamıyor. Lütfen Birkaç Dakika Sonra Tekrar Deneyin."
+            : "İşlem Tamamlanamadı. Lütfen Bilgileri Kontrol Edip Tekrar Deneyin.";
+
+    throw new ApiError(readErrorMessage(payload, fallback), response.status);
   }
 
   return payload as T;

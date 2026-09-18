@@ -1,0 +1,61 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import type { CreatePrActivityInput, UpdatePrActivityInput } from './pr-media.schemas';
+
+type Row={id:string;branchId:string|null;[key:string]:unknown};
+
+@Injectable()
+export class PrMediaService {
+  constructor(private readonly prisma:PrismaService,private readonly tenantContext:TenantContext){}
+  private context(){return this.tenantContext.getContext();}
+  private normalize(row:Row){return {...row,estimatedReach:typeof row.estimatedReach==='bigint'?Number(row.estimatedReach):row.estimatedReach,actualReach:typeof row.actualReach==='bigint'?Number(row.actualReach):row.actualReach};}
+  private async assertBranch(branchId:string){const {companyId}=this.context();const branch=await this.prisma.branch.findFirst({where:{id:branchId,companyId,status:'ACTIVE'},select:{id:true}});if(!branch)throw new BadRequestException('PR activity branch is outside the active company.');}
+  private async assertCampaign(campaignId:string,branchId:string|null){const {tenantId,companyId}=this.context();const rows=await this.prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT id FROM corporate_communication_campaigns WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND ($4::text IS NULL OR branch_id IS NULL OR branch_id=$4::text) LIMIT 1`,campaignId,tenantId,companyId,branchId);if(!rows.length)throw new BadRequestException('PR activity campaign is outside the allowed scope.');}
+  private async assertOwner(userId:string,branchId:string|null){const {tenantId,companyId}=this.context();const rows=await this.prisma.$queryRawUnsafe<Array<{id:string}>>(`SELECT u.id FROM users u JOIN memberships m ON m."userId"=u.id JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId" WHERE u.id=$1::text AND m."tenantId"=$2::text AND m."companyId"=$3::text AND m.status='ACTIVE' AND ($4::text IS NULL OR r.scope<>'BRANCH' OR EXISTS(SELECT 1 FROM membership_branch_access mba WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text)) LIMIT 1`,userId,tenantId,companyId,branchId);if(!rows.length)throw new BadRequestException('PR activity owner is outside the allowed scope.');}
+
+  private async syncFinanceHandoff(activityId:string){
+    const {tenantId,companyId}=this.context();
+    const activities=await this.prisma.$queryRawUnsafe<Array<{status:string}>>(
+      `SELECT status FROM corporate_pr_activities WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text LIMIT 1`,
+      activityId,tenantId,companyId,
+    );
+    if(!activities.length)return;
+    if(activities[0].status==='CANCELLED'){
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE corporate_marketing_expenses SET status='CANCELLED',updated_at=NOW()
+         WHERE tenant_id=$1::text AND company_id=$2::text AND source_type='PR_MEDIA' AND source_id=$3::text
+           AND status='PENDING_FINANCE'`,
+        tenantId,companyId,activityId,
+      );
+      return;
+    }
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO corporate_marketing_expenses(
+         tenant_id,company_id,branch_id,source_type,source_id,period_key,campaign_id,
+         category,description,amount,currency,incurred_on,status,expense_account_code,expense_account_name,metadata
+       )
+       SELECT p.tenant_id,p.company_id,p.branch_id,'PR_MEDIA',p.id,'ONE_TIME',p.campaign_id,
+              CASE WHEN p.activity_type='SPONSORSHIP' THEN 'SPONSORSHIP' ELSE 'PR_MEDIA' END,
+              p.title,p.cost_amount,p.currency,COALESCE(p.starts_at::date,CURRENT_DATE),'PENDING_FINANCE',
+              CASE WHEN p.activity_type='SPONSORSHIP' THEN '760.06' ELSE '760.08' END,
+              CASE WHEN p.activity_type='SPONSORSHIP' THEN 'Sponsorluk Giderleri' ELSE 'PR ve Medya Giderleri' END,
+              jsonb_build_object('activityType',p.activity_type,'outletName',p.outlet_name,'autoSynced',true)
+       FROM corporate_pr_activities p
+       WHERE p.id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text AND p.cost_amount>0 AND p.status<>'CANCELLED'
+       ON CONFLICT (tenant_id,company_id,source_type,source_id,period_key)
+       DO UPDATE SET amount=EXCLUDED.amount,currency=EXCLUDED.currency,branch_id=EXCLUDED.branch_id,
+                     campaign_id=EXCLUDED.campaign_id,category=EXCLUDED.category,description=EXCLUDED.description,
+                     expense_account_code=EXCLUDED.expense_account_code,expense_account_name=EXCLUDED.expense_account_name,
+                     metadata=EXCLUDED.metadata,updated_at=NOW()
+       WHERE corporate_marketing_expenses.status='PENDING_FINANCE'`,
+      activityId,tenantId,companyId,
+    );
+  }
+
+  async list(filters:{status?:string;activityType?:string;search?:string;limit:number}){const {tenantId,companyId,branchId}=this.context();const rows=await this.prisma.$queryRawUnsafe<Row[]>(`SELECT p.id,p.branch_id AS "branchId",p.campaign_id AS "campaignId",cam.name AS "campaignName",p.activity_type AS "activityType",p.status,p.title,p.outlet_name AS "outletName",p.contact_name AS "contactName",p.contact_email AS "contactEmail",p.contact_phone AS "contactPhone",p.starts_at AS "startsAt",p.ends_at AS "endsAt",p.location,p.objective,p.key_message AS "keyMessage",p.cost_amount AS "costAmount",p.currency,p.estimated_reach AS "estimatedReach",p.actual_reach AS "actualReach",p.estimated_media_value AS "estimatedMediaValue",p.attributed_revenue AS "attributedRevenue",p.owner_user_id AS "ownerUserId",p.notes,p.metadata,p.created_at AS "createdAt",p.updated_at AS "updatedAt" FROM corporate_pr_activities p LEFT JOIN corporate_communication_campaigns cam ON cam.id=p.campaign_id WHERE p.tenant_id=$1::text AND p.company_id=$2::text AND ($3::text IS NULL OR p.branch_id IS NULL OR p.branch_id=$3::text) AND ($4::text IS NULL OR p.status=$4::text) AND ($5::text IS NULL OR p.activity_type=$5::text) AND ($6::text IS NULL OR p.title ILIKE '%'||$6||'%' OR COALESCE(p.outlet_name,'') ILIKE '%'||$6||'%') ORDER BY COALESCE(p.starts_at,p.updated_at) DESC,p.id LIMIT $7`,tenantId,companyId,branchId,filters.status??null,filters.activityType??null,filters.search?.trim()||null,filters.limit);return rows.map((row)=>this.normalize(row));}
+
+  async create(input:CreatePrActivityInput,actorUserId:string){const context=this.context();const branchId=input.branchId===undefined?context.branchId:input.branchId;if(branchId)await this.assertBranch(branchId);if(context.branchId&&branchId&&branchId!==context.branchId)throw new BadRequestException('PR activity cannot be created outside the active branch.');if(input.campaignId)await this.assertCampaign(input.campaignId,branchId??null);if(input.ownerUserId)await this.assertOwner(input.ownerUserId,branchId??null);const rows=await this.prisma.$queryRawUnsafe<Row[]>(`INSERT INTO corporate_pr_activities(tenant_id,company_id,branch_id,campaign_id,activity_type,status,title,outlet_name,contact_name,contact_email,contact_phone,starts_at,ends_at,location,objective,key_message,cost_amount,currency,estimated_reach,actual_reach,estimated_media_value,owner_user_id,notes,metadata,created_by_user_id) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,$7,$8,$9,$10,$11,$12::timestamptz,$13::timestamptz,$14,$15,$16,$17,$18,$19,$20,$21,$22::text,$23,$24::jsonb,$25::text) RETURNING id,branch_id AS "branchId",campaign_id AS "campaignId",activity_type AS "activityType",status,title,outlet_name AS "outletName",starts_at AS "startsAt",ends_at AS "endsAt",cost_amount AS "costAmount",currency,estimated_reach AS "estimatedReach",actual_reach AS "actualReach",estimated_media_value AS "estimatedMediaValue",attributed_revenue AS "attributedRevenue"`,context.tenantId,context.companyId,branchId??null,input.campaignId??null,input.activityType,input.status,input.title,input.outletName??null,input.contactName??null,input.contactEmail??null,input.contactPhone??null,input.startsAt??null,input.endsAt??null,input.location??null,input.objective??null,input.keyMessage??null,input.costAmount,input.currency,input.estimatedReach,input.actualReach,input.estimatedMediaValue,input.ownerUserId??null,input.notes??null,JSON.stringify(input.metadata),actorUserId);await this.syncFinanceHandoff(rows[0].id);return this.normalize(rows[0]);}
+
+  async update(id:string,input:UpdatePrActivityInput){const context=this.context();const rows=await this.prisma.$queryRawUnsafe<Row[]>(`UPDATE corporate_pr_activities SET status=COALESCE($5,status),outlet_name=CASE WHEN $6::boolean THEN $7 ELSE outlet_name END,contact_name=CASE WHEN $8::boolean THEN $9 ELSE contact_name END,actual_reach=COALESCE($10,actual_reach),estimated_media_value=COALESCE($11,estimated_media_value),notes=CASE WHEN $12::boolean THEN $13 ELSE notes END,metadata=CASE WHEN $14::boolean THEN $15::jsonb ELSE metadata END,updated_at=NOW() WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND ($4::text IS NULL OR branch_id IS NULL OR branch_id=$4::text) RETURNING id,branch_id AS "branchId",activity_type AS "activityType",status,title,outlet_name AS "outletName",cost_amount AS "costAmount",currency,estimated_reach AS "estimatedReach",actual_reach AS "actualReach",estimated_media_value AS "estimatedMediaValue",attributed_revenue AS "attributedRevenue",updated_at AS "updatedAt"`,id,context.tenantId,context.companyId,context.branchId,input.status??null,input.outletName!==undefined,input.outletName??null,input.contactName!==undefined,input.contactName??null,input.actualReach??null,input.estimatedMediaValue??null,input.notes!==undefined,input.notes??null,input.metadata!==undefined,JSON.stringify(input.metadata??{}));if(!rows.length)throw new NotFoundException('PR activity not found.');await this.syncFinanceHandoff(rows[0].id);return this.normalize(rows[0]);}
+}
