@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { ReportDrilldownPanel } from "../report-drilldown-panel";
 import {
   ReportFilterBar,
   reportDateInputValue,
@@ -15,6 +16,7 @@ import { fetchReportPreview, type TableReportPreview } from "../report-preview-c
 import { useReportTableState } from "../use-report-table-state";
 
 type Row = {
+  _rowId?: string;
   name: string;
   customerSource: string | null;
   customerSince: string;
@@ -95,6 +97,7 @@ export default function CustomerReportPage() {
   const [query, setQuery] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
   const table = useReportTableState<ColumnKey, ColumnKey>({
     columns: COLUMNS,
     initialSort: { key: "collected", direction: "desc" },
@@ -104,6 +107,7 @@ export default function CustomerReportPage() {
     if (reportRangeIsInvalid(range)) {
       setRows([]);
       setSummary(EMPTY_SUMMARY);
+      setSelected(null);
       setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz.");
       setLoading(false);
       return;
@@ -113,6 +117,7 @@ export default function CustomerReportPage() {
     async function load() {
       setLoading(true);
       setError("");
+      setSelected(null);
       try {
         const result = await fetchReportPreview<TableReportPreview<Row, Summary>>({
           reportKey: "customers.performance",
@@ -204,8 +209,19 @@ export default function CustomerReportPage() {
                 </thead>
                 <tbody>
                   {filtered.map((row) => (
-                    <tr key={`${row.name}-${row.customerSince}`}>
-                      {table.visibleColumns.has("name") ? <Td label="Müşteri" className="font-medium">{row.name}</Td> : null}
+                    <tr key={row._rowId ?? `${row.name}-${row.customerSince}`}>
+                      {table.visibleColumns.has("name") ? (
+                        <Td label="Müşteri">
+                          <button
+                            type="button"
+                            disabled={!row._rowId}
+                            onClick={() => row._rowId && setSelected(row)}
+                            className="font-medium text-left enabled:hover:text-[var(--accent)] disabled:cursor-default"
+                          >
+                            {row.name}
+                          </button>
+                        </Td>
+                      ) : null}
                       {table.visibleColumns.has("visitCount") ? <Td label="Ziyaret">{row.visitCount}</Td> : null}
                       {table.visibleColumns.has("completedVisits") ? <Td label="Tamamlanan">{row.completedVisits}</Td> : null}
                       {table.visibleColumns.has("lastVisitAt") ? <Td label="Son Ziyaret">{dateLabel(row.lastVisitAt)}</Td> : null}
@@ -223,6 +239,16 @@ export default function CustomerReportPage() {
               <button type="button" disabled={meta.page >= meta.totalPages} onClick={() => setMeta((current) => ({ ...current, page: current.page + 1 }))} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button>
             </div>
           </Panel>
+
+          {selected?._rowId ? (
+            <ReportDrilldownPanel
+              reportKey="customers.performance"
+              rowId={selected._rowId}
+              title={selected.name}
+              filters={reportRangeToQuery(range)}
+              onClose={() => setSelected(null)}
+            />
+          ) : null}
         </>
       )}
     </div>
