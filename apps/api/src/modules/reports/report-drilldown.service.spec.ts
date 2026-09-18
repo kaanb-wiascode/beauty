@@ -57,7 +57,10 @@ describe('ReportDrilldownService', () => {
     appointmentCount.mockReset().mockResolvedValue(1);
     branchFindFirst.mockReset();
     customerFindFirst.mockReset();
-    getBranchScopedWhere.mockReset();
+    getBranchScopedWhere.mockReset().mockResolvedValue({
+      tenantId: 'tenant-1',
+      branchId: { in: [user.branchId] },
+    });
     staffFindOne.mockReset().mockResolvedValue({ id: input.rowId });
     serviceFindOne.mockReset();
     getCatalog
@@ -99,6 +102,7 @@ describe('ReportDrilldownService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           tenantId: 'tenant-1',
+          branchId: { in: [user.branchId] },
           staffId: input.rowId,
           startAt: { gte: input.filters.from, lte: input.filters.to },
         }),
@@ -137,6 +141,7 @@ describe('ReportDrilldownService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           tenantId: 'tenant-1',
+          branchId: { in: [user.branchId] },
           serviceId: input.rowId,
         }),
       }),
@@ -168,6 +173,7 @@ describe('ReportDrilldownService', () => {
       expect.objectContaining({
         where: expect.objectContaining({
           tenantId: user.tenantId,
+          branchId: { in: [user.branchId] },
           customerId: input.rowId,
         }),
       }),
