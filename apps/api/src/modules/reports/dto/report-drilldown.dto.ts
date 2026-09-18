@@ -8,6 +8,7 @@ export const reportDrilldownSchema = z
     reportKey: z.enum([
       reportKeys.staffPerformance,
       reportKeys.servicePerformance,
+      reportKeys.customerPerformance,
       reportKeys.branchPerformance,
     ]),
     dimension: z.literal('appointments'),
