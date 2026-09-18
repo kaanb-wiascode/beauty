@@ -10,7 +10,7 @@ This file records incremental Phase 2 implementation progress without replacing 
 
 The shared Reporting Platform is active across Staff Performance, Service Performance, Payment Summary, Customer Performance, Sales Performance, Appointment Performance, Finance Performance, Inventory Performance, Procurement Performance, CRM Performance, HR Workforce, Payroll Summary and Branch Performance.
 
-The common lifecycle now covers permission-aware catalog discovery, preview, server-owned summaries, previous-period comparison, CSV/XLSX/PDF export, requester-private export history, Saved Reports, favorites, Recent Reports, Scheduled Reports and dedicated frontend workspaces. Scoped appointment drill-down remains available for Staff Performance and Service Performance.
+The common lifecycle now covers permission-aware catalog discovery, preview, server-owned summaries, previous-period comparison, CSV/XLSX/PDF export, requester-private export history, Saved Reports, favorites, Recent Reports, Scheduled Reports and dedicated frontend workspaces. Scoped appointment drill-down is available for Staff Performance, Service Performance, Customer Performance, Branch Performance and UTC day rows in Appointment Performance.
 
 The legacy `/reports/staff-performance`, `/reports/service-performance` and `/reports/payment-summary` dependencies have been removed from the Report Center and Executive workspace. Both now consume the shared preview/catalog contracts.
 
@@ -34,6 +34,7 @@ The legacy `/reports/staff-performance`, `/reports/service-performance` and `/re
 - Scope is source-domain owned through `OrganizationScopeService`.
 - Visit, completion and collection metrics are exposed without phone, email, birth date, health, consent or care-note fields.
 - Available through the shared Reporting lifecycle and `/reports/customers`.
+- Customer rows expose only a server-owned preview `_rowId`; appointment drill-down revalidates organization scope and does not expose customer contact, health, consent or care-note fields.
 
 ### Sales Performance
 
@@ -51,6 +52,7 @@ The legacy `/reports/staff-performance`, `/reports/service-performance` and `/re
 - Rebooking uses a 90-day post-completion window and unique completed customers as the denominator.
 - Daily/peak-hour grouping is explicitly UTC until an authoritative branch timezone source is introduced.
 - Available through the shared Reporting lifecycle and `/reports/appointments`.
+- Daily rows use the existing UTC report bucket (`YYYY-MM-DD`) as a server-owned preview identity. Drill-down intersects that UTC day with the original report filter and organization scope before loading appointment rows.
 
 ### Finance Performance
 
@@ -99,6 +101,7 @@ The legacy `/reports/staff-performance`, `/reports/service-performance` and `/re
 - Metrics include appointment count, completed/cancelled/no-show counts, resolved completion/no-show rates, completed-payment collection and average collection per completed appointment.
 - Only payments in `COMPLETED` state contribute to collected revenue.
 - Available through preview, previous-period comparison, CSV/XLSX/PDF export, Saved Reports, Scheduled Reports and `/reports/branches`.
+- Branch rows retain the internal branch UUID only as preview `_rowId`; appointment drill-down validates the branch against active company/organization scope before querying children.
 
 ## Executive / Report Center
 
@@ -119,8 +122,9 @@ The legacy `/reports/staff-performance`, `/reports/service-performance` and `/re
 ## Drill-down
 
 - `POST /reports/drilldown` accepts server-defined report keys/dimensions only.
-- Staff and Service Performance support scoped appointment drill-down.
-- Parent entities are scope-validated before child appointment queries.
+- Staff, Service, Customer and Branch Performance support scoped appointment drill-down; Appointment Performance supports UTC day-row drill-down.
+- Entity parent rows are scope-validated before child queries, and every child appointment query independently reapplies `OrganizationScopeService` scope.
+- Appointment day drill-down accepts only a valid UTC `YYYY-MM-DD` row identity and intersects it with the original report filter before querying.
 - Returned child rows exclude customer identity, notes and other sensitive fields.
 - Server-owned `_rowId` is preview-only and never exportable.
 
@@ -192,7 +196,7 @@ The Report Center, Export Center and schedule/comparison clients consume the aut
 
 ## Current CI note
 
-Monorepo quality run `#4970` on commit `1e5e9355752b590c88b6ba678def8fcafa8ac5e7` completed successfully. The verified chain includes workspace install, Prisma validation/migrations/generation, database/shared-contract typecheck and build, API typecheck, API unit tests, API E2E, API production build, web lint, web typecheck and web production build.
+Monorepo quality run `#5053` on commit `3d5b4b1811492c5337293d01d969bfc7f91a98c3` completed successfully. The verified chain includes workspace install, Prisma validation/migrations/generation, database/shared-contract typecheck and build, API typecheck, API unit tests, API E2E, API production build, web lint, web typecheck and web production build.
 
 The previous `#4442` migration failure is no longer representative of the branch state; later hardening work repaired the migration/CI chain and established a full-green baseline.
 
