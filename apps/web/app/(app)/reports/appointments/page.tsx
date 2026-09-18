@@ -3,11 +3,12 @@
 import { useEffect, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { ReportDrilldownPanel } from "../report-drilldown-panel";
 import { ReportFilterBar, reportDateInputValue, reportRangeIsInvalid, reportRangeToQuery, type ReportDateRange } from "../report-filter-bar";
 import { fetchReportPreview, type TableReportPreview } from "../report-preview-client";
 import { useReportTableState } from "../use-report-table-state";
 
-type Row = { date: string; appointmentCount: number; completedCount: number; cancelledCount: number; noShowCount: number; completionRate: number; newCustomerCount: number; repeatCustomerCount: number; rebookingRate: number; peakHour: number | null };
+type Row = { _rowId?: string; date: string; appointmentCount: number; completedCount: number; cancelledCount: number; noShowCount: number; completionRate: number; newCustomerCount: number; repeatCustomerCount: number; rebookingRate: number; peakHour: number | null };
 type Summary = { rowCount: number; appointmentCount: number; completedCount: number; cancelledCount: number; noShowCount: number; completionRate: number; cancellationRate: number; noShowRate: number; newCustomerCount: number; repeatCustomerCount: number; rebookedCustomerCount: number; rebookingRate: number; collected: number };
 type ColumnKey = "date" | "appointmentCount" | "completedCount" | "cancelledCount" | "noShowCount" | "completionRate" | "newCustomerCount" | "repeatCustomerCount" | "rebookingRate" | "peakHour";
 
@@ -23,13 +24,14 @@ export default function AppointmentReportPage() {
   const [meta, setMeta] = useState({ page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
   const table = useReportTableState<ColumnKey, ColumnKey>({ columns: COLUMNS, initialSort: { key: "date", direction: "desc" } });
 
   useEffect(() => {
-    if (reportRangeIsInvalid(range)) { setRows([]); setSummary(EMPTY_SUMMARY); setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz."); setLoading(false); return; }
+    if (reportRangeIsInvalid(range)) { setRows([]); setSummary(EMPTY_SUMMARY); setSelected(null); setError("Başlangıç Tarihi Bitiş Tarihinden Sonra Olamaz."); setLoading(false); return; }
     let cancelled = false;
     async function load() {
-      setLoading(true); setError("");
+      setLoading(true); setError(""); setSelected(null);
       try {
         const result = await fetchReportPreview<TableReportPreview<Row, Summary>>({ reportKey: "appointments.performance", filters: reportRangeToQuery(range), columns: COLUMNS, sort: table.sort, page: meta.page, limit: 31 });
         if (!cancelled) { setRows(result.data); setSummary(result.meta.summary); setMeta({ page: result.meta.page, totalPages: result.meta.totalPages || 1 }); }
@@ -55,9 +57,10 @@ export default function AppointmentReportPage() {
       </section>
       <Panel>
         <div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[16px] font-semibold text-[var(--ink)]">Günlük Randevu Performansı</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Tarih ve yoğun saat bucketları şu an API UTC zaman standardına göre gösterilir.</p></div>
-        {rows.length === 0 ? <div className="px-5 py-10 text-center text-[13px] text-[var(--muted)]">Seçilen tarih aralığında randevu bulunamadı.</div> : <TableWrap><thead><tr>{table.visibleColumnList.map((column) => <Th key={column}><button type="button" onClick={() => table.toggleSort(column)} className="inline-flex items-center gap-1"><span>{LABELS[column]}</span><span className="text-[10px] text-[var(--muted-soft)]">{table.sort.key === column ? (table.sort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button></Th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row.date}>{table.visibleColumns.has("date") ? <Td label="Gün" className="font-medium">{dateLabel(row.date)}</Td> : null}{table.visibleColumns.has("appointmentCount") ? <Td label="Randevu">{row.appointmentCount}</Td> : null}{table.visibleColumns.has("completedCount") ? <Td label="Tamamlanan">{row.completedCount}</Td> : null}{table.visibleColumns.has("cancelledCount") ? <Td label="İptal">{row.cancelledCount}</Td> : null}{table.visibleColumns.has("noShowCount") ? <Td label="No-show">{row.noShowCount}</Td> : null}{table.visibleColumns.has("completionRate") ? <Td label="Tamamlama">%{row.completionRate}</Td> : null}{table.visibleColumns.has("newCustomerCount") ? <Td label="Yeni">{row.newCustomerCount}</Td> : null}{table.visibleColumns.has("repeatCustomerCount") ? <Td label="Tekrar">{row.repeatCustomerCount}</Td> : null}{table.visibleColumns.has("rebookingRate") ? <Td label="Yeniden Randevu">%{row.rebookingRate}</Td> : null}{table.visibleColumns.has("peakHour") ? <Td label="Yoğun Saat">{row.peakHour === null ? "—" : `${String(row.peakHour).padStart(2, "0")}:00 UTC`}</Td> : null}</tr>)}</tbody></TableWrap>}
+        {rows.length === 0 ? <div className="px-5 py-10 text-center text-[13px] text-[var(--muted)]">Seçilen tarih aralığında randevu bulunamadı.</div> : <TableWrap><thead><tr>{table.visibleColumnList.map((column) => <Th key={column}><button type="button" onClick={() => table.toggleSort(column)} className="inline-flex items-center gap-1"><span>{LABELS[column]}</span><span className="text-[10px] text-[var(--muted-soft)]">{table.sort.key === column ? (table.sort.direction === "asc" ? "↑" : "↓") : "↕"}</span></button></Th>)}</tr></thead><tbody>{rows.map((row) => <tr key={row._rowId ?? row.date}>{table.visibleColumns.has("date") ? <Td label="Gün"><button type="button" disabled={!row._rowId} onClick={() => row._rowId && setSelected(row)} className="font-medium text-left enabled:hover:text-[var(--accent)] disabled:cursor-default">{dateLabel(row.date)}</button></Td> : null}{table.visibleColumns.has("appointmentCount") ? <Td label="Randevu">{row.appointmentCount}</Td> : null}{table.visibleColumns.has("completedCount") ? <Td label="Tamamlanan">{row.completedCount}</Td> : null}{table.visibleColumns.has("cancelledCount") ? <Td label="İptal">{row.cancelledCount}</Td> : null}{table.visibleColumns.has("noShowCount") ? <Td label="No-show">{row.noShowCount}</Td> : null}{table.visibleColumns.has("completionRate") ? <Td label="Tamamlama">%{row.completionRate}</Td> : null}{table.visibleColumns.has("newCustomerCount") ? <Td label="Yeni">{row.newCustomerCount}</Td> : null}{table.visibleColumns.has("repeatCustomerCount") ? <Td label="Tekrar">{row.repeatCustomerCount}</Td> : null}{table.visibleColumns.has("rebookingRate") ? <Td label="Yeniden Randevu">%{row.rebookingRate}</Td> : null}{table.visibleColumns.has("peakHour") ? <Td label="Yoğun Saat">{row.peakHour === null ? "—" : `${String(row.peakHour).padStart(2, "0")}:00 UTC`}</Td> : null}</tr>)}</tbody></TableWrap>}
         <div className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4"><button type="button" disabled={meta.page <= 1} onClick={() => setMeta((current) => ({ ...current, page: current.page - 1 }))} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Önceki</button><span className="text-[11px] text-[var(--muted)]">{meta.page} / {meta.totalPages}</span><button type="button" disabled={meta.page >= meta.totalPages} onClick={() => setMeta((current) => ({ ...current, page: current.page + 1 }))} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button></div>
       </Panel>
+      {selected?._rowId ? <ReportDrilldownPanel reportKey="appointments.performance" rowId={selected._rowId} title={dateLabel(selected.date)} filters={reportRangeToQuery(range)} onClose={() => setSelected(null)} /> : null}
     </>}
   </div>;
 }
