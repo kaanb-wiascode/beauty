@@ -199,6 +199,44 @@ describe('ReportDrilldownService', () => {
     expect(appointmentCount).not.toHaveBeenCalled();
   });
 
+  it('bounds appointment performance drilldown to the selected UTC day and organization scope', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'appointments.performance' }]);
+
+    await service.drilldown(user, {
+      ...input,
+      reportKey: 'appointments.performance',
+      rowId: '2026-09-15',
+    });
+
+    expect(appointmentFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: {
+          tenantId: 'tenant-1',
+          branchId: { in: [user.branchId] },
+          startAt: {
+            gte: new Date('2026-09-15T00:00:00.000Z'),
+            lte: new Date('2026-09-15T23:59:59.999Z'),
+          },
+        },
+      }),
+    );
+  });
+
+  it('rejects appointment day rows outside the requested filter before any child query', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'appointments.performance' }]);
+
+    await expect(
+      service.drilldown(user, {
+        ...input,
+        reportKey: 'appointments.performance',
+        rowId: '2026-08-31',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(appointmentFindMany).not.toHaveBeenCalled();
+    expect(appointmentCount).not.toHaveBeenCalled();
+  });
+
   it('queries appointments only after an active branch is confirmed inside organization scope', async () => {
     getCatalog.mockResolvedValueOnce([{ key: 'branches.performance' }]);
     getBranchScopedWhere.mockResolvedValueOnce({
