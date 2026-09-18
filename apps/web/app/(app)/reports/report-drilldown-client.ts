@@ -4,6 +4,7 @@ export type ReportDrilldownKey =
   | "staff.performance"
   | "service.performance"
   | "customers.performance"
+  | "appointments.performance"
   | "branches.performance";
 
 export type ReportDrilldownRow = {
