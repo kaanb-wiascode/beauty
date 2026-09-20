@@ -73,6 +73,20 @@ describe('reportDrilldownSchema', () => {
     expect(
       reportDrilldownSchema.parse({
         ...base,
+        reportKey: 'inventory.performance',
+        dimension: 'stock-movements',
+        rowId: '2026-09-15|PURCHASE',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        reportKey: 'inventory.performance',
+        dimension: 'stock-movements',
+        rowId: '2026-09-15|PURCHASE',
+      }),
+    );
+    expect(
+      reportDrilldownSchema.parse({
+        ...base,
         reportKey: 'branches.performance',
       }),
     ).toEqual(
@@ -125,6 +139,22 @@ describe('reportDrilldownSchema', () => {
         reportKey: 'finance.performance',
         dimension: 'finance-records',
         rowId: '2026-02-31',
+      }),
+    ).toThrow();
+    expect(() =>
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'inventory.performance',
+        dimension: 'stock-movements',
+        rowId: '2026-09-15|DROP_TABLE',
+      }),
+    ).toThrow();
+    expect(() =>
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'inventory.performance',
+        dimension: 'finance-records',
+        rowId: '2026-09-15|PURCHASE',
       }),
     ).toThrow();
     expect(() =>
