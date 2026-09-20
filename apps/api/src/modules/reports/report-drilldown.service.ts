@@ -9,9 +9,13 @@ import { PrismaService } from '@beauty-erp/database';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { FinanceReportingService } from '../finance/finance-reporting.service';
+import { InventoryReportingService } from '../inventory/inventory-reporting.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
-import type { ReportDrilldownInput } from './dto/report-drilldown.dto';
+import {
+  parseInventoryMovementRowId,
+  type ReportDrilldownInput,
+} from './dto/report-drilldown.dto';
 import { reportKeys } from './report-definition';
 import { ReportsService } from './reports.service';
 
@@ -21,6 +25,7 @@ export class ReportDrilldownService {
     private readonly prisma: PrismaService,
     private readonly organizationScope: OrganizationScopeService,
     private readonly financeReporting: FinanceReportingService,
+    private readonly inventoryReporting: InventoryReportingService,
     private readonly staffService: StaffService,
     private readonly servicesService: ServicesService,
     private readonly reports: ReportsService,
@@ -51,6 +56,25 @@ export class ReportDrilldownService {
 
     if (input.reportKey === reportKeys.salesPerformance) {
       return this.sale(input);
+    }
+
+    if (input.reportKey === reportKeys.inventoryPerformance) {
+      const row = parseInventoryMovementRowId(input.rowId);
+      if (!row) {
+        throw new NotFoundException('Report drilldown row not found');
+      }
+      const range = this.resolveUtcDayRange(input, row.date);
+      return {
+        report: {
+          key: input.reportKey,
+          dimension: input.dimension,
+          rowId: input.rowId,
+        },
+        data: await this.inventoryReporting.movementDetails({
+          ...range,
+          movementType: row.movementType,
+        }),
+      };
     }
 
     if (input.reportKey === reportKeys.financePerformance) {
@@ -159,8 +183,11 @@ export class ReportDrilldownService {
     };
   }
 
-  private resolveUtcDayRange(input: ReportDrilldownInput) {
-    const dayStart = new Date(`${input.rowId}T00:00:00.000Z`);
+  private resolveUtcDayRange(
+    input: ReportDrilldownInput,
+    rowDate = input.rowId,
+  ) {
+    const dayStart = new Date(`${rowDate}T00:00:00.000Z`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
     const from = new Date(
       Math.max(dayStart.getTime(), input.filters.from.getTime()),
