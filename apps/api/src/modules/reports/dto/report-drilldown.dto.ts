@@ -18,10 +18,11 @@ export const reportDrilldownSchema = z
       reportKeys.staffPerformance,
       reportKeys.servicePerformance,
       reportKeys.customerPerformance,
+      reportKeys.salesPerformance,
       reportKeys.appointmentPerformance,
       reportKeys.branchPerformance,
     ]),
-    dimension: z.literal('appointments'),
+    dimension: z.enum(['appointments', 'sale']),
     rowId: z.string().min(1).max(64),
     filters: reportDateRangeSchema,
     page: z.coerce.number().int().min(1).default(1),
@@ -29,6 +30,32 @@ export const reportDrilldownSchema = z
   })
   .strict()
   .superRefine((value, ctx) => {
+    if (value.reportKey === reportKeys.salesPerformance) {
+      if (value.dimension !== 'sale') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dimension'],
+          message: 'Sales performance supports only sale drilldown',
+        });
+      }
+      if (!UUID_ROW_ID.safeParse(value.rowId).success) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['rowId'],
+          message: 'Sales drilldown rowId must be a UUID',
+        });
+      }
+      return;
+    }
+
+    if (value.dimension !== 'appointments') {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['dimension'],
+        message: 'This report supports only appointment drilldown',
+      });
+    }
+
     if (value.reportKey === reportKeys.appointmentPerformance) {
       if (!isUtcDayRowId(value.rowId)) {
         ctx.addIssue({
