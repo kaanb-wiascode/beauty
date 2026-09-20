@@ -22,12 +22,123 @@ type ExpenseRow = {
   paidAmount: Prisma.Decimal;
 };
 
+type IncomeDetailRow = IncomeRow & {
+  id: string;
+  counterpartyName: string | null;
+  description: string | null;
+  currency: string;
+};
+
+type ExpenseDetailRow = ExpenseRow & {
+  id: string;
+  counterpartyName: string | null;
+  description: string | null;
+  currency: string;
+};
+
 @Injectable()
 export class FinanceReportingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
   ) {}
+
+  async dayDetails(input: FinanceReportingInput) {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+
+    const [incomeRows, expenseRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<IncomeDetailRow[]>(
+        `SELECT i.id,i.transaction_date AS "transactionDate",i.counterparty_name AS "counterpartyName",
+                i.description,i.gross_amount AS "grossAmount",i.currency,i.exchange_rate AS "exchangeRate",
+                COALESCE((
+                  SELECT SUM(c.amount)
+                  FROM income_collections c
+                  LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
+                  WHERE c.income_record_id=i.id AND c.tenant_id=i.tenant_id AND c.company_id=i.company_id AND r.id IS NULL
+                ),0) AS "collectedAmount"
+         FROM income_records i
+         WHERE i.tenant_id=$1::text AND i.company_id=$2::text
+           AND ($3::text IS NULL OR i.branch_id=$3::text)
+           AND i.approval_status='APPROVED'
+           AND i.transaction_date >= $4 AND i.transaction_date <= $5
+         ORDER BY i.transaction_date ASC,i.id ASC`,
+        tenantId,
+        companyId,
+        branchId,
+        input.from,
+        input.to,
+      ),
+      this.prisma.$queryRawUnsafe<ExpenseDetailRow[]>(
+        `SELECT e.id,e.transaction_date AS "transactionDate",e.counterparty_name AS "counterpartyName",
+                e.description,e.gross_amount AS "grossAmount",e.withholding_amount AS "withholdingAmount",
+                e.currency,e.exchange_rate AS "exchangeRate",
+                COALESCE((
+                  SELECT SUM(p.amount)
+                  FROM expense_payments p
+                  LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
+                  WHERE p.expense_id=e.id AND p.tenant_id=e.tenant_id AND p.company_id=e.company_id AND r.id IS NULL
+                ),0) AS "paidAmount"
+         FROM expenses e
+         WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+           AND ($3::text IS NULL OR e.branch_id=$3::text)
+           AND e.approval_status='APPROVED'
+           AND e.transaction_date >= $4 AND e.transaction_date <= $5
+         ORDER BY e.transaction_date ASC,e.id ASC`,
+        tenantId,
+        companyId,
+        branchId,
+        input.from,
+        input.to,
+      ),
+    ]);
+
+    const incomeDetails = incomeRows.map((row) => {
+      const exchangeRate = Number(row.exchangeRate);
+      const grossTry = Number(row.grossAmount) * exchangeRate;
+      const settledTry = Number(row.collectedAmount) * exchangeRate;
+      return {
+        id: row.id,
+        recordType: 'INCOME' as const,
+        transactionDate: row.transactionDate,
+        counterpartyName: row.counterpartyName,
+        description: row.description,
+        currency: row.currency,
+        exchangeRate,
+        grossTry,
+        settlementBaseTry: grossTry,
+        settledTry,
+        outstandingTry: Math.max(0, grossTry - settledTry),
+      };
+    });
+
+    const expenseDetails = expenseRows.map((row) => {
+      const exchangeRate = Number(row.exchangeRate);
+      const grossTry = Number(row.grossAmount) * exchangeRate;
+      const withholdingTry = Number(row.withholdingAmount) * exchangeRate;
+      const settlementBaseTry = Math.max(0, grossTry - withholdingTry);
+      const settledTry = Number(row.paidAmount) * exchangeRate;
+      return {
+        id: row.id,
+        recordType: 'EXPENSE' as const,
+        transactionDate: row.transactionDate,
+        counterpartyName: row.counterpartyName,
+        description: row.description,
+        currency: row.currency,
+        exchangeRate,
+        grossTry,
+        settlementBaseTry,
+        settledTry,
+        outstandingTry: Math.max(0, settlementBaseTry - settledTry),
+      };
+    });
+
+    return [...incomeDetails, ...expenseDetails].sort((a, b) => {
+      const dateOrder = a.transactionDate.getTime() - b.transactionDate.getTime();
+      return dateOrder || a.id.localeCompare(b.id);
+    });
+  }
 
   async performance(input: FinanceReportingInput) {
     const tenantId = this.tenantContext.getTenantId();
@@ -139,6 +250,7 @@ export class FinanceReportingService {
     return [...buckets.values()]
       .sort((a, b) => a.date.localeCompare(b.date))
       .map((bucket) => ({
+        id: bucket.date,
         ...bucket,
         operatingMargin: bucket.incomeRecognized - bucket.expenseRecognized,
         netCashMovement: bucket.collected - bucket.paid,
