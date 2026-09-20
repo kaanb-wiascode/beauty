@@ -38,6 +38,7 @@ describe('ReportDrilldownService', () => {
   const appointmentCount = jest.fn();
   const branchFindFirst = jest.fn();
   const customerFindFirst = jest.fn();
+  const saleFindFirst = jest.fn();
   const getBranchScopedWhere = jest.fn();
   const staffFindOne = jest.fn();
   const serviceFindOne = jest.fn();
@@ -57,6 +58,7 @@ describe('ReportDrilldownService', () => {
     appointmentCount.mockReset().mockResolvedValue(1);
     branchFindFirst.mockReset();
     customerFindFirst.mockReset();
+    saleFindFirst.mockReset();
     getBranchScopedWhere.mockReset().mockResolvedValue({
       tenantId: 'tenant-1',
       branchId: { in: [user.branchId] },
@@ -79,6 +81,7 @@ describe('ReportDrilldownService', () => {
             },
             branch: { findFirst: branchFindFirst },
             customer: { findFirst: customerFindFirst },
+            sale: { findFirst: saleFindFirst },
           },
         },
         {
@@ -192,6 +195,113 @@ describe('ReportDrilldownService', () => {
       service.drilldown(user, {
         ...input,
         reportKey: 'customers.performance',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(appointmentFindMany).not.toHaveBeenCalled();
+    expect(appointmentCount).not.toHaveBeenCalled();
+  });
+
+  it('returns a scoped safe sale projection for sales performance drilldown', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'sales.performance' }]);
+    saleFindFirst.mockResolvedValueOnce({
+      id: input.rowId,
+      confirmedAt: new Date('2026-09-15T12:00:00.000Z'),
+      status: 'CONFIRMED',
+      subtotal: 1600,
+      discountTotal: 100,
+      total: 1500,
+      items: [
+        {
+          id: 'item-1',
+          type: 'SERVICE',
+          description: 'Cilt Bakımı',
+          quantity: 1,
+          unitPrice: 1600,
+          lineTotal: 1600,
+        },
+      ],
+      payments: [
+        {
+          id: 'payment-1',
+          amount: 1500,
+          method: 'CARD',
+          status: 'COMPLETED',
+          paidAt: new Date('2026-09-15T12:05:00.000Z'),
+          refundedAt: null,
+        },
+      ],
+    });
+
+    const result = await service.drilldown(user, {
+      ...input,
+      reportKey: 'sales.performance',
+      dimension: 'sale',
+    });
+
+    expect(saleFindFirst).toHaveBeenCalledWith({
+      where: {
+        id: input.rowId,
+        tenantId: 'tenant-1',
+        branchId: { in: [user.branchId] },
+        status: 'CONFIRMED',
+        confirmedAt: {
+          gte: input.filters.from,
+          lte: input.filters.to,
+        },
+      },
+      select: expect.objectContaining({
+        id: true,
+        confirmedAt: true,
+        status: true,
+        subtotal: true,
+        discountTotal: true,
+        total: true,
+      }),
+    });
+    expect(result).toEqual(
+      expect.objectContaining({
+        report: {
+          key: 'sales.performance',
+          dimension: 'sale',
+          rowId: input.rowId,
+        },
+        data: expect.objectContaining({
+          id: input.rowId,
+          subtotal: 1600,
+          discountTotal: 100,
+          total: 1500,
+          items: [
+            expect.objectContaining({
+              description: 'Cilt Bakımı',
+              unitPrice: 1600,
+              lineTotal: 1600,
+            }),
+          ],
+          payments: [
+            expect.objectContaining({
+              amount: 1500,
+              method: 'CARD',
+              status: 'COMPLETED',
+            }),
+          ],
+        }),
+      }),
+    );
+    expect(result.data).not.toHaveProperty('customer');
+    expect(result.data.payments[0]).not.toHaveProperty('note');
+    expect(result.data.payments[0]).not.toHaveProperty('reference');
+  });
+
+  it('rejects sales outside scope, status or report period as not found', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'sales.performance' }]);
+    saleFindFirst.mockResolvedValueOnce(null);
+
+    await expect(
+      service.drilldown(user, {
+        ...input,
+        reportKey: 'sales.performance',
+        dimension: 'sale',
       }),
     ).rejects.toBeInstanceOf(NotFoundException);
 
