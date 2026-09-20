@@ -5,6 +5,7 @@ import { PrismaService } from '@beauty-erp/database';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { FinanceReportingService } from '../finance/finance-reporting.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportDrilldownInput } from './dto/report-drilldown.dto';
@@ -40,6 +41,7 @@ describe('ReportDrilldownService', () => {
   const customerFindFirst = jest.fn();
   const saleFindFirst = jest.fn();
   const getBranchScopedWhere = jest.fn();
+  const financeDayDetails = jest.fn();
   const staffFindOne = jest.fn();
   const serviceFindOne = jest.fn();
   const getCatalog = jest.fn();
@@ -63,6 +65,7 @@ describe('ReportDrilldownService', () => {
       tenantId: 'tenant-1',
       branchId: { in: [user.branchId] },
     });
+    financeDayDetails.mockReset();
     staffFindOne.mockReset().mockResolvedValue({ id: input.rowId });
     serviceFindOne.mockReset();
     getCatalog
@@ -87,6 +90,10 @@ describe('ReportDrilldownService', () => {
         {
           provide: OrganizationScopeService,
           useValue: { getBranchScopedWhere },
+        },
+        {
+          provide: FinanceReportingService,
+          useValue: { dayDetails: financeDayDetails },
         },
         { provide: StaffService, useValue: { findOne: staffFindOne } },
         { provide: ServicesService, useValue: { findOne: serviceFindOne } },
@@ -311,6 +318,68 @@ describe('ReportDrilldownService', () => {
 
     expect(appointmentFindMany).not.toHaveBeenCalled();
     expect(appointmentCount).not.toHaveBeenCalled();
+  });
+
+  it('delegates finance day drilldown to the domain service with the bounded UTC day', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'finance.performance' }]);
+    financeDayDetails.mockResolvedValueOnce([
+      {
+        id: 'income-1',
+        recordType: 'INCOME',
+        transactionDate: new Date('2026-09-15T09:00:00.000Z'),
+        counterpartyName: 'Kurumsal Müşteri',
+        description: 'Hizmet geliri',
+        currency: 'TRY',
+        exchangeRate: 1,
+        grossTry: 1000,
+        settlementBaseTry: 1000,
+        settledTry: 750,
+        outstandingTry: 250,
+      },
+    ]);
+
+    const result = await service.drilldown(user, {
+      ...input,
+      reportKey: 'finance.performance',
+      dimension: 'finance-records',
+      rowId: '2026-09-15',
+    });
+
+    expect(financeDayDetails).toHaveBeenCalledWith({
+      from: new Date('2026-09-15T00:00:00.000Z'),
+      to: new Date('2026-09-15T23:59:59.999Z'),
+    });
+    expect(result).toEqual({
+      report: {
+        key: 'finance.performance',
+        dimension: 'finance-records',
+        rowId: '2026-09-15',
+      },
+      data: [
+        expect.objectContaining({
+          id: 'income-1',
+          recordType: 'INCOME',
+          grossTry: 1000,
+          settledTry: 750,
+          outstandingTry: 250,
+        }),
+      ],
+    });
+  });
+
+  it('rejects finance day rows outside the requested filter before domain execution', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'finance.performance' }]);
+
+    await expect(
+      service.drilldown(user, {
+        ...input,
+        reportKey: 'finance.performance',
+        dimension: 'finance-records',
+        rowId: '2026-08-31',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(financeDayDetails).not.toHaveBeenCalled();
   });
 
   it('bounds appointment performance drilldown to the selected UTC day and organization scope', async () => {
