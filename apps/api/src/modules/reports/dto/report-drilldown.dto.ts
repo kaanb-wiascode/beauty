@@ -20,9 +20,10 @@ export const reportDrilldownSchema = z
       reportKeys.customerPerformance,
       reportKeys.salesPerformance,
       reportKeys.appointmentPerformance,
+      reportKeys.financePerformance,
       reportKeys.branchPerformance,
     ]),
-    dimension: z.enum(['appointments', 'sale']),
+    dimension: z.enum(['appointments', 'sale', 'finance-records']),
     rowId: z.string().min(1).max(64),
     filters: reportDateRangeSchema,
     page: z.coerce.number().int().min(1).default(1),
@@ -43,6 +44,24 @@ export const reportDrilldownSchema = z
           code: 'custom',
           path: ['rowId'],
           message: 'Sales drilldown rowId must be a UUID',
+        });
+      }
+      return;
+    }
+
+    if (value.reportKey === reportKeys.financePerformance) {
+      if (value.dimension !== 'finance-records') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['dimension'],
+          message: 'Finance performance supports only finance-records drilldown',
+        });
+      }
+      if (!isUtcDayRowId(value.rowId)) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['rowId'],
+          message: 'Finance performance drilldown rowId must be a valid UTC day',
         });
       }
       return;
