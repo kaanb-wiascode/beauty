@@ -34,6 +34,18 @@ describe('reportDrilldownSchema', () => {
     expect(
       reportDrilldownSchema.parse({
         ...base,
+        reportKey: 'sales.performance',
+        dimension: 'sale',
+      }),
+    ).toEqual(
+      expect.objectContaining({
+        reportKey: 'sales.performance',
+        dimension: 'sale',
+      }),
+    );
+    expect(
+      reportDrilldownSchema.parse({
+        ...base,
         reportKey: 'appointments.performance',
         rowId: '2026-09-15',
       }),
@@ -63,6 +75,20 @@ describe('reportDrilldownSchema', () => {
     ).toThrow();
     expect(() =>
       reportDrilldownSchema.parse({ ...base, dimension: 'sql' }),
+    ).toThrow();
+    expect(() =>
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'sales.performance',
+        dimension: 'appointments',
+      }),
+    ).toThrow();
+    expect(() =>
+      reportDrilldownSchema.parse({
+        ...base,
+        reportKey: 'staff.performance',
+        dimension: 'sale',
+      }),
     ).toThrow();
     expect(() =>
       reportDrilldownSchema.parse({
