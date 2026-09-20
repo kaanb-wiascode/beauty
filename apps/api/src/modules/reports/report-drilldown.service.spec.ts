@@ -288,6 +288,10 @@ describe('ReportDrilldownService', () => {
         }),
       }),
     );
+    expect(Array.isArray(result.data)).toBe(false);
+    if (Array.isArray(result.data)) {
+      throw new Error('Expected sales drilldown detail payload');
+    }
     expect(result.data).not.toHaveProperty('customer');
     expect(result.data.payments[0]).not.toHaveProperty('note');
     expect(result.data.payments[0]).not.toHaveProperty('reference');
