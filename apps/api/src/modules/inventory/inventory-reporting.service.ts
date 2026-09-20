@@ -104,8 +104,8 @@ export class InventoryReportingService {
         id: `${date}|${row.movementType}`,
         date,
         movementType: row.movementType,
-      movementCount: Number(row.movementCount),
-      quantity: Number(row.quantity ?? 0),
+        movementCount: Number(row.movementCount),
+        quantity: Number(row.quantity ?? 0),
         movementValue: Number(row.movementValue ?? 0),
       };
     });
