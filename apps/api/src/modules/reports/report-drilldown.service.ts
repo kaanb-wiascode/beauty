@@ -8,6 +8,7 @@ import { PrismaService } from '@beauty-erp/database';
 
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { FinanceReportingService } from '../finance/finance-reporting.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportDrilldownInput } from './dto/report-drilldown.dto';
@@ -19,6 +20,7 @@ export class ReportDrilldownService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly organizationScope: OrganizationScopeService,
+    private readonly financeReporting: FinanceReportingService,
     private readonly staffService: StaffService,
     private readonly servicesService: ServicesService,
     private readonly reports: ReportsService,
@@ -51,11 +53,24 @@ export class ReportDrilldownService {
       return this.sale(input);
     }
 
+    if (input.reportKey === reportKeys.financePerformance) {
+      return {
+        report: {
+          key: input.reportKey,
+          dimension: input.dimension,
+          rowId: input.rowId,
+        },
+        data: await this.financeReporting.dayDetails(
+          this.resolveUtcDayRange(input),
+        ),
+      };
+    }
+
     if (input.reportKey === reportKeys.appointmentPerformance) {
       return this.appointments(
         input,
         null,
-        this.resolveAppointmentDayRange(input),
+        this.resolveUtcDayRange(input),
       );
     }
 
@@ -144,7 +159,7 @@ export class ReportDrilldownService {
     };
   }
 
-  private resolveAppointmentDayRange(input: ReportDrilldownInput) {
+  private resolveUtcDayRange(input: ReportDrilldownInput) {
     const dayStart = new Date(`${input.rowId}T00:00:00.000Z`);
     const dayEnd = new Date(dayStart.getTime() + 24 * 60 * 60 * 1000 - 1);
     const from = new Date(
