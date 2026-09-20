@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { ReportFinanceDrilldownPanel } from "../report-finance-drilldown-panel";
 import {
   ReportFilterBar,
   reportDateInputValue,
@@ -14,6 +15,7 @@ import { fetchReportPreview, type TableReportPreview } from "../report-preview-c
 import { useReportTableState } from "../use-report-table-state";
 
 type Row = {
+  _rowId?: string;
   date: string;
   incomeRecognized: number;
   expenseRecognized: number;
@@ -39,7 +41,7 @@ type Summary = {
   paymentRate: number;
 };
 
-type ColumnKey = keyof Row;
+type ColumnKey = Exclude<keyof Row, "_rowId">;
 
 const COLUMNS: readonly ColumnKey[] = [
   "date",
@@ -96,6 +98,7 @@ export default function FinanceReportPage() {
   const [meta, setMeta] = useState({ page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
   const table = useReportTableState<ColumnKey, ColumnKey>({
     columns: COLUMNS,
     initialSort: { key: "date", direction: "desc" },
@@ -105,6 +108,7 @@ export default function FinanceReportPage() {
     if (reportRangeIsInvalid(range)) {
       setRows([]);
       setSummary(EMPTY_SUMMARY);
+      setSelected(null);
       setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
       setLoading(false);
       return;
@@ -114,6 +118,7 @@ export default function FinanceReportPage() {
     async function load() {
       setLoading(true);
       setError("");
+      setSelected(null);
       try {
         const result = await fetchReportPreview<TableReportPreview<Row, Summary>>({
           reportKey: "finance.performance",
@@ -196,7 +201,18 @@ export default function FinanceReportPage() {
                 <tbody>
                   {rows.map((row) => (
                     <tr key={row.date}>
-                      {table.visibleColumns.has("date") ? <Td label="Tarih">{row.date}</Td> : null}
+                      {table.visibleColumns.has("date") ? (
+                        <Td label="Tarih">
+                          <button
+                            type="button"
+                            disabled={!row._rowId}
+                            onClick={() => row._rowId && setSelected(row)}
+                            className="font-medium text-left enabled:hover:text-[var(--accent)] disabled:cursor-default"
+                          >
+                            {row.date}
+                          </button>
+                        </Td>
+                      ) : null}
                       {table.visibleColumns.has("incomeRecognized") ? <Td label="Gelir Kaydı">{money(row.incomeRecognized)}</Td> : null}
                       {table.visibleColumns.has("expenseRecognized") ? <Td label="Gider Kaydı">{money(row.expenseRecognized)}</Td> : null}
                       {table.visibleColumns.has("operatingMargin") ? <Td label="Operasyonel Marj" className="font-semibold">{money(row.operatingMargin)}</Td> : null}
@@ -216,6 +232,15 @@ export default function FinanceReportPage() {
               <button type="button" disabled={meta.page >= meta.totalPages} onClick={() => setMeta((current) => ({ ...current, page: current.page + 1 }))} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button>
             </div>
           </Panel>
+
+          {selected?._rowId ? (
+            <ReportFinanceDrilldownPanel
+              rowId={selected._rowId}
+              title={selected.date}
+              filters={reportRangeToQuery(range)}
+              onClose={() => setSelected(null)}
+            />
+          ) : null}
         </>
       )}
     </div>
