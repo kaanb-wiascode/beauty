@@ -6,6 +6,7 @@ import { PrismaService } from '@beauty-erp/database';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { FinanceReportingService } from '../finance/finance-reporting.service';
+import { InventoryReportingService } from '../inventory/inventory-reporting.service';
 import { ServicesService } from '../services/services.service';
 import { StaffService } from '../staff/staff.service';
 import type { ReportDrilldownInput } from './dto/report-drilldown.dto';
@@ -42,6 +43,7 @@ describe('ReportDrilldownService', () => {
   const saleFindFirst = jest.fn();
   const getBranchScopedWhere = jest.fn();
   const financeDayDetails = jest.fn();
+  const inventoryMovementDetails = jest.fn();
   const staffFindOne = jest.fn();
   const serviceFindOne = jest.fn();
   const getCatalog = jest.fn();
@@ -66,6 +68,7 @@ describe('ReportDrilldownService', () => {
       branchId: { in: [user.branchId] },
     });
     financeDayDetails.mockReset();
+    inventoryMovementDetails.mockReset();
     staffFindOne.mockReset().mockResolvedValue({ id: input.rowId });
     serviceFindOne.mockReset();
     getCatalog
@@ -94,6 +97,10 @@ describe('ReportDrilldownService', () => {
         {
           provide: FinanceReportingService,
           useValue: { dayDetails: financeDayDetails },
+        },
+        {
+          provide: InventoryReportingService,
+          useValue: { movementDetails: inventoryMovementDetails },
         },
         { provide: StaffService, useValue: { findOne: staffFindOne } },
         { provide: ServicesService, useValue: { findOne: serviceFindOne } },
@@ -318,6 +325,67 @@ describe('ReportDrilldownService', () => {
 
     expect(appointmentFindMany).not.toHaveBeenCalled();
     expect(appointmentCount).not.toHaveBeenCalled();
+  });
+
+  it('delegates inventory movement drilldown with parsed type and bounded UTC day', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'inventory.performance' }]);
+    inventoryMovementDetails.mockResolvedValueOnce([
+      {
+        id: 'movement-1',
+        createdAt: new Date('2026-09-15T10:00:00.000Z'),
+        movementType: 'PURCHASE',
+        productName: 'Serum',
+        sku: 'SRM-001',
+        warehouseName: 'Kadıköy Depo',
+        quantity: 2,
+        unitCost: 250,
+        movementValue: 500,
+        referenceType: 'PURCHASE_ORDER',
+      },
+    ]);
+
+    const result = await service.drilldown(user, {
+      ...input,
+      reportKey: 'inventory.performance',
+      dimension: 'stock-movements',
+      rowId: '2026-09-15|PURCHASE',
+    });
+
+    expect(inventoryMovementDetails).toHaveBeenCalledWith({
+      from: new Date('2026-09-15T00:00:00.000Z'),
+      to: new Date('2026-09-15T23:59:59.999Z'),
+      movementType: 'PURCHASE',
+    });
+    expect(result).toEqual({
+      report: {
+        key: 'inventory.performance',
+        dimension: 'stock-movements',
+        rowId: '2026-09-15|PURCHASE',
+      },
+      data: [
+        expect.objectContaining({
+          id: 'movement-1',
+          movementType: 'PURCHASE',
+          productName: 'Serum',
+          movementValue: 500,
+        }),
+      ],
+    });
+  });
+
+  it('rejects inventory movement rows outside the requested filter before domain execution', async () => {
+    getCatalog.mockResolvedValueOnce([{ key: 'inventory.performance' }]);
+
+    await expect(
+      service.drilldown(user, {
+        ...input,
+        reportKey: 'inventory.performance',
+        dimension: 'stock-movements',
+        rowId: '2026-08-31|PURCHASE',
+      }),
+    ).rejects.toBeInstanceOf(NotFoundException);
+
+    expect(inventoryMovementDetails).not.toHaveBeenCalled();
   });
 
   it('delegates finance day drilldown to the domain service with the bounded UTC day', async () => {
