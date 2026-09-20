@@ -47,6 +47,10 @@ export class ReportDrilldownService {
       return this.appointments(input, { customerId: input.rowId });
     }
 
+    if (input.reportKey === reportKeys.salesPerformance) {
+      return this.sale(input);
+    }
+
     if (input.reportKey === reportKeys.appointmentPerformance) {
       return this.appointments(
         input,
@@ -57,6 +61,87 @@ export class ReportDrilldownService {
 
     await this.assertBranchInScope(user, input.rowId);
     return this.appointments(input, { branchId: input.rowId });
+  }
+
+  private async sale(input: ReportDrilldownInput) {
+    const scope = await this.organizationScope.getBranchScopedWhere();
+    const sale = await this.prisma.sale.findFirst({
+      where: {
+        id: input.rowId,
+        ...scope,
+        status: 'CONFIRMED',
+        confirmedAt: {
+          gte: input.filters.from,
+          lte: input.filters.to,
+        },
+      },
+      select: {
+        id: true,
+        confirmedAt: true,
+        status: true,
+        subtotal: true,
+        discountTotal: true,
+        total: true,
+        items: {
+          orderBy: { id: 'asc' },
+          select: {
+            id: true,
+            type: true,
+            description: true,
+            quantity: true,
+            unitPrice: true,
+            lineTotal: true,
+          },
+        },
+        payments: {
+          orderBy: { paidAt: 'desc' },
+          select: {
+            id: true,
+            amount: true,
+            method: true,
+            status: true,
+            paidAt: true,
+            refundedAt: true,
+          },
+        },
+      },
+    });
+
+    if (!sale) {
+      throw new NotFoundException('Report drilldown row not found');
+    }
+
+    return {
+      report: {
+        key: input.reportKey,
+        dimension: input.dimension,
+        rowId: input.rowId,
+      },
+      data: {
+        id: sale.id,
+        confirmedAt: sale.confirmedAt,
+        status: sale.status,
+        subtotal: Number(sale.subtotal),
+        discountTotal: Number(sale.discountTotal),
+        total: Number(sale.total),
+        items: sale.items.map((item) => ({
+          id: item.id,
+          type: item.type,
+          description: item.description,
+          quantity: item.quantity,
+          unitPrice: Number(item.unitPrice),
+          lineTotal: Number(item.lineTotal),
+        })),
+        payments: sale.payments.map((payment) => ({
+          id: payment.id,
+          amount: Number(payment.amount),
+          method: payment.method,
+          status: payment.status,
+          paidAt: payment.paidAt,
+          refundedAt: payment.refundedAt,
+        })),
+      },
+    };
   }
 
   private resolveAppointmentDayRange(input: ReportDrilldownInput) {
