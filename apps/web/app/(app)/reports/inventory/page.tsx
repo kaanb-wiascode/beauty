@@ -3,13 +3,14 @@
 import { useEffect, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { ReportInventoryDrilldownPanel } from "../report-inventory-drilldown-panel";
 import { ReportFilterBar, reportDateInputValue, reportRangeIsInvalid, reportRangeToQuery, type ReportDateRange } from "../report-filter-bar";
 import { fetchReportPreview, type TableReportPreview } from "../report-preview-client";
 import { useReportTableState } from "../use-report-table-state";
 
-type Row = { date: string; movementType: string; movementCount: number; quantity: number; movementValue: number };
+type Row = { _rowId?: string; date: string; movementType: string; movementCount: number; quantity: number; movementValue: number };
 type Summary = { rowCount: number; movementCount: number; quantity: number; movementValue: number };
-type ColumnKey = keyof Row;
+type ColumnKey = Exclude<keyof Row, "_rowId">;
 
 const COLUMNS: readonly ColumnKey[] = ["date", "movementType", "movementCount", "quantity", "movementValue"];
 const LABELS: Record<ColumnKey, string> = { date: "Tarih", movementType: "Hareket Türü", movementCount: "Hareket", quantity: "Miktar", movementValue: "Maliyet Değeri" };
@@ -23,13 +24,14 @@ export default function InventoryReportPage() {
   const [meta, setMeta] = useState({ page: 1, totalPages: 1 });
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [selected, setSelected] = useState<Row | null>(null);
   const table = useReportTableState<ColumnKey, ColumnKey>({ columns: COLUMNS, initialSort: { key: "date", direction: "desc" } });
 
   useEffect(() => {
-    if (reportRangeIsInvalid(range)) { setRows([]); setSummary(EMPTY); setError("Başlangıç tarihi bitiş tarihinden sonra olamaz."); setLoading(false); return; }
+    if (reportRangeIsInvalid(range)) { setRows([]); setSummary(EMPTY); setSelected(null); setError("Başlangıç tarihi bitiş tarihinden sonra olamaz."); setLoading(false); return; }
     let cancelled = false;
     async function load() {
-      setLoading(true); setError("");
+      setLoading(true); setError(""); setSelected(null);
       try {
         const result = await fetchReportPreview<TableReportPreview<Row, Summary>>({ reportKey: "inventory.performance", filters: reportRangeToQuery(range), columns: COLUMNS, sort: table.sort, page: meta.page, limit: 25 });
         if (!cancelled) { setRows(result.data); setSummary(result.meta.summary); setMeta({ page: result.meta.page, totalPages: result.meta.totalPages || 1 }); }
@@ -55,13 +57,14 @@ export default function InventoryReportPage() {
       <Panel>
         {rows.length === 0 ? <div className="px-5 py-10 text-center text-[13px] text-[var(--muted)]">Seçilen dönemde stok hareketi bulunamadı.</div> : <TableWrap><thead><tr>{table.visibleColumnList.map((column) => <Th key={column}><button type="button" onClick={() => table.toggleSort(column)}>{LABELS[column]}</button></Th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.date}-${row.movementType}-${index}`}>
           {table.visibleColumns.has("date") ? <Td label="Tarih">{row.date}</Td> : null}
-          {table.visibleColumns.has("movementType") ? <Td label="Hareket Türü">{row.movementType}</Td> : null}
+          {table.visibleColumns.has("movementType") ? <Td label="Hareket Türü"><button type="button" disabled={!row._rowId} onClick={() => row._rowId && setSelected(row)} className="font-medium text-left enabled:hover:text-[var(--accent)] disabled:cursor-default">{row.movementType}</button></Td> : null}
           {table.visibleColumns.has("movementCount") ? <Td label="Hareket">{row.movementCount}</Td> : null}
           {table.visibleColumns.has("quantity") ? <Td label="Miktar">{row.quantity.toLocaleString("tr-TR")}</Td> : null}
           {table.visibleColumns.has("movementValue") ? <Td label="Maliyet Değeri">{money(row.movementValue)}</Td> : null}
         </tr>)}</tbody></TableWrap>}
         <div className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4"><button type="button" disabled={meta.page <= 1} onClick={() => setMeta((c) => ({ ...c, page: c.page - 1 }))} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Önceki</button><span className="text-[11px] text-[var(--muted)]">{meta.page} / {meta.totalPages}</span><button type="button" disabled={meta.page >= meta.totalPages} onClick={() => setMeta((c) => ({ ...c, page: c.page + 1 }))} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button></div>
       </Panel>
+      {selected?._rowId ? <ReportInventoryDrilldownPanel rowId={selected._rowId} title={`${selected.date} · ${selected.movementType}`} filters={reportRangeToQuery(range)} onClose={() => setSelected(null)} /> : null}
     </>}
   </div>;
 }
