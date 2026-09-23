@@ -29,11 +29,15 @@ jobs:
         run: bash scripts/release/verify-public-staging.sh
 
       - name: Notify staging monitor failure
-        if: failure() && secrets.STAGING_ALERT_WEBHOOK_URL != ''
+        if: failure()
         env:
           STAGING_ALERT_WEBHOOK_URL: ${{ secrets.STAGING_ALERT_WEBHOOK_URL }}
           STAGING_URL: ${{ vars.STAGING_URL }}
         shell: bash
         run: |
+          if [[ -z "${STAGING_ALERT_WEBHOOK_URL:-}" ]]; then
+            echo "No staging alert webhook configured; skipping notification."
+            exit 0
+          fi
           payload="$(jq -nc             --arg repo "$GITHUB_REPOSITORY"             --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"             --arg staging "$STAGING_URL"             '{event:"staging_synthetic_failed",repository:$repo,stagingUrl:$staging,runUrl:$run}')"
           curl --fail --silent --show-error             --request POST             --header 'content-type: application/json'             --data "$payload"             "$STAGING_ALERT_WEBHOOK_URL"
