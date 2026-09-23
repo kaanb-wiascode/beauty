@@ -17,7 +17,7 @@ interface SftpClientLike {
     hostVerifier?: (hashedKey: string) => boolean;
   }): Promise<unknown>;
   list(path: string): Promise<SftpEntry[]>;
-  get(path: string): Promise<Buffer | string>;
+  get(path: string): Promise<Buffer | string | NodeJS.WritableStream>;
   end(): Promise<unknown>;
 }
 export type IyzicoSftpFactory = () => SftpClientLike;
