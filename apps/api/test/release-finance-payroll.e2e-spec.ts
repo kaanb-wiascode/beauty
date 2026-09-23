@@ -33,17 +33,13 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
   });
 
   afterAll(async () => {
-    if (tenantId) {
-      await prisma.$executeRawUnsafe(
-        `DELETE FROM journal_entry_lines
-         WHERE journal_entry_id IN (
-           SELECT id FROM journal_entries WHERE tenant_id = $1::text
-         )`,
-        tenantId,
-      );
-      await prisma.tenant.delete({ where: { id: tenantId } });
+    try {
+      if (tenantId) {
+        await prisma.tenant.delete({ where: { id: tenantId } }).catch(() => undefined);
+      }
+    } finally {
+      await app.close();
     }
-    await app.close();
   });
 
   it('posts and reverses payroll settlement and finance reconciliation', async () => {
