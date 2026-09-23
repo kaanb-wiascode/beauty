@@ -102,8 +102,12 @@ export class ExpensesService {
     companyId: string,
     key: string,
   ): Promise<void> {
-    await tx.$queryRawUnsafe(
-      `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+    await tx.$queryRawUnsafe<Array<{ locked: boolean }>>(
+      `WITH expense_lock AS (
+         SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))
+       )
+       SELECT TRUE AS locked
+       FROM expense_lock`,
       `expense:${companyId}`,
       key,
     );
