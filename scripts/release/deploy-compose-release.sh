@@ -53,7 +53,9 @@ if [[ "$ready" != "true" ]]; then
   exit 1
 fi
 
+bash scripts/release/verify-running-release.sh
 bash scripts/release/verify-api-health.sh
 bash scripts/release/verify-production-runtime.sh
+bash scripts/release/write-release-manifest.sh
 
 echo "Release $RELEASE_SHA deployed successfully to $DEPLOY_ENV."
