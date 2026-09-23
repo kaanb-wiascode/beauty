@@ -83,7 +83,7 @@ export class TrainingCompetencyBridgeService {
 
       const summary = { claimed: rows.length, assessmentsCreated: 0, skippedNoStaff: 0, skippedNoScore: 0, duplicate: 0 };
       for (const row of rows) {
-        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-competency-result:${c.tenantId}:${c.companyId}:${row.assignmentId}`);
+        await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-competency-result:${c.tenantId}:${c.companyId}:${row.assignmentId}`);
         const outcomes = await tx.$queryRawUnsafe<any[]>(
           `SELECT id,competency_id AS "competencyId",score_source AS "scoreSource",fixed_score AS "fixedScore"
            FROM training_competency_outcomes
