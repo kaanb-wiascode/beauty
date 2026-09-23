@@ -45,6 +45,19 @@ export const envSchema = z.object({
   OBJECT_STORAGE_SECRET_ACCESS_KEY: z.string().trim().min(1).optional(),
   OBJECT_STORAGE_PRESIGN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).optional(),
   OBJECT_STORAGE_MAX_BYTES: z.coerce.number().int().min(1_048_576).max(104_857_600).optional(),
+
+  REPORT_EXPORT_STORAGE_DRIVER: z.enum(['filesystem', 'object']).default('filesystem'),
+  REPORT_EXPORT_STORAGE_DIR: z.string().trim().min(1).default('.report-exports'),
+  REPORT_EXPORT_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(7),
+  REPORT_EXPORT_WORKER_ENABLED: z.enum(['true', 'false']).default('false'),
+  REPORT_EXPORT_WORKER_POLL_MS: z.coerce.number().int().min(1000).max(60000).default(5000),
+  REPORT_EXPORT_WORKER_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(5),
+  REPORT_EXPORT_EXPIRY_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  REPORT_EXPORT_STALE_PROCESSING_MINUTES: z.coerce.number().int().min(5).max(1440).default(30),
+  REPORT_EXPORT_STALE_BATCH_SIZE: z.coerce.number().int().min(1).max(500).default(100),
+  REPORT_EXPORT_ACTIVE_JOB_LIMIT: z.coerce.number().int().min(1).max(20).default(3),
+  REPORT_EXPORT_ROW_LIMIT: z.coerce.number().int().min(100).max(100000).default(50000),
+  REPORT_SCHEDULE_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(5),
 }).superRefine((env, ctx) => {
   if (env.NODE_ENV === 'production' && !env.CORS_ORIGINS) {
     ctx.addIssue({
@@ -62,7 +75,40 @@ export const envSchema = z.object({
         message: 'CORS_ORIGINS must contain comma-separated absolute URLs',
         path: ['CORS_ORIGINS'],
       });
+    } else if (
+      env.NODE_ENV === 'production' &&
+      origins.some((origin) => new URL(origin).protocol !== 'https:')
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'CORS_ORIGINS must use HTTPS in production',
+        path: ['CORS_ORIGINS'],
+      });
     }
+  }
+
+  if (
+    env.NODE_ENV === 'production' &&
+    env.PUBLIC_API_URL &&
+    new URL(env.PUBLIC_API_URL).protocol !== 'https:'
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'PUBLIC_API_URL must use HTTPS in production',
+      path: ['PUBLIC_API_URL'],
+    });
+  }
+
+  if (
+    env.NODE_ENV === 'production' &&
+    env.OBJECT_STORAGE_ENDPOINT &&
+    new URL(env.OBJECT_STORAGE_ENDPOINT).protocol !== 'https:'
+  ) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'OBJECT_STORAGE_ENDPOINT must use HTTPS in production',
+      path: ['OBJECT_STORAGE_ENDPOINT'],
+    });
   }
 
   const hasUrl = Boolean(env.QUALITY_NOTIFICATION_WEBHOOK_URL);
@@ -97,6 +143,32 @@ export const envSchema = z.object({
       message: 'OBJECT_STORAGE_BUCKET, OBJECT_STORAGE_ACCESS_KEY_ID and OBJECT_STORAGE_SECRET_ACCESS_KEY must be configured together',
       path: ['OBJECT_STORAGE_BUCKET'],
     });
+  }
+
+  if (env.NODE_ENV === 'production') {
+    if (configuredStorageFields !== storageFields.length) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'Private object storage must be fully configured in production',
+        path: ['OBJECT_STORAGE_BUCKET'],
+      });
+    }
+
+    if (env.REPORT_EXPORT_STORAGE_DRIVER !== 'object') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'REPORT_EXPORT_STORAGE_DRIVER must be object in production',
+        path: ['REPORT_EXPORT_STORAGE_DRIVER'],
+      });
+    }
+
+    if (env.REPORT_EXPORT_WORKER_ENABLED !== 'true') {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: 'REPORT_EXPORT_WORKER_ENABLED must be true in production',
+        path: ['REPORT_EXPORT_WORKER_ENABLED'],
+      });
+    }
   }
 });
 
