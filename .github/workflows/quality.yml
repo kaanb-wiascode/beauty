@@ -90,6 +90,7 @@ jobs:
         run: |
           bash scripts/release/verify-deployment-env.sh
           docker compose -f infrastructure/docker-compose.staging.yml config --quiet
+          docker compose -f infrastructure/docker-compose.coolify.staging.yml config --quiet
           docker compose -f infrastructure/docker-compose.production.yml config --quiet
 
       - name: Validate Prisma schema
