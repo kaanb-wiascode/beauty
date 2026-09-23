@@ -1,7 +1,6 @@
 import type { AuthTenant, AuthUser, LoginResponse } from "./types";
 
 const ACCESS_TOKEN_KEY = "beauty_erp_access_token";
-const REFRESH_TOKEN_KEY = "beauty_erp_refresh_token";
 const USER_KEY = "beauty_erp_user";
 const TENANT_KEY = "beauty_erp_tenant";
 const MEMBERSHIP_KEY = "beauty_erp_membership";
@@ -51,11 +50,6 @@ export function hasActiveBranch(): boolean {
   return Boolean(getActiveBranchId());
 }
 
-export function getRefreshToken(): string | null {
-  if (!canUseStorage()) return null;
-  return window.localStorage.getItem(REFRESH_TOKEN_KEY);
-}
-
 export function getStoredUser(): AuthUser | null {
   if (!canUseStorage()) return null;
 
@@ -97,7 +91,6 @@ export function getStoredTenant(): AuthTenant | null {
 
 export function persistSession(input: {
   accessToken: string;
-  refreshToken?: string;
   user?: AuthUser;
   tenant?: AuthTenant;
   membership?: LoginResponse["membership"];
@@ -105,10 +98,6 @@ export function persistSession(input: {
   if (!canUseStorage()) return;
 
   window.localStorage.setItem(ACCESS_TOKEN_KEY, input.accessToken);
-
-  if (input.refreshToken) {
-    window.localStorage.setItem(REFRESH_TOKEN_KEY, input.refreshToken);
-  }
 
   if (input.user) {
     window.localStorage.setItem(USER_KEY, JSON.stringify(input.user));
@@ -130,7 +119,6 @@ export function clearSession() {
   if (!canUseStorage()) return;
 
   window.localStorage.removeItem(ACCESS_TOKEN_KEY);
-  window.localStorage.removeItem(REFRESH_TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   window.localStorage.removeItem(TENANT_KEY);
   window.localStorage.removeItem(MEMBERSHIP_KEY);
