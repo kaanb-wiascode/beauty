@@ -52,8 +52,8 @@ jobs:
           {
             echo "## VALOO Coolify staging bootstrap"
             echo
-            echo "- Application UUID: `$APPLICATION_UUID`"
-            echo "- Compose file: `infrastructure/docker-compose.coolify.staging.yml`"
+            echo "- Application UUID: $APPLICATION_UUID"
+            echo "- Compose file: infrastructure/docker-compose.coolify.staging.yml"
             echo
-            echo "Next required action: save this UUID as the GitHub staging environment secret `COOLIFY_STAGING_APPLICATION_UUID`."
+            echo "Next required action: save this UUID as the GitHub staging environment secret COOLIFY_STAGING_APPLICATION_UUID."
           } >> "$GITHUB_STEP_SUMMARY"
