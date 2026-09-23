@@ -28,7 +28,7 @@ export interface CrmMessageProvider {
   readonly channels: readonly CrmMessageChannel[];
   send(message: CrmProviderMessage): Promise<CrmProviderSendResult>;
   verifyWebhook?(request: CrmProviderWebhookRequest): Promise<boolean> | boolean;
-  parseWebhook?(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent> | CrmProviderWebhookEvent;
+  parseWebhook?(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent | CrmProviderWebhookEvent[]> | CrmProviderWebhookEvent | CrmProviderWebhookEvent[];
   verifyChallenge?(query: Record<string, unknown>): Promise<string | null> | string | null;
 }
 
