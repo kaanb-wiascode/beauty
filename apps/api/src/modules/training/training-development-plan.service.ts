@@ -171,7 +171,7 @@ export class TrainingDevelopmentPlanService {
     const dueDate = this.date(input.dueDate);
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `development-plan:${c.tenantId}:${c.companyId}:${planId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`, `development-plan:${c.tenantId}:${c.companyId}:${planId}`);
       const plans = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,branch_id AS "branchId" FROM staff_development_plans
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
