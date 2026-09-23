@@ -1,0 +1,61 @@
+name: Staging backup restore drill
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-backup-restore-drill
+  cancel-in-progress: false
+
+jobs:
+  drill:
+    name: Verify staging PostgreSQL recovery
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16
+
+      - name: Validate recovery secrets
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          RESTORE_TEST_DATABASE_URL: ${{ secrets.STAGING_RESTORE_TEST_DATABASE_URL }}
+        shell: bash
+        run: |
+          : "${DATABASE_URL:?STAGING_DATABASE_URL secret is required}"
+          : "${RESTORE_TEST_DATABASE_URL:?STAGING_RESTORE_TEST_DATABASE_URL secret is required}"
+          if [[ "$DATABASE_URL" == "$RESTORE_TEST_DATABASE_URL" ]]; then
+            echo "Source and restore-test databases must be different" >&2
+            exit 1
+          fi
+
+      - name: Execute logical backup and restore verification
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          RESTORE_TEST_DATABASE_URL: ${{ secrets.STAGING_RESTORE_TEST_DATABASE_URL }}
+          KEEP_BACKUP: "0"
+        run: bash scripts/release/verify-postgres-backup-restore.sh
+
+      - name: Record successful drill
+        shell: bash
+        run: |
+          {
+            echo "## PostgreSQL staging recovery drill"
+            echo
+            echo "- Status: SUCCESS"
+            echo "- Run: `$GITHUB_RUN_ID`"
+            echo "- Commit: `$GITHUB_SHA`"
+            echo "- UTC: `$(date -u +%Y-%m-%dT%H:%M:%SZ)`"
+            echo
+            echo "The logical dump was restored into the disposable restore-test database and core migration/tenant tables were verified."
+          } >> "$GITHUB_STEP_SUMMARY"
