@@ -1,0 +1,59 @@
+name: Repair security lockfile
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - .github/workflows/repair-security-lockfile.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-security-lockfile
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/core-commerce-foundation
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+
+      - name: Regenerate lockfile from patched overrides
+        run: pnpm install --lockfile-only
+
+      - name: Verify production dependency audit
+        run: pnpm audit --prod --audit-level=high
+
+      - name: Commit lockfile update and remove helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/repair-security-lockfile.yml
+          git add pnpm-lock.yaml pnpm-workspace.yaml
+          if git diff --cached --quiet; then
+            echo "No security lockfile changes were required."
+            exit 0
+          fi
+          git commit -m "fix(security): refresh lockfile for patched overrides"
+          git fetch origin feature/core-commerce-foundation
+          git rebase origin/feature/core-commerce-foundation
+          git push origin HEAD:feature/core-commerce-foundation
