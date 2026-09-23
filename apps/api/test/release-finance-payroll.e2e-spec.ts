@@ -53,8 +53,9 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       })
       .expect(201);
 
-    tenantId = registered.body.tenant.id;
-    const companyId = registered.body.company.id;
+    const currentTenantId = String(registered.body.tenant.id);
+    tenantId = currentTenantId;
+    const companyId = String(registered.body.company.id);
     const branchId = registered.body.branch.id;
     const membershipId = registered.body.membership.id;
 
@@ -72,7 +73,7 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
     const authorization = `Bearer ${switched.body.accessToken}`;
 
     const ownerRole = await prisma.role.findFirstOrThrow({
-      where: { tenantId, companyId, slug: 'owner' },
+      where: { tenantId: currentTenantId, companyId, slug: 'owner' },
       select: { id: true },
     });
     const hrSensitive = await prisma.permission.upsert({
@@ -259,21 +260,21 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       `INSERT INTO finance_integrations(
          id,tenant_id,company_id,branch_id,kind,provider,display_name,status,auth_type,metadata
        ) VALUES($1::text,$2::text,$3::text,$4::text,'OPEN_BANKING','STAGING_ACCEPTANCE',$5,'CONNECTED','MANUAL','{}'::jsonb)`,
-      integrationId, tenantId, companyId, branchId, `Release Acceptance Bank ${suffix}`,
+      integrationId, currentTenantId, companyId, branchId, `Release Acceptance Bank ${suffix}`,
     );
     await prisma.$executeRawUnsafe(
       `INSERT INTO bank_accounts(
          id,tenant_id,company_id,branch_id,integration_id,external_account_id,
          bank_name,account_name,currency,active,updated_at
        ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,'Release Acceptance Bank',$7,'TRY',true,NOW())`,
-      bankAccountId, tenantId, companyId, branchId, integrationId, `account-${suffix}`, `Acceptance ${suffix}`,
+      bankAccountId, currentTenantId, companyId, branchId, integrationId, `account-${suffix}`, `Acceptance ${suffix}`,
     );
     await prisma.$executeRawUnsafe(
       `INSERT INTO bank_transactions(
          id,tenant_id,company_id,branch_id,bank_account_id,external_transaction_id,
          booked_at,amount,currency,description,reconciliation_status
        ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,NOW(),-100,'TRY',$7,'UNMATCHED')`,
-      bankTransactionId, tenantId, companyId, branchId, bankAccountId, `transaction-${suffix}`, `RECON-${suffix}`,
+      bankTransactionId, currentTenantId, companyId, branchId, bankAccountId, `transaction-${suffix}`, `RECON-${suffix}`,
     );
 
     const suggestions = await request(app.getHttpServer())
