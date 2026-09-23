@@ -33,7 +33,7 @@ export class TrainingDevelopmentAutomationService {
     if (item.itemType === 'COURSE') {
       if (item.trainingAssignmentId) return { itemId, trainingAssignmentId: item.trainingAssignmentId, duplicate: true };
       return this.prisma.$transaction(async tx => {
-        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`development-course:${c.tenantId}:${c.companyId}:${itemId}`);
+        await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`development-course:${c.tenantId}:${c.companyId}:${itemId}`);
         const current = await tx.$queryRawUnsafe<any[]>(
           `SELECT training_assignment_id AS "trainingAssignmentId" FROM staff_development_plan_items
            WHERE id=$1::text AND plan_id=$2::text AND tenant_id=$3::text AND company_id=$4::text FOR UPDATE`,
