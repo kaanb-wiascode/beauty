@@ -408,7 +408,7 @@ export class AuthService {
         : firstActiveBranchId;
 
     if (
-      membership.role.scope === 'BRANCH' &&
+      membership.role.scope !== 'CENTRAL' &&
       !branchId
     ) {
       throw new UnauthorizedException(
@@ -504,7 +504,7 @@ export class AuthService {
     }
 
     if (branchId === null) {
-      if (membership.role.scope === 'BRANCH') {
+      if (membership.role.scope !== 'CENTRAL') {
         throw new UnauthorizedException('A branch is required for this role');
       }
     } else {
@@ -672,7 +672,7 @@ export class AuthService {
       }
     }
 
-    if (membership.role.scope === 'BRANCH' && !branchId) {
+    if (membership.role.scope !== 'CENTRAL' && !branchId) {
       branchId =
         membership.branchAccesses.find(
           (access) => access.branch.status === 'ACTIVE',
@@ -680,7 +680,7 @@ export class AuthService {
     }
 
     if (
-      membership.role.scope === 'BRANCH' &&
+      membership.role.scope !== 'CENTRAL' &&
       !branchId
     ) {
       await this.redis.delete(key);
