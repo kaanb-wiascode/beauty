@@ -105,7 +105,7 @@ export class QualityInspectionCatalogService {
     const c = this.tenant.getContext();
     return this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1))`,
+        `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,
         `quality-standard-catalog:${c.tenantId}:${c.companyId}:v1`,
       );
       const installed: any[] = [];
