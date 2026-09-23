@@ -8,6 +8,10 @@ RUN apt-get update \
 WORKDIR /app
 COPY . .
 
+# Prisma config requires a syntactically valid URL while generating the client.
+# This build-only value never reaches the runtime stage and is not a credential.
+ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
+
 RUN pnpm install --frozen-lockfile \
   && pnpm --filter @beauty-erp/database generate \
   && pnpm --filter @beauty-erp/database build \
