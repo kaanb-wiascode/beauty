@@ -113,6 +113,11 @@ export class NotificationPolicyService {
   }
 
   private normalize(value: string) {
-    return value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-').replace(/^-+|-+$/g, '');
+    const normalized = value.trim().toLowerCase().replace(/[^a-z0-9._-]+/g, '-');
+    let start = 0;
+    let end = normalized.length;
+    while (start < end && normalized[start] === '-') start += 1;
+    while (end > start && normalized[end - 1] === '-') end -= 1;
+    return normalized.slice(start, end);
   }
 }
