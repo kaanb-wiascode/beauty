@@ -175,6 +175,7 @@ jobs:
             and (.apiImage | contains($sha))
             and (.webImage | contains($sha))
             and (.stagingUrl | startswith("https://"))
+            and .businessAcceptance == "passed"
           ' "$file" >/dev/null || {
             echo "Staging release attestation is invalid or does not match the requested SHA." >&2
             cat "$file" >&2
