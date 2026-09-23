@@ -40,7 +40,7 @@ export class CrmMessageWebhookService {
       this.validateEvent(event);
     }
 
-    const results = [];
+    const results: unknown[] = [];
     for (const event of events) {
       results.push(await this.handleEvent(provider.key, event));
     }
