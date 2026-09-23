@@ -74,7 +74,7 @@ export class CrmAutomationService {
 
   private async lockKey(tx: Tx, scope: CrmAutomationScope, key: string) {
     await tx.$executeRawUnsafe(
-      `SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))`,
+      `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtextextended($1::text,0))) SELECT 1 FROM _advisory_lock`,
       `${scope.tenantId}:${scope.companyId}:${scope.branchId ?? '*'}:${key}`,
     );
   }
