@@ -219,6 +219,15 @@ jobs:
           bash scripts/release/verify-api-health.sh
           bash scripts/release/verify-production-runtime.sh
 
+      - name: Verify authenticated staging session lifecycle
+        env:
+          API_BASE_URL: ${{ steps.inputs.outputs.staging_url }}/backend
+          STAGING_SMOKE_EMAIL: ${{ secrets.STAGING_SMOKE_EMAIL }}
+          STAGING_SMOKE_PASSWORD: ${{ secrets.STAGING_SMOKE_PASSWORD }}
+          STAGING_SMOKE_TOTP_SECRET: ${{ secrets.STAGING_SMOKE_TOTP_SECRET }}
+        shell: bash
+        run: bash scripts/release/verify-staging-auth.sh
+
       - name: Write deployment summary
         if: always()
         env:
