@@ -123,7 +123,7 @@ export class CompetencyTrainingService {
     if (effectiveTo && effectiveTo < effectiveFrom) throw new BadRequestException('effectiveTo cannot be before effectiveFrom.');
 
     return this.prisma.$transaction(async tx => {
-      await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`competency-training-rule:${c.tenantId}:${c.companyId}:${name}`);
+      await tx.$queryRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`competency-training-rule:${c.tenantId}:${c.companyId}:${name}`);
       const competencies = await tx.$queryRawUnsafe<any[]>(
         `SELECT id FROM competency_definitions WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND is_active=true LIMIT 1`,
         input.competencyId,c.tenantId,c.companyId,
@@ -195,7 +195,7 @@ export class CompetencyTrainingService {
     const c = this.context();
     const staff = await this.staff(staffId);
     return this.prisma.$transaction(async tx => {
-      await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`competency-training-staff:${c.tenantId}:${c.companyId}:${staffId}`);
+      await tx.$queryRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`competency-training-staff:${c.tenantId}:${c.companyId}:${staffId}`);
       const candidates = await tx.$queryRawUnsafe<GapCandidate[]>(this.candidateSql(),c.tenantId,c.companyId,staffId);
       let created = 0;
       let skippedCooldown = 0;
