@@ -19,9 +19,14 @@ if [[ "$DEPLOY_ENV" == "production" ]]; then
   fi
 fi
 
-for command in docker curl; do
+for command in docker curl pnpm; do
   command -v "$command" >/dev/null 2>&1 || { echo "error: $command is required" >&2; exit 1; }
 done
+
+if [[ ! -d node_modules ]]; then
+  echo "error: workspace dependencies are not installed; run pnpm install --frozen-lockfile before deployment" >&2
+  exit 1
+fi
 
 bash scripts/release/verify-deployment-env.sh
 docker compose -f "$COMPOSE_FILE" config --quiet
@@ -29,9 +34,8 @@ docker compose -f "$COMPOSE_FILE" config --quiet
 echo "Pulling immutable images for $RELEASE_SHA..."
 docker compose -f "$COMPOSE_FILE" pull api web
 
-echo "Applying Prisma production migrations..."
-docker compose -f "$COMPOSE_FILE" run --rm --no-deps api \
-  sh -lc "cd /app/packages/database && /app/node_modules/.bin/prisma migrate deploy"
+echo "Applying Prisma production migrations from the exact checked-out release..."
+DATABASE_URL="$DATABASE_URL" pnpm --filter @beauty-erp/database migrate:deploy
 
 echo "Starting application services..."
 docker compose -f "$COMPOSE_FILE" up -d --no-build --remove-orphans api web
