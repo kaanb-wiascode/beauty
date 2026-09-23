@@ -71,6 +71,27 @@ jobs:
       - name: Validate release shell scripts
         run: bash -n scripts/release/*.sh
 
+      - name: Validate deployment manifests
+        env:
+          RELEASE_SHA: 0123456789abcdef0123456789abcdef01234567
+          API_IMAGE: ghcr.io/kaanb-wiascode/beauty-api:0123456789abcdef0123456789abcdef01234567
+          WEB_IMAGE: ghcr.io/kaanb-wiascode/beauty-web:0123456789abcdef0123456789abcdef01234567
+          CORS_ORIGINS: https://staging.valoo.example
+          PUBLIC_API_URL: https://staging.valoo.example/backend
+          DATABASE_URL: postgresql://user:password@db.internal:5432/valoo?sslmode=require
+          REDIS_URL: rediss://:password@redis.internal:6379
+          JWT_ACCESS_SECRET: ci-deployment-access-secret-at-least-32-characters
+          JWT_REFRESH_SECRET: ci-deployment-refresh-secret-at-least-32-characters
+          OBJECT_STORAGE_BUCKET: valoo-ci-private
+          OBJECT_STORAGE_REGION: eu-central-1
+          OBJECT_STORAGE_ENDPOINT: https://storage.valoo.example
+          OBJECT_STORAGE_ACCESS_KEY_ID: ci-access-key
+          OBJECT_STORAGE_SECRET_ACCESS_KEY: ci-secret-key
+        run: |
+          bash scripts/release/verify-deployment-env.sh
+          docker compose -f infrastructure/docker-compose.staging.yml config --quiet
+          docker compose -f infrastructure/docker-compose.production.yml config --quiet
+
       - name: Validate Prisma schema
         run: pnpm --filter @beauty-erp/database validate
 
