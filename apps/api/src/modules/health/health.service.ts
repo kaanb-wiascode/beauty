@@ -16,6 +16,13 @@ export class HealthService {
     };
   }
 
+  release() {
+    return {
+      status: 'ok' as const,
+      releaseSha: process.env.RELEASE_SHA ?? 'development',
+    };
+  }
+
   async ready() {
     const [database, redis] = await Promise.all([
       this.checkDatabase(),
