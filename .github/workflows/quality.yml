@@ -85,6 +85,9 @@ jobs:
       - name: Validate release shell scripts
         run: bash -n scripts/release/*.sh
 
+      - name: Guard Prisma advisory-lock raw queries
+        run: bash scripts/release/verify-no-prisma-void-advisory-locks.sh
+
       - name: Validate deployment manifests
         env:
           RELEASE_SHA: 0123456789abcdef0123456789abcdef01234567
