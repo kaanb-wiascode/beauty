@@ -1,4 +1,9 @@
-import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { AccountingService } from '../accounting/accounting.service';
@@ -55,7 +60,10 @@ export class SalesService {
 
   private requireBranchId(): string {
     const branchId = this.tenantContext.getBranchId();
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!branchId)
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
     return branchId;
   }
 
@@ -65,35 +73,48 @@ export class SalesService {
     branchId: string,
     items: SaleItemInput[],
   ): Promise<SaleLine[]> {
-    return Promise.all(items.map(async (item) => {
-      if (item.type === 'SERVICE') {
-        const service = await tx.service.findFirst({
-          where: { id: item.referenceId, tenantId, branchId, status: 'ACTIVE' },
-        });
-        if (!service) throw new BadRequestException('One or more sale services are invalid.');
-        return {
-          type: 'SERVICE' as const,
-          serviceId: service.id,
-          packageId: null,
-          description: service.name,
-          quantity: item.quantity,
-          unitPrice: Number(service.price),
-        };
-      }
+    return Promise.all(
+      items.map(async (item) => {
+        if (item.type === 'SERVICE') {
+          const service = await tx.service.findFirst({
+            where: {
+              id: item.referenceId,
+              tenantId,
+              branchId,
+              status: 'ACTIVE',
+            },
+          });
+          if (!service)
+            throw new BadRequestException(
+              'One or more sale services are invalid.',
+            );
+          return {
+            type: 'SERVICE' as const,
+            serviceId: service.id,
+            packageId: null,
+            description: service.name,
+            quantity: item.quantity,
+            unitPrice: Number(service.price),
+          };
+        }
 
-      const servicePackage = await tx.servicePackage.findFirst({
-        where: { id: item.referenceId, tenantId, branchId, active: true },
-      });
-      if (!servicePackage) throw new BadRequestException('One or more sale packages are invalid.');
-      return {
-        type: 'PACKAGE' as const,
-        serviceId: null,
-        packageId: servicePackage.id,
-        description: servicePackage.name,
-        quantity: item.quantity,
-        unitPrice: Number(servicePackage.price),
-      };
-    }));
+        const servicePackage = await tx.servicePackage.findFirst({
+          where: { id: item.referenceId, tenantId, branchId, active: true },
+        });
+        if (!servicePackage)
+          throw new BadRequestException(
+            'One or more sale packages are invalid.',
+          );
+        return {
+          type: 'PACKAGE' as const,
+          serviceId: null,
+          packageId: servicePackage.id,
+          description: servicePackage.name,
+          quantity: item.quantity,
+          unitPrice: Number(servicePackage.price),
+        };
+      }),
+    );
   }
 
   private async createSaleRecord(
@@ -108,7 +129,12 @@ export class SalesService {
     });
     if (!customer) throw new NotFoundException('Customer not found');
 
-    const lines = await this.resolveSaleLines(tx, tenantId, branchId, input.items);
+    const lines = await this.resolveSaleLines(
+      tx,
+      tenantId,
+      branchId,
+      input.items,
+    );
     let totals: ReturnType<typeof calculateSaleTotals>;
     try {
       totals = calculateSaleTotals(lines, input.discountTotal);
@@ -145,7 +171,11 @@ export class SalesService {
     return { sale, lines, totals };
   }
 
-  private async paymentSummary(saleId: string, tenantId: string, branchId: string) {
+  private async paymentSummary(
+    saleId: string,
+    tenantId: string,
+    branchId: string,
+  ) {
     const sale = await this.prisma.sale.findFirst({
       where: { id: saleId, tenantId, branchId },
       select: { id: true, total: true, status: true },
@@ -159,7 +189,10 @@ export class SalesService {
 
     const total = Number(sale.total);
     const paid = Number(aggregate._sum.amount ?? 0);
-    const balance = Math.max(0, Math.round((total - paid + Number.EPSILON) * 100) / 100);
+    const balance = Math.max(
+      0,
+      Math.round((total - paid + Number.EPSILON) * 100) / 100,
+    );
 
     return {
       saleId: sale.id,
@@ -167,7 +200,8 @@ export class SalesService {
       total,
       paid,
       balance,
-      paymentStatus: paid <= 0 ? 'UNPAID' : balance > 0 ? 'PARTIALLY_PAID' : 'PAID',
+      paymentStatus:
+        paid <= 0 ? 'UNPAID' : balance > 0 ? 'PARTIALLY_PAID' : 'PAID',
     };
   }
 
@@ -175,10 +209,18 @@ export class SalesService {
     const tenantId = this.tenantContext.getTenantId();
     const branchId = this.requireBranchId();
 
-    return this.prisma.$transaction(async (tx) => {
-      const { sale } = await this.createSaleRecord(tx, input, tenantId, branchId);
-      return sale;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+    return this.prisma.$transaction(
+      async (tx) => {
+        const { sale } = await this.createSaleRecord(
+          tx,
+          input,
+          tenantId,
+          branchId,
+        );
+        return sale;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async createFromOpportunity(
@@ -190,113 +232,126 @@ export class SalesService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.requireBranchId();
 
-    return this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{
-        id: string;
-        title: string;
-        stage: string;
-        version: number;
-        customerId: string | null;
-        saleId: string | null;
-        estimatedValue: Prisma.Decimal | null;
-        currency: string;
-      }>>(
-        `SELECT id,title,stage,version,customer_id AS "customerId",sale_id AS "saleId",
+    return this.prisma.$transaction(
+      async (tx) => {
+        const rows = await tx.$queryRawUnsafe<
+          Array<{
+            id: string;
+            title: string;
+            stage: string;
+            version: number;
+            customerId: string | null;
+            saleId: string | null;
+            estimatedValue: Prisma.Decimal | null;
+            currency: string;
+          }>
+        >(
+          `SELECT id,title,stage,version,customer_id AS "customerId",sale_id AS "saleId",
                 estimated_value AS "estimatedValue",currency
          FROM crm_opportunities
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
          FOR UPDATE`,
-        opportunityId,
-        tenantId,
-        companyId,
-        branchId,
-      );
+          opportunityId,
+          tenantId,
+          companyId,
+          branchId,
+        );
 
-      const opportunity = rows[0];
-      if (!opportunity) throw new NotFoundException('CRM opportunity not found.');
+        const opportunity = rows[0];
+        if (!opportunity)
+          throw new NotFoundException('CRM opportunity not found.');
 
-      if (opportunity.saleId) {
-        const sale = await tx.sale.findFirst({
-          where: { id: opportunity.saleId, tenantId, branchId },
-          include: { items: true },
-        });
-        if (!sale) throw new ConflictException('Linked sale is missing.');
-        return { sale, idempotent: true };
-      }
+        if (opportunity.saleId) {
+          const sale = await tx.sale.findFirst({
+            where: { id: opportunity.saleId, tenantId, branchId },
+            include: { items: true },
+          });
+          if (!sale) throw new ConflictException('Linked sale is missing.');
+          return { sale, idempotent: true };
+        }
 
-      if (opportunity.stage !== 'WON') {
-        throw new BadRequestException('Only won opportunities can be converted to a sale.');
-      }
-      if (opportunity.version !== input.version) {
-        throw new ConflictException('Opportunity version is stale.');
-      }
+        if (opportunity.stage !== 'WON') {
+          throw new BadRequestException(
+            'Only won opportunities can be converted to a sale.',
+          );
+        }
+        if (opportunity.version !== input.version) {
+          throw new ConflictException('Opportunity version is stale.');
+        }
 
-      const customerId = input.customerId ?? opportunity.customerId;
-      if (!customerId) {
-        throw new BadRequestException('A customer must be linked before creating the sale.');
-      }
+        const customerId = input.customerId ?? opportunity.customerId;
+        if (!customerId) {
+          throw new BadRequestException(
+            'A customer must be linked before creating the sale.',
+          );
+        }
 
-      const { sale, lines, totals } = await this.createSaleRecord(
-        tx,
-        {
+        const { sale, lines, totals } = await this.createSaleRecord(
+          tx,
+          {
+            customerId,
+            discountTotal: input.discountTotal,
+            items: input.items,
+          },
+          tenantId,
+          branchId,
+        );
+
+        const convertedAt = new Date();
+        const snapshot = {
+          opportunityId: opportunity.id,
+          opportunityTitle: opportunity.title,
+          estimatedValue:
+            opportunity.estimatedValue == null
+              ? null
+              : Number(opportunity.estimatedValue),
+          currency: opportunity.currency,
           customerId,
-          discountTotal: input.discountTotal,
-          items: input.items,
-        },
-        tenantId,
-        branchId,
-      );
+          saleId: sale.id,
+          subtotal: Number(totals.subtotal),
+          discountTotal: Number(totals.discountTotal),
+          total: Number(totals.total),
+          items: lines.map((line) => ({
+            type: line.type,
+            referenceId: line.serviceId ?? line.packageId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: line.quantity * line.unitPrice,
+          })),
+        };
 
-      const convertedAt = new Date();
-      const snapshot = {
-        opportunityId: opportunity.id,
-        opportunityTitle: opportunity.title,
-        estimatedValue: opportunity.estimatedValue == null ? null : Number(opportunity.estimatedValue),
-        currency: opportunity.currency,
-        customerId,
-        saleId: sale.id,
-        subtotal: Number(totals.subtotal),
-        discountTotal: Number(totals.discountTotal),
-        total: Number(totals.total),
-        items: lines.map((line) => ({
-          type: line.type,
-          referenceId: line.serviceId ?? line.packageId,
-          description: line.description,
-          quantity: line.quantity,
-          unitPrice: line.unitPrice,
-          lineTotal: line.quantity * line.unitPrice,
-        })),
-      };
-
-      await tx.$executeRawUnsafe(
-        `UPDATE crm_opportunities
+        await tx.$executeRawUnsafe(
+          `UPDATE crm_opportunities
          SET customer_id=$5::text,sale_id=$6::text,commercial_snapshot=$7::jsonb,
              converted_at=$8::timestamptz,version=version+1,updated_at=NOW()
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
-        opportunity.id,
-        tenantId,
-        companyId,
-        branchId,
-        customerId,
-        sale.id,
-        JSON.stringify(snapshot),
-        convertedAt,
-      );
+          opportunity.id,
+          tenantId,
+          companyId,
+          branchId,
+          customerId,
+          sale.id,
+          JSON.stringify(snapshot),
+          convertedAt,
+        );
 
-      await tx.$executeRawUnsafe(
-        `INSERT INTO crm_events(
+        await tx.$executeRawUnsafe(
+          `INSERT INTO crm_events(
            tenant_id,company_id,branch_id,opportunity_id,event_type,actor_user_id,metadata
          ) VALUES($1::text,$2::text,$3::text,$4::text,'OPPORTUNITY_SALE_CREATED',$5::text,$6::jsonb)`,
-        tenantId,
-        companyId,
-        branchId,
-        opportunity.id,
-        actorUserId,
-        JSON.stringify({ saleId: sale.id, total: Number(totals.total) }),
-      );
+          tenantId,
+          companyId,
+          branchId,
+          opportunity.id,
+          actorUserId,
+          JSON.stringify({ saleId: sale.id, total: Number(totals.total) }),
+        );
 
-      return { sale, idempotent: false };
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        return { sale, idempotent: false };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async findAll() {
@@ -304,7 +359,12 @@ export class SalesService {
     const branchId = this.requireBranchId();
     return this.prisma.sale.findMany({
       where: { tenantId, branchId },
-      include: { customer: true, items: true, customerPackages: true, payments: true },
+      include: {
+        customer: true,
+        items: true,
+        customerPackages: true,
+        payments: true,
+      },
       orderBy: { createdAt: 'desc' },
     });
   }
@@ -339,71 +399,88 @@ export class SalesService {
     const branchId = this.requireBranchId();
 
     if (!Number.isFinite(input.amount) || input.amount <= 0) {
-      throw new BadRequestException('Payment amount must be greater than zero.');
+      throw new BadRequestException(
+        'Payment amount must be greater than zero.',
+      );
     }
 
-    const payment = await this.prisma.$transaction(async (tx) => {
-      const sales = await tx.$queryRawUnsafe<Array<{
-        id: string;
-        total: Prisma.Decimal;
-        status: string;
-      }>>(
-        `SELECT id,total,status::text AS status FROM sales
+    const payment = await this.prisma.$transaction(
+      async (tx) => {
+        const sales = await tx.$queryRawUnsafe<
+          Array<{
+            id: string;
+            total: Prisma.Decimal;
+            status: string;
+          }>
+        >(
+          `SELECT id,total,status::text AS status FROM sales
          WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text
          FOR UPDATE`,
-        id,
-        tenantId,
-        branchId,
-      );
-      if (!sales.length) throw new NotFoundException('Sale not found');
-      const sale = sales[0];
-      if (sale.status !== 'CONFIRMED') {
-        throw new BadRequestException('Payments can only be recorded for confirmed sales.');
-      }
-
-      const aggregate = await tx.salePayment.aggregate({
-        where: { saleId: sale.id, tenantId, branchId, status: 'COMPLETED' },
-        _sum: { amount: true },
-      });
-
-      const paid = Number(aggregate._sum.amount ?? 0);
-      const total = Number(sale.total);
-      const remaining = Math.round((total - paid + Number.EPSILON) * 100) / 100;
-      const amount = Math.round((input.amount + Number.EPSILON) * 100) / 100;
-
-      if (remaining <= 0) {
-        throw new BadRequestException('Sale is already fully paid.');
-      }
-      if (amount > remaining) {
-        throw new BadRequestException(`Payment exceeds remaining balance of ${remaining.toFixed(2)}.`);
-      }
-
-      const createdPayment = await tx.salePayment.create({
-        data: {
+          id,
           tenantId,
           branchId,
-          saleId: sale.id,
-          amount,
-          method: input.method,
-          reference: input.reference?.trim() || null,
-          note: input.note?.trim() || null,
-        },
-      });
+        );
+        if (!sales.length) throw new NotFoundException('Sale not found');
+        const sale = sales[0];
+        if (sale.status !== 'CONFIRMED') {
+          throw new BadRequestException(
+            'Payments can only be recorded for confirmed sales.',
+          );
+        }
 
-      await this.installmentsService.allocatePayment(tx, sale.id, createdPayment.id, amount);
-      await this.accountingService.recordSalePayment(
-        tx,
-        createdPayment.id,
-        createdPayment.method,
-        {
-          tenantId,
-          branchId,
-          entryDate: createdPayment.paidAt,
+        const aggregate = await tx.salePayment.aggregate({
+          where: { saleId: sale.id, tenantId, branchId, status: 'COMPLETED' },
+          _sum: { amount: true },
+        });
+
+        const paid = Number(aggregate._sum.amount ?? 0);
+        const total = Number(sale.total);
+        const remaining =
+          Math.round((total - paid + Number.EPSILON) * 100) / 100;
+        const amount = Math.round((input.amount + Number.EPSILON) * 100) / 100;
+
+        if (remaining <= 0) {
+          throw new BadRequestException('Sale is already fully paid.');
+        }
+        if (amount > remaining) {
+          throw new BadRequestException(
+            `Payment exceeds remaining balance of ${remaining.toFixed(2)}.`,
+          );
+        }
+
+        const createdPayment = await tx.salePayment.create({
+          data: {
+            tenantId,
+            branchId,
+            saleId: sale.id,
+            amount,
+            method: input.method,
+            reference: input.reference?.trim() || null,
+            note: input.note?.trim() || null,
+          },
+        });
+
+        await this.installmentsService.allocatePayment(
+          tx,
+          sale.id,
+          createdPayment.id,
           amount,
-        },
-      );
-      return createdPayment;
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        );
+        await this.accountingService.recordSalePayment(
+          tx,
+          createdPayment.id,
+          createdPayment.method,
+          {
+            tenantId,
+            branchId,
+            entryDate: createdPayment.paidAt,
+            amount,
+          },
+        );
+        return createdPayment;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     return {
       payment,
@@ -411,65 +488,74 @@ export class SalesService {
     };
   }
 
-  async refundPayment(saleId: string, paymentId: string, input: RefundSalePaymentInput) {
+  async refundPayment(
+    saleId: string,
+    paymentId: string,
+    input: RefundSalePaymentInput,
+  ) {
     const tenantId = this.tenantContext.getTenantId();
     const branchId = this.requireBranchId();
     const reason = input.reason.trim();
     if (!reason) throw new BadRequestException('Refund reason is required.');
 
-    const payment = await this.prisma.$transaction(async (tx) => {
-      const sales = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-        `SELECT id FROM sales
+    const payment = await this.prisma.$transaction(
+      async (tx) => {
+        const sales = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM sales
          WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text
          FOR UPDATE`,
-        saleId,
-        tenantId,
-        branchId,
-      );
-      if (!sales.length) throw new NotFoundException('Sale not found');
-
-      const existing = await tx.salePayment.findFirst({
-        where: { id: paymentId, saleId, tenantId, branchId },
-      });
-      if (!existing) throw new NotFoundException('Sale payment not found');
-      if (existing.status !== 'COMPLETED') {
-        throw new ConflictException('Only completed payments can be refunded.');
-      }
-
-      const refundedAt = new Date();
-      const claimed = await tx.salePayment.updateMany({
-        where: {
-          id: existing.id,
           saleId,
           tenantId,
           branchId,
-          status: 'COMPLETED',
-        },
-        data: {
-          status: 'REFUNDED',
-          refundedAt,
-          refundReason: reason,
-        },
-      });
+        );
+        if (!sales.length) throw new NotFoundException('Sale not found');
 
-      if (claimed.count !== 1) {
-        throw new ConflictException('Sale payment is no longer refundable.');
-      }
+        const existing = await tx.salePayment.findFirst({
+          where: { id: paymentId, saleId, tenantId, branchId },
+        });
+        if (!existing) throw new NotFoundException('Sale payment not found');
+        if (existing.status !== 'COMPLETED') {
+          throw new ConflictException(
+            'Only completed payments can be refunded.',
+          );
+        }
 
-      await this.accountingService.recordSalePaymentRefund(
-        tx,
-        existing.id,
-        existing.method,
-        {
-          tenantId,
-          branchId,
-          entryDate: refundedAt,
-          amount: Number(existing.amount),
-        },
-      );
+        const refundedAt = new Date();
+        const claimed = await tx.salePayment.updateMany({
+          where: {
+            id: existing.id,
+            saleId,
+            tenantId,
+            branchId,
+            status: 'COMPLETED',
+          },
+          data: {
+            status: 'REFUNDED',
+            refundedAt,
+            refundReason: reason,
+          },
+        });
 
-      return tx.salePayment.findUniqueOrThrow({ where: { id: existing.id } });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        if (claimed.count !== 1) {
+          throw new ConflictException('Sale payment is no longer refundable.');
+        }
+
+        await this.accountingService.recordSalePaymentRefund(
+          tx,
+          existing.id,
+          existing.method,
+          {
+            tenantId,
+            branchId,
+            entryDate: refundedAt,
+            amount: Number(existing.amount),
+          },
+        );
+
+        return tx.salePayment.findUniqueOrThrow({ where: { id: existing.id } });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
 
     return {
       payment,
@@ -483,87 +569,105 @@ export class SalesService {
       throw new BadRequestException('Only draft sales can be confirmed.');
     }
 
-    const packageItems = sale.items.filter((item) => item.type === 'PACKAGE' && item.packageId);
+    const packageItems = sale.items.filter(
+      (item) => item.type === 'PACKAGE' && item.packageId,
+    );
 
-    return this.prisma.$transaction(async (tx) => {
-      const confirmedAt = new Date();
-      const claimed = await tx.sale.updateMany({
-        where: {
-          id: sale.id,
-          tenantId: sale.tenantId,
-          branchId: sale.branchId,
-          status: 'DRAFT',
-        },
-        data: { status: 'CONFIRMED', confirmedAt },
-      });
-      if (claimed.count !== 1) {
-        throw new ConflictException('Sale is no longer in a confirmable state.');
-      }
-
-      for (const line of packageItems) {
-        const definition = await tx.servicePackage.findFirst({
+    return this.prisma.$transaction(
+      async (tx) => {
+        const confirmedAt = new Date();
+        const claimed = await tx.sale.updateMany({
           where: {
-            id: line.packageId!,
+            id: sale.id,
             tenantId: sale.tenantId,
             branchId: sale.branchId,
-            active: true,
+            status: 'DRAFT',
           },
-          include: { items: true },
+          data: { status: 'CONFIRMED', confirmedAt },
         });
-        if (!definition) {
-          throw new BadRequestException('A package in this sale is no longer available.');
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            'Sale is no longer in a confirmable state.',
+          );
         }
 
-        for (let packageIndex = 0; packageIndex < line.quantity; packageIndex += 1) {
-          const purchasedAt = new Date();
-          const expiresAt = definition.validityDays
-            ? new Date(purchasedAt.getTime() + definition.validityDays * 24 * 60 * 60 * 1000)
-            : null;
-
-          const customerPackage = await tx.customerPackage.create({
-            data: {
+        for (const line of packageItems) {
+          const definition = await tx.servicePackage.findFirst({
+            where: {
+              id: line.packageId!,
               tenantId: sale.tenantId,
               branchId: sale.branchId,
-              customerId: sale.customerId,
-              packageId: definition.id,
-              saleId: sale.id,
-              purchasedAt,
-              expiresAt,
+              active: true,
             },
+            include: { items: true },
           });
+          if (!definition) {
+            throw new BadRequestException(
+              'A package in this sale is no longer available.',
+            );
+          }
 
-          const sessions = definition.items.flatMap((item) =>
-            Array.from({ length: item.quantity }, () => ({
-              tenantId: sale.tenantId,
-              branchId: sale.branchId,
-              customerPackageId: customerPackage.id,
-              serviceId: item.serviceId,
-            })),
-          );
+          for (
+            let packageIndex = 0;
+            packageIndex < line.quantity;
+            packageIndex += 1
+          ) {
+            const purchasedAt = new Date();
+            const expiresAt = definition.validityDays
+              ? new Date(
+                  purchasedAt.getTime() +
+                    definition.validityDays * 24 * 60 * 60 * 1000,
+                )
+              : null;
 
-          if (sessions.length > 0) {
-            await tx.session.createMany({ data: sessions });
+            const customerPackage = await tx.customerPackage.create({
+              data: {
+                tenantId: sale.tenantId,
+                branchId: sale.branchId,
+                customerId: sale.customerId,
+                packageId: definition.id,
+                saleId: sale.id,
+                purchasedAt,
+                expiresAt,
+              },
+            });
+
+            const sessions = definition.items.flatMap((item) =>
+              Array.from({ length: item.quantity }, () => ({
+                tenantId: sale.tenantId,
+                branchId: sale.branchId,
+                customerPackageId: customerPackage.id,
+                serviceId: item.serviceId,
+              })),
+            );
+
+            if (sessions.length > 0) {
+              await tx.session.createMany({ data: sessions });
+            }
           }
         }
-      }
 
-      await this.accountingService.recordSaleConfirmed(tx, sale.id, {
-        tenantId: sale.tenantId,
-        branchId: sale.branchId,
-        entryDate: confirmedAt,
-        amount: Number(sale.total),
-      });
+        await this.accountingService.recordSaleConfirmed(tx, sale.id, {
+          tenantId: sale.tenantId,
+          branchId: sale.branchId,
+          entryDate: confirmedAt,
+          amount: Number(sale.total),
+        });
 
-      return tx.sale.findUnique({
-        where: { id: sale.id },
-        include: {
-          items: true,
-          payments: true,
-          installmentPlan: { include: { installments: { orderBy: { sequence: 'asc' } } } },
-          customerPackages: { include: { package: true, sessions: true } },
-        },
-      });
-    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+        return tx.sale.findUnique({
+          where: { id: sale.id },
+          include: {
+            items: true,
+            payments: true,
+            installmentPlan: {
+              include: { installments: { orderBy: { sequence: 'asc' } } },
+            },
+            customerPackages: { include: { package: true, sessions: true } },
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async cancel(id: string) {

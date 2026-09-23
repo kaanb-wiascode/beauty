@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  ParseUUIDPipe,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -92,7 +100,11 @@ export class SalesController {
     @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
     @Body() body: unknown,
   ) {
-    return this.salesService.refundPayment(id, paymentId, refundSalePaymentSchema.parse(body));
+    return this.salesService.refundPayment(
+      id,
+      paymentId,
+      refundSalePaymentSchema.parse(body),
+    );
   }
 
   @Get(':id')

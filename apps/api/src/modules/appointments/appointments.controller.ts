@@ -26,9 +26,7 @@ import { updateAppointmentSchema } from './dto/update-appointment.dto';
 @RestrictTenantMutations()
 @Controller('appointments')
 export class AppointmentsController {
-  constructor(
-    private readonly appointmentsService: AppointmentsService,
-  ) {}
+  constructor(private readonly appointmentsService: AppointmentsService) {}
 
   @Post()
   @UseGuards(PermissionsGuard)
@@ -55,18 +53,13 @@ export class AppointmentsController {
     @Query('customerId', new ParseUUIDPipe()) customerId: string,
     @Query('serviceId', new ParseUUIDPipe()) serviceId: string,
   ) {
-    return this.appointmentsService.findEligibleSessions(
-      customerId,
-      serviceId,
-    );
+    return this.appointmentsService.findEligibleSessions(customerId, serviceId);
   }
 
   @Get(':id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'read')
-  async findOne(
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
+  async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.appointmentsService.findOne(id);
   }
 
@@ -85,9 +78,7 @@ export class AppointmentsController {
   @Delete(':id')
   @UseGuards(PermissionsGuard)
   @RequirePermission('appointments', 'cancel')
-  async remove(
-    @Param('id', new ParseUUIDPipe()) id: string,
-  ) {
+  async remove(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.appointmentsService.remove(id);
   }
 }

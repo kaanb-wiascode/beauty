@@ -57,9 +57,7 @@ export class AppointmentsService {
     }
 
     if (startAt >= endAt) {
-      throw new BadRequestException(
-        'Appointment startAt must be before endAt',
-      );
+      throw new BadRequestException('Appointment startAt must be before endAt');
     }
   }
 
@@ -333,7 +331,8 @@ export class AppointmentsService {
     }
 
     const skip = (page - 1) * limit;
-    const organizationScope = await this.organizationScope.getBranchScopedWhere();
+    const organizationScope =
+      await this.organizationScope.getBranchScopedWhere();
 
     const where = {
       ...organizationScope,
@@ -390,7 +389,8 @@ export class AppointmentsService {
   }
 
   async findOne(id: string) {
-    const organizationScope = await this.organizationScope.getBranchScopedWhere();
+    const organizationScope =
+      await this.organizationScope.getBranchScopedWhere();
     const appointment = await this.prisma.appointment.findFirst({
       where: {
         id,
@@ -427,7 +427,8 @@ export class AppointmentsService {
 
   async update(id: string, input: UpdateAppointmentInput) {
     const tenantId = this.getTenantId();
-    const organizationScope = await this.organizationScope.getBranchScopedWhere();
+    const organizationScope =
+      await this.organizationScope.getBranchScopedWhere();
 
     try {
       return await this.prisma.$transaction(async (tx) => {
@@ -663,7 +664,8 @@ export class AppointmentsService {
   }
 
   async remove(id: string) {
-    const organizationScope = await this.organizationScope.getBranchScopedWhere();
+    const organizationScope =
+      await this.organizationScope.getBranchScopedWhere();
 
     try {
       return await this.prisma.$transaction(async (tx) => {

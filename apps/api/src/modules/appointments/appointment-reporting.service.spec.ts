@@ -8,32 +8,56 @@ describe('AppointmentReportingService', () => {
           .fn()
           .mockResolvedValueOnce([
             {
-              id: 'a1', customerId: 'c1',
+              id: 'a1',
+              customerId: 'c1',
               startAt: new Date('2026-09-10T09:00:00.000Z'),
               endAt: new Date('2026-09-10T10:00:00.000Z'),
-              status: 'COMPLETED', payment: { amount: 500, status: 'COMPLETED' },
+              status: 'COMPLETED',
+              payment: { amount: 500, status: 'COMPLETED' },
             },
             {
-              id: 'a2', customerId: 'c2',
+              id: 'a2',
+              customerId: 'c2',
               startAt: new Date('2026-09-10T10:00:00.000Z'),
               endAt: new Date('2026-09-10T10:30:00.000Z'),
-              status: 'NO_SHOW', payment: null,
+              status: 'NO_SHOW',
+              payment: null,
             },
             {
-              id: 'a3', customerId: 'c1',
+              id: 'a3',
+              customerId: 'c1',
               startAt: new Date('2026-09-10T09:30:00.000Z'),
               endAt: new Date('2026-09-10T10:30:00.000Z'),
-              status: 'COMPLETED', payment: null,
+              status: 'COMPLETED',
+              payment: null,
             },
           ])
           .mockResolvedValueOnce([
-            { id: 'a1', customerId: 'c1', startAt: new Date('2026-09-10T09:00:00.000Z') },
-            { id: 'a3', customerId: 'c1', startAt: new Date('2026-09-10T09:30:00.000Z') },
-            { id: 'a4', customerId: 'c1', startAt: new Date('2026-10-01T09:00:00.000Z') },
+            {
+              id: 'a1',
+              customerId: 'c1',
+              startAt: new Date('2026-09-10T09:00:00.000Z'),
+            },
+            {
+              id: 'a3',
+              customerId: 'c1',
+              startAt: new Date('2026-09-10T09:30:00.000Z'),
+            },
+            {
+              id: 'a4',
+              customerId: 'c1',
+              startAt: new Date('2026-10-01T09:00:00.000Z'),
+            },
           ]),
         groupBy: jest.fn().mockResolvedValue([
-          { customerId: 'c1', _min: { startAt: new Date('2026-09-10T09:00:00.000Z') } },
-          { customerId: 'c2', _min: { startAt: new Date('2026-08-01T09:00:00.000Z') } },
+          {
+            customerId: 'c1',
+            _min: { startAt: new Date('2026-09-10T09:00:00.000Z') },
+          },
+          {
+            customerId: 'c2',
+            _min: { startAt: new Date('2026-08-01T09:00:00.000Z') },
+          },
         ]),
       },
     };

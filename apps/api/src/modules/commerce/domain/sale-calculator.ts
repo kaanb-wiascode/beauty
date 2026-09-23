@@ -9,7 +9,8 @@ export interface SaleTotals {
   total: number;
 }
 
-const toMoney = (value: number) => Math.round((value + Number.EPSILON) * 100) / 100;
+const toMoney = (value: number) =>
+  Math.round((value + Number.EPSILON) * 100) / 100;
 
 export function calculateSaleTotals(
   lines: SaleLineInput[],

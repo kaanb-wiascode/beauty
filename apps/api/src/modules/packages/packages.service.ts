@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -27,15 +31,23 @@ export class PackagesService {
   private requireBranchId(): string {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
     }
     return branchId;
   }
 
-  private async validateServices(items: PackageItemInput[], tenantId: string, branchId: string) {
+  private async validateServices(
+    items: PackageItemInput[],
+    tenantId: string,
+    branchId: string,
+  ) {
     const ids = [...new Set(items.map((item) => item.serviceId))];
     if (ids.length !== items.length) {
-      throw new BadRequestException('A service can only appear once in a package.');
+      throw new BadRequestException(
+        'A service can only appear once in a package.',
+      );
     }
 
     const count = await this.prisma.service.count({
@@ -43,7 +55,9 @@ export class PackagesService {
     });
 
     if (count !== ids.length) {
-      throw new BadRequestException('One or more package services are invalid or inactive.');
+      throw new BadRequestException(
+        'One or more package services are invalid or inactive.',
+      );
     }
   }
 
@@ -61,7 +75,10 @@ export class PackagesService {
         price: input.price,
         validityDays: input.validityDays ?? null,
         items: {
-          create: input.items.map((item) => ({ serviceId: item.serviceId, quantity: item.quantity })),
+          create: input.items.map((item) => ({
+            serviceId: item.serviceId,
+            quantity: item.quantity,
+          })),
         },
       },
       include: { items: { include: { service: true } } },
@@ -93,7 +110,8 @@ export class PackagesService {
     const tenantId = this.tenantContext.getTenantId();
     const branchId = this.requireBranchId();
     await this.findOne(id);
-    if (input.items) await this.validateServices(input.items, tenantId, branchId);
+    if (input.items)
+      await this.validateServices(input.items, tenantId, branchId);
 
     return this.prisma.$transaction(async (tx) => {
       if (input.items) {
@@ -104,11 +122,20 @@ export class PackagesService {
         where: { id },
         data: {
           ...(input.name !== undefined && { name: input.name.trim() }),
-          ...(input.description !== undefined && { description: input.description?.trim() || null }),
+          ...(input.description !== undefined && {
+            description: input.description?.trim() || null,
+          }),
           ...(input.price !== undefined && { price: input.price }),
-          ...(input.validityDays !== undefined && { validityDays: input.validityDays }),
+          ...(input.validityDays !== undefined && {
+            validityDays: input.validityDays,
+          }),
           ...(input.items && {
-            items: { create: input.items.map((item) => ({ serviceId: item.serviceId, quantity: item.quantity })) },
+            items: {
+              create: input.items.map((item) => ({
+                serviceId: item.serviceId,
+                quantity: item.quantity,
+              })),
+            },
           }),
         },
         include: { items: { include: { service: true } } },
@@ -118,6 +145,9 @@ export class PackagesService {
 
   async archive(id: string) {
     await this.findOne(id);
-    return this.prisma.servicePackage.update({ where: { id }, data: { active: false } });
+    return this.prisma.servicePackage.update({
+      where: { id },
+      data: { active: false },
+    });
   }
 }

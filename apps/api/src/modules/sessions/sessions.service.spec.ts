@@ -42,8 +42,7 @@ describe('SessionsService concurrency guards', () => {
           .mockResolvedValue({ count: options?.updateCount ?? 1 }),
         findUnique: jest.fn().mockResolvedValue({
           ...session,
-          status:
-            sessionStatus === 'AVAILABLE' ? 'RESERVED' : sessionStatus,
+          status: sessionStatus === 'AVAILABLE' ? 'RESERVED' : sessionStatus,
         }),
         count: jest.fn().mockResolvedValue(1),
       },

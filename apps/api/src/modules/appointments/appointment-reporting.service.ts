@@ -37,7 +37,9 @@ export class AppointmentReportingService {
       },
     });
 
-    const customerIds = [...new Set(appointments.map((item) => item.customerId))];
+    const customerIds = [
+      ...new Set(appointments.map((item) => item.customerId)),
+    ];
     const firstVisits = customerIds.length
       ? await this.prisma.appointment.groupBy({
           by: ['customerId'],

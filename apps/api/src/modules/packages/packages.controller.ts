@@ -1,4 +1,12 @@
-import { Body, Controller, Get, Param, Patch, Post, UseGuards } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  UseGuards,
+} from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -19,10 +27,12 @@ const createPackageSchema = z.object({
   items: z.array(packageItemSchema).min(1),
 });
 
-const updatePackageSchema = createPackageSchema.partial().refine(
-  (value) => Object.keys(value).length > 0,
-  'At least one field is required.',
-);
+const updatePackageSchema = createPackageSchema
+  .partial()
+  .refine(
+    (value) => Object.keys(value).length > 0,
+    'At least one field is required.',
+  );
 
 @Controller('packages')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)

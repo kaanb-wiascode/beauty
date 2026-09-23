@@ -24,7 +24,9 @@ export function generatePackageSessions(
     }
 
     if (seenServiceIds.has(item.serviceId)) {
-      throw new Error('A service can only appear once in a package definition.');
+      throw new Error(
+        'A service can only appear once in a package definition.',
+      );
     }
 
     if (!Number.isInteger(item.quantity) || item.quantity <= 0) {

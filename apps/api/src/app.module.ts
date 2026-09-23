@@ -59,7 +59,11 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
 
 @Module({
   imports: [
-    ConfigModule.forRoot({ isGlobal: true, cache: true, validate: (config) => envSchema.parse(config) }),
+    ConfigModule.forRoot({
+      isGlobal: true,
+      cache: true,
+      validate: (config) => envSchema.parse(config),
+    }),
     DatabaseModule,
     RedisModule,
     AuthModule,
@@ -110,7 +114,11 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     OperationsModule,
     CorporateCommunicationsModule,
   ],
-  controllers: [MarketingVendorsController, CreatorsController, PrMediaController],
+  controllers: [
+    MarketingVendorsController,
+    CreatorsController,
+    PrMediaController,
+  ],
   providers: [MarketingVendorsService, CreatorsService, PrMediaService],
 })
 export class AppModule {}
