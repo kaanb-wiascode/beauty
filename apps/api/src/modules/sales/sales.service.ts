@@ -109,7 +109,15 @@ export class SalesService {
     if (!customer) throw new NotFoundException('Customer not found');
 
     const lines = await this.resolveSaleLines(tx, tenantId, branchId, input.items);
-    const totals = calculateSaleTotals(lines, input.discountTotal);
+    let totals: ReturnType<typeof calculateSaleTotals>;
+    try {
+      totals = calculateSaleTotals(lines, input.discountTotal);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
 
     const sale = await tx.sale.create({
       data: {
