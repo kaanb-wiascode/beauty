@@ -236,12 +236,12 @@ export class OperationsWaitlistMatchingService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           `waitlist-entry:${entryId}`,
         );
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           input.staffId,
         );
@@ -496,7 +496,7 @@ export class OperationsWaitlistMatchingService {
 
     if (input.roomId) {
       await tx.$queryRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+        `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
         scope.branchId,
         `room:${input.roomId}`,
       );
@@ -528,7 +528,7 @@ export class OperationsWaitlistMatchingService {
 
     if (input.assetId) {
       await tx.$queryRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+        `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
         scope.branchId,
         `asset:${input.assetId}`,
       );
