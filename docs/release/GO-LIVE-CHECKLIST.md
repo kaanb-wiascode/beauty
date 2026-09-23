@@ -13,7 +13,7 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 - [x] Web lint, typecheck and production build are blocking quality gates.
 - [x] Production API/Web runtime smoke is part of the quality workflow.
 - [x] API and Web production container images are built in PR CI.
-- [x] CodeQL, critical dependency audit and secret history scan are configured.
+- [x] CodeQL, high/critical production dependency audit and secret history scan are configured.
 - [x] Next.js is pinned to the patched 16.3.3 release after critical security audit findings.
 - [x] Production secrets are excluded from source-controlled environment files.
 - [x] Release backups, report exports, dump files and local release manifests are Git-ignored.
@@ -102,6 +102,7 @@ Repository drill:
 ```bash
 DATABASE_URL='postgresql://<source>' \
 RESTORE_TEST_DATABASE_URL='postgresql://<disposable>' \
+RESTORE_TEST_ACKNOWLEDGE_DISPOSABLE=true \
 bash scripts/release/verify-postgres-backup-restore.sh
 ```
 
