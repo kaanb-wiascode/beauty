@@ -107,7 +107,7 @@ export class CompetencyService {
     const ids=new Set<string>();
     for(const r of input.requirements){if(ids.has(r.competencyId))throw new BadRequestException('Duplicate competency requirement.');ids.add(r.competencyId);if(!Number.isFinite(r.requiredLevel)||r.requiredLevel<0||r.requiredLevel>100)throw new BadRequestException('requiredLevel must be between 0 and 100.');if(!Number.isFinite(r.weight??1)||(r.weight??1)<=0)throw new BadRequestException('weight must be greater than zero.');}
     return this.prisma.$transaction(async tx=>{
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`competency-profile:${c.tenantId}:${c.companyId}:${code}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`competency-profile:${c.tenantId}:${c.companyId}:${code}`);
       const found=await tx.$queryRawUnsafe<any[]>(`SELECT id FROM competency_definitions WHERE tenant_id=$1::text AND company_id=$2::text AND is_active=true AND id=ANY($3::text[])`,c.tenantId,c.companyId,[...ids]);
       if(found.length!==ids.size)throw new BadRequestException('One or more competency definitions are outside scope or inactive.');
       const versions=await tx.$queryRawUnsafe<any[]>(`SELECT COALESCE(MAX(version),0)+1 AS version FROM competency_profiles WHERE tenant_id=$1::text AND company_id=$2::text AND code=$3`,c.tenantId,c.companyId,code);
