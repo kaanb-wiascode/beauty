@@ -2,6 +2,11 @@ name: Configure main protection
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - .github/workflows/configure-main-protection.yml
 
 permissions:
   contents: read
