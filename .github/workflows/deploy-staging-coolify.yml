@@ -287,6 +287,34 @@ jobs:
         shell: bash
         run: bash scripts/release/verify-staging-auth.sh
 
+      - name: Generate database client for staging acceptance
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm --filter @beauty-erp/database generate
+
+      - name: Build database package for staging acceptance
+        env:
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+        run: pnpm --filter @beauty-erp/database build
+
+      - name: Run staging business acceptance
+        env:
+          NODE_ENV: test
+          DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          JWT_ACCESS_SECRET: staging-acceptance-access-secret-2026-long-value
+          JWT_REFRESH_SECRET: staging-acceptance-refresh-secret-2026-long-value
+          AUTH_PUBLIC_RATE_LIMIT_DISABLED: 'true'
+        run: >-
+          pnpm --filter api exec jest
+          --config ./test/jest-e2e.json
+          --runInBand
+          app.e2e-spec.ts
+          release-rbac.e2e-spec.ts
+          procurement-lifecycle.e2e-spec.ts
+          inventory-service-consumption.e2e-spec.ts
+          release-finance-payroll.e2e-spec.ts
+
       - name: Write staging release attestation
         env:
           RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
@@ -307,6 +335,7 @@ jobs:
             --arg stagingUrl "$STAGING_URL" \
             --arg deploymentUuid "$DEPLOYMENT_UUID" \
             --arg workflowRunId "$GITHUB_RUN_ID" \
+            --arg businessAcceptance "passed" \
             '{
               releaseSha:$releaseSha,
               apiImage:$apiImage,
@@ -315,7 +344,8 @@ jobs:
               webDigest:$webDigest,
               stagingUrl:$stagingUrl,
               coolifyDeploymentUuid:$deploymentUuid,
-              workflowRunId:$workflowRunId
+              workflowRunId:$workflowRunId,
+              businessAcceptance:$businessAcceptance
             }' > "$RUNNER_TEMP/staging-release-attestation.json"
 
       - name: Upload staging release attestation
