@@ -22,6 +22,8 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 - [x] API/Web images carry the exact Git revision as OCI metadata.
 - [x] GHCR publishing workflow produces SHA-tagged API/Web images.
 - [x] Guarded deploy and schema-aware rollback helpers are present.
+- [x] Coolify proxy-safe staging Compose manifest is present.
+- [x] Manual staging promotion workflow verifies required checks and running release SHA.
 
 ## 2. Authentication and application security
 
