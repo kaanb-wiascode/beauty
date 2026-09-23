@@ -8,6 +8,7 @@ export const envSchema = z.object({
   PORT: z.coerce.number().int().positive().default(3000),
   CORS_ORIGINS: z.string().trim().min(1).optional(),
   TRUST_PROXY: z.enum(['true', 'false']).default('false'),
+  RELEASE_SHA: z.string().regex(/^[0-9a-f]{40}$/).optional(),
 
   DATABASE_URL: z.string().url(),
 
@@ -59,6 +60,14 @@ export const envSchema = z.object({
   REPORT_EXPORT_ROW_LIMIT: z.coerce.number().int().min(100).max(100000).default(50000),
   REPORT_SCHEDULE_BATCH_SIZE: z.coerce.number().int().min(1).max(20).default(5),
 }).superRefine((env, ctx) => {
+  if (env.NODE_ENV === 'production' && !env.RELEASE_SHA) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'RELEASE_SHA must be configured in production',
+      path: ['RELEASE_SHA'],
+    });
+  }
+
   if (env.NODE_ENV === 'production' && !env.CORS_ORIGINS) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
