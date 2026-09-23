@@ -28,7 +28,7 @@ export class TrainingLessonProgressService {
     const c=this.context();
     return this.prisma.$transaction(async tx=>{
       const a=await this.assignmentLesson(tx,assignmentId,lessonId);
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-lesson:${assignmentId}:${lessonId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-lesson:${assignmentId}:${lessonId}`);
       const rows=await tx.$queryRawUnsafe<any[]>(
         `INSERT INTO training_lesson_progress(tenant_id,company_id,branch_id,assignment_id,lesson_id,staff_id,status,started_at,updated_by_user_id)
          VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,'IN_PROGRESS',now(),$7::text)
@@ -53,7 +53,7 @@ export class TrainingLessonProgressService {
     const c=this.context();
     return this.prisma.$transaction(async tx=>{
       const a=await this.assignmentLesson(tx,assignmentId,lessonId);
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-lesson:${assignmentId}:${lessonId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-lesson:${assignmentId}:${lessonId}`);
       const rows=await tx.$queryRawUnsafe<any[]>(
         `INSERT INTO training_lesson_progress(tenant_id,company_id,branch_id,assignment_id,lesson_id,staff_id,status,started_at,completed_at,completed_by_user_id,updated_by_user_id)
          VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,'COMPLETED',now(),now(),$7::text,$7::text)
