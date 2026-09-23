@@ -88,8 +88,10 @@ export class QualityNotificationOutboxService {
          WHERE o.tenant_id=$1::text
            AND o.company_id=$2::text
            AND ($3::text IS NULL OR o.branch_id=$3::text)
-           AND o.status IN ('PENDING','RETRY')
-           AND o.next_attempt_at <= NOW()
+           AND (
+             (o.status IN ('PENDING','RETRY') AND o.next_attempt_at <= NOW())
+             OR (o.status='CLAIMED' AND o.lease_until < NOW())
+           )
            AND o.attempt_count < 5
          ORDER BY o.next_attempt_at ASC, o.created_at ASC, o.id ASC
          FOR UPDATE SKIP LOCKED
