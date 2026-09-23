@@ -62,6 +62,30 @@ jobs:
           git fetch origin feature/core-commerce-foundation
           git merge-base --is-ancestor             "${{ steps.inputs.outputs.release_sha }}"             origin/feature/core-commerce-foundation
 
+      - name: Install staging connectivity clients
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16 redis-tools
+          python3 -m pip install --disable-pip-version-check --quiet awscli
+
+      - name: Verify external staging dependencies
+        env:
+          STAGING_SKIP_PUBLIC_ENDPOINT: "true"
+          STAGING_URL: ${{ steps.inputs.outputs.staging_url }}
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_STAGING_APPLICATION_UUID: ${{ secrets.COOLIFY_STAGING_APPLICATION_UUID }}
+          STAGING_DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
+          STAGING_REDIS_URL: ${{ secrets.STAGING_REDIS_URL }}
+          STAGING_OBJECT_STORAGE_BUCKET: ${{ secrets.STAGING_OBJECT_STORAGE_BUCKET }}
+          STAGING_OBJECT_STORAGE_REGION: ${{ secrets.STAGING_OBJECT_STORAGE_REGION }}
+          STAGING_OBJECT_STORAGE_ENDPOINT: ${{ secrets.STAGING_OBJECT_STORAGE_ENDPOINT }}
+          STAGING_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.STAGING_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          STAGING_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.STAGING_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        shell: bash
+        run: bash scripts/release/verify-staging-infrastructure.sh
+
       - name: Verify required GitHub checks
         env:
           GH_TOKEN: ${{ github.token }}
