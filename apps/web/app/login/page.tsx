@@ -49,7 +49,6 @@ export default function LoginPage() {
   const finishLogin = (data: LoginResponse) => {
     persistSession({
       accessToken: data.accessToken,
-      refreshToken: data.refreshToken,
       user: data.user,
       tenant: data.tenant,
       membership: data.membership,
