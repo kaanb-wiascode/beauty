@@ -1,0 +1,59 @@
+name: Bootstrap Coolify staging application
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-coolify-staging
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Create VALOO staging application
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Create Coolify staging application
+        id: bootstrap
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PROJECT_UUID: ${{ secrets.COOLIFY_PROJECT_UUID }}
+          COOLIFY_SERVER_UUID: ${{ secrets.COOLIFY_SERVER_UUID }}
+          COOLIFY_ENVIRONMENT_NAME: ${{ vars.COOLIFY_ENVIRONMENT_NAME || 'staging' }}
+        run: bash scripts/release/bootstrap-coolify-staging.sh
+
+      - name: Verify created application
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APPLICATION_UUID: ${{ steps.bootstrap.outputs.application_uuid }}
+        shell: bash
+        run: |
+          response="$(curl --fail --silent --show-error             --header "Authorization: Bearer $COOLIFY_TOKEN"             "${COOLIFY_API_URL%/}/applications/$APPLICATION_UUID")"
+          returned_uuid="$(jq -r '.uuid // empty' <<<"$response")"
+          [[ "$returned_uuid" == "$APPLICATION_UUID" ]] || {
+            echo "Created Coolify application could not be verified" >&2
+            exit 1
+          }
+
+      - name: Write bootstrap summary
+        env:
+          APPLICATION_UUID: ${{ steps.bootstrap.outputs.application_uuid }}
+        shell: bash
+        run: |
+          {
+            echo "## VALOO Coolify staging bootstrap"
+            echo
+            echo "- Application UUID: `$APPLICATION_UUID`"
+            echo "- Compose file: `infrastructure/docker-compose.coolify.staging.yml`"
+            echo
+            echo "Next required action: save this UUID as the GitHub staging environment secret `COOLIFY_STAGING_APPLICATION_UUID`."
+          } >> "$GITHUB_STEP_SUMMARY"
