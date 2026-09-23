@@ -8,11 +8,15 @@ describe('FinancialIntegrationSyncSchedulerService', () => {
       return [];
     });
     const execute = jest.fn().mockResolvedValue(1);
+    const moduleRef = {
+      registerRequestByContextId: jest.fn(),
+      resolve: jest.fn().mockResolvedValue({ syncAllConnected }),
+    };
     const service = new FinancialIntegrationSyncSchedulerService(
-      { syncAllConnected } as never,
+      moduleRef as never,
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
     );
-    return { service, syncAllConnected, query, execute };
+    return { service, syncAllConnected, query, execute, moduleRef };
   }
 
   it('skips synchronization when another instance owns the distributed lease', async () => {
