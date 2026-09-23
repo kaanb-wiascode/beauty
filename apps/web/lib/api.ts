@@ -1,7 +1,6 @@
 import {
   clearSession,
   getAccessToken,
-  getRefreshToken,
   persistSession,
 } from "./auth";
 import { userErrorMessage } from "./user-language";
@@ -64,14 +63,9 @@ async function refreshAccessToken(): Promise<string | null> {
   if (refreshInFlight) return refreshInFlight;
 
   refreshInFlight = (async () => {
-    const refreshToken = getRefreshToken();
-    if (!refreshToken) return null;
-
     try {
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ refreshToken }),
         credentials: "include",
       });
 
@@ -79,14 +73,12 @@ async function refreshAccessToken(): Promise<string | null> {
 
       const payload = (await response.json()) as {
         accessToken?: string;
-        refreshToken?: string;
       };
 
       if (!payload.accessToken) return null;
 
       persistSession({
         accessToken: payload.accessToken,
-        refreshToken: payload.refreshToken ?? refreshToken,
       });
 
       return payload.accessToken;
