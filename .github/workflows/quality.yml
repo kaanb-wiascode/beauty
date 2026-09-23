@@ -68,6 +68,20 @@ jobs:
       - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          version="1.7.12"
+          archive="actionlint_${version}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "/tmp/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/$archive" \
+            | sha256sum --check -
+          mkdir -p /tmp/actionlint
+          tar -xzf "/tmp/$archive" -C /tmp/actionlint
+          /tmp/actionlint/actionlint -shellcheck="" .github/workflows/*.yml
+
       - name: Validate release shell scripts
         run: bash -n scripts/release/*.sh
 
