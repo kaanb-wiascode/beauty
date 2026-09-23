@@ -151,6 +151,7 @@ jobs:
       - name: Build web
         env:
           NODE_ENV: production
+          RELEASE_SHA: ${{ github.sha }}
           API_URL: http://127.0.0.1:3000
         run: pnpm --filter web build
 
