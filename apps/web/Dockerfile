@@ -11,7 +11,9 @@ COPY . .
 RUN pnpm install --frozen-lockfile
 
 ARG API_URL=http://api:3000
+ARG RELEASE_SHA=development
 ENV API_URL=$API_URL
+ENV RELEASE_SHA=$RELEASE_SHA
 ENV NODE_ENV=production
 
 RUN pnpm --filter web build
