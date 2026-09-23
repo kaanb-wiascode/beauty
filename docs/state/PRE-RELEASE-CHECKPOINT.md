@@ -15,8 +15,11 @@ Repository production hardening has resumed on `feature/core-commerce-foundation
 - production auth rate-limit fail-closed behavior
 - Web CSP/HSTS and API transport/cache hardening
 - production API/Web Dockerfiles and a production compose topology
-- CodeQL, critical dependency audit and secret-history scanning
+- CodeQL, HIGH/CRITICAL production dependency audit and secret-history scanning
 - production runtime smoke verification inside the main quality workflow
+- blocking commerce release-surface lint
+- HIGH/CRITICAL production container vulnerability scanning
+- static GitHub Actions workflow validation
 - PR container-image build validation
 - executable `docs/release/GO-LIVE-CHECKLIST.md`
 
@@ -39,8 +42,12 @@ Repository-side deployment preparation is now implemented on `feature/core-comme
 - schema-aware rollback helper
 - non-secret release manifest generation
 - staging deployment and GitHub governance runbooks
+- digest-pinned staging release attestation
+- staging-attested production promotion workflow
+- production infrastructure/bootstrap/preflight tooling
+- production synthetic health/release/latency monitoring
 
-External infrastructure is not yet provisioned from this repository session. Production remains **NO-GO** until the managed services, DNS/TLS, branch protection, real backup/restore drill, staging acceptance and observability blockers in `docs/release/GO-LIVE-CHECKLIST.md` are closed.
+External infrastructure is not yet provisioned from this repository session. A real staging preflight run on 2026-09-23 confirmed the GitHub staging environment currently has no configured staging URL, Coolify credentials/application UUID, PostgreSQL URL, Redis URL or object-storage credentials. Production remains **NO-GO** until the managed services, DNS/TLS, branch protection, real backup/restore drill, staging acceptance and observability blockers in `docs/release/GO-LIVE-CHECKLIST.md` are closed.
 
 ## Candidate verification policy
 
@@ -162,6 +169,7 @@ The following release tooling is prepared:
 - `docs/release/GO-LIVE-CHECKLIST.md`
 - `docs/release/STAGING-DEPLOYMENT.md`
 - `docs/release/GITHUB-GOVERNANCE.md`
+- `docs/release/COOLIFY-PRODUCTION-SETUP.md`
 - `scripts/release/verify-api-health.sh`
 - `scripts/release/verify-production-runtime.sh`
 - `scripts/release/verify-deployment-env.sh`
@@ -169,8 +177,13 @@ The following release tooling is prepared:
 - `scripts/release/verify-postgres-backup-restore.sh`
 - `scripts/release/deploy-compose-release.sh`
 - `scripts/release/rollback-compose-release.sh`
+- `scripts/release/verify-production-infrastructure.sh`
+- `scripts/release/verify-public-production.sh`
+- `.github/workflows/deploy-staging-coolify.yml`
+- `.github/workflows/deploy-production-coolify.yml`
+- `.github/workflows/production-synthetic.yml`
 
-The repository tooling is CI-validated, but a real backup/restore and deployed staging health/golden-path run still require an external staging environment.
+The repository release engineering is prepared for exact-SHA/digest promotion, but a real backup/restore and deployed staging health/golden-path run still require external infrastructure and credentials. The repository must remain NO-GO until those external gates are executed successfully.
 
 ## External staging work remaining
 
