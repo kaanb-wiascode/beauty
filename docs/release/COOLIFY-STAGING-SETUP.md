@@ -181,3 +181,20 @@ Any commit after staging acceptance creates a new release candidate and requires
 - release identity verification
 
 The repository remains NO-GO for production until all remaining external blockers in `docs/release/GO-LIVE-CHECKLIST.md` are closed.
+
+## GHCR image pull access
+
+The staging deployment promotes immutable `ghcr.io/...:sha@sha256:digest` image references. Repository access and container-registry access are separate.
+
+Before the first staging deployment, choose and verify one of these supported modes:
+
+- make the VALOO GHCR packages public; or
+- authenticate Docker on every Coolify deployment server that must pull the private GHCR images.
+
+For private GHCR packages, authenticate as the same server user Coolify uses for Docker:
+
+```bash
+echo "$GHCR_READ_TOKEN" | docker login ghcr.io --username '<github-user>' --password-stdin
+```
+
+Use a token limited to package-read access. Verify an exact digest pull on the deployment server before staging acceptance. Git repository credentials or a GitHub deploy key do not authenticate private GHCR image pulls.
