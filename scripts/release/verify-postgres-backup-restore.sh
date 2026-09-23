@@ -26,6 +26,28 @@ if [[ "$DATABASE_URL" == "$RESTORE_TEST_DATABASE_URL" ]]; then
   exit 1
 fi
 
+if [[ "${RESTORE_TEST_ACKNOWLEDGE_DISPOSABLE:-false}" != "true" ]]; then
+  echo "error: RESTORE_TEST_ACKNOWLEDGE_DISPOSABLE=true is required before destructive restore verification" >&2
+  exit 1
+fi
+
+database_identity() {
+  psql "$1" -v ON_ERROR_STOP=1 -Atqc "SELECT current_database() || '|' || COALESCE(inet_server_addr()::text,'local') || '|' || inet_server_port()::text"
+}
+
+SOURCE_DATABASE_IDENTITY="$(database_identity "$DATABASE_URL")"
+RESTORE_DATABASE_IDENTITY="$(database_identity "$RESTORE_TEST_DATABASE_URL")"
+
+if [[ -z "$SOURCE_DATABASE_IDENTITY" || -z "$RESTORE_DATABASE_IDENTITY" ]]; then
+  echo "error: unable to determine PostgreSQL source/restore database identity" >&2
+  exit 1
+fi
+
+if [[ "$SOURCE_DATABASE_IDENTITY" == "$RESTORE_DATABASE_IDENTITY" ]]; then
+  echo "error: restore target resolves to the source PostgreSQL database; destructive reset blocked" >&2
+  exit 1
+fi
+
 BACKUP_DIR="${BACKUP_DIR:-./.release-backups}"
 TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
 BACKUP_FILE="${BACKUP_DIR}/beauty-${TIMESTAMP}.dump"
