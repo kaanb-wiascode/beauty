@@ -99,7 +99,7 @@ export class MarketplaceBookingService {
           );
 
           await tx.$queryRawUnsafe(
-            `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+            `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) SELECT 1 FROM _advisory_lock`,
             `marketplace-booking:${scope.branchId}:${idempotencyKey}`,
           );
 
@@ -135,7 +135,7 @@ export class MarketplaceBookingService {
           let staffId: string | null = null;
           for (const staff of staffRows) {
             await tx.$queryRawUnsafe(
-              `SELECT pg_advisory_xact_lock(hashtextextended($1, 0))`,
+              `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtextextended($1, 0))) SELECT 1 FROM _advisory_lock`,
               `appointment-staff:${scope.tenantId}:${scope.branchId}:${staff.id}`,
             );
             const conflicts = await tx.$queryRawUnsafe<any[]>(
