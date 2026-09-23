@@ -92,6 +92,7 @@ jobs:
           docker compose -f infrastructure/docker-compose.staging.yml config --quiet
           docker compose -f infrastructure/docker-compose.coolify.staging.yml config --quiet
           docker compose -f infrastructure/docker-compose.production.yml config --quiet
+          docker compose -f infrastructure/docker-compose.coolify.production.yml config --quiet
 
       - name: Validate Prisma schema
         run: pnpm --filter @beauty-erp/database validate
@@ -114,8 +115,7 @@ jobs:
       - name: Build shared commerce contracts
         run: pnpm --filter @beauty-erp/types build
 
-      - name: Report commerce lint debt
-        continue-on-error: true
+      - name: Lint commerce release surface
         run: >-
           pnpm --filter api exec eslint
           "src/modules/commerce/**/*.ts"
