@@ -83,7 +83,7 @@ export class TrainingService {
     const targetScope = input.targetScope ?? 'BRANCH';
     const effectiveFrom = input.effectiveFrom ?? new Date().toISOString().slice(0,10);
     return this.prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`quality-training-rule:${c.tenantId}:${c.companyId}:${name}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`quality-training-rule:${c.tenantId}:${c.companyId}:${name}`);
       const versions = await tx.$queryRawUnsafe<any[]>(`SELECT COALESCE(MAX(version),0)+1 AS version FROM quality_training_rules WHERE tenant_id=$1::text AND company_id=$2::text AND name=$3`,c.tenantId,c.companyId,name);
       const rows = await tx.$queryRawUnsafe<any[]>(
         `INSERT INTO quality_training_rules(tenant_id,company_id,name,version,course_id,finding_category,minimum_severity,occurrence_threshold,lookback_days,cooldown_days,target_scope,effective_from,effective_to,created_by_user_id)
