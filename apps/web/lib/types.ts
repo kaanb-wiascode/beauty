@@ -5,7 +5,7 @@ export type Paginated<T> = {
 
 export type AuthUser = { id: string; email: string; firstName: string; lastName: string };
 export type AuthTenant = { id: string; name: string; slug: string };
-export type LoginResponse = { accessToken: string; refreshToken: string; user: AuthUser; tenant: AuthTenant; membership: { id: string; role: string; status: string; permissions: string[] } };
+export type LoginResponse = { accessToken: string; user: AuthUser; tenant: AuthTenant; membership: { id: string; role: string; status: string; permissions: string[] } };
 
 export type CustomerSource = "INSTAGRAM" | "GOOGLE" | "REFERRAL" | "WALK_IN" | "OTHER";
 export type Customer = { id: string; tenantId: string; firstName: string; lastName: string; phone: string | null; email: string | null; birthDate: string | null; customerSource: CustomerSource | null; createdAt: string; updatedAt: string };
