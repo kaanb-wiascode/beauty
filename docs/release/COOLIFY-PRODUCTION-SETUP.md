@@ -193,3 +193,14 @@ It checks:
 If `PRODUCTION_ALERT_WEBHOOK_URL` is configured, failures are posted to that webhook.
 
 Synthetic monitoring is a baseline and does not replace centralized logs, APM/tracing, aggregate 5xx monitoring, database/provider telemetry or worker/integration alerts.
+
+## 9. GHCR deployment-server access
+
+Production must be able to pull the staging-attested `ghcr.io/...@sha256:digest` references without rebuilding them.
+
+Before production promotion, verify either:
+
+- the VALOO GHCR packages are intentionally public; or
+- every Coolify production node is authenticated to GHCR using a package-read credential owned by the Docker user Coolify executes as.
+
+Perform an exact digest pull test on each eligible deployment node. Git repository authentication is independent from GitHub Container Registry authentication.
