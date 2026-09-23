@@ -135,6 +135,13 @@ export class SupplierVerificationService {
       throw new BadRequestException('Verification case is already closed');
     }
 
+    if (
+      input.sizeBytes != null &&
+      (!Number.isSafeInteger(input.sizeBytes) || input.sizeBytes < 0)
+    ) {
+      throw new BadRequestException('sizeBytes must be a non-negative safe integer');
+    }
+
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `WITH document AS (
          INSERT INTO supplier_verification_documents(
@@ -148,7 +155,7 @@ export class SupplierVerificationService {
            storage_key AS "storageKey",
            file_name AS "fileName",
            mime_type AS "mimeType",
-           size_bytes AS "sizeBytes",
+           size_bytes::double precision AS "sizeBytes",
            checksum_sha256 AS "checksumSha256",
            status,
            created_at AS "createdAt"
