@@ -2,6 +2,12 @@ name: Staging infrastructure preflight
 
 on:
   workflow_dispatch:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - .github/workflows/staging-preflight.yml
+      - scripts/release/verify-staging-infrastructure.sh
 
 permissions:
   contents: read
