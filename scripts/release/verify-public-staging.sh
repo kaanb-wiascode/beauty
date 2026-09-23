@@ -38,7 +38,7 @@ if [[ ! "$release_sha" =~ ^[0-9a-f]{40}$ ]]; then
 fi
 
 web_headers="$(curl --silent --show-error --fail --max-time 15 --dump-header - --output /dev/null "${BASE_URL}/login")"
-if ! printf '%s\n' "$web_headers" | grep -Eiq "^x-release-sha: *$release_sha\r?$"; then
+if ! printf '%s\n' "$web_headers" | tr -d '\r' | grep -Fixq "X-Release-Sha: $release_sha"; then
   echo "error: Web release SHA does not match API release SHA $release_sha" >&2
   exit 1
 fi
