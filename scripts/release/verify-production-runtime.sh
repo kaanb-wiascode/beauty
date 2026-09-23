@@ -66,6 +66,11 @@ assert_header "$web_headers" "strict-transport-security"
 assert_header "$web_headers" "x-frame-options"
 assert_header "$web_headers" "x-content-type-options"
 assert_header "$web_headers" "referrer-policy"
+if ! printf '%s\n' "$web_headers" | grep -Eiq "^x-release-sha: *$RELEASE_SHA\r?$"; then
+  echo "error: running Web release identity does not match expected RELEASE_SHA=$RELEASE_SHA" >&2
+  printf '%s\n' "$web_headers" >&2
+  exit 1
+fi
 
 api_headers="$(request_headers "${API_BASE_URL%/}/health/live")"
 assert_header "$api_headers" "strict-transport-security"
