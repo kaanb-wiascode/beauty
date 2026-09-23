@@ -53,8 +53,12 @@ export class FinanceSetupService {
     const { tenantId, companyId } = this.context();
 
     return this.prisma.$transaction(async (tx) => {
-      await tx.$queryRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+      await tx.$queryRawUnsafe<Array<{ locked: boolean }>>(
+        `WITH taxonomy_lock AS (
+           SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))
+         )
+         SELECT TRUE AS locked
+         FROM taxonomy_lock`,
         `finance-taxonomy:${tenantId}`,
         companyId,
       );
