@@ -2,15 +2,14 @@ name: valoo-production
 
 services:
   api:
-    build:
-      context: ..
-      dockerfile: apps/api/Dockerfile
+    image: ${API_IMAGE:?API_IMAGE is required}
     restart: unless-stopped
     environment:
       NODE_ENV: production
       PORT: 3000
       TRUST_PROXY: "true"
       CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required}
+      PUBLIC_API_URL: ${PUBLIC_API_URL:?PUBLIC_API_URL is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: ${REDIS_URL:?REDIS_URL is required}
       JWT_ACCESS_SECRET: ${JWT_ACCESS_SECRET:?JWT_ACCESS_SECRET is required}
@@ -56,11 +55,7 @@ services:
       - /tmp
 
   web:
-    build:
-      context: ..
-      dockerfile: apps/web/Dockerfile
-      args:
-        API_URL: http://api:3000
+    image: ${WEB_IMAGE:?WEB_IMAGE is required}
     restart: unless-stopped
     environment:
       NODE_ENV: production
