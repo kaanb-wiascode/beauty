@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { PrismaService } from '@beauty-erp/database';
 import { FinancialIntegrationSyncService } from './financial-integration-sync.service';
 
@@ -14,9 +15,15 @@ export class FinancialIntegrationSyncSchedulerService implements OnApplicationBo
   private running = false;
 
   constructor(
-    private readonly sync: FinancialIntegrationSyncService,
+    private readonly moduleRef: ModuleRef,
     private readonly prisma: PrismaService,
   ) {}
+
+  private async resolveSyncService() {
+    const contextId = ContextIdFactory.create();
+    this.moduleRef.registerRequestByContextId({}, contextId);
+    return this.moduleRef.resolve(FinancialIntegrationSyncService, contextId, { strict: false });
+  }
 
   onApplicationBootstrap() {
     this.timer = setInterval(() => void this.run(), 15 * 60 * 1000);
@@ -82,7 +89,8 @@ export class FinancialIntegrationSyncSchedulerService implements OnApplicationBo
       }, HEARTBEAT_MS);
       heartbeatTimer.unref?.();
 
-      const results = await this.sync.syncAllConnected();
+      const sync = await this.resolveSyncService();
+      const results = await sync.syncAllConnected();
       const failed = results.filter((result) => !result.ok);
       if (failed.length) {
         this.logger.warn(`Financial integration sync finished with ${failed.length} failure(s).`);
