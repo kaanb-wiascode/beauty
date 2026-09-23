@@ -1,0 +1,236 @@
+name: Deploy staging via Coolify
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full 40-character approved release SHA
+        required: true
+        type: string
+      staging_url:
+        description: Public HTTPS staging URL, without trailing slash
+        required: true
+        type: string
+
+permissions:
+  contents: read
+  checks: read
+  packages: write
+
+concurrency:
+  group: staging-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy approved SHA to staging
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: staging
+
+    steps:
+      - name: Validate inputs
+        id: inputs
+        shell: bash
+        run: |
+          sha="${{ inputs.release_sha }}"
+          url="${{ inputs.staging_url }}"
+
+          if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
+            echo "release_sha must be a full lowercase 40-character Git SHA" >&2
+            exit 1
+          fi
+
+          if [[ ! "$url" =~ ^https://[^/]+(/.*)?$ ]]; then
+            echo "staging_url must be an HTTPS URL" >&2
+            exit 1
+          fi
+
+          url="${url%/}"
+          echo "release_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "staging_url=$url" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact candidate
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ steps.inputs.outputs.release_sha }}
+          fetch-depth: 0
+
+      - name: Verify candidate belongs to release branch
+        shell: bash
+        run: |
+          git fetch origin feature/core-commerce-foundation
+          git merge-base --is-ancestor             "${{ steps.inputs.outputs.release_sha }}"             origin/feature/core-commerce-foundation
+
+      - name: Verify required GitHub checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+        shell: bash
+        run: |
+          checks_json="$(gh api             -H "Accept: application/vnd.github+json"             "/repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}/check-runs?per_page=100")"
+
+          required=(
+            "quality"
+            "Dependency audit"
+            "Secret scan"
+            "CodeQL"
+            "Build API image"
+            "Build Web image"
+          )
+
+          for check_name in "${required[@]}"; do
+            if ! jq -e --arg name "$check_name"               '[.check_runs[] | select(.name == $name and .conclusion == "success")] | length > 0'               <<<"$checks_json" >/dev/null; then
+              echo "Required successful check missing for $RELEASE_SHA: $check_name" >&2
+              exit 1
+            fi
+          done
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Publish API image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/beauty-api:${{ steps.inputs.outputs.release_sha }}
+          build-args: |
+            RELEASE_SHA=${{ steps.inputs.outputs.release_sha }}
+          sbom: true
+          provenance: mode=max
+
+      - name: Publish Web image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: true
+          tags: ghcr.io/${{ github.repository_owner }}/beauty-web:${{ steps.inputs.outputs.release_sha }}
+          build-args: |
+            API_URL=http://api:3000
+            RELEASE_SHA=${{ steps.inputs.outputs.release_sha }}
+          sbom: true
+          provenance: mode=max
+
+      - name: Validate Coolify connection configuration
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_STAGING_APPLICATION_UUID: ${{ secrets.COOLIFY_STAGING_APPLICATION_UUID }}
+        shell: bash
+        run: |
+          : "${COOLIFY_API_URL:?COOLIFY_API_URL staging secret is required}"
+          : "${COOLIFY_TOKEN:?COOLIFY_TOKEN staging secret is required}"
+          : "${COOLIFY_STAGING_APPLICATION_UUID:?COOLIFY_STAGING_APPLICATION_UUID staging secret is required}"
+
+      - name: Point Coolify staging at exact release images
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_STAGING_APPLICATION_UUID: ${{ secrets.COOLIFY_STAGING_APPLICATION_UUID }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          STAGING_URL: ${{ steps.inputs.outputs.staging_url }}
+        shell: bash
+        run: |
+          api_url="${COOLIFY_API_URL%/}"
+          api_image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/beauty-api:${RELEASE_SHA}"
+          web_image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/beauty-web:${RELEASE_SHA}"
+
+          jq -n             --arg release_sha "$RELEASE_SHA"             --arg api_image "$api_image"             --arg web_image "$web_image"             --arg cors "$STAGING_URL"             --arg public_api "$STAGING_URL/backend"             '{
+              data: [
+                {key:"RELEASE_SHA", value:$release_sha, is_preview:false, is_literal:true},
+                {key:"API_IMAGE", value:$api_image, is_preview:false, is_literal:true},
+                {key:"WEB_IMAGE", value:$web_image, is_preview:false, is_literal:true},
+                {key:"CORS_ORIGINS", value:$cors, is_preview:false, is_literal:true},
+                {key:"PUBLIC_API_URL", value:$public_api, is_preview:false, is_literal:true}
+              ]
+            }' > /tmp/coolify-env.json
+
+          curl --fail --silent --show-error             --request PATCH             --header "Authorization: Bearer $COOLIFY_TOKEN"             --header "Content-Type: application/json"             --data-binary @/tmp/coolify-env.json             "$api_url/applications/$COOLIFY_STAGING_APPLICATION_UUID/envs/bulk"             >/tmp/coolify-env-response.json
+
+      - name: Trigger Coolify staging deployment
+        id: coolify
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_STAGING_APPLICATION_UUID: ${{ secrets.COOLIFY_STAGING_APPLICATION_UUID }}
+        shell: bash
+        run: |
+          api_url="${COOLIFY_API_URL%/}"
+
+          response="$(curl --fail --silent --show-error             --request POST             --header "Authorization: Bearer $COOLIFY_TOKEN"             "$api_url/deploy?uuid=$COOLIFY_STAGING_APPLICATION_UUID&force=false")"
+
+          deployment_uuid="$(jq -r '.deployments[0].deployment_uuid // empty' <<<"$response")"
+          if [[ -z "$deployment_uuid" ]]; then
+            echo "Coolify did not return a deployment UUID" >&2
+            echo "$response" >&2
+            exit 1
+          fi
+
+          echo "deployment_uuid=$deployment_uuid" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Coolify deployment result
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
+        shell: bash
+        run: |
+          api_url="${COOLIFY_API_URL%/}"
+
+          for attempt in {1..60}; do
+            response="$(curl --fail --silent --show-error               --header "Authorization: Bearer $COOLIFY_TOKEN"               "$api_url/deployments/$DEPLOYMENT_UUID")"
+
+            status="$(jq -r '.status // empty' <<<"$response")"
+            echo "Coolify deployment status: $status"
+
+            case "$status" in
+              finished)
+                exit 0
+                ;;
+              failed|cancelled|cancelled-by-user)
+                jq -r '.logs // empty' <<<"$response" >&2
+                exit 1
+                ;;
+            esac
+
+            sleep 10
+          done
+
+          echo "Coolify deployment did not reach a terminal state" >&2
+          exit 1
+
+      - name: Verify public staging release
+        env:
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          API_BASE_URL: ${{ steps.inputs.outputs.staging_url }}/backend
+          WEB_BASE_URL: ${{ steps.inputs.outputs.staging_url }}
+        shell: bash
+        run: |
+          bash scripts/release/verify-api-health.sh
+          bash scripts/release/verify-production-runtime.sh
+
+      - name: Write deployment summary
+        if: always()
+        env:
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          STAGING_URL: ${{ steps.inputs.outputs.staging_url }}
+          DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
+        shell: bash
+        run: |
+          {
+            echo "## VALOO staging deployment"
+            echo
+            echo "- Release SHA: `$RELEASE_SHA`"
+            echo "- Staging URL: $STAGING_URL"
+            echo "- Coolify deployment UUID: `${DEPLOYMENT_UUID:-not-created}`"
+          } >> "$GITHUB_STEP_SUMMARY"
