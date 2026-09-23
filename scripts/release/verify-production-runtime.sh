@@ -66,7 +66,7 @@ assert_header "$web_headers" "strict-transport-security"
 assert_header "$web_headers" "x-frame-options"
 assert_header "$web_headers" "x-content-type-options"
 assert_header "$web_headers" "referrer-policy"
-if ! printf '%s\n' "$web_headers" | grep -Eiq "^x-release-sha: *$RELEASE_SHA\r?$"; then
+if ! printf '%s\n' "$web_headers" | tr -d '\r' | grep -Fixq "X-Release-Sha: $RELEASE_SHA"; then
   echo "error: running Web release identity does not match expected RELEASE_SHA=$RELEASE_SHA" >&2
   printf '%s\n' "$web_headers" >&2
   exit 1
