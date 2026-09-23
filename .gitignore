@@ -42,3 +42,4 @@ temp/
 .release-backups/
 .report-exports/
 *.dump
+.release-manifests/
