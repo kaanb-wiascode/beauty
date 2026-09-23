@@ -4,6 +4,7 @@ import {
   HttpException,
   HttpStatus,
   Injectable,
+  ServiceUnavailableException,
   SetMetadata,
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
@@ -81,7 +82,13 @@ export class AuthPublicRateLimitGuard implements CanActivate {
     } catch (error) {
       if (error instanceof HttpException) throw error;
 
-      // Redis availability must not block legitimate authentication.
+      if (process.env.NODE_ENV === 'production') {
+        throw new ServiceUnavailableException(
+          'Authentication protection is temporarily unavailable.',
+        );
+      }
+
+      // Local development remains usable when Redis is intentionally absent.
       return true;
     }
 
