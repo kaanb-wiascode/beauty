@@ -368,7 +368,7 @@ export class AuthController {
       membershipId: membership.id,
       roleScope: membership.role.scope,
       activeBranchId: context.branchId,
-      canViewAllBranches: membership.role.scope !== 'BRANCH',
+      canViewAllBranches: membership.role.scope === 'CENTRAL',
       branches,
     };
   }
