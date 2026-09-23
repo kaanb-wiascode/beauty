@@ -15,6 +15,11 @@ export class HealthController {
     return this.healthService.live();
   }
 
+  @Get('release')
+  release() {
+    return this.healthService.release();
+  }
+
   @Get('ready')
   async ready() {
     const result = await this.healthService.ready();
