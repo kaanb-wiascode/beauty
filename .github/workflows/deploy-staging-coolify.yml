@@ -242,8 +242,6 @@ jobs:
           COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
           COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
           DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
-          API_DIGEST: ${{ steps.api_image.outputs.digest }}
-          WEB_DIGEST: ${{ steps.web_image.outputs.digest }}
         shell: bash
         run: |
           api_url="${COOLIFY_API_URL%/}"
@@ -334,6 +332,8 @@ jobs:
           RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
           STAGING_URL: ${{ steps.inputs.outputs.staging_url }}
           DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
+          API_DIGEST: ${{ steps.api_image.outputs.digest }}
+          WEB_DIGEST: ${{ steps.web_image.outputs.digest }}
         shell: bash
         run: |
           {
