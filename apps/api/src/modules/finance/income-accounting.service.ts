@@ -60,8 +60,12 @@ export class IncomeAccountingService {
   }
 
   private async acquireLock(tx: Prisma.TransactionClient, namespace: string, key: string) {
-    await tx.$queryRawUnsafe(
-      `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+    await tx.$queryRawUnsafe<Array<{ locked: boolean }>>(
+      `WITH income_accounting_lock AS (
+         SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))
+       )
+       SELECT TRUE AS locked
+       FROM income_accounting_lock`,
       namespace,
       key,
     );
