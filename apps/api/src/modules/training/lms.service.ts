@@ -66,7 +66,7 @@ export class LmsService {
   async createVersion(courseId: string, input: { title?: string; description?: string | null; theoryPassScore?: number; practicalPassScore?: number; effectiveFrom?: string | null; effectiveTo?: string | null }, actorUserId: string) {
     const c = this.context();
     return this.prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-course-version:${c.tenantId}:${c.companyId}:${courseId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-course-version:${c.tenantId}:${c.companyId}:${courseId}`);
       const courses = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,title,description,delivery_type AS "deliveryType" FROM training_courses
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND is_active=true LIMIT 1`,
@@ -173,7 +173,7 @@ export class LmsService {
     return this.prisma.$transaction(async tx=>{
       const a=await this.assignment(assignmentId,tx);if(!a.courseVersionId)throw new BadRequestException('Legacy assignment has no pinned course version.');if(!['ASSIGNED','IN_PROGRESS'].includes(a.status))throw new BadRequestException('Assignment is not open for assessment.');
       const exams=await tx.$queryRawUnsafe<any[]>(`SELECT id,pass_score AS "passScore",max_attempts AS "maxAttempts" FROM training_exams WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND course_version_id=$4::text AND is_active=true LIMIT 1`,examId,c.tenantId,c.companyId,a.courseVersionId);if(!exams.length)throw new NotFoundException('Exam does not belong to assigned course version.');const exam=exams[0];
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-exam-attempt:${assignmentId}:${examId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-exam-attempt:${assignmentId}:${examId}`);
       const attempts=await tx.$queryRawUnsafe<any[]>(`SELECT COUNT(*)::int AS count FROM training_exam_attempts WHERE assignment_id=$1::text AND exam_id=$2::text`,assignmentId,examId);const attemptNo=Number(attempts[0]?.count??0)+1;if(exam.maxAttempts!=null&&attemptNo>Number(exam.maxAttempts))throw new BadRequestException('Maximum exam attempts reached.');
       const questions=await tx.$queryRawUnsafe<any[]>(`SELECT id,correct_answer AS "correctAnswer",points FROM training_exam_questions WHERE exam_id=$1::text AND tenant_id=$2::text AND company_id=$3::text ORDER BY sequence`,examId,c.tenantId,c.companyId);if(!questions.length)throw new BadRequestException('Exam has no questions.');
       let earned=0,total=0;const grading:any[]=[];for(const q of questions){const points=Number(q.points);total+=points;const correct=this.answersEqual(input.answers[q.id],q.correctAnswer);if(correct)earned+=points;grading.push({questionId:q.id,correct,pointsEarned:correct?points:0,points});}
