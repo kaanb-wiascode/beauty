@@ -53,5 +53,5 @@ jobs:
             echo
             echo "- Staging URL: ${STAGING_URL:-not-configured}"
             echo "- Result: ${{ job.status }}"
-            echo "- Run: `$GITHUB_RUN_ID`"
+            echo "- Run ID: $GITHUB_RUN_ID"
           } >> "$GITHUB_STEP_SUMMARY"
