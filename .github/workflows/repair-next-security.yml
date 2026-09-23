@@ -1,0 +1,47 @@
+name: Repair Next security lockfile
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - apps/web/package.json
+      - .github/workflows/repair-next-security.yml
+
+permissions:
+  contents: write
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/core-commerce-foundation
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+
+      - name: Refresh patched web lockfile
+        run: pnpm --filter web update next@16.3.3 eslint-config-next@16.3.3 --lockfile-only
+
+      - name: Commit lockfile and remove one-off workflow
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/repair-next-security.yml
+          git add apps/web/package.json pnpm-lock.yaml
+          git diff --cached --quiet && exit 0
+          git commit -m "fix(web-security): lock patched Next.js 16.3.3"
+          git push origin HEAD:feature/core-commerce-foundation
