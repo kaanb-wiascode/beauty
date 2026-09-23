@@ -180,10 +180,13 @@ export class ServiceExecutionStaffService {
   }
 
   private lock(tx: Prisma.TransactionClient, tenantId: string, branchId: string, executionId: string) {
-    return tx.$queryRaw`SELECT pg_advisory_xact_lock(
-      hashtext(${`${tenantId}:${branchId}`}),
-      hashtext(${`execution-staff:${executionId}`})
-    )`;
+    return tx.$queryRaw`WITH _advisory_lock AS (
+      SELECT pg_advisory_xact_lock(
+        hashtext(${`${tenantId}:${branchId}`}),
+        hashtext(${`execution-staff:${executionId}`})
+      )
+    )
+    SELECT 1 FROM _advisory_lock`;
   }
 
   private event(tx: Prisma.TransactionClient, executionId: string, tenantId: string, branchId: string, membershipId: string, eventType: string, note: string) {
