@@ -111,7 +111,7 @@ export class QualityScoreService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$executeRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,
           `quality-score-policy:${c.tenantId}:${c.companyId}:${name}`,
         );
         const versions = await tx.$queryRawUnsafe<any[]>(
