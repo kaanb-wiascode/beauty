@@ -29,15 +29,27 @@ Required secrets:
 ```text
 COOLIFY_API_URL
 COOLIFY_TOKEN
+COOLIFY_PROJECT_UUID
+COOLIFY_SERVER_UUID
 COOLIFY_STAGING_APPLICATION_UUID
+
+STAGING_DATABASE_URL
+STAGING_RESTORE_TEST_DATABASE_URL
+STAGING_REDIS_URL
+
+STAGING_OBJECT_STORAGE_BUCKET
+STAGING_OBJECT_STORAGE_REGION
+STAGING_OBJECT_STORAGE_ENDPOINT
+STAGING_OBJECT_STORAGE_ACCESS_KEY_ID
+STAGING_OBJECT_STORAGE_SECRET_ACCESS_KEY
 
 STAGING_SMOKE_EMAIL
 STAGING_SMOKE_PASSWORD
 STAGING_SMOKE_TOTP_SECRET
 
-STAGING_DATABASE_URL
-STAGING_RESTORE_TEST_DATABASE_URL
-```
+``
+
+`COOLIFY_STAGING_APPLICATION_UUID` is produced by the **Bootstrap Coolify staging application** workflow after the project/server secrets are configured.
 
 `STAGING_SMOKE_TOTP_SECRET` is required when the smoke account has MFA enabled. The smoke account should already be enrolled before release validation.
 
@@ -76,7 +88,19 @@ At minimum configure:
 
 The deployment workflow updates only release-specific values such as `RELEASE_SHA`, `API_IMAGE`, `WEB_IMAGE`, `CORS_ORIGINS` and `PUBLIC_API_URL`. Long-lived infrastructure secrets remain managed by Coolify/GitHub environment secrets.
 
-## 4. Deployment workflow
+## 4. Infrastructure preflight
+
+Before the first deployment, run:
+
+```text
+Staging infrastructure preflight
+```
+
+It verifies Coolify application access, PostgreSQL connectivity, Redis connectivity, object-storage bucket access, DNS and TLS.
+
+For a brand-new Coolify application, run **Bootstrap Coolify staging application** first and save the returned UUID as `COOLIFY_STAGING_APPLICATION_UUID`.
+
+## 5. Deployment workflow
 
 Run:
 
@@ -105,7 +129,7 @@ The workflow:
 
 A failed gate fails the deployment workflow.
 
-## 5. Synthetic monitoring
+## 6. Synthetic monitoring
 
 After staging is live, configure `STAGING_URL` in the GitHub staging environment/repository variables.
 
@@ -120,7 +144,7 @@ The `Staging synthetic monitor` workflow runs hourly and checks:
 
 If `STAGING_ALERT_WEBHOOK_URL` is configured, synthetic failures are sent to that webhook.
 
-## 6. Backup/restore drill
+## 7. Backup/restore drill
 
 Create a disposable PostgreSQL database dedicated to restore verification.
 
@@ -143,7 +167,7 @@ A successful workflow means:
 
 This drill complements the managed PostgreSQL provider's snapshot/PITR capability; it does not replace provider-level recovery.
 
-## 7. Promotion rule
+## 8. Promotion rule
 
 Production promotion is allowed only for the exact staging-accepted SHA.
 
