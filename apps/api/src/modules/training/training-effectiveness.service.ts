@@ -41,7 +41,7 @@ export class TrainingEffectivenessService {
       let created = 0;
       const outcomeCounts = { improved: 0, stable: 0, worse: 0, insufficientBaseline: 0 };
       for (const assignment of assignments) {
-        await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-effectiveness:${c.tenantId}:${c.companyId}:${assignment.id}:${preDays}:${postDays}`);
+        await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-effectiveness:${c.tenantId}:${c.companyId}:${assignment.id}:${preDays}:${postDays}`);
         const counts = await tx.$queryRawUnsafe<any[]>(
           `WITH scoped AS (
              SELECT f.created_at,
