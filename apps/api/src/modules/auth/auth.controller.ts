@@ -5,10 +5,13 @@ import {
   Get,
   Param,
   Post,
+  Req,
+  Res,
   UnauthorizedException,
   UseGuards,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import type { Request, Response } from 'express';
 import { z } from 'zod';
 
 import { AuthService } from './auth.service';
@@ -41,6 +44,9 @@ const switchContextSchema = z.object({
 const refreshTokenSchema = z.object({
   refreshToken: z.string().uuid(),
 });
+
+const REFRESH_COOKIE_NAME = 'valoo_refresh_token';
+const REFRESH_COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000;
 
 const createInvitationSchema = z.object({
   email: z.string().trim().email().max(254),
@@ -153,7 +159,10 @@ export class AuthController {
 
   @Post('login')
   @AuthPublicRateLimit('login', 12, 60)
-  async login(@Body() body: unknown) {
+  async login(
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const input: LoginInput = loginSchema.parse(body);
     const result = await this.authService.login(input);
     const policy = await this.securityPolicyService.get(result.tenant.id, result.company.id);
@@ -163,16 +172,21 @@ export class AuthController {
     }
 
     await this.registerSession(result);
-    return result;
+    this.setRefreshCookie(response, result.refreshToken);
+    return this.publicAuthResult(result);
   }
 
   @Post('mfa/verify')
   @AuthPublicRateLimit('mfa-verify', 10, 300)
-  async verifyMfa(@Body() body: unknown) {
+  async verifyMfa(
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const input = mfaChallengeSchema.parse(body);
     const result = await this.mfaService.verifyLoginChallenge(input.challengeId, input.code);
     await this.registerSession(result);
-    return result;
+    this.setRefreshCookie(response, result.refreshToken);
+    return this.publicAuthResult(result);
   }
 
   @Post('mfa/challenge/:id/setup')
@@ -183,11 +197,16 @@ export class AuthController {
 
   @Post('mfa/challenge/:id/enroll')
   @AuthPublicRateLimit('mfa-enroll', 10, 300)
-  async enrollMfaChallenge(@Param('id') id: string, @Body() body: unknown) {
+  async enrollMfaChallenge(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
     const { code } = mfaCodeSchema.parse(body);
     const result = await this.mfaService.completeEnrollmentChallenge(id, code);
     await this.registerSession(result);
-    return result;
+    this.setRefreshCookie(response, result.refreshToken);
+    return this.publicAuthResult(result);
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -359,6 +378,7 @@ export class AuthController {
   async switchContext(
     @CurrentUser() user: JwtPayload,
     @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
   ) {
     const input = switchContextSchema.parse(body);
     const result = await this.authService.switchContext(
@@ -375,23 +395,39 @@ export class AuthController {
       branchId: result.branch?.id ?? null,
       roleScope: result.membership.roleScope,
     });
-    return result;
+    this.setRefreshCookie(response, result.refreshToken);
+    return this.publicAuthResult(result);
   }
 
   @Post('refresh')
   @AuthPublicRateLimit('refresh', 30, 60)
-  async refresh(@Body() body: unknown) {
-    const input = refreshTokenSchema.parse(body);
-    const result = await this.authService.refresh(input.refreshToken);
-    await this.sessionRegistry.rotate(input.refreshToken, result.refreshToken);
-    return result;
+  async refresh(
+    @Req() request: Request,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const refreshToken = this.requireRefreshToken(request, body);
+    const result = await this.authService.refresh(refreshToken);
+    await this.sessionRegistry.rotate(refreshToken, result.refreshToken);
+    this.setRefreshCookie(response, result.refreshToken);
+    return this.publicAuthResult(result);
   }
 
   @Post('logout')
-  async logout(@Body() body: unknown) {
-    const input = refreshTokenSchema.parse(body);
-    await this.sessionRegistry.unregister(input.refreshToken);
-    return this.authService.logout(input.refreshToken);
+  async logout(
+    @Req() request: Request,
+    @Body() body: unknown,
+    @Res({ passthrough: true }) response: Response,
+  ) {
+    const refreshToken = this.optionalRefreshToken(request, body);
+    this.clearRefreshCookie(response);
+
+    if (!refreshToken) {
+      return { success: true };
+    }
+
+    await this.sessionRegistry.unregister(refreshToken);
+    return this.authService.logout(refreshToken);
   }
 
   @UseGuards(JwtAuthGuard, TenantAuthGuard)
@@ -402,6 +438,73 @@ export class AuthController {
       user,
       tenantContext: this.tenantContext.getContext(),
     };
+  }
+
+  private setRefreshCookie(response: Response, refreshToken: string) {
+    response.cookie(REFRESH_COOKIE_NAME, refreshToken, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+      maxAge: REFRESH_COOKIE_MAX_AGE_MS,
+    });
+  }
+
+  private clearRefreshCookie(response: Response) {
+    response.clearCookie(REFRESH_COOKIE_NAME, {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/',
+    });
+  }
+
+  private optionalRefreshToken(request: Request, body: unknown) {
+    const cookieToken = this.cookieValue(request, REFRESH_COOKIE_NAME);
+    if (cookieToken && z.string().uuid().safeParse(cookieToken).success) {
+      return cookieToken;
+    }
+
+    if (process.env.NODE_ENV !== 'production') {
+      const parsed = refreshTokenSchema.safeParse(body);
+      if (parsed.success) return parsed.data.refreshToken;
+    }
+
+    return null;
+  }
+
+  private requireRefreshToken(request: Request, body: unknown) {
+    const refreshToken = this.optionalRefreshToken(request, body);
+    if (!refreshToken) {
+      throw new UnauthorizedException('Refresh session is missing');
+    }
+    return refreshToken;
+  }
+
+  private cookieValue(request: Request, name: string) {
+    const cookieHeader = request.headers.cookie;
+    if (!cookieHeader) return null;
+
+    for (const part of cookieHeader.split(';')) {
+      const separator = part.indexOf('=');
+      if (separator < 0) continue;
+      const key = part.slice(0, separator).trim();
+      if (key !== name) continue;
+      const rawValue = part.slice(separator + 1).trim();
+      try {
+        return decodeURIComponent(rawValue);
+      } catch {
+        return null;
+      }
+    }
+
+    return null;
+  }
+
+  private publicAuthResult<T extends { refreshToken: string }>(result: T) {
+    if (process.env.NODE_ENV !== 'production') return result;
+    const { refreshToken: _refreshToken, ...safeResult } = result;
+    return safeResult;
   }
 
   private async registerSession(result: {
