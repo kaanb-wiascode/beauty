@@ -15,7 +15,6 @@ ENV DATABASE_URL=postgresql://build:build@127.0.0.1:5432/build
 RUN pnpm install --frozen-lockfile \
   && pnpm --filter @beauty-erp/database generate \
   && pnpm --filter @beauty-erp/database build \
-  && pnpm --filter @beauty-erp/types build \
   && pnpm --filter api build
 
 FROM node:22.13.1-bookworm-slim AS runner
