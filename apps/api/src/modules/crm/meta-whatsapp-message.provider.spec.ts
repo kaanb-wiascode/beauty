@@ -84,13 +84,15 @@ describe('MetaWhatsAppMessageProvider', () => {
 
     const request = { body, rawBody, headers: { 'x-hub-signature-256': signature } };
     await expect(provider.verifyWebhook(request)).resolves.toBe(true);
-    await expect(provider.parseWebhook(request)).resolves.toEqual(expect.objectContaining({
-      type: 'DELIVERY',
-      tenantId: 'tenant-1',
-      branchId: 'branch-1',
-      externalMessageId: 'wamid.123',
-      status: 'DELIVERED',
-    }));
+    await expect(provider.parseWebhook(request)).resolves.toEqual([
+      expect.objectContaining({
+        type: 'DELIVERY',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        externalMessageId: 'wamid.123',
+        status: 'DELIVERED',
+      }),
+    ]);
   });
 
   it('attaches a unique CRM contact match to inbound WhatsApp messages', async () => {
@@ -106,15 +108,49 @@ describe('MetaWhatsAppMessageProvider', () => {
       } }] }],
     };
 
-    await expect(provider.parseWebhook({ body, headers: {} })).resolves.toEqual(expect.objectContaining({
-      type: 'INBOUND',
-      customerId: 'customer-1',
-      leadId: null,
-      sender: '905551112244',
-    }));
+    await expect(provider.parseWebhook({ body, headers: {} })).resolves.toEqual([
+      expect.objectContaining({
+        type: 'INBOUND',
+        customerId: 'customer-1',
+        leadId: null,
+        sender: '905551112244',
+      }),
+    ]);
     expect(contacts.resolvePhone).toHaveBeenCalledWith(
       { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' },
       '905551112244',
     );
   });
+  it('processes every supported event in a Meta webhook batch', async () => {
+    const provider = makeProvider();
+    connections.findMetaByPhoneNumberId.mockResolvedValue({
+      id: 'connection-1', tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1', publicConfig: {},
+    });
+    contacts.resolvePhone.mockResolvedValue({ matched: false });
+    const body = {
+      entry: [
+        { changes: [{ value: {
+          metadata: { phone_number_id: '12345', display_phone_number: '905551112233' },
+          statuses: [
+            { id: 'wamid.status.1', status: 'sent', timestamp: '1' },
+            { id: 'wamid.status.2', status: 'delivered', timestamp: '2' },
+          ],
+          messages: [
+            { id: 'wamid.in.1', from: '905551112244', type: 'text', text: { body: 'Bir' } },
+            { id: 'wamid.in.2', from: '905551112255', type: 'text', text: { body: 'İki' } },
+          ],
+        } }] },
+      ],
+    };
+
+    const events = await provider.parseWebhook({ body, headers: {} });
+    expect(events).toHaveLength(4);
+    expect(events.map((event) => event.externalMessageId)).toEqual([
+      'wamid.status.1',
+      'wamid.status.2',
+      'wamid.in.1',
+      'wamid.in.2',
+    ]);
+  });
+
 });
