@@ -4,6 +4,26 @@ Last updated: 2026-09-13
 
 This file supersedes older roadmap statements in `docs/state/CURRENT-STATE.md` where they conflict with the active branch.
 
+## Production Readiness Sprint — 2026-09-23
+
+This section supersedes the older parked-staging decision below.
+
+Repository production hardening has resumed on `feature/core-commerce-foundation`. The branch now includes:
+
+- production HTTPS/CORS/object-storage/report-worker startup invariants
+- HttpOnly/Secure refresh-session cookies with browser refresh-token storage removed
+- production auth rate-limit fail-closed behavior
+- Web CSP/HSTS and API transport/cache hardening
+- production API/Web Dockerfiles and a production compose topology
+- CodeQL, critical dependency audit and secret-history scanning
+- production runtime smoke verification inside the main quality workflow
+- PR container-image build validation
+- executable `docs/release/GO-LIVE-CHECKLIST.md`
+
+External staging is still not complete. The remaining release blockers are infrastructure and operational gates: GitHub `main` protection, managed PostgreSQL/Redis/object storage, TLS/DNS, a real backup/restore drill, staging golden-path/RBAC/isolation smoke tests, and production observability/alerting.
+
+The release remains **NO-GO** until the blocker list in `docs/release/GO-LIVE-CHECKLIST.md` is closed.
+
 ## Current decision
 
 The production/staging deployment phase is intentionally **parked** for now.
