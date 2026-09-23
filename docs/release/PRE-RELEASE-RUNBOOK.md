@@ -38,6 +38,7 @@ The GitHub `Monorepo quality` workflow must be fully green on the exact candidat
 
 - frozen workspace dependency installation
 - release shell script syntax validation
+- deployment environment preflight and staging/production compose validation
 - Prisma schema validation
 - all migrations against a fresh PostgreSQL database
 - Prisma client generation
@@ -140,13 +141,23 @@ Rules:
 
 ## 6. Build and start
 
-Production container references:
+Production/staging container references:
 
 ```text
 apps/api/Dockerfile
 apps/web/Dockerfile
+infrastructure/docker-compose.staging.yml
 infrastructure/docker-compose.production.yml
 ```
+
+Release images are published as immutable SHA-tagged GHCR artifacts:
+
+```text
+ghcr.io/kaanb-wiascode/beauty-api:<40-char-sha>
+ghcr.io/kaanb-wiascode/beauty-web:<40-char-sha>
+```
+
+Both images carry `org.opencontainers.image.revision=<sha>`. The deploy gate verifies the running API and Web containers match the expected candidate SHA.
 
 The compose file is an application-topology reference: PostgreSQL, Redis and object storage are expected to be externally managed/private services. Do not expose PostgreSQL or Redis directly to the public internet.
 
@@ -163,7 +174,15 @@ pnpm --filter api start:prod
 
 The web application must also pass its repository CI lint, typecheck and production build before deployment.
 
-Use immutable build artifacts/images where supported. API and web deployments for one release should refer to the same candidate SHA.
+Use immutable build artifacts. API and Web deployments for one release must refer to the same full candidate SHA.
+
+For the repository-supported compose flow, follow `docs/release/STAGING-DEPLOYMENT.md` and run:
+
+```bash
+bash scripts/release/deploy-compose-release.sh
+```
+
+Production deploys are blocked unless a backup reference exists and `BACKUP_RESTORE_VERIFIED=true` is supplied.
 
 ## 7. Health checks
 
@@ -272,6 +291,12 @@ Never log JWT values, passwords, API secrets, bank credentials or raw card data.
 ## 10. Rollback decision
 
 Application rollback is allowed only when the target application version is schema-compatible with the already-applied database migration.
+
+The repository rollback helper requires explicit `SCHEMA_COMPATIBLE_ROLLBACK=true` and verifies the previous API/Web image revision before considering rollback successful:
+
+```bash
+bash scripts/release/rollback-compose-release.sh
+```
 
 Do not automatically roll back schema migrations by editing/deleting migration history.
 
