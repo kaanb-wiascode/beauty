@@ -71,6 +71,7 @@ export class CrmAutomationMessageActionService {
       }
       const outcome = await this.deliver(marker, rowScope, channel, recipient, body);
       if (outcome === 'SENT') sent++;
+      else if (outcome === 'SKIPPED') skipped++;
       else failed++;
     }
     return { scanned: markers.length, sent, failed, skipped };
@@ -152,11 +153,18 @@ export class CrmAutomationMessageActionService {
       return 'FAILED' as const;
     }
     try {
-      await this.prisma.$executeRawUnsafe(
-        `UPDATE crm_messages SET status='QUEUED',provider_key=$2,version=version+1,updated_at=NOW() WHERE id=$1::text AND status IN ('DRAFT','FAILED')`,
+      const claimed = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `UPDATE crm_messages
+         SET status='QUEUED',provider_key=$2,version=version+1,updated_at=NOW()
+         WHERE id=$1::text AND status IN ('DRAFT','FAILED')
+         RETURNING id`,
         messageId,
         provider.key,
       );
+      if (!claimed[0]) {
+        await this.mark(marker, scope, 'ALREADY_CLAIMED', messageId);
+        return 'SKIPPED' as const;
+      }
       const result = await provider.send({ messageId, channel, recipient, body, idempotencyKey: key });
       await this.prisma.$executeRawUnsafe(
         `UPDATE crm_messages SET status=$2,external_message_id=$3,sent_at=CASE WHEN $2='SENT' THEN NOW() ELSE sent_at END,version=version+1,updated_at=NOW() WHERE id=$1::text`,
