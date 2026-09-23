@@ -49,10 +49,13 @@ export class OperationsWalkInCommercialService {
   async link(visitId: string, input: LinkWalkInCommercialContextInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
     return this.prisma.$transaction(async tx => {
-      await tx.$queryRaw`SELECT pg_advisory_xact_lock(
-        hashtext(${`${tenantId}:${branchId}`}),
-        hashtext(${`walk-in-commercial:${visitId}`})
-      )`;
+      await tx.$queryRaw`WITH _advisory_lock AS (
+        SELECT pg_advisory_xact_lock(
+          hashtext(${`${tenantId}:${branchId}`}),
+          hashtext(${`walk-in-commercial:${visitId}`})
+        )
+      )
+      SELECT 1 FROM _advisory_lock`;
       const visits = await tx.$queryRawUnsafe<Array<{ customerId: string; source: string; status: string }>>(
         `SELECT "customerId" AS "customerId","source"::text AS source,"status"::text AS status FROM visits WHERE id=$1 AND "tenantId"=$2 AND "companyId"=$3 AND "branchId"=$4 LIMIT 1`,
         visitId, tenantId, companyId, branchId,
