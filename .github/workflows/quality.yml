@@ -162,7 +162,7 @@ jobs:
           NODE_ENV: production
           API_URL: http://127.0.0.1:3000
         run: |
-          pnpm --filter web start -- -p 3001 >/tmp/valoo-web.log 2>&1 &
+          pnpm --filter web exec next start -p 3001 >/tmp/valoo-web.log 2>&1 &
           echo $! >/tmp/valoo-web.pid
           for attempt in {1..30}; do
             if curl --silent --fail http://127.0.0.1:3001/login >/dev/null; then
