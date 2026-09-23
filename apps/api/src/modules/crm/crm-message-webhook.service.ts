@@ -31,9 +31,25 @@ export class CrmMessageWebhookService {
       throw new UnauthorizedException('Invalid provider webhook signature.');
     }
 
-    const event = await provider.parseWebhook(request);
-    this.validateEvent(event);
+    const parsed = await provider.parseWebhook(request);
+    const events = Array.isArray(parsed) ? parsed : [parsed];
+    if (events.length === 0) {
+      throw new BadRequestException('Provider webhook batch is empty.');
+    }
+    for (const event of events) {
+      this.validateEvent(event);
+    }
 
+    const results = [];
+    for (const event of events) {
+      results.push(await this.handleEvent(provider.key, event));
+    }
+    return events.length === 1
+      ? results[0]
+      : { batch: true, eventCount: events.length, results };
+  }
+
+  private handleEvent(providerKey: string, event: CrmProviderWebhookEvent) {
     return this.prisma.$transaction(async (tx) => {
       const claimed = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO crm_message_webhook_events(
@@ -44,7 +60,7 @@ export class CrmMessageWebhookService {
         event.tenantId,
         event.companyId,
         event.branchId,
-        provider.key,
+        providerKey,
         event.externalEventId,
         event.type,
         event.externalMessageId,
@@ -60,7 +76,7 @@ export class CrmMessageWebhookService {
           event.tenantId,
           event.companyId,
           event.branchId,
-          provider.key,
+          providerKey,
           event.externalMessageId,
         );
         const message = rows[0];
@@ -100,7 +116,7 @@ export class CrmMessageWebhookService {
           event.tenantId,
           event.companyId,
           event.branchId,
-          provider.key,
+          providerKey,
           event.externalEventId,
           event.externalMessageId,
           event.channel,
@@ -141,14 +157,14 @@ export class CrmMessageWebhookService {
         event.leadId ?? null,
         event.opportunityId ?? null,
         event.channel,
-        provider.key,
+        providerKey,
         event.sender,
         event.subject?.trim() || null,
         event.body.trim(),
         event.externalMessageId,
       );
 
-      const messageId = messages[0]?.id ?? await this.findExistingProviderMessage(tx, event, provider.key);
+      const messageId = messages[0]?.id ?? await this.findExistingProviderMessage(tx, event, providerKey);
       await tx.$executeRawUnsafe(
         `UPDATE crm_message_webhook_events SET message_id=$2::text,outcome=$3,error_message=$4 WHERE id=$1::uuid`,
         claimed[0].id,
@@ -163,6 +179,7 @@ export class CrmMessageWebhookService {
       };
     });
   }
+
 
   private validateEvent(event: CrmProviderWebhookEvent) {
     if (!event.externalEventId?.trim() || !event.tenantId || !event.companyId || !event.branchId) {
