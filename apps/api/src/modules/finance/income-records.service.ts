@@ -105,7 +105,15 @@ export class IncomeRecordsService {
   }
 
   private async acquireLock(tx: Prisma.TransactionClient, companyId: string, key: string) {
-    await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`, `income:${companyId}`, key);
+    await tx.$queryRawUnsafe<Array<{ locked: boolean }>>(
+      `WITH income_record_lock AS (
+         SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))
+       )
+       SELECT TRUE AS locked
+       FROM income_record_lock`,
+      `income:${companyId}`,
+      key,
+    );
   }
 
   private async validateDimensions(tx: Prisma.TransactionClient, categoryId: string, costCenterId?: string | null) {
