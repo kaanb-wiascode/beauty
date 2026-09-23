@@ -177,10 +177,15 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       .expect(201);
     expect(reversedSalary.body.status).toBe('REVERSED');
 
-    await request(app.getHttpServer())
+    const taxonomyBootstrap = await request(app.getHttpServer())
       .post('/finance/setup/bootstrap-default-taxonomy')
-      .set('Authorization', authorization)
-      .expect(201);
+      .set('Authorization', authorization);
+
+    if (taxonomyBootstrap.status !== 201) {
+      throw new Error(
+        `Finance taxonomy bootstrap failed with HTTP ${taxonomyBootstrap.status}: ${JSON.stringify(taxonomyBootstrap.body)}`,
+      );
+    }
 
     const categories = await request(app.getHttpServer())
       .get('/finance/setup/expense-categories')
