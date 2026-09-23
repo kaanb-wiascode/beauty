@@ -318,7 +318,7 @@ export class TrainingAuthoringService {
     const c = this.context();
     await this.assertDraftVersion(versionId);
     return this.prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `training-lessons:${versionId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`, `training-lessons:${versionId}`);
       const rows = await tx.$queryRawUnsafe(
         `SELECT id,sequence FROM training_lessons
          WHERE tenant_id=$1::text AND company_id=$2::text AND course_version_id=$3::text
@@ -475,7 +475,7 @@ export class TrainingAuthoringService {
     const c = this.context();
     await this.draftExam(examId);
     return this.prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `training-questions:${examId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`, `training-questions:${examId}`);
       const rows = await tx.$queryRawUnsafe(
         `SELECT id,sequence FROM training_exam_questions
          WHERE tenant_id=$1::text AND company_id=$2::text AND exam_id=$3::text
