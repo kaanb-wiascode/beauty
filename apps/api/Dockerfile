@@ -19,6 +19,10 @@ RUN pnpm install --frozen-lockfile \
 
 FROM node:22.13.1-bookworm-slim AS runner
 
+ARG RELEASE_SHA=development
+LABEL org.opencontainers.image.revision=$RELEASE_SHA
+LABEL org.opencontainers.image.source="https://github.com/kaanb-wiascode/beauty"
+
 ENV NODE_ENV=production
 ENV PORT=3000
 
