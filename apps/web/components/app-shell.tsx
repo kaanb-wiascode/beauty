@@ -7,7 +7,6 @@ import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from
 import { api } from "@/lib/api";
 import {
   clearSession,
-  getRefreshToken,
   getStoredTenant,
   getStoredUser,
   hasPermission,
@@ -114,7 +113,6 @@ type ContextOptions = {
 
 type SwitchContextResponse = {
   accessToken: string;
-  refreshToken: string;
 };
 
 function hasPermissionKey(permission: string) {
@@ -307,7 +305,6 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       persistSession({
         accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
       });
 
       window.location.reload();
@@ -319,9 +316,8 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   async function logout() {
     setLoggingOut(true);
-    const refreshToken = getRefreshToken();
     try {
-      if (refreshToken) await api("/auth/logout", { method: "POST", body: { refreshToken }, auth: false });
+      await api("/auth/logout", { method: "POST", auth: false });
     } catch {
       // Local session still needs to be cleared.
     } finally {
