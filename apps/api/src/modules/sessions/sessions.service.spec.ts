@@ -1,8 +1,11 @@
+import { PrismaService } from '@beauty-erp/database';
 import { ConflictException } from '@nestjs/common';
+import { Test } from '@nestjs/testing';
+import { TenantContext } from '../../common/tenant/tenant-context';
 import { SessionsService } from './sessions.service';
 
 describe('SessionsService concurrency guards', () => {
-  function createService(options?: {
+  async function createService(options?: {
     sessionStatus?: 'AVAILABLE' | 'RESERVED' | 'CONSUMED' | 'CANCELLED';
     updateCount?: number;
     appointmentId?: string | null;
@@ -60,23 +63,37 @@ describe('SessionsService concurrency guards', () => {
           .mockResolvedValue({ count: options?.updateCount ?? 1 }),
         findUnique: jest.fn().mockResolvedValue(session),
       },
-      $transaction: jest.fn(async (callback: any) => callback(tx)),
-    } as any;
+      $transaction: jest.fn(
+        (callback: (client: typeof tx) => Promise<unknown>) => callback(tx),
+      ),
+    };
 
-    const tenant = {
-      getTenantId: jest.fn().mockReturnValue('tenant-a'),
-      getBranchId: jest.fn().mockReturnValue('branch-a'),
-    } as any;
+    const tenant = new TenantContext();
+    tenant.setContext({
+      tenantId: 'tenant-a',
+      membershipId: 'membership-a',
+      companyId: 'company-a',
+      branchId: 'branch-a',
+      roleScope: 'BRANCH',
+    });
+
+    const moduleRef = await Test.createTestingModule({
+      providers: [
+        SessionsService,
+        { provide: PrismaService, useValue: prisma },
+        { provide: TenantContext, useValue: tenant },
+      ],
+    }).compile();
 
     return {
-      service: new SessionsService(prisma, tenant),
+      service: moduleRef.get(SessionsService),
       prisma,
       tx,
     };
   }
 
   it('claims AVAILABLE session atomically when reserving', async () => {
-    const { service, tx } = createService();
+    const { service, tx } = await createService();
 
     await service.reserve('session-a', 'appointment-a');
 
@@ -96,7 +113,7 @@ describe('SessionsService concurrency guards', () => {
   });
 
   it('returns 409 when another reservation wins the race', async () => {
-    const { service } = createService({ updateCount: 0 });
+    const { service } = await createService({ updateCount: 0 });
 
     await expect(
       service.reserve('session-a', 'appointment-a'),
@@ -104,7 +121,7 @@ describe('SessionsService concurrency guards', () => {
   });
 
   it('returns 409 for an invalid state transition instead of a generic error', async () => {
-    const { service } = createService({
+    const { service } = await createService({
       sessionStatus: 'CONSUMED',
       appointmentId: 'appointment-a',
     });
@@ -115,7 +132,7 @@ describe('SessionsService concurrency guards', () => {
   });
 
   it('claims RESERVED session atomically when releasing it', async () => {
-    const { service, prisma } = createService({
+    const { service, prisma } = await createService({
       sessionStatus: 'RESERVED',
       appointmentId: 'appointment-a',
     });
