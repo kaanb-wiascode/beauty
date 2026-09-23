@@ -182,7 +182,7 @@ export class OperationsRebookingService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           `rebooking:${sourceAppointmentId}`,
         );
@@ -219,7 +219,7 @@ export class OperationsRebookingService {
 
         const staffId = input.staffId ?? source.staffId;
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           staffId,
         );
