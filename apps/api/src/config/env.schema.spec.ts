@@ -3,6 +3,7 @@ import { envSchema } from './env.schema';
 const productionEnv = {
   NODE_ENV: 'production',
   PORT: '3000',
+  RELEASE_SHA: '0123456789abcdef0123456789abcdef01234567',
   CORS_ORIGINS: 'https://app.valoo.example',
   PUBLIC_API_URL: 'https://api.valoo.example',
   DATABASE_URL: 'postgresql://user:password@db.example:5432/valoo',
@@ -20,6 +21,21 @@ const productionEnv = {
 describe('envSchema production hardening', () => {
   it('accepts a production-safe runtime configuration', () => {
     expect(envSchema.safeParse(productionEnv).success).toBe(true);
+  });
+
+  it('rejects production runtime without a release SHA', () => {
+    const { RELEASE_SHA: _releaseSha, ...withoutReleaseSha } = productionEnv;
+
+    expect(envSchema.safeParse(withoutReleaseSha).success).toBe(false);
+  });
+
+  it('rejects malformed production release SHA values', () => {
+    const result = envSchema.safeParse({
+      ...productionEnv,
+      RELEASE_SHA: 'latest',
+    });
+
+    expect(result.success).toBe(false);
   });
 
   it('rejects non-HTTPS CORS origins in production', () => {
