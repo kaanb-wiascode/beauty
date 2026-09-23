@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import SftpClient from 'ssh2-sftp-client';
 import { BadRequestException, ServiceUnavailableException } from '@nestjs/common';
 import type { ProviderPosSettlementBatch } from '../provider-adapter';
 
@@ -22,9 +23,6 @@ interface SftpClientLike {
 export type IyzicoSftpFactory = () => SftpClientLike;
 
 function defaultFactory(): SftpClientLike {
-  // Runtime dependency is loaded lazily so API startup does not open network connections.
-  // eslint-disable-next-line @typescript-eslint/no-require-imports
-  const SftpClient = require('ssh2-sftp-client') as new () => SftpClientLike;
   return new SftpClient();
 }
 
