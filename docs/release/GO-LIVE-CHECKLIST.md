@@ -14,6 +14,7 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 - [x] Production API/Web runtime smoke is part of the quality workflow.
 - [x] API and Web production container images are built in PR CI.
 - [x] CodeQL, critical dependency audit and secret history scan are configured.
+- [x] Next.js is pinned to the patched 16.3.3 release after critical security audit findings.
 - [x] Production secrets are excluded from source-controlled environment files.
 - [x] Release backups, report exports and dump files are Git-ignored.
 
