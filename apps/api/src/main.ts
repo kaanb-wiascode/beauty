@@ -33,10 +33,17 @@ async function bootstrap() {
     response.setHeader('x-content-type-options', 'nosniff');
     response.setHeader('x-frame-options', 'DENY');
     response.setHeader('referrer-policy', 'no-referrer');
+    response.setHeader('cache-control', 'no-store');
     response.setHeader(
       'permissions-policy',
       'camera=(), microphone=(), geolocation=()',
     );
+    if (process.env.NODE_ENV === 'production') {
+      response.setHeader(
+        'strict-transport-security',
+        'max-age=63072000; includeSubDomains; preload',
+      );
+    }
 
     if (process.env.NODE_ENV !== 'test') {
       response.on('finish', () => {
