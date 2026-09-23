@@ -3,6 +3,7 @@ set -Eeuo pipefail
 
 : "${API_BASE_URL:?API_BASE_URL is required}"
 : "${WEB_BASE_URL:?WEB_BASE_URL is required}"
+: "${RELEASE_SHA:?RELEASE_SHA is required}"
 
 require_command() {
   if ! command -v "$1" >/dev/null 2>&1; then
@@ -41,7 +42,15 @@ assert_header() {
 
 assert_status "${API_BASE_URL%/}/health/live" 200
 assert_status "${API_BASE_URL%/}/health/ready" 200
+assert_status "${API_BASE_URL%/}/health/release" 200
 assert_status "${WEB_BASE_URL%/}/login" 200
+
+release_body="$(curl --silent --show-error --fail "${API_BASE_URL%/}/health/release")"
+if ! printf '%s\n' "$release_body" | grep -Fq "\"releaseSha\":\"$RELEASE_SHA\""; then
+  echo "error: running API release identity does not match expected RELEASE_SHA=$RELEASE_SHA" >&2
+  echo "$release_body" >&2
+  exit 1
+fi
 
 refresh_status="$(
   curl --silent --show-error     --request POST     --header 'content-type: application/json'     --data '{}'     --output /dev/null     --write-out '%{http_code}'     "${API_BASE_URL%/}/auth/refresh"
