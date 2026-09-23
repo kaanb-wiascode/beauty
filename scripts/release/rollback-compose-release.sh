@@ -29,7 +29,9 @@ docker compose -f "$COMPOSE_FILE" config --quiet
 docker compose -f "$COMPOSE_FILE" pull api web
 docker compose -f "$COMPOSE_FILE" up -d --no-build --remove-orphans api web
 
+bash scripts/release/verify-running-release.sh
 bash scripts/release/verify-api-health.sh
 bash scripts/release/verify-production-runtime.sh
+ROLLBACK_FROM_SHA="${ROLLBACK_FROM_SHA:-unknown}" bash scripts/release/write-release-manifest.sh
 
 echo "Application rollback to $PREVIOUS_RELEASE_SHA completed successfully."
