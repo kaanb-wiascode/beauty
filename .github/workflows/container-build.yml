@@ -1,0 +1,59 @@
+name: Production container build
+
+on:
+  pull_request:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api-image:
+    name: Build API image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build API production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/api/Dockerfile
+          push: false
+          tags: valoo-api:${{ github.sha }}
+          cache-from: type=gha,scope=valoo-api
+          cache-to: type=gha,mode=max,scope=valoo-api
+
+  web-image:
+    name: Build Web image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Web production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/web/Dockerfile
+          push: false
+          tags: valoo-web:${{ github.sha }}
+          build-args: |
+            API_URL=http://api:3000
+          cache-from: type=gha,scope=valoo-web
+          cache-to: type=gha,mode=max,scope=valoo-web
