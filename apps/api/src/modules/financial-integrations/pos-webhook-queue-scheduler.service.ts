@@ -1,4 +1,5 @@
 import { Injectable, Logger, OnApplicationBootstrap, OnModuleDestroy } from '@nestjs/common';
+import { ContextIdFactory, ModuleRef } from '@nestjs/core';
 import { PosWebhookQueueService } from './pos-webhook-queue.service';
 
 @Injectable()
@@ -7,7 +8,13 @@ export class PosWebhookQueueSchedulerService implements OnApplicationBootstrap, 
   private timer: NodeJS.Timeout | null = null;
   private running = false;
 
-  constructor(private readonly queue: PosWebhookQueueService) {}
+  constructor(private readonly moduleRef: ModuleRef) {}
+
+  private async resolveQueueService() {
+    const contextId = ContextIdFactory.create();
+    this.moduleRef.registerRequestByContextId({}, contextId);
+    return this.moduleRef.resolve(PosWebhookQueueService, contextId, { strict: false });
+  }
 
   onApplicationBootstrap() {
     this.timer = setInterval(() => void this.run(), 60_000);
@@ -23,7 +30,8 @@ export class PosWebhookQueueSchedulerService implements OnApplicationBootstrap, 
     if (this.running) return;
     this.running = true;
     try {
-      const results = await this.queue.processDue();
+      const queue = await this.resolveQueueService();
+      const results = await queue.processDue();
       const failed = results.filter((result) => !result.ok);
       if (failed.length) {
         this.logger.warn(`POS webhook queue processed with ${failed.length} pending/dead-letter event(s).`);
