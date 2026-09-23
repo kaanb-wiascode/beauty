@@ -86,4 +86,18 @@ describe('QualityNotificationOutboxService', () => {
       ),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+  it('reclaims expired claimed deliveries after a worker crash', async () => {
+    const query = jest.fn().mockResolvedValue([{ id: 'outbox-1' }]);
+    const service = new QualityNotificationOutboxService(
+      { $queryRawUnsafe: query } as any,
+      tenantContext,
+    );
+
+    const result = await service.claim('actor-1', 10, 120);
+
+    expect(result.claimed).toBe(1);
+    expect(query.mock.calls[0][0]).toContain("o.status='CLAIMED' AND o.lease_until < NOW()");
+    expect(query.mock.calls[0][0]).toContain("o.status IN ('PENDING','RETRY')");
+  });
+
 });
