@@ -156,6 +156,7 @@ jobs:
       - name: Start API production runtime
         env:
           NODE_ENV: production
+          RELEASE_SHA: ${{ github.sha }}
           CORS_ORIGINS: https://app.valoo.example
           TRUST_PROXY: 'false'
           OBJECT_STORAGE_BUCKET: valoo-ci-private
@@ -196,6 +197,7 @@ jobs:
 
       - name: Verify production runtime
         env:
+          RELEASE_SHA: ${{ github.sha }}
           API_BASE_URL: http://127.0.0.1:3000
           WEB_BASE_URL: http://127.0.0.1:3001
         run: bash scripts/release/verify-production-runtime.sh
