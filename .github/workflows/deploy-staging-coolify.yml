@@ -51,7 +51,7 @@ jobs:
           echo "staging_url=$url" >> "$GITHUB_OUTPUT"
 
       - name: Checkout exact candidate
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           ref: ${{ steps.inputs.outputs.release_sha }}
           fetch-depth: 0
