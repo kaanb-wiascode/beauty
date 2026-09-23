@@ -2,6 +2,7 @@ import type { NextConfig } from "next";
 
 const API_ORIGIN = process.env.API_URL ?? "http://localhost:3000";
 const isProduction = process.env.NODE_ENV === "production";
+const RELEASE_SHA = process.env.RELEASE_SHA ?? "development";
 
 const CONTENT_SECURITY_POLICY = [
   "default-src 'self'",
@@ -21,6 +22,7 @@ const CONTENT_SECURITY_POLICY = [
 
 const SECURITY_HEADERS = [
   { key: "Content-Security-Policy", value: CONTENT_SECURITY_POLICY },
+  { key: "X-Release-Sha", value: RELEASE_SHA },
   { key: "X-Content-Type-Options", value: "nosniff" },
   { key: "X-Frame-Options", value: "DENY" },
   { key: "Referrer-Policy", value: "no-referrer" },
