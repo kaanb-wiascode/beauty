@@ -65,7 +65,7 @@ export class TrainingLearnerService {
       ) as any[];
       if (!users.length) throw new NotFoundException('User has no active membership in tenant/company scope.');
       await tx.$executeRawUnsafe(
-        `SELECT pg_advisory_xact_lock(hashtext($1))`,
+        `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,
         `training-learner-identity:${c.tenantId}:${c.companyId}:${input.userId}:${input.staffId}`,
       );
       const rows = await tx.$queryRawUnsafe<any[]>(
@@ -281,7 +281,7 @@ export class TrainingLearnerService {
       const version = versions[0];
       if (version && !version.requiresTheory && !version.requiresPractical) {
         await this.prisma.$transaction(async tx => {
-          await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`training-assignment-complete:${assignmentId}`);
+          await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,`training-assignment-complete:${assignmentId}`);
           const current = await tx.$queryRawUnsafe<any[]>(
             `SELECT status,branch_id AS "branchId" FROM training_assignments WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text FOR UPDATE`,
             assignmentId,
