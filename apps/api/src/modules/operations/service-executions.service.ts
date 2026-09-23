@@ -125,7 +125,7 @@ export class ServiceExecutionsService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           `execution:${input.appointmentId}`,
         );
@@ -330,7 +330,7 @@ export class ServiceExecutionsService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           `execution:${executionId}`,
         );
@@ -424,7 +424,7 @@ export class ServiceExecutionsService {
     return this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
           `${tenantId}:${branchId}`,
           `execution-handoff:${executionId}`,
         );
@@ -452,7 +452,7 @@ export class ServiceExecutionsService {
         }
 
         await tx.$queryRawUnsafe(
-          `SELECT pg_advisory_xact_lock(hashtext($1))`,
+          `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`,
           `appointment:${execution.appointmentId}`,
         );
 
