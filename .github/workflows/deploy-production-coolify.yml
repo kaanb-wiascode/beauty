@@ -1,0 +1,468 @@
+name: Promote production via Coolify
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_sha:
+        description: Full 40-character staging-approved release SHA
+        required: true
+        type: string
+      staging_run_id:
+        description: Successful Deploy staging via Coolify workflow run ID
+        required: true
+        type: string
+      production_url:
+        description: Public HTTPS production URL, without trailing slash
+        required: true
+        type: string
+      backup_reference:
+        description: Managed PostgreSQL snapshot/PITR reference created before migration
+        required: true
+        type: string
+      confirm_backup_restore:
+        description: Confirm backup/restore recovery has been verified
+        required: true
+        default: false
+        type: boolean
+      release_tag:
+        description: Immutable SemVer release tag, for example v1.0.0
+        required: true
+        type: string
+
+permissions:
+  contents: write
+  actions: read
+  checks: read
+  packages: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  promote:
+    name: Promote staging-approved release to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    environment: production
+    steps:
+      - name: Validate inputs
+        id: inputs
+        shell: bash
+        run: |
+          sha="${{ inputs.release_sha }}"
+          staging_run_id="${{ inputs.staging_run_id }}"
+          production_url="${{ inputs.production_url }}"
+          backup_reference="${{ inputs.backup_reference }}"
+          release_tag="${{ inputs.release_tag }}"
+
+          [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || {
+            echo "release_sha must be a full lowercase 40-character Git SHA" >&2
+            exit 1
+          }
+          [[ "$staging_run_id" =~ ^[0-9]+$ ]] || {
+            echo "staging_run_id must be a numeric GitHub Actions run ID" >&2
+            exit 1
+          }
+          [[ "$production_url" =~ ^https://[^/]+$ ]] || {
+            echo "production_url must be an HTTPS origin without a path" >&2
+            exit 1
+          }
+          [[ -n "$backup_reference" ]] || {
+            echo "backup_reference is required" >&2
+            exit 1
+          }
+          [[ "${{ inputs.confirm_backup_restore }}" == "true" ]] || {
+            echo "confirm_backup_restore must be explicitly enabled" >&2
+            exit 1
+          }
+          [[ "$release_tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]] || {
+            echo "release_tag must be a stable SemVer tag such as v1.0.0" >&2
+            exit 1
+          }
+
+          echo "release_sha=$sha" >> "$GITHUB_OUTPUT"
+          echo "staging_run_id=$staging_run_id" >> "$GITHUB_OUTPUT"
+          echo "production_url=${production_url%/}" >> "$GITHUB_OUTPUT"
+          echo "backup_reference=$backup_reference" >> "$GITHUB_OUTPUT"
+          echo "release_tag=$release_tag" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout exact release candidate
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.inputs.outputs.release_sha }}
+          fetch-depth: 0
+
+      - name: Require release candidate to be merged into main
+        shell: bash
+        run: |
+          git fetch origin main
+          git merge-base --is-ancestor \
+            "${{ steps.inputs.outputs.release_sha }}" \
+            origin/main || {
+              echo "Production release SHA must already be an ancestor of main." >&2
+              exit 1
+            }
+
+      - name: Reject an existing release tag
+        env:
+          RELEASE_TAG: ${{ steps.inputs.outputs.release_tag }}
+        shell: bash
+        run: |
+          if git ls-remote --exit-code --tags origin "refs/tags/$RELEASE_TAG" >/dev/null 2>&1; then
+            echo "Release tag already exists: $RELEASE_TAG" >&2
+            exit 1
+          fi
+
+      - name: Verify required GitHub checks
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+        shell: bash
+        run: |
+          checks_json="$(gh api \
+            -H "Accept: application/vnd.github+json" \
+            "/repos/${GITHUB_REPOSITORY}/commits/${RELEASE_SHA}/check-runs?per_page=100")"
+
+          required=(
+            "quality"
+            "Dependency audit"
+            "Secret scan"
+            "CodeQL"
+            "Build API image"
+            "Build Web image"
+          )
+
+          for check_name in "${required[@]}"; do
+            jq -e --arg name "$check_name" \
+              '[.check_runs[] | select(.name == $name and .conclusion == "success")] | length > 0' \
+              <<<"$checks_json" >/dev/null || {
+                echo "Required successful check missing for $RELEASE_SHA: $check_name" >&2
+                exit 1
+              }
+          done
+
+      - name: Download staging release attestation
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGING_RUN_ID: ${{ steps.inputs.outputs.staging_run_id }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+        shell: bash
+        run: |
+          mkdir -p "$RUNNER_TEMP/staging-attestation"
+          gh run download "$STAGING_RUN_ID" \
+            --repo "$GITHUB_REPOSITORY" \
+            --name "staging-release-$RELEASE_SHA" \
+            --dir "$RUNNER_TEMP/staging-attestation"
+
+          test -f "$RUNNER_TEMP/staging-attestation/staging-release-attestation.json" || {
+            echo "Staging release attestation artifact is missing." >&2
+            exit 1
+          }
+
+      - name: Validate staging release attestation
+        id: attestation
+        env:
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+        shell: bash
+        run: |
+          file="$RUNNER_TEMP/staging-attestation/staging-release-attestation.json"
+
+          jq -e --arg sha "$RELEASE_SHA" '
+            .releaseSha == $sha
+            and (.apiDigest | test("^sha256:[0-9a-f]{64}$"))
+            and (.webDigest | test("^sha256:[0-9a-f]{64}$"))
+            and (.apiImage | contains($sha))
+            and (.webImage | contains($sha))
+            and (.stagingUrl | startswith("https://"))
+          ' "$file" >/dev/null || {
+            echo "Staging release attestation is invalid or does not match the requested SHA." >&2
+            cat "$file" >&2
+            exit 1
+          }
+
+          api_image="$(jq -r '.apiImage' "$file")"
+          web_image="$(jq -r '.webImage' "$file")"
+          staging_url="$(jq -r '.stagingUrl' "$file")"
+
+          echo "api_image=$api_image" >> "$GITHUB_OUTPUT"
+          echo "web_image=$web_image" >> "$GITHUB_OUTPUT"
+          echo "staging_url=$staging_url" >> "$GITHUB_OUTPUT"
+
+      - name: Re-verify staging still serves the approved SHA
+        env:
+          STAGING_URL: ${{ steps.attestation.outputs.staging_url }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+        shell: bash
+        run: |
+          bash scripts/release/verify-public-staging.sh
+          release_json="$(curl --fail --silent --show-error --max-time 15 \
+            "${STAGING_URL%/}/backend/health/release")"
+          jq -e --arg sha "$RELEASE_SHA" '.releaseSha == $sha' <<<"$release_json" >/dev/null || {
+            echo "Staging no longer serves the approved release SHA." >&2
+            exit 1
+          }
+
+      - name: Login to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Verify attested images are still available by digest
+        env:
+          API_IMAGE: ${{ steps.attestation.outputs.api_image }}
+          WEB_IMAGE: ${{ steps.attestation.outputs.web_image }}
+        shell: bash
+        run: |
+          docker buildx imagetools inspect "$API_IMAGE" >/dev/null
+          docker buildx imagetools inspect "$WEB_IMAGE" >/dev/null
+
+      - name: Install production connectivity clients
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16 redis-tools
+          python3 -m pip install --disable-pip-version-check --quiet awscli
+
+      - name: Verify external production dependencies
+        env:
+          PRODUCTION_SKIP_PUBLIC_ENDPOINT: "true"
+          PRODUCTION_URL: ${{ steps.inputs.outputs.production_url }}
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PRODUCTION_APPLICATION_UUID: ${{ secrets.COOLIFY_PRODUCTION_APPLICATION_UUID }}
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          PRODUCTION_REDIS_URL: ${{ secrets.PRODUCTION_REDIS_URL }}
+          PRODUCTION_OBJECT_STORAGE_BUCKET: ${{ secrets.PRODUCTION_OBJECT_STORAGE_BUCKET }}
+          PRODUCTION_OBJECT_STORAGE_REGION: ${{ secrets.PRODUCTION_OBJECT_STORAGE_REGION }}
+          PRODUCTION_OBJECT_STORAGE_ENDPOINT: ${{ secrets.PRODUCTION_OBJECT_STORAGE_ENDPOINT }}
+          PRODUCTION_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.PRODUCTION_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          PRODUCTION_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.PRODUCTION_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        shell: bash
+        run: bash scripts/release/verify-production-infrastructure.sh
+
+      - name: Setup pnpm for production migration
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js for production migration
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install exact release workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply production database migrations
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          BACKUP_REFERENCE: ${{ steps.inputs.outputs.backup_reference }}
+        shell: bash
+        run: |
+          : "${BACKUP_REFERENCE:?backup reference is required before migration}"
+          pnpm --filter @beauty-erp/database migrate:deploy
+
+      - name: Point Coolify production at staging-attested images
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PRODUCTION_APPLICATION_UUID: ${{ secrets.COOLIFY_PRODUCTION_APPLICATION_UUID }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          PRODUCTION_URL: ${{ steps.inputs.outputs.production_url }}
+          API_IMAGE: ${{ steps.attestation.outputs.api_image }}
+          WEB_IMAGE: ${{ steps.attestation.outputs.web_image }}
+        shell: bash
+        run: |
+          api_url="${COOLIFY_API_URL%/}"
+
+          jq -n \
+            --arg release_sha "$RELEASE_SHA" \
+            --arg api_image "$API_IMAGE" \
+            --arg web_image "$WEB_IMAGE" \
+            --arg cors "$PRODUCTION_URL" \
+            --arg public_api "$PRODUCTION_URL/backend" \
+            '{
+              data: [
+                {key:"RELEASE_SHA", value:$release_sha, is_preview:false, is_literal:true},
+                {key:"API_IMAGE", value:$api_image, is_preview:false, is_literal:true},
+                {key:"WEB_IMAGE", value:$web_image, is_preview:false, is_literal:true},
+                {key:"CORS_ORIGINS", value:$cors, is_preview:false, is_literal:true},
+                {key:"PUBLIC_API_URL", value:$public_api, is_preview:false, is_literal:true}
+              ]
+            }' > "$RUNNER_TEMP/coolify-production-env.json"
+
+          curl --fail --silent --show-error \
+            --request PATCH \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            --header "Content-Type: application/json" \
+            --data-binary @"$RUNNER_TEMP/coolify-production-env.json" \
+            "$api_url/applications/$COOLIFY_PRODUCTION_APPLICATION_UUID/envs/bulk" \
+            >/dev/null
+
+      - name: Trigger Coolify production deployment
+        id: coolify
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PRODUCTION_APPLICATION_UUID: ${{ secrets.COOLIFY_PRODUCTION_APPLICATION_UUID }}
+        shell: bash
+        run: |
+          api_url="${COOLIFY_API_URL%/}"
+          response="$(curl --fail --silent --show-error \
+            --request POST \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            "$api_url/deploy?uuid=$COOLIFY_PRODUCTION_APPLICATION_UUID&force=false")"
+
+          deployment_uuid="$(jq -r '.deployments[0].deployment_uuid // empty' <<<"$response")"
+          [[ -n "$deployment_uuid" ]] || {
+            echo "Coolify did not return a production deployment UUID." >&2
+            echo "$response" >&2
+            exit 1
+          }
+
+          echo "deployment_uuid=$deployment_uuid" >> "$GITHUB_OUTPUT"
+
+      - name: Wait for Coolify production deployment result
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
+        shell: bash
+        run: |
+          api_url="${COOLIFY_API_URL%/}"
+
+          for attempt in {1..60}; do
+            response="$(curl --fail --silent --show-error \
+              --header "Authorization: Bearer $COOLIFY_TOKEN" \
+              "$api_url/deployments/$DEPLOYMENT_UUID")"
+            status="$(jq -r '.status // empty' <<<"$response")"
+            echo "Coolify production deployment status: $status"
+
+            case "$status" in
+              finished) exit 0 ;;
+              failed|cancelled|cancelled-by-user)
+                jq -r '.logs // empty' <<<"$response" >&2
+                exit 1
+                ;;
+            esac
+
+            sleep 10
+          done
+
+          echo "Coolify production deployment did not reach a terminal state." >&2
+          exit 1
+
+      - name: Verify production release
+        env:
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          API_BASE_URL: ${{ steps.inputs.outputs.production_url }}/backend
+          WEB_BASE_URL: ${{ steps.inputs.outputs.production_url }}
+        shell: bash
+        run: |
+          bash scripts/release/verify-api-health.sh
+          bash scripts/release/verify-production-runtime.sh
+
+      - name: Verify production authentication lifecycle
+        env:
+          API_BASE_URL: ${{ steps.inputs.outputs.production_url }}/backend
+          STAGING_SMOKE_EMAIL: ${{ secrets.PRODUCTION_SMOKE_EMAIL }}
+          STAGING_SMOKE_PASSWORD: ${{ secrets.PRODUCTION_SMOKE_PASSWORD }}
+          STAGING_SMOKE_TOTP_SECRET: ${{ secrets.PRODUCTION_SMOKE_TOTP_SECRET }}
+        shell: bash
+        run: bash scripts/release/verify-staging-auth.sh
+
+      - name: Write production release attestation
+        env:
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          RELEASE_TAG: ${{ steps.inputs.outputs.release_tag }}
+          PRODUCTION_URL: ${{ steps.inputs.outputs.production_url }}
+          BACKUP_REFERENCE: ${{ steps.inputs.outputs.backup_reference }}
+          STAGING_RUN_ID: ${{ steps.inputs.outputs.staging_run_id }}
+          API_IMAGE: ${{ steps.attestation.outputs.api_image }}
+          WEB_IMAGE: ${{ steps.attestation.outputs.web_image }}
+          DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
+        shell: bash
+        run: |
+          jq -n \
+            --arg releaseSha "$RELEASE_SHA" \
+            --arg releaseTag "$RELEASE_TAG" \
+            --arg apiImage "$API_IMAGE" \
+            --arg webImage "$WEB_IMAGE" \
+            --arg productionUrl "$PRODUCTION_URL" \
+            --arg backupReference "$BACKUP_REFERENCE" \
+            --arg stagingRunId "$STAGING_RUN_ID" \
+            --arg deploymentUuid "$DEPLOYMENT_UUID" \
+            --arg workflowRunId "$GITHUB_RUN_ID" \
+            '{
+              releaseSha:$releaseSha,
+              releaseTag:$releaseTag,
+              apiImage:$apiImage,
+              webImage:$webImage,
+              productionUrl:$productionUrl,
+              backupReference:$backupReference,
+              stagingRunId:$stagingRunId,
+              coolifyDeploymentUuid:$deploymentUuid,
+              workflowRunId:$workflowRunId
+            }' > "$RUNNER_TEMP/production-release-attestation.json"
+
+      - name: Upload production release attestation
+        uses: actions/upload-artifact@v7.0.1
+        with:
+          name: production-release-${{ steps.inputs.outputs.release_tag }}
+          path: ${{ runner.temp }}/production-release-attestation.json
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Create immutable GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          RELEASE_TAG: ${{ steps.inputs.outputs.release_tag }}
+          API_IMAGE: ${{ steps.attestation.outputs.api_image }}
+          WEB_IMAGE: ${{ steps.attestation.outputs.web_image }}
+          BACKUP_REFERENCE: ${{ steps.inputs.outputs.backup_reference }}
+          STAGING_RUN_ID: ${{ steps.inputs.outputs.staging_run_id }}
+        shell: bash
+        run: |
+          {
+            echo "Release SHA: $RELEASE_SHA"
+            echo "Staging acceptance run ID: $STAGING_RUN_ID"
+            echo "Backup reference: $BACKUP_REFERENCE"
+            echo "API image: $API_IMAGE"
+            echo "Web image: $WEB_IMAGE"
+          } > "$RUNNER_TEMP/release-notes.md"
+
+          gh release create "$RELEASE_TAG" \
+            --repo "$GITHUB_REPOSITORY" \
+            --target "$RELEASE_SHA" \
+            --title "VALOO $RELEASE_TAG" \
+            --notes-file "$RUNNER_TEMP/release-notes.md"
+
+      - name: Write production deployment summary
+        if: always()
+        env:
+          RELEASE_SHA: ${{ steps.inputs.outputs.release_sha }}
+          RELEASE_TAG: ${{ steps.inputs.outputs.release_tag }}
+          PRODUCTION_URL: ${{ steps.inputs.outputs.production_url }}
+          DEPLOYMENT_UUID: ${{ steps.coolify.outputs.deployment_uuid }}
+        shell: bash
+        run: |
+          {
+            echo "## VALOO production promotion"
+            echo
+            echo "- Release SHA: $RELEASE_SHA"
+            echo "- Release tag: $RELEASE_TAG"
+            echo "- Production URL: $PRODUCTION_URL"
+            echo "- Coolify deployment UUID: ${DEPLOYMENT_UUID:-not-created}"
+            echo "- Result: ${{ job.status }}"
+            echo "- Run ID: $GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"
