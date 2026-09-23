@@ -100,42 +100,68 @@ export class MetaWhatsAppMessageProvider implements CrmMessageProvider, OnModule
     return this.safeEqual(signature, expected);
   }
 
-  async parseWebhook(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent> {
+  async parseWebhook(request: CrmProviderWebhookRequest): Promise<CrmProviderWebhookEvent[]> {
     const body = request.body as MetaBody;
-    const value = body.entry?.[0]?.changes?.[0]?.value;
-    const phoneNumberId = value?.metadata?.phone_number_id;
-    if (!phoneNumberId) throw new BadRequestException('Meta webhook phone number id is missing.');
-    const connection = await this.connections.findMetaByPhoneNumberId(phoneNumberId);
-    if (!connection) throw new BadRequestException('Meta WhatsApp connection could not be resolved.');
-    const scope = { tenantId: connection.tenantId, companyId: connection.companyId, branchId: connection.branchId };
-    const status = value?.statuses?.[0];
-    if (status?.id && status.status) {
-      const mapped = status.status === 'failed' ? 'FAILED' : status.status === 'delivered' || status.status === 'read' ? 'DELIVERED' : 'SENT';
-      return {
-        ...scope,
-        type: 'DELIVERY',
-        externalEventId: `status:${status.id}:${status.status}:${status.timestamp ?? ''}`,
-        externalMessageId: status.id,
-        status: mapped,
-        errorMessage: status.errors?.[0]?.message ?? status.errors?.[0]?.title ?? null,
-      };
+    const events: CrmProviderWebhookEvent[] = [];
+
+    for (const entry of body.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        const value = change.value;
+        const phoneNumberId = value?.metadata?.phone_number_id;
+        if (!phoneNumberId) continue;
+
+        const connection = await this.connections.findMetaByPhoneNumberId(phoneNumberId);
+        if (!connection) {
+          throw new BadRequestException('Meta WhatsApp connection could not be resolved.');
+        }
+        const scope = {
+          tenantId: connection.tenantId,
+          companyId: connection.companyId,
+          branchId: connection.branchId,
+        };
+
+        for (const status of value?.statuses ?? []) {
+          if (!status.id || !status.status) continue;
+          const mapped =
+            status.status === 'failed'
+              ? 'FAILED'
+              : status.status === 'delivered' || status.status === 'read'
+                ? 'DELIVERED'
+                : 'SENT';
+          events.push({
+            ...scope,
+            type: 'DELIVERY',
+            externalEventId: `status:${status.id}:${status.status}:${status.timestamp ?? ''}`,
+            externalMessageId: status.id,
+            status: mapped,
+            errorMessage: status.errors?.[0]?.message ?? status.errors?.[0]?.title ?? null,
+          });
+        }
+
+        for (const inbound of value?.messages ?? []) {
+          if (!inbound.id || !inbound.from || inbound.type !== 'text' || !inbound.text?.body) {
+            continue;
+          }
+          const match = await this.contacts.resolvePhone(scope, inbound.from);
+          events.push({
+            ...scope,
+            type: 'INBOUND',
+            externalEventId: `message:${inbound.id}`,
+            externalMessageId: inbound.id,
+            channel: 'WHATSAPP',
+            sender: inbound.from,
+            recipient: value?.metadata?.display_phone_number ?? phoneNumberId,
+            body: inbound.text.body,
+            ...(match.matched ? { customerId: match.customerId, leadId: match.leadId } : {}),
+          });
+        }
+      }
     }
-    const inbound = value?.messages?.[0];
-    if (!inbound?.id || !inbound.from || inbound.type !== 'text' || !inbound.text?.body) {
+
+    if (!events.length) {
       throw new BadRequestException('Unsupported Meta WhatsApp webhook payload.');
     }
-    const match = await this.contacts.resolvePhone(scope, inbound.from);
-    return {
-      ...scope,
-      type: 'INBOUND',
-      externalEventId: `message:${inbound.id}`,
-      externalMessageId: inbound.id,
-      channel: 'WHATSAPP',
-      sender: inbound.from,
-      recipient: value?.metadata?.display_phone_number ?? phoneNumberId,
-      body: inbound.text.body,
-      ...(match.matched ? { customerId: match.customerId, leadId: match.leadId } : {}),
-    };
+    return events;
   }
 
   private safeEqual(leftValue: string, rightValue: string) {
