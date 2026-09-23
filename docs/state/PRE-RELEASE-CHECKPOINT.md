@@ -1,6 +1,6 @@
 # VALOO — Pre-Release Checkpoint
 
-Last updated: 2026-09-13
+Last updated: 2026-09-23
 
 This file supersedes older roadmap statements in `docs/state/CURRENT-STATE.md` where they conflict with the active branch.
 
@@ -26,46 +26,33 @@ The release remains **NO-GO** until the blocker list in `docs/release/GO-LIVE-CH
 
 ## Current decision
 
-The production/staging deployment phase is intentionally **parked** for now.
+The **Staging & Production Infrastructure** phase is active.
 
-Until staging work is explicitly resumed:
+Repository-side deployment preparation is now implemented on `feature/core-commerce-foundation`:
 
-- do not spend development time on hosting-provider-specific deployment work
-- do not merge/push this work to `main`
-- keep Supplier Network feature expansion deferred
-- keep Marketplace feature expansion deferred
-- keep new backend domains deferred unless required by an application-level blocker
-- preserve the release hardening, migrations, E2E and RBAC gates already completed
-- shift active development focus to in-application CRM/ERP product improvements, workflows, UX and operational completeness
+- immutable SHA-tagged API/Web container contract
+- staging and production compose manifests
+- deployment environment templates and preflight validation
+- GHCR release-image publishing workflow
+- running-container revision verification
+- guarded migration/deploy helper
+- schema-aware rollback helper
+- non-secret release manifest generation
+- staging deployment and GitHub governance runbooks
 
-The staging/release work is not cancelled. It is a paused gate that will resume from `docs/release/PRE-RELEASE-RUNBOOK.md` when a staging environment/provider is selected.
+External infrastructure is not yet provisioned from this repository session. Production remains **NO-GO** until the managed services, DNS/TLS, branch protection, real backup/restore drill, staging acceptance and observability blockers in `docs/release/GO-LIVE-CHECKLIST.md` are closed.
 
-## Latest verified candidate
+## Candidate verification policy
 
-```text
-e1fec7e9cd4f1b93877062859d412cda62d9224e
-Monorepo quality #1370 — SUCCESS
-Run ID: 34770787008
-```
+Do not rely on a stale SHA recorded in documentation. The release candidate is the **exact current approved commit SHA** whose PR checks all complete successfully.
 
-Verified on the exact candidate SHA:
+Required exact-SHA checks:
 
-- release shell script syntax validation
-- frozen dependency installation
-- Prisma schema validation
-- all migrations applied to a fresh PostgreSQL database
-- Prisma client generation
-- database typecheck/build
-- shared contracts typecheck/build
-- API typecheck
-- API unit tests
-- API E2E tests
-- API production build
-- web lint
-- web typecheck
-- web production build
+- Monorepo quality
+- Security checks
+- Production container build
 
-The non-blocking commerce lint-debt reporting step still represents historical debt and is not considered resolved by this checkpoint.
+Any commit after a successful run creates a new candidate and requires fresh checks.
 
 ## Production hardening completed
 
@@ -169,31 +156,37 @@ Backend authorization remains authoritative; frontend permission checks are UX o
 
 ## Release tooling prepared
 
-The following release tooling is ready for the future staging phase:
+The following release tooling is prepared:
 
 - `docs/release/PRE-RELEASE-RUNBOOK.md`
+- `docs/release/GO-LIVE-CHECKLIST.md`
+- `docs/release/STAGING-DEPLOYMENT.md`
+- `docs/release/GITHUB-GOVERNANCE.md`
 - `scripts/release/verify-api-health.sh`
-- `scripts/release/verify-backup-restore.sh`
+- `scripts/release/verify-production-runtime.sh`
+- `scripts/release/verify-deployment-env.sh`
+- `scripts/release/verify-running-release.sh`
+- `scripts/release/verify-postgres-backup-restore.sh`
+- `scripts/release/deploy-compose-release.sh`
+- `scripts/release/rollback-compose-release.sh`
 
-These tools have been CI syntax-validated but the real backup/restore and deployed health checks have **not** yet been executed against a staging environment.
+The repository tooling is CI-validated, but a real backup/restore and deployed staging health/golden-path run still require an external staging environment.
 
-## Parked staging work
+## External staging work remaining
 
-When staging work is resumed, continue from this exact list rather than redesigning the deployment phase:
-
-1. select the staging/hosting topology for API, Web, PostgreSQL and Redis
-2. deploy the exact approved candidate with production-equivalent environment values
-3. run the backup/restore recovery drill
-4. verify `/health/live` and `/health/ready` behind the real load balancer/reverse proxy
-5. run the release runbook golden-path smoke tests using a dedicated staging tenant
-6. run non-owner RBAC smoke tests in staging
-7. fix only regressions exposed by the deployed environment
-8. make the explicit production-release decision
+1. select/provision the actual staging and production hosting/provider topology
+2. provision private PostgreSQL, Redis and object storage
+3. configure TLS, DNS, reverse proxy/load balancer and secret storage
+4. protect `main` according to `docs/release/GITHUB-GOVERNANCE.md`
+5. publish and deploy the exact approved candidate
+6. run the real backup/restore recovery drill
+7. verify `/health/live` and `/health/ready` behind the real proxy
+8. run golden-path, RBAC and tenant-isolation acceptance tests
+9. configure production observability and alerts
+10. make the explicit production-release decision
 
 ## Active next phase
 
-The active development phase is now **In-Application CRM/ERP Product Development**.
+The active phase is **Staging & Production Infrastructure** until the external blockers above are closed.
 
-Use `docs/state/IN-APP-DEVELOPMENT-FOCUS.md` as the current planning entry point.
-
-Supplier Network, Marketplace expansion and staging/deployment work remain parked unless explicitly reactivated.
+Supplier Network and Marketplace expansion remain deferred unless they are required to fix a release blocker.
