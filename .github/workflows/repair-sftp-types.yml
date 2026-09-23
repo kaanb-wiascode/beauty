@@ -1,0 +1,57 @@
+name: Repair SFTP type dependency
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+    paths:
+      - .github/workflows/repair-sftp-types.yml
+
+permissions:
+  contents: write
+
+concurrency:
+  group: repair-sftp-type-dependency
+  cancel-in-progress: false
+
+jobs:
+  repair:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - name: Checkout feature branch
+        uses: actions/checkout@v4
+        with:
+          ref: feature/core-commerce-foundation
+          fetch-depth: 0
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22.13.1
+
+      - name: Add SFTP TypeScript declarations
+        run: pnpm --filter api add --save-dev --save-exact @types/ssh2-sftp-client@9.0.6
+
+      - name: Verify lockfile and audit
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm audit --prod --audit-level=high
+
+      - name: Commit dependency update and remove helper
+        shell: bash
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git rm .github/workflows/repair-sftp-types.yml
+          git add apps/api/package.json pnpm-lock.yaml
+          git commit -m "chore(finance): add SFTP TypeScript declarations"
+          git fetch origin feature/core-commerce-foundation
+          git rebase origin/feature/core-commerce-foundation
+          git push origin HEAD:feature/core-commerce-foundation
