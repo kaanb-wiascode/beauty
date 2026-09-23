@@ -40,11 +40,15 @@ PY
 )"
 [[ -n "$staging_host" ]] || fail "Unable to parse staging hostname"
 
-echo "Checking DNS resolution for $staging_host..."
-getent ahosts "$staging_host" >/dev/null || fail "STAGING_URL hostname does not resolve"
+if [[ "${STAGING_SKIP_PUBLIC_ENDPOINT:-false}" != "true" ]]; then
+  echo "Checking DNS resolution for $staging_host..."
+  getent ahosts "$staging_host" >/dev/null || fail "STAGING_URL hostname does not resolve"
 
-echo "Checking public TLS endpoint..."
-curl --fail --silent --show-error --location --max-time 15 "${STAGING_URL%/}/login" >/dev/null   || fail "Staging HTTPS endpoint is not reachable with a valid certificate"
+  echo "Checking public TLS endpoint..."
+  curl --fail --silent --show-error --location --max-time 15 "${STAGING_URL%/}/login" >/dev/null     || fail "Staging HTTPS endpoint is not reachable with a valid certificate"
+else
+  echo "Skipping public DNS/TLS endpoint check for pre-deploy bootstrap."
+fi
 
 coolify_base="${COOLIFY_API_URL%/}"
 echo "Checking Coolify application access..."
