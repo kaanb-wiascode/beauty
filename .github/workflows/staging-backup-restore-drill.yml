@@ -43,6 +43,7 @@ jobs:
         env:
           DATABASE_URL: ${{ secrets.STAGING_DATABASE_URL }}
           RESTORE_TEST_DATABASE_URL: ${{ secrets.STAGING_RESTORE_TEST_DATABASE_URL }}
+          RESTORE_TEST_ACKNOWLEDGE_DISPOSABLE: "true"
           KEEP_BACKUP: "0"
         run: bash scripts/release/verify-postgres-backup-restore.sh
 
