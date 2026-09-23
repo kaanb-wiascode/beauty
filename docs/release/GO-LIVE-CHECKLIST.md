@@ -13,7 +13,10 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 - [x] Web lint, typecheck and production build are blocking quality gates.
 - [x] Production API/Web runtime smoke is part of the quality workflow.
 - [x] API and Web production container images are built in PR CI.
+- [x] API and Web container images are blocked on fixable HIGH/CRITICAL OS/library vulnerabilities.
 - [x] CodeQL, high/critical production dependency audit and secret history scan are configured.
+- [x] All GitHub Actions workflow files are statically validated with pinned actionlint.
+- [x] Commerce release-surface lint is a blocking quality gate.
 - [x] Next.js is pinned to the patched 16.3.3 release after critical security audit findings.
 - [x] Production secrets are excluded from source-controlled environment files.
 - [x] Release backups, report exports, dump files and local release manifests are Git-ignored.
@@ -22,8 +25,12 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 - [x] API/Web images carry the exact Git revision as OCI metadata.
 - [x] GHCR publishing workflow produces SHA-tagged API/Web images.
 - [x] Guarded deploy and schema-aware rollback helpers are present.
-- [x] Coolify proxy-safe staging Compose manifest is present.
-- [x] Manual staging promotion workflow verifies required checks and running release SHA.
+- [x] Coolify proxy-safe staging and production Compose manifests are present.
+- [x] Staging promotion applies migrations before deployment and pins API/Web by SHA + digest.
+- [x] Successful staging deployment emits an immutable release attestation artifact.
+- [x] Production promotion consumes the staging attestation and refuses to rebuild the images.
+- [x] Production promotion requires main ancestry, CI gates, backup confirmation, migrations and smoke verification.
+- [x] Production promotion creates the immutable GitHub release/tag only after successful production verification.
 
 ## 2. Authentication and application security
 
@@ -50,6 +57,8 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 
 These are repository administration settings and are not represented only by code in this branch.
 
+The repository contains `.github/workflows/configure-main-protection.yml`, but the attempted enforcement run could not proceed because the required `REPO_ADMIN_TOKEN` secret is not configured. Do not mark this section complete until the repository setting itself is verified as protected.
+
 ## 4. Production infrastructure — BLOCKER
 
 - [ ] **BLOCKER:** select production/staging hosting provider.
@@ -66,9 +75,14 @@ Repository-side infrastructure preparation is complete:
 
 - [x] production compose manifest
 - [x] staging compose manifest
+- [x] Coolify staging and production compose manifests
 - [x] staging/production environment templates
 - [x] deployment preflight validation
+- [x] staging and production external-infrastructure preflight scripts/workflows
+- [x] Coolify staging and production bootstrap helpers/workflows
 - [x] immutable image identity verification
+- [x] digest-pinned staging attestation
+- [x] staging-attested production promotion workflow
 - [x] release deployment manifest generation
 
 Repository deployment reference:
@@ -76,6 +90,8 @@ Repository deployment reference:
 ```text
 infrastructure/docker-compose.staging.yml
 infrastructure/docker-compose.production.yml
+infrastructure/docker-compose.coolify.staging.yml
+infrastructure/docker-compose.coolify.production.yml
 infrastructure/staging.env.example
 infrastructure/production.env.example
 apps/api/Dockerfile
@@ -83,6 +99,7 @@ apps/web/Dockerfile
 scripts/release/deploy-compose-release.sh
 scripts/release/rollback-compose-release.sh
 docs/release/STAGING-DEPLOYMENT.md
+docs/release/COOLIFY-PRODUCTION-SETUP.md
 ```
 
 ## 5. Backup and recovery — BLOCKER
@@ -128,6 +145,13 @@ Deploy the **exact candidate SHA** that will be promoted to production.
 
 ## 7. Observability and incident readiness — BLOCKER
 
+Repository baseline prepared:
+
+- [x] Production synthetic monitor checks Web availability, API liveness/readiness, release identity, security headers and latency every 10 minutes once `PRODUCTION_URL` is configured.
+- [x] Synthetic failures can be forwarded to `PRODUCTION_ALERT_WEBHOOK_URL`.
+
+External operational controls still required:
+
 - [ ] **BLOCKER:** central log aggregation is configured.
 - [ ] **BLOCKER:** uptime monitoring is configured.
 - [ ] **BLOCKER:** 5xx alert is configured.
@@ -141,12 +165,14 @@ All incident investigation must preserve request/correlation IDs and must never 
 
 ## 8. Release promotion
 
+Repository automation is prepared in `.github/workflows/deploy-production-coolify.yml`.
+
 Only after all blockers above are closed:
 
 - [ ] Freeze the approved candidate SHA.
 - [ ] Record database backup/snapshot identifier.
 - [ ] Apply `prisma migrate deploy`.
-- [ ] Deploy API and Web from the same SHA.
+- [ ] Deploy the exact API and Web digests attested by staging for the same SHA.
 - [ ] Run `scripts/release/verify-api-health.sh`.
 - [ ] Run production smoke journeys.
 - [ ] Create the immutable production release/tag.
