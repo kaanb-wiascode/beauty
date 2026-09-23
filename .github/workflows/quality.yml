@@ -116,6 +116,8 @@ jobs:
         run: pnpm --filter api exec jest --config ./test/jest-e2e.json --runInBand
 
       - name: Build API
+        env:
+          NODE_ENV: production
         run: pnpm --filter api build
 
       - name: Lint web
@@ -125,4 +127,62 @@ jobs:
         run: pnpm --filter web typecheck
 
       - name: Build web
+        env:
+          NODE_ENV: production
+          API_URL: http://127.0.0.1:3000
         run: pnpm --filter web build
+
+      - name: Start API production runtime
+        env:
+          NODE_ENV: production
+          CORS_ORIGINS: https://app.valoo.example
+          TRUST_PROXY: 'false'
+          OBJECT_STORAGE_BUCKET: valoo-ci-private
+          OBJECT_STORAGE_REGION: eu-central-1
+          OBJECT_STORAGE_ENDPOINT: https://storage.valoo.example
+          OBJECT_STORAGE_ACCESS_KEY_ID: ci-access-key
+          OBJECT_STORAGE_SECRET_ACCESS_KEY: ci-secret-key
+          OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+          REPORT_EXPORT_STORAGE_DRIVER: object
+          REPORT_EXPORT_WORKER_ENABLED: 'true'
+        run: |
+          pnpm --filter api start:prod >/tmp/valoo-api.log 2>&1 &
+          echo $! >/tmp/valoo-api.pid
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3000/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/valoo-api.log
+          exit 1
+
+      - name: Start web production runtime
+        env:
+          NODE_ENV: production
+          API_URL: http://127.0.0.1:3000
+        run: |
+          pnpm --filter web start -- -p 3001 >/tmp/valoo-web.log 2>&1 &
+          echo $! >/tmp/valoo-web.pid
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3001/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/valoo-web.log
+          exit 1
+
+      - name: Verify production runtime
+        env:
+          API_BASE_URL: http://127.0.0.1:3000
+          WEB_BASE_URL: http://127.0.0.1:3001
+        run: bash scripts/release/verify-production-runtime.sh
+
+      - name: Stop production runtime
+        if: always()
+        run: |
+          if [[ -f /tmp/valoo-web.pid ]]; then kill "$(cat /tmp/valoo-web.pid)" || true; fi
+          if [[ -f /tmp/valoo-api.pid ]]; then kill "$(cat /tmp/valoo-api.pid)" || true; fi
+          if [[ -f /tmp/valoo-web.log ]]; then tail -n 100 /tmp/valoo-web.log; fi
+          if [[ -f /tmp/valoo-api.log ]]; then tail -n 100 /tmp/valoo-api.log; fi
