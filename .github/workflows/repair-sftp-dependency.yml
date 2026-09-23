@@ -53,4 +53,6 @@ jobs:
             exit 0
           fi
           git commit -m "fix(finance): add iyzico SFTP runtime dependency"
+          git fetch origin feature/core-commerce-foundation
+          git rebase origin/feature/core-commerce-foundation
           git push origin HEAD:feature/core-commerce-foundation
