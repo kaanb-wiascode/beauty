@@ -76,7 +76,7 @@ export class TrainingCourseModuleService {
     if (!title) throw new BadRequestException('Module title is required.');
 
     return this.prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `training-modules:${versionId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`, `training-modules:${versionId}`);
       const nextRows = await tx.$queryRawUnsafe<any[]>(
         `SELECT COALESCE(MAX(sequence),0)+1 AS sequence
          FROM training_course_modules
@@ -146,7 +146,7 @@ export class TrainingCourseModuleService {
     await this.assertDraftVersion(versionId);
     const c = this.context();
     return this.prisma.$transaction(async tx => {
-      await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`, `training-modules:${versionId}`);
+      await tx.$executeRawUnsafe(`WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 FROM _advisory_lock`, `training-modules:${versionId}`);
       const rows = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,sequence FROM training_course_modules
          WHERE tenant_id=$1::text AND company_id=$2::text AND course_version_id=$3::text
