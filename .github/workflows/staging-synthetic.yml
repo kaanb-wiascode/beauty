@@ -1,0 +1,39 @@
+name: Staging synthetic monitor
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "17 * * * *"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: staging-synthetic
+  cancel-in-progress: true
+
+jobs:
+  synthetic:
+    name: Staging health and release identity
+    if: ${{ vars.STAGING_URL != '' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: staging
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify public staging
+        env:
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        run: bash scripts/release/verify-public-staging.sh
+
+      - name: Notify staging monitor failure
+        if: failure() && secrets.STAGING_ALERT_WEBHOOK_URL != ''
+        env:
+          STAGING_ALERT_WEBHOOK_URL: ${{ secrets.STAGING_ALERT_WEBHOOK_URL }}
+          STAGING_URL: ${{ vars.STAGING_URL }}
+        shell: bash
+        run: |
+          payload="$(jq -nc             --arg repo "$GITHUB_REPOSITORY"             --arg run "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY/actions/runs/$GITHUB_RUN_ID"             --arg staging "$STAGING_URL"             '{event:"staging_synthetic_failed",repository:$repo,stagingUrl:$staging,runUrl:$run}')"
+          curl --fail --silent --show-error             --request POST             --header 'content-type: application/json'             --data "$payload"             "$STAGING_ALERT_WEBHOOK_URL"
