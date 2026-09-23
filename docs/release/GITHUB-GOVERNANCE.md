@@ -45,3 +45,11 @@ The promoted SHA must have successful results for:
 5. backup/restore verification
 
 After a candidate changes, prior CI/staging acceptance is not transferable to the new SHA.
+
+## Automated setup
+
+The repository includes the manual workflow `Configure main protection`.
+
+Create a repository/environment secret named `REPO_ADMIN_TOKEN` using a fine-grained token with **Administration: write** permission for this repository, then run the workflow once. The workflow enables PR-based updates with zero required approvals, enforces the six release-critical checks, applies admin enforcement, requires conversation resolution, and blocks force-push/deletion.
+
+The workflow changes repository governance only; it does not merge or write application code to `main`.
