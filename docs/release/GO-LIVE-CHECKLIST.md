@@ -16,7 +16,12 @@ A production release is **NO-GO** while any item marked **BLOCKER** is incomplet
 - [x] CodeQL, critical dependency audit and secret history scan are configured.
 - [x] Next.js is pinned to the patched 16.3.3 release after critical security audit findings.
 - [x] Production secrets are excluded from source-controlled environment files.
-- [x] Release backups, report exports and dump files are Git-ignored.
+- [x] Release backups, report exports, dump files and local release manifests are Git-ignored.
+- [x] Staging and production compose manifests deploy immutable SHA-tagged images.
+- [x] Deployment environment preflight and compose validation run in CI.
+- [x] API/Web images carry the exact Git revision as OCI metadata.
+- [x] GHCR publishing workflow produces SHA-tagged API/Web images.
+- [x] Guarded deploy and schema-aware rollback helpers are present.
 
 ## 2. Authentication and application security
 
@@ -55,12 +60,27 @@ These are repository administration settings and are not represented only by cod
 - [ ] **BLOCKER:** configure reverse proxy/load balancer health checks against `/health/ready`.
 - [ ] Configure WAF / edge rate limiting where supported.
 
+Repository-side infrastructure preparation is complete:
+
+- [x] production compose manifest
+- [x] staging compose manifest
+- [x] staging/production environment templates
+- [x] deployment preflight validation
+- [x] immutable image identity verification
+- [x] release deployment manifest generation
+
 Repository deployment reference:
 
 ```text
+infrastructure/docker-compose.staging.yml
 infrastructure/docker-compose.production.yml
+infrastructure/staging.env.example
+infrastructure/production.env.example
 apps/api/Dockerfile
 apps/web/Dockerfile
+scripts/release/deploy-compose-release.sh
+scripts/release/rollback-compose-release.sh
+docs/release/STAGING-DEPLOYMENT.md
 ```
 
 ## 5. Backup and recovery — BLOCKER
