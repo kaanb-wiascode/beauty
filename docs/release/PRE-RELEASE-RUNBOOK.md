@@ -53,6 +53,14 @@ The GitHub `Monorepo quality` workflow must be fully green on the exact candidat
 
 A cancelled/superseded run is not a release gate. Use the latest completed run for the exact candidate SHA.
 
+The candidate must also pass:
+
+- `Security checks` — CodeQL, critical production dependency audit and secret-history scan
+- `Production container build` — API and Web image builds
+- production runtime smoke inside `Monorepo quality`
+
+GitHub `main` protection must require these checks before production merge.
+
 ## 3. Required production environment
 
 The API startup validation must succeed before traffic is accepted.
@@ -62,6 +70,13 @@ Required production values include the repository's validated database, Redis an
 ```text
 NODE_ENV=production
 CORS_ORIGINS=https://<web-domain>
+REPORT_EXPORT_STORAGE_DRIVER=object
+REPORT_EXPORT_WORKER_ENABLED=true
+
+OBJECT_STORAGE_BUCKET=<private-bucket>
+OBJECT_STORAGE_REGION=<region>
+OBJECT_STORAGE_ACCESS_KEY_ID=<secret-store-value>
+OBJECT_STORAGE_SECRET_ACCESS_KEY=<secret-store-value>
 ```
 
 `CORS_ORIGINS` must contain only explicitly approved HTTPS web origins. Do not use `*`.
@@ -69,6 +84,10 @@ CORS_ORIGINS=https://<web-domain>
 When deployed behind a trusted reverse proxy/load balancer, configure the repository-supported proxy setting appropriately. Do not enable proxy trust blindly on an internet-facing process.
 
 Secrets must be delivered through the deployment platform's secret store. Never commit `.env` production files.
+
+Production startup rejects non-HTTPS CORS origins, incomplete private object storage, filesystem report exports and a disabled report-export worker.
+
+The primary browser refresh session is cookie-backed. Production refresh tokens must not be persisted in browser local/session storage or accepted from the request body. The API issues the refresh session as an HttpOnly, Secure, SameSite cookie and rotates it on refresh/context changes.
 
 ## 4. Database backup before migration
 
@@ -121,6 +140,17 @@ Rules:
 
 ## 6. Build and start
 
+Production container references:
+
+```text
+apps/api/Dockerfile
+apps/web/Dockerfile
+infrastructure/docker-compose.production.yml
+```
+
+The compose file is an application-topology reference: PostgreSQL, Redis and object storage are expected to be externally managed/private services. Do not expose PostgreSQL or Redis directly to the public internet.
+
+
 API verification commands:
 
 ```bash
@@ -154,6 +184,16 @@ After deployment run:
 API_BASE_URL='https://<api-domain>' \
 bash scripts/release/verify-api-health.sh
 ```
+
+The CI production-runtime gate additionally runs:
+
+```bash
+API_BASE_URL='http://127.0.0.1:3000' \
+WEB_BASE_URL='http://127.0.0.1:3001' \
+bash scripts/release/verify-production-runtime.sh
+```
+
+This verifies API readiness, Web startup, required Web/API security headers and that a production refresh request without the HttpOnly cookie is rejected.
 
 The command must succeed for both `/health/live` and `/health/ready` before traffic is considered healthy.
 
@@ -259,3 +299,7 @@ The following are release blockers:
 - plaintext or exposed credentials/secrets
 
 Supplier Network and Marketplace feature expansion is not a blocker for this pre-release unless a change in those modules breaks the shared release gate.
+
+## 12. Final go-live decision
+
+Use `docs/release/GO-LIVE-CHECKLIST.md` as the authoritative final blocker list. Any unchecked item marked **BLOCKER** keeps the release in NO-GO state.
