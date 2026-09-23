@@ -20,9 +20,21 @@ fail() {
   exit 1
 }
 
+missing=()
 for name in "${required[@]}"; do
-  [[ -n "${!name:-}" ]] || fail "$name is required"
+  if [[ -z "${!name:-}" ]]; then
+    missing+=("$name")
+  fi
 done
+
+if (( ${#missing[@]} > 0 )); then
+  echo "error: staging infrastructure configuration is incomplete" >&2
+  echo "Missing values:" >&2
+  for name in "${missing[@]}"; do
+    echo "  - $name" >&2
+  done
+  exit 1
+fi
 
 for command in curl jq psql redis-cli python3 aws getent; do
   command -v "$command" >/dev/null 2>&1 || fail "$command is required"
