@@ -41,8 +41,8 @@ jobs:
             exit 1
           fi
 
-          if [[ ! "$url" =~ ^https://[^/]+(/.*)?$ ]]; then
-            echo "staging_url must be an HTTPS URL" >&2
+          if [[ ! "$url" =~ ^https://[^/]+$ ]]; then
+            echo "staging_url must be an HTTPS origin without a path" >&2
             exit 1
           fi
 
@@ -230,7 +230,7 @@ jobs:
           {
             echo "## VALOO staging deployment"
             echo
-            echo "- Release SHA: `$RELEASE_SHA`"
+            echo "- Release SHA: \`$RELEASE_SHA\`"
             echo "- Staging URL: $STAGING_URL"
-            echo "- Coolify deployment UUID: `${DEPLOYMENT_UUID:-not-created}`"
+            echo "- Coolify deployment UUID: \`${DEPLOYMENT_UUID:-not-created}\`"
           } >> "$GITHUB_STEP_SUMMARY"
