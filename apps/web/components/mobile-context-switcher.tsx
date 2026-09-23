@@ -21,7 +21,6 @@ type ContextOptions = {
 
 type SwitchContextResponse = {
   accessToken: string;
-  refreshToken: string;
 };
 
 export function MobileContextSwitcher() {
@@ -81,7 +80,6 @@ export function MobileContextSwitcher() {
 
       persistSession({
         accessToken: result.accessToken,
-        refreshToken: result.refreshToken,
       });
 
       window.location.reload();
