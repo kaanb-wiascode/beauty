@@ -323,7 +323,7 @@ export class QualityEvidenceService {
        )
        ON CONFLICT (tenant_id,company_id,object_key) DO NOTHING
        RETURNING id,kind,object_key AS "objectKey",original_filename AS "originalFilename",
-                 mime_type AS "mimeType",byte_size AS "byteSize",sha256,note,
+                 mime_type AS "mimeType",byte_size::int AS "byteSize",sha256,note,
                  captured_at AS "capturedAt",created_at AS "createdAt"`,
       c.tenantId,
       c.companyId,
@@ -343,7 +343,7 @@ export class QualityEvidenceService {
     if (rows.length) return { ...rows[0], duplicate: false };
     const existing = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,kind,object_key AS "objectKey",original_filename AS "originalFilename",
-              mime_type AS "mimeType",byte_size AS "byteSize",sha256,note,
+              mime_type AS "mimeType",byte_size::int AS "byteSize",sha256,note,
               captured_at AS "capturedAt",created_at AS "createdAt"
        FROM quality_evidence
        WHERE tenant_id=$1::text AND company_id=$2::text AND object_key=$3
@@ -361,7 +361,7 @@ export class QualityEvidenceService {
     const bounded = Math.min(Math.max(limit, 1), 200);
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,kind,object_key AS "objectKey",original_filename AS "originalFilename",
-              mime_type AS "mimeType",byte_size AS "byteSize",sha256,note,
+              mime_type AS "mimeType",byte_size::int AS "byteSize",sha256,note,
               captured_at AS "capturedAt",uploaded_by_user_id AS "uploadedByUserId",
               created_at AS "createdAt"
        FROM quality_evidence
