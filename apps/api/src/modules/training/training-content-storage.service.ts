@@ -127,7 +127,7 @@ export class TrainingContentStorageService {
        ON CONFLICT(tenant_id,company_id,object_key)
        DO UPDATE SET mime_type=EXCLUDED.mime_type,byte_size=EXCLUDED.byte_size,etag=EXCLUDED.etag,verified_at=NOW()
        WHERE training_managed_documents.course_version_id=EXCLUDED.course_version_id
-       RETURNING id,object_key AS "objectKey",mime_type AS "mimeType",byte_size AS "byteSize",
+       RETURNING id,object_key AS "objectKey",mime_type AS "mimeType",byte_size::int AS "byteSize",
                  etag,verified_at AS "verifiedAt",course_version_id AS "courseVersionId"`,
       c.tenantId,
       c.companyId,
