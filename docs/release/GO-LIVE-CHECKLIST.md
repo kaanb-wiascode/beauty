@@ -69,6 +69,7 @@ The repository contains `.github/workflows/configure-main-protection.yml`, but t
 - [ ] **BLOCKER:** configure TLS certificates and production DNS.
 - [ ] **BLOCKER:** keep PostgreSQL and Redis off the public internet.
 - [ ] **BLOCKER:** configure reverse proxy/load balancer health checks against `/health/ready`.
+- [ ] **BLOCKER:** verify every Coolify deployment node can pull the immutable GHCR API/Web image digests (public package or authenticated private registry access).
 - [ ] Configure WAF / edge rate limiting where supported.
 
 Repository-side infrastructure preparation is complete:
