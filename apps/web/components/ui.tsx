@@ -83,7 +83,7 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
       <div className="min-w-0 max-w-xl">
-        <h1 className="text-[30px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[40px]">
+        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[32px]">
           {title}
         </h1>
 
@@ -110,26 +110,39 @@ export function PageHeader({
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "success" | "link";
+  size?: "sm" | "md" | "lg" | "icon";
 };
 
 export function Button({
   children,
   type = "button",
   variant = "primary",
+  size = "md",
   disabled,
   className,
   ...props
 }: ButtonProps) {
   const variants = {
     primary:
-      "border border-[#DED9D3] bg-[#F3F1EE] text-[#514A43] shadow-[0_2px_8px_rgba(81,74,67,0.06)] hover:bg-[#EAE7E3] active:bg-[#E4E0DB]",
+      "border border-[var(--accent)] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white shadow-[0_7px_18px_rgba(22,116,189,.17)] hover:shadow-[0_9px_24px_rgba(22,116,189,.22)]",
     secondary:
-      "bg-white/70 text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)] hover:bg-white",
+      "border border-[var(--line)] bg-white text-[var(--ink)] shadow-[0_1px_2px_rgba(17,70,104,.03)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]",
     ghost:
-      "text-[var(--muted)] hover:bg-black/[0.04] hover:text-[var(--ink)]",
+      "border border-transparent bg-transparent text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
     danger:
-      "text-[#8f3d3d] hover:bg-[rgba(143,61,61,0.08)] hover:text-[#7a3333]",
+      "border border-transparent bg-[var(--danger-soft)] text-[var(--danger)] hover:border-[rgba(196,81,103,.18)] hover:bg-[#ffe6eb]",
+    success:
+      "border border-transparent bg-[var(--secondary)] text-white shadow-[0_6px_16px_rgba(23,138,97,.14)] hover:bg-[var(--secondary-strong)]",
+    link:
+      "border border-transparent bg-transparent px-0 text-[var(--accent)] shadow-none hover:text-[var(--accent-strong)]",
+  };
+
+  const sizes = {
+    sm: "min-h-9 rounded-[10px] px-3 text-[12px]",
+    md: "min-h-[42px] rounded-[12px] px-4 text-[14px]",
+    lg: "min-h-12 rounded-[14px] px-5 text-[14px]",
+    icon: "h-[42px] w-[42px] rounded-[12px] p-0",
   };
 
   return (
@@ -138,8 +151,9 @@ export function Button({
       type={type}
       disabled={disabled}
       className={cx(
-        "inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] px-4 py-2.5 text-[14px] font-medium tracking-[-0.01em] transition-[transform,background-color,border-color,opacity,color,box-shadow] duration-[180ms] [transition-timing-function:var(--ease-out)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
+        "inline-flex items-center justify-center gap-2 font-medium tracking-[-0.01em] transition-[transform,background-color,border-color,opacity,color,box-shadow] duration-[var(--motion-base)] [transition-timing-function:var(--ease-out)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
+        sizes[size],
         variants[variant],
         className,
       )}
@@ -153,14 +167,18 @@ export function Field({
   label,
   children,
   required,
+  hint,
+  error,
 }: {
   label: string;
   children: ReactNode;
   required?: boolean;
+  hint?: ReactNode;
+  error?: ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[13px] font-medium text-[var(--muted)]">
+      <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">
         {label}
         {required ? (
           <span className="ml-1 text-[var(--accent)]" aria-hidden="true">
@@ -169,6 +187,15 @@ export function Field({
         ) : null}
       </span>
       {children}
+      {error ? (
+        <span className="mt-1.5 block text-[12px] leading-5 text-[var(--danger)]">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="mt-1.5 block text-[12px] leading-5 text-[var(--muted)]">
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -340,7 +367,7 @@ export function Pagination({
 
 export function Panel({ children }: { children: ReactNode }) {
   return (
-    <section className="surface overflow-hidden rounded-[28px]">
+    <section className="surface overflow-hidden rounded-[20px]">
       {children}
     </section>
   );
@@ -356,7 +383,7 @@ export function GlassCard({
   return (
     <article
       className={cx(
-        "glass-elevated rounded-[28px] p-7",
+        "glass-elevated rounded-[22px] p-6",
         className,
       )}
     >
