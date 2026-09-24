@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -76,7 +76,7 @@ export default function HrActionCenterPage() {
   return <div className="mx-auto max-w-[1380px] space-y-6 pb-12">
     <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_12px_36px_rgba(17,70,104,0.04)] xl:flex-row xl:items-end xl:justify-between">
       <div><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">İnsan Kaynakları Operasyonu</p><h1 className="text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">İK Aksiyon Merkezi</h1><p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Bekleyen izinleri, devamsızlık/fazla mesai risklerini, bordro durumunu ve ödeme yükümlülüklerini tek karar ekranında izleyin.</p></div>
-      <div className="flex flex-wrap gap-2"><input className="control h-10 w-24" type="number" min="2000" max="2100" value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="Yıl" /><select className="control h-10 min-w-[110px]" value={month} onChange={(event) => setMonth(Number(event.target.value))} aria-label="Ay">{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}. Ay</option>)}</select><Button variant="secondary" onClick={() => void load()} disabled={loading}>Yenile</Button></div>
+      <div className="flex flex-wrap gap-2"><input className="control h-10 w-24" type="number" min="2000" max="2100" value={year} onChange={(event) => setYear(Number(event.target.value))} aria-label="Yıl" /><Select className="control h-10 min-w-[110px]" value={month} onChange={(event) => setMonth(Number(event.target.value))} aria-label="Ay">{Array.from({ length: 12 }, (_, index) => <option key={index + 1} value={index + 1}>{index + 1}. Ay</option>)}</Select><Button variant="secondary" onClick={() => void load()} disabled={loading}>Yenile</Button></div>
     </header>
 
     {moduleErrors ? <Alert>{moduleErrors} İK veri kaynağına erişilemedi. Kullanılabilir göstergeler gösterilmeye devam ediyor.</Alert> : null}
