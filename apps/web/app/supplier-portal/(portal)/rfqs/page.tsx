@@ -6,6 +6,7 @@ import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { supplierPortalApi } from "@/lib/supplier-portal-api";
 import { getSupplierPortalSession } from "@/lib/supplier-portal-auth";
+import { userLabel } from "@/lib/user-language";
 
 type RfqListRow = {
   id: string;
@@ -384,7 +385,7 @@ export default function SupplierRfqPage() {
             <div className="space-y-5">
               <section className="rounded-[20px] border border-[#dfe7ed] bg-white p-5">
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#7a8792]">{REQUEST_STATUS[detail.status] || "Durum Bilinmiyor"}</p><h2 className="mt-1 text-[22px] font-semibold tracking-[-.03em]">{detail.title}</h2><p className="mt-2 text-[12px] text-[#667482]">{detail.warehouseName} · Son Yanıt {formatDate(detail.responseDeadline)}</p></div>
+                  <div><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[#7a8792]">{REQUEST_STATUS[detail.status] || userLabel(detail.status)}</p><h2 className="mt-1 text-[22px] font-semibold tracking-[-.03em]">{detail.title}</h2><p className="mt-2 text-[12px] text-[#667482]">{detail.warehouseName} · Son Yanıt {formatDate(detail.responseDeadline)}</p></div>
                   <div className="rounded-[14px] bg-[#f6f8fb] px-4 py-3 text-right"><p className="text-[10px] text-[#7a8792]">Teklif Durumu</p><p className="mt-1 text-[13px] font-semibold">{QUOTE_STATUS[detail.quoteStatus || ""] || "Henüz Oluşturulmadı"}</p></div>
                 </div>
                 {detail.note ? <p className="mt-4 rounded-[14px] bg-[#f7fafc] px-4 py-3 text-[12px] leading-5 text-[#52616d]">{detail.note}</p> : null}
