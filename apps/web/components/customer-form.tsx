@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/date-picker";
 import type { Dispatch, FormEvent, SetStateAction } from "react";
 
 import {
@@ -141,10 +142,10 @@ export function CustomerEditorForm({
               />
             </Field>
             <Field label="Doğum tarihi">
-              <TextInput
-                type="date"
+              <DatePicker
                 value={form.birthDate}
-                onChange={(event) => setForm((current) => ({ ...current, birthDate: event.target.value }))}
+                ariaLabel="Doğum tarihi"
+                onChange={(birthDate) => setForm((current) => ({ ...current, birthDate }))}
               />
             </Field>
             <Field label="Müşteri kaynağı">
