@@ -32,6 +32,7 @@ import {
   Th,
 } from "@/components/ui";
 import { CardInfo } from "@/components/card-info";
+import { DatePicker } from "@/components/date-picker";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -1027,13 +1028,14 @@ function CustomerModal({
             </div>
             <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Doğum tarihi">
-                <TextInput
-                  type="date"
+                <DatePicker
                   value={form.birthDate}
-                  onChange={(event) =>
+                  max={new Date().toISOString().slice(0, 10)}
+                  ariaLabel="Doğum tarihi"
+                  onChange={(value) =>
                     setForm({
                       ...form,
-                      birthDate: event.target.value,
+                      birthDate: value,
                     })
                   }
                 />
