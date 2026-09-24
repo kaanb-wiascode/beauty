@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Select, FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -262,8 +262,8 @@ export default function MarketingLeadsPage() {
 
       {showForm && canManage ? (
         <form onSubmit={(e) => void createLead(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak<select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option>MANUAL</option><option>META</option><option>GOOGLE_ADS</option><option>TIKTOK</option><option>WEBSITE</option><option>WHATSAPP</option><option>OTHER</option></select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Kampanya<select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak<Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option>MANUAL</option><option>META</option><option>GOOGLE_ADS</option><option>TIKTOK</option><option>WEBSITE</option><option>WHATSAPP</option><option>OTHER</option></Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Kampanya<Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Provider Lead ID<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="Opsiyonel" /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Ad<input required className={fieldClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Soyad<input required className={fieldClass} value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
@@ -280,8 +280,8 @@ export default function MarketingLeadsPage() {
             <h2 className="text-[15px] font-semibold text-[var(--ink)]">Marketing Lead Randevusu</h2>
             <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif müşteri, hizmet ve personel aynı şubede doğrulanır; personel çakışması varsa işlem reddedilir.</p>
           </div>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Hizmet<select required className={fieldClass} value={appointmentServiceId} onChange={(e) => setAppointmentServiceId(e.target.value)}><option value="">Hizmet seçin</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.durationMinutes} dk</option>)}</select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Personel<select required className={fieldClass} value={appointmentStaffId} onChange={(e) => setAppointmentStaffId(e.target.value)}><option value="">Personel seçin</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.firstName} {item.lastName}</option>)}</select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Hizmet<Select required className={fieldClass} value={appointmentServiceId} onChange={(e) => setAppointmentServiceId(e.target.value)}><option value="">Hizmet seçin</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.durationMinutes} dk</option>)}</Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Personel<Select required className={fieldClass} value={appointmentStaffId} onChange={(e) => setAppointmentStaffId(e.target.value)}><option value="">Personel seçin</option>{staff.map((item) => <option key={item.id} value={item.id}>{item.firstName} {item.lastName}</option>)}</Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Başlangıç<input required type="datetime-local" className={fieldClass} value={appointmentStartAt} onChange={(e) => setAppointmentStartAt(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Bitiş<input required type="datetime-local" className={fieldClass} value={appointmentEndAt} onChange={(e) => setAppointmentEndAt(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Not<input className={fieldClass} value={appointmentNotes} onChange={(e) => setAppointmentNotes(e.target.value)} placeholder="Kampanya / görüşme notu" /></label>
