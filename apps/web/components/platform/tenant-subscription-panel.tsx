@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui";
 
 import { ApiError } from "@/lib/api";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 import {
   assignPlatformTenantSubscription,
   getPlatformTenantSubscription,
@@ -45,7 +46,7 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
       })
       .catch((reason: unknown) => {
         if (!active) return;
-        setError(reason instanceof ApiError ? reason.message : "Abonelik bilgileri yüklenemedi.");
+        setError(reason instanceof ApiError ? userErrorMessage(reason.message, "Abonelik bilgileri yüklenemedi.") : "Abonelik bilgileri yüklenemedi.");
       });
     return () => { active = false; };
   }, [tenantId]);
@@ -68,9 +69,9 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
         renewsAt: renewsAt || null,
       });
       setSubscription(next);
-      setMessage("Yeni subscription snapshot oluşturuldu; önceki aktif kontrat kapatıldı.");
+      setMessage("Yeni abonelik kaydı oluşturuldu; önceki aktif sözleşme kapatıldı.");
     } catch (reason: unknown) {
-      setError(reason instanceof ApiError ? reason.message : "Abonelik güncellenemedi.");
+      setError(reason instanceof ApiError ? userErrorMessage(reason.message, "Abonelik güncellenemedi.") : "Abonelik güncellenemedi.");
     } finally {
       setSaving(false);
     }
@@ -80,12 +81,12 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
     <section className="rounded-[26px] border border-white/10 bg-white/[.035] p-5 backdrop-blur-xl sm:p-6">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <div>
-          <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-white/30">Subscription & contract</p>
+          <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-white/30">Abonelik ve sözleşme</p>
           <h2 className="mt-1 text-base font-semibold text-white">Plan ve abonelik</h2>
           <p className="mt-2 text-xs text-white/40">Katalog versiyonu ile müşterinin sözleşme fiyatı ayrı tutulur.</p>
         </div>
         <div className="rounded-2xl border border-white/[.08] bg-black/15 px-4 py-3 text-xs text-white/55">
-          {subscription ? `${subscription.planName} · v${subscription.planVersion} · ${subscription.status}` : "Aktif abonelik yok"}
+          {subscription ? `${subscription.planName} · Sürüm ${subscription.planVersion} · ${userLabel(subscription.status)}` : "Aktif abonelik yok"}
         </div>
       </div>
 
@@ -98,28 +99,28 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
         </label>
         <label className="text-[10px] text-white/45">Durum
           <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white">
-            <option value="TRIAL">TRIAL</option><option value="ACTIVE">ACTIVE</option><option value="PAST_DUE">PAST_DUE</option>
+            <option value="TRIAL">Deneme</option><option value="ACTIVE">Aktif</option><option value="PAST_DUE">Ödemesi gecikmiş</option>
           </Select>
         </label>
-        <label className="text-[10px] text-white/45">Aylık kontrat
+        <label className="text-[10px] text-white/45">Aylık sözleşme bedeli
           <input value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
         </label>
-        <label className="text-[10px] text-white/45">Yıllık kontrat
+        <label className="text-[10px] text-white/45">Yıllık sözleşme bedeli
           <input value={annual} onChange={(e) => setAnnual(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
         </label>
         <label className="text-[10px] text-white/45">İndirim %
           <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
         </label>
-        <label className="text-[10px] text-white/45">Renewal
+        <label className="text-[10px] text-white/45">Yenileme tarihi
           <input type="date" value={renewsAt} onChange={(e) => setRenewsAt(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
         </label>
       </div>
 
       <div className="mt-4 flex flex-wrap items-center gap-3">
         <button onClick={save} disabled={saving} className="rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-2.5 text-xs font-semibold text-violet-100 disabled:opacity-50">
-          {saving ? "Kaydediliyor…" : "Subscription snapshot oluştur"}
+          {saving ? "Kaydediliyor…" : "Abonelik kaydını oluştur"}
         </button>
-        {subscription ? <span className="text-[10px] text-white/35">Contract: {subscription.currency} · version {subscription.version}</span> : null}
+        {subscription ? <span className="text-[10px] text-white/35">Sözleşme para birimi: {subscription.currency} · Kayıt sürümü: {subscription.version}</span> : null}
       </div>
       {message ? <p className="mt-3 text-xs text-emerald-300/80">{message}</p> : null}
       {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
