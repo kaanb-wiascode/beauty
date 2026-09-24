@@ -8,6 +8,7 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type RefObject,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -46,7 +47,7 @@ function matches(option: ValooOption, query: string) {
 }
 
 function useFloatingPanel(
-  triggerRef: React.RefObject<HTMLElement | null>,
+  triggerRef: RefObject<HTMLElement | null>,
   open: boolean,
 ) {
   const [style, setStyle] = useState<CSSProperties>({});
@@ -152,6 +153,7 @@ function SelectPanel({
   setQuery,
   options,
   selectedValues,
+  multiple = false,
   activeIndex,
   onSelect,
   searchable,
@@ -165,6 +167,7 @@ function SelectPanel({
   setQuery: (query: string) => void;
   options: readonly ValooOption[];
   selectedValues: readonly string[];
+  multiple?: boolean;
   activeIndex: number;
   onSelect: (option: ValooOption) => void;
   searchable: boolean;
@@ -177,7 +180,7 @@ function SelectPanel({
     <div
       id={id}
       role="listbox"
-      aria-multiselectable={selectedValues.length > 1 ? true : undefined}
+      aria-multiselectable={multiple || undefined}
       className="z-[220] overflow-hidden rounded-[16px] border border-[var(--line)] bg-white shadow-[0_22px_64px_rgba(17,70,104,0.18)]"
       style={style}
     >
@@ -554,6 +557,7 @@ export function ValooMultiSelect({
           setQuery={setQuery}
           options={filtered}
           selectedValues={values}
+          multiple
           activeIndex={activeIndex}
           onSelect={toggle}
           searchable={searchable}
