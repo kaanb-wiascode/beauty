@@ -49,7 +49,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
   {
     label: "Müşteri İlişkileri",
     items: [
-      { href: "/crm", permission: "crm.read", label: "CRM Genel Bakış", icon: "trend" },
+      { href: "/crm", permission: "crm.read", label: "Müşteri İlişkileri Genel Bakış", icon: "trend" },
       { href: "/crm/leads", permission: "crm.read", label: "Potansiyel Müşteriler", icon: "users" },
       { href: "/crm/pipeline", permission: "crm.read", label: "Satış Süreci", icon: "chart" },
       { href: "/crm/follow-ups", permission: "crm.read", label: "Takipler", icon: "calendar" },
@@ -71,7 +71,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
     items: [
       { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
       { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
-      { href: "/finance/integrations", label: "Banka Ve Ödeme Bağlantıları", icon: "wallet" },
+      { href: "/finance/integrations", label: "Banka ve Ödeme Bağlantıları", icon: "wallet" },
       { href: "/finance/reconciliation", label: "Mutabakat Merkezi", icon: "arrows" },
       { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
     ],
@@ -89,7 +89,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
   {
     label: "Gelişim",
     items: [
-      { href: "/training", permission: "training.read", label: "Eğitim Ve Yetkinlik", icon: "chart" },
+      { href: "/training", permission: "training.read", label: "Eğitim ve Yetkinlik", icon: "chart" },
       { href: "/training/analytics", permission: "training.read", label: "Eğitim Analizi", icon: "trend" },
       { href: "/training/staff", permission: "training.read", label: "Gelişim Profilleri", icon: "users" },
     ],
@@ -97,7 +97,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
   {
     label: "Envanter",
     items: [
-      { href: "/inventory", label: "Stok Ve Envanter", icon: "package" },
+      { href: "/inventory", label: "Stok ve Envanter", icon: "package" },
       { href: "/inventory/analysis", label: "Envanter Analizi", icon: "chart" },
       { href: "/inventory/counts", label: "Stok Sayımları", icon: "file" },
       { href: "/inventory/service-materials", label: "Hizmet Malzemeleri", icon: "sparkles" },
@@ -116,7 +116,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
       {
         href: "/quality/comparison",
         permissions: ["quality.read", "training.read"],
-        label: "Kalite Ve Gelişim Karşılaştırma",
+        label: "Kalite ve Gelişim Karşılaştırma",
         icon: "activity",
       },
     ],
@@ -124,7 +124,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
   {
     label: "Yönetim",
     items: [
-      { href: "/settings/roles", permission: "roles.read", label: "Roller Ve Yetkiler", icon: "shield" },
+      { href: "/settings/roles", permission: "roles.read", label: "Roller ve Yetkiler", icon: "shield" },
       { href: "/settings", label: "Ayarlar", icon: "settings" },
     ],
   },
