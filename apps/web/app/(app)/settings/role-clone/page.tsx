@@ -61,9 +61,9 @@ export default function RoleClonePage() {
       setCreated(result);
       setName("");
       setDescription("");
-      showToast("Rol ve yetki seti klonlandı.");
+      showToast("Rol ve yetkileri kopyalandı.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Rol klonlanamadı.");
+      setError(err instanceof ApiError ? err.message : "Rol kopyalanamadı.");
     } finally {
       setSaving(false);
     }
@@ -75,8 +75,8 @@ export default function RoleClonePage() {
     <main className="mx-auto w-full max-w-[960px] space-y-6 pb-10">
       <header className="border-b border-[var(--line)] pb-5">
         <div className="mb-1 text-xs font-medium text-[var(--muted)]">Yönetim / Roller</div>
-        <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Rol Klonlama</h1>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Mevcut bir rolün kapsamını ve tüm permission setini tenant-owned yeni bir role kopyalayın.</p>
+        <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Rolü Kopyala</h1>
+        <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">Mevcut bir rolün kapsam ve yetkilerini temel alarak şirkete özel yeni bir rol oluşturun.</p>
       </header>
 
       {error ? <div className="rounded-xl border border-[#f0d8d8] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4545]">{error}</div> : null}
@@ -90,10 +90,10 @@ export default function RoleClonePage() {
 
         {source ? <div className="mt-5 grid gap-3 sm:grid-cols-3"><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Kaynak</div><div className="mt-1 text-sm font-semibold">{source.name}</div></div><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Kapsam</div><div className="mt-1 text-sm font-semibold">{scopeLabel[source.scope]}</div></div><div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Yetki Sayısı</div><div className="mt-1 text-sm font-semibold">{source._count.rolePermissions ?? 0}</div></div></div> : null}
 
-        <div className="mt-5 flex justify-end"><button disabled={saving || !source} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Klonlanıyor…" : "Rolü Klonla"}</button></div>
+        <div className="mt-5 flex justify-end"><button disabled={saving || !source} className="rounded-lg bg-[var(--accent)] px-4 py-2 text-xs font-semibold text-white disabled:opacity-50">{saving ? "Kopyalanıyor…" : "Rolü Kopyala"}</button></div>
       </form>
 
-      {created ? <section className="rounded-2xl border border-[#cfe8d8] bg-[#f7fff9] p-5"><div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#378a5e]">Klonlama tamamlandı</div><h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">{created.name}</h2><p className="mt-1 text-sm text-[var(--muted)]">{scopeLabel[created.scope]} · {created._count.rolePermissions ?? 0} yetki kopyalandı. Rolü Roller ve Yetkiler ekranından özelleştirebilirsiniz.</p></section> : null}
+      {created ? <section className="rounded-2xl border border-[#cfe8d8] bg-[#f7fff9] p-5"><div className="text-xs font-semibold uppercase tracking-[0.12em] text-[#378a5e]">Rol başarıyla kopyalandı</div><h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">{created.name}</h2><p className="mt-1 text-sm text-[var(--muted)]">{scopeLabel[created.scope]} · {created._count.rolePermissions ?? 0} yetki kopyalandı. Rolü Roller ve Yetkiler ekranından özelleştirebilirsiniz.</p></section> : null}
     </main>
   );
 }
