@@ -144,6 +144,21 @@ const USER_LABELS: Record<string, string> = {
   ANONYMIZATION: "Anonimleştirme İncelemesi",
   DELETION_REVIEW: "Silme Uygunluk İncelemesi",
   IN_REVIEW: "İncelemede",
+  CONFIRMED: "Onaylandı",
+  NO_SHOW: "Gelmedi",
+  PENDING_APPROVAL: "Onay Bekliyor",
+  PENDING_REVIEW: "İnceleme Bekliyor",
+  NOT_STARTED: "Başlamadı",
+  AVAILABLE: "Kullanılabilir",
+  UNAVAILABLE: "Kullanılamıyor",
+  ENABLED: "Etkin",
+  DISABLED: "Devre Dışı",
+  LOCKED: "Kilitli",
+  BLOCKED: "Engellendi",
+  CREATED: "Oluşturuldu",
+  UPDATED: "Güncellendi",
+  DELETED: "Silindi",
+  QUEUED: "Sırada",
 };
 
 const USER_RESOURCE_LABELS: Record<string, string> = {
@@ -284,6 +299,60 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
 
 const TECHNICAL_ERROR_PATTERN = /\b(?:backend|frontend|api|endpoint|prisma|postgres|postgresql|sql|constraint|stack|trace|exception|uuid|jwt|token|payload|runtime|undefined|null|database|db|foreign key|unique key|validation failed|internal server error|syntax error|query failed)\b/i;
 
+const SYSTEM_WORD_LABELS: Record<string, string> = {
+  ACTIVE: "Aktif",
+  INACTIVE: "Pasif",
+  PENDING: "Bekliyor",
+  DRAFT: "Taslak",
+  PUBLISHED: "Yayında",
+  REVIEW: "İnceleme",
+  APPROVAL: "Onay",
+  APPROVED: "Onaylandı",
+  REJECTED: "Reddedildi",
+  ASSIGNED: "Atandı",
+  PROGRESS: "Devam Ediyor",
+  COMPLETED: "Tamamlandı",
+  FAILED: "Başarısız",
+  CANCELLED: "İptal Edildi",
+  SCHEDULED: "Planlandı",
+  OPEN: "Açık",
+  CLOSED: "Kapandı",
+  READY: "Hazır",
+  EXPIRED: "Süresi Doldu",
+  OWNER: "Sahibi",
+  ADMIN: "Yönetici",
+  MANAGER: "Müdür",
+  STAFF: "Personel",
+  BRANCH: "Şube",
+  COMPANY: "Şirket",
+  CENTRAL: "Merkez",
+  PLATFORM: "Platform",
+  ONLINE: "Çevrim İçi",
+  OFFLINE: "Çevrim Dışı",
+};
+
+function humanizeSystemValue(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) return "—";
+
+  if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(normalized)) return normalized;
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  const parts = normalized
+    .replace(/([a-zğüşöçı])([A-ZĞÜŞÖÇİ])/g, "$1_$2")
+    .split(/[_\-\s]+/)
+    .filter(Boolean);
+
+  if (parts.length <= 1 && !/^[A-Z0-9_\-]+$/.test(normalized)) return normalized;
+
+  return parts
+    .map((part) => {
+      const upper = part.toLocaleUpperCase("tr-TR");
+      return SYSTEM_WORD_LABELS[upper] ?? titleCaseVisibleText(part.toLocaleLowerCase("tr-TR"));
+    })
+    .join(" ");
+}
+
 function titleCaseVisibleText(value: string): string {
   return value
     .trim()
@@ -307,12 +376,12 @@ function looksTechnical(message: string): boolean {
 
 export function userLabel(value: string | null | undefined): string {
   if (!value) return "—";
-  return USER_LABELS[value] ?? value;
+  return USER_LABELS[value] ?? humanizeSystemValue(value);
 }
 
 export function userLabelOr(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
-  return USER_LABELS[value] ?? value;
+  return USER_LABELS[value] ?? humanizeSystemValue(value);
 }
 
 export function userDomainLabel(value: string | null | undefined): string {
