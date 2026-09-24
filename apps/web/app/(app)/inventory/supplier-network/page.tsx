@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -379,7 +381,10 @@ export default function SupplierNetworkPage() {
 function MetricCard({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_28px_rgba(17,70,104,.035)]">
-      <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+        <CardInfo help={getCardHelp(label)} />
+      </div>
       <p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value.toLocaleString("tr-TR")}</p>
     </div>
   );
