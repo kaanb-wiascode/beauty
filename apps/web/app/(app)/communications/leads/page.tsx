@@ -5,7 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Lead = {
   id: string;
@@ -118,7 +118,7 @@ export default function MarketingLeadsPage() {
         setServices((results[3] as Paginated<ServiceOption>).data.filter((item) => item.status === "ACTIVE"));
       }
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Marketing lead verileri yüklenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Potansiyel müşteri verileri yüklenemedi.") : "Potansiyel müşteri verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -155,7 +155,7 @@ export default function MarketingLeadsPage() {
       setShowForm(false);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lead kaydedilemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Potansiyel müşteri kaydedilemedi.") : "Potansiyel müşteri kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -177,7 +177,7 @@ export default function MarketingLeadsPage() {
         status: "IN_CRM",
       } : lead));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lead CRM sistemine aktarılamadı.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Potansiyel müşteri, müşteri ilişkileri kaydına aktarılamadı.") : "Potansiyel müşteri, müşteri ilişkileri kaydına aktarılamadı.");
     } finally {
       setConvertingId("");
     }
@@ -196,7 +196,7 @@ export default function MarketingLeadsPage() {
         customerId: result.customerId,
       } : lead));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Lead müşteri kaydına dönüştürülemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Potansiyel müşteri, müşteri kaydına dönüştürülemedi.") : "Potansiyel müşteri, müşteri kaydına dönüştürülemedi.");
     } finally {
       setCustomerConvertingId("");
     }
@@ -239,7 +239,7 @@ export default function MarketingLeadsPage() {
       } : lead));
       setAppointmentLeadId("");
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Randevu oluşturulamadı.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Randevu oluşturulamadı.") : "Randevu oluşturulamadı.");
     } finally {
       setAppointmentSaving(false);
     }
@@ -265,7 +265,7 @@ export default function MarketingLeadsPage() {
         <form onSubmit={(e) => void createLead(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
           <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak<Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option value="MANUAL">Elle Eklendi</option><option value="META">Meta Reklamları</option><option value="GOOGLE_ADS">Google Reklamları</option><option value="TIKTOK">TikTok</option><option value="WEBSITE">Web Sitesi</option><option value="WHATSAPP">WhatsApp</option><option value="OTHER">Diğer</option></Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Kampanya<Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</Select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Reklam Platformu Kayıt No<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="Opsiyonel" /></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Reklam kaynağı kayıt numarası<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="İsteğe bağlı" /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Ad<input required className={fieldClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Soyad<input required className={fieldClass} value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Telefon<input className={fieldClass} value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
@@ -286,7 +286,7 @@ export default function MarketingLeadsPage() {
           <label className="text-[11px] font-semibold text-[var(--muted)]">Başlangıç<input required type="datetime-local" className={fieldClass} value={appointmentStartAt} onChange={(e) => setAppointmentStartAt(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Bitiş<input required type="datetime-local" className={fieldClass} value={appointmentEndAt} onChange={(e) => setAppointmentEndAt(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Not<input className={fieldClass} value={appointmentNotes} onChange={(e) => setAppointmentNotes(e.target.value)} placeholder="Kampanya / görüşme notu" /></label>
-          <div className="flex gap-2 md:col-span-2 xl:col-span-3"><Button disabled={appointmentSaving} type="submit">{appointmentSaving ? "Randevu Oluşturuluyor..." : "Randevuyu Oluştur"}</Button><Button type="button" onClick={() => setAppointmentLeadId("")}>Vazgeç</Button></div>
+          <div className="flex gap-2 md:col-span-2 xl:col-span-3"><Button disabled={appointmentSaving} type="submit">{appointmentSaving ? "Randevu oluşturuluyor..." : "Randevuyu oluştur"}</Button><Button type="button" onClick={() => setAppointmentLeadId("")}>Vazgeç</Button></div>
         </form>
       ) : null}
 
@@ -309,9 +309,9 @@ export default function MarketingLeadsPage() {
                     {lead.crmLeadId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href="/crm/leads">Müşteri İlişkileri</Link> : null}
                     {lead.customerId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href={`/customers/${lead.customerId}`}>Müşteri</Link> : null}
                     {lead.appointmentId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href="/appointments">Randevu</Link> : null}
-                    {lead.customerId && !lead.appointmentId && canCreateAppointment && !canScheduleFromInbox ? <span className="self-center text-[10px] text-[var(--muted)]">Randevu için personel/hizmet okuma izni gerekli.</span> : null}
+                    {lead.customerId && !lead.appointmentId && canCreateAppointment && !canScheduleFromInbox ? <span className="self-center text-[10px] text-[var(--muted)]">Randevu oluşturmak için personel ve hizmetleri görüntüleme yetkisi gerekir.</span> : null}
                   </div></td>
-                  <td className="px-3 py-4 text-[10px] text-[var(--muted)]">{lead.saleId ? "Satış" : lead.appointmentId ? "Randevu" : lead.customerId ? "Müşteri" : lead.crmLeadId ? "CRM" : "Yeni potansiyel müşteri"}</td>
+                  <td className="px-3 py-4 text-[10px] text-[var(--muted)]">{lead.saleId ? "Satış" : lead.appointmentId ? "Randevu" : lead.customerId ? "Müşteri" : lead.crmLeadId ? "Müşteri ilişkileri" : "Yeni potansiyel müşteri"}</td>
                   <td className="px-3 py-4 text-[10px] text-[var(--muted)]">{new Date(lead.receivedAt).toLocaleString("tr-TR")}</td>
                 </tr>
               ))}</tbody>
