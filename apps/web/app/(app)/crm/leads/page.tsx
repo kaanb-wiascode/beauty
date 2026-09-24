@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
@@ -296,8 +298,11 @@ export default function CrmLeadsPage() {
             key={String(label)}
             className="rounded-[18px] border border-[var(--line)] bg-white px-4 py-3 shadow-[var(--shadow-soft)]"
           >
-            <span className="text-[10px] text-[var(--muted)]">{label}</span>
-            <strong className="ml-3 text-[20px]">{value}</strong>
+            <div className="flex items-start justify-between gap-3">
+              <span className="text-[10px] text-[var(--muted)]">{label}</span>
+              <CardInfo help={getCardHelp(String(label))} />
+            </div>
+            <strong className="mt-2 block text-[20px]">{value}</strong>
           </article>
         ))}
       </section>
