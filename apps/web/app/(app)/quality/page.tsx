@@ -6,6 +6,7 @@ import { DataView, DataViewMeta, FilterChip } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type QualityCaseStatus = "OPEN" | "INVESTIGATING" | "ACTION_REQUIRED" | "RESOLVED" | "CLOSED";
 type QualitySeverity = "LOW" | "MEDIUM" | "HIGH" | "CRITICAL";
@@ -144,7 +145,7 @@ export default function QualityCockpitPage() {
       setOutbox(outboxRows ?? []);
       setHasLoaded(true);
     } catch (requestError) {
-      setLoadError(requestError instanceof ApiError ? requestError.message : "Kalite Verileri Yüklenemedi.");
+      setLoadError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Kalite verileri yüklenemedi.") : "Kalite verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -171,7 +172,7 @@ export default function QualityCockpitPage() {
       setSuccess(message);
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "İşlem Tamamlanamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "İşlem tamamlanamadı.") : "İşlem tamamlanamadı.");
     } finally {
       setAction(null);
     }
@@ -271,7 +272,7 @@ export default function QualityCockpitPage() {
                           <span className="text-[10px] text-[var(--muted-soft)]">{item.branchName ?? "Şube"}</span>
                         </div>
                         <h3 className="mt-2 truncate text-[13px] font-semibold text-[var(--ink)]">{item.title}</h3>
-                        <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-[var(--muted)]">{item.description || item.category}</p>
+                        <p className="mt-1 line-clamp-2 text-[10px] leading-5 text-[var(--muted)]">{item.description || userLabel(item.category)}</p>
                         <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{customerName(item.firstName, item.lastName)} · Açılış {formatDate(item.createdAt)}</p>
                       </div>
                       <div><p className="text-[9px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Çözüm Süresi</p><p className="mt-1 text-[11px] font-medium text-[var(--ink)]">{formatDate(item.slaDueAt)}</p></div>
@@ -307,7 +308,7 @@ export default function QualityCockpitPage() {
 
           <FinancePanel title="Bildirim Teslimat Durumu" description="Yeniden Deneme Gerektiren Veya Gönderilemeyen Bildirimler.">
             <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {deliveryProblems.slice(0, 9).map((item) => <div key={item.id} className="rounded-[14px] border border-[var(--line)] px-4 py-3"><div className="flex items-center justify-between gap-3"><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${item.status === "DEAD" ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--warning-soft)] text-[var(--warning)]"}`}>{DELIVERY_STATUS_LABELS[item.status]}</span><span className="text-[9px] text-[var(--muted-soft)]">{item.attemptCount}. Deneme</span></div><p className="mt-3 text-[11px] font-semibold text-[var(--ink)]">{item.status === "DEAD" ? "Bildirim Gönderilemedi" : "Bildirim Yeniden Denenecek"}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{item.channel ? `Kanal: ${item.channel}` : "Kanal Bilgisi Yok"}</p><p className="mt-2 text-[9px] text-[var(--muted-soft)]">Sonraki Deneme: {formatDate(item.nextAttemptAt)}</p></div>)}
+              {deliveryProblems.slice(0, 9).map((item) => <div key={item.id} className="rounded-[14px] border border-[var(--line)] px-4 py-3"><div className="flex items-center justify-between gap-3"><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${item.status === "DEAD" ? "bg-[var(--danger-soft)] text-[var(--danger)]" : "bg-[var(--warning-soft)] text-[var(--warning)]"}`}>{DELIVERY_STATUS_LABELS[item.status]}</span><span className="text-[9px] text-[var(--muted-soft)]">{item.attemptCount}. Deneme</span></div><p className="mt-3 text-[11px] font-semibold text-[var(--ink)]">{item.status === "DEAD" ? "Bildirim Gönderilemedi" : "Bildirim Yeniden Denenecek"}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{item.channel ? `Kanal: ${userLabel(item.channel)}` : "Kanal bilgisi yok"}</p><p className="mt-2 text-[9px] text-[var(--muted-soft)]">Sonraki Deneme: {formatDate(item.nextAttemptAt)}</p></div>)}
             </div>
             {!deliveryProblems.length ? <FinanceEmpty title="Bildirim Teslimat Sorunu Yok" description="Sorunlu Bildirimler Oluştuğunda Burada Görünür." /> : null}
           </FinancePanel>
