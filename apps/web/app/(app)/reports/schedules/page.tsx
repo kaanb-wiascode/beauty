@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { PageHeader } from "@/components/ui";
 import { ApiError } from "@/lib/api";
@@ -90,9 +90,9 @@ export default function ReportSchedulesPage() {
             <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_2fr]">
               <div>
                 <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Rapor</label>
-                <select value={reportKey} onChange={(event) => selectReport(event.target.value as ReportCatalogKey)} className="mt-2 h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-[13px] text-[var(--ink)]">
+                <Select value={reportKey} onChange={(event) => selectReport(event.target.value as ReportCatalogKey)} className="mt-2 h-11 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-[13px] text-[var(--ink)]">
                   {catalog.map((report) => <option key={report.key} value={report.key}>{report.title}</option>)}
-                </select>
+                </Select>
                 <p className="mt-2 text-[11px] text-[var(--muted)]">{selected.description}</p>
               </div>
               <div>
