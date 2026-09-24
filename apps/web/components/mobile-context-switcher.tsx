@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import { persistSession } from "@/lib/auth";
 import { ValooSelect } from "@/components/valoo-controls";
 
@@ -38,7 +39,7 @@ export function MobileContextSwitcher() {
         const result = await api<ContextOptions>("/auth/context/options");
         if (active) setOptions(result);
       } catch {
-        if (active) setError("Çalışma Kapsamı Yüklenemedi.");
+        if (active) setError("Çalışma kapsamı yüklenemedi.");
       }
     }
 
@@ -87,8 +88,8 @@ export function MobileContextSwitcher() {
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
-          ? requestError.message
-          : "Çalışma Kapsamı Değiştirilemedi.",
+          ? userErrorMessage(requestError.message, "Çalışma kapsamı değiştirilemedi.")
+          : "Çalışma kapsamı değiştirilemedi.",
       );
       setSwitching(false);
     }
@@ -113,7 +114,7 @@ export function MobileContextSwitcher() {
         <div className="fixed inset-0 z-[90] lg:hidden">
           <button
             type="button"
-            aria-label="Çalışma Kapsamını Kapat"
+            aria-label="Çalışma kapsamını kapat"
             className="absolute inset-0 bg-slate-950/30 backdrop-blur-[2px]"
             onClick={() => {
               if (!switching) setOpen(false);
@@ -127,8 +128,8 @@ export function MobileContextSwitcher() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Çalışma Kapsamı</p>
-                <h2 id="mobile-context-title" className="mt-1 text-[18px] font-semibold text-[var(--ink)]">Şube Seçimi</h2>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Çalışma kapsamı</p>
+                <h2 id="mobile-context-title" className="mt-1 text-[18px] font-semibold text-[var(--ink)]">Şube seçimi</h2>
                 <p className="mt-1 text-[12px] text-[var(--muted)]">Aktif kapsam: {activeBranchName}</p>
               </div>
               <button
