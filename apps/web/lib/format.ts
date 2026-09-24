@@ -3,6 +3,7 @@ import type {
   ServiceStatus,
   StaffStatus,
 } from "./types";
+import { userLabel } from "./user-language";
 
 export function cx(
   ...classes: Array<string | false | null | undefined>
@@ -49,7 +50,7 @@ export function staffStatusLabel(status: StaffStatus | string) {
     ARCHIVED: "Arşiv",
   };
 
-  return labels[status] ?? status;
+  return labels[status] ?? userLabel(status);
 }
 
 export function serviceStatusLabel(status: ServiceStatus | string) {
