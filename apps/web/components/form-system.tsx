@@ -65,18 +65,82 @@ export function FormGrid({
 export function FormActions({
   children,
   className,
+  sticky = false,
 }: {
   children: ReactNode;
   className?: string;
+  sticky?: boolean;
 }) {
   return (
     <div
       className={cx(
         "mt-6 flex flex-col-reverse gap-2.5 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end",
+        sticky &&
+          "sticky bottom-0 z-10 -mx-1 bg-[linear-gradient(to_top,var(--surface)_76%,rgba(255,255,255,0))] px-1 pb-1 pt-5",
         className,
       )}
     >
       {children}
+    </div>
+  );
+}
+
+
+export function FormFieldError({ children }: { children?: ReactNode }) {
+  if (!children) return null;
+
+  return (
+    <p role="alert" className="mt-1.5 text-[11px] font-medium leading-4 text-[var(--danger)]">
+      {children}
+    </p>
+  );
+}
+
+export function FormSummary({
+  title = "Özet",
+  description,
+  children,
+  className,
+}: {
+  title?: string;
+  description?: string;
+  children: ReactNode;
+  className?: string;
+}) {
+  return (
+    <aside
+      className={cx(
+        "rounded-[16px] border border-[rgba(22,116,189,.14)] bg-[var(--accent-soft)]/45 p-4",
+        className,
+      )}
+    >
+      <div className="mb-3">
+        <p className="text-[12px] font-semibold text-[var(--ink)]">{title}</p>
+        {description ? (
+          <p className="mt-1 text-[11px] leading-4 text-[var(--muted)]">{description}</p>
+        ) : null}
+      </div>
+      <div className="grid gap-x-5 gap-y-3 sm:grid-cols-2">{children}</div>
+    </aside>
+  );
+}
+
+export function FormSummaryItem({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: ReactNode;
+  detail?: ReactNode;
+}) {
+  return (
+    <div className="min-w-0">
+      <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
+        {label}
+      </p>
+      <div className="mt-1 truncate text-[13px] font-semibold text-[var(--ink)]">{value}</div>
+      {detail ? <div className="mt-0.5 text-[10px] text-[var(--muted)]">{detail}</div> : null}
     </div>
   );
 }
