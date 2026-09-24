@@ -79,27 +79,27 @@ export function CardInfo({
           <div
             id={tooltipId}
             role="tooltip"
-            className="pointer-events-none fixed z-[10000] rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left shadow-[0_20px_60px_rgba(17,70,104,.22)]"
+            className="pointer-events-none fixed z-[10000] rounded-[18px] border border-[#dce7f0] bg-white/95 p-4 text-left shadow-[0_18px_50px_rgba(31,69,94,.16)] backdrop-blur-xl"
             style={{
               top: position.top,
               left: position.left,
               width: `min(${POPOVER_WIDTH}px, calc(100vw - ${VIEWPORT_GAP * 2}px))`,
             }}
           >
-            <p className="text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)]">
+            <p className="text-[13px] font-semibold tracking-[-0.01em] text-[#1f2a35]">
               {help.title}
             </p>
 
-            <p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">
+            <p className="mt-2 text-[11px] leading-5 text-[#68798b]">
               {help.description}
             </p>
 
             {help.calculation ? (
-              <div className="mt-3 border-t border-[var(--line)] pt-3">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
+              <div className="mt-3 border-t border-[#e7eef4] pt-3">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7d8d9c]">
                   Nasıl hesaplanır?
                 </p>
-                <p className="mt-1 text-[11px] leading-5 text-[var(--ink)]">
+                <p className="mt-1 text-[11px] leading-5 text-[#2f3b47]">
                   {help.calculation}
                 </p>
               </div>
@@ -107,17 +107,17 @@ export function CardInfo({
 
             {help.interpretation ? (
               <div className="mt-3">
-                <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
+                <p className="text-[9px] font-semibold uppercase tracking-[0.08em] text-[#7d8d9c]">
                   Nasıl yorumlanır?
                 </p>
-                <p className="mt-1 text-[11px] leading-5 text-[var(--ink)]">
+                <p className="mt-1 text-[11px] leading-5 text-[#2f3b47]">
                   {help.interpretation}
                 </p>
               </div>
             ) : null}
 
             {help.source || help.updateFrequency ? (
-              <div className="mt-3 border-t border-[var(--line)] pt-3 text-[10px] leading-4 text-[var(--muted-soft)]">
+              <div className="mt-3 border-t border-[#e7eef4] pt-3 text-[10px] leading-4 text-[#8796a5]">
                 {help.source ? <p>Veri kaynağı: {help.source}</p> : null}
                 {help.updateFrequency ? <p>Güncelleme: {help.updateFrequency}</p> : null}
               </div>
@@ -134,9 +134,8 @@ export function CardInfo({
         type="button"
         aria-label={`${help.title} hakkında bilgi`}
         aria-describedby={open ? tooltipId : undefined}
-        title={`${help.title} hakkında bilgi`}
         className={cx(
-          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] text-[11px] font-semibold text-[var(--muted)] shadow-[0_1px_3px_rgba(17,70,104,.06)] transition hover:border-[var(--line-strong)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
+          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#d7e3ec] bg-white text-[11px] font-semibold text-[#6f8090] shadow-[0_1px_3px_rgba(17,70,104,.07)] transition hover:border-[#bcd3e4] hover:bg-[#f3f8fc] hover:text-[#1674bd] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(22,116,189,.12)]",
           className,
         )}
         onPointerEnter={(event) => {
