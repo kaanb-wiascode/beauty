@@ -360,7 +360,7 @@ export default function InventoryAnalysisPage() {
             {movementSummary.map((row) => (
               <div key={row.type} className="grid grid-cols-[1fr_auto] gap-4 px-5 py-4">
                 <div>
-                  <p className="text-[13px] font-semibold text-[var(--ink)]">{MOVEMENT_LABELS[row.type] ?? row.type}</p>
+                  <p className="text-[13px] font-semibold text-[var(--ink)]">{MOVEMENT_LABELS[row.type] ?? userLabel(row.type)}</p>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
                     {formatQuantity(row.movementCount)} Hareket · {formatQuantity(row.quantity)} Miktar
                   </p>
