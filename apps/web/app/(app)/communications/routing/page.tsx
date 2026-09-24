@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Select, FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
@@ -138,16 +138,16 @@ export default function RoutingPage() {
             </label>
             <label className="text-[11px] font-semibold text-[var(--muted)]">
               Strateji
-              <select className={fieldClass} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
+              <Select className={fieldClass} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
                 <option>FIXED</option>
                 <option>ROUND_ROBIN</option>
                 <option>LEAST_LOADED</option>
-              </select>
+              </Select>
             </label>
           </div>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
             Provider
-            <select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}>
+            <Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}>
               <option value="">Tümü</option>
               <option>META</option>
               <option>GOOGLE_ADS</option>
@@ -155,16 +155,16 @@ export default function RoutingPage() {
               <option>WEBSITE</option>
               <option>WHATSAPP</option>
               <option>OTHER</option>
-            </select>
+            </Select>
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
             Kampanya
-            <select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
+            <Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
               <option value="">Tümü</option>
               {campaigns.map((campaign) => (
                 <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
             Hedef Şube ID
@@ -187,14 +187,14 @@ export default function RoutingPage() {
               </label>
               <label className="text-[11px] font-semibold text-[var(--muted)]">
                 Kanal
-                <select disabled={!autoFollowUp} className={fieldClass} value={followUpChannel} onChange={(e) => setFollowUpChannel(e.target.value)}>
+                <Select disabled={!autoFollowUp} className={fieldClass} value={followUpChannel} onChange={(e) => setFollowUpChannel(e.target.value)}>
                   <option>CALL</option>
                   <option>WHATSAPP</option>
                   <option>SMS</option>
                   <option>EMAIL</option>
                   <option>IN_PERSON</option>
                   <option>OTHER</option>
-                </select>
+                </Select>
               </label>
             </div>
           </div>
