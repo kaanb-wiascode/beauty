@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { Select, FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 import { Alert, Button, TextInput } from "@/components/ui";
@@ -113,13 +113,13 @@ export default function SupplierPortalLoginPage() {
                 <p className="text-[14px] font-semibold">Tedarikçi Hesabını Seçin</p>
                 <p className="mt-1 text-[12px] leading-5 text-[#667482]">Bu Kullanıcı Birden Fazla Tedarikçi Hesabına Bağlı.</p>
               </div>
-              <select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-[52px] w-full rounded-[14px] border border-[#dfe7ed] bg-white px-4 text-[14px] outline-none focus:border-[#1674bd]">
+              <Select value={organizationId} onChange={(event) => setOrganizationId(event.target.value)} className="h-[52px] w-full rounded-[14px] border border-[#dfe7ed] bg-white px-4 text-[14px] outline-none focus:border-[#1674bd]">
                 {organizations.map((organization) => (
                   <option key={organization.id} value={organization.id}>
                     {organization.displayName} · {userLabel(organization.role)} · {userLabel(organization.verificationStatus)}
                   </option>
                 ))}
-              </select>
+              </Select>
               <Button type="submit" disabled={loading || !organizationId} className="h-[50px] w-full rounded-[14px] bg-[#1674bd] text-white hover:bg-[#0b5fa9]">
                 {loading ? "Açılıyor..." : "Bu Hesapla Devam Et"}
               </Button>
