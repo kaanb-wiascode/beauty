@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { CardInfo } from "@/components/card-info";
 
 import { Modal } from "@/components/modal";
 import {
@@ -16,6 +17,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type OrganizationType =
   | "MANUFACTURER"
@@ -465,7 +467,10 @@ export default function PlatformSuppliersPage() {
 function Metric({ label, value }: { label: string; value: number }) {
   return (
     <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-      <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+        <CardInfo help={getCardHelp(label)} />
+      </div>
       <p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value.toLocaleString("tr-TR")}</p>
     </div>
   );
