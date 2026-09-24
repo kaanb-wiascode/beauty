@@ -107,7 +107,7 @@ export default function PlatformApprovalsPage() {
               onClick={() => { setStatus(value); setOffset(0); }}
               className={`rounded-xl border px-3 py-2 text-[10px] font-semibold transition ${status === value ? "border-violet-400/30 bg-violet-400/10 text-violet-100" : "border-white/10 bg-white/[.035] text-white/45 hover:bg-white/[.06]"}`}
             >
-              {value ? userLabel(value) : "TÜMÜ"}
+              {value ? userLabel(value) : "Tümü"}
             </button>
           ))}
         </div>
@@ -151,9 +151,9 @@ export default function PlatformApprovalsPage() {
                 <p className="mt-4 text-sm font-semibold text-white">{item.reason}</p>
                 <div className="mt-3 grid gap-2 text-[10px] text-white/35 sm:grid-cols-2 xl:grid-cols-4">
                   <span>Talep Eden: {item.requesterEmail}</span>
-                  <span>Hedef Kayıt: {item.targetEntityId ?? "—"}</span>
+                  <span>İlgili Kayıt: {item.targetEntityId ? "Belirlendi" : "—"}</span>
                   <span>Oluşturulma: {dateTime.format(new Date(item.createdAt))}</span>
-                  <span>Onay Son Tarihi: {dateTime.format(new Date(item.expiresAt))}</span>
+                  <span>Onay İçin Son Tarih: {dateTime.format(new Date(item.expiresAt))}</span>
                 </div>
                 {item.approverEmail ? <p className="mt-2 text-[10px] text-white/35">Onaylayan: {item.approverEmail}{item.decisionReason ? ` · ${item.decisionReason}` : ""}</p> : null}
                 {item.executedAt ? <p className="mt-2 text-[10px] text-emerald-300/60">Uygulanma: {dateTime.format(new Date(item.executedAt))}</p> : null}
