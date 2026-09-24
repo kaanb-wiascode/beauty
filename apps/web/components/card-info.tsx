@@ -79,6 +79,7 @@ export function CardInfo({
           <div
             id={tooltipId}
             role="tooltip"
+            data-card-info="true"
             className="pointer-events-none fixed z-[10000] rounded-[18px] border border-[#dce7f0] bg-white/95 p-4 text-left shadow-[0_18px_50px_rgba(31,69,94,.16)] backdrop-blur-xl"
             style={{
               top: position.top,
