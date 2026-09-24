@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
 import { persistSession } from "@/lib/auth";
+import { ValooSelect } from "@/components/valoo-controls";
 
 type BranchOption = {
   id: string;
@@ -105,7 +106,7 @@ export function MobileContextSwitcher() {
       >
         <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[var(--accent)]" />
         <span className="truncate">{activeBranchName}</span>
-        <span aria-hidden="true" className="text-[9px] text-[var(--muted)]">▾</span>
+        <span aria-hidden="true" className="text-[11px] text-[var(--muted)]">▾</span>
       </button>
 
       {open ? (
@@ -126,9 +127,9 @@ export function MobileContextSwitcher() {
           >
             <div className="flex items-start justify-between gap-4">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">Çalışma Kapsamı</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Çalışma Kapsamı</p>
                 <h2 id="mobile-context-title" className="mt-1 text-[18px] font-semibold text-[var(--ink)]">Şube Seçimi</h2>
-                <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif kapsam: {activeBranchName}</p>
+                <p className="mt-1 text-[12px] text-[var(--muted)]">Aktif kapsam: {activeBranchName}</p>
               </div>
               <button
                 type="button"
@@ -141,26 +142,34 @@ export function MobileContextSwitcher() {
               </button>
             </div>
 
-            <label htmlFor="mobile-branch-context" className="mt-5 block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">
-              Aktif Şube
+            <label className="mt-5 block text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+              Aktif şube
             </label>
-            <select
-              id="mobile-branch-context"
+            <ValooSelect
+              className="mt-2"
               value={options.activeBranchId ?? "__all__"}
-              onChange={(event) => void switchBranch(event.target.value)}
+              onChange={(value) => void switchBranch(value)}
               disabled={switching}
-              className="mt-2 h-12 w-full rounded-[14px] border border-[var(--line)] bg-white px-3 text-[13px] font-medium text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)] disabled:cursor-wait disabled:opacity-60"
-            >
-              {options.canViewAllBranches ? <option value="__all__">Tüm Şubeler</option> : null}
-              {options.branches.map((branch) => (
-                <option key={branch.id} value={branch.id}>
-                  {branch.name} {branch.code ? `· ${branch.code}` : ""}
-                </option>
-              ))}
-            </select>
+              loading={switching}
+              searchable={options.branches.length > 7}
+              placeholder="Şube seçin"
+              searchPlaceholder="Şube ara…"
+              ariaLabel="Aktif şube"
+              options={[
+                ...(options.canViewAllBranches
+                  ? [{ value: "__all__", label: "Tüm şubeler" }]
+                  : []),
+                ...options.branches.map((branch) => ({
+                  value: branch.id,
+                  label: branch.name,
+                  description: branch.code || undefined,
+                  keywords: branch.code,
+                })),
+              ]}
+            />
 
-            {switching ? <p className="mt-3 text-[11px] text-[var(--muted)]">Çalışma Kapsamı Değiştiriliyor…</p> : null}
-            {error ? <p className="mt-3 text-[11px] font-medium text-red-600">{error}</p> : null}
+            {switching ? <p className="mt-3 text-[12px] text-[var(--muted)]">Çalışma kapsamı değiştiriliyor…</p> : null}
+            {error ? <p className="mt-3 text-[12px] font-medium text-[var(--danger)]">{error}</p> : null}
           </section>
         </div>
       ) : null}
