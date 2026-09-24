@@ -3,11 +3,13 @@
 import Link from "next/link";
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { DashboardActions, type DashboardAction } from "@/components/dashboard-actions";
 import { Modal } from "@/components/modal";
 import { Alert, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getStoredTenant, getStoredUser } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import styles from "./dashboard.module.css";
 
 type Status = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
@@ -119,8 +121,8 @@ export default function DashboardPage() {
   </div>;
 }
 
-function Metric({icon,label,value,detail,badge,tone}:{icon:ReactNode;label:string;value:number|string;detail:string;badge:string;tone:string}){return <div className="metric-card"><div className={`metric-icon ${tone}`}>{icon}</div><div className="min-w-0"><p>{label}</p><strong>{value}</strong><span>{detail}</span></div><span className={`metric-badge ${tone}`}>{badge}</span></div>}
-function Panel({title,subtitle,action,children}:{title:string;subtitle?:string;action?:ReactNode;children:ReactNode}){return <section className="dashboard-panel"><div className="panel-header"><div className="min-w-0"><h2>{title}</h2>{subtitle?<p>{subtitle}</p>:null}</div>{action}</div><div className="panel-body">{children}</div></section>}
+function Metric({icon,label,value,detail,badge,tone}:{icon:ReactNode;label:string;value:number|string;detail:string;badge:string;tone:string}){return <div className="metric-card"><div className={`metric-icon ${tone}`}>{icon}</div><div className="min-w-0 pr-7"><div className="flex items-start justify-between gap-2"><p>{label}</p><CardInfo help={getCardHelp(label, detail)} /></div><strong>{value}</strong><span>{detail}</span></div><span className={`metric-badge ${tone}`}>{badge}</span></div>}
+function Panel({title,subtitle,action,children}:{title:string;subtitle?:string;action?:ReactNode;children:ReactNode}){return <section className="dashboard-panel"><div className="panel-header"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2>{title}</h2><CardInfo help={getCardHelp(title, subtitle)} /></div>{subtitle?<p>{subtitle}</p>:null}</div>{action}</div><div className="panel-body">{children}</div></section>}
 function Avatar({label,size="sm"}:{label:string;size?:"sm"|"lg"}){return <div className={`dashboard-avatar ${size === "lg" ? "lg" : ""}`}>{label}</div>}
 function Trend({label,value}:{label:string;value:number|string}){return <div className="trend-mini"><span>{label}</span><strong>{value}</strong></div>}
 function Bar({label,value,max}:{label:string;value:number;max:number}){return <div className="metric-bar-row"><span>{label}</span><div className="metric-bar-track"><span className="metric-bar-fill info" style={{width:`${value ? Math.max(10,value/max*100):0}%`}}/></div><strong>{value}</strong></div>}
