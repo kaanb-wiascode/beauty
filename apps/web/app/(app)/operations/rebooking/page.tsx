@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -168,9 +168,9 @@ export default function OperationsRebookingPage() {
         <p className="mt-1 text-xs text-[var(--muted)]">Örneğin 28 gün girildiğinde tamamlanan hizmet için dört hafta sonrası önerilir.</p>
         <div className="mt-4 grid gap-4 md:grid-cols-[1fr_180px_auto] md:items-end">
           <label className="text-xs font-semibold text-[var(--muted)]">Hizmet
-            <select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={serviceId} onChange={(event) => setServiceId(event.target.value)}>
+            <Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={serviceId} onChange={(event) => setServiceId(event.target.value)}>
               {services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="text-xs font-semibold text-[var(--muted)]">Önerilen gün
             <input type="number" min={1} max={730} className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={intervalDays} onChange={(event) => setIntervalDays(event.target.value)} />
