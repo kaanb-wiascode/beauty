@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Modal } from "@/components/modal";
@@ -143,7 +143,7 @@ export default function AccountsPayablePage() {
       {paymentBill ? <div className="space-y-4">
         <div className="rounded-[12px] bg-[var(--surface-2)] p-3 text-[11px] text-[var(--muted)]"><strong className="text-[var(--ink)]">{paymentBill.supplierName}</strong><br/>Kalan borç: {money.format(Number(paymentBill.balance))}</div>
         <label className="block text-[11px] font-medium text-[var(--muted)]">Ödeme Tutarı<TextInput value={amount} onChange={(event) => setAmount(event.target.value)} type="number" min="0.01" step="0.01" /></label>
-        <label className="block text-[11px] font-medium text-[var(--muted)]">Yöntem<select className="control mt-1 h-10 w-full" value={method} onChange={(event) => setMethod(event.target.value as PaymentMethod)}><option value="TRANSFER">Havale / EFT</option><option value="CASH">Nakit</option><option value="CARD">Kart</option></select></label>
+        <label className="block text-[11px] font-medium text-[var(--muted)]">Yöntem<Select className="control mt-1 h-10 w-full" value={method} onChange={(event) => setMethod(event.target.value as PaymentMethod)}><option value="TRANSFER">Havale / EFT</option><option value="CASH">Nakit</option><option value="CARD">Kart</option></Select></label>
         <label className="block text-[11px] font-medium text-[var(--muted)]">Referans<TextInput value={reference} onChange={(event) => setReference(event.target.value)} placeholder="Dekont / işlem no" /></label>
         <div className="flex justify-end gap-2"><Button variant="secondary" disabled={busy} onClick={() => setPaymentBill(null)}>Vazgeç</Button><Button disabled={busy} onClick={() => void pay()}>{busy ? "Kaydediliyor..." : "Ödemeyi Kaydet"}</Button></div>
       </div> : null}
