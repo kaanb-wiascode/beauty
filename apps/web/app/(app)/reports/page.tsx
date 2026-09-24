@@ -3,8 +3,10 @@
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { Alert, Spinner } from "@/components/ui";
 import { hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import {
   getReportCatalog,
   type ReportCatalogItem,
@@ -274,7 +276,7 @@ export default function ReportsPage() {
 }
 
 function Metric({ label, value, detail }: { label: string; value: string | number; detail: string }) {
-  return <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] text-[var(--muted)]">{label}</p><p className="mt-2 truncate text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p></article>;
+  return <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(label, detail)} /></div><p className="mt-2 truncate text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p></article>;
 }
 
 function ReportCard({ href, title, description, value }: { href: string; title: string; description: string; value: string }) {
@@ -286,5 +288,5 @@ function ToolLink({ href, title, description }: { href: string; title: string; d
 }
 
 function Panel({ title, description, children }: { title: string; description: string; children: React.ReactNode }) {
-  return <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)]"><div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[15px] font-semibold text-[var(--ink)]">{title}</h2><p className="mt-1 text-[11px] text-[var(--muted)]">{description}</p></div><div className="p-5">{children}</div></section>;
+  return <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)]"><div className="border-b border-[var(--line)] px-5 py-4"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title, description)} /></div><p className="mt-1 text-[11px] text-[var(--muted)]">{description}</p></div><div className="p-5">{children}</div></section>;
 }
