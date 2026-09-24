@@ -21,6 +21,8 @@ type Rule = {
   } | null;
 };
 type Campaign = { id: string; name: string };
+const strategyLabels: Record<string, string> = { FIXED: "Sabit Atama", ROUND_ROBIN: "Sırayla Dağıtım", LEAST_LOADED: "En Az Yoğun Personele" };
+const contactChannelLabels: Record<string, string> = { CALL: "Telefon", WHATSAPP: "WhatsApp", SMS: "SMS", EMAIL: "E-posta", IN_PERSON: "Yüz Yüze", OTHER: "Diğer" };
 
 const fieldClass =
   "mt-2 h-11 w-full rounded-[13px] border border-[var(--line)] bg-white px-3 text-[12px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
@@ -53,7 +55,7 @@ export default function RoutingPage() {
       setRules(ruleRows);
       setCampaigns(campaignRows);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Routing kuralları yüklenemedi.");
+      setError(e instanceof ApiError ? e.message : "Talep dağıtım kuralları yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -90,7 +92,7 @@ export default function RoutingPage() {
       setTargetUserId("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Routing kuralı oluşturulamadı.");
+      setError(err instanceof ApiError ? err.message : "Talep dağıtım kuralı oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -99,7 +101,7 @@ export default function RoutingPage() {
   if (loading && !rules.length) {
     return (
       <div className="py-20">
-        <Spinner label="Routing kuralları yükleniyor..." />
+        <Spinner label="Talep dağıtım kuralları yükleniyor..." />
       </div>
     );
   }
@@ -111,11 +113,11 @@ export default function RoutingPage() {
           Kurumsal İletişim
         </p>
         <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">
-          Lead Routing
+          Talep Dağıtımı
         </h1>
         <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">
-          Provider ve kampanya bazında şube, temsilci ve ilk temas SLA politikasını yönetin.
-          CRM&apos;e aktarılan lead için görev otomatik oluşturulabilir.
+          Reklam kaynağı ve kampanyaya göre taleplerin hangi şube veya sorumluya yönlendirileceğini ve ilk temas süresini belirleyin.
+          Müşteri ilişkilerine aktarılan talepler için ilk temas görevi otomatik oluşturulabilir.
         </p>
       </header>
 
@@ -139,22 +141,22 @@ export default function RoutingPage() {
             <label className="text-[11px] font-semibold text-[var(--muted)]">
               Strateji
               <Select className={fieldClass} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-                <option>FIXED</option>
-                <option>ROUND_ROBIN</option>
-                <option>LEAST_LOADED</option>
+                <option value="FIXED">Sabit Atama</option>
+                <option value="ROUND_ROBIN">Sırayla Dağıtım</option>
+                <option value="LEAST_LOADED">En Az Yoğun Personele</option>
               </Select>
             </label>
           </div>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Provider
+            Reklam Kaynağı
             <Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}>
               <option value="">Tümü</option>
-              <option>META</option>
-              <option>GOOGLE_ADS</option>
-              <option>TIKTOK</option>
-              <option>WEBSITE</option>
-              <option>WHATSAPP</option>
-              <option>OTHER</option>
+              <option value="META">Meta</option>
+              <option value="GOOGLE_ADS">Google Ads</option>
+              <option value="TIKTOK">TikTok</option>
+              <option value="WEBSITE">Web Sitesi</option>
+              <option value="WHATSAPP">WhatsApp</option>
+              <option value="OTHER">Diğer</option>
             </Select>
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
@@ -167,33 +169,33 @@ export default function RoutingPage() {
             </Select>
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Hedef Şube ID
-            <input className={fieldClass} value={targetBranchId} onChange={(e) => setTargetBranchId(e.target.value)} placeholder="Şube seçici sonraki UX adımında" />
+            Hedef Şube Kodu
+            <input className={fieldClass} value={targetBranchId} onChange={(e) => setTargetBranchId(e.target.value)} placeholder="Şube kodunu girin" />
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Hedef Kullanıcı ID
-            <input className={fieldClass} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} placeholder="Opsiyonel" />
+            Hedef Sorumlu Kodu
+            <input className={fieldClass} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} placeholder="İsteğe bağlı" />
           </label>
 
           <div className="mt-5 rounded-[16px] border border-[var(--line)] bg-[var(--surface-soft)] p-4">
             <label className="flex items-center gap-3 text-[11px] font-semibold text-[var(--ink)]">
               <input type="checkbox" checked={autoFollowUp} onChange={(e) => setAutoFollowUp(e.target.checked)} />
-              CRM&apos;e aktarılınca ilk temas görevi oluştur
+              Müşteri ilişkilerine aktarılınca ilk temas görevi oluştur
             </label>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-[11px] font-semibold text-[var(--muted)]">
-                İlk Temas SLA (dk)
+                İlk Temas Süresi (dk)
                 <input type="number" min="1" max="10080" disabled={!autoFollowUp} className={fieldClass} value={followUpSlaMinutes} onChange={(e) => setFollowUpSlaMinutes(e.target.value)} />
               </label>
               <label className="text-[11px] font-semibold text-[var(--muted)]">
                 Kanal
                 <Select disabled={!autoFollowUp} className={fieldClass} value={followUpChannel} onChange={(e) => setFollowUpChannel(e.target.value)}>
-                  <option>CALL</option>
-                  <option>WHATSAPP</option>
-                  <option>SMS</option>
-                  <option>EMAIL</option>
-                  <option>IN_PERSON</option>
-                  <option>OTHER</option>
+                  <option value="CALL">Telefon</option>
+                  <option value="WHATSAPP">WhatsApp</option>
+                  <option value="SMS">SMS</option>
+                  <option value="EMAIL">E-posta</option>
+                  <option value="IN_PERSON">Yüz Yüze</option>
+                  <option value="OTHER">Diğer</option>
                 </Select>
               </label>
             </div>
@@ -214,24 +216,24 @@ export default function RoutingPage() {
                     <div>
                       <p className="text-[13px] font-semibold text-[var(--ink)]">{rule.name}</p>
                       <p className="mt-1 text-[10px] text-[var(--muted)]">
-                        Öncelik {rule.priority} · {rule.provider ?? "Tüm kaynaklar"} · {rule.strategy}
+                        Öncelik {rule.priority} · {rule.provider ? userLabel(rule.provider) : "Tüm kaynaklar"} · {strategyLabels[rule.strategy] ?? "Dağıtım kuralı"}
                       </p>
                     </div>
                     <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">
-                      {rule.active ? "AKTİF" : "PASİF"}
+                      {rule.active ? "Aktif" : "Pasif"}
                     </span>
                   </div>
                   <p className="mt-2 text-[10px] text-[var(--muted)]">
-                    Hedef: {rule.targetBranchName ?? rule.targetUserId ?? "Dinamik dağıtım"}
+                    Hedef: {rule.targetBranchName ?? (rule.targetUserId ? "Belirli sorumlu" : "Dinamik dağıtım")}
                   </p>
                   <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    İlk temas: {rule.conditions?.autoFollowUp === false ? "Kapalı" : `${rule.conditions?.followUpSlaMinutes ?? 15} dk · ${rule.conditions?.followUpChannel ?? "CALL"}`}
+                    İlk temas: {rule.conditions?.autoFollowUp === false ? "Kapalı" : `${rule.conditions?.followUpSlaMinutes ?? 15} dk · ${contactChannelLabels[rule.conditions?.followUpChannel ?? "CALL"] ?? "Telefon"}`}
                   </p>
                 </div>
               ))}
             </div>
           ) : (
-            <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz routing kuralı yok.</p>
+            <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz talep dağıtım kuralı yok.</p>
           )}
         </section>
       </div>
