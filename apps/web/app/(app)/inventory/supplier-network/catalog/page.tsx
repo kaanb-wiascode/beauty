@@ -7,6 +7,7 @@ import { Alert, Button, Field, Select, Spinner } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type InventoryProduct = {
   id: string;
@@ -116,7 +117,7 @@ export default function SupplierCatalogMappingPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {!canWrite ? <Alert tone="success">Bu Görünüm Salt Okunur. Ürün Eşleştirmelerini Değiştirmek İçin Envanter Yönetim Yetkisi Gereklidir.</Alert> : null}
+      {!canWrite ? <Alert tone="success">Bu ekran yalnızca görüntüleme modunda. Ürün eşleştirmelerini değiştirmek için envanter yönetim yetkisi gerekir.</Alert> : null}
 
       <section className="grid gap-5 xl:grid-cols-[390px_minmax(0,1fr)]">
         <form onSubmit={submit} className="space-y-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -135,7 +136,7 @@ export default function SupplierCatalogMappingPage() {
           </Field>
           {variantId ? (() => {
             const variant = variants.find((row) => row.id === variantId);
-            return variant ? <div className="rounded-[14px] bg-[var(--surface-2)] px-4 py-3 text-[10px] leading-5 text-[var(--muted)]">Birim: {variant.unit} · Aktif Teklif: {variant.activeOfferCount}</div> : null;
+            return variant ? <div className="rounded-[14px] bg-[var(--surface-2)] px-4 py-3 text-[10px] leading-5 text-[var(--muted)]">Birim: {userLabel(variant.unit)} · Aktif teklif: {variant.activeOfferCount}</div> : null;
           })() : null}
           <Button type="submit" className="w-full" disabled={!canWrite || saving || !productId || !variantId}>{saving ? "Kaydediliyor..." : selectedLink ? "Eşlemeyi Güncelle" : "Eşleme Oluştur"}</Button>
         </form>
