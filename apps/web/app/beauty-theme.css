@@ -8,7 +8,7 @@
   --background: #f7fafc;
   --foreground: #17212b;
   --muted: #667482;
-  --muted-soft: #8a98a5;
+  --muted-soft: #6b7a89;
   --line: #dfe7ed;
   --line-strong: #c9d6e0;
   --accent: #1674bd;
@@ -34,8 +34,28 @@
   --shadow-soft: 0 1px 2px rgba(17, 70, 104, 0.025), 0 10px 28px rgba(17, 70, 104, 0.055);
   --shadow-lift: 0 14px 38px rgba(17, 70, 104, 0.09), 0 2px 8px rgba(17, 70, 104, 0.035);
   --focus-ring: rgba(22, 116, 189, 0.22);
-  --radius-control: 14px;
-  --radius-card: 22px;
+  --radius-sm: 8px;
+  --radius-control: 12px;
+  --radius-md: 12px;
+  --radius-lg: 16px;
+  --radius-card: 20px;
+  --radius-dialog: 24px;
+  --radius-shell: 28px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --text-caption: 11px;
+  --text-secondary: 12px;
+  --text-label: 13px;
+  --text-body: 14px;
+  --text-card-title: 16px;
+  --text-section-title: 20px;
+  --text-page-title: 32px;
   --motion-fast: 150ms;
   --motion-base: 180ms;
 }
@@ -64,11 +84,13 @@ body::before {
 .text-\[\#2a2937\] { color: var(--ink) !important; }
 
 .control {
-  min-height: 42px;
+  min-height: 44px;
   border-color: var(--line);
   border-radius: var(--radius-control);
   background: var(--surface);
   color: var(--ink);
+  font-size: var(--text-body);
+  line-height: 1.35;
   box-shadow: 0 1px 2px rgba(17,70,104,.025);
 }
 .control:hover:not(:disabled) { border-color: var(--line-strong); background:#fff; }
@@ -97,7 +119,7 @@ label > span:first-child { color:var(--muted); }
 
 .dashboard-primary-action {
   border-color:var(--accent)!important;
-  border-radius:14px!important;
+  border-radius:var(--radius-control)!important;
   background:linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))!important;
   color:#fff!important;
   box-shadow:0 7px 18px rgba(22,116,189,.18)!important;
@@ -109,7 +131,7 @@ label > span:first-child { color:var(--muted); }
 .dashboard-icon-button:hover,.panel-link-button:hover,.panel-footer-link:hover,.panel-action-button:hover { color:var(--accent)!important; }
 .metric-card,.dashboard-panel {
   border-color:var(--line)!important;
-  border-radius:20px!important;
+  border-radius:var(--radius-card)!important;
   background:var(--surface)!important;
   box-shadow:var(--shadow-soft)!important;
 }
@@ -171,7 +193,7 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] { color:var(--secondary)!important; bac
     height:calc(100vh - 32px)!important;
     margin:0!important;
     border:1px solid rgba(255,255,255,.86)!important;
-    border-radius:28px!important;
+    border-radius:var(--radius-shell)!important;
     background:rgba(255,255,255,.92)!important;
     box-shadow:0 14px 40px rgba(17,70,104,.08)!important;
     overflow:hidden!important;
