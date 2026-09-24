@@ -30,10 +30,10 @@ export function Alert({
     <div
       role="alert"
       className={cx(
-        "flex items-start justify-between gap-4 rounded-[20px] px-4 py-3.5 text-sm leading-6",
+        "flex items-start justify-between gap-4 rounded-[var(--radius-control)] border px-4 py-3.5 text-[14px] leading-6",
         isError
-          ? "bg-[rgba(143,61,61,0.08)] text-[#7a3333]"
-          : "bg-[rgba(47,122,86,0.10)] text-[#2d5c45]",
+          ? "border-[rgba(196,81,103,.18)] bg-[var(--danger-soft)] text-[var(--danger)]"
+          : "border-[rgba(23,138,97,.16)] bg-[var(--secondary-soft)] text-[var(--secondary)]",
       )}
     >
       <p>{safeChildren}</p>
@@ -369,7 +369,7 @@ export function GlassCard({
   return (
     <article
       className={cx(
-        "glass-elevated rounded-[22px] p-6",
+        "glass-elevated rounded-[var(--radius-card)] p-5 sm:p-6",
         className,
       )}
     >
@@ -381,7 +381,7 @@ export function GlassCard({
 export function TableWrap({ children }: { children: ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="data-table min-w-full text-left text-[14px]">
+      <table className="data-table min-w-full text-left text-[13px]">
         {children}
       </table>
     </div>
@@ -453,7 +453,7 @@ export function IconButton({
     <button
       {...props}
       className={cx(
-        "inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--ink)] transition-[background-color,color,transform] duration-[180ms] hover:bg-black/[0.05] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex h-[42px] w-[42px] items-center justify-center rounded-[var(--radius-control)] text-[var(--ink)] transition-[background-color,color,transform] duration-[var(--motion-base)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
         className,
       )}
