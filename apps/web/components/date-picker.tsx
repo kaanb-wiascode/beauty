@@ -169,9 +169,9 @@ export function DatePicker({
 
     const onViewportChange = () => updatePosition();
     const onPointerDown = (event: PointerEvent) => {
-      const target = event.target as Node;
-      if (triggerRef.current?.contains(target)) return;
-      if (popoverRef.current?.contains(target)) return;
+      if (!(event.target instanceof Node)) return;
+      if (triggerRef.current?.contains(event.target)) return;
+      if (popoverRef.current?.contains(event.target)) return;
       setOpen(false);
     };
     const onKeyDown = (event: KeyboardEvent) => {
@@ -222,7 +222,7 @@ export function DatePicker({
             ref={popoverRef}
             role="dialog"
             aria-label="Takvim"
-            className="fixed z-[10020] rounded-[20px] border border-[#dce7f0] bg-white/98 p-4 shadow-[0_22px_65px_rgba(31,69,94,.18)] backdrop-blur-xl"
+            className="fixed z-[10020] rounded-[20px] border border-[#dce7f0] bg-white/[0.98] p-4 shadow-[0_22px_65px_rgba(31,69,94,.18)] backdrop-blur-xl"
             style={{
               top: position.top,
               left: position.left,
