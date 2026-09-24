@@ -8,8 +8,8 @@ const navigation = [
   { href: "/platform", label: "Command Center", eyebrow: "Overview" },
   { href: "/platform/customers", label: "Customers", eyebrow: "Tenants" },
   { href: "/platform/iam", label: "Platform IAM", eyebrow: "Access" },
-  { href: "/platform/approvals", label: "Approval Queue", eyebrow: "Governance" },
-  { href: "/platform/audit", label: "Audit Explorer", eyebrow: "Security" },
+  { href: "/platform/approvals", label: "Onay kuyruğu", eyebrow: "Yönetim" },
+  { href: "/platform/audit", label: "Denetim kayıtları", eyebrow: "Güvenlik" },
 ] as const;
 
 function isActive(pathname: string, href: string) {
