@@ -101,7 +101,7 @@ function checkoutIssueLabel(issue: CheckoutIssue) {
   if (issue.code === "PAYMENT_PENDING") return "Ödeme / tahsilat bekliyor";
   if (issue.code === "PACKAGE_SESSION_NOT_CONSUMED") return "Paket seansı tüketilmedi";
   if (issue.code === "VISIT_NOT_CHECKOUT_PENDING") return "Ziyaret henüz çıkış aşamasında değil";
-  return "Walk-in satış / ödeme durumu doğrulanmalı";
+  return "Randevusuz müşteri için satış ve ödeme durumu doğrulanmalı";
 }
 
 export default function OperationsPage() {
@@ -227,7 +227,7 @@ export default function OperationsPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Müşteri check-in işlemi tamamlanamadı.");
+      setError(err instanceof ApiError ? err.message : "Müşteri giriş işlemi tamamlanamadı.");
     } finally {
       setUpdatingId(null);
     }
@@ -253,7 +253,7 @@ export default function OperationsPage() {
       setWalkInRequestKey(null);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Walk-in check-in işlemi tamamlanamadı.");
+      setError(err instanceof ApiError ? err.message : "Randevusuz müşteri giriş işlemi tamamlanamadı.");
     } finally {
       setUpdatingId(null);
     }
@@ -285,7 +285,7 @@ export default function OperationsPage() {
 
     const readiness = readinessByVisit[visit.id];
     if (action.status === "CHECKED_OUT" && readiness && !readiness.canCheckout) {
-      setError(`Checkout tamamlanamaz: ${readiness.blockers.map(checkoutIssueLabel).join(", ")}.`);
+      setError(`Çıkış işlemi tamamlanamaz: ${readiness.blockers.map(checkoutIssueLabel).join(", ")}.`);
       return;
     }
 
@@ -351,7 +351,7 @@ export default function OperationsPage() {
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label className="block">
-            <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Walk-in müşteri</span>
+            <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Randevusuz müşteri</span>
             <Select
               value={walkInCustomerId}
               onChange={(event) => {
@@ -370,7 +370,7 @@ export default function OperationsPage() {
             disabled={!walkInCustomerId || updatingId === `walk-in:${walkInCustomerId}` || !canUpdate}
             onClick={() => void checkInWalkIn()}
           >
-            {updatingId === `walk-in:${walkInCustomerId}` ? "Giriş Yapılıyor..." : "Walk-in Check-in"}
+            {updatingId === `walk-in:${walkInCustomerId}` ? "Giriş Yapılıyor..." : "Randevusuz Müşteri Girişi"}
           </Button>
         </div>
       </section>
@@ -378,7 +378,7 @@ export default function OperationsPage() {
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="border-b border-[var(--line)] px-6 py-4">
           <h2 className="text-sm font-semibold text-[var(--ink)]">Bugün Beklenen Müşteriler</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">Check-in bekleyen {expectedAppointments.length} randevu</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Giriş bekleyen {expectedAppointments.length} randevu</p>
         </div>
         {expectedAppointments.length ? (
           <div className="divide-y divide-[var(--line)]">
@@ -391,14 +391,14 @@ export default function OperationsPage() {
                 </div>
                 {canUpdate ? (
                   <Button disabled={updatingId === appointment.id} onClick={() => void checkInAppointment(appointment)}>
-                    {updatingId === appointment.id ? "Giriş Yapılıyor..." : "Check-in"}
+                    {updatingId === appointment.id ? "Giriş Yapılıyor..." : "Giriş Yap"}
                   </Button>
                 ) : null}
               </div>
             ))}
           </div>
         ) : (
-          <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Check-in bekleyen randevu bulunmuyor.</div>
+          <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Giriş bekleyen randevu bulunmuyor.</div>
         )}
       </section>
 
@@ -422,7 +422,7 @@ export default function OperationsPage() {
                   <div className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,.9fr)_minmax(0,1fr)_auto] md:items-center">
                     <div className="min-w-0">
                       <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(visit.customerId) ?? "Müşteri"}</p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">{visit.source === "WALK_IN" ? "Walk-in" : "Randevulu"} · {elapsed(visitAgeStart(visit))}</p>
+                      <p className="mt-1 text-xs text-[var(--muted)]">{visit.source === "WALK_IN" ? "Randevusuz" : "Randevulu"} · {elapsed(visitAgeStart(visit))}</p>
                     </div>
                     <div>
                       <span className="inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{STATUS_LABELS[visit.status]}</span>
@@ -430,7 +430,7 @@ export default function OperationsPage() {
                     <div className="min-w-0 text-xs text-[var(--muted)]">
                       {visit.status === "CHECKOUT_PENDING" && readiness ? (
                         readiness.canCheckout ? (
-                          <span className="font-semibold text-[#2d6a49]">Checkout hazır{readiness.warnings.length ? " · doğrulama uyarısı var" : ""}</span>
+                          <span className="font-semibold text-[#2d6a49]">Çıkışa hazır{readiness.warnings.length ? " · doğrulama uyarısı var" : ""}</span>
                         ) : (
                           <span className="font-semibold text-[#8f3d3d]">{readiness.blockers.map(checkoutIssueLabel).join(" · ")}</span>
                         )
@@ -502,7 +502,7 @@ export default function OperationsPage() {
         ) : (
           <div className="px-6 py-14 text-center">
             <p className="text-sm font-semibold text-[var(--ink)]">Aktif ziyaret bulunmuyor</p>
-            <p className="mt-2 text-xs text-[var(--muted)]">Check-in yapılan müşteriler burada gerçek zamanlı operasyon akışına girer.</p>
+            <p className="mt-2 text-xs text-[var(--muted)]">Giriş işlemi tamamlanan müşteriler burada gerçek zamanlı operasyon akışına alınır.</p>
           </div>
         )}
       </section>
