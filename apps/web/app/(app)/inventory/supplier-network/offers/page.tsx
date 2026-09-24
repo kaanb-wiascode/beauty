@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type SupplierOffer = {
   id: string;
@@ -205,7 +206,7 @@ export default function SupplierOfferComparisonPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success} <Link href="/inventory/purchases" className="font-semibold underline">Satın Almaya Git</Link></Alert> : null}
-      {!canWrite ? <Alert tone="success">Bu Görünüm Salt Okunur. Sipariş Taslağı Oluşturmak İçin Satın Alma Yetkisi Gereklidir.</Alert> : null}
+      {!canWrite ? <Alert tone="success">Bu ekran yalnızca görüntüleme modunda. Sipariş taslağı oluşturmak için satın alma yetkisi gerekir.</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-3">
         <Metric label="Aktif Teklif" value={String(offers.length)} />
@@ -225,7 +226,7 @@ export default function SupplierOfferComparisonPage() {
                     <h2 className="text-[14px] font-semibold text-[var(--ink)]">{first.productName} · {first.variantName}</h2>
                     {first.brandName ? <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{first.brandName}</span> : null}
                   </div>
-                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Stok Kodu: {first.canonicalSku || "—"} · Birim: {first.unit}</p>
+                  <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Stok kodu: {first.canonicalSku || "—"} · Birim: {userLabel(first.unit)}</p>
                 </div>
                 <div className="rounded-[14px] bg-[var(--success-soft)] px-3 py-2 text-right">
                   <p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--success)]">En Düşük Teklif</p>
