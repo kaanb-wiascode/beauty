@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import { getAccessToken, persistSession } from "@/lib/auth";
 import type { LoginResponse } from "@/lib/types";
 import { Alert, Button, TextInput } from "@/components/ui";
@@ -83,7 +84,7 @@ export default function LoginPage() {
 
       finishLogin(data);
     } catch (err) {
-      setError(err instanceof ApiError ? "Giriş Bilgileri Doğrulanamadı. Lütfen Bilgilerinizi Kontrol Edin." : "Giriş Yapılamadı. Lütfen Tekrar Deneyin.");
+      setError(err instanceof ApiError ? "Giriş bilgileri doğrulanamadı. Lütfen bilgilerinizi kontrol edin." : "Giriş yapılamadı. Lütfen tekrar deneyin.");
     } finally {
       setLoading(false);
     }
@@ -109,7 +110,7 @@ export default function LoginPage() {
           });
       finishLogin(data);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Doğrulama tamamlanamadı.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message, "Doğrulama tamamlanamadı.") : "Doğrulama tamamlanamadı.");
     } finally {
       setLoading(false);
     }
@@ -122,53 +123,53 @@ export default function LoginPage() {
           <span className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(22,116,189,0.18)]" style={{ background: "linear-gradient(135deg, #55D4E1 0%, #369FCB 48%, #0551B0 100%)" }} aria-hidden="true">V</span>
           VALOO
         </a>
-        <span className="text-[12px] font-medium text-[var(--muted)]">Güvenli Giriş</span>
+        <span className="text-[12px] font-medium text-[var(--muted)]">Güvenli giriş</span>
       </header>
 
       <section className="mx-auto flex min-h-[calc(100vh-160px)] w-full max-w-[760px] flex-col items-center px-6 pb-16 pt-20 sm:pt-24">
         <ValooMark />
         <div className="mt-8 text-center">
-          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted)]">İşletme Yönetimi</p>
+          <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted)]">İşletme yönetimi</p>
           <h1 className="mt-2 text-[38px] font-semibold leading-tight tracking-[-0.045em] sm:text-[46px]">VALOO</h1>
-          <p className="mt-2 text-[17px] text-[var(--muted)]">{challenge ? "İki Aşamalı Doğrulama" : "Hesabınıza Giriş Yapın"}</p>
+          <p className="mt-2 text-[17px] text-[var(--muted)]">{challenge ? "İki aşamalı doğrulama" : "Hesabınıza giriş yapın"}</p>
         </div>
 
         {!challenge ? (
           <form onSubmit={onSubmit} className="mt-10 w-full max-w-[430px] rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)] sm:p-6">
             <div className="space-y-3">
-              <TextInput type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="E-Posta Adresi" aria-label="E-Posta Adresi" className="h-[54px] px-4 text-[16px] shadow-none" />
+              <TextInput type="email" autoComplete="email" required value={email} onChange={(event) => setEmail(event.target.value)} placeholder="E-posta adresi" aria-label="E-posta adresi" className="h-[54px] px-4 text-[16px] shadow-none" />
               <TextInput type="password" autoComplete="current-password" required value={password} onChange={(event) => setPassword(event.target.value)} placeholder="Şifre" aria-label="Şifre" className="h-[54px] px-4 text-[16px] shadow-none" />
             </div>
             {error ? <div className="mt-4"><Alert>{error}</Alert></div> : null}
-            <Button type="submit" disabled={loading} className="mt-6 h-[52px] w-full rounded-[14px] text-[16px] font-medium">{loading ? "Giriş Yapılıyor..." : "Devam Et"}</Button>
+            <Button type="submit" disabled={loading} className="mt-6 h-[52px] w-full rounded-[14px] text-[16px] font-medium">{loading ? "Giriş yapılıyor..." : "Devam et"}</Button>
             <div className="mt-9 flex items-start gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] px-4 py-4 text-left">
               <span className="mt-0.5 text-[18px] text-[var(--accent)]" aria-hidden="true">⌾</span>
-              <div><p className="text-[13px] font-medium text-[var(--ink)]">Güvenli Ve Korumalı</p><p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">Hesap Bilgileriniz Güvenli Bağlantı Üzerinden Korunur.</p></div>
+              <div><p className="text-[13px] font-medium text-[var(--ink)]">Güvenli ve korumalı</p><p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">Hesap bilgileriniz güvenli bağlantı üzerinden korunur.</p></div>
             </div>
           </form>
         ) : (
           <form onSubmit={onMfaSubmit} className="mt-10 w-full max-w-[430px] rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)] sm:p-6">
             {challenge.enrollmentRequired && mfaSetup ? (
               <div className="mb-5 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
-                <p className="text-sm font-semibold text-[var(--ink)]">Authenticator Kurulumu</p>
-                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">Authenticator uygulamanızda yeni hesap ekleyin ve aşağıdaki anahtarı manuel girin. Bu anahtar yalnız kurulum sırasında gösterilir.</p>
+                <p className="text-sm font-semibold text-[var(--ink)]">Doğrulama uygulaması kurulumu</p>
+                <p className="mt-2 text-xs leading-5 text-[var(--muted)]">Doğrulama uygulamanızda yeni bir hesap ekleyin ve aşağıdaki anahtarı elle girin. Bu anahtar yalnızca kurulum sırasında gösterilir.</p>
                 <div className="mt-3 break-all rounded-lg border border-[var(--line)] bg-white px-3 py-2 font-mono text-sm font-semibold tracking-[0.08em] text-[var(--ink)]">{mfaSetup.secret}</div>
-                <a href={mfaSetup.otpauthUri} className="mt-3 inline-flex text-xs font-semibold text-[var(--accent)]">Authenticator ile aç</a>
+                <a href={mfaSetup.otpauthUri} className="mt-3 inline-flex text-xs font-semibold text-[var(--accent)]">Doğrulama uygulamasıyla aç</a>
               </div>
             ) : (
-              <p className="mb-5 text-sm leading-6 text-[var(--muted)]">Authenticator uygulamanızdaki 6 haneli doğrulama kodunu girin.</p>
+              <p className="mb-5 text-sm leading-6 text-[var(--muted)]">Doğrulama uygulamanızdaki 6 haneli kodu girin.</p>
             )}
 
-            <TextInput inputMode="numeric" autoComplete="one-time-code" required maxLength={6} value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" aria-label="Doğrulama Kodu" className="h-[54px] px-4 text-center font-mono text-[20px] tracking-[0.3em] shadow-none" />
+            <TextInput inputMode="numeric" autoComplete="one-time-code" required maxLength={6} value={mfaCode} onChange={(event) => setMfaCode(event.target.value.replace(/\D/g, "").slice(0, 6))} placeholder="000000" aria-label="Doğrulama kodu" className="h-[54px] px-4 text-center font-mono text-[20px] tracking-[0.3em] shadow-none" />
             {error ? <div className="mt-4"><Alert>{error}</Alert></div> : null}
-            <Button type="submit" disabled={loading || mfaCode.length !== 6} className="mt-6 h-[52px] w-full rounded-[14px] text-[16px] font-medium">{loading ? "Doğrulanıyor..." : challenge.enrollmentRequired ? "Kurulumu Tamamla" : "Doğrula ve Giriş Yap"}</Button>
+            <Button type="submit" disabled={loading || mfaCode.length !== 6} className="mt-6 h-[52px] w-full rounded-[14px] text-[16px] font-medium">{loading ? "Doğrulanıyor..." : challenge.enrollmentRequired ? "Kurulumu tamamla" : "Doğrula ve giriş yap"}</Button>
             <button type="button" onClick={() => { setChallenge(null); setMfaSetup(null); setMfaCode(""); setError(""); }} className="mt-4 w-full text-center text-xs font-semibold text-[var(--muted)]">Giriş ekranına dön</button>
           </form>
         )}
       </section>
 
       <footer className="mx-auto flex min-h-[88px] max-w-[1200px] flex-col items-center justify-between gap-3 border-t border-[var(--line)] px-6 py-6 text-[12px] text-[var(--muted)] sm:flex-row sm:px-8">
-        <span>© 2026 VALOO. Tüm Hakları Saklıdır.</span><span>Türkiye</span>
+        <span>© 2026 VALOO. Tüm hakları saklıdır.</span><span>Türkiye</span>
       </footer>
     </main>
   );
