@@ -38,7 +38,7 @@ export default function LearningPathDetailPage() {
         api<Course[]>("/training/courses"),
       ]);
       setData(workspace); setCourses((courseRows ?? []).filter((course)=>course.isActive));
-    } catch (e) { setError(e instanceof ApiError ? e.message : "Learning Path yüklenemedi."); }
+    } catch (e) { setError(e instanceof ApiError ? e.message : "Öğrenme yolu yüklenemedi."); }
     finally { setLoading(false); }
   },[programId]);
 
@@ -75,20 +75,20 @@ export default function LearningPathDetailPage() {
     await mutate(`/training/learning-paths/versions/${draft.id}/items/${itemId}/prerequisites/${prerequisiteItemId}`,{method:"DELETE"});
   }
 
-  if (loading && !data) return <div className="flex min-h-[420px] items-center justify-center"><Spinner label="Learning Path çalışma alanı hazırlanıyor..." /></div>;
+  if (loading && !data) return <div className="flex min-h-[420px] items-center justify-center"><Spinner label="Öğrenme yolu hazırlanıyor..." /></div>;
 
   return (
     <div className="mx-auto max-w-[1450px] space-y-6 pb-10">
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <Link href="/training/learning-paths" className="text-[11px] font-semibold text-[var(--accent)] hover:underline">← Akademiler & Learning Paths</Link>
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">{data?.code ?? "Learning Path"}</p>
-          <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">{data?.title ?? "Learning Path"}</h1>
+          <Link href="/training/learning-paths" className="text-[11px] font-semibold text-[var(--accent)] hover:underline">← Akademiler ve Öğrenme Yolları</Link>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">{data?.code ?? "Öğrenme Yolu"}</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">{data?.title ?? "Öğrenme Yolu"}</h1>
           <p className="mt-2 max-w-[900px] text-[13px] leading-6 text-[var(--muted)]">{data?.description || "Curriculum adımlarını ve prerequisite ilişkilerini yönetin."}</p>
         </div>
         <div className="flex flex-wrap gap-2">
-          {!draft && canManage ? <Button onClick={()=>void createDraft()} disabled={saving}>Yeni Draft</Button> : null}
-          {draft && canManage ? <Button onClick={()=>void publish()} disabled={saving || !draft.items.length}>v{draft.version} Yayınla</Button> : null}
+          {!draft && canManage ? <Button onClick={()=>void createDraft()} disabled={saving}>Yeni Taslak</Button> : null}
+          {draft && canManage ? <Button onClick={()=>void publish()} disabled={saving || !draft.items.length}>Sürüm {draft.version} Yayınla</Button> : null}
           <Button variant="secondary" onClick={()=>void load()} disabled={loading}>Yenile</Button>
         </div>
       </header>
@@ -96,14 +96,14 @@ export default function LearningPathDetailPage() {
       {error ? <Alert onClose={()=>setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FinanceMetric label="Published" value={published ? `v${published.version}` : "—"} detail={published ? `${published.items.length} curriculum adımı` : "Henüz yayın yok"} tone={published ? "success" : "warning"} />
-        <FinanceMetric label="Draft" value={draft ? `v${draft.version}` : "—"} detail={draft ? `${draft.items.length} düzenlenebilir adım` : "Draft bulunmuyor"} tone={draft ? "warning" : "info"} />
+        <FinanceMetric label="Yayındaki Sürüm" value={published ? `Sürüm ${published.version}` : "—"} detail={published ? `${published.items.length} öğrenme adımı` : "Henüz yayın yok"} tone={published ? "success" : "warning"} />
+        <FinanceMetric label="Taslak Sürüm" value={draft ? `Sürüm ${draft.version}` : "—"} detail={draft ? `${draft.items.length} düzenlenebilir adım` : "Taslak bulunmuyor"} tone={draft ? "warning" : "info"} />
         <FinanceMetric label="Zorunlu Adım" value={active?.items.filter((item)=>item.isRequired).length ?? 0} detail="Completion hesabına dahil" tone="info" />
         <FinanceMetric label="Prerequisite" value={active?.items.reduce((sum,item)=>sum+(item.prerequisiteItemIds?.length??0),0) ?? 0} detail="Tanımlı bağımlılık" tone="info" />
       </section>
 
       {draft && canManage ? (
-        <FinancePanel title="Curriculum'a Kurs Ekle" description="Kurslar path içine sıralı adımlar olarak eklenir. Published course version, path personele atandığında pinlenir.">
+        <FinancePanel title="Öğrenme Yoluna Eğitim Ekle" description="Eğitimler öğrenme yoluna sıralı adımlar olarak eklenir. Yol personele atandığında kullanılan eğitim sürümü korunur.">
           <div className="grid gap-3 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
             <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Kurs</p><Select className={selectClass} value={courseId} onChange={(e)=>setCourseId(e.target.value)}><option value="">Kurs seçin</option>{courses.map((course)=><option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}</Select></div>
             <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Due Offset</p><input className={selectClass} type="number" min={0} value={dueOffsetDays} onChange={(e)=>setDueOffsetDays(e.target.value)} placeholder="Gün" /></div>
@@ -113,8 +113,8 @@ export default function LearningPathDetailPage() {
         </FinancePanel>
       ) : null}
 
-      <FinancePanel title={draft ? `Draft v${draft.version} Curriculum` : published ? `Published v${published.version} Curriculum` : "Curriculum"} description={draft ? "Prerequisite ilişkileri yalnız draft üzerinde değiştirilebilir." : "Yeni düzenleme için draft oluşturun."}>
-        {!active?.items.length ? <FinanceEmpty title="Curriculum adımı yok" description="Draft sürüme ilk kursu ekleyerek learning path'i oluşturun." /> : (
+      <FinancePanel title={draft ? `Taslak Sürüm ${draft.version}` : published ? `Yayındaki Sürüm ${published.version}` : "Öğrenme Adımları"} description={draft ? "Ön koşul ilişkileri yalnızca taslak sürümde değiştirilebilir." : "Yeni düzenleme yapmak için taslak sürüm oluşturun."}>
+        {!active?.items.length ? <FinanceEmpty title="Öğrenme adımı yok" description="Taslak sürüme ilk eğitimi ekleyerek öğrenme yolunu oluşturun." /> : (
           <div className="space-y-3">
             {active.items.map((item,index) => {
               const prerequisiteLabels = item.prerequisiteItemIds
