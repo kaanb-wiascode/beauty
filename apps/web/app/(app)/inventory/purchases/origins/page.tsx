@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
@@ -221,7 +223,7 @@ export default function PurchaseOrderOriginsPage() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><p className="mt-2 text-[25px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
+  return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[9px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-2 text-[25px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
 }
 
 function SourceBadge({ source, version }: { source: string | null; version: number | null }) {
