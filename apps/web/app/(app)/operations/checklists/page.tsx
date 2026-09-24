@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Select, useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -183,7 +183,7 @@ export default function OperationsChecklistsPage() {
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
           <Field label="Hizmet">
-            <select
+            <Select
               className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm"
               value={selectedServiceId}
               onChange={(event) => void selectService(event.target.value)}
@@ -194,7 +194,7 @@ export default function OperationsChecklistsPage() {
                   {service.name}
                 </option>
               ))}
-            </select>
+            </Select>
           </Field>
           <div className="rounded-[14px] bg-[var(--surface-2)] px-4 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
