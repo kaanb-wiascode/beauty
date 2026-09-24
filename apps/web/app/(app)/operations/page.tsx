@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Appointment, Customer, Paginated, Visit, VisitDetail, VisitStatus } from "@/lib/types";
 
@@ -342,7 +344,10 @@ export default function OperationsPage() {
           ["Çıkış Bekliyor", counts.checkout],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-            <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
+              <CardInfo help={getCardHelp(String(label))} />
+            </div>
             <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p>
           </div>
         ))}
