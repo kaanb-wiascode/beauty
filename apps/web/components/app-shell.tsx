@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth";
 import { cx, fullName } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
+import { ValooSelect } from "./valoo-controls";
 
 const NAV_SECTIONS = [
   { label: "Genel", items: [
@@ -185,7 +186,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                 type="button"
                 onClick={() => toggleSection(section.label)}
                 aria-expanded={open}
-                className="flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                className="flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
               >
                 <span>{section.label}</span>
                 <span aria-hidden="true" className={cx("text-[12px] transition-transform duration-200", open ? "rotate-90" : "rotate-0")}>›</span>
@@ -222,7 +223,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                         <>
                           <span className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em]">{item.label}</span>
                           {"badge" in item && item.badge ? (
-                            <span className="rounded-full bg-[#dff3fb] px-2 py-0.5 text-[10px] font-semibold text-[var(--accent)]">{item.badge}</span>
+                            <span className="rounded-full bg-[#dff3fb] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{item.badge}</span>
                           ) : null}
                         </>
                       ) : null}
@@ -377,30 +378,34 @@ export function AppShell({ children }: { children: ReactNode }) {
 
         {!collapsed && contextOptions ? (
           <div className="px-5 pt-4">
-            <label className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]" htmlFor="branch-context-select">
-              Çalışma Kapsamı
+            <label className="block text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">
+              Çalışma kapsamı
             </label>
-            <div className="relative mt-2">
-              <select
-                id="branch-context-select"
-                value={contextOptions.activeBranchId ?? "__all__"}
-                onChange={(event) => void switchBranch(event.target.value)}
-                disabled={switchingBranch}
-                className="h-10 w-full appearance-none rounded-[13px] border border-[var(--line)] bg-white px-3 pr-8 text-[12px] font-medium text-[var(--ink)] outline-none transition focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)] disabled:cursor-wait disabled:opacity-60"
-              >
-                {contextOptions.canViewAllBranches ? <option value="__all__">Tüm Şubeler</option> : null}
-                {contextOptions.branches.map((branch) => (
-                  <option key={branch.id} value={branch.id}>
-                    {branch.name}
-                  </option>
-                ))}
-              </select>
-              <span aria-hidden="true" className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted)]">▼</span>
-            </div>
-            <p className="mt-1.5 truncate text-[10px] text-[var(--muted)]">
-              {switchingBranch ? "Şube Değiştiriliyor…" : `Aktif: ${activeBranchName}`}
+            <ValooSelect
+              className="mt-2"
+              value={contextOptions.activeBranchId ?? "__all__"}
+              onChange={(value) => void switchBranch(value)}
+              disabled={switchingBranch}
+              loading={switchingBranch}
+              searchable={contextOptions.branches.length > 7}
+              placeholder="Şube seçin"
+              searchPlaceholder="Şube ara…"
+              ariaLabel="Çalışma kapsamı"
+              options={[
+                ...(contextOptions.canViewAllBranches
+                  ? [{ value: "__all__", label: "Tüm şubeler" }]
+                  : []),
+                ...contextOptions.branches.map((branch) => ({
+                  value: branch.id,
+                  label: branch.name,
+                  keywords: branch.code,
+                })),
+              ]}
+            />
+            <p className="mt-2 truncate text-[11px] text-[var(--muted)]">
+              {switchingBranch ? "Şube değiştiriliyor…" : `Aktif: ${activeBranchName}`}
             </p>
-            {branchError ? <p className="mt-1 text-[10px] text-red-600">{branchError}</p> : null}
+            {branchError ? <p className="mt-1 text-[11px] text-[var(--danger)]">{branchError}</p> : null}
           </div>
         ) : null}
 
@@ -411,7 +416,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                 <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">{getInitials(user.firstName, user.lastName)}</div>
                 <div className="min-w-0 flex-1">
                   <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{fullName(user.firstName, user.lastName)}</p>
-                  <p className="mt-0.5 truncate text-[10px] text-[var(--muted)]">{tenant?.name ?? "İşletme"}</p>
+                  <p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{tenant?.name ?? "İşletme"}</p>
                 </div>
               </div>
             ) : null}
