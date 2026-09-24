@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Select, useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -181,19 +181,19 @@ export default function OperationsWaitlistPage() {
         <h2 className="text-sm font-semibold text-[var(--ink)]">Yeni Bekleme Talebi</h2>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           <Field label="Müşteri">
-            <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))}>
+            <Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))}>
               <option value="">Müşteri seçin</option>{customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.firstName} {customer.lastName}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Hizmet">
-            <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}>
+            <Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))}>
               <option value="">Hizmet seçin</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Tercih edilen personel">
-            <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.preferredStaffId} onChange={(event) => setForm((current) => ({ ...current, preferredStaffId: event.target.value }))}>
+            <Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.preferredStaffId} onChange={(event) => setForm((current) => ({ ...current, preferredStaffId: event.target.value }))}>
               <option value="">Fark etmez</option>{staff.map((member) => <option key={member.id} value={member.id}>{member.firstName} {member.lastName}</option>)}
-            </select>
+            </Select>
           </Field>
           <Field label="Tarih aralığı başlangıcı"><TextInput type="datetime-local" value={form.desiredFrom} onChange={(event) => setForm((current) => ({ ...current, desiredFrom: event.target.value }))} /></Field>
           <Field label="Tarih aralığı bitişi"><TextInput type="datetime-local" value={form.desiredTo} onChange={(event) => setForm((current) => ({ ...current, desiredTo: event.target.value }))} /></Field>
@@ -201,9 +201,9 @@ export default function OperationsWaitlistPage() {
           <Field label="Gün içi başlangıç"><TextInput type="time" value={form.preferredTimeStart} onChange={(event) => setForm((current) => ({ ...current, preferredTimeStart: event.target.value }))} /></Field>
           <Field label="Gün içi bitiş"><TextInput type="time" value={form.preferredTimeEnd} onChange={(event) => setForm((current) => ({ ...current, preferredTimeEnd: event.target.value }))} /></Field>
           <Field label="İletişim kanalı">
-            <select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.contactChannel} onChange={(event) => setForm((current) => ({ ...current, contactChannel: event.target.value }))}>
+            <Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.contactChannel} onChange={(event) => setForm((current) => ({ ...current, contactChannel: event.target.value }))}>
               <option value="ANY">Fark etmez</option><option value="PHONE">Telefon</option><option value="SMS">SMS</option><option value="WHATSAPP">WhatsApp</option><option value="EMAIL">E-posta</option>
-            </select>
+            </Select>
           </Field>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
