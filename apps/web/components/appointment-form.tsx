@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimePicker } from "@/components/date-time-picker";
 import type { AppointmentStatus, Customer, Service, Staff } from "@/lib/types";
 import { fullName } from "@/lib/format";
 import { Button, Field, TextArea, TextInput } from "@/components/ui";
@@ -130,17 +131,19 @@ export function AppointmentEditorForm({
       >
         <FormGrid>
           <Field label="Başlangıç" required>
-            <TextInput
-              type="datetime-local"
+            <DateTimePicker
               value={value.startAt}
-              onChange={(event) => onChange({ ...value, startAt: event.target.value })}
+              max={value.endAt || undefined}
+              ariaLabel="Randevu başlangıcı"
+              onChange={(startAt) => onChange({ ...value, startAt })}
             />
           </Field>
           <Field label="Bitiş" required>
-            <TextInput
-              type="datetime-local"
+            <DateTimePicker
               value={value.endAt}
-              onChange={(event) => onChange({ ...value, endAt: event.target.value })}
+              min={value.startAt || undefined}
+              ariaLabel="Randevu bitişi"
+              onChange={(endAt) => onChange({ ...value, endAt })}
             />
           </Field>
         </FormGrid>
