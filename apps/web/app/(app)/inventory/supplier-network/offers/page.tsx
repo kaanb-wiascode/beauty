@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Select, useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Modal } from "@/components/modal";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 
