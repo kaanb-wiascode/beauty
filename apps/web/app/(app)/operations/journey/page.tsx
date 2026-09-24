@@ -1,5 +1,6 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
 import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
