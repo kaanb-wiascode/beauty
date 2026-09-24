@@ -482,6 +482,7 @@ export default function CrmLeadsPage() {
       </section>
 
       <Modal
+        size="xl"
         open={createOpen}
         onClose={() => !saving && setCreateOpen(false)}
         title="Yeni Potansiyel Müşteri"
