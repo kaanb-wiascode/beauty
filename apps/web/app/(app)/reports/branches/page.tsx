@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -282,24 +284,15 @@ function formatValue(
   return String(value);
 }
 
-function Metric({
-  label,
-  value,
-  detail,
-}: {
-  label: string;
-  value: string;
-  detail: string;
-}) {
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <GlassCard>
-      <p className="text-[11px] text-[var(--muted)]">{label}</p>
-      <p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">
-        {value}
-      </p>
-      <p className="mt-1 text-[10px] leading-5 text-[var(--muted-soft)]">
-        {detail}
-      </p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] text-[var(--muted)]">{label}</p>
+        <CardInfo help={getCardHelp(label, detail)} />
+      </div>
+      <p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">{value}</p>
+      <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p>
     </GlassCard>
   );
 }
