@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { ApiError } from "@/lib/api";
-import { userLabel, userPermissionLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel, userPermissionLabel } from "@/lib/user-language";
 import {
   decidePlatformPrivilegedOperation,
   executePlatformPrivilegedOperation,
@@ -36,7 +36,7 @@ export default function PlatformApprovalsPage() {
       });
       setData(value);
     } catch (reason) {
-      setError(reason instanceof ApiError ? reason.message : "Onay kuyruğu yüklenemedi.");
+      setError(reason instanceof ApiError ? userErrorMessage(reason.message, "Onay kuyruğu yüklenemedi.") : "Onay kuyruğu yüklenemedi.");
     }
   }, [status, offset]);
 
@@ -66,7 +66,7 @@ export default function PlatformApprovalsPage() {
       setNotice(decision === "APPROVED" ? "İşlem onaylandı ve uygulanmaya hazır." : "İşlem reddedildi.");
       await load();
     } catch (reasonValue) {
-      setError(reasonValue instanceof ApiError ? reasonValue.message : "Karar kaydedilemedi.");
+      setError(reasonValue instanceof ApiError ? userErrorMessage(reasonValue.message, "Karar kaydedilemedi.") : "Karar kaydedilemedi.");
     } finally {
       setBusyId(null);
     }
@@ -85,7 +85,7 @@ export default function PlatformApprovalsPage() {
       );
       await load();
     } catch (reasonValue) {
-      setError(reasonValue instanceof ApiError ? reasonValue.message : "İşlem uygulanamadı.");
+      setError(reasonValue instanceof ApiError ? userErrorMessage(reasonValue.message, "İşlem uygulanamadı.") : "İşlem uygulanamadı.");
     } finally {
       setBusyId(null);
     }
