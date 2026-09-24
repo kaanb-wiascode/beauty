@@ -838,7 +838,6 @@ export default function TeamPage() {
                   <p className="mt-0.5 text-[10px] text-[var(--muted)]">{STATUS_LABELS[status]}</p>
                 </div>
               </div>
-              ) : null}
             </div>
           ) : null}
           <div className="max-h-[520px] overflow-y-auto p-2">
@@ -881,7 +880,7 @@ export default function TeamPage() {
               <p className="mt-1 text-[11px] text-[var(--muted)]">Birebir mesajlaşın veya ekip üyelerinden bir grup oluşturun.</p>
             </div>
             <div className="space-y-4 p-5">
-              <div className="grid grid-cols-2 gap-2 rounded-[14px] bg-[var(--surface-2)] p-1">
+              <div className="grid grid-cols-3 gap-2 rounded-[14px] bg-[var(--surface-2)] p-1">
                 {(["DIRECT", "GROUP", "CHANNEL"] as const).map((type) => (
                   <button
                     key={type}
@@ -899,7 +898,7 @@ export default function TeamPage() {
 
               {composeType !== "DIRECT" ? (
                 <label className="block">
-                  <span className="mb-1.5 block text-[10px] font-semibold text-[var(--muted)]">Grup adı</span>
+                  <span className="mb-1.5 block text-[10px] font-semibold text-[var(--muted)]">{composeType === "CHANNEL" ? "Kanal adı" : "Grup adı"}</span>
                   <input
                     value={groupName}
                     onChange={(event) => setGroupName(event.target.value)}
@@ -951,6 +950,7 @@ export default function TeamPage() {
                   })}
                 </div>
               </div>
+              ) : null}
             </div>
             <div className="flex justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
               <button type="button" onClick={() => setComposeOpen(false)} className="h-10 rounded-[12px] border border-[var(--line)] px-4 text-[11px] font-semibold text-[var(--muted)]">Vazgeç</button>
