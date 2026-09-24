@@ -1,9 +1,9 @@
 "use client";
 
-import { Select, FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { Alert, Button, TextInput } from "@/components/ui";
+import { Alert, Button, TextInput, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { supplierPortalApi } from "@/lib/supplier-portal-api";
 import {
