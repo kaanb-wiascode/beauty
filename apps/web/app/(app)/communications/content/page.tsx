@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Select, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -164,9 +164,9 @@ export default function ContentOperationsPage() {
       {showForm && canManage ? (
         <form onSubmit={(e) => void create(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-4">
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Başlık<input required className={fieldClass} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Platform<select className={fieldClass} value={platform} onChange={(e) => setPlatform(e.target.value)}><option>INSTAGRAM</option><option>FACEBOOK</option><option>TIKTOK</option><option>YOUTUBE</option><option>LINKEDIN</option><option>WEBSITE</option><option>EMAIL</option><option>SMS</option><option>WHATSAPP</option><option>OTHER</option></select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Format<select className={fieldClass} value={format} onChange={(e) => setFormat(e.target.value)}><option>POST</option><option>REEL</option><option>STORY</option><option>VIDEO</option><option>ARTICLE</option><option>EMAIL</option><option>SMS</option><option>BANNER</option><option>OTHER</option></select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Kampanya<select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Platform<Select className={fieldClass} value={platform} onChange={(e) => setPlatform(e.target.value)}><option>INSTAGRAM</option><option>FACEBOOK</option><option>TIKTOK</option><option>YOUTUBE</option><option>LINKEDIN</option><option>WEBSITE</option><option>EMAIL</option><option>SMS</option><option>WHATSAPP</option><option>OTHER</option></Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Format<Select className={fieldClass} value={format} onChange={(e) => setFormat(e.target.value)}><option>POST</option><option>REEL</option><option>STORY</option><option>VIDEO</option><option>ARTICLE</option><option>EMAIL</option><option>SMS</option><option>BANNER</option><option>OTHER</option></Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Kampanya<Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">CTA<input className={fieldClass} value={cta} onChange={(e) => setCta(e.target.value)} placeholder="Randevu al, Teklif iste..." /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2 xl:col-span-4">Caption / İçerik Metni<textarea className={areaClass} value={caption} onChange={(e) => setCaption(e.target.value)} /></label>
           <div className="md:col-span-2 xl:col-span-4"><Button disabled={saving} type="submit">{saving ? "Kaydediliyor..." : "İçeriği Oluştur"}</Button></div>
