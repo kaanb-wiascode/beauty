@@ -1,6 +1,7 @@
 "use client";
 
-import { Field, Panel, TextInput } from "@/components/ui";
+import { DatePicker } from "@/components/date-picker";
+import { Field, Panel } from "@/components/ui";
 
 export type ReportDateRange = {
   from: string;
@@ -94,17 +95,19 @@ export function ReportFilterBar({
           <span className="hidden h-5 w-px bg-[var(--line)] sm:block" />
           <div className="grid min-w-0 flex-1 gap-3 sm:grid-cols-2">
             <Field label="Başlangıç">
-              <TextInput
-                type="date"
+              <DatePicker
                 value={from}
-                onChange={(event) => onChange({ from: event.target.value, to })}
+                max={to || undefined}
+                ariaLabel="Başlangıç tarihi"
+                onChange={(nextFrom) => onChange({ from: nextFrom, to })}
               />
             </Field>
             <Field label="Bitiş">
-              <TextInput
-                type="date"
+              <DatePicker
                 value={to}
-                onChange={(event) => onChange({ from, to: event.target.value })}
+                min={from || undefined}
+                ariaLabel="Bitiş tarihi"
+                onChange={(nextTo) => onChange({ from, to: nextTo })}
               />
             </Field>
           </div>
