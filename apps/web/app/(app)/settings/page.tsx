@@ -6,25 +6,25 @@ import { api } from "@/lib/api";
 
 const sections = [
   { href: "/settings/users", title: "Kullanıcılar", description: "İşletme Üyeliklerini, Rolleri Ve Erişim Durumlarını Yönetin.", glyph: "◎" },
-  { href: "/settings/invitations", title: "Kullanıcı Davetleri", description: "Tek Kullanımlık, Süreli Davetlerle Güvenli Kullanıcı Onboarding Sürecini Yönetin.", glyph: "+" },
+  { href: "/settings/invitations", title: "Kullanıcı Davetleri", description: "Tek kullanımlık ve süreli davetlerle yeni kullanıcıların sisteme güvenli şekilde katılmasını yönetin.", glyph: "+" },
   { href: "/settings/temporary-access", title: "Geçici Erişim", description: "Süreli, Şube Kapsamlı Ve Denetlenebilir Ek Yetkileri Yönetin.", glyph: "◷" },
-  { href: "/settings/break-glass", title: "Break-Glass Erişimi", description: "Parola + MFA İle Yeniden Doğrulanan, En Fazla 60 Dakikalık Acil Yetkileri Yönetin.", glyph: "!" },
+  { href: "/settings/break-glass", title: "Acil Erişim", description: "Parola ve iki aşamalı doğrulama ile açılan, en fazla 60 dakika süren acil yetkileri yönetin.", glyph: "!" },
   { href: "/settings/permission-simulation", title: "Yetki Simülasyonu", description: "Bir Kullanıcının Etkin Rol, Şube, Geçici Ve Yüksek Riskli Yetkilerini Güvenli Şekilde Önizleyin.", glyph: "◉" },
-  { href: "/settings/field-security", title: "Alan Güvenliği", description: "TCKN, IBAN, Ücret Ve Bordro Gibi Yüksek Riskli Alanları Ayrı Permission Politikalarıyla Koruyun.", glyph: "▤" },
+  { href: "/settings/field-security", title: "Alan Güvenliği", description: "T.C. kimlik numarası, IBAN, ücret ve bordro gibi hassas alanları özel yetki kurallarıyla koruyun.", glyph: "▤" },
   { href: "/settings/security", title: "Güvenlik Merkezi", description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.", glyph: "□" },
   { href: "/settings/roles", title: "Roller Ve Yetkiler", description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.", glyph: "◇" },
   { href: "/settings/role-templates", title: "Rol Şablonları", description: "Hazır Başlangıç Reçetelerinden Şirkete Ait Özelleştirilebilir Roller Oluşturun.", glyph: "◇*" },
-  { href: "/settings/role-clone", title: "Rol Klonlama", description: "Mevcut Bir Rolün Kapsam Ve Yetki Setinden Tenant-Owned Yeni Roller Türetin.", glyph: "◇+" },
-  { href: "/settings/approval-workflows", title: "Onay Akışları", description: "Finance, HR Ve Operasyonlar İçin Versiyonlu Merkezi Onay Politikaları Tanımlayın.", glyph: "⇢" },
+  { href: "/settings/role-clone", title: "Rol Klonlama", description: "Mevcut bir rolün kapsam ve yetkilerini temel alarak şirkete özel yeni roller oluşturun.", glyph: "◇+" },
+  { href: "/settings/approval-workflows", title: "Onay Akışları", description: "Finans, İnsan Kaynakları ve operasyonlar için merkezi ve sürümlenebilir onay kuralları tanımlayın.", glyph: "⇢" },
   { href: "/settings/approval-inbox", title: "Onay Kutusu", description: "Bekleyen Merkezi Onay Taleplerini İnceleyin, Onaylayın Veya Reddedin.", glyph: "✓" },
-  { href: "/settings/approval-delegations", title: "Onay Delegasyonları", description: "Geçici Vekaletleri Domain, Süre Ve Gerekçeyle Yönetin.", glyph: "↔" },
-  { href: "/settings/sod-policies", title: "Görevlerin Ayrılığı", description: "Requester, Approver Ve Çok Adımlı Onay Çakışmalarını Domain Bazında Yönetin.", glyph: "≠" },
+  { href: "/settings/approval-delegations", title: "Onay Vekaletleri", description: "Geçici onay vekaletlerini işlem alanı, süre ve gerekçeye göre yönetin.", glyph: "↔" },
+  { href: "/settings/sod-policies", title: "Görevlerin Ayrılığı", description: "Talep eden ve onaylayan kişilerin aynı kişi olmasını veya yetki çakışmalarını işlem alanına göre yönetin.", glyph: "≠" },
   { href: "/settings/business-policies", title: "İş Politikaları", description: "İndirim, İade, Masraf Ve Benzeri İş Kurallarını Yetkiden Ayrı Olarak Versiyonlayın.", glyph: "ƒ" },
-  { href: "/settings/numbering", title: "Numaralandırma", description: "Belge Tipleri İçin Şirket/Şube Bazlı, Yıl Kırılımlı Ve Concurrency-Safe Serileri Yönetin.", glyph: "№" },
+  { href: "/settings/numbering", title: "Numaralandırma", description: "Belge numaralarını şirket, şube ve yıla göre güvenli ve çakışmasız şekilde yönetin.", glyph: "№" },
   { href: "/settings/notifications", title: "Bildirim Politikaları", description: "İş Olaylarının Hangi Kitlelere Hangi Kanallardan Bildirileceğini Yönetin.", glyph: "◫" },
-  { href: "/settings/entitlements", title: "Özellikler & Entitlements", description: "Planın Etkinleştirdiği Kabiliyetleri Yetkilerden Ayrı Olarak Görüntüleyin.", glyph: "◆" },
+  { href: "/settings/entitlements", title: "Plan Özellikleri", description: "Abonelik planınızla kullanılabilen özellikleri ve modülleri görüntüleyin.", glyph: "◆" },
   { href: "/settings/integrations", title: "Entegrasyonlar", description: "Bankacılık Ve Ödeme Entegrasyonlarının Sağlık, Senkronizasyon Ve Yapılandırma Durumunu İzleyin.", glyph: "∞" },
-  { href: "/settings/privacy", title: "Veri & Gizlilik", description: "Retention Metadata Ve Veri Taleplerini Denetlenebilir Governance Workflow'u İle Yönetin.", glyph: "◌" },
+  { href: "/settings/privacy", title: "Veri & Gizlilik", description: "Veri saklama sürelerini ve veri taleplerini kayıt altına alınan bir yönetim süreciyle yönetin.", glyph: "◌" },
   { href: "/settings/organization", title: "Şirket Ve Şubeler", description: "Şirket Kapsamını, Şubeleri Ve Organizasyon Kullanımını Görüntüleyin.", glyph: "▦" },
   { href: "/settings/audit", title: "Denetim Kayıtları", description: "Kritik Yönetim Değişikliklerini, Aktörleri Ve Önce/Sonra Durumlarını İnceleyin.", glyph: "≋" },
 ];
@@ -50,8 +50,8 @@ export default function SettingsPage() {
   const metrics = dashboard ? [
     ["Aktif kullanıcı", dashboard.users.active],
     ["Bekleyen davet", dashboard.invitations.pending],
-    ["MFA kapsamı", `%${dashboard.mfa.coveragePercent}`],
-    ["Branch scope eksik", dashboard.users.withoutBranchScope],
+    ["İki aşamalı doğrulama", `%${dashboard.mfa.coveragePercent}`],
+    ["Şube erişimi eksik", dashboard.users.withoutBranchScope],
     ["Geçici erişim", dashboard.temporaryAccess.active],
     ["Sorunlu entegrasyon", dashboard.integrations.unhealthy],
   ] : [];
@@ -82,7 +82,7 @@ export default function SettingsPage() {
             <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
               <div className="text-xs font-semibold text-[var(--ink)]">Erişim Riskleri</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[var(--muted)]">
-                <div>CENTRAL kapsamlı kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.broadCentral}</strong></div>
+                <div>Tüm şirketi görebilen kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.broadCentral}</strong></div>
                 <div>24 saatte bitecek erişim <strong className="ml-1 text-[var(--ink)]">{dashboard.temporaryAccess.expiringSoon}</strong></div>
                 <div>Askıya alınmış kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.suspended}</strong></div>
                 <div>Aktif şube <strong className="ml-1 text-[var(--ink)]">{dashboard.branches.active}</strong></div>
