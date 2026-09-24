@@ -30,8 +30,8 @@ const columns = ["IDEA", "BRIEF", "PRODUCTION", "REVIEW", "APPROVED", "SCHEDULED
 
 const statusLabel: Record<string, string> = {
   IDEA: "Fikir",
-  BRIEF: "Brief",
-  PRODUCTION: "Üretim",
+  BRIEF: "İçerik Özeti",
+  PRODUCTION: "Hazırlanıyor",
   REVIEW: "İnceleme",
   APPROVED: "Onaylandı",
   SCHEDULED: "Planlandı",
