@@ -1,4 +1,6 @@
 "use client";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 
 import { useEffect, useState } from "react";
 import { Select } from "@/components/ui";
@@ -209,9 +211,9 @@ export default function OrganizationPage() {
             )}
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
-            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Toplam Şube</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.branches}</div></div>
-            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Kullanıcı Üyeliği</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.memberships}</div></div>
-            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Şirket Rolleri</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.roles}</div></div>
+            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Toplam Şube</div><CardInfo help={getCardHelp("Toplam Şube", "Şirket altında kayıtlı toplam şube sayısını gösterir.")} /></div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.branches}</div></div>
+            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Kullanıcı Üyeliği</div><CardInfo help={getCardHelp("Kullanıcı Üyeliği", "Şirket çalışma alanına bağlı kullanıcı üyeliklerinin sayısını gösterir.")} /></div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.memberships}</div></div>
+            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Şirket Rolleri</div><CardInfo help={getCardHelp("Şirket Rolleri", "Şirket kapsamında tanımlı rol sayısını gösterir.")} /></div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.roles}</div></div>
           </div>
         </section>
       ) : null}
