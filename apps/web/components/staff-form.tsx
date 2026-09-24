@@ -14,10 +14,10 @@ import {
   Alert,
   Button,
   Field,
-  Select,
   TextArea,
   TextInput,
 } from "@/components/ui";
+import { ValooSelect } from "@/components/valoo-controls";
 import type { StaffProfile } from "@/lib/types";
 
 export type StaffEditorState = {
@@ -80,14 +80,30 @@ export function StaffEditorForm({
               <Field label="Doğum Yeri"><TextInput value={form.profile.birthPlace ?? ""} onChange={(event) => onProfileChange("birthPlace", event.target.value)} /></Field>
               <Field label="Uyruk"><TextInput value={form.profile.nationality ?? "Türkiye Cumhuriyeti"} onChange={(event) => onProfileChange("nationality", event.target.value)} /></Field>
               <Field label="Cinsiyet">
-                <Select value={form.profile.gender ?? ""} onChange={(event) => onProfileChange("gender", event.target.value)}>
-                  <option value="">Seçiniz</option><option value="Kadın">Kadın</option><option value="Erkek">Erkek</option><option value="Belirtmek istemiyorum">Belirtmek İstemiyorum</option>
-                </Select>
+                <ValooSelect
+                  value={form.profile.gender ?? ""}
+                  onChange={(gender) => onProfileChange("gender", gender)}
+                  searchable={false}
+                  placeholder="Seçiniz"
+                  options={[
+                    { value: "Kadın", label: "Kadın" },
+                    { value: "Erkek", label: "Erkek" },
+                    { value: "Belirtmek istemiyorum", label: "Belirtmek istemiyorum" },
+                  ]}
+                />
               </Field>
-              <Field label="Medeni Durum">
-                <Select value={form.profile.maritalStatus ?? ""} onChange={(event) => onProfileChange("maritalStatus", event.target.value)}>
-                  <option value="">Seçiniz</option><option value="Bekar">Bekar</option><option value="Evli">Evli</option><option value="Diğer">Diğer</option>
-                </Select>
+              <Field label="Medeni durum">
+                <ValooSelect
+                  value={form.profile.maritalStatus ?? ""}
+                  onChange={(maritalStatus) => onProfileChange("maritalStatus", maritalStatus)}
+                  searchable={false}
+                  placeholder="Seçiniz"
+                  options={[
+                    { value: "Bekar", label: "Bekar" },
+                    { value: "Evli", label: "Evli" },
+                    { value: "Diğer", label: "Diğer" },
+                  ]}
+                />
               </Field>
               <Field label="Telefon" required><TextInput value={form.phone} onChange={(event) => setField("phone", event.target.value)} /></Field>
               <Field label="E-Posta"><TextInput type="email" value={form.email} onChange={(event) => setField("email", event.target.value)} /></Field>
@@ -106,15 +122,32 @@ export function StaffEditorForm({
               <Field label="Pozisyon"><TextInput value={form.profile.position ?? ""} onChange={(event) => onProfileChange("position", event.target.value)} placeholder="Güzellik Uzmanı" /></Field>
               <Field label="Departman"><TextInput value={form.profile.department ?? ""} onChange={(event) => onProfileChange("department", event.target.value)} placeholder="Güzellik" /></Field>
               <Field label="İşe Giriş Tarihi"><TextInput type="date" value={form.profile.hireDate ?? ""} onChange={(event) => onProfileChange("hireDate", event.target.value)} /></Field>
-              <Field label="Çalışma Tipi">
-                <Select value={form.profile.employmentType ?? ""} onChange={(event) => onProfileChange("employmentType", event.target.value)}>
-                  <option value="">Seçiniz</option><option value="Tam zamanlı">Tam Zamanlı</option><option value="Yarı zamanlı">Yarı Zamanlı</option><option value="Freelance">Serbest Çalışan</option><option value="Deneme süresi">Deneme Süresi</option>
-                </Select>
+              <Field label="Çalışma tipi">
+                <ValooSelect
+                  value={form.profile.employmentType ?? ""}
+                  onChange={(employmentType) => onProfileChange("employmentType", employmentType)}
+                  searchable={false}
+                  placeholder="Seçiniz"
+                  options={[
+                    { value: "Tam zamanlı", label: "Tam zamanlı" },
+                    { value: "Yarı zamanlı", label: "Yarı zamanlı" },
+                    { value: "Freelance", label: "Serbest çalışan" },
+                    { value: "Deneme süresi", label: "Deneme süresi" },
+                  ]}
+                />
               </Field>
-              <Field label="Sözleşme Tipi">
-                <Select value={form.profile.contractType ?? ""} onChange={(event) => onProfileChange("contractType", event.target.value)}>
-                  <option value="">Seçiniz</option><option value="Belirsiz süreli">Belirsiz Süreli</option><option value="Belirli süreli">Belirli Süreli</option><option value="Hizmet sözleşmesi">Hizmet Sözleşmesi</option>
-                </Select>
+              <Field label="Sözleşme tipi">
+                <ValooSelect
+                  value={form.profile.contractType ?? ""}
+                  onChange={(contractType) => onProfileChange("contractType", contractType)}
+                  searchable={false}
+                  placeholder="Seçiniz"
+                  options={[
+                    { value: "Belirsiz süreli", label: "Belirsiz süreli" },
+                    { value: "Belirli süreli", label: "Belirli süreli" },
+                    { value: "Hizmet sözleşmesi", label: "Hizmet sözleşmesi" },
+                  ]}
+                />
               </Field>
             </FormGrid>
             <FormHint title="Hizmet Yetkinlikleri" tone="info">
@@ -126,10 +159,18 @@ export function StaffEditorForm({
         {step === 2 ? (
           <FormSection title="Özlük Ve Finans" description="Sözleşme, Ücret Ve Banka Bilgileri.">
             <FormGrid>
-              <Field label="Maaş Tipi">
-                <Select value={form.profile.salaryType ?? ""} onChange={(event) => onProfileChange("salaryType", event.target.value)}>
-                  <option value="">Seçiniz</option><option value="Aylık">Aylık</option><option value="Saatlik">Saatlik</option><option value="Günlük">Günlük</option>
-                </Select>
+              <Field label="Maaş tipi">
+                <ValooSelect
+                  value={form.profile.salaryType ?? ""}
+                  onChange={(salaryType) => onProfileChange("salaryType", salaryType)}
+                  searchable={false}
+                  placeholder="Seçiniz"
+                  options={[
+                    { value: "Aylık", label: "Aylık" },
+                    { value: "Saatlik", label: "Saatlik" },
+                    { value: "Günlük", label: "Günlük" },
+                  ]}
+                />
               </Field>
               <Field label="Maaş"><TextInput type="number" min={0} value={form.profile.salary ?? ""} onChange={(event) => onProfileChange("salary", event.target.value === "" ? undefined : Number(event.target.value))} placeholder="0" /></Field>
               <Field label="Banka"><TextInput value={form.profile.bankName ?? ""} onChange={(event) => onProfileChange("bankName", event.target.value)} /></Field>
@@ -165,15 +206,31 @@ export function StaffEditorForm({
       {error ? <div className="mt-4"><Alert>{error}</Alert></div> : null}
 
       <FormActions className="sm:justify-between">
-        <Button variant="secondary" type="button" onClick={() => step === 0 ? onCancel() : onStepChange(Math.max(0, step - 1))} disabled={saving}>
-          {step === 0 ? "Vazgeç" : "Geri"}
-        </Button>
+        <div>
+          {step > 0 ? (
+            <Button
+              variant="secondary"
+              type="button"
+              onClick={() => onStepChange(Math.max(0, step - 1))}
+              disabled={saving}
+            >
+              Geri
+            </Button>
+          ) : null}
+        </div>
         <div className="flex flex-col-reverse gap-2 sm:flex-row">
-          <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>İptal</Button>
+          <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
+            İptal
+          </Button>
           {step < steps.length - 1 ? (
-            <Button type="button" onClick={() => onStepChange(Math.min(steps.length - 1, step + 1))}>Devam Et →</Button>
+            <Button type="button" onClick={() => onStepChange(Math.min(steps.length - 1, step + 1))}>
+              Devam et →
+            </Button>
           ) : (
-            <FormSubmitButton saving={saving} idleLabel={editing ? "Değişiklikleri Kaydet" : "Personeli Oluştur"} />
+            <FormSubmitButton
+              saving={saving}
+              idleLabel={editing ? "Değişiklikleri kaydet" : "Personeli oluştur"}
+            />
           )}
         </div>
       </FormActions>
