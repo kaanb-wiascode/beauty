@@ -755,7 +755,7 @@ export default function PaymentsPage() {
           }
         }}
         title="Ödemeyi iade et"
-        description="İade işlemi ödeme kaydını REFUNDED durumuna geçirir."
+        description="İade onaylandığında ödeme kaydı iade edildi olarak güncellenir."
       >
         <div className="space-y-4">
           <Field label="İade nedeni">
