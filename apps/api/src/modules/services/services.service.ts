@@ -77,9 +77,16 @@ export class ServicesService {
         tenantId,
         branchId,
         name: input.name.trim(),
+        category: input.category?.trim() || null,
         description: input.description?.trim() || null,
         durationMinutes: input.durationMinutes,
+        preparationMinutes: input.preparationMinutes,
+        cleanupMinutes: input.cleanupMinutes,
         price: input.price,
+        cost: input.cost ?? null,
+        taxRate: input.taxRate,
+        currency: input.currency,
+        requiresConsultation: input.requiresConsultation,
       },
     });
   }
@@ -256,6 +263,9 @@ export class ServicesService {
         ...(input.name !== undefined && {
           name: input.name.trim(),
         }),
+        ...(input.category !== undefined && {
+          category: input.category?.trim() || null,
+        }),
         ...(input.description !== undefined && {
           description:
             input.description?.trim() || null,
@@ -263,8 +273,26 @@ export class ServicesService {
         ...(input.durationMinutes !== undefined && {
           durationMinutes: input.durationMinutes,
         }),
+        ...(input.preparationMinutes !== undefined && {
+          preparationMinutes: input.preparationMinutes,
+        }),
+        ...(input.cleanupMinutes !== undefined && {
+          cleanupMinutes: input.cleanupMinutes,
+        }),
         ...(input.price !== undefined && {
           price: input.price,
+        }),
+        ...(input.cost !== undefined && {
+          cost: input.cost,
+        }),
+        ...(input.taxRate !== undefined && {
+          taxRate: input.taxRate,
+        }),
+        ...(input.currency !== undefined && {
+          currency: input.currency,
+        }),
+        ...(input.requiresConsultation !== undefined && {
+          requiresConsultation: input.requiresConsultation,
         }),
       },
     });
