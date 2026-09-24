@@ -188,6 +188,11 @@ const USER_LABELS: Record<string, string> = {
   PENDING_PAYMENT: "Ödeme Bekliyor",
   PENDING_DELIVERY: "Teslimat Bekliyor",
   DELIVERED: "Teslim Edildi",
+  PRIMARY: "Sorumlu Personel",
+  ASSISTANT: "Yardımcı Personel",
+  HANDOFF: "Devralan Personel",
+  ROOM: "Oda / Kabin",
+  ASSET: "Cihaz / Ekipman",
 };
 
 const USER_RESOURCE_LABELS: Record<string, string> = {
