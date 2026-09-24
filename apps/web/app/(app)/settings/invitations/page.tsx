@@ -5,6 +5,7 @@ import { Select } from "@/components/ui";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type Role = {
   id: string;
@@ -180,7 +181,7 @@ export default function InvitationsPage() {
       {created ? (
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Tek Seferlik Davet Bağlantısı</div>
-          <p className="mt-2 text-sm text-[var(--ink)]">Bu bağlantı yalnız şimdi gösterilir. Sistem açık tokenı saklamaz.</p>
+          <p className="mt-2 text-sm text-[var(--ink)]">Bu davet bağlantısı güvenlik nedeniyle yalnızca şimdi gösterilir ve daha sonra tekrar görüntülenemez.</p>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             <input readOnly value={acceptanceUrl} className="min-h-10 flex-1 rounded-xl border border-[var(--line)] bg-[var(--surface-2)] px-3 text-xs" />
             <button type="button" onClick={() => void copyAcceptanceUrl()} className="rounded-xl bg-[var(--accent)] px-4 py-2 text-sm font-semibold text-white">Bağlantıyı Kopyala</button>
@@ -196,7 +197,7 @@ export default function InvitationsPage() {
           </label>
           <label className="space-y-1.5 text-xs font-medium text-[var(--muted)]">Rol
             <Select value={roleId} onChange={(event) => setRoleId(event.target.value)} className="block min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--ink)]">
-              {roles.map((role) => <option key={role.id} value={role.id}>{role.name} · {role.scope}</option>)}
+              {roles.map((role) => <option key={role.id} value={role.id}>{role.name} · {userLabel(role.scope)}</option>)}
             </Select>
           </label>
           <label className="space-y-1.5 text-xs font-medium text-[var(--muted)]">Geçerlilik
@@ -219,7 +220,7 @@ export default function InvitationsPage() {
               })}
             </div>
           </div>
-        ) : <p className="mt-4 text-xs text-[var(--muted)]">Merkez kapsamlı rol tüm mevcut şirket kapsamını kullanır; explicit şube ataması yapılmaz.</p>}
+        ) : <p className="mt-4 text-xs text-[var(--muted)]">Şirket geneli kapsamındaki rol, erişebildiği tüm mevcut şubeleri kullanır; ayrıca şube seçmeniz gerekmez.</p>}
 
         <div className="mt-5 flex justify-end">
           <button type="button" disabled={saving || !email.trim() || !roleId} onClick={() => void createInvitation()} className="rounded-xl bg-[var(--accent)] px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-50">{saving ? "Oluşturuluyor…" : "Davet Oluştur"}</button>
@@ -227,14 +228,14 @@ export default function InvitationsPage() {
       </section>
 
       <section className="overflow-hidden rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-        <div className="border-b border-[var(--line)] px-4 py-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Davet Geçmişi</h2><p className="mt-0.5 text-xs text-[var(--muted)]">Tokenlar listelenmez; yalnız davet durumu ve kapsamı görünür.</p></div>
+        <div className="border-b border-[var(--line)] px-4 py-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Davet Geçmişi</h2><p className="mt-0.5 text-xs text-[var(--muted)]">Güvenlik nedeniyle davet bağlantıları listelenmez; yalnızca davetin durumu ve erişim kapsamı gösterilir.</p></div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[900px] text-left text-sm">
             <thead className="border-b border-[var(--line)] bg-[var(--surface-2)] text-xs text-[var(--muted)]"><tr><th className="px-4 py-3 font-medium">E-posta</th><th className="px-4 py-3 font-medium">Rol / Kapsam</th><th className="px-4 py-3 font-medium">Durum</th><th className="px-4 py-3 font-medium">Bitiş</th><th className="px-4 py-3 text-right font-medium">İşlem</th></tr></thead>
             <tbody>
               {invitations.map((invitation) => <tr key={invitation.id} className="border-b border-[var(--line)] last:border-0">
                 <td className="px-4 py-4 font-medium text-[var(--ink)]">{invitation.email}</td>
-                <td className="px-4 py-4"><div>{invitation.roleName}</div><div className="text-xs text-[var(--muted)]">{invitation.roleScope} · {invitation.branchIds.length} şube</div></td>
+                <td className="px-4 py-4"><div>{invitation.roleName}</div><div className="text-xs text-[var(--muted)]">{userLabel(invitation.roleScope)} · {invitation.branchIds.length} şube</div></td>
                 <td className="px-4 py-4"><span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-xs font-semibold">{STATUS_LABELS[invitation.status]}</span></td>
                 <td className="px-4 py-4 text-xs text-[var(--muted)]">{new Date(invitation.expiresAt).toLocaleString("tr-TR")}</td>
                 <td className="px-4 py-4 text-right">{invitation.status === "PENDING" ? <button type="button" disabled={revokingId === invitation.id} onClick={() => void revokeInvitation(invitation.id)} className="rounded-lg border border-[#f0d8d8] px-3 py-2 text-xs font-medium text-[#9a4545] disabled:opacity-50">İptal Et</button> : <span className="text-xs text-[var(--muted)]">—</span>}</td>
