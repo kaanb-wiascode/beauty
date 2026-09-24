@@ -67,6 +67,7 @@ type ConversationMember = {
 };
 
 type TypingUser = { id: string; firstName: string; lastName: string };
+type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
 
 const STATUS_LABELS: Record<PresenceStatus, string> = {
   AVAILABLE: "Müsait",
@@ -128,6 +129,12 @@ export default function TeamPage() {
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [editingMessage, setEditingMessage] = useState<Message | null>(null);
+  const [searchText, setSearchText] = useState("");
+  const [searchResults, setSearchResults] = useState<SearchResult[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [groupEditing, setGroupEditing] = useState(false);
+  const [groupNameDraft, setGroupNameDraft] = useState("");
+  const [memberPickerOpen, setMemberPickerOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
 
@@ -140,6 +147,27 @@ export default function TeamPage() {
     () => people.find((person) => person.id === currentUser?.id) ?? null,
     [people, currentUser?.id],
   );
+
+  const currentConversationMember = useMemo(
+    () => conversationMembers.find((member) => member.id === currentUser?.id) ?? null,
+    [conversationMembers, currentUser?.id],
+  );
+
+  const mentionQuery = useMemo(() => {
+    const match = messageText.match(/(?:^|\s)@([^\s@]*)$/);
+    return match?.[1]?.toLocaleLowerCase("tr-TR") ?? null;
+  }, [messageText]);
+
+  const mentionSuggestions = useMemo(() => {
+    if (mentionQuery === null) return [];
+    return conversationMembers
+      .filter((member) => member.id !== currentUser?.id)
+      .filter((member) => {
+        const full = `${member.firstName} ${member.lastName}`.toLocaleLowerCase("tr-TR");
+        return !mentionQuery || full.includes(mentionQuery);
+      })
+      .slice(0, 6);
+  }, [conversationMembers, currentUser?.id, mentionQuery]);
 
   const loadOverview = useCallback(async (silent = false) => {
     if (!silent) setLoading(true);
@@ -210,6 +238,10 @@ export default function TeamPage() {
     void loadTyping(activeId);
     setReplyTo(null);
     setEditingMessage(null);
+    setSearchText("");
+    setSearchResults([]);
+    setGroupEditing(false);
+    setGroupNameDraft("");
   }, [activeId, loadMessages, loadConversationMembers, loadTyping]);
 
   useEffect(() => {
@@ -302,6 +334,63 @@ export default function TeamPage() {
     setEditingMessage(message);
     setReplyTo(null);
     setMessageText(message.body);
+  }
+
+  async function searchMessages(value: string) {
+    setSearchText(value);
+    if (!activeId || !value.trim()) {
+      setSearchResults([]);
+      return;
+    }
+    setSearching(true);
+    try {
+      const result = await api<SearchResult[]>(`/team/conversations/${activeId}/search?q=${encodeURIComponent(value.trim())}`);
+      setSearchResults(result);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Mesaj araması yapılamadı.");
+    } finally {
+      setSearching(false);
+    }
+  }
+
+  async function renameActiveGroup() {
+    if (!activeId || active?.type !== "GROUP" || !groupNameDraft.trim()) return;
+    try {
+      await api(`/team/conversations/${activeId}`, { method: "PATCH", body: { name: groupNameDraft.trim() } });
+      setGroupEditing(false);
+      await loadOverview(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Grup adı güncellenemedi.");
+    }
+  }
+
+  async function addMember(userId: string) {
+    if (!activeId) return;
+    try {
+      await api(`/team/conversations/${activeId}/members`, { method: "POST", body: { userId } });
+      await Promise.all([loadConversationMembers(activeId), loadOverview(true)]);
+      setMemberPickerOpen(false);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Üye eklenemedi.");
+    }
+  }
+
+  async function removeMember(userId: string) {
+    if (!activeId) return;
+    try {
+      await api(`/team/conversations/${activeId}/members/${userId}`, { method: "DELETE" });
+      await Promise.all([loadConversationMembers(activeId), loadOverview(true)]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Üye çıkarılamadı.");
+    }
+  }
+
+  function insertMention(member: ConversationMember) {
+    const display = `@${member.firstName}`;
+    setMessageText((current) => current.replace(/(?:^|\s)@([^\s@]*)$/, (match) => {
+      const prefix = match.startsWith(" ") ? " " : "";
+      return `${prefix}${display} `;
+    }));
   }
 
   function toggleUser(userId: string) {
@@ -428,16 +517,47 @@ export default function TeamPage() {
         <main className="flex min-h-[620px] min-w-0 flex-col">
           {active ? (
             <>
-              <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
                 <div>
                   <h2 className="text-[14px] font-semibold text-[var(--ink)]">{active.displayName}</h2>
                   <p className="mt-0.5 text-[10px] text-[var(--muted)]">
                     {active.type === "GROUP" ? `${active.memberCount} üye · Grup konuşması` : "Birebir konuşma"}
                   </p>
                 </div>
-                <span className="rounded-full bg-[#f4f2f8] px-3 py-1 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]">
-                  {active.type === "GROUP" ? "Grup" : "Direkt"}
-                </span>
+                <div className="flex items-center gap-2">
+                  <div className="relative">
+                    <input
+                      value={searchText}
+                      onChange={(event) => void searchMessages(event.target.value)}
+                      placeholder="Mesaj ara..."
+                      className="h-9 w-[180px] rounded-[11px] border border-[var(--line)] bg-white px-3 text-[10px] outline-none focus:border-[#9f89e8]"
+                    />
+                    {searchText ? (
+                      <div className="absolute right-0 top-11 z-20 w-[320px] overflow-hidden rounded-[16px] border border-[var(--line)] bg-white shadow-[0_18px_60px_rgba(27,24,39,.14)]">
+                        <div className="border-b border-[var(--line)] px-3 py-2 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]">
+                          {searching ? "Aranıyor..." : `${searchResults.length} sonuç`}
+                        </div>
+                        <div className="max-h-[280px] overflow-y-auto p-2">
+                          {searchResults.map((result) => (
+                            <button
+                              key={result.id}
+                              type="button"
+                              onClick={() => setSearchText("")}
+                              className="w-full rounded-[11px] px-3 py-2 text-left hover:bg-[var(--surface-2)]"
+                            >
+                              <p className="text-[9px] font-semibold text-[#7657e8]">{result.senderName} · {timeLabel(result.createdAt)}</p>
+                              <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--ink)]">{result.body}</p>
+                            </button>
+                          ))}
+                          {!searching && !searchResults.length ? <p className="px-3 py-6 text-center text-[10px] text-[var(--muted)]">Eşleşen mesaj yok.</p> : null}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <span className="rounded-full bg-[#f4f2f8] px-3 py-1 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]">
+                    {active.type === "GROUP" ? "Grup" : "Direkt"}
+                  </span>
+                </div>
               </div>
 
               <div className="flex-1 overflow-y-auto bg-[#fcfbfd] px-5 py-5">
@@ -502,7 +622,7 @@ export default function TeamPage() {
                     <button type="button" onClick={() => { setReplyTo(null); setEditingMessage(null); setMessageText(""); }} className="ml-3 text-[11px] font-semibold text-[var(--muted)]">×</button>
                   </div>
                 ) : null}
-                <div className="flex items-end gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-2">
+                <div className="relative flex items-end gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-2">
                   <textarea
                     value={messageText}
                     onChange={(event) => signalTyping(event.target.value)}
@@ -515,6 +635,22 @@ export default function TeamPage() {
                     placeholder={editingMessage ? "Mesajı düzenleyin..." : replyTo ? "Yanıtınızı yazın..." : "Mesajınızı yazın..."}
                     className="min-h-[44px] max-h-32 flex-1 resize-none bg-transparent px-2 py-2 text-[12px] text-[var(--ink)] outline-none placeholder:text-[var(--muted-soft)]"
                   />
+                  {mentionSuggestions.length ? (
+                    <div className="absolute bottom-[58px] left-4 z-20 w-[260px] overflow-hidden rounded-[14px] border border-[var(--line)] bg-white shadow-[0_16px_50px_rgba(27,24,39,.15)]">
+                      <p className="border-b border-[var(--line)] px-3 py-2 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]">Ekip üyesi etiketle</p>
+                      <div className="p-1.5">
+                        {mentionSuggestions.map((member) => (
+                          <button key={member.id} type="button" onClick={() => insertMention(member)} className="flex w-full items-center gap-2 rounded-[10px] px-2 py-2 text-left hover:bg-[var(--surface-2)]">
+                            <div className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#f1edff] text-[8px] font-semibold text-[#6f54c7]">{initials(member.firstName, member.lastName)}</div>
+                            <div className="min-w-0">
+                              <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
+                              <p className="truncate text-[8px] text-[var(--muted)]">{member.roleName}</p>
+                            </div>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
                   <button
                     type="submit"
                     disabled={sending || !messageText.trim()}
@@ -540,11 +676,44 @@ export default function TeamPage() {
         <aside className="border-t border-[var(--line)] xl:border-l xl:border-t-0">
           {active?.type === "GROUP" ? (
             <div className="border-b border-[var(--line)]">
-              <div className="px-4 py-4">
-                <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Grup Üyeleri</p>
-                <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{conversationMembers.length} kişi</p>
+              <div className="space-y-3 px-4 py-4">
+                <div className="flex items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Grup Yönetimi</p>
+                    <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{conversationMembers.length} kişi</p>
+                  </div>
+                  {currentConversationMember?.isAdmin ? (
+                    <button type="button" onClick={() => setMemberPickerOpen((value) => !value)} className="rounded-[9px] bg-[#f1edff] px-2.5 py-1.5 text-[9px] font-semibold text-[#6f54c7]">+ Üye</button>
+                  ) : null}
+                </div>
+
+                {currentConversationMember?.isAdmin ? (
+                  <div className="flex gap-2">
+                    <input
+                      value={groupEditing ? groupNameDraft : active.displayName}
+                      onFocus={() => { setGroupEditing(true); setGroupNameDraft(active.displayName); }}
+                      onChange={(event) => { setGroupEditing(true); setGroupNameDraft(event.target.value); }}
+                      className="h-9 min-w-0 flex-1 rounded-[10px] border border-[var(--line)] px-2.5 text-[10px] outline-none focus:border-[#9f89e8]"
+                    />
+                    {groupEditing ? <button type="button" onClick={() => void renameActiveGroup()} className="rounded-[10px] bg-[var(--ink)] px-3 text-[9px] font-semibold text-white">Kaydet</button> : null}
+                  </div>
+                ) : null}
+
+                {memberPickerOpen ? (
+                  <div className="rounded-[12px] border border-[var(--line)] bg-[#fcfbfd] p-2">
+                    <p className="mb-1 px-1 text-[9px] font-semibold text-[var(--muted)]">Gruba eklenebilecek kişiler</p>
+                    <div className="max-h-[150px] overflow-y-auto">
+                      {selectablePeople.filter((person) => !conversationMembers.some((member) => member.id === person.id)).map((person) => (
+                        <button key={person.id} type="button" onClick={() => void addMember(person.id)} className="flex w-full items-center gap-2 rounded-[9px] px-2 py-2 text-left hover:bg-white">
+                          <PersonAvatar person={person} size="sm" />
+                          <span className="truncate text-[9px] font-semibold text-[var(--ink)]">{person.firstName} {person.lastName}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
               </div>
-              <div className="max-h-[220px] overflow-y-auto px-2 pb-3">
+              <div className="max-h-[240px] overflow-y-auto px-2 pb-3">
                 {conversationMembers.map((member) => (
                   <div key={member.id} className="flex items-center gap-3 rounded-[12px] px-2 py-2">
                     <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1edff] text-[9px] font-semibold text-[#6f54c7]">{initials(member.firstName, member.lastName)}</div>
@@ -552,6 +721,9 @@ export default function TeamPage() {
                       <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
                       <p className="truncate text-[9px] text-[var(--muted)]">{member.isAdmin ? "Grup yöneticisi" : member.roleName}</p>
                     </div>
+                    {currentConversationMember?.isAdmin && !member.isAdmin && member.id !== currentUser?.id ? (
+                      <button type="button" onClick={() => void removeMember(member.id)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-rose-600 hover:bg-rose-50">Çıkar</button>
+                    ) : null}
                   </div>
                 ))}
               </div>
