@@ -84,7 +84,7 @@ export default function LearningPathDetailPage() {
           <Link href="/training/learning-paths" className="text-[11px] font-semibold text-[var(--accent)] hover:underline">← Akademiler ve Öğrenme Yolları</Link>
           <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">{data?.code ?? "Öğrenme Yolu"}</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">{data?.title ?? "Öğrenme Yolu"}</h1>
-          <p className="mt-2 max-w-[900px] text-[13px] leading-6 text-[var(--muted)]">{data?.description || "Curriculum adımlarını ve prerequisite ilişkilerini yönetin."}</p>
+          <p className="mt-2 max-w-[900px] text-[13px] leading-6 text-[var(--muted)]">{data?.description || "Öğrenme yolundaki eğitimleri ve eğitimler arasındaki ön koşulları yönetin."}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           {!draft && canManage ? <Button onClick={()=>void createDraft()} disabled={saving}>Yeni Taslak</Button> : null}
@@ -98,17 +98,17 @@ export default function LearningPathDetailPage() {
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <FinanceMetric label="Yayındaki Sürüm" value={published ? `Sürüm ${published.version}` : "—"} detail={published ? `${published.items.length} öğrenme adımı` : "Henüz yayın yok"} tone={published ? "success" : "warning"} />
         <FinanceMetric label="Taslak Sürüm" value={draft ? `Sürüm ${draft.version}` : "—"} detail={draft ? `${draft.items.length} düzenlenebilir adım` : "Taslak bulunmuyor"} tone={draft ? "warning" : "info"} />
-        <FinanceMetric label="Zorunlu Adım" value={active?.items.filter((item)=>item.isRequired).length ?? 0} detail="Completion hesabına dahil" tone="info" />
-        <FinanceMetric label="Prerequisite" value={active?.items.reduce((sum,item)=>sum+(item.prerequisiteItemIds?.length??0),0) ?? 0} detail="Tanımlı bağımlılık" tone="info" />
+        <FinanceMetric label="Zorunlu Adım" value={active?.items.filter((item)=>item.isRequired).length ?? 0} detail="Tamamlanma hesabına dahil" tone="info" />
+        <FinanceMetric label="Ön Koşul" value={active?.items.reduce((sum,item)=>sum+(item.prerequisiteItemIds?.length??0),0) ?? 0} detail="Tanımlı bağımlılık" tone="info" />
       </section>
 
       {draft && canManage ? (
         <FinancePanel title="Öğrenme Yoluna Eğitim Ekle" description="Eğitimler öğrenme yoluna sıralı adımlar olarak eklenir. Yol personele atandığında kullanılan eğitim sürümü korunur.">
           <div className="grid gap-3 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
-            <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Kurs</p><Select className={selectClass} value={courseId} onChange={(e)=>setCourseId(e.target.value)}><option value="">Kurs seçin</option>{courses.map((course)=><option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}</Select></div>
-            <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Due Offset</p><input className={selectClass} type="number" min={0} value={dueOffsetDays} onChange={(e)=>setDueOffsetDays(e.target.value)} placeholder="Gün" /></div>
+            <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Kurs</p><Select className={selectClass} value={courseId} onChange={(e)=>setCourseId(e.target.value)}><option value="">Eğitim seçin</option>{courses.map((course)=><option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}</Select></div>
+            <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Tamamlama Süresi</p><input className={selectClass} type="number" min={0} value={dueOffsetDays} onChange={(e)=>setDueOffsetDays(e.target.value)} placeholder="Kaç gün içinde" /></div>
             <label className="flex h-[42px] items-center gap-2 text-[11px] font-medium text-[var(--muted)]"><input type="checkbox" checked={required} onChange={(e)=>setRequired(e.target.checked)} /> Zorunlu adım</label>
-            <Button onClick={()=>void addCourse()} disabled={saving || !courseId}>Kurs Ekle</Button>
+            <Button onClick={()=>void addCourse()} disabled={saving || !courseId}>Eğitim Ekle</Button>
           </div>
         </FinancePanel>
       ) : null}
