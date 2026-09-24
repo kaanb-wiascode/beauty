@@ -78,7 +78,7 @@ export function SearchField({
         aria-label={props["aria-label"] ?? "Ara"}
         enterKeyHint={props.enterKeyHint ?? "search"}
         className={cx(
-          "h-11 w-full rounded-[14px] border border-transparent bg-[var(--surface-2)]/70 pl-11 pr-10 text-[13px] text-[var(--ink)] outline-none transition",
+          "h-11 w-full rounded-[var(--radius-control)] border border-transparent bg-[var(--surface-2)]/70 pl-11 pr-10 text-[14px] text-[var(--ink)] outline-none transition",
           "placeholder:text-[var(--muted-soft)] hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.22)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-soft)]",
           className,
         )}
@@ -124,7 +124,7 @@ export function FilterChip({
       type={props.type ?? "button"}
       aria-pressed={props["aria-pressed"] ?? active}
       className={cx(
-        "inline-flex h-8 items-center gap-1.5 rounded-full border px-3.5 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9",
         active
           ? "border-[var(--ink)] bg-[var(--ink)] text-white"
           : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:border-[rgba(22,116,189,.18)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
@@ -161,7 +161,7 @@ export function ToolbarButton({
       {...props}
       type={props.type ?? "button"}
       className={cx(
-        "inline-flex h-10 items-center justify-center gap-2 rounded-[12px] border px-3 text-[11px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-10",
         active
           ? "border-[rgba(22,116,189,.18)] bg-[var(--accent-soft)] text-[var(--accent)]"
           : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
