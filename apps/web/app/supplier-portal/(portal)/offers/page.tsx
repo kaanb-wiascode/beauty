@@ -6,6 +6,7 @@ import { Alert, Button, Spinner, TextInput, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { supplierPortalApi } from "@/lib/supplier-portal-api";
 import { getSupplierPortalSession } from "@/lib/supplier-portal-auth";
+import { userLabel } from "@/lib/user-language";
 
 type OfferVisibilityScope = "CONNECTED" | "RESTRICTED";
 
@@ -161,7 +162,7 @@ export default function SupplierOffersPage() {
         offer.brandName ?? "",
         offer.canonicalSku ?? "",
         offer.supplierSku ?? "",
-        STATUS_LABELS[offer.status] ?? offer.status,
+        STATUS_LABELS[offer.status] ?? userLabel(offer.status),
         offer.visibilityScope === "RESTRICTED" ? "özel sözleşmeli seçili alıcı" : "bağlı alıcı",
       ].some((value) => value.toLocaleLowerCase("tr-TR").includes(query)),
     );
@@ -395,7 +396,7 @@ export default function SupplierOffersPage() {
                   </div>
                   <div className="text-right">
                     <p className="text-[14px] font-semibold text-[#1674bd]">{formatMoney(offer.unitPrice, offer.currency)}</p>
-                    <span className="mt-2 inline-flex rounded-full bg-[#eef3f7] px-2.5 py-1 text-[10px] font-semibold text-[#51606d]">{STATUS_LABELS[offer.status] ?? "Durum Bilinmiyor"}</span>
+                    <span className="mt-2 inline-flex rounded-full bg-[#eef3f7] px-2.5 py-1 text-[10px] font-semibold text-[#51606d]">{STATUS_LABELS[offer.status] ?? userLabel(offer.status)}</span>
                   </div>
                 </div>
               </button>
@@ -475,7 +476,7 @@ export default function SupplierOffersPage() {
                 {selectedOffer.status === "ACTIVE" ? <Button type="button" variant="secondary" onClick={() => void transition("deactivate")} disabled={busy}>Pasife Al</Button> : null}
                 {(selectedOffer.status === "DRAFT" || selectedOffer.status === "INACTIVE") ? <Button type="button" variant="secondary" onClick={() => void transition("archive")} disabled={busy}>Arşivle</Button> : null}
               </div>
-              {!verified && (selectedOffer.status === "DRAFT" || selectedOffer.status === "INACTIVE") ? <p className="mt-2 text-[11px] text-[#9b6a21]">Teklifin Aktifleştirilebilmesi İçin Tedarikçi Doğrulamasının Tamamlanması Gerekir.</p> : null}
+              {!verified && (selectedOffer.status === "DRAFT" || selectedOffer.status === "INACTIVE") ? <p className="mt-2 text-[11px] text-[#9b6a21]">Teklifin aktifleştirilebilmesi için tedarikçi doğrulamasının tamamlanması gerekir.</p> : null}
               {selectedOffer.visibilityScope === "RESTRICTED" && selectedOffer.eligibleConnectionIds.length === 0 ? <p className="mt-2 text-[11px] text-[#9b6a21]">Özel Teklifin Aktifleştirilebilmesi İçin En Az Bir Aktif Alıcı Seçilmelidir.</p> : null}
             </div>
           ) : null}
