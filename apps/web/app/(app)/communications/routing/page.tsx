@@ -1,7 +1,7 @@
 "use client";
 
-import { Select, FormEvent, useCallback, useEffect, useState } from "react";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { FormEvent, useCallback, useEffect, useState } from "react";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type Rule = {
