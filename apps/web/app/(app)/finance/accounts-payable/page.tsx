@@ -1,10 +1,10 @@
 "use client";
 
-import { Select, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Modal } from "@/components/modal";
-import { Alert, Button, EmptyState, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, EmptyState, Spinner, TextInput, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { useToast } from "@/components/toast";
