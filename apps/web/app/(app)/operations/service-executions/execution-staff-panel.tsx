@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { Button, Spinner } from "@/components/ui";
+import { Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type Assignment = {
