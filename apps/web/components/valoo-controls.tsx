@@ -165,6 +165,8 @@ function SelectPanel({
   emptyLabel,
   loading,
   style,
+  onSelectAll,
+  onClearAll,
 }: {
   id: string;
   query: string;
@@ -179,6 +181,8 @@ function SelectPanel({
   emptyLabel: string;
   loading: boolean;
   style: CSSProperties;
+  onSelectAll?: () => void;
+  onClearAll?: () => void;
 }) {
   return createPortal(
     <div
@@ -202,6 +206,34 @@ function SelectPanel({
               className="h-10 w-full rounded-[12px] border border-transparent bg-[var(--surface-2)] pl-9 pr-3 text-[13px] text-[var(--ink)] outline-none transition placeholder:text-[var(--muted)] focus:border-[var(--line-strong)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-soft)]"
             />
           </label>
+        </div>
+      ) : null}
+
+      {multiple ? (
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-3 py-2 text-[11px]">
+          <span className="font-medium text-[var(--muted)]">{selectedValues.length} seçili</span>
+          <span className="flex items-center gap-1">
+            {onSelectAll ? (
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={onSelectAll}
+                className="min-h-8 rounded-[8px] px-2 font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]"
+              >
+                Tümünü seç
+              </button>
+            ) : null}
+            {onClearAll && selectedValues.length ? (
+              <button
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={onClearAll}
+                className="min-h-8 rounded-[8px] px-2 font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+              >
+                Temizle
+              </button>
+            ) : null}
+          </span>
         </div>
       ) : null}
 
@@ -569,6 +601,12 @@ export function ValooMultiSelect({
           emptyLabel={emptyLabel}
           loading={loading}
           style={floatingStyle}
+          onSelectAll={() => {
+            const selectable = filtered.filter((option) => !option.disabled).map((option) => option.value);
+            const merged = Array.from(new Set([...values, ...selectable]));
+            onChange(maxSelections ? merged.slice(0, maxSelections) : merged);
+          }}
+          onClearAll={() => onChange([])}
         />
       ) : null}
     </div>
@@ -627,42 +665,86 @@ export function ValooNativeSelectAdapter({
     }];
   });
 
-  const normalizedControlledValue =
+  const controlledSingle =
     typeof value === "string" || typeof value === "number" ? String(value) : undefined;
-  const normalizedDefaultValue =
+  const defaultSingle =
     typeof defaultValue === "string" || typeof defaultValue === "number"
       ? String(defaultValue)
       : undefined;
-  const [internalValue, setInternalValue] = useState(
-    () => normalizedDefaultValue ?? options[0]?.value ?? "",
-  );
-  const currentValue = normalizedControlledValue ?? internalValue;
 
-  if (multiple) {
-    return (
-      <select
-        {...props}
-        id={id}
-        name={name}
-        multiple
-        required={required}
-        disabled={disabled}
-        value={value}
-        defaultValue={defaultValue}
-        onChange={onChange}
-        className={cx("control min-h-11 w-full", className)}
-      >
-        {children}
-      </select>
-    );
+  const controlledMultiple = Array.isArray(value)
+    ? value.map((item) => String(item))
+    : undefined;
+  const defaultMultiple = Array.isArray(defaultValue)
+    ? defaultValue.map((item) => String(item))
+    : [];
+
+  const [internalValue, setInternalValue] = useState(
+    () => defaultSingle ?? options[0]?.value ?? "",
+  );
+  const [internalValues, setInternalValues] = useState<string[]>(() => defaultMultiple);
+
+  const currentValue = controlledSingle ?? internalValue;
+  const currentValues = controlledMultiple ?? internalValues;
+
+  function dispatchNativeChange(nextValues?: readonly string[]) {
+    const native = nativeRef.current;
+    if (!native) return;
+
+    if (nextValues) {
+      const selected = new Set(nextValues);
+      Array.from(native.options).forEach((option) => {
+        option.selected = selected.has(option.value);
+      });
+    }
+
+    native.dispatchEvent(new Event("change", { bubbles: true }));
   }
 
   function handleValueChange(nextValue: string) {
-    if (normalizedControlledValue === undefined) setInternalValue(nextValue);
+    if (controlledSingle === undefined) setInternalValue(nextValue);
     const native = nativeRef.current;
     if (!native) return;
     native.value = nextValue;
-    native.dispatchEvent(new Event("change", { bubbles: true }));
+    dispatchNativeChange();
+  }
+
+  function handleValuesChange(nextValues: string[]) {
+    if (controlledMultiple === undefined) setInternalValues(nextValues);
+    dispatchNativeChange(nextValues);
+  }
+
+  if (multiple) {
+    return (
+      <div className={cx("relative", className)}>
+        <ValooMultiSelect
+          values={currentValues}
+          onChange={handleValuesChange}
+          disabled={disabled}
+          searchable={options.length > 7}
+          placeholder="Seçim yapın"
+          searchPlaceholder="Seçenek ara…"
+          ariaLabel={props["aria-label"]}
+          options={options}
+        />
+        <select
+          {...props}
+          ref={nativeRef}
+          id={id}
+          name={name}
+          multiple
+          required={required}
+          disabled={disabled}
+          value={currentValues}
+          onChange={onChange}
+          tabIndex={-1}
+          aria-hidden="true"
+          className="sr-only"
+        >
+          {children}
+        </select>
+      </div>
+    );
   }
 
   return (
