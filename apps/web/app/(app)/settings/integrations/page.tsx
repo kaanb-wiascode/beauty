@@ -1,4 +1,6 @@
 "use client";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 
 import { useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
@@ -55,7 +57,10 @@ export default function IntegrationsAdminPage() {
           ["Sorunlu", data.summary.withIssues ?? 0],
         ].map(([label, value]) => (
           <div key={String(label)} className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
-            <div className="text-xs text-[var(--muted)]">{label}</div>
+            <div className="flex items-start justify-between gap-3">
+              <div className="text-xs text-[var(--muted)]">{label}</div>
+              <CardInfo help={getCardHelp(String(label), "Kayıtlı entegrasyonların bağlantı ve sağlık durumuna göre güncel sayısını gösterir.")} />
+            </div>
             <div className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</div>
           </div>
         ))}
