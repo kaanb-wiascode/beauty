@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CrmMessageProviderSettings } from "@/components/crm-message-provider-settings";
 import { CrmTwilioSmsSettings } from "@/components/crm-twilio-sms-settings";
 import { Alert, Button, EmptyState, GlassCard, PageHeader, Select, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
@@ -110,11 +112,11 @@ export default function CrmCommunicationsPage() {
     {activeBranch && providers.providers.length ? <Alert tone="success">{providers.providers.length} mesaj sağlayıcısı bağlı · {webhookReady} sağlayıcı gelen mesaj ve teslimat bildirimlerini almaya hazır.</Alert> : null}
 
     <div className="grid gap-3 sm:grid-cols-5">
-      <GlassCard><p className="text-[10px] text-[var(--muted)]">Gelen</p><strong className="mt-2 block text-[22px]">{inbound}</strong></GlassCard>
-      <GlassCard><p className="text-[10px] text-[var(--muted)]">Giden</p><strong className="mt-2 block text-[22px]">{outbound}</strong></GlassCard>
-      <GlassCard><p className="text-[10px] text-[var(--muted)]">Mesaj sağlayıcı hatası</p><strong className="mt-2 block text-[22px]">{failed}</strong></GlassCard>
-      <GlassCard><p className="text-[10px] text-[var(--muted)]">Bildirim bağlantısı hazır</p><strong className="mt-2 block text-[22px]">{webhookReady}/{providers.providers.length}</strong></GlassCard>
-      <GlassCard><p className="text-[10px] text-[var(--muted)]">Teslimat bildirimi uyarısı</p><strong className="mt-2 block text-[22px]">{ignoredCallbacks}</strong></GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">Gelen</p><CardInfo help={getCardHelp("Gelen", "Seçili kapsamda alınan gelen mesajların sayısını gösterir.")} /></div><strong className="mt-2 block text-[22px]">{inbound}</strong></GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">Giden</p><CardInfo help={getCardHelp("Giden", "Sistem üzerinden gönderilen giden mesajların sayısını gösterir.")} /></div><strong className="mt-2 block text-[22px]">{outbound}</strong></GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">Mesaj sağlayıcı hatası</p><CardInfo help={getCardHelp("Mesaj sağlayıcı hatası", "Harici mesaj sağlayıcısında başarısız olmuş gönderimlerin sayısını gösterir.")} /></div><strong className="mt-2 block text-[22px]">{failed}</strong></GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">Bildirim bağlantısı hazır</p><CardInfo help={getCardHelp("Bildirim bağlantısı hazır", "Gelen mesaj ve teslimat bildirimlerini almaya hazır sağlayıcı bağlantılarını gösterir.")} /></div><strong className="mt-2 block text-[22px]">{webhookReady}/{providers.providers.length}</strong></GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">Teslimat bildirimi uyarısı</p><CardInfo help={getCardHelp("Teslimat bildirimi uyarısı", "İşlenemeyen veya dikkate alınmayan teslimat geri bildirimlerinin sayısını gösterir.")} /></div><strong className="mt-2 block text-[22px]">{ignoredCallbacks}</strong></GlassCard>
     </div>
 
     <div className="flex flex-wrap gap-2">
