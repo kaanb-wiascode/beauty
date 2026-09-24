@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { api, ApiError } from "@/lib/api";
+import { api, apiFormData, apiResponse, ApiError } from "@/lib/api";
 import { getStoredUser } from "@/lib/auth";
 
 type PresenceStatus =
@@ -30,6 +30,7 @@ type Conversation = {
   id: string;
   type: "DIRECT" | "GROUP" | "CHANNEL";
   name: string | null;
+  announcementOnly: boolean;
   displayName: string;
   memberCount: number;
   unreadCount: number;
@@ -43,6 +44,7 @@ type Conversation = {
 };
 
 type Reaction = { emoji: string; count: number; reactedByMe: boolean };
+type Attachment = { id: string; originalName: string; mimeType: string; sizeBytes: number };
 type Message = {
   id: string;
   body: string;
@@ -53,6 +55,8 @@ type Message = {
   createdAt: string;
   reactions: Reaction[];
   readByCount: number;
+  isPinned: boolean;
+  attachments: Attachment[];
 };
 
 type ConversationMember = {
@@ -67,6 +71,7 @@ type ConversationMember = {
 };
 
 type TypingUser = { id: string; firstName: string; lastName: string };
+type PinnedMessage = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string; pinnedAt: string };
 type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
 
 const STATUS_LABELS: Record<PresenceStatus, string> = {
@@ -122,9 +127,12 @@ export default function TeamPage() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
   const [composeOpen, setComposeOpen] = useState(false);
-  const [composeType, setComposeType] = useState<"DIRECT" | "GROUP">("DIRECT");
+  const [composeType, setComposeType] = useState<"DIRECT" | "GROUP" | "CHANNEL">("DIRECT");
   const [groupName, setGroupName] = useState("");
+  const [announcementOnly, setAnnouncementOnly] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [conversationMembers, setConversationMembers] = useState<ConversationMember[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
   const [replyTo, setReplyTo] = useState<Message | null>(null);
@@ -198,6 +206,15 @@ export default function TeamPage() {
     }
   }, []);
 
+  const loadPinnedMessages = useCallback(async (conversationId: string) => {
+    try {
+      const result = await api<PinnedMessage[]>(`/team/conversations/${conversationId}/pins`);
+      setPinnedMessages(result);
+    } catch {
+      setPinnedMessages([]);
+    }
+  }, []);
+
   const loadTyping = useCallback(async (conversationId: string) => {
     try {
       const result = await api<TypingUser[]>(`/team/conversations/${conversationId}/typing`);
@@ -236,13 +253,14 @@ export default function TeamPage() {
     void loadMessages(activeId);
     void loadConversationMembers(activeId);
     void loadTyping(activeId);
+    void loadPinnedMessages(activeId);
     setReplyTo(null);
     setEditingMessage(null);
     setSearchText("");
     setSearchResults([]);
     setGroupEditing(false);
     setGroupNameDraft("");
-  }, [activeId, loadMessages, loadConversationMembers, loadTyping]);
+  }, [activeId, loadMessages, loadConversationMembers, loadTyping, loadPinnedMessages]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -267,23 +285,29 @@ export default function TeamPage() {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!activeId || !messageText.trim() || sending) return;
+    if (!activeId || (!messageText.trim() && !selectedFile) || sending) return;
     if (editingMessage) {
       await saveEditedMessage();
       return;
     }
-    const body = messageText.trim();
+    const body = messageText.trim() || selectedFile?.name || "Dosya";
     setSending(true);
     setMessageText("");
     try {
-      await api(`/team/conversations/${activeId}/messages`, {
+      const created = await api<{ id: string }>(`/team/conversations/${activeId}/messages`, {
         method: "POST",
         body: { body, ...(replyTo ? { replyToMessageId: replyTo.id } : {}) },
       });
+      if (selectedFile) {
+        const formData = new FormData();
+        formData.append("file", selectedFile);
+        await apiFormData(`/team/messages/${created.id}/attachments`, formData);
+      }
       setReplyTo(null);
+      setSelectedFile(null);
       await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
     } catch (err) {
-      setMessageText(body);
+      setMessageText(messageText || body);
       setError(err instanceof ApiError ? err.message : "Mesaj gönderilemedi.");
     } finally {
       setSending(false);
@@ -298,6 +322,28 @@ export default function TeamPage() {
     typingTimerRef.current = window.setTimeout(() => {
       void api(`/team/conversations/${activeId}/typing`, { method: "POST", body: { typing: false } }).catch(() => undefined);
     }, 1800);
+  }
+
+  async function togglePin(messageId: string) {
+    try {
+      await api(`/team/messages/${messageId}/pin`, { method: "POST" });
+      if (activeId) await Promise.all([loadMessages(activeId, true), loadPinnedMessages(activeId)]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Mesaj sabitlenemedi.");
+    }
+  }
+
+  async function openAttachment(attachment: Attachment) {
+    try {
+      const response = await apiResponse(`/team/attachments/${attachment.id}`);
+      if (!response.ok) throw new ApiError("Dosya açılamadı.", response.status);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      window.open(url, "_blank", "noopener,noreferrer");
+      window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Dosya açılamadı.");
+    }
   }
 
   async function toggleReaction(messageId: string, emoji: string) {
@@ -401,7 +447,7 @@ export default function TeamPage() {
 
   async function createConversation(event: FormEvent) {
     event.preventDefault();
-    const required = composeType === "DIRECT" ? 1 : 2;
+    const required = composeType === "DIRECT" ? 1 : composeType === "GROUP" ? 2 : 0;
     if (selectedUsers.length < required) {
       setError(composeType === "DIRECT" ? "Bir ekip üyesi seçin." : "Grup için en az iki ekip üyesi seçin.");
       return;
@@ -410,8 +456,8 @@ export default function TeamPage() {
       setError("Birebir konuşma için yalnızca bir kişi seçin.");
       return;
     }
-    if (composeType === "GROUP" && !groupName.trim()) {
-      setError("Grup adını yazın.");
+    if ((composeType === "GROUP" || composeType === "CHANNEL") && !groupName.trim()) {
+      setError(composeType === "CHANNEL" ? "Kanal adını yazın." : "Grup adını yazın.");
       return;
     }
 
@@ -421,12 +467,14 @@ export default function TeamPage() {
         body: {
           type: composeType,
           memberUserIds: selectedUsers,
-          ...(composeType === "GROUP" ? { name: groupName.trim() } : {}),
+          ...(composeType !== "DIRECT" ? { name: groupName.trim() } : {}),
+          ...(composeType === "CHANNEL" ? { announcementOnly } : {}),
         },
       });
       setComposeOpen(false);
       setSelectedUsers([]);
       setGroupName("");
+      setAnnouncementOnly(false);
       await loadOverview(true);
       setActiveId(result.id);
     } catch (err) {
@@ -491,7 +539,7 @@ export default function TeamPage() {
                 className={`mb-1 flex w-full items-start gap-3 rounded-[16px] p-3 text-left transition ${activeId === conversation.id ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-2)]"}`}
               >
                 <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#f1edff] text-[11px] font-semibold text-[#6f54c7]">
-                  {conversation.type === "GROUP" ? "GR" : conversation.displayName.slice(0, 2).toUpperCase()}
+                  {conversation.type === "CHANNEL" ? (conversation.announcementOnly ? "DU" : "#") : conversation.type === "GROUP" ? "GR" : conversation.displayName.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
@@ -521,7 +569,7 @@ export default function TeamPage() {
                 <div>
                   <h2 className="text-[14px] font-semibold text-[var(--ink)]">{active.displayName}</h2>
                   <p className="mt-0.5 text-[10px] text-[var(--muted)]">
-                    {active.type === "GROUP" ? `${active.memberCount} üye · Grup konuşması` : "Birebir konuşma"}
+                    {active.type === "CHANNEL" ? `${active.memberCount} üye · ${active.announcementOnly ? "Duyuru kanalı" : "Kanal"}` : active.type === "GROUP" ? `${active.memberCount} üye · Grup konuşması` : "Birebir konuşma"}
                   </p>
                 </div>
                 <div className="flex items-center gap-2">
@@ -555,7 +603,7 @@ export default function TeamPage() {
                     ) : null}
                   </div>
                   <span className="rounded-full bg-[#f4f2f8] px-3 py-1 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]">
-                    {active.type === "GROUP" ? "Grup" : "Direkt"}
+                    {active.type === "CHANNEL" ? (active.announcementOnly ? "Duyuru" : "Kanal") : active.type === "GROUP" ? "Grup" : "Direkt"}
                   </span>
                 </div>
               </div>
@@ -573,6 +621,22 @@ export default function TeamPage() {
                             {!mine ? <p className="mb-1 text-[9px] font-semibold text-[#7458c8]">{message.senderName}</p> : null}
                             {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[#9c86e8] bg-[#faf8ff] text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
                             <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
+                            {message.attachments?.length ? (
+                              <div className="mt-2 space-y-1.5">
+                                {message.attachments.map((attachment) => (
+                                  <button
+                                    key={attachment.id}
+                                    type="button"
+                                    onClick={() => void openAttachment(attachment)}
+                                    className={`flex w-full items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left ${mine ? "border-white/15 bg-white/5" : "border-[var(--line)] bg-[var(--surface-2)]"}`}
+                                  >
+                                    <span className="text-[13px]">{attachment.mimeType.startsWith("image/") ? "🖼" : attachment.mimeType === "application/pdf" ? "PDF" : "DOC"}</span>
+                                    <span className="min-w-0 flex-1 truncate text-[9px] font-semibold">{attachment.originalName}</span>
+                                    <span className={`text-[8px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>{Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB</span>
+                                  </button>
+                                ))}
+                              </div>
+                            ) : null}
                             <div className="mt-2 flex flex-wrap items-center gap-1">
                               {(message.reactions ?? []).map((reaction) => (
                                 <button key={reaction.emoji} type="button" onClick={() => void toggleReaction(message.id, reaction.emoji)} className={`rounded-full px-2 py-0.5 text-[10px] ${reaction.reactedByMe ? "bg-[#efe9ff] text-[#694cc0]" : mine ? "bg-white/10 text-white/80" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
@@ -587,6 +651,7 @@ export default function TeamPage() {
                             </div>
                             <div className={`mt-2 flex flex-wrap gap-1 border-t pt-2 ${mine ? "border-white/10" : "border-[var(--line)]"}`}>
                               <button type="button" onClick={() => setReplyTo(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>Yanıtla</button>
+                              <button type="button" onClick={() => void togglePin(message.id)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>{message.isPinned ? "Sabiti kaldır" : "Sabitle"}</button>
                               {["👍","❤️","👏"].map((emoji) => <button key={emoji} type="button" onClick={() => void toggleReaction(message.id, emoji)} className="text-[11px]">{emoji}</button>)}
                               {mine ? <button type="button" onClick={() => startEditing(message)} className="ml-1 text-[9px] font-semibold text-white/65">Düzenle</button> : null}
                               {mine ? <button type="button" onClick={() => void removeMessage(message.id)} className="text-[9px] font-semibold text-rose-300">Sil</button> : null}
@@ -651,15 +716,30 @@ export default function TeamPage() {
                       </div>
                     </div>
                   ) : null}
+                  <label className="flex h-10 cursor-pointer items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--ink)]">
+                    {selectedFile ? "Dosya seçildi" : "Dosya ekle"}
+                    <input
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv,.docx,.xlsx"
+                      className="hidden"
+                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                    />
+                  </label>
                   <button
                     type="submit"
-                    disabled={sending || !messageText.trim()}
+                    disabled={sending || (!messageText.trim() && !selectedFile)}
                     className="h-10 rounded-[12px] bg-[var(--accent)] px-4 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? "Gönderiliyor..." : "Gönder"}
                   </button>
                 </div>
-                <p className="mt-2 px-1 text-[9px] text-[var(--muted-soft)]">Enter gönderir · Shift + Enter yeni satır açar</p>
+                {selectedFile ? (
+                  <div className="mt-2 flex items-center justify-between rounded-[10px] bg-[#faf8ff] px-3 py-2 text-[9px] text-[var(--muted)]">
+                    <span className="truncate">{selectedFile.name} · {Math.max(1, Math.round(selectedFile.size / 1024))} KB</span>
+                    <button type="button" onClick={() => setSelectedFile(null)} className="font-semibold text-rose-600">Kaldır</button>
+                  </div>
+                ) : null}
+                <p className="mt-2 px-1 text-[9px] text-[var(--muted-soft)]">Enter gönderir · Shift + Enter yeni satır açar · Dosya sınırı 15 MB</p>
               </form>
             </>
           ) : (
@@ -674,6 +754,22 @@ export default function TeamPage() {
         </main>
 
         <aside className="border-t border-[var(--line)] xl:border-l xl:border-t-0">
+          {active && pinnedMessages.length ? (
+            <div className="border-b border-[var(--line)]">
+              <div className="px-4 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Sabitlenen Mesajlar</p>
+                <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{pinnedMessages.length} mesaj</p>
+              </div>
+              <div className="max-h-[180px] overflow-y-auto px-2 pb-3">
+                {pinnedMessages.map((pinned) => (
+                  <div key={pinned.id} className="rounded-[11px] px-2 py-2 hover:bg-[var(--surface-2)]">
+                    <p className="text-[8px] font-semibold text-[#7657e8]">{pinned.senderName}</p>
+                    <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-[var(--ink)]">{pinned.body}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           {active?.type === "GROUP" ? (
             <div className="border-b border-[var(--line)]">
               <div className="space-y-3 px-4 py-4">
@@ -742,6 +838,7 @@ export default function TeamPage() {
                   <p className="mt-0.5 text-[10px] text-[var(--muted)]">{STATUS_LABELS[status]}</p>
                 </div>
               </div>
+              ) : null}
             </div>
           ) : null}
           <div className="max-h-[520px] overflow-y-auto p-2">
@@ -785,7 +882,7 @@ export default function TeamPage() {
             </div>
             <div className="space-y-4 p-5">
               <div className="grid grid-cols-2 gap-2 rounded-[14px] bg-[var(--surface-2)] p-1">
-                {(["DIRECT", "GROUP"] as const).map((type) => (
+                {(["DIRECT", "GROUP", "CHANNEL"] as const).map((type) => (
                   <button
                     key={type}
                     type="button"
@@ -795,23 +892,39 @@ export default function TeamPage() {
                     }}
                     className={`rounded-[11px] px-3 py-2 text-[11px] font-semibold ${composeType === type ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}
                   >
-                    {type === "DIRECT" ? "Birebir" : "Grup"}
+                    {type === "DIRECT" ? "Birebir" : type === "GROUP" ? "Grup" : "Kanal"}
                   </button>
                 ))}
               </div>
 
-              {composeType === "GROUP" ? (
+              {composeType !== "DIRECT" ? (
                 <label className="block">
                   <span className="mb-1.5 block text-[10px] font-semibold text-[var(--muted)]">Grup adı</span>
                   <input
                     value={groupName}
                     onChange={(event) => setGroupName(event.target.value)}
-                    placeholder="Örn. Satış Ekibi"
+                    placeholder={composeType === "CHANNEL" ? "Örn. Operasyon" : "Örn. Satış Ekibi"}
                     className="h-11 w-full rounded-[12px] border border-[var(--line)] px-3 text-[12px] outline-none focus:border-[#9f89e8]"
                   />
                 </label>
               ) : null}
 
+              {composeType === "CHANNEL" ? (
+                <label className="flex items-start gap-3 rounded-[14px] border border-[var(--line)] bg-[#fcfbfd] p-3">
+                  <input
+                    type="checkbox"
+                    checked={announcementOnly}
+                    onChange={(event) => setAnnouncementOnly(event.target.checked)}
+                    className="mt-0.5"
+                  />
+                  <span>
+                    <span className="block text-[10px] font-semibold text-[var(--ink)]">Duyuru kanalı</span>
+                    <span className="mt-0.5 block text-[9px] leading-4 text-[var(--muted)]">Yalnız kanal yöneticileri mesaj paylaşabilir. Tüm aktif şirket kullanıcıları otomatik eklenir.</span>
+                  </span>
+                </label>
+              ) : null}
+
+              {composeType !== "CHANNEL" ? (
               <div>
                 <p className="mb-2 text-[10px] font-semibold text-[var(--muted)]">Ekip üyeleri</p>
                 <div className="max-h-[300px] space-y-1 overflow-y-auto rounded-[14px] border border-[var(--line)] p-2">
