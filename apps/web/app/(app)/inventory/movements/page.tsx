@@ -21,6 +21,7 @@ import {
   TextInput,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type InventoryMovement = {
   id: string;
@@ -323,7 +324,7 @@ export default function MovementsPage() {
               <option value="">Tüm İşlem Tipleri</option>
               {movementTypes.map((type) => (
                 <option key={type} value={type}>
-                  {MOVEMENT_LABELS[type] ?? type}
+                  {MOVEMENT_LABELS[type] ?? userLabel(type)}
                 </option>
               ))}
             </ToolbarSelect>
@@ -527,7 +528,7 @@ function MovementRow({ movement }: { movement: InventoryMovement }) {
       <span className="text-[12px] text-[var(--muted)]">{movement.warehouseName}</span>
       <MovementBadge type={movement.type} />
       <span className={isOut ? "text-[12px] font-semibold text-[var(--danger)]" : "text-[12px] font-semibold text-[var(--success)]"}>
-        {isOut ? "-" : "+"}{formatQuantity(movement.quantity)} {UNIT_LABELS[movement.unit] ?? movement.unit}
+        {isOut ? "-" : "+"}{formatQuantity(movement.quantity)} {UNIT_LABELS[movement.unit] ?? userLabel(movement.unit)}
       </span>
       <div className="min-w-0">
         <div className="text-[11px] text-[var(--muted)]">{formatDateTime(movement.createdAt)}</div>
@@ -551,7 +552,7 @@ function MovementCard({ movement }: { movement: InventoryMovement }) {
       </div>
       <div className="flex items-center justify-between gap-3 text-[11px]">
         <span className={isOut ? "font-semibold text-[var(--danger)]" : "font-semibold text-[var(--success)]"}>
-          {isOut ? "-" : "+"}{formatQuantity(movement.quantity)} {UNIT_LABELS[movement.unit] ?? movement.unit}
+          {isOut ? "-" : "+"}{formatQuantity(movement.quantity)} {UNIT_LABELS[movement.unit] ?? userLabel(movement.unit)}
         </span>
         <span className="text-[var(--muted-soft)]">{formatDateTime(movement.createdAt)}</span>
       </div>
@@ -563,7 +564,7 @@ function MovementCard({ movement }: { movement: InventoryMovement }) {
 function MovementBadge({ type }: { type: string }) {
   return (
     <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">
-      {MOVEMENT_LABELS[type] ?? type}
+      {MOVEMENT_LABELS[type] ?? userLabel(type)}
     </span>
   );
 }
