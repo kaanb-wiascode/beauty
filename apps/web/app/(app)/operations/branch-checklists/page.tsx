@@ -61,7 +61,7 @@ const starterItems: Record<Category, TemplateItem[]> = {
     { code: "DEVICES_SHUTDOWN", title: "Cihazlar güvenli şekilde kapatıldı", isRequired: true },
     { code: "ROOMS_CLEAN", title: "Odalar / kabinler temiz ve hazır", isRequired: true },
     { code: "STOCK_REVIEWED", title: "Stok ve kritik sarflar kontrol edildi", isRequired: true },
-    { code: "CASH_HANDOFF", title: "Kasa kapanış handoff'u tamamlandı", isRequired: true },
+    { code: "CASH_HANDOFF", title: "Kasa kapanış devri tamamlandı", isRequired: true },
     { code: "EXCEPTIONS_REVIEWED", title: "Gün sonu operasyon istisnaları gözden geçirildi", isRequired: false },
   ],
 };
@@ -86,7 +86,7 @@ export default function BranchChecklistsPage() {
 
   async function load() {
     if (!hasActiveBranch()) {
-      setError("Şube checklist işlemleri için önce aktif bir şube seçin.");
+      setError("Şube kontrol listelerini kullanmak için önce aktif bir şube seçin.");
       setLoading(false);
       return;
     }
@@ -108,7 +108,7 @@ export default function BranchChecklistsPage() {
       }
       setRuns(loadedRuns);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Şube checklist verileri yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Şube kontrol listeleri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -148,10 +148,10 @@ export default function BranchChecklistsPage() {
           },
         },
       );
-      setMessage(result.unchanged ? "Aynı template zaten aktif; yeni versiyon oluşturulmadı." : "Yeni checklist template versiyonu yayınlandı.");
+      setMessage(result.unchanged ? "Aynı kontrol listesi zaten aktif; yeni sürüm oluşturulmadı." : "Yeni kontrol listesi sürümü yayınlandı.");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Template yayınlanamadı.");
+      setError(err instanceof ApiError ? err.message : "Kontrol listesi yayınlanamadı.");
     } finally {
       setBusy("");
     }
@@ -168,7 +168,7 @@ export default function BranchChecklistsPage() {
       });
       setRuns((current) => ({ ...current, [category]: run }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Checklist başlatılamadı.");
+      setError(err instanceof ApiError ? err.message : "Kontrol listesi başlatılamadı.");
     } finally {
       setBusy("");
     }
@@ -186,7 +186,7 @@ export default function BranchChecklistsPage() {
       const fresh = await api<Run>(`/operations/branch-checklists/runs/${run.id}`);
       setRuns((current) => ({ ...current, [run.category]: fresh }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Checklist maddesi güncellenemedi.");
+      setError(err instanceof ApiError ? err.message : "Kontrol listesi maddesi güncellenemedi.");
     } finally {
       setBusy("");
     }
@@ -204,20 +204,20 @@ export default function BranchChecklistsPage() {
       const fresh = await api<Run>(`/operations/branch-checklists/runs/${run.id}`);
       setRuns((current) => ({ ...current, [run.category]: fresh }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Checklist tamamlanamadı.");
+      setError(err instanceof ApiError ? err.message : "Kontrol listesi tamamlanamadı.");
     } finally {
       setBusy("");
     }
   }
 
-  if (loading) return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Şube checklistleri hazırlanıyor..." /></div>;
+  if (loading) return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Şube kontrol listeleri hazırlanıyor..." /></div>;
 
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Branch Operations</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Açılış / Kapanış Checklistleri</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Merkez standardını versiyonlayın, şube bazında günlük execution oluşturun ve gerekli maddeler tamamlanmadan operasyon gününü kapatmayın.</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Şube operasyonları</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Açılış / Kapanış Kontrol Listeleri</h1>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Merkez standardını sürümler halinde yönetin, şubeler için günlük kontrol süreci başlatın ve gerekli maddeler tamamlanmadan operasyon gününü kapatmayın.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -240,8 +240,8 @@ export default function BranchChecklistsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">{categoryLabel[category]}</p>
-                  <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">{run?.templateName ?? `${categoryLabel[category]} checklist'i`}</h2>
-                  {run ? <p className="mt-1 text-xs text-[var(--muted)]">v{run.templateVersion} · Zorunlu {completedRequired}/{required.length}</p> : <p className="mt-1 text-xs text-[var(--muted)]">Bu gün için execution henüz başlamadı.</p>}
+                  <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">{run?.templateName ?? `${categoryLabel[category]} kontrol listesi`}</h2>
+                  {run ? <p className="mt-1 text-xs text-[var(--muted)]">v{run.templateVersion} · Zorunlu {completedRequired}/{required.length}</p> : <p className="mt-1 text-xs text-[var(--muted)]">Bu gün için kontrol süreci henüz başlamadı.</p>}
                 </div>
                 {run ? <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{run.status === "COMPLETED" ? "Tamamlandı" : "Açık"}</span> : null}
               </div>
@@ -259,13 +259,13 @@ export default function BranchChecklistsPage() {
                       {run.status === "OPEN" && item.status === "PENDING" && canUpdate ? (
                         <div className="flex gap-2">
                           <Button disabled={busy === `item:${item.id}`} onClick={() => void updateItem(run, item, "COMPLETED")}>Tamamla</Button>
-                          {!item.isRequired ? <Button variant="secondary" disabled={busy === `item:${item.id}`} onClick={() => void updateItem(run, item, "NA")}>N/A</Button> : null}
+                          {!item.isRequired ? <Button variant="secondary" disabled={busy === `item:${item.id}`} onClick={() => void updateItem(run, item, "NA")}>Uygulanamaz</Button> : null}
                         </div>
                       ) : null}
                     </div>
                   ))}
                   {run.status === "OPEN" && canUpdate ? (
-                    <div className="flex justify-end pt-2"><Button disabled={completedRequired !== required.length || busy === `complete:${run.id}`} onClick={() => void completeRun(run)}>{busy === `complete:${run.id}` ? "Tamamlanıyor..." : `${categoryLabel[category]} Run'ını Tamamla`}</Button></div>
+                    <div className="flex justify-end pt-2"><Button disabled={completedRequired !== required.length || busy === `complete:${run.id}`} onClick={() => void completeRun(run)}>{busy === `complete:${run.id}` ? "Tamamlanıyor..." : `${categoryLabel[category]} kontrolünü tamamla`}</Button></div>
                   ) : null}
                 </div>
               )}
@@ -275,11 +275,11 @@ export default function BranchChecklistsPage() {
       </section>
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">Template Yönetimi</h2>
+        <h2 className="text-sm font-semibold text-[var(--ink)]">Kontrol Listesi Yönetimi</h2>
         <div className="mt-4 flex flex-wrap gap-2">
           {(["OPENING", "CLOSING"] as Category[]).map((category) => <Button key={category} variant={draftCategory === category ? undefined : "secondary"} onClick={() => changeDraftCategory(category)}>{categoryLabel[category]}</Button>)}
         </div>
-        <div className="mt-4"><Field label="Template adı"><TextInput value={draftName} onChange={(event) => setDraftName(event.target.value)} /></Field></div>
+        <div className="mt-4"><Field label="Kontrol listesi adı"><TextInput value={draftName} onChange={(event) => setDraftName(event.target.value)} /></Field></div>
         <div className="mt-4 space-y-2">
           {draftItems.map((item, index) => (
             <div key={`${item.code}:${index}`} className="grid gap-2 rounded-[14px] bg-[var(--surface-2)] p-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center">
@@ -291,7 +291,7 @@ export default function BranchChecklistsPage() {
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => setDraftItems((items) => [...items, { code: `ITEM_${items.length + 1}`, title: "Yeni kontrol maddesi", isRequired: false }])}>Madde Ekle</Button>
-          <Button disabled={!canUpdate || busy === "template"} onClick={() => void publishTemplate()}>{busy === "template" ? "Yayınlanıyor..." : "Yeni Versiyonu Yayınla"}</Button>
+          <Button disabled={!canUpdate || busy === "template"} onClick={() => void publishTemplate()}>{busy === "template" ? "Yayınlanıyor..." : "Yeni sürümü yayınla"}</Button>
         </div>
       </section>
     </div>
