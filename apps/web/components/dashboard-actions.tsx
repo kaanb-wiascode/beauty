@@ -792,7 +792,7 @@ function QuickFormActions({
       <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
         Vazgeç
       </Button>
-      <FormSubmitButton saving={saving || disabled} idleLabel={idleLabel} />
+      <FormSubmitButton saving={saving} disabled={disabled} idleLabel={idleLabel} />
     </FormActions>
   );
 }
