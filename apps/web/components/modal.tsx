@@ -33,12 +33,12 @@ export function Modal({
   const isStaffForm = title === "Yeni personel" || title === "Personeli düzenle";
   const sizeClass =
     size === "xl"
-      ? "sm:max-w-[1080px]"
+      ? "sm:max-w-[1120px]"
       : size === "lg" || isCustomerForm || isStaffForm
-        ? "sm:max-w-[920px]"
+        ? "sm:max-w-[940px]"
         : size === "sm"
           ? "sm:max-w-md"
-          : "sm:max-w-lg";
+          : "sm:max-w-[680px]";
 
   useEffect(() => {
     if (open) {
@@ -78,15 +78,19 @@ export function Modal({
   return (
     <div className={cx("fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6", open ? "animate-fade-in" : "pointer-events-none opacity-0")}>
       <button type="button" aria-label="Kapat" tabIndex={-1} className="absolute inset-0 cursor-default bg-[rgba(26,23,20,0.28)] backdrop-blur-[10px]" onClick={onClose} />
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cx("glass-elevated relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[var(--radius-dialog)] px-5 pt-5 pb-[max(20px,env(safe-area-inset-bottom))] sm:max-h-[90vh] sm:rounded-[var(--radius-dialog)] sm:p-7", sizeClass, (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:p-8", open ? "animate-sheet-in sm:animate-rise-in" : "animate-sheet-out")}>
-        <div className={cx("mb-6 flex items-start justify-between gap-5", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "mb-5 border-b border-[var(--line)] pb-5")}>
-          <div className="min-w-0">
-            <h2 id={titleId} className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{title}</h2>
-            {description ? <p id={descriptionId} className="mt-1.5 text-sm leading-6 text-[var(--muted)]">{description}</p> : null}
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cx("glass-elevated relative z-10 flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[var(--radius-dialog)] sm:max-h-[92vh] sm:rounded-[var(--radius-dialog)]", sizeClass, open ? "animate-sheet-in sm:animate-rise-in" : "animate-sheet-out")}>
+        <div className={cx("shrink-0 border-b border-[var(--line)] px-5 py-5 sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
+          <div className="flex items-start justify-between gap-5">
+            <div className="min-w-0">
+              <h2 id={titleId} className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{title}</h2>
+              {description ? <p id={descriptionId} className="mt-1.5 max-w-[760px] text-[13px] leading-5 text-[var(--muted)] sm:text-sm sm:leading-6">{description}</p> : null}
+            </div>
+            <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px] border border-[var(--line)] bg-white text-[20px] leading-none text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">×</button>
           </div>
-          <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px] border border-[var(--line)] bg-white text-[20px] leading-none text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">×</button>
         </div>
-        {children}
+        <div className={cx("min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 [scrollbar-gutter:stable] sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
+          {children}
+        </div>
       </div>
     </div>
   );
