@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { Select, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { ApiError } from "@/lib/api";
@@ -410,10 +410,10 @@ export default function SupplierOffersPage() {
 
           <form onSubmit={save} className="mt-5 space-y-4">
             <Field label="Katalog Ürünü">
-              <select value={selectedVariantId} onChange={(event) => setSelectedVariantId(event.target.value)} disabled={Boolean(selectedOffer) || !canManage} className="h-11 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 text-[13px] outline-none focus:border-[#1674bd]">
+              <Select value={selectedVariantId} onChange={(event) => setSelectedVariantId(event.target.value)} disabled={Boolean(selectedOffer) || !canManage} className="h-11 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 text-[13px] outline-none focus:border-[#1674bd]">
                 <option value="">Katalog Ürünü Seçin</option>
                 {availableVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.brandName ? `${variant.brandName} · ` : ""}{variant.productName} · {variant.variantName}{variant.canonicalSku ? ` · ${variant.canonicalSku}` : ""}</option>)}
-              </select>
+              </Select>
             </Field>
             {selectedVariant ? <p className="rounded-[12px] bg-[#f5f8fa] px-3 py-2 text-[11px] text-[#667482]">Birim: {UNIT_LABELS[selectedVariant.unit] ?? selectedVariant.unit} · Kategori: {selectedVariant.categoryCode || "—"}</p> : null}
 
@@ -431,10 +431,10 @@ export default function SupplierOffersPage() {
 
             <div className="rounded-[15px] border border-[#dfe7ed] bg-[#fafcfd] p-4">
               <Field label="Teklif Görünürlüğü">
-                <select value={visibilityScope} onChange={(event) => changeVisibility(event.target.value as OfferVisibilityScope)} disabled={!canManage} className="h-11 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 text-[13px] outline-none focus:border-[#1674bd]">
+                <Select value={visibilityScope} onChange={(event) => changeVisibility(event.target.value as OfferVisibilityScope)} disabled={!canManage} className="h-11 w-full rounded-[12px] border border-[#dfe7ed] bg-white px-3 text-[13px] outline-none focus:border-[#1674bd]">
                   <option value="CONNECTED">Tüm Aktif Bağlı Alıcılar</option>
                   <option value="RESTRICTED">Yalnız Seçili Alıcılar / Özel Fiyat</option>
-                </select>
+                </Select>
               </Field>
               <p className="mt-2 text-[11px] leading-5 text-[#7a8792]">Özel Teklif Seçildiğinde Bu Fiyat Yalnızca İşaretlediğiniz Alıcı İşletmelere Gösterilir.</p>
 
