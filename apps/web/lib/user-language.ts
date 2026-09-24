@@ -132,6 +132,10 @@ const USER_LABELS: Record<string, string> = {
   VIDEO: "Video",
   ARTICLE: "Makale",
   BANNER: "Banner",
+  EXPORT: "Veri Dışa Aktarım İncelemesi",
+  ANONYMIZATION: "Anonimleştirme İncelemesi",
+  DELETION_REVIEW: "Silme Uygunluk İncelemesi",
+  IN_REVIEW: "İncelemede",
 };
 
 const USER_RESOURCE_LABELS: Record<string, string> = {
