@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { opportunityStageLabels, type CrmAssignee, type CrmOpportunity, type OpportunityStage } from "@/lib/crm-types";
 
@@ -74,7 +75,7 @@ export default function CrmPipelinePage() {
       ]);
       setRows(opportunityRows); setAssignees(assigneeRows);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Satış Süreci Yüklenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Satış süreci yüklenemedi.") : "Satış süreci yüklenemedi.");
     } finally { setLoading(false); }
   }, [ownerUserId, stageFilter, debouncedSearch, staleOnly]);
   useEffect(() => { void load(); }, [load]);
@@ -92,7 +93,7 @@ export default function CrmPipelinePage() {
     if (targetStage === "LOST" && !lostReason.trim()) return setError("Kaybedilen Satış Fırsatı İçin Neden Gereklidir.");
     setSaving(true); setError("");
     try { await api(`/crm/opportunities/${transitioning.id}/transition`, { method: "POST", body: { version: transitioning.version, stage: targetStage, probability: Number(probability), ...(targetStage === "LOST" ? { lostReason: lostReason.trim() } : {}) } }); setTransitioning(null); showToast("Satış Fırsatı Aşaması Güncellendi.", "success"); await load(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Satış Fırsatı Güncellenemedi."); } finally { setSaving(false); }
+    catch (e) { setError(e instanceof ApiError ? userErrorMessage(e.message, "Satış fırsatı güncellenemedi.") : "Satış fırsatı güncellenemedi."); } finally { setSaving(false); }
   }
 
   async function openSale(row: CrmOpportunity) {
@@ -103,7 +104,7 @@ export default function CrmPipelinePage() {
       const customerRequest = row.customerId ? Promise.resolve({ data: linkedCustomer }) : api<{ data: Customer[] }>(withQuery("/customers", { page: 1, limit: 100 }));
       const [serviceResult, packageResult, customerResult] = await Promise.all([api<{ data: Service[] }>(withQuery("/services", { page: 1, limit: 200 })), api<ServicePackage[]>("/packages"), customerRequest]);
       setServices(serviceResult.data); setPackages(packageResult); setCustomers(customerResult.data);
-    } catch (e) { setError(e instanceof ApiError ? e.message : "Satış seçenekleri yüklenemedi."); } finally { setSaleReferencesLoading(false); }
+    } catch (e) { setError(e instanceof ApiError ? userErrorMessage(e.message, "Satış seçenekleri yüklenemedi.") : "Satış seçenekleri yüklenemedi."); } finally { setSaleReferencesLoading(false); }
   }
   function updateSaleItem(key: string, patch: Partial<Omit<DraftSaleItem, "key">>) { setSaleItems((current) => current.map((item) => item.key === key ? { ...item, ...patch } : item)); }
   function addSaleItem() { const next = saleItemSequence + 1; setSaleItemSequence(next); setSaleItems((current) => [...current, newSaleItem(next)]); }
@@ -114,8 +115,8 @@ export default function CrmPipelinePage() {
     if (normalizedItems.some((item) => !item.referenceId || !Number.isInteger(item.quantity) || item.quantity <= 0)) return setError("Her satış kalemi için ürün/hizmet ve pozitif tam sayı miktar seçilmelidir.");
     const discountTotal = Number(saleDiscount); if (!Number.isFinite(discountTotal) || discountTotal < 0) return setError("İndirim sıfır veya pozitif olmalıdır.");
     setSaving(true); setError("");
-    try { const result = await api<SaleConversionResponse>(`/sales/from-opportunity/${saleOpportunity.id}`, { method: "POST", body: { version: saleOpportunity.version, customerId: saleCustomerId, discountTotal, items: normalizedItems } }); setSaleOpportunity(null); showToast(result.idempotent ? `Bu fırsat için satış taslağı zaten mevcut (${String(result.sale.id).slice(0, 8)}…).` : `Satış taslağı oluşturuldu: ${formatMoney(result.sale.total, "TRY")}.`, "success"); await load(); }
-    catch (e) { setError(e instanceof ApiError ? e.message : "Satış taslağı oluşturulamadı."); } finally { setSaving(false); }
+    try { const result = await api<SaleConversionResponse>(`/sales/from-opportunity/${saleOpportunity.id}`, { method: "POST", body: { version: saleOpportunity.version, customerId: saleCustomerId, discountTotal, items: normalizedItems } }); setSaleOpportunity(null); showToast(result.idempotent ? "Bu fırsat için satış taslağı zaten mevcut." : `Satış taslağı oluşturuldu: ${formatMoney(result.sale.total, "TRY")}.`, "success"); await load(); }
+    catch (e) { setError(e instanceof ApiError ? userErrorMessage(e.message, "Satış taslağı oluşturulamadı.") : "Satış taslağı oluşturulamadı."); } finally { setSaving(false); }
   }
 
   const hasFilters = Boolean(ownerUserId || stageFilter || search.trim() || staleOnly);
@@ -123,13 +124,13 @@ export default function CrmPipelinePage() {
     <PageHeader title="Satış Süreci" description="Satış fırsatlarını aşama, sorumlu, arama ve risk sinyalleriyle yönetin." />
     {error && !transitioning && !saleOpportunity ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     <section className="grid gap-3 rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)] md:grid-cols-[1.4fr_.8fr_.8fr_auto]">
-      <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Fırsat veya müşteri ara..." aria-label="Pipeline ara" />
+      <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Fırsat veya müşteri ara..." aria-label="Satış sürecinde ara" />
       <Select value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)}><option value="">Tüm Sorumlular</option>{assignees.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}</Select>
       <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as OpportunityStage | "")}><option value="">Tüm Aşamalar</option>{stages.map((s) => <option key={s} value={s}>{opportunityStageLabels[s]}</option>)}</Select>
       <div className="flex gap-2"><Button variant={staleOnly ? "primary" : "secondary"} onClick={() => setStaleOnly((v) => !v)}>14+ Gün Risk</Button>{hasFilters ? <Button variant="ghost" onClick={() => { setOwnerUserId(""); setStageFilter(""); setSearch(""); setStaleOnly(false); }}>Temizle</Button> : null}</div>
     </section>
     <section className="grid gap-3 sm:grid-cols-3">{[["Açık Satış Fırsatı", totals.count], ["Toplam Satış Değeri", formatMoney(totals.raw, "TRY")], ["Ağırlıklı Değer", formatMoney(totals.weighted, "TRY")]].map(([label, value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)]"><p className="text-[10px] text-[var(--muted)]">{label}</p><strong className="mt-2 block text-[22px] tracking-[-.04em]">{value}</strong></article>)}</section>
-    {loading ? <Spinner label="Satış Süreci Hazırlanıyor..." /> : rows.length ? <div className="grid items-start gap-4 xl:grid-cols-3 2xl:grid-cols-6">{stages.map((stage) => {
+    {loading ? <Spinner label="Satış süreci hazırlanıyor..." /> : rows.length ? <div className="grid items-start gap-4 xl:grid-cols-3 2xl:grid-cols-6">{stages.map((stage) => {
       const stageRows = rows.filter((row) => row.stage === stage); return <section key={stage} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[#f7fbfd]"><header className="flex items-center justify-between border-b border-[var(--line)] bg-white px-4 py-3"><h2 className="text-[11px] font-semibold">{opportunityStageLabels[stage]}</h2><span className="rounded-full bg-[#EAF5FB] px-2 py-0.5 text-[10px] font-bold text-[#1674BD]">{stageRows.length}</span></header><div className="space-y-3 p-3">{stageRows.map((row) => {
         const subjectName = [row.leadFirstName, row.leadLastName].filter(Boolean).join(" ") || [row.customerFirstName, row.customerLastName].filter(Boolean).join(" ") || "Müşteri Bağlantısı Yok";
         const subjectHref = row.leadId ? `/crm/leads/${row.leadId}` : row.customerId && canReadCustomers ? `/customers/${row.customerId}` : "/crm";
