@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type CalendarEvent = {
   id: string;
@@ -109,9 +110,9 @@ export default function OperationsResourceCalendarPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Resource Schedule</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Kaynak planlaması</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Kaynak Takvimi</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Oda ve cihazların rezervasyonlarını, hazırlık/temizlik buffer&apos;ları dahil bloke edilen gerçek zaman aralıklarıyla; kesinti ve bakım bloklarıyla aynı görünümde izleyin.</p>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Oda ve cihazların rezervasyonlarını, hazırlık ve temizlik süreleri ile bakım veya kullanım dışı dönemleri aynı görünümde izleyin.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -135,7 +136,7 @@ export default function OperationsResourceCalendarPage() {
       {!loading && !groups.length ? (
         <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] px-6 py-12 text-center shadow-sm">
           <p className="text-sm font-medium text-[var(--ink)]">Bu aralıkta kaynak hareketi yok</p>
-          <p className="mt-1 text-xs text-[var(--muted)]">Aktif allocation veya unavailability block bulunamadı.</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Aktif rezervasyon veya kullanım dışı zaman aralığı bulunamadı.</p>
         </section>
       ) : null}
 
@@ -166,7 +167,7 @@ export default function OperationsResourceCalendarPage() {
                       <p className="text-sm font-medium text-[var(--ink)]">{item.reason ?? "Kaynak kullanılamıyor"}</p>
                     )}
                   </div>
-                  <span className="w-fit rounded-full bg-[var(--surface-2)] px-3 py-1 text-[11px] font-semibold text-[var(--muted)]">{item.status}</span>
+                  <span className="w-fit rounded-full bg-[var(--surface-2)] px-3 py-1 text-[11px] font-semibold text-[var(--muted)]">{userLabel(item.status)}</span>
                 </article>
               ))}
             </div>
