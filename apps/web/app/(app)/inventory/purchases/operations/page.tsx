@@ -231,7 +231,7 @@ export default function PurchaseOperationsPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {!canWrite ? <Alert tone="success">Bu görünüm salt okunur. Operasyon aksiyonları için inventory.write izni gerekir.</Alert> : null}
+      {!canWrite ? <Alert tone="success">Bu görünüm salt okunurdur. İşlem yapmak için envanter düzenleme yetkisi gerekir.</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Mal kabul" value={String(receipts.length)} />
@@ -251,11 +251,11 @@ export default function PurchaseOperationsPage() {
               <article key={receipt.id} className="flex flex-col gap-3 px-5 py-4 md:flex-row md:items-center md:justify-between">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="font-mono text-[11px] font-semibold text-[var(--ink)]">{shortId(receipt.id)}</span>
+                    <span className="text-[11px] font-semibold text-[var(--ink)]">{receipt.invoiceNumber || "Mal kabul kaydı"}</span>
                     <StatusPill label={receipt.reversedAt ? "Ters kayıt" : "Aktif"} tone={receipt.reversedAt ? "danger" : "success"} />
                   </div>
                   <p className="mt-2 text-[11px] text-[var(--muted)]">{formatDateTime(receipt.receivedAt)} · {receipt.itemCount} kalem · {formatMoney(receipt.total)}</p>
-                  <p className="mt-1 font-mono text-[9px] text-[var(--muted-soft)]">PO {shortId(receipt.purchaseOrderId)}</p>
+                  <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Satın alma siparişiyle bağlantılı</p>
                 </div>
                 <Button variant="secondary" className="min-h-8 px-3 py-1.5 text-[11px]" onClick={() => void openReceipt(receipt)} disabled={detailLoading}>
                   Detay / İade
@@ -276,13 +276,13 @@ export default function PurchaseOperationsPage() {
               <article key={request.id} className="space-y-3 px-5 py-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="font-mono text-[11px] font-semibold text-[var(--ink)]">{shortId(request.id)}</p>
+                    <p className="text-[11px] font-semibold text-[var(--ink)]">İade talebi</p>
                     <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{formatDateTime(request.createdAt)}</p>
                   </div>
                   <StatusPill label={RETURN_STATUS_LABELS[request.status]} tone={request.status === "REJECTED" ? "danger" : request.status === "EXECUTED" ? "success" : request.status === "PENDING" ? "warning" : "neutral"} />
                 </div>
                 <p className="text-[11px] leading-5 text-[var(--muted)]">{request.reason}</p>
-                <p className="text-[10px] text-[var(--muted-soft)]">{request.items.length} kalem · Mal kabul {shortId(request.goodsReceiptId)}</p>
+                <p className="text-[10px] text-[var(--muted-soft)]">{request.items.length} kalem · Mal kabul kaydıyla bağlantılı</p>
                 {request.rejectionReason ? <p className="text-[10px] text-[var(--danger)]">Ret: {request.rejectionReason}</p> : null}
                 {canWrite && request.status === "PENDING" ? (
                   <div className="flex flex-wrap gap-2">
@@ -315,7 +315,7 @@ export default function PurchaseOperationsPage() {
             </div>
 
             {detail.receipt.reversedAt ? <Alert>Bu mal kabul ters kayda alınmış; yeni iade talebi oluşturulamaz.</Alert> : null}
-            {Number(detail.receipt.paidAmount || 0) > 0 ? <Alert>Bu mal kabule bağlı tedarikçi faturasında ödeme var. Backend, ödeme terslenmeden kısmi iadeyi reddeder.</Alert> : null}
+            {Number(detail.receipt.paidAmount || 0) > 0 ? <Alert>Bu mal kabule bağlı tedarikçi faturasında ödeme bulunuyor. Ödeme geri alınmadan kısmi iade yapılamaz.</Alert> : null}
 
             <div className="space-y-2">
               {detail.items.map((item) => (
@@ -356,7 +356,7 @@ export default function PurchaseOperationsPage() {
         ) : null}
       </Modal>
 
-      <Modal open={Boolean(rejectTarget)} onClose={() => { if (!busyId) setRejectTarget(null); }} title="İade talebini reddet" description="Ret nedeni audit kaydında saklanır.">
+      <Modal open={Boolean(rejectTarget)} onClose={() => { if (!busyId) setRejectTarget(null); }} title="İade talebini reddet" description="Ret nedeni denetim geçmişine kaydedilir.">
         <div className="space-y-4">
           <Field label="Ret nedeni" required>
             <TextInput value={rejectReason} maxLength={500} onChange={(event) => setRejectReason(event.target.value)} placeholder="Ret gerekçesi" />
