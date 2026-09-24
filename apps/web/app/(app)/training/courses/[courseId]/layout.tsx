@@ -9,9 +9,9 @@ export default function TrainingCourseLayout({children}:{children:ReactNode}){
   const pathname=usePathname();
   const base=`/training/courses/${params.courseId}`;
   const links=[
-    {href:base,label:"İçerik & Assessment",exact:true},
+    {href:base,label:"İçerik ve değerlendirme",exact:true},
     {href:`${base}/modules`,label:"Modüller"},
-    {href:`${base}/practical`,label:"Pratik Rubric"},
+    {href:`${base}/practical`,label:"Pratik değerlendirme"},
   ];
 
   return <div className="space-y-4">
