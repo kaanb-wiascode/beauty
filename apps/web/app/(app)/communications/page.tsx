@@ -2,8 +2,10 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userLabel } from "@/lib/user-language";
 
 type Dashboard = {
@@ -164,11 +166,11 @@ function Header() {
 }
 
 function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><p className="mt-3 text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p><p className="mt-2 text-[10px] text-[var(--muted)]">{detail}</p></div>;
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label, detail)} /></div><p className="mt-3 text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p><p className="mt-2 text-[10px] text-[var(--muted)]">{detail}</p></div>;
 }
 
 function Panel({ title, action, children }: { title: string; action?: React.ReactNode; children: React.ReactNode }) {
-  return <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="mb-4 flex items-center justify-between gap-4"><h2 className="text-[15px] font-semibold text-[var(--ink)]">{title}</h2>{action}</div>{children}</div>;
+  return <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="mb-4 flex items-center justify-between gap-4"><div className="flex min-w-0 flex-1 items-start justify-between gap-3"><h2 className="text-[15px] font-semibold text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title)} /></div>{action}</div>{children}</div>;
 }
 
 function Status({ value }: { value: string }) {
