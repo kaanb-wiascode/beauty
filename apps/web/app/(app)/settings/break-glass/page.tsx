@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, FormEvent, useEffect, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, Spinner, TextInput, Select } from "@/components/ui";
 
 type Permission = { id: string; resource: string; action: string; description?: string | null };
 type EventRow = {
