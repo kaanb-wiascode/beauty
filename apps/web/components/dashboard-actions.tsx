@@ -452,7 +452,13 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
   });
 
   return (
-    <Modal open={Boolean(action)} onClose={onClose} title={title} description={description}>
+    <Modal
+      size={action === "service" ? "xl" : action === "customer" || action === "appointment" ? "lg" : "md"}
+      open={Boolean(action)}
+      onClose={onClose}
+      title={title}
+      description={description}
+    >
       {action === "customer" ? (
         <form onSubmit={saveCustomer}>
           <FormSection title="Müşteri bilgileri" description="Hızlı kayıt için temel iletişim bilgilerini girin.">
