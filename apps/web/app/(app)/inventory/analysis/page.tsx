@@ -17,6 +17,7 @@ import {
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { formatDate, formatPrice } from "@/lib/format";
+import { userLabel } from "@/lib/user-language";
 
 type WarehouseValuation = {
   warehouseId: string;
