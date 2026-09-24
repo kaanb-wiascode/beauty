@@ -23,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" className={inter.variable}>
-      <body className="ambient-root">{children}</body>
+    <html lang="tr" className={inter.variable} data-scroll-behavior="smooth">
+      <body className="ambient-root valoo-v2">{children}</body>
     </html>
   );
 }
