@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, EmptyState, PageHeader, Select, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { followUpChannelLabels, opportunityStageLabels, type CrmFollowUp, type OpportunityStage } from "@/lib/crm-types";
 
 type ReminderScope = "MINE" | "TEAM";
@@ -188,7 +189,10 @@ export default function CrmRemindersPage() {
           ["Orta", counts.medium, "14+ gün hareketsiz"],
         ].map(([label, value, detail]) => (
           <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)]">
-            <p className="text-[11px] text-[var(--muted)]">{label}</p>
+            <div className="flex items-start justify-between gap-3">
+              <p className="text-[11px] text-[var(--muted)]">{label}</p>
+              <CardInfo help={getCardHelp(String(label), String(detail))} />
+            </div>
             <strong className="mt-3 block text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</strong>
             <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{detail}</p>
           </article>
