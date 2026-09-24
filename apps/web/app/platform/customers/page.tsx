@@ -42,7 +42,7 @@ export default function PlatformCustomersPage() {
         setError(
           reason instanceof ApiError
             ? reason.message
-            : "Customer kayıtları yüklenemedi.",
+            : "Müşteri işletmeleri yüklenemedi.",
         );
       });
     return () => {
@@ -59,17 +59,17 @@ export default function PlatformCustomersPage() {
       <header className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300">
-            Customer operations
+            Müşteri İşletmeleri
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">
             Customers
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">
-            Tenant hesaplarını, organizasyon ölçeğini ve aktif kullanım sinyallerini incele.
+            Müşteri işletmelerini, şirket ve şube sayılarını ve aktif kullanıcı durumunu inceleyin.
           </p>
         </div>
         <div className="rounded-full border border-white/10 bg-white/[.035] px-4 py-2 text-xs font-medium text-white/55">
-          {number.format(total)} tenant
+          {number.format(total)} işletme
         </div>
       </header>
 
@@ -79,7 +79,7 @@ export default function PlatformCustomersPage() {
             <input
               value={search}
               onChange={(event) => setSearch(event.target.value)}
-              placeholder="Tenant adı veya slug ara…"
+              placeholder="İşletme adı ara…"
               className="w-full rounded-2xl border border-white/10 bg-black/20 px-4 py-3 text-sm text-white outline-none transition placeholder:text-white/25 focus:border-violet-400/35 focus:ring-2 focus:ring-violet-400/10"
             />
           </div>
@@ -95,11 +95,11 @@ export default function PlatformCustomersPage() {
           <table className="w-full min-w-[980px] text-left">
             <thead>
               <tr className="border-b border-white/[.07] text-[9px] font-semibold uppercase tracking-[.13em] text-white/30">
-                <th className="px-5 py-3.5">Tenant</th>
+                <th className="px-5 py-3.5">İşletme</th>
                 <th className="px-4 py-3.5">Şirket</th>
                 <th className="px-4 py-3.5">Şube</th>
                 <th className="px-4 py-3.5">Aktif kullanıcı</th>
-                <th className="px-4 py-3.5">Owner</th>
+                <th className="px-4 py-3.5">Hesap Sahibi</th>
                 <th className="px-4 py-3.5">Oluşturulma</th>
                 <th className="px-5 py-3.5 text-right">Detay</th>
               </tr>
@@ -109,7 +109,6 @@ export default function PlatformCustomersPage() {
                 <tr key={customer.id} className="transition hover:bg-white/[.02]">
                   <td className="px-5 py-4">
                     <p className="text-sm font-semibold text-white">{customer.name}</p>
-                    <p className="mt-1 text-[10px] text-white/30">{customer.slug}</p>
                   </td>
                   <td className="px-4 py-4 text-xs text-white/60">
                     {number.format(customer.activeCompanyCount)} / {number.format(customer.companyCount)}
@@ -131,7 +130,7 @@ export default function PlatformCustomersPage() {
                       href={`/platform/customers/${customer.id}`}
                       className="inline-flex rounded-xl border border-white/10 bg-white/[.04] px-3 py-2 text-[10px] font-semibold text-white/65 transition hover:border-violet-400/25 hover:bg-violet-400/10 hover:text-white"
                     >
-                      Tenant 360 →
+                      İşletme Detayı →
                     </Link>
                   </td>
                 </tr>
@@ -142,7 +141,7 @@ export default function PlatformCustomersPage() {
 
         {data && !data.items.length ? (
           <p className="px-6 py-12 text-center text-sm text-white/35">
-            Arama kriterine uygun tenant bulunamadı.
+            Arama kriterine uygun müşteri işletmesi bulunamadı.
           </p>
         ) : null}
 
