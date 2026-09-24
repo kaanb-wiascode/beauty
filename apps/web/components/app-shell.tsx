@@ -53,7 +53,7 @@ const NAV_SECTIONS = [
     { href: "/finance/accounting", permission: "accounting.read", label: "Muhasebe", icon: "file" },
     { href: "/finance/accounts-payable", permission: "finance.read", label: "Tedarikçi Borçları", icon: "receipt" },
     { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
-    { href: "/finance/integrations", label: "Banka Ve Ödeme Bağlantıları", icon: "wallet" },
+    { href: "/finance/integrations", label: "Banka ve ödeme bağlantıları", icon: "wallet" },
     { href: "/finance/integrations/operations", label: "Bağlantı İşlemleri", icon: "activity" },
     { href: "/finance/reconciliation", label: "Mutabakat Merkezi", icon: "arrows" },
     { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
@@ -69,14 +69,14 @@ const NAV_SECTIONS = [
     { href: "/hr/sgk", label: "SGK İşlemleri", icon: "shield" },
   ]},
   { label: "Gelişim", items: [
-    { href: "/training", permission: "training.read", label: "Eğitim Ve Yetkinlik", icon: "chart" },
+    { href: "/training", permission: "training.read", label: "Eğitim ve yetkinlik", icon: "chart" },
     { href: "/training/analytics", permission: "training.read", label: "Eğitim Analizi", icon: "trend" },
     { href: "/training/staff", permission: "training.read", label: "Personel Gelişim Profilleri", icon: "users" },
     { href: "/training/question-bank", permission: "training.manage", label: "Soru Bankası", icon: "file" },
   ]},
   { label: "Envanter", items: [
-    { href: "/inventory", label: "Stok Ve Envanter", icon: "package" },
-    { href: "/inventory/lots", label: "Lot Ve Son Kullanma", icon: "calendar" },
+    { href: "/inventory", label: "Stok ve envanter", icon: "package" },
+    { href: "/inventory/lots", label: "Lot ve son kullanma", icon: "calendar" },
     { href: "/inventory/analysis", label: "Envanter Analizi", icon: "chart" },
     { href: "/inventory/counts", label: "Stok Sayımları", icon: "file" },
     { href: "/inventory/service-materials", label: "Hizmet Malzemeleri", icon: "sparkles" },
@@ -88,10 +88,10 @@ const NAV_SECTIONS = [
     { href: "/reports", permission: "reports.read", label: "Raporlar", icon: "chart" },
     { href: "/reports/staff", permission: "reports.read", label: "Personel Performansı", icon: "trend" },
     { href: "/reports/services", permission: "reports.read", label: "Hizmet Performansı", icon: "chart" },
-    { href: "/quality/comparison", permissions: ["quality.read", "training.read"], label: "Kalite Ve Gelişim Karşılaştırma", icon: "activity" },
+    { href: "/quality/comparison", permissions: ["quality.read", "training.read"], label: "Kalite ve gelişim karşılaştırma", icon: "activity" },
   ]},
   { label: "Yönetim", items: [
-    { href: "/settings/roles", permission: "roles.read", label: "Roller Ve Yetkiler", icon: "shield" },
+    { href: "/settings/roles", permission: "roles.read", label: "Roller ve yetkiler", icon: "shield" },
     { href: "/settings", label: "Ayarlar", icon: "settings" },
   ]},
 ] as const;
@@ -368,12 +368,12 @@ export function AppShell({ children }: { children: ReactNode }) {
             ) : null}
           </div>
           {!collapsed ? (
-            <button type="button" onClick={toggleSidebar} aria-label="Menüyü Daralt" title="Menüyü Daralt" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">‹</button>
+            <button type="button" onClick={toggleSidebar} aria-label="Menüyü Daralt" title="Menüyü Daralt" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[var(--radius-control)] text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">‹</button>
           ) : null}
         </div>
 
         {collapsed ? (
-          <button type="button" onClick={toggleSidebar} aria-label="Menüyü Genişlet" title="Menüyü Genişlet" className="mx-auto mt-3 flex h-9 w-9 items-center justify-center rounded-[12px] text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]">›</button>
+          <button type="button" onClick={toggleSidebar} aria-label="Menüyü Genişlet" title="Menüyü Genişlet" className="mx-auto mt-3 flex h-[42px] w-[42px] items-center justify-center rounded-[var(--radius-control)] text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">›</button>
         ) : null}
 
         {!collapsed && contextOptions ? (
