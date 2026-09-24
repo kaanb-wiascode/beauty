@@ -94,5 +94,5 @@ export default function OperationsIntelligencePage() {
 }
 
 function RiskCell({ label, risk }: { label: string; risk: Risk }) {
-  return <div><div className="flex items-center gap-2"><p className="text-xs font-semibold text-[var(--ink)]">{label}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[10px] font-semibold">{risk.level} · {risk.score}</span></div>{risk.reasons.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-[var(--muted)]">{risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : <p className="mt-2 text-xs text-[var(--muted)]">Belirgin risk sinyali yok.</p>}<p className="mt-2 text-xs font-medium text-[var(--ink)]">{risk.suggestedAction}</p></div>;
+  return <div><div className="flex items-center gap-2"><p className="text-xs font-semibold text-[var(--ink)]">{label}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[10px] font-semibold">{userLabel(risk.level)} · {risk.score}</span></div>{risk.reasons.length ? <ul className="mt-2 list-disc space-y-1 pl-4 text-xs text-[var(--muted)]">{risk.reasons.map((reason) => <li key={reason}>{reason}</li>)}</ul> : <p className="mt-2 text-xs text-[var(--muted)]">Belirgin risk sinyali yok.</p>}<p className="mt-2 text-xs font-medium text-[var(--ink)]">{risk.suggestedAction}</p></div>;
 }
