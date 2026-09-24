@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -352,7 +352,7 @@ export default function OperationsPage() {
         <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <label className="block">
             <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Walk-in müşteri</span>
-            <select
+            <Select
               value={walkInCustomerId}
               onChange={(event) => {
                 setWalkInCustomerId(event.target.value);
@@ -364,7 +364,7 @@ export default function OperationsPage() {
               {customers.map((customer) => (
                 <option key={customer.id} value={customer.id}>{customerMap.get(customer.id)}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <Button
             disabled={!walkInCustomerId || updatingId === `walk-in:${walkInCustomerId}` || !canUpdate}
