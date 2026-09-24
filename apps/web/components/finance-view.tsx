@@ -2,6 +2,8 @@
 
 import type { ButtonHTMLAttributes, ReactNode } from "react";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { cx } from "@/lib/format";
 import { userLabel } from "@/lib/user-language";
 
@@ -28,7 +30,10 @@ export function FinanceMetric({
     <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(17,70,104,0.04)]">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-medium text-[var(--muted)]">{label}</p>
-        <span aria-hidden="true" className={cx("h-2.5 w-2.5 rounded-full", tones[tone])} />
+        <div className="flex shrink-0 items-center gap-2">
+          <span aria-hidden="true" className={cx("h-2.5 w-2.5 rounded-full", tones[tone])} />
+          <CardInfo help={getCardHelp(label, typeof detail === "string" ? detail : undefined)} />
+        </div>
       </div>
       <div className="mt-2 text-[26px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</div>
       {detail ? <div className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</div> : null}
@@ -52,8 +57,11 @@ export function FinancePanel({
   return (
     <section className={cx("overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(17,70,104,0.04)]", className)}>
       <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
-        <div className="min-w-0">
-          <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{title}</h2>
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{title}</h2>
+            <CardInfo help={getCardHelp(title, description)} />
+          </div>
           {description ? <p className="mt-1 text-[11px] text-[var(--muted)]">{description}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
