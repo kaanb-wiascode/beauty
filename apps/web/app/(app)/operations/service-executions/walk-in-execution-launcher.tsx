@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -207,38 +207,38 @@ export function WalkInExecutionLauncher({
       <div className="mt-3 grid gap-2 md:grid-cols-2">
         <label>
           <span className="mb-1 block text-[11px] font-semibold text-[var(--muted)]">Hizmet</span>
-          <select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={saleItemId} onChange={(event) => setSaleItemId(event.target.value)}>
+          <Select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={saleItemId} onChange={(event) => setSaleItemId(event.target.value)}>
             {context.serviceItems.map((item) => (
               <option key={item.saleItemId} value={item.saleItemId}>
                 {item.serviceName} · {item.durationMinutes} dk
               </option>
             ))}
-          </select>
+          </Select>
         </label>
         <label>
           <span className="mb-1 block text-[11px] font-semibold text-[var(--muted)]">Personel</span>
-          <select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={staffId} onChange={(event) => setStaffId(event.target.value)}>
+          <Select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={staffId} onChange={(event) => setStaffId(event.target.value)}>
             {staff.map((item) => (
               <option key={item.id} value={item.id}>{item.firstName} {item.lastName}</option>
             ))}
-          </select>
+          </Select>
         </label>
         {requirement?.roomType ? (
           <label>
             <span className="mb-1 block text-[11px] font-semibold text-[var(--muted)]">Oda · {requirement.roomType}</span>
-            <select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={roomId} onChange={(event) => setRoomId(event.target.value)}>
+            <Select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={roomId} onChange={(event) => setRoomId(event.target.value)}>
               <option value="">Oda seçin</option>
               {eligibleRooms.map((room) => <option key={room.id} value={room.id}>{room.name}</option>)}
-            </select>
+            </Select>
           </label>
         ) : null}
         {requirement?.requiredAssetId || requirement?.requiredAssetType ? (
           <label>
             <span className="mb-1 block text-[11px] font-semibold text-[var(--muted)]">Cihaz</span>
-            <select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={assetId} onChange={(event) => setAssetId(event.target.value)}>
+            <Select className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={assetId} onChange={(event) => setAssetId(event.target.value)}>
               <option value="">Cihaz seçin</option>
               {eligibleAssets.map((asset) => <option key={asset.id} value={asset.id}>{asset.name}</option>)}
-            </select>
+            </Select>
           </label>
         ) : null}
       </div>
