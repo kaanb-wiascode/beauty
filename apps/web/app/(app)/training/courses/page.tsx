@@ -197,7 +197,7 @@ export default function TrainingCoursesPage() {
         method: "POST",
         body: {},
       });
-      setSuccess(`v${created.version} taslak sürümü oluşturuldu.`);
+      setSuccess(`Sürüm ${created.version} için taslak oluşturuldu.`);
       await loadVersions(selectedCourse.id);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Taslak sürüm oluşturulamadı.");
@@ -213,7 +213,7 @@ export default function TrainingCoursesPage() {
     setSuccess("");
     try {
       await api(`/training/lms/versions/${version.id}/publish`, { method: "POST" });
-      setSuccess(`v${version.version} yayınlandı. Önceki yayınlanmış sürüm varsa otomatik olarak emekliye ayrıldı.`);
+      setSuccess(`Sürüm ${version.version} yayınlandı. Önceki yayındaki sürüm varsa otomatik olarak kullanımdan kaldırıldı.`);
       await loadVersions(selectedCourse.id);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Kurs sürümü yayınlanamadı.");
@@ -252,7 +252,7 @@ export default function TrainingCoursesPage() {
         <FinanceMetric label="Toplam Kurs" value={courses.length} detail="Şirket Kataloğu" tone="info" />
         <FinanceMetric label="Aktif Kurs" value={courses.filter((course) => course.isActive).length} detail="Kullanılabilir Kurs" tone="success" />
         <FinanceMetric label="Seçili Kurs Sürümü" value={versions.length} detail={selectedCourse?.code ?? "Kurs Seçilmedi"} tone="neutral" />
-        <FinanceMetric label="Yayın Durumu" value={publishedVersion ? `v${publishedVersion.version}` : "—"} detail={publishedVersion ? "Güncel Yayın" : "Henüz Yayın Yok"} tone={publishedVersion ? "success" : "warning"} />
+        <FinanceMetric label="Yayın Durumu" value={publishedVersion ? `Sürüm ${publishedVersion.version}` : "—"} detail={publishedVersion ? "Güncel yayın" : "Henüz yayın yok"} tone={publishedVersion ? "success" : "warning"} />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
