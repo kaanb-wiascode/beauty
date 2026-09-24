@@ -161,6 +161,8 @@ export default function TeamPage() {
     [conversationMembers, currentUser?.id],
   );
 
+  const canPost = !active?.announcementOnly || Boolean(currentConversationMember?.isAdmin);
+
   const mentionQuery = useMemo(() => {
     const match = messageText.match(/(?:^|\s)@([^\s@]*)$/);
     return match?.[1]?.toLocaleLowerCase("tr-TR") ?? null;
@@ -285,7 +287,7 @@ export default function TeamPage() {
 
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!activeId || (!messageText.trim() && !selectedFile) || sending) return;
+    if (!activeId || !canPost || (!messageText.trim() && !selectedFile) || sending) return;
     if (editingMessage) {
       await saveEditedMessage();
       return;
@@ -673,6 +675,11 @@ export default function TeamPage() {
               </div>
 
               <form onSubmit={sendMessage} className="border-t border-[var(--line)] bg-white p-4">
+                {!canPost ? (
+                  <div className="mb-3 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-medium text-amber-800">
+                    Bu duyuru kanalında yalnızca yöneticiler mesaj paylaşabilir.
+                  </div>
+                ) : null}
                 {typingUsers.length ? (
                   <p className="mb-2 px-1 text-[10px] font-medium text-[#7657e8]">
                     {typingUsers.map((user) => user.firstName).join(", ")} yazıyor...
@@ -690,6 +697,7 @@ export default function TeamPage() {
                 <div className="relative flex items-end gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-2">
                   <textarea
                     value={messageText}
+                    disabled={!canPost}
                     onChange={(event) => signalTyping(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
@@ -716,10 +724,11 @@ export default function TeamPage() {
                       </div>
                     </div>
                   ) : null}
-                  <label className="flex h-10 cursor-pointer items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] hover:text-[var(--ink)]">
+                  <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] ${canPost ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-not-allowed opacity-50"}`}>
                     {selectedFile ? "Dosya seçildi" : "Dosya ekle"}
                     <input
                       type="file"
+                      disabled={!canPost}
                       accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv,.docx,.xlsx"
                       className="hidden"
                       onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
@@ -727,7 +736,7 @@ export default function TeamPage() {
                   </label>
                   <button
                     type="submit"
-                    disabled={sending || (!messageText.trim() && !selectedFile)}
+                    disabled={!canPost || sending || (!messageText.trim() && !selectedFile)}
                     className="h-10 rounded-[12px] bg-[var(--accent)] px-4 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? "Gönderiliyor..." : "Gönder"}
