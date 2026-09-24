@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type PurchaseOrder = {
   id: string;
@@ -178,15 +179,15 @@ export default function PurchaseOrderOriginsPage() {
 
         <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="flex items-start justify-between gap-3">
-            <div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">SEÇİLİ PO</p><h2 className="mt-2 font-mono text-[13px] font-semibold text-[var(--ink)]">{detail ? detail.purchaseOrderId : "—"}</h2></div>
-            {detail ? <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{STATUS_LABELS[detail.purchaseOrderStatus] ?? detail.purchaseOrderStatus}</span> : null}
+            <div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">SEÇİLİ SATIN ALMA SİPARİŞİ</p><h2 className="mt-2 text-[13px] font-semibold text-[var(--ink)]">{detail ? "Sipariş kaydı" : "—"}</h2></div>
+            {detail ? <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{STATUS_LABELS[detail.purchaseOrderStatus] ?? userLabel(detail.purchaseOrderStatus)}</span> : null}
           </div>
 
           {detailLoading ? <div className="py-12"><Spinner label="Kaynak detayı yükleniyor..." /></div> : detail ? (
             <div className="mt-5 space-y-4">
               <div className="grid grid-cols-2 gap-3 rounded-[14px] bg-[var(--surface-2)]/50 p-4">
                 <Info label="Depo" value={detail.warehouseName} />
-                <Info label="PO tutarı" value={formatMoney(detail.purchaseOrderTotal)} />
+                <Info label="Sipariş tutarı" value={formatMoney(detail.purchaseOrderTotal)} />
               </div>
 
               {detail.origin ? (
@@ -194,22 +195,22 @@ export default function PurchaseOrderOriginsPage() {
                   <div className="rounded-[14px] border border-[var(--line)] p-4">
                     <div className="flex flex-wrap items-center justify-between gap-2"><SourceBadge source={detail.origin.sourceType} version={detail.origin.sourceVersion} /><span className="text-[9px] text-[var(--muted-soft)]">{formatDate(detail.origin.createdAt)}</span></div>
                     <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                      <Info label="Platform tedarikçisi" value={detail.origin.supplierOrganizationName || detail.origin.supplierOrganizationId} />
+                      <Info label="Tedarikçi" value={detail.origin.supplierOrganizationName || "Tedarikçi kaydı"} />
                       <Info label="Para birimi" value={detail.origin.currency} />
-                      <Info label="SupplierOffer" value={detail.origin.supplierOfferId ? shortId(detail.origin.supplierOfferId) : "—"} mono />
-                      <Info label="SupplierQuote" value={detail.origin.supplierQuoteId ? shortId(detail.origin.supplierQuoteId) : "—"} mono />
-                      <Info label="Connection" value={shortId(detail.origin.supplierConnectionId)} mono />
-                      <Info label="Idempotency" value={detail.origin.idempotencyKey} mono />
+                      <Info label="Tedarikçi teklifi" value={detail.origin.supplierOfferId ? "Bağlı teklif" : "—"} />
+                      <Info label="Fiyat teklifi" value={detail.origin.supplierQuoteId ? "Bağlı teklif" : "—"} />
+                      <Info label="Tedarikçi bağlantısı" value="Bağlantı doğrulandı" />
+                      <Info label="Tekrarlı kayıt koruması" value={detail.origin.idempotencyKey ? "Etkin" : "—"} />
                     </div>
                   </div>
 
                   <div>
-                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">IMMUTABLE COMMERCIAL SNAPSHOT</p>
-                    <pre className="max-h-[420px] overflow-auto rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/55 p-4 text-[10px] leading-5 text-[var(--ink)]">{JSON.stringify(detail.origin.commercialSnapshot, null, 2)}</pre>
+                    <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">SİPARİŞ OLUŞTURMA KOŞULLARI</p>
+                    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/55 p-4 text-[11px] leading-5 text-[var(--muted)]">Sipariş oluşturulurken geçerli olan ticari koşullar güvenli biçimde kaydedildi. Bu kayıt sonradan değiştirilmez.</div>
                   </div>
                 </>
               ) : (
-                <Alert tone="success">Bu PO, origin snapshot altyapısından önce oluşturulmuş veya manuel satın alma akışından gelmiş legacy kayıttır.</Alert>
+                <Alert tone="success">Bu satın alma siparişi eski kayıt yapısında veya manuel süreçte oluşturulmuş. Oluşturma anındaki ticari koşul kaydı bulunmuyor.</Alert>
               )}
             </div>
           ) : <p className="py-12 text-center text-[12px] text-[var(--muted)]">Detay görmek için bir satın alma siparişi seçin.</p>}
