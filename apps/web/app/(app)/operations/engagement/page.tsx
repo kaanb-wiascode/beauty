@@ -136,9 +136,9 @@ export default function OperationsEngagementPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">CRM / Communications Integration</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Hatırlatma, Onay & Follow-up</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Operations yalnız randevu onay durumunu ve kaynak bağlantısını yönetir. Mesaj gönderimi, consent, provider ve idempotency CRM altyapısında kalır.</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Müşteri iletişimi</p>
+        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Hatırlatma, onay ve takip</h1>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Bu ekran randevu onaylarını, hatırlatmaları ve ziyaret sonrası takipleri yönetir. Mesaj gönderiminin teknik ayrıntıları arka planda güvenli biçimde yürütülür.</p>
         <label className="mt-4 block max-w-xs text-xs font-semibold text-[var(--muted)]">İletişim kanalı
           <Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={channel} onChange={(event) => setChannel(event.target.value as Channel)}>
             <option value="WHATSAPP">WhatsApp</option>
@@ -154,7 +154,7 @@ export default function OperationsEngagementPage() {
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="border-b border-[var(--line)] px-6 py-4">
           <h2 className="text-sm font-semibold text-[var(--ink)]">Önümüzdeki 7 Gün</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">Hatırlatma gönderin; müşteri yanıtını fiziksel Visit durumundan ayrı kaydedin.</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Hatırlatma gönderin ve müşterinin yanıtını randevu sürecinden bağımsız olarak kaydedin.</p>
         </div>
         {upcoming.length ? (
           <div className="divide-y divide-[var(--line)]">
