@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { api, ApiError } from "@/lib/api";
 
@@ -127,7 +128,7 @@ export default function PermissionSimulationPage() {
       {error ? <div className="rounded-xl border border-[#f0d8d8] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4545]">{error}</div> : null}
 
       <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
-        <label className="block text-xs font-medium text-[var(--muted)]">Simüle edilecek kullanıcı<select value={membershipId} onChange={(event) => setMembershipId(event.target.value)} className="mt-2 w-full max-w-xl rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]"><option value="">Seçin</option>{memberships.map((membership) => <option key={membership.id} value={membership.id}>{membership.user.firstName} {membership.user.lastName} · {membership.user.email} · {membership.role.name}</option>)}</select></label>
+        <label className="block text-xs font-medium text-[var(--muted)]">Simüle edilecek kullanıcı<Select value={membershipId} onChange={(event) => setMembershipId(event.target.value)} className="mt-2 w-full max-w-xl rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]"><option value="">Seçin</option>{memberships.map((membership) => <option key={membership.id} value={membership.id}>{membership.user.firstName} {membership.user.lastName} · {membership.user.email} · {membership.role.name}</option>)}</Select></label>
       </section>
 
       {simulating ? <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-5 py-10 text-center text-sm text-[var(--muted)]">Yetki modeli hesaplanıyor…</div> : null}
