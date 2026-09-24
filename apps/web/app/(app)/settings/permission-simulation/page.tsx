@@ -1,4 +1,6 @@
 "use client";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui";
@@ -136,11 +138,11 @@ export default function PermissionSimulationPage() {
 
       {!simulating && effective ? <>
         <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="text-xs text-[var(--muted)]">Rol</div><div className="mt-1 text-sm font-semibold">{effective.role.name}</div></article>
-          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="text-xs text-[var(--muted)]">Kapsam</div><div className="mt-1 text-sm font-semibold">{scopeLabel[effective.role.scope]}</div></article>
-          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="text-xs text-[var(--muted)]">Etkin Yetki</div><div className="mt-1 text-2xl font-semibold">{effective.permissions.length}</div></article>
-          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="text-xs text-[var(--muted)]">Geçici Yetki</div><div className="mt-1 text-2xl font-semibold">{temporaryPermissions.length}</div></article>
-          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="text-xs text-[var(--muted)]">Yüksek Risk</div><div className={`mt-1 text-2xl font-semibold ${riskPermissions.length ? "text-[#9a4545]" : "text-[#378a5e]"}`}>{riskPermissions.length}</div></article>
+          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Rol</div><CardInfo help={getCardHelp("Rol", "Simüle edilen kullanıcının etkin rolünü gösterir.")} /></div><div className="mt-1 text-sm font-semibold">{effective.role.name}</div></article>
+          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Kapsam</div><CardInfo help={getCardHelp("Kapsam", "Rolün şirket veya şube düzeyindeki erişim kapsamını gösterir.")} /></div><div className="mt-1 text-sm font-semibold">{scopeLabel[effective.role.scope]}</div></article>
+          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Etkin Yetki</div><CardInfo help={getCardHelp("Etkin Yetki", "Rol, kapsam ve geçici erişimler birlikte değerlendirildiğinde etkin olan toplam yetki sayısını gösterir.")} /></div><div className="mt-1 text-2xl font-semibold">{effective.permissions.length}</div></article>
+          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Geçici Yetki</div><CardInfo help={getCardHelp("Geçici Yetki", "Süreli erişim kayıtlarından gelen etkin geçici yetkilerin sayısını gösterir.")} /></div><div className="mt-1 text-2xl font-semibold">{temporaryPermissions.length}</div></article>
+          <article className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div className="text-xs text-[var(--muted)]">Yüksek Risk</div><CardInfo help={getCardHelp("Yüksek Risk", "Yüksek riskli olarak sınıflandırılan etkin yetkilerin sayısını gösterir.")} /></div><div className={`mt-1 text-2xl font-semibold ${riskPermissions.length ? "text-[#9a4545]" : "text-[#378a5e]"}`}>{riskPermissions.length}</div></article>
         </section>
 
         <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
