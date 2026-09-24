@@ -30,6 +30,14 @@ import {
   type SavedReportSort,
 } from "../report-saved-view-client";
 
+const EXPORT_STATUS_LABELS: Record<ReportExportJob["status"], string> = {
+  QUEUED: "Sırada",
+  PROCESSING: "Hazırlanıyor",
+  READY: "Hazır",
+  FAILED: "Başarısız",
+  EXPIRED: "Süresi doldu",
+};
+
 const DEFAULT_SORTS: Partial<Record<ReportCatalogKey, SavedReportSort>> = {
   "staff.performance": { key: "collected", direction: "desc" },
   "service.performance": { key: "collected", direction: "desc" },
@@ -383,7 +391,7 @@ export default function ReportExportsPage() {
                       <div className="flex flex-wrap items-center gap-2">
                         <span className="text-[11px] font-semibold text-[var(--ink)]">{catalog.find((item) => item.key === job.reportKey)?.title ?? job.reportKey}</span>
                         <span className="text-[10px] text-[var(--muted)]">{job.format}</span>
-                        <span className="text-[10px] text-[var(--muted-soft)]">{job.status}</span>
+                        <span className="text-[10px] text-[var(--muted-soft)]">{EXPORT_STATUS_LABELS[job.status]}</span>
                       </div>
                       <p className="mt-1 text-[9px] text-[var(--muted-soft)]">{formatDateTime(job.requestedAt)}</p>
                     </div>
