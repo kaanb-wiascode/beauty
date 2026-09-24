@@ -977,6 +977,7 @@ function CustomerModal({
 }) {
   return (
     <Modal
+      size="xl"
       open={open}
       onClose={onClose}
       title={editing ? "Müşteriyi düzenle" : "Yeni müşteri"}
