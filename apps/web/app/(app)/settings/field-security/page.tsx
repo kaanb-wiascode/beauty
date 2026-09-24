@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { userPermissionKeyLabel } from "@/lib/user-language";
 
 type Permission = { id: string; resource: string; action: string; description?: string | null };
 type Policy = { id: string; fieldGroup: string; requiredResource: string; requiredAction: string; description: string | null; updatedAt: string };
@@ -64,21 +65,20 @@ export default function FieldSecurityPage() {
     <header className="border-b border-[var(--line)] pb-5">
       <div className="mb-1 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted)]">Yönetim / Erişim</div>
       <h1 className="text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">Alan Güvenliği</h1>
-      <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">Yüksek riskli veri gruplarını ayrı permission kurallarıyla koruyun. Karar API response oluşturulurken server-side uygulanır; yalnız arayüz gizleme değildir.</p>
+      <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">Hassas veri gruplarını özel erişim kurallarıyla koruyun. Bu kurallar yalnızca ekranda gizleme yapmaz; veriye erişim sırasında da uygulanır.</p>
     </header>
     {error ? <Alert tone="error">{error}</Alert> : null}{notice ? <Alert>{notice}</Alert> : null}
     <section className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5">
-      <h2 className="text-sm font-semibold text-[var(--ink)]">Aktif enforcement kapsamı</h2>
-      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">İlk yüksek riskli dilim Employee 360 üzerinde aktiftir. Kimlik/banka ve ücret/bordro alanları birbirinden bağımsız değerlendirilir; geçici permission grant’leri de aynı karara dahildir.</p>
+      <h2 className="text-sm font-semibold text-[var(--ink)]">Koruma Kapsamı</h2>
+      <p className="mt-1 text-xs leading-5 text-[var(--muted)]">Kimlik ve banka bilgileri ile ücret ve bordro bilgileri birbirinden bağımsız korunur. Geçici olarak verilen yetkiler de aynı erişim kurallarına tabidir.</p>
     </section>
     <section className="grid gap-4 lg:grid-cols-2">
       {starters.map((starter) => {
         const current = policies.find((row) => row.fieldGroup === starter.fieldGroup);
         return <form key={starter.fieldGroup} onSubmit={(e) => save(e, starter)} className="space-y-4 rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
-          <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--ink)]">{starter.title}</h2><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{starter.description}</p></div><span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">{current ? "CUSTOM" : "DEFAULT"}</span></div>
-          <code className="block rounded-lg bg-[var(--surface-2)] px-3 py-2 text-[11px] text-[var(--muted)]">{starter.fieldGroup}</code>
-          <label className="block text-xs text-[var(--muted)]">Gerekli permission<Select value={selection[starter.fieldGroup] ?? starter.fallback} onChange={(e) => setSelection((old) => ({ ...old, [starter.fieldGroup]: e.target.value }))} className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]">{permissionKeys.map((permission) => <option key={permission} value={permission}>{permission}</option>)}</Select></label>
-          <div className="flex items-center justify-between gap-3"><div className="text-[11px] text-[var(--muted)]">{current ? `Son güncelleme: ${new Date(current.updatedAt).toLocaleString("tr-TR")}` : `Varsayılan: ${starter.fallback}`}</div><Button type="submit" disabled={busyGroup === starter.fieldGroup}>{busyGroup === starter.fieldGroup ? "Kaydediliyor..." : "Politikayı Kaydet"}</Button></div>
+          <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--ink)]">{starter.title}</h2><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{starter.description}</p></div><span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">{current ? "Özelleştirilmiş" : "Varsayılan"}</span></div>
+          <label className="block text-xs text-[var(--muted)]">Gerekli Yetki<Select value={selection[starter.fieldGroup] ?? starter.fallback} onChange={(e) => setSelection((old) => ({ ...old, [starter.fieldGroup]: e.target.value }))} className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]">{permissionKeys.map((permission) => <option key={permission} value={permission}>{userPermissionKeyLabel(permission)}</option>)}</Select></label>
+          <div className="flex items-center justify-between gap-3"><div className="text-[11px] text-[var(--muted)]">{current ? `Son güncelleme: ${new Date(current.updatedAt).toLocaleString("tr-TR")}` : `Varsayılan: ${userPermissionKeyLabel(starter.fallback)}`}</div><Button type="submit" disabled={busyGroup === starter.fieldGroup}>{busyGroup === starter.fieldGroup ? "Kaydediliyor..." : "Politikayı Kaydet"}</Button></div>
         </form>;
       })}
     </section>
