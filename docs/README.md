@@ -15,6 +15,7 @@ This directory is the canonical documentation surface for VALOO. Product, archit
 | `05-API-CONTRACTS.md` | General API contracts. |
 | `06-AUTHORIZATION.md` / `12-AUTHORIZATION-MODEL.md` | Authorization principles and model. |
 | `08-SECURITY.md` | Security baseline. |
+| `VALOO-DESIGN-SYSTEM-V2.md` | Canonical frontend visual language, controls, typography, spacing, layout and migration rules. |
 | `10-DATABASE-CONVENTIONS.md` | Database conventions. |
 | `11-API-CONVENTIONS.md` | API conventions. |
 
