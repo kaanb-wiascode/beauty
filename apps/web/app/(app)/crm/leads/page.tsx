@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { CardInfo } from "@/components/card-info";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { DatePicker } from "@/components/date-picker";
+import { FormActions, FormGrid, FormHint, FormSection, FormStepper } from "@/components/form-system";
 import { Modal } from "@/components/modal";
 import {
   Alert,
@@ -16,7 +18,8 @@ import {
   TextInput,
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { api, ApiError } from "@/lib/api";
+import { ValooMultiSelect, ValooSegmentedControl, ValooSelect } from "@/components/valoo-controls";
+import { api, ApiError, withQuery } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -27,13 +30,31 @@ import {
   type CrmLead,
   type LeadStatus,
 } from "@/lib/crm-types";
+import type { Paginated, Service } from "@/lib/types";
+
+type LeadContactChannel = "CALL" | "SMS" | "EMAIL" | "WHATSAPP" | "IN_PERSON" | "OTHER";
+type LeadUrgency = "IMMEDIATE" | "THIS_WEEK" | "THIS_MONTH" | "LATER" | "UNKNOWN";
+type LeadConsultation = "REQUIRED" | "REQUESTED" | "NOT_NEEDED" | "UNKNOWN";
+type LeadTemperature = "COLD" | "WARM" | "HOT";
 
 const emptyLead = {
   firstName: "",
   lastName: "",
   phone: "",
+  alternativePhone: "",
   email: "",
+  preferredContactChannel: "" as LeadContactChannel | "",
+  language: "tr",
   source: "MANUAL",
+  sourceDetail: "",
+  interestedServiceIds: [] as string[],
+  estimatedBudget: "",
+  purchaseUrgency: "UNKNOWN" as LeadUrgency,
+  consultationNeed: "UNKNOWN" as LeadConsultation,
+  customerIntent: "",
+  team: "",
+  leadScore: "0",
+  leadTemperature: "COLD" as LeadTemperature,
   interestNote: "",
   ownerUserId: "",
 };
@@ -70,6 +91,8 @@ export default function CrmLeadsPage() {
   const { showToast } = useToast();
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [leadStep, setLeadStep] = useState(0);
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<LeadStatus | "ALL">("ALL");
   const [ownerUserId, setOwnerUserId] = useState("");
@@ -108,13 +131,19 @@ export default function CrmLeadsPage() {
   }, [load]);
 
   useEffect(() => {
-    void api<CrmAssignee[]>("/crm/assignees")
-      .then(setAssignees)
+    void Promise.all([
+      api<CrmAssignee[]>("/crm/assignees"),
+      api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
+    ])
+      .then(([people, serviceResult]) => {
+        setAssignees(people);
+        setServices(serviceResult.data.filter((service) => service.status === "ACTIVE"));
+      })
       .catch((requestError) =>
         setError(
           requestError instanceof ApiError
-            ? userErrorMessage(requestError.message, "Müşteri ilişkileri sorumluları yüklenemedi.")
-            : "Müşteri ilişkileri sorumluları yüklenemedi.",
+            ? userErrorMessage(requestError.message, "Potansiyel müşteri form seçenekleri yüklenemedi.")
+            : "Potansiyel müşteri form seçenekleri yüklenemedi.",
         ),
       );
   }, []);
@@ -135,6 +164,7 @@ export default function CrmLeadsPage() {
           "Yeni potansiyel müşteri oluşturmak için önce çalışma kapsamından bir şube seçin.",
         )
       ) {
+        setLeadStep(0);
         setCreateOpen(true);
       }
     }
@@ -161,6 +191,17 @@ export default function CrmLeadsPage() {
     [assignees],
   );
 
+  const duplicateLead = useMemo(() => {
+    const phone = leadForm.phone.replace(/\D/g, "");
+    const email = leadForm.email.trim().toLocaleLowerCase("tr-TR");
+    if (!phone && !email) return null;
+    return leads.find((lead) => {
+      const leadPhone = (lead.phone ?? "").replace(/\D/g, "");
+      const leadEmail = (lead.email ?? "").trim().toLocaleLowerCase("tr-TR");
+      return Boolean((phone && leadPhone === phone) || (email && leadEmail === email));
+    }) ?? null;
+  }, [leadForm.email, leadForm.phone, leads]);
+
   async function createLead(event: FormEvent) {
     event.preventDefault();
     setFormError("");
@@ -174,7 +215,7 @@ export default function CrmLeadsPage() {
     if (
       !leadForm.firstName.trim() ||
       !leadForm.lastName.trim() ||
-      (!leadForm.phone.trim() && !leadForm.email.trim())
+      (!leadForm.phone.trim() && !leadForm.alternativePhone.trim() && !leadForm.email.trim())
     ) {
       setFormError("Ad, soyad ve en az bir iletişim bilgisi gereklidir.");
       return;
@@ -188,16 +229,25 @@ export default function CrmLeadsPage() {
           lastName: leadForm.lastName.trim(),
           source: leadForm.source,
           ...(leadForm.phone.trim() ? { phone: leadForm.phone.trim() } : {}),
-          ...(leadForm.email.trim() ? { email: leadForm.email.trim() } : {}),
-          ...(leadForm.interestNote.trim()
-            ? { interestNote: leadForm.interestNote.trim() }
-            : {}),
-          ...(leadForm.ownerUserId
-            ? { ownerUserId: leadForm.ownerUserId }
-            : {}),
+          ...(leadForm.alternativePhone.trim() ? { alternativePhone: leadForm.alternativePhone.trim() } : {}),
+          ...(leadForm.email.trim() ? { email: leadForm.email.trim().toLowerCase() } : {}),
+          ...(leadForm.preferredContactChannel ? { preferredContactChannel: leadForm.preferredContactChannel } : {}),
+          ...(leadForm.language.trim() ? { language: leadForm.language.trim() } : {}),
+          ...(leadForm.sourceDetail.trim() ? { sourceDetail: leadForm.sourceDetail.trim() } : {}),
+          ...(leadForm.interestedServiceIds.length ? { interestedServiceIds: leadForm.interestedServiceIds } : {}),
+          ...(leadForm.estimatedBudget ? { estimatedBudget: Number(leadForm.estimatedBudget), budgetCurrency: "TRY" } : {}),
+          purchaseUrgency: leadForm.purchaseUrgency,
+          consultationNeed: leadForm.consultationNeed,
+          ...(leadForm.customerIntent.trim() ? { customerIntent: leadForm.customerIntent.trim() } : {}),
+          ...(leadForm.team.trim() ? { team: leadForm.team.trim() } : {}),
+          leadScore: Number(leadForm.leadScore),
+          leadTemperature: leadForm.leadTemperature,
+          ...(leadForm.interestNote.trim() ? { interestNote: leadForm.interestNote.trim() } : {}),
+          ...(leadForm.ownerUserId ? { ownerUserId: leadForm.ownerUserId } : {}),
         },
       });
       setCreateOpen(false);
+      setLeadStep(0);
       setLeadForm(emptyLead);
       showToast("Potansiyel müşteri oluşturuldu.", "success");
       await load();
@@ -278,6 +328,8 @@ export default function CrmLeadsPage() {
                   return;
                 }
                 setFormError("");
+                setLeadStep(0);
+                setLeadForm(emptyLead);
                 setCreateOpen(true);
               }}
             >
@@ -431,99 +483,209 @@ export default function CrmLeadsPage() {
 
       <Modal
         open={createOpen}
-        onClose={() => setCreateOpen(false)}
+        onClose={() => !saving && setCreateOpen(false)}
         title="Yeni Potansiyel Müşteri"
-        description="Müşteri Adayının Temel İletişim Ve İlgi Bilgilerini Kaydedin."
+        description="İletişim, ihtiyaç ve satış bilgilerini tek kayıtta tamamlayın."
       >
-        <form onSubmit={createLead} className="space-y-4">
+        <form onSubmit={createLead} className="space-y-5">
+          <FormStepper
+            current={leadStep}
+            onStepChange={(next) => {
+              if (next <= leadStep) setLeadStep(next);
+            }}
+            steps={[
+              { key: "contact", label: "İletişim", description: "Kimlik ve iletişim" },
+              { key: "interest", label: "İhtiyaç", description: "Hizmet ve bütçe" },
+              { key: "sales", label: "Satış", description: "Kaynak ve sorumlu" },
+            ]}
+          />
+
           {formError ? <Alert>{formError}</Alert> : null}
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Ad" required>
-              <TextInput
-                value={leadForm.firstName}
-                onChange={(e) =>
-                  setLeadForm({ ...leadForm, firstName: e.target.value })
-                }
-              />
-            </Field>
-            <Field label="Soyad" required>
-              <TextInput
-                value={leadForm.lastName}
-                onChange={(e) =>
-                  setLeadForm({ ...leadForm, lastName: e.target.value })
-                }
-              />
-            </Field>
-          </div>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Telefon">
-              <TextInput
-                value={leadForm.phone}
-                onChange={(e) =>
-                  setLeadForm({ ...leadForm, phone: e.target.value })
-                }
-              />
-            </Field>
-            <Field label="E-Posta">
-              <TextInput
-                type="email"
-                value={leadForm.email}
-                onChange={(e) =>
-                  setLeadForm({ ...leadForm, email: e.target.value })
-                }
-              />
-            </Field>
-          </div>
-          <Field label="Kaynak">
-            <Select
-              value={leadForm.source}
-              onChange={(e) =>
-                setLeadForm({ ...leadForm, source: e.target.value })
-              }
-            >
-              {Object.entries(leadSourceLabels).map(([value, label]) => (
-                <option key={value} value={value}>
-                  {label}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="Sorumlu">
-            <Select
-              value={leadForm.ownerUserId}
-              onChange={(e) =>
-                setLeadForm({ ...leadForm, ownerUserId: e.target.value })
-              }
-            >
-              <option value="">Oluşturan Kullanıcı</option>
-              {assignees.map((person) => (
-                <option key={person.id} value={person.id}>
-                  {person.firstName} {person.lastName}
-                </option>
-              ))}
-            </Select>
-          </Field>
-          <Field label="İlgi / İhtiyaç Notu">
-            <TextArea
-              rows={3}
-              value={leadForm.interestNote}
-              onChange={(e) =>
-                setLeadForm({ ...leadForm, interestNote: e.target.value })
-              }
-            />
-          </Field>
-          <div className="flex justify-end gap-3">
+          {duplicateLead ? (
+            <FormHint tone="warning" title="Benzer kayıt bulundu">
+              Aynı telefon veya e-posta ile kayıtlı {duplicateLead.firstName} {duplicateLead.lastName} adlı bir potansiyel müşteri var. Yeni kayıt oluşturmadan önce mevcut kaydı kontrol edin.
+            </FormHint>
+          ) : null}
+
+          {leadStep === 0 ? (
+            <FormSection title="İletişim bilgileri" description="En az bir telefon veya e-posta bilgisi gereklidir.">
+              <FormGrid>
+                <Field label="Ad" required>
+                  <TextInput value={leadForm.firstName} onChange={(e) => setLeadForm({ ...leadForm, firstName: e.target.value })} />
+                </Field>
+                <Field label="Soyad" required>
+                  <TextInput value={leadForm.lastName} onChange={(e) => setLeadForm({ ...leadForm, lastName: e.target.value })} />
+                </Field>
+                <Field label="Telefon">
+                  <TextInput value={leadForm.phone} onChange={(e) => setLeadForm({ ...leadForm, phone: e.target.value })} />
+                </Field>
+                <Field label="Alternatif telefon">
+                  <TextInput value={leadForm.alternativePhone} onChange={(e) => setLeadForm({ ...leadForm, alternativePhone: e.target.value })} />
+                </Field>
+                <Field label="E-posta">
+                  <TextInput type="email" value={leadForm.email} onChange={(e) => setLeadForm({ ...leadForm, email: e.target.value })} />
+                </Field>
+                <Field label="Tercih edilen iletişim">
+                  <ValooSelect
+                    value={leadForm.preferredContactChannel}
+                    onChange={(preferredContactChannel) => setLeadForm({ ...leadForm, preferredContactChannel: preferredContactChannel as LeadContactChannel })}
+                    searchable={false}
+                    placeholder="Seçin"
+                    options={[
+                      { value: "WHATSAPP", label: "WhatsApp" },
+                      { value: "CALL", label: "Telefon" },
+                      { value: "SMS", label: "SMS" },
+                      { value: "EMAIL", label: "E-posta" },
+                      { value: "IN_PERSON", label: "Yüz yüze" },
+                      { value: "OTHER", label: "Diğer" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Dil">
+                  <TextInput value={leadForm.language} onChange={(e) => setLeadForm({ ...leadForm, language: e.target.value })} placeholder="tr" />
+                </Field>
+              </FormGrid>
+            </FormSection>
+          ) : null}
+
+          {leadStep === 1 ? (
+            <FormSection title="İhtiyaç ve ticari potansiyel" description="Müşteri adayının ne aradığını ve satın alma niyetini kaydedin.">
+              <Field label="İlgilendiği hizmetler">
+                <ValooMultiSelect
+                  values={leadForm.interestedServiceIds}
+                  onChange={(interestedServiceIds) => setLeadForm({ ...leadForm, interestedServiceIds })}
+                  placeholder="Hizmet seçin"
+                  searchPlaceholder="Hizmet ara…"
+                  options={services.map((service) => ({
+                    value: service.id,
+                    label: service.name,
+                    description: `${service.durationMinutes} dk · ₺${Number(service.price).toLocaleString("tr-TR")}`,
+                  }))}
+                />
+              </Field>
+              <FormGrid className="mt-4">
+                <Field label="Tahmini bütçe">
+                  <TextInput type="number" min="0" inputMode="decimal" value={leadForm.estimatedBudget} onChange={(e) => setLeadForm({ ...leadForm, estimatedBudget: e.target.value })} placeholder="₺" />
+                </Field>
+                <Field label="Satın alma zamanı">
+                  <ValooSelect
+                    value={leadForm.purchaseUrgency}
+                    onChange={(purchaseUrgency) => setLeadForm({ ...leadForm, purchaseUrgency: purchaseUrgency as LeadUrgency })}
+                    searchable={false}
+                    options={[
+                      { value: "IMMEDIATE", label: "Hemen" },
+                      { value: "THIS_WEEK", label: "Bu hafta" },
+                      { value: "THIS_MONTH", label: "Bu ay" },
+                      { value: "LATER", label: "Daha sonra" },
+                      { value: "UNKNOWN", label: "Belirsiz" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Danışmanlık ihtiyacı">
+                  <ValooSelect
+                    value={leadForm.consultationNeed}
+                    onChange={(consultationNeed) => setLeadForm({ ...leadForm, consultationNeed: consultationNeed as LeadConsultation })}
+                    searchable={false}
+                    options={[
+                      { value: "REQUIRED", label: "Gerekli" },
+                      { value: "REQUESTED", label: "Talep edildi" },
+                      { value: "NOT_NEEDED", label: "Gerekli değil" },
+                      { value: "UNKNOWN", label: "Belirsiz" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Müşteri niyeti">
+                  <TextInput value={leadForm.customerIntent} onChange={(e) => setLeadForm({ ...leadForm, customerIntent: e.target.value })} placeholder="Örn. fiyat araştırıyor, hızlı karar verebilir" />
+                </Field>
+              </FormGrid>
+            </FormSection>
+          ) : null}
+
+          {leadStep === 2 ? (
+            <FormSection title="Satış ve kaynak bilgileri" description="Lead'in kaynağını, sıcaklığını ve sorumlusunu belirleyin.">
+              <FormGrid>
+                <Field label="Kaynak">
+                  <ValooSelect
+                    value={leadForm.source}
+                    onChange={(source) => setLeadForm({ ...leadForm, source })}
+                    searchable={false}
+                    options={Object.entries(leadSourceLabels).map(([value, label]) => ({ value, label }))}
+                  />
+                </Field>
+                <Field label="Kaynak detayı">
+                  <TextInput value={leadForm.sourceDetail} onChange={(e) => setLeadForm({ ...leadForm, sourceDetail: e.target.value })} placeholder="Kampanya, yönlendiren kişi veya kanal detayı" />
+                </Field>
+                <Field label="Lead sıcaklığı">
+                  <ValooSegmentedControl
+                    value={leadForm.leadTemperature}
+                    onChange={(leadTemperature) => setLeadForm({ ...leadForm, leadTemperature })}
+                    ariaLabel="Lead sıcaklığı"
+                    options={[
+                      { value: "COLD", label: "Soğuk" },
+                      { value: "WARM", label: "Ilık" },
+                      { value: "HOT", label: "Sıcak" },
+                    ]}
+                  />
+                </Field>
+                <Field label="Lead skoru (0–100)">
+                  <TextInput type="number" min="0" max="100" value={leadForm.leadScore} onChange={(e) => setLeadForm({ ...leadForm, leadScore: e.target.value })} />
+                </Field>
+                <Field label="Ekip">
+                  <TextInput value={leadForm.team} onChange={(e) => setLeadForm({ ...leadForm, team: e.target.value })} placeholder="Örn. Merkez satış" />
+                </Field>
+                <Field label="Sorumlu">
+                  <ValooSelect
+                    value={leadForm.ownerUserId}
+                    onChange={(ownerUserId) => setLeadForm({ ...leadForm, ownerUserId })}
+                    placeholder="Oluşturan kullanıcı"
+                    searchPlaceholder="Sorumlu ara…"
+                    options={assignees.map((person) => ({
+                      value: person.id,
+                      label: `${person.firstName} ${person.lastName}`,
+                    }))}
+                  />
+                </Field>
+              </FormGrid>
+              <div className="mt-4">
+                <Field label="İlgi / ihtiyaç notu">
+                  <TextArea rows={4} value={leadForm.interestNote} onChange={(e) => setLeadForm({ ...leadForm, interestNote: e.target.value })} placeholder="Görüşmede öğrenilen ihtiyaç, itiraz veya önemli not…" />
+                </Field>
+              </div>
+            </FormSection>
+          ) : null}
+
+          <FormActions sticky>
             <Button
+              type="button"
               variant="secondary"
-              onClick={() => setCreateOpen(false)}
+              onClick={() => {
+                if (leadStep === 0) setCreateOpen(false);
+                else setLeadStep((step) => step - 1);
+              }}
               disabled={saving}
             >
-              Vazgeç
+              {leadStep === 0 ? "Vazgeç" : "Geri"}
             </Button>
-            <Button type="submit" disabled={saving}>
-              {saving ? "Kaydediliyor..." : "Potansiyel Müşteri Oluştur"}
-            </Button>
-          </div>
+            {leadStep < 2 ? (
+              <Button
+                type="button"
+                onClick={() => {
+                  if (leadStep === 0 && (!leadForm.firstName.trim() || !leadForm.lastName.trim() || (!leadForm.phone.trim() && !leadForm.alternativePhone.trim() && !leadForm.email.trim()))) {
+                    setFormError("Ad, soyad ve en az bir iletişim bilgisi gereklidir.");
+                    return;
+                  }
+                  setFormError("");
+                  setLeadStep((step) => step + 1);
+                }}
+              >
+                Devam
+              </Button>
+            ) : (
+              <Button type="submit" disabled={saving}>
+                {saving ? "Kaydediliyor..." : "Potansiyel Müşteri Oluştur"}
+              </Button>
+            )}
+          </FormActions>
         </form>
       </Modal>
 
@@ -576,13 +738,14 @@ export default function CrmLeadsPage() {
             </Field>
           </div>
           <Field label="Beklenen Kapanış">
-            <TextInput
-              type="date"
+            <DatePicker
               value={opportunityForm.expectedCloseDate}
-              onChange={(e) =>
+              min={new Date().toISOString().slice(0, 10)}
+              ariaLabel="Beklenen kapanış tarihi"
+              onChange={(expectedCloseDate) =>
                 setOpportunityForm({
                   ...opportunityForm,
-                  expectedCloseDate: e.target.value,
+                  expectedCloseDate,
                 })
               }
             />
