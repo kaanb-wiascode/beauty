@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
@@ -372,7 +374,7 @@ function Quantity({ label, value, accent = false }: { label: string; value: numb
 }
 
 function Metric({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><p className={`mt-3 font-semibold tracking-[-.04em] text-[var(--ink)] ${compact ? "text-[17px]" : "text-[28px]"}`}>{value}</p></div>;
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className={`mt-3 font-semibold tracking-[-.04em] text-[var(--ink)] ${compact ? "text-[17px]" : "text-[28px]"}`}>{value}</p></div>;
 }
 
 function formatQuantity(value: number | string) {
