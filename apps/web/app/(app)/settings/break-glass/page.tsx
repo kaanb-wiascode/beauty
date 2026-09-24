@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { Select, FormEvent, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 
@@ -116,14 +116,14 @@ export default function BreakGlassPage() {
         <form onSubmit={activate} className="max-w-2xl space-y-4 rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5">
           <h2 className="text-sm font-semibold text-[var(--ink)]">2. Emergency Permission</h2>
           <label className="block text-xs text-[var(--muted)]">Permission
-            <select className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]" value={permissionId} onChange={(e) => setPermissionId(e.target.value)}>
+            <Select className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]" value={permissionId} onChange={(e) => setPermissionId(e.target.value)}>
               {permissions.map((p) => <option key={p.id} value={p.id}>{p.resource}.{p.action}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="block text-xs text-[var(--muted)]">Süre
-            <select className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]" value={durationMinutes} onChange={(e) => setDurationMinutes(Number(e.target.value))}>
+            <Select className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]" value={durationMinutes} onChange={(e) => setDurationMinutes(Number(e.target.value))}>
               {[5, 10, 15, 30, 45, 60].map((v) => <option key={v} value={v}>{v} dakika</option>)}
-            </select>
+            </Select>
           </label>
           <label className="block text-xs text-[var(--muted)]">Zorunlu gerekçe
             <textarea className="mt-1 min-h-24 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Acil erişimin neden gerekli olduğunu açıklayın…" required minLength={10} />
