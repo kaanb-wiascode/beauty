@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Select, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -103,8 +103,8 @@ export default function CampaignsPage() {
       {showForm && canManage ? (
         <form onSubmit={(event) => void createCampaign(event)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Kampanya Adı"><input required value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="Örn. Eylül Lazer Kampanyası" /></Field>
-          <Field label="Amaç"><select value={objective} onChange={(e) => setObjective(e.target.value)} className="input"><option value="LEAD_GENERATION">Lead Üretimi</option><option value="AWARENESS">Bilinirlik</option><option value="APPOINTMENT">Randevu</option><option value="SALES">Satış</option><option value="RETENTION">Sadakat</option><option value="REACTIVATION">Yeniden Aktivasyon</option></select></Field>
-          <Field label="Kanal"><select value={channel} onChange={(e) => setChannel(e.target.value)} className="input"><option>META</option><option>GOOGLE_ADS</option><option>TIKTOK</option><option>WHATSAPP</option><option>MULTI_CHANNEL</option><option>OTHER</option></select></Field>
+          <Field label="Amaç"><Select value={objective} onChange={(e) => setObjective(e.target.value)} className="input"><option value="LEAD_GENERATION">Lead Üretimi</option><option value="AWARENESS">Bilinirlik</option><option value="APPOINTMENT">Randevu</option><option value="SALES">Satış</option><option value="RETENTION">Sadakat</option><option value="REACTIVATION">Yeniden Aktivasyon</option></Select></Field>
+          <Field label="Kanal"><Select value={channel} onChange={(e) => setChannel(e.target.value)} className="input"><option>META</option><option>GOOGLE_ADS</option><option>TIKTOK</option><option>WHATSAPP</option><option>MULTI_CHANNEL</option><option>OTHER</option></Select></Field>
           <Field label="Planlanan Bütçe"><input type="number" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} className="input" /></Field>
           <Field label="Başlangıç"><input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="input" /></Field>
           <Field label="Bitiş"><input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="input" /></Field>
