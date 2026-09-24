@@ -31,32 +31,7 @@
   white-space: nowrap;
 }
 
-@media (min-width: 1024px) {
-  :global(.relative.min-h-screen:has(> aside.glass)) {
-    grid-template-columns: 236px minmax(0, 1fr) !important;
-    gap: 0 !important;
-    padding: 0 !important;
-  }
-  :global(.relative.min-h-screen:has(> aside.glass) > aside.glass) {
-    top: 0 !important; height: 100vh !important; border-radius: 0 !important;
-    border-top: 0 !important; border-bottom: 0 !important; border-left: 0 !important;
-    border-right: 1px solid #e8e8e6 !important; box-shadow: none !important;
-    background: rgba(255,255,255,.92) !important;
-  }
-  :global(.relative.min-h-screen:has(> aside.glass) > div.relative.flex.min-w-0) { min-width: 0; }
-  :global(.relative.min-h-screen:has(> aside.glass) main.ambient-root) {
-    padding-left: 26px !important; padding-right: 26px !important; padding-top: 0 !important;
-  }
-  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-topbar) {
-    min-height: 64px; padding: 0 4px 0; margin-bottom: 10px;
-  }
-  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-hero) { padding-top: 10px; padding-bottom: 8px; }
-  :global(.relative.min-h-screen:has(> aside.glass) .dashboard-panel) { border-radius: 14px; }
-}
-
-@media (min-width: 1280px) {
-  :global(.relative.min-h-screen:has(> aside.glass) main.ambient-root) { padding-left: 30px !important; padding-right: 30px !important; }
-}
+/* The application shell is canonical. Dashboard must not flatten or replace the floating sidebar. */
 
 @media (max-width: 1023px) { .profile { display: none; } }
 
@@ -147,7 +122,6 @@
 }
 
 @media (min-width: 768px) and (max-width: 1279px) {
-  :global(.relative.min-h-screen:has(> aside.glass) main.ambient-root) { padding-left: 20px !important; padding-right: 20px !important; }
   :global(.relative.min-h-screen:has(> aside.glass) .dashboard-rail) {
     display: grid !important; grid-template-columns: repeat(2, minmax(0,1fr)) !important;
     align-items: start !important; gap: 12px !important;
