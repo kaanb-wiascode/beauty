@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Select, FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 
 import { CustomerSearchPicker } from "@/components/customer-search-picker";
@@ -242,7 +242,7 @@ export default function NewCustomerOpportunityPage() {
 
                   <div className="sm:col-span-2">
                     <Field label="Fırsat sahibi">
-                      <select
+                      <Select
                         value={form.ownerUserId}
                         onChange={(event) => setForm((current) => ({ ...current, ownerUserId: event.target.value }))}
                         className="h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-4 focus:ring-[var(--accent-soft)]"
@@ -253,7 +253,7 @@ export default function NewCustomerOpportunityPage() {
                             {assignee.firstName} {assignee.lastName} · {assignee.email}
                           </option>
                         ))}
-                      </select>
+                      </Select>
                     </Field>
                   </div>
                 </div>
