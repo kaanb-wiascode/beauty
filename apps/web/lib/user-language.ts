@@ -428,6 +428,16 @@ export function userDomainLabel(value: string | null | undefined): string {
   return USER_DOMAIN_LABELS[value] ?? userLabel(value);
 }
 
+export function userResourceLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_RESOURCE_LABELS[value] ?? userLabel(value);
+}
+
+export function userActionLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_ACTION_LABELS[value] ?? userLabel(value);
+}
+
 export function userPermissionLabel(resource: string, action: string): string {
   const resourceLabel = USER_RESOURCE_LABELS[resource] ?? userLabel(resource);
   const actionLabel = USER_ACTION_LABELS[action] ?? userLabel(action);
