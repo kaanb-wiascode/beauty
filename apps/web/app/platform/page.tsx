@@ -29,7 +29,7 @@ export default function PlatformCommandCenterPage() {
         setError(
           reason instanceof ApiError
             ? reason.message
-            : "Command Center verileri yüklenemedi.",
+            : "Platform yönetim özeti yüklenemedi.",
         );
       });
     return () => {
@@ -42,20 +42,20 @@ export default function PlatformCommandCenterPage() {
       <header className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300">
-            Provider overview
+            Platform yönetimi
           </p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">
-            Command Center
+            Yönetim merkezi
           </h1>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/45">
-            Platformın tenant, organizasyon ve aktif kullanıcı tabanını tek kontrol düzleminden izle.
+            Platformdaki işletmeleri, organizasyon yapılarını ve aktif kullanıcıları tek ekrandan izleyin.
           </p>
         </div>
         <Link
           href="/platform/customers"
           className="inline-flex w-fit items-center rounded-2xl border border-violet-400/25 bg-violet-400/10 px-4 py-3 text-xs font-semibold text-violet-100 transition hover:bg-violet-400/15"
         >
-          Customers & Tenant 360 →
+          İşletmeleri görüntüle →
         </Link>
       </header>
 
@@ -70,7 +70,7 @@ export default function PlatformCommandCenterPage() {
       {data ? (
         <>
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-            <Metric label="Tenant" value={data.counts.tenantCount} />
+            <Metric label="İşletme" value={data.counts.tenantCount} />
             <Metric label="Şirket" value={data.counts.companyCount} detail={`${number.format(data.counts.activeCompanyCount)} aktif`} />
             <Metric label="Şube" value={data.counts.branchCount} detail={`${number.format(data.counts.activeBranchCount)} aktif`} />
             <Metric label="Aktif kullanıcı" value={data.counts.activeMembershipCount} />
@@ -89,8 +89,8 @@ export default function PlatformCommandCenterPage() {
           <section className="rounded-[26px] border border-white/10 bg-white/[.035] shadow-[inset_0_1px_0_rgba(255,255,255,.04)] backdrop-blur-xl">
             <div className="flex items-center justify-between gap-4 border-b border-white/10 px-5 py-5 sm:px-6">
               <div>
-                <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-white/35">Recent activity</p>
-                <h2 className="mt-1 text-base font-semibold text-white">Son oluşturulan tenantlar</h2>
+                <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-white/35">Son işlemler</p>
+                <h2 className="mt-1 text-base font-semibold text-white">Son oluşturulan işletmeler</h2>
               </div>
               <span className="rounded-full border border-white/10 bg-white/[.04] px-3 py-1 text-[10px] font-semibold text-white/45">
                 Son {data.recentTenants.length}
@@ -113,7 +113,7 @@ export default function PlatformCommandCenterPage() {
                 </Link>
               ))}
               {!data.recentTenants.length ? (
-                <p className="px-6 py-10 text-center text-sm text-white/35">Henüz tenant kaydı bulunmuyor.</p>
+                <p className="px-6 py-10 text-center text-sm text-white/35">Henüz işletme kaydı bulunmuyor.</p>
               ) : null}
             </div>
           </section>
