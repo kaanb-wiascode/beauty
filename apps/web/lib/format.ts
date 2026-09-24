@@ -68,7 +68,7 @@ export function appointmentStatusLabel(
     NO_SHOW: "Gelmedi",
   };
 
-  return labels[status] ?? status;
+  return labels[status] ?? userLabel(status);
 }
 
 export function toDateTimeLocal(value: string | Date) {
