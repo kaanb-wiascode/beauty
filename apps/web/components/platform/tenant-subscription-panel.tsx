@@ -53,7 +53,7 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
 
   async function save() {
     if (!planVersionId) {
-      setError("Bir plan versiyonu seçin.");
+      setError("Bir plan sürümü seçin.");
       return;
     }
     setSaving(true);
@@ -83,7 +83,7 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
         <div>
           <p className="text-[9px] font-semibold uppercase tracking-[.15em] text-white/30">Abonelik ve sözleşme</p>
           <h2 className="mt-1 text-base font-semibold text-white">Plan ve abonelik</h2>
-          <p className="mt-2 text-xs text-white/40">Katalog versiyonu ile müşterinin sözleşme fiyatı ayrı tutulur.</p>
+          <p className="mt-2 text-xs text-white/40">Plan kataloğundaki sürüm bilgisi ile işletmenin sözleşme fiyatı ayrı tutulur.</p>
         </div>
         <div className="rounded-2xl border border-white/[.08] bg-black/15 px-4 py-3 text-xs text-white/55">
           {subscription ? `${subscription.planName} · Sürüm ${subscription.planVersion} · ${userLabel(subscription.status)}` : "Aktif abonelik yok"}
@@ -94,7 +94,7 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
         <label className="xl:col-span-2 text-[10px] text-white/45">Plan
           <Select value={planVersionId} onChange={(e) => setPlanVersionId(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white">
             <option value="">Plan seç</option>
-            {activePlans.map((plan) => <option key={plan.versionId!} value={plan.versionId!}>{plan.name} · v{plan.version}</option>)}
+            {activePlans.map((plan) => <option key={plan.versionId!} value={plan.versionId!}>{plan.name} · Sürüm {plan.version}</option>)}
           </Select>
         </label>
         <label className="text-[10px] text-white/45">Durum
@@ -120,7 +120,7 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
         <button onClick={save} disabled={saving} className="rounded-xl border border-violet-400/30 bg-violet-400/10 px-4 py-2.5 text-xs font-semibold text-violet-100 disabled:opacity-50">
           {saving ? "Kaydediliyor…" : "Abonelik kaydını oluştur"}
         </button>
-        {subscription ? <span className="text-[10px] text-white/35">Sözleşme para birimi: {subscription.currency} · Kayıt sürümü: {subscription.version}</span> : null}
+        {subscription ? <span className="text-[10px] text-white/35">Sözleşme para birimi: {subscription.currency} · Değişiklik no: {subscription.version}</span> : null}
       </div>
       {message ? <p className="mt-3 text-xs text-emerald-300/80">{message}</p> : null}
       {error ? <p className="mt-3 text-xs text-red-300">{error}</p> : null}
