@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type HrAnalytics = {
   year: number;
@@ -69,7 +70,7 @@ export default function HrActionCenterPage() {
   const liabilityRemaining = n(payroll.data?.settlements.taxRemaining) + n(payroll.data?.settlements.socialRemaining) + n(payroll.data?.settlements.otherRemaining);
   const overtimeHours = n(analytics.data?.attendance.overtimeMinutes) / 60;
   const moduleErrors = [analytics.error, payroll.error, leaves.error].filter(Boolean).length;
-  const payrollStatus = analytics.data?.payroll?.status ?? payroll.data?.periods?.[0]?.status ?? "—";
+  const payrollStatus = userLabel(analytics.data?.payroll?.status ?? payroll.data?.periods?.[0]?.status ?? "—");
 
   if (loading && !analytics.data && !payroll.data) return <div className="mx-auto max-w-[1380px] py-20"><Spinner label="İK aksiyonları hazırlanıyor..." /></div>;
 
