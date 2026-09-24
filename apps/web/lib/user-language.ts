@@ -165,6 +165,21 @@ const USER_RESOURCE_LABELS: Record<string, string> = {
   organization: "Organizasyon",
 };
 
+const USER_DOMAIN_LABELS: Record<string, string> = {
+  finance: "Finans",
+  hr: "İnsan Kaynakları",
+  procurement: "Satın Alma",
+  operations: "Operasyon",
+  inventory: "Envanter",
+  sales: "Satış",
+  crm: "Müşteri İlişkileri",
+  payments: "Ödemeler",
+  training: "Eğitim ve Gelişim",
+  communications: "Kurumsal İletişim",
+  quality: "Kalite",
+  platform: "Platform Yönetimi",
+};
+
 const USER_ACTION_LABELS: Record<string, string> = {
   read: "Görüntüleme",
   view: "Görüntüleme",
@@ -291,6 +306,11 @@ export function userLabel(value: string | null | undefined): string {
 export function userLabelOr(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
   return USER_LABELS[value] ?? value;
+}
+
+export function userDomainLabel(value: string | null | undefined): string {
+  if (!value) return "Tüm İşlem Alanları";
+  return USER_DOMAIN_LABELS[value] ?? userLabel(value);
 }
 
 export function userPermissionLabel(resource: string, action: string): string {
