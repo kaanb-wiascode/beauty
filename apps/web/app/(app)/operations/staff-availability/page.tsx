@@ -134,7 +134,10 @@ export default function StaffAvailabilityPage() {
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
             {(Object.keys(labels) as Availability[]).map((status) => (
               <div key={status} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-sm">
-                <p className="text-xs font-semibold text-[var(--muted)]">{labels[status]}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-xs font-semibold text-[var(--muted)]">{labels[status]}</p>
+                  <CardInfo help={getCardHelp(labels[status], "Seçilen operasyon anındaki personel uygunluk durumuna göre çalışan sayısını gösterir.")} />
+                </div>
                 <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{data.totals[status]}</p>
               </div>
             ))}
