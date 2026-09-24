@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { Select, useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
@@ -105,7 +105,7 @@ export default function LearningPathDetailPage() {
       {draft && canManage ? (
         <FinancePanel title="Curriculum'a Kurs Ekle" description="Kurslar path içine sıralı adımlar olarak eklenir. Published course version, path personele atandığında pinlenir.">
           <div className="grid gap-3 lg:grid-cols-[1fr_150px_150px_auto] lg:items-end">
-            <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Kurs</p><select className={selectClass} value={courseId} onChange={(e)=>setCourseId(e.target.value)}><option value="">Kurs seçin</option>{courses.map((course)=><option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}</select></div>
+            <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Kurs</p><Select className={selectClass} value={courseId} onChange={(e)=>setCourseId(e.target.value)}><option value="">Kurs seçin</option>{courses.map((course)=><option key={course.id} value={course.id}>{course.code} · {course.title}</option>)}</Select></div>
             <div><p className="mb-1 text-[10px] font-semibold uppercase text-[var(--muted-soft)]">Due Offset</p><input className={selectClass} type="number" min={0} value={dueOffsetDays} onChange={(e)=>setDueOffsetDays(e.target.value)} placeholder="Gün" /></div>
             <label className="flex h-[42px] items-center gap-2 text-[11px] font-medium text-[var(--muted)]"><input type="checkbox" checked={required} onChange={(e)=>setRequired(e.target.checked)} /> Zorunlu adım</label>
             <Button onClick={()=>void addCourse()} disabled={saving || !courseId}>Kurs Ekle</Button>
@@ -124,7 +124,7 @@ export default function LearningPathDetailPage() {
               return <div key={item.id} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div className="flex gap-3"><div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">{index+1}</div><div><p className="text-[10px] font-semibold uppercase text-[var(--accent)]">{item.courseCode} · {item.category}</p><h3 className="mt-1 text-[14px] font-semibold text-[var(--ink)]">{item.courseTitle}</h3><p className="mt-1 text-[10px] text-[var(--muted)]">{item.isRequired ? "Zorunlu" : "Opsiyonel"}{item.dueOffsetDays!=null ? ` · Atamadan +${item.dueOffsetDays} gün` : ""}</p></div></div>
-                  {draft && canManage && possiblePrerequisites.length ? <div className="flex min-w-[340px] gap-2"><select className={selectClass} value={prerequisites[item.id]??""} onChange={(e)=>setPrerequisites((value)=>({...value,[item.id]:e.target.value}))}><option value="">Ön koşul seçin</option>{possiblePrerequisites.map((candidate)=><option key={candidate.id} value={candidate.id}>{candidate.sequence}. {candidate.courseTitle}</option>)}</select><Button variant="secondary" onClick={()=>void addPrerequisite(item.id)} disabled={saving || !prerequisites[item.id]}>Bağla</Button></div> : null}
+                  {draft && canManage && possiblePrerequisites.length ? <div className="flex min-w-[340px] gap-2"><Select className={selectClass} value={prerequisites[item.id]??""} onChange={(e)=>setPrerequisites((value)=>({...value,[item.id]:e.target.value}))}><option value="">Ön koşul seçin</option>{possiblePrerequisites.map((candidate)=><option key={candidate.id} value={candidate.id}>{candidate.sequence}. {candidate.courseTitle}</option>)}</Select><Button variant="secondary" onClick={()=>void addPrerequisite(item.id)} disabled={saving || !prerequisites[item.id]}>Bağla</Button></div> : null}
                 </div>
                 <div className="mt-3 flex flex-wrap gap-2">{prerequisiteLabels.length ? prerequisiteLabels.map((pre)=><span key={pre.id} className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[10px] text-[var(--muted)]">Ön koşul: {pre.courseCode}{draft && canManage ? <button type="button" className="font-bold text-[var(--danger)]" onClick={()=>void removePrerequisite(item.id,pre.id)}>×</button> : null}</span>) : <span className="text-[10px] text-[var(--muted-soft)]">Ön koşul yok</span>}</div>
               </div>;
