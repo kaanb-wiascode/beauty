@@ -6,8 +6,7 @@ ALTER TABLE "staff"
   ON DELETE SET NULL ON UPDATE CASCADE;
 
 CREATE UNIQUE INDEX "staff_tenantId_userId_key"
-  ON "staff"("tenantId","userId")
-  WHERE "userId" IS NOT NULL;
+  ON "staff"("tenantId","userId");
 
 CREATE INDEX "staff_userId_idx"
   ON "staff"("userId");
