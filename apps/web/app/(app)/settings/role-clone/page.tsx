@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
@@ -82,7 +83,7 @@ export default function RoleClonePage() {
 
       <form onSubmit={submit} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
         <div className="grid gap-4 md:grid-cols-2">
-          <label className="text-xs font-medium text-[var(--muted)]">Kaynak rol<select required value={sourceRoleId} onChange={(e) => setSourceRoleId(e.target.value)} className="mt-2 w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]">{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></label>
+          <label className="text-xs font-medium text-[var(--muted)]">Kaynak rol<Select required value={sourceRoleId} onChange={(e) => setSourceRoleId(e.target.value)} className="mt-2 w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]">{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</Select></label>
           <label className="text-xs font-medium text-[var(--muted)]">Yeni rol adı<input required minLength={2} maxLength={80} value={name} onChange={(e) => setName(e.target.value)} placeholder="Örn. Yardımcı Şube Müdürü" className="mt-2 w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]" /></label>
         </div>
         <label className="mt-4 block text-xs font-medium text-[var(--muted)]">Açıklama<textarea maxLength={255} value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Boş bırakılırsa kaynak rol açıklaması kullanılır." className="mt-2 min-h-24 w-full rounded-lg border border-[var(--line)] bg-white px-3 py-2 text-sm text-[var(--ink)]" /></label>
