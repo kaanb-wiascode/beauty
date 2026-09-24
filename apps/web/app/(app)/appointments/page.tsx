@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 
+import { CardInfo } from "@/components/card-info";
 import {
   DataView,
   DataViewMeta,
@@ -26,6 +27,7 @@ import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import type {
   Appointment,
   AppointmentStatus,
@@ -726,7 +728,10 @@ function Metric({
     <div className="surface rounded-[20px] p-4 sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name={icon} className="h-[19px] w-[19px]" /></div>
-        <span className="mt-1 text-[11px] font-medium text-[var(--muted)]">{label}</span>
+        <div className="flex min-w-0 items-start gap-2">
+          <span className="mt-1 text-[11px] font-medium text-[var(--muted)]">{label}</span>
+          <CardInfo help={getCardHelp(label, detail)} />
+        </div>
       </div>
       <div className="mt-3 flex items-end justify-between gap-2"><strong className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</strong><span className="text-[11px] text-[var(--muted)]">{detail}</span></div>
     </div>
