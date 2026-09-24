@@ -1,9 +1,11 @@
 "use client";
 
 import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
 import { useEffect, useMemo, useState } from "react";
 import { Alert, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasPermission } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
 
@@ -32,4 +34,4 @@ export default function PersonnelDocumentsPage(){
     {!sensitive?<p className="rounded-xl border border-[var(--line)] bg-[var(--surface-2)] p-3 text-[10px] text-[var(--muted)]">Kısıtlı personel belgeleri ve gereksinimleri bu görünümde değerlendirilmez. Tam uyum görünümü için hr_sensitive.read yetkisi gerekir.</p>:null}
   </div>;
 }
-function Metric({label,value}:{label:string;value:string|number}){return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4"><p className="text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-2 text-xl font-semibold text-[var(--ink)]">{value}</p></div>}
+function Metric({label,value}:{label:string;value:string|number}){return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><p className="text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label, "Personel belge uyum görünümündeki ilgili özeti gösterir.")} /></div><p className="mt-2 text-xl font-semibold text-[var(--ink)]">{value}</p></div>}
