@@ -158,6 +158,11 @@ const USER_RESOURCE_LABELS: Record<string, string> = {
   settings: "Ayarlar",
   quality: "Kalite",
   platform: "Platform Yönetimi",
+  role: "Rol",
+  admin: "Yönetici",
+  tenant: "Şirket",
+  audit: "Denetim",
+  organization: "Organizasyon",
 };
 
 const USER_ACTION_LABELS: Record<string, string> = {
@@ -176,6 +181,11 @@ const USER_ACTION_LABELS: Record<string, string> = {
   assign: "Atama",
   publish: "Yayınlama",
   execute: "İşlem Yapma",
+  grant: "Yetki Verme",
+  revoke: "Yetki Kaldırma",
+  suspend: "Askıya Alma",
+  activate: "Aktifleştirme",
+  clone: "Kopyalama",
 };
 
 const USER_ERROR_MESSAGES: Record<string, string> = {
