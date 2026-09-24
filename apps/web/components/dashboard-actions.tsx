@@ -624,9 +624,7 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
             <Field label="Hizmet" required>
               <ValooSelect
                 value={appointment.serviceId}
-                onChange={(serviceId) =>
-                  setAppointment((current) => ({ ...current, serviceId }))
-                }
+                onChange={handleAppointmentServiceChange}
                 disabled={loadingRefs}
                 loading={loadingRefs}
                 placeholder="Hizmet seçin"
