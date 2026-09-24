@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   leadSourceLabels,
@@ -91,8 +92,8 @@ export default function CrmLeadsPage() {
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
-          ? requestError.message
-          : "Potansiyel Müşteri Listesi Yüklenemedi.",
+          ? userErrorMessage(requestError.message, "Potansiyel müşteri listesi yüklenemedi.")
+          : "Potansiyel müşteri listesi yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -110,8 +111,8 @@ export default function CrmLeadsPage() {
       .catch((requestError) =>
         setError(
           requestError instanceof ApiError
-            ? requestError.message
-            : "Müşteri İlişkileri Sorumluları Yüklenemedi.",
+            ? userErrorMessage(requestError.message, "Müşteri ilişkileri sorumluları yüklenemedi.")
+            : "Müşteri ilişkileri sorumluları yüklenemedi.",
         ),
       );
   }, []);
@@ -129,7 +130,7 @@ export default function CrmLeadsPage() {
     ) {
       if (
         requireActiveBranch(
-          "Yeni Potansiyel Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+          "Yeni potansiyel müşteri oluşturmak için önce çalışma kapsamından bir şube seçin.",
         )
       ) {
         setCreateOpen(true);
@@ -163,7 +164,7 @@ export default function CrmLeadsPage() {
     setFormError("");
     if (
       !requireActiveBranch(
-        "Potansiyel Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Potansiyel müşteri oluşturmak için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
@@ -173,7 +174,7 @@ export default function CrmLeadsPage() {
       !leadForm.lastName.trim() ||
       (!leadForm.phone.trim() && !leadForm.email.trim())
     ) {
-      setFormError("Ad, Soyad Ve En Az Bir İletişim Bilgisi Gereklidir.");
+      setFormError("Ad, soyad ve en az bir iletişim bilgisi gereklidir.");
       return;
     }
     setSaving(true);
@@ -196,13 +197,13 @@ export default function CrmLeadsPage() {
       });
       setCreateOpen(false);
       setLeadForm(emptyLead);
-      showToast("Potansiyel Müşteri Oluşturuldu.", "success");
+      showToast("Potansiyel müşteri oluşturuldu.", "success");
       await load();
     } catch (requestError) {
       setFormError(
         requestError instanceof ApiError
-          ? requestError.message
-          : "Potansiyel Müşteri Oluşturulamadı.",
+          ? userErrorMessage(requestError.message, "Potansiyel müşteri oluşturulamadı.")
+          : "Potansiyel müşteri oluşturulamadı.",
       );
     } finally {
       setSaving(false);
@@ -215,13 +216,13 @@ export default function CrmLeadsPage() {
     setFormError("");
     if (
       !requireActiveBranch(
-        "Satış Fırsatı Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Satış fırsatı oluşturmak için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
     }
     if (!opportunityForm.title.trim()) {
-      setFormError("Satış Fırsatı Başlığı Gereklidir.");
+      setFormError("Satış fırsatı başlığı gereklidir.");
       return;
     }
     setSaving(true);
@@ -245,13 +246,13 @@ export default function CrmLeadsPage() {
       });
       setQualifying(null);
       setOpportunityForm(emptyOpportunity);
-      showToast("Potansiyel Müşteri Satış Fırsatına Dönüştürüldü.", "success");
+      showToast("Potansiyel müşteri satış fırsatına dönüştürüldü.", "success");
       await load();
     } catch (requestError) {
       setFormError(
         requestError instanceof ApiError
-          ? requestError.message
-          : "Potansiyel Müşteri Nitelendirilemedi.",
+          ? userErrorMessage(requestError.message, "Potansiyel müşteri satış fırsatına dönüştürülemedi.")
+          : "Potansiyel müşteri satış fırsatına dönüştürülemedi.",
       );
     } finally {
       setSaving(false);
@@ -269,7 +270,7 @@ export default function CrmLeadsPage() {
               onClick={() => {
                 if (
                   !requireActiveBranch(
-                    "Yeni Potansiyel Müşteri Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+                    "Yeni potansiyel müşteri oluşturmak için önce çalışma kapsamından bir şube seçin.",
                   )
                 ) {
                   return;
