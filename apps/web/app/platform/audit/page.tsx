@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 
 import { ApiError } from "@/lib/api";
-import { userLabel, userPermissionLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel, userPermissionLabel } from "@/lib/user-language";
 import { listPlatformAuditEvents, type PlatformAuditList } from "@/lib/platform-api";
 
 const date = new Intl.DateTimeFormat("tr-TR", { dateStyle: "short", timeStyle: "medium" });
@@ -35,7 +35,7 @@ export default function PlatformAuditPage() {
         .then((value) => active && setData(value))
         .catch((reason: unknown) => {
           if (!active) return;
-          setError(reason instanceof ApiError ? reason.message : "Denetim kayıtları yüklenemedi.");
+          setError(reason instanceof ApiError ? userErrorMessage(reason.message, "Denetim kayıtları yüklenemedi.") : "Denetim kayıtları yüklenemedi.");
         });
     }, 250);
     return () => {
