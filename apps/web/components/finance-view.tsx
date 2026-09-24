@@ -80,8 +80,8 @@ export function FinanceTab({
       className={cx(
         "rounded-[11px] px-3.5 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
         active
-          ? "bg-[var(--ink)] text-white shadow-sm"
-          : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
+          ? "border border-[rgba(22,116,189,.16)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_1px_4px_rgba(17,70,104,.08)]"
+          : "border border-transparent text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
         className,
       )}
     >
