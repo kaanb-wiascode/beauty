@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -123,16 +123,16 @@ export default function OperationsCancellationsPage() {
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <label className="text-xs font-semibold text-[var(--muted)]">Randevu
-            <select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={appointmentId} onChange={(event) => setAppointmentId(event.target.value)}>
+            <Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={appointmentId} onChange={(event) => setAppointmentId(event.target.value)}>
               <option value="">Randevu seçin</option>
               {eligibleAppointments.map((item) => <option key={item.id} value={item.id}>{new Date(item.startAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })} · {item.id.slice(0, 8)}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="text-xs font-semibold text-[var(--muted)]">Neden
-            <select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={reasonId} onChange={(event) => setReasonId(event.target.value)}>
+            <Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={reasonId} onChange={(event) => setReasonId(event.target.value)}>
               <option value="">Neden seçin</option>
               {reasons.map((item) => <option key={item.id} value={item.id}>{item.label}</option>)}
-            </select>
+            </Select>
           </label>
         </div>
         <label className="mt-4 block text-xs font-semibold text-[var(--muted)]">Operasyon notu
