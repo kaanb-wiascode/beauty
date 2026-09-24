@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type ConsumableLine = {
   productId: string;
@@ -30,7 +31,7 @@ type ConsumableSummary = {
 };
 
 function quantityLabel(value: number, unit: string) {
-  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: 3 })} ${unit}`;
+  return `${value.toLocaleString("tr-TR", { maximumFractionDigits: 3 })} ${userLabel(unit)}`;
 }
 
 export function ExecutionConsumablesPanel({
@@ -127,15 +128,15 @@ export function ExecutionConsumablesPanel({
         <div>
           <p className="text-xs font-semibold text-[var(--ink)]">Sarf Malzeme Tüketimi</p>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Gerçek kullanım girilmezse hizmet başlangıcında snapshot alınan beklenen miktar stoktan düşülür.
+            Gerçek kullanım girilmezse hizmet başlangıcında kaydedilen beklenen miktar stoktan düşülür.
           </p>
         </div>
         <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-[11px] font-semibold text-[var(--ink)]">
           {summary.postingStatus === "POSTED"
-            ? "Inventory işlendi"
+            ? "Stok işlendi"
             : summary.postingStatus === "NOT_REQUIRED"
               ? "Sarf gerekmiyor"
-              : "Inventory posting bekliyor"}
+              : "Stok işlemi bekliyor"}
         </span>
       </div>
 
@@ -157,7 +158,7 @@ export function ExecutionConsumablesPanel({
                   {line.productName}
                 </p>
                 <p className="mt-1 text-[11px] text-[var(--muted)]">
-                  {line.sku ?? "SKU yok"}
+                  {line.sku ?? "Stok kodu yok"}
                 </p>
               </div>
               <div>
