@@ -8,6 +8,8 @@ import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type Status = "OPEN" | "RESOLVED" | "DISMISSED" | "ALL";
+const statusLabels: Record<Exclude<Status, "ALL">, string> = { OPEN: "Açık", RESOLVED: "Çözüldü", DISMISSED: "Kapatıldı" };
+const channelLabels: Record<InboxItem["channel"], string> = { EMAIL: "E-posta", SMS: "SMS", WHATSAPP: "WhatsApp" };
 type Customer = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null };
 type InboxItem = {
   id: string;
@@ -117,22 +119,22 @@ export default function CrmInboundInboxPage() {
   const modalTitle = action?.type === "customer"
     ? "Mesajı Müşteriye Bağla"
     : action?.type === "existing-lead"
-      ? "Mesajı Mevcut Lead'e Bağla"
+      ? "Mesajı Mevcut Potansiyel Müşteriye Bağla"
       : action?.type === "new-lead"
-        ? "Inbound Mesajdan Lead Oluştur"
-        : "Inbound Kaydı Kapat";
+        ? "Gelen Mesajdan Potansiyel Müşteri Oluştur"
+        : "Gelen Mesaj Kaydını Kapat";
 
   return <div className="space-y-6">
-    <PageHeader title="Inbound Inbox" description="CRM kişisi otomatik eşleşmeyen WhatsApp, SMS ve e-posta mesajlarını güvenli şekilde inceleyin ve doğru kayda bağlayın." />
-    {!activeBranch ? <Alert>Inbound inbox için aktif bir şube seçin.</Alert> : null}
-    {activeBranch && !canManage ? <Alert>Inbox kayıtlarını görüntüleyebilirsiniz; çözümlemek için crm.manage yetkisi gerekir.</Alert> : null}
+    <PageHeader title="Eşleşmeyen Gelen Mesajlar" description="Sistemde bir müşteri veya potansiyel müşteriyle otomatik eşleşmeyen WhatsApp, SMS ve e-posta mesajlarını inceleyin ve doğru kayda bağlayın." />
+    {!activeBranch ? <Alert>Gelen mesajları incelemek için aktif bir şube seçin.</Alert> : null}
+    {activeBranch && !canManage ? <Alert>Mesaj kayıtlarını görüntüleyebilirsiniz; işlem yapmak için müşteri ilişkileri yönetim yetkisi gerekir.</Alert> : null}
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success}</Alert> : null}
 
     <GlassCard>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Unresolved Queue</p>
+          <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">İnceleme kuyruğu</p>
           <h2 className="mt-1 text-[18px] font-semibold">Eşleşmeyen Mesajlar</h2>
         </div>
         <Field label="Durum">
@@ -143,13 +145,13 @@ export default function CrmInboundInboxPage() {
       </div>
     </GlassCard>
 
-    {loading ? <Spinner label="Inbound mesajlar yükleniyor..." /> : null}
-    {!loading && activeBranch && !rows.length ? <Alert tone="success">Bu filtrede unresolved inbound mesaj yok.</Alert> : null}
+    {loading ? <Spinner label="Gelen mesajlar yükleniyor..." /> : null}
+    {!loading && activeBranch && !rows.length ? <Alert tone="success">Bu filtrede inceleme bekleyen gelen mesaj yok.</Alert> : null}
     {!loading ? <section className="space-y-3">{rows.map((item) => <GlassCard key={item.id}>
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
-            <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[9px] font-semibold">{item.channel}</span>
+            <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[9px] font-semibold">{channelLabels[item.channel]}</span>
             <span className="text-[11px] font-semibold">{item.sender}</span>
             <span className="text-[10px] text-[var(--muted)]">{new Date(item.createdAt).toLocaleString("tr-TR")}</span>
           </div>
@@ -159,10 +161,10 @@ export default function CrmInboundInboxPage() {
         </div>
         {item.status === "OPEN" && canManage ? <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => open({ type: "customer", item })}>Müşteriye Bağla</Button>
-          <Button variant="secondary" onClick={() => open({ type: "existing-lead", item })}>Lead&apos;e Bağla</Button>
-          <Button variant="secondary" onClick={() => open({ type: "new-lead", item })}>Yeni Lead</Button>
+          <Button variant="secondary" onClick={() => open({ type: "existing-lead", item })}>Potansiyel Müşteriye Bağla</Button>
+          <Button variant="secondary" onClick={() => open({ type: "new-lead", item })}>Yeni Potansiyel Müşteri</Button>
           <Button variant="secondary" onClick={() => open({ type: "dismiss", item })}>Kapat</Button>
-        </div> : <span className="text-[10px] font-semibold text-[var(--muted)]">{item.status}</span>}
+        </div> : <span className="text-[10px] font-semibold text-[var(--muted)]">{statusLabels[item.status]}</span>}
       </div>
     </GlassCard>)}</section> : null}
 
