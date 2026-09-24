@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Appointment, Customer, Paginated, Visit, VisitDetail, VisitStatus } from "@/lib/types";
