@@ -11,7 +11,8 @@ import {
   FormSubmitButton,
 } from "@/components/form-system";
 import { Modal } from "@/components/modal";
-import { Alert, Button, Field, Select, TextArea, TextInput } from "@/components/ui";
+import { Alert, Button, Field, TextArea, TextInput } from "@/components/ui";
+import { ValooSegmentedControl, ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import type { Appointment, Customer, Paginated, Service, Staff } from "@/lib/types";
@@ -398,28 +399,56 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
           <FormSection className="mt-4" title="Randevu bilgileri" description="Müşteri, personel ve hizmet seçimini tamamlayın.">
             <FormGrid>
               <Field label="Müşteri" required>
-                <Select required value={appointment.customerId} onChange={(event) => setAppointment((current) => ({ ...current, customerId: event.target.value }))}>
-                  <option value="">Seçin</option>
-                  {customers.map((item) => <option key={item.id} value={item.id}>{labelName(item.firstName, item.lastName)}</option>)}
-                </Select>
+                <ValooSelect
+                  value={appointment.customerId}
+                  onChange={(customerId) =>
+                    setAppointment((current) => ({ ...current, customerId }))
+                  }
+                  disabled={loadingRefs}
+                  loading={loadingRefs}
+                  placeholder="Müşteri seçin"
+                  searchPlaceholder="Müşteri ara…"
+                  options={customers.map((item) => ({
+                    value: item.id,
+                    label: labelName(item.firstName, item.lastName),
+                    keywords: [item.phone, item.email].filter(Boolean).join(" "),
+                  }))}
+                />
               </Field>
               <Field label="Personel" required>
-                <Select required value={appointment.staffId} onChange={(event) => setAppointment((current) => ({ ...current, staffId: event.target.value }))}>
-                  <option value="">Seçin</option>
-                  {staff.map((item) => <option key={item.id} value={item.id}>{labelName(item.firstName, item.lastName)}</option>)}
-                </Select>
+                <ValooSelect
+                  value={appointment.staffId}
+                  onChange={(staffId) =>
+                    setAppointment((current) => ({ ...current, staffId }))
+                  }
+                  disabled={loadingRefs}
+                  loading={loadingRefs}
+                  placeholder="Personel seçin"
+                  searchPlaceholder="Personel ara…"
+                  options={staff.map((item) => ({
+                    value: item.id,
+                    label: labelName(item.firstName, item.lastName),
+                  }))}
+                />
               </Field>
             </FormGrid>
 
             <Field label="Hizmet" required>
-              <Select required value={appointment.serviceId} onChange={(event) => setAppointment((current) => ({ ...current, serviceId: event.target.value }))}>
-                <option value="">Seçin</option>
-                {services.map((item) => (
-                  <option key={item.id} value={item.id}>
-                    {item.name} · {item.durationMinutes} dk · ₺{Number(item.price).toLocaleString("tr-TR")}
-                  </option>
-                ))}
-              </Select>
+              <ValooSelect
+                value={appointment.serviceId}
+                onChange={(serviceId) =>
+                  setAppointment((current) => ({ ...current, serviceId }))
+                }
+                disabled={loadingRefs}
+                loading={loadingRefs}
+                placeholder="Hizmet seçin"
+                searchPlaceholder="Hizmet ara…"
+                options={services.map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                  description: `${item.durationMinutes} dk · ₺${Number(item.price).toLocaleString("tr-TR")}`,
+                }))}
+              />
             </Field>
           </FormSection>
 
@@ -459,21 +488,36 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
 
           <FormSection className="mt-4" title="Tahsilat" description="Randevu, tutar ve ödeme yöntemini seçin.">
             <Field label="Randevu" required>
-              <Select required value={payment.appointmentId} onChange={(event) => handlePaymentAppointmentChange(event.target.value)}>
-                <option value="">Seçin</option>
-                {paymentOptions.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
-              </Select>
+              <ValooSelect
+                value={payment.appointmentId}
+                onChange={handlePaymentAppointmentChange}
+                disabled={loadingRefs}
+                loading={loadingRefs}
+                placeholder="Randevu seçin"
+                searchPlaceholder="Randevu ara…"
+                options={paymentOptions.map((option) => ({
+                  value: option.id,
+                  label: option.label,
+                }))}
+              />
             </Field>
             <FormGrid>
               <Field label="Tutar" required>
                 <TextInput type="number" min={0.01} step="0.01" required value={payment.amount} onChange={(event) => setPayment((current) => ({ ...current, amount: event.target.value }))} />
               </Field>
               <Field label="Yöntem">
-                <Select value={payment.method} onChange={(event) => setPayment((current) => ({ ...current, method: event.target.value as typeof current.method }))}>
-                  <option value="CARD">Kart</option>
-                  <option value="CASH">Nakit</option>
-                  <option value="TRANSFER">Havale / EFT</option>
-                </Select>
+                <ValooSegmentedControl
+                  value={payment.method}
+                  onChange={(method) =>
+                    setPayment((current) => ({ ...current, method }))
+                  }
+                  ariaLabel="Ödeme yöntemi"
+                  options={[
+                    { value: "CARD", label: "Kart" },
+                    { value: "CASH", label: "Nakit" },
+                    { value: "TRANSFER", label: "Havale / EFT" },
+                  ]}
+                />
               </Field>
             </FormGrid>
           </FormSection>
