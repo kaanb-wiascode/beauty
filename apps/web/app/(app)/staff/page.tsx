@@ -25,7 +25,7 @@ import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
 import { optionalText, staffStatusLabel } from "@/lib/format";
-import type { CreateStaffInput, Paginated, Staff, StaffProfile } from "@/lib/types";
+import type { CreateStaffInput, Paginated, Service, Staff, StaffProfile } from "@/lib/types";
 
 type FormState = {
   firstName: string;
@@ -82,6 +82,7 @@ export default function StaffPage() {
   const canDeleteStaff = hasPermission("staff", "delete");
   const { showToast } = useToast();
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
   const [performance, setPerformance] = useState<Record<string, Performance>>({});
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
@@ -116,6 +117,12 @@ export default function StaffPage() {
 
   useEffect(() => { const timer = window.setTimeout(() => void load(), 180); return () => window.clearTimeout(timer); }, [load]);
 
+  useEffect(() => {
+    void api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 }))
+      .then((result) => setServices(result.data.filter((service) => service.status === "ACTIVE")))
+      .catch(() => setServices([]));
+  }, []);
+
   function openCreate() {
     if (!canCreateStaff) return;
     if (!hasActiveBranch()) {
@@ -143,6 +150,11 @@ export default function StaffPage() {
       return;
     }
     if (!form.firstName.trim() || !form.lastName.trim()) { setStep(0); setFormError("Ad ve soyad gereklidir."); return; }
+    if (!form.phone.trim()) { setStep(0); setFormError("Personel için telefon bilgisi gereklidir."); return; }
+    const identityNumber = form.profile.identityNumber?.replace(/\D/g, "") ?? "";
+    if (identityNumber && identityNumber.length !== 11) { setStep(0); setFormError("T.C. Kimlik No 11 haneli olmalıdır."); return; }
+    const iban = form.profile.iban?.replace(/\s/g, "") ?? "";
+    if (iban && !/^TR\d{24}$/.test(iban)) { setStep(2); setFormError("IBAN TR ile başlamalı ve toplam 26 karakter olmalıdır."); return; }
     setSaving(true); setFormError("");
     try {
       const payload = toPayload(form);
@@ -238,6 +250,11 @@ export default function StaffPage() {
           onProfileChange={setProfile}
           onStepChange={setStep}
           onCancel={() => { if (!saving) { setModalOpen(false); setFormError(""); } }}
+          serviceOptions={services.map((service) => ({
+            value: service.name,
+            label: service.name,
+            description: `${service.durationMinutes} dk · ₺${Number(service.price).toLocaleString("tr-TR")}`,
+          }))}
         />
       </Modal>
 
