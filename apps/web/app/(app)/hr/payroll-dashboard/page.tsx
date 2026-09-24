@@ -238,7 +238,7 @@ export default function PayrollDashboardPage() {
                   );
                 })}
                 {!costCenters.length ? (
-                  <FinanceEmpty title="Maliyet merkezi dağılımı yok" description="Bu dönem için cost-center kırılımı bulunamadı." />
+                  <FinanceEmpty title="Maliyet merkezi dağılımı yok" description="Bu dönem için maliyet merkezi dağılımı bulunamadı." />
                 ) : null}
               </div>
             </FinancePanel>
@@ -247,7 +247,7 @@ export default function PayrollDashboardPage() {
           <DataView>
             <div className="border-b border-[var(--line)] px-5 py-4">
               <h2 className="text-[15px] font-semibold text-[var(--ink)]">Son Bordro Dönemleri</h2>
-              <p className="mt-1 text-[10px] text-[var(--muted)]">Lifecycle ve muhasebeleştirme görünümü.</p>
+              <p className="mt-1 text-[10px] text-[var(--muted)]">Bordro sürecinin onay, muhasebeleştirme ve kapanış durumu.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[920px] text-left text-[11px]">
@@ -287,7 +287,7 @@ export default function PayrollDashboardPage() {
             </div>
             {!data?.periods.length ? (
               <div className="p-6">
-                <FinanceEmpty title="Bordro dönemi bulunamadı" description="Seçilen dönem için bordro lifecycle kaydı yok." />
+                <FinanceEmpty title="Bordro dönemi bulunamadı" description="Seçilen dönem için bordro süreç kaydı bulunmuyor." />
               </div>
             ) : null}
             <DataViewMeta>
