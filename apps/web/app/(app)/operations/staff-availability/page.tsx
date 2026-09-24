@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type Availability = "AVAILABLE" | "WITH_CUSTOMER" | "OFF_SHIFT" | "ON_LEAVE";
 
@@ -92,13 +93,13 @@ export default function StaffAvailabilityPage() {
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-          Staff Availability
+          Personel uygunluğu
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">
           Personel Uygunluk Panosu
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-          HR personel/izin/puantaj verisi ile Appointment ve canlı ServiceExecution kayıtlarını tek operasyon görünümünde birleştirir. Ayrı bir çalışan durum kaynağı oluşturmaz.
+          Personel, izin, puantaj, randevu ve devam eden hizmet kayıtlarını tek operasyon görünümünde birleştirir. Ayrı bir çalışan durum kaydı oluşturmaz.
         </p>
       </header>
 
@@ -141,7 +142,7 @@ export default function StaffAvailabilityPage() {
 
           {!data.shiftAware ? (
             <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-xs text-[var(--muted)]">
-              HR tarafında ayrı bir vardiya/çalışma planı kaynağı henüz bulunmadığı için kayıt bulunmayan personel otomatik olarak “mesai dışı” sayılmaz. Approved izin ve explicit puantaj yokluğu/absence sinyalleri kullanılır.
+              Ayrı bir vardiya veya çalışma planı bulunmadığında personel otomatik olarak “mesai dışı” sayılmaz. Onaylı izin ve puantaj kayıtları dikkate alınır.
             </div>
           ) : null}
 
@@ -157,7 +158,7 @@ export default function StaffAvailabilityPage() {
                     <div>
                       <p className="text-sm font-semibold text-[var(--ink)]">{member.staffName}</p>
                       {member.attendance ? (
-                        <p className="mt-1 text-xs text-[var(--muted)]">Puantaj: {member.attendance.status}</p>
+                        <p className="mt-1 text-xs text-[var(--muted)]">Puantaj: {userLabel(member.attendance.status)}</p>
                       ) : (
                         <p className="mt-1 text-xs text-[var(--muted)]">Puantaj kaydı yok</p>
                       )}
