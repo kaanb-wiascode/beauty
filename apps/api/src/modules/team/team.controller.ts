@@ -8,8 +8,12 @@ import {
   Patch,
   Post,
   Query,
+  StreamableFile,
+  UploadedFile,
   UseGuards,
+  UseInterceptors,
 } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
 import { z } from 'zod';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -18,9 +22,10 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { TeamService } from './team.service';
 
 const conversationSchema = z.object({
-  type: z.enum(['DIRECT', 'GROUP']),
+  type: z.enum(['DIRECT', 'GROUP', 'CHANNEL']),
   name: z.string().trim().min(1).max(120).optional(),
-  memberUserIds: z.array(z.string().uuid()).min(1).max(100),
+  memberUserIds: z.array(z.string().uuid()).max(100).default([]),
+  announcementOnly: z.boolean().optional(),
 });
 
 const messageSchema = z.object({
@@ -134,6 +139,42 @@ export class TeamController {
     return this.team.deleteMessage(user.sub, id);
   }
 
+  @Post('messages/:id/pin')
+  togglePin(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.togglePin(user.sub, id);
+  }
+
+  @Post('messages/:id/attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
+  addAttachment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @UploadedFile() file?: {
+      originalname: string;
+      mimetype: string;
+      size: number;
+      buffer: Buffer;
+    },
+  ) {
+    if (!file) throw new Error('Dosya yüklenemedi.');
+    return this.team.addAttachment(user.sub, id, file);
+  }
+
+  @Get('attachments/:id')
+  async openAttachment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    const attachment = await this.team.openAttachment(user.sub, id);
+    return new StreamableFile(attachment.stream, {
+      type: attachment.mimeType,
+      disposition: `inline; filename*=UTF-8''${encodeURIComponent(attachment.originalName)}`,
+    });
+  }
+
   @Post('messages/:id/reactions')
   toggleReaction(
     @CurrentUser() user: JwtPayload,
@@ -142,6 +183,14 @@ export class TeamController {
   ) {
     const parsed = reactionSchema.parse(body);
     return this.team.toggleReaction(user.sub, id, parsed.emoji);
+  }
+
+  @Get('conversations/:id/pins')
+  pinnedMessages(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.pinnedMessages(user.sub, id);
   }
 
   @Get('conversations/:id/search')
