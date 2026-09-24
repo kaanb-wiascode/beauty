@@ -1,4 +1,6 @@
 "use client";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 
 import { useCallback, useEffect, useState } from "react";
 
@@ -174,17 +176,17 @@ export default function SecuritySettingsPage() {
 
       <section className="grid gap-4 md:grid-cols-3">
         <article className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Aktif Oturum</div>
+          <div className="flex items-start justify-between gap-3"><div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Aktif Oturum</div><CardInfo help={getCardHelp("Aktif Oturum", "Hesabınıza ait etkin yenileme oturumlarının sayısını gösterir.")} /></div>
           <div className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{loading ? "—" : sessions.length}</div>
           <p className="mt-2 text-xs leading-5 text-[var(--muted)]">Refresh oturumları yalnız güvenli fingerprint kimliğiyle görüntülenir.</p>
         </article>
         <article className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">İki Aşamalı Doğrulama</div>
+          <div className="flex items-start justify-between gap-3"><div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">İki Aşamalı Doğrulama</div><CardInfo help={getCardHelp("İki Aşamalı Doğrulama", "Kişisel iki aşamalı doğrulama kurulum durumunuzu gösterir.")} /></div>
           <div className="mt-2 text-xl font-semibold text-[var(--ink)]">{loading ? "—" : mfaStatus?.enrolled ? "Etkin" : "Kurulmamış"}</div>
           <p className="mt-2 text-xs leading-5 text-[var(--muted)]">Doğrulama uygulamasından alınan tek kullanımlık kodla hesabınızı ek bir güvenlik adımıyla koruyun.</p>
         </article>
         <article className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
-          <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Şirket Politikası</div>
+          <div className="flex items-start justify-between gap-3"><div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Şirket Politikası</div><CardInfo help={getCardHelp("Şirket Politikası", "Şirket genelindeki iki aşamalı doğrulama zorunluluğunu gösterir.")} /></div>
           <div className="mt-2 text-xl font-semibold text-[var(--ink)]">{loading ? "—" : policy?.requireMfa ? "İki Aşamalı Doğrulama Zorunlu" : "İki Aşamalı Doğrulama İsteğe Bağlı"}</div>
           <p className="mt-2 text-xs leading-5 text-[var(--muted)]">Şirket girişlerinde belirlediğiniz güvenlik kuralları uygulanır.</p>
         </article>
