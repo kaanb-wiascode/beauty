@@ -148,7 +148,7 @@ export default function MarketplacePage() {
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
       <PageHeader
         title="Pazar Yeri Yayını"
-        description="Aktif Şubenizin Müşterilere Açık Görünümünü İnceleyin Ve Yayın Durumunu Yönetin."
+        description="Aktif şubenizin müşterilere açık görünümünü inceleyin ve yayın durumunu yönetin."
         action={
           <div className="flex flex-wrap items-center justify-end gap-2">
             {isPublished && publicHref ? (
@@ -221,7 +221,7 @@ export default function MarketplacePage() {
                 <div className="mb-4 flex items-center justify-between gap-4">
                   <div>
                     <h3 className="text-[15px] font-semibold text-[var(--ink)]">Yayınlanacak Hizmetler</h3>
-                    <p className="mt-1 text-[11px] text-[var(--muted)]">Yalnız Aktif Ve Müşteriye Uygun Bilgiler Gösterilir.</p>
+                    <p className="mt-1 text-[11px] text-[var(--muted)]">Yalnızca aktif ve müşteriye uygun bilgiler gösterilir.</p>
                   </div>
                   <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{serviceCount} Hizmet</span>
                 </div>
@@ -233,7 +233,7 @@ export default function MarketplacePage() {
                         <div className="flex items-start justify-between gap-4">
                           <div className="min-w-0">
                             <h4 className="text-[13px] font-semibold text-[var(--ink)]">{service.name}</h4>
-                            <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--muted)]">{service.description || "Açıklama Eklenmemiş."}</p>
+                            <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-[var(--muted)]">{service.description || "Açıklama eklenmemiş."}</p>
                           </div>
                           <span className="shrink-0 text-[13px] font-semibold text-[var(--ink)]">{formatMoney(service.price)}</span>
                         </div>
@@ -243,8 +243,8 @@ export default function MarketplacePage() {
                   </div>
                 ) : (
                   <EmptyState
-                    title="Yayınlanacak Hizmet Yok"
-                    description="Bu Şubede Aktif Hizmet Bulunmadığı İçin Müşteri Görünümünde Hizmet Kartı Gösterilmiyor."
+                    title="Yayınlanacak hizmet yok"
+                    description="Bu şubede aktif hizmet bulunmadığı için müşteri görünümünde hizmet kartı gösterilmiyor."
                   />
                 )}
               </div>
