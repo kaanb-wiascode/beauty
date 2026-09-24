@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { ApiError } from "@/lib/api";
 import {
@@ -134,9 +135,9 @@ export function TenantEntitlementsPanel({ tenantId }: { tenantId: string }) {
       <div className="mt-6 rounded-2xl border border-white/[.08] bg-black/15 p-4">
         <p className="text-xs font-semibold text-white">Geçici tenant override</p>
         <div className="mt-4 grid gap-3 xl:grid-cols-[1.25fr_1fr_1fr_1.5fr_auto]">
-          <select value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none">
+          <Select value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none">
             {items.map((item) => <option key={item.key} value={item.key}>{item.key}</option>)}
-          </select>
+          </Select>
           <input value={rawValue} onChange={(event) => setRawValue(event.target.value)} placeholder={selected?.valueType === "BOOLEAN" ? "true / false" : "Değer"} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
           <input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
           <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Gerekçe (en az 8 karakter)" className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
