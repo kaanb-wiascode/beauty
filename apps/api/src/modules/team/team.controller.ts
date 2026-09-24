@@ -1,6 +1,7 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
   Param,
   ParseUUIDPipe,
@@ -25,6 +26,22 @@ const conversationSchema = z.object({
 const messageSchema = z.object({
   body: z.string().trim().min(1).max(10000),
   replyToMessageId: z.string().uuid().nullable().optional(),
+});
+
+const editMessageSchema = z.object({
+  body: z.string().trim().min(1).max(10000),
+});
+
+const reactionSchema = z.object({
+  emoji: z.string().trim().min(1).max(16),
+});
+
+const groupMemberSchema = z.object({
+  userId: z.string().uuid(),
+});
+
+const typingSchema = z.object({
+  typing: z.boolean(),
 });
 
 const presenceSchema = z.object({
@@ -54,6 +71,11 @@ export class TeamController {
   @Get('conversations')
   conversations(@CurrentUser() user: JwtPayload) {
     return this.team.conversations(user.sub);
+  }
+
+  @Get('unread-summary')
+  unreadSummary(@CurrentUser() user: JwtPayload) {
+    return this.team.unreadSummary(user.sub);
   }
 
   @Post('conversations')
@@ -88,6 +110,79 @@ export class TeamController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.team.markRead(user.sub, id);
+  }
+
+  @Patch('messages/:id')
+  editMessage(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = editMessageSchema.parse(body);
+    return this.team.editMessage(user.sub, id, parsed.body);
+  }
+
+  @Delete('messages/:id')
+  deleteMessage(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.deleteMessage(user.sub, id);
+  }
+
+  @Post('messages/:id/reactions')
+  toggleReaction(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = reactionSchema.parse(body);
+    return this.team.toggleReaction(user.sub, id, parsed.emoji);
+  }
+
+  @Get('conversations/:id/members')
+  conversationMembers(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.conversationMembers(user.sub, id);
+  }
+
+  @Post('conversations/:id/members')
+  addGroupMember(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = groupMemberSchema.parse(body);
+    return this.team.addGroupMember(user.sub, id, parsed.userId);
+  }
+
+  @Delete('conversations/:id/members/:userId')
+  removeGroupMember(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Param('userId', ParseUUIDPipe) userId: string,
+  ) {
+    return this.team.removeGroupMember(user.sub, id, userId);
+  }
+
+  @Get('conversations/:id/typing')
+  typingUsers(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.typingUsers(user.sub, id);
+  }
+
+  @Post('conversations/:id/typing')
+  setTyping(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = typingSchema.parse(body);
+    return this.team.setTyping(user.sub, id, parsed.typing);
   }
 
   @Patch('presence')
