@@ -348,3 +348,156 @@
     font-size: 16px !important;
   }
 }
+
+
+/* Quick actions: compact premium 2x2 treatment with readable labels. */
+:global(.quick-actions) {
+  padding: 12px 14px 14px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+:global(.quick-action) {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 76px !important;
+  height: auto !important;
+  display: grid !important;
+  grid-template-columns: 36px minmax(0, 1fr) 16px !important;
+  align-items: center !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 10px 12px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.82) !important;
+  box-shadow: 0 4px 14px rgba(17,70,104,.035) !important;
+  color: var(--ink) !important;
+  transition: transform .18s ease, border-color .18s ease, background-color .18s ease, box-shadow .18s ease !important;
+}
+
+:global(.quick-action:hover) {
+  transform: translateY(-1px) !important;
+  border-color: #bfd5e5 !important;
+  background: #f8fbfd !important;
+  box-shadow: 0 8px 20px rgba(17,70,104,.07) !important;
+}
+
+:global(.quick-action:focus-visible) {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px var(--accent-soft) !important;
+}
+
+:global(.quick-action-icon) {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 11px !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  overflow: hidden !important;
+}
+
+:global(.quick-action:hover .quick-action-icon) {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+
+:global(.quick-action-icon svg) {
+  width: 17px !important;
+  height: 17px !important;
+}
+
+:global(.quick-action-copy) {
+  min-width: 0 !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: flex-start !important;
+  justify-content: center !important;
+  gap: 3px !important;
+  text-align: left !important;
+}
+
+:global(.quick-action-copy b) {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  font-size: 13px !important;
+  line-height: 1.15 !important;
+  font-weight: 650 !important;
+  letter-spacing: -.015em !important;
+  color: var(--ink) !important;
+}
+
+:global(.quick-action-copy small) {
+  display: block !important;
+  width: 100% !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  white-space: nowrap !important;
+  font-size: 10px !important;
+  line-height: 1.2 !important;
+  font-weight: 500 !important;
+  color: var(--muted) !important;
+}
+
+:global(.quick-action > svg) {
+  width: 15px !important;
+  height: 15px !important;
+  margin-left: 0 !important;
+  color: var(--muted-soft) !important;
+  transition: transform .18s ease, color .18s ease !important;
+}
+
+:global(.quick-action:hover > svg) {
+  transform: translateX(2px) !important;
+  color: var(--accent) !important;
+}
+
+@media (max-width: 767px) {
+  :global(.quick-actions) {
+    padding: 10px 12px 12px !important;
+    gap: 8px !important;
+  }
+
+  :global(.quick-action) {
+    min-height: 70px !important;
+    grid-template-columns: 32px minmax(0, 1fr) 14px !important;
+    gap: 8px !important;
+    padding: 9px 10px !important;
+    border-radius: 14px !important;
+  }
+
+  :global(.quick-action-icon) {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+  }
+
+  :global(.quick-action-icon svg) {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  :global(.quick-action-copy b) {
+    font-size: 11px !important;
+  }
+
+  :global(.quick-action-copy small) {
+    font-size: 9px !important;
+  }
+
+  :global(.quick-action > svg) {
+    width: 13px !important;
+    height: 13px !important;
+  }
+}
