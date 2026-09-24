@@ -201,7 +201,7 @@ export default function OperationsChecklistsPage() {
               Aktif sürüm
             </p>
             <p className="mt-1 text-sm font-semibold text-[var(--ink)]">
-              {activeTemplate ? `v${activeTemplate.version}` : "Henüz yok"}
+              {activeTemplate ? `Sürüm ${activeTemplate.version}` : "Henüz yok"}
             </p>
           </div>
         </div>
