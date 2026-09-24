@@ -226,7 +226,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 
 function SourceBadge({ source, version }: { source: string | null; version: number | null }) {
   const label = source ? ORIGIN_LABELS[source] ?? source : "Manuel / legacy";
-  return <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${source ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>{label}{version ? ` · v${version}` : ""}</span>;
+  return <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${source ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>{label}{version ? ` · Sürüm ${version}` : ""}</span>;
 }
 
 function Info({ label, value, mono = false }: { label: string; value: string; mono?: boolean }) {
