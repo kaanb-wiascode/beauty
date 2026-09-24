@@ -25,7 +25,7 @@ type PlanDetail = PlanSummary & {
 };
 
 const TYPE_LABELS:Record<string,string>={
-  COMPETENCY:"Yetkinlik",COURSE:"Kurs",PROGRAM:"Learning Path",ACTION:"Aksiyon",COACHING:"Koçluk",MENTORING:"Mentorluk",PROJECT:"Proje",STRETCH_ASSIGNMENT:"Stretch Assignment",
+  COMPETENCY:"Yetkinlik",COURSE:"Kurs",PROGRAM:"Eğitim yolu",ACTION:"Aksiyon",COACHING:"Koçluk",MENTORING:"Mentorluk",PROJECT:"Proje",STRETCH_ASSIGNMENT:"Gelişim görevi",
 };
 const STATUS_LABELS:Record<string,string>={DRAFT:"Taslak",ACTIVE:"Aktif",COMPLETED:"Tamamlandı",CANCELLED:"İptal",PLANNED:"Planlandı",IN_PROGRESS:"Devam Ediyor"};
 
