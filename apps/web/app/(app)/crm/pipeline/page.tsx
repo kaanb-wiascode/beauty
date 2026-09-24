@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { opportunityStageLabels, type CrmAssignee, type CrmOpportunity, type OpportunityStage } from "@/lib/crm-types";
@@ -129,7 +131,7 @@ export default function CrmPipelinePage() {
       <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as OpportunityStage | "")}><option value="">Tüm Aşamalar</option>{stages.map((s) => <option key={s} value={s}>{opportunityStageLabels[s]}</option>)}</Select>
       <div className="flex gap-2"><Button variant={staleOnly ? "primary" : "secondary"} onClick={() => setStaleOnly((v) => !v)}>14+ Gün Risk</Button>{hasFilters ? <Button variant="ghost" onClick={() => { setOwnerUserId(""); setStageFilter(""); setSearch(""); setStaleOnly(false); }}>Temizle</Button> : null}</div>
     </section>
-    <section className="grid gap-3 sm:grid-cols-3">{[["Açık Satış Fırsatı", totals.count], ["Toplam Satış Değeri", formatMoney(totals.raw, "TRY")], ["Ağırlıklı Değer", formatMoney(totals.weighted, "TRY")]].map(([label, value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)]"><p className="text-[10px] text-[var(--muted)]">{label}</p><strong className="mt-2 block text-[22px] tracking-[-.04em]">{value}</strong></article>)}</section>
+    <section className="grid gap-3 sm:grid-cols-3">{[["Açık Satış Fırsatı", totals.count], ["Toplam Satış Değeri", formatMoney(totals.raw, "TRY")], ["Ağırlıklı Değer", formatMoney(totals.weighted, "TRY")]].map(([label, value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)]"><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(String(label))} /></div><strong className="mt-2 block text-[22px] tracking-[-.04em]">{value}</strong></article>)}</section>
     {loading ? <Spinner label="Satış süreci hazırlanıyor..." /> : rows.length ? <div className="grid items-start gap-4 xl:grid-cols-3 2xl:grid-cols-6">{stages.map((stage) => {
       const stageRows = rows.filter((row) => row.stage === stage); return <section key={stage} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[#f7fbfd]"><header className="flex items-center justify-between border-b border-[var(--line)] bg-white px-4 py-3"><h2 className="text-[11px] font-semibold">{opportunityStageLabels[stage]}</h2><span className="rounded-full bg-[#EAF5FB] px-2 py-0.5 text-[10px] font-bold text-[#1674BD]">{stageRows.length}</span></header><div className="space-y-3 p-3">{stageRows.map((row) => {
         const subjectName = [row.leadFirstName, row.leadLastName].filter(Boolean).join(" ") || [row.customerFirstName, row.customerLastName].filter(Boolean).join(" ") || "Müşteri Bağlantısı Yok";
