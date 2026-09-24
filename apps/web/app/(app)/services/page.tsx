@@ -12,11 +12,14 @@ import {
   ToolbarSelect,
 } from "@/components/data-view";
 import {
+  CheckboxField,
   FormActions,
   FormGrid,
   FormHint,
   FormSection,
   FormSubmitButton,
+  FormSummary,
+  FormSummaryItem,
 } from "@/components/form-system";
 import {
   Alert,
@@ -30,20 +33,45 @@ import {
   TextInput,
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
+import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
 import { formatDuration, formatPrice, optionalText, serviceStatusLabel } from "@/lib/format";
 import type { CreateServiceInput, Paginated, Service } from "@/lib/types";
 
-type FormState = { name: string; description: string; durationMinutes: string; price: string };
+type FormState = {
+  name: string;
+  category: string;
+  description: string;
+  durationMinutes: string;
+  preparationMinutes: string;
+  cleanupMinutes: string;
+  price: string;
+  cost: string;
+  taxRate: string;
+  currency: string;
+  requiresConsultation: boolean;
+};
 type Performance = { id: string; name?: string; collected: number; appointmentCount: number };
 type PerformanceResponse = Performance[] | { data?: Performance[] };
 
 type ServiceFilter = "ALL" | "ACTIVE" | "ARCHIVED";
 type ServiceSort = "default" | "appointments" | "revenue" | "price";
 
-const emptyForm: FormState = { name: "", description: "", durationMinutes: "60", price: "" };
+const emptyForm: FormState = {
+  name: "",
+  category: "",
+  description: "",
+  durationMinutes: "60",
+  preparationMinutes: "0",
+  cleanupMinutes: "0",
+  price: "",
+  cost: "",
+  taxRate: "20",
+  currency: "TRY",
+  requiresConsultation: false,
+};
 
 function Icon({ name, size = 20 }: { name: "grid" | "check" | "calendar" | "money" | "clock" | "spark" | "more" | "edit" | "arrow"; size?: number }) {
   const common = { width: size, height: size, viewBox: "0 0 24 24", fill: "none", stroke: "currentColor", strokeWidth: 1.7, strokeLinecap: "round" as const, strokeLinejoin: "round" as const, "aria-hidden": true };
@@ -61,9 +89,16 @@ function Icon({ name, size = 20 }: { name: "grid" | "check" | "calendar" | "mone
 function toPayload(form: FormState): CreateServiceInput {
   return {
     name: form.name.trim(),
-    durationMinutes: Number(form.durationMinutes),
-    price: Number(form.price),
+    ...(optionalText(form.category) ? { category: form.category.trim() } : {}),
     ...(optionalText(form.description) ? { description: form.description.trim() } : {}),
+    durationMinutes: Number(form.durationMinutes),
+    preparationMinutes: Number(form.preparationMinutes),
+    cleanupMinutes: Number(form.cleanupMinutes),
+    price: Number(form.price),
+    ...(form.cost.trim() ? { cost: Number(form.cost) } : {}),
+    taxRate: Number(form.taxRate),
+    currency: form.currency,
+    requiresConsultation: form.requiresConsultation,
   };
 }
 
@@ -138,7 +173,19 @@ export default function ServicesPage() {
   function openEdit(service: Service) {
     if (!canUpdateService) return;
     setEditing(service);
-    setForm({ name: service.name, description: service.description ?? "", durationMinutes: String(service.durationMinutes), price: String(service.price) });
+    setForm({
+      name: service.name,
+      category: service.category ?? "",
+      description: service.description ?? "",
+      durationMinutes: String(service.durationMinutes),
+      preparationMinutes: String(service.preparationMinutes ?? 0),
+      cleanupMinutes: String(service.cleanupMinutes ?? 0),
+      price: String(service.price),
+      cost: service.cost == null ? "" : String(service.cost),
+      taxRate: String(service.taxRate ?? 20),
+      currency: service.currency || "TRY",
+      requiresConsultation: Boolean(service.requiresConsultation),
+    });
     setFormError(""); setModalOpen(true);
   }
 
@@ -150,10 +197,19 @@ export default function ServicesPage() {
     }
     const name = form.name.trim();
     const durationMinutes = Number(form.durationMinutes);
+    const preparationMinutes = Number(form.preparationMinutes);
+    const cleanupMinutes = Number(form.cleanupMinutes);
     const price = Number(form.price);
+    const cost = form.cost.trim() ? Number(form.cost) : undefined;
+    const taxRate = Number(form.taxRate);
     if (!name) return setFormError("Hizmet adı gereklidir.");
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return setFormError("Süre 1 ile 1440 dakika arasında olmalıdır.");
-    if (!Number.isFinite(price) || price < 0) return setFormError("Fiyat 0 veya daha büyük olmalıdır.");
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return setFormError("Hizmet süresi 1 ile 1440 dakika arasında olmalıdır.");
+    if (!Number.isInteger(preparationMinutes) || preparationMinutes < 0 || preparationMinutes > 240) return setFormError("Hazırlık süresi 0 ile 240 dakika arasında olmalıdır.");
+    if (!Number.isInteger(cleanupMinutes) || cleanupMinutes < 0 || cleanupMinutes > 240) return setFormError("Kapanış / temizlik süresi 0 ile 240 dakika arasında olmalıdır.");
+    if (!Number.isFinite(price) || price < 0) return setFormError("Satış fiyatı 0 veya daha büyük olmalıdır.");
+    if (cost !== undefined && (!Number.isFinite(cost) || cost < 0)) return setFormError("Maliyet 0 veya daha büyük olmalıdır.");
+    if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) return setFormError("KDV oranı 0 ile 100 arasında olmalıdır.");
+    if (!/^[A-Z]{3}$/.test(form.currency)) return setFormError("Para birimi üç harfli kod olmalıdır.");
     setSaving(true); setFormError(""); setError("");
     try {
       const payload = toPayload(form);
@@ -280,35 +336,93 @@ export default function ServicesPage() {
         </aside>
       </div>
 
-      <Modal open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Hizmeti düzenle" : "Yeni hizmet"} description="Hizmet bilgilerini ve fiyatlandırmasını yönetin.">
-        <form onSubmit={onSubmit}>
+      <Modal open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Hizmeti düzenle" : "Yeni hizmet"} description="Hizmetin operasyon, fiyatlandırma ve randevu davranışını tanımlayın.">
+        <form onSubmit={onSubmit} className="space-y-5">
           <FormSection
-            title="Temel bilgiler"
-            description="Hizmetin müşteriye görünen adını, açıklamasını, süresini ve fiyatını belirleyin."
+            title="Hizmet bilgileri"
+            description="Hizmetin müşteriye ve personele görünen temel tanımını oluşturun."
           >
-            <Field label="Hizmet adı" required>
-              <TextInput required value={form.name} placeholder="Örn. Danışmanlık" onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
-            </Field>
-            <Field label="Açıklama">
-              <TextArea rows={3} value={form.description} placeholder="Hizmet açıklamasını girin..." onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
-            </Field>
             <FormGrid>
-              <Field label="Süre (dakika)" required>
-                <TextInput type="number" min={1} max={1440} required value={form.durationMinutes} onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))} />
+              <Field label="Hizmet adı" required>
+                <TextInput required value={form.name} placeholder="Örn. Danışmanlık" onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
               </Field>
-              <Field label="Fiyat" required>
-                <TextInput type="number" min={0} step="0.01" required value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} />
+              <Field label="Kategori">
+                <TextInput value={form.category} placeholder="Örn. Danışmanlık, Bakım, Kontrol" onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} />
               </Field>
             </FormGrid>
-            <FormHint tone="info" title="Randevu akışı">
-              Süre Bilgisi Randevu Planlamasında Varsayılan Zaman Aralığını, Fiyat İse Tahsilat Formundaki Önerilen Tutarı Belirler.
+            <Field label="Açıklama">
+              <TextArea rows={3} value={form.description} placeholder="Hizmetin kapsamını ve önemli bilgilerini açıklayın…" onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+            </Field>
+          </FormSection>
+
+          <FormSection
+            title="Süre ve operasyon"
+            description="Randevu süresi ile hizmet öncesi ve sonrası operasyon sürelerini tanımlayın."
+          >
+            <FormGrid>
+              <Field label="Hizmet süresi (dk)" required>
+                <TextInput type="number" min={1} max={1440} required value={form.durationMinutes} onChange={(event) => setForm((current) => ({ ...current, durationMinutes: event.target.value }))} />
+              </Field>
+              <Field label="Hazırlık süresi (dk)">
+                <TextInput type="number" min={0} max={240} value={form.preparationMinutes} onChange={(event) => setForm((current) => ({ ...current, preparationMinutes: event.target.value }))} />
+              </Field>
+              <Field label="Kapanış / temizlik (dk)">
+                <TextInput type="number" min={0} max={240} value={form.cleanupMinutes} onChange={(event) => setForm((current) => ({ ...current, cleanupMinutes: event.target.value }))} />
+              </Field>
+              <div className="flex items-end">
+                <CheckboxField
+                  checked={form.requiresConsultation}
+                  onChange={(requiresConsultation) => setForm((current) => ({ ...current, requiresConsultation }))}
+                  label="Ön danışmanlık gerekli"
+                  description="Bu hizmet öncesinde müşterinin danışmanlık / değerlendirme ihtiyacı olduğunu işaretler."
+                />
+              </div>
+            </FormGrid>
+            <FormHint tone="info" title="Randevu planlaması">
+              Hizmet süresi randevunun varsayılan bitiş saatini hesaplar. Hazırlık ve kapanış süreleri operasyon planlaması ve kaynak yönetimi için ayrıca saklanır.
             </FormHint>
           </FormSection>
 
-          {formError ? <div className="mt-4"><Alert>{formError}</Alert></div> : null}
+          <FormSection
+            title="Fiyatlandırma"
+            description="Satış fiyatı, maliyet, vergi ve para birimi bilgilerini belirleyin."
+          >
+            <FormGrid>
+              <Field label="Satış fiyatı" required>
+                <TextInput type="number" min={0} step="0.01" inputMode="decimal" required value={form.price} onChange={(event) => setForm((current) => ({ ...current, price: event.target.value }))} />
+              </Field>
+              <Field label="Tahmini maliyet">
+                <TextInput type="number" min={0} step="0.01" inputMode="decimal" value={form.cost} onChange={(event) => setForm((current) => ({ ...current, cost: event.target.value }))} placeholder="Opsiyonel" />
+              </Field>
+              <Field label="KDV (%)">
+                <TextInput type="number" min={0} max={100} step="0.01" value={form.taxRate} onChange={(event) => setForm((current) => ({ ...current, taxRate: event.target.value }))} />
+              </Field>
+              <Field label="Para birimi">
+                <ValooSelect
+                  value={form.currency}
+                  onChange={(currency) => setForm((current) => ({ ...current, currency }))}
+                  searchable={false}
+                  options={[
+                    { value: "TRY", label: "TRY · Türk Lirası" },
+                    { value: "EUR", label: "EUR · Euro" },
+                    { value: "USD", label: "USD · ABD Doları" },
+                  ]}
+                />
+              </Field>
+            </FormGrid>
+          </FormSection>
 
-          <FormActions>
-            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button>
+          <FormSummary title="Hizmet özeti" description="Kaydedildiğinde randevu ve tahsilat akışlarında kullanılacak temel bilgiler">
+            <FormSummaryItem label="Hizmet" value={form.name.trim() || "Ad girilmedi"} detail={form.category.trim() || undefined} />
+            <FormSummaryItem label="Randevu süresi" value={`${Number(form.durationMinutes) || 0} dk`} detail={`+${Number(form.preparationMinutes) || 0} dk hazırlık · +${Number(form.cleanupMinutes) || 0} dk kapanış`} />
+            <FormSummaryItem label="Satış fiyatı" value={form.price ? new Intl.NumberFormat("tr-TR", { style: "currency", currency: form.currency }).format(Number(form.price)) : "Belirlenmedi"} />
+            <FormSummaryItem label="Tahmini brüt marj" value={form.price && form.cost ? new Intl.NumberFormat("tr-TR", { style: "currency", currency: form.currency }).format(Math.max(0, Number(form.price) - Number(form.cost))) : "Maliyet girilmedi"} />
+          </FormSummary>
+
+          {formError ? <Alert>{formError}</Alert> : null}
+
+          <FormActions sticky>
+            <Button type="button" variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button>
             <FormSubmitButton
               saving={saving}
               idleLabel={editing ? "Değişiklikleri kaydet" : "Hizmeti oluştur"}
@@ -334,7 +448,7 @@ function Kpi({ icon, label, value, hint, tone = "blue" }: { icon: "grid" | "chec
 function ServiceCard({ service, stats, onEdit, onArchive, canEdit, canDelete }: { service: Service; stats?: Performance; onEdit: () => void; onArchive: () => void; canEdit: boolean; canDelete: boolean }) {
   const revenue = stats?.collected ?? 0;
   const appointments = stats?.appointmentCount ?? 0;
-  return <article className="group flex min-h-[250px] min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--line)] bg-white transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[#d8d4cf] hover:shadow-[0_14px_35px_rgba(28,25,23,0.07)]"><div className="p-5"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eaf5fb] text-[#1674bd]"><Icon name="spark" size={19} /></span><div className="min-w-0 flex-1"><h3 className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{service.name}</h3><p className="mt-0.5 truncate text-[12px] text-[var(--muted)]">{service.description || "Hizmet açıklaması bulunmuyor."}</p></div><button type="button" aria-label="Hizmet işlemleri" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#9b9690] hover:bg-[#f5f4f2]" onClick={onEdit}><Icon name="more" size={18} /></button></div><div className="mt-5 flex items-center justify-between gap-3"><span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-[#6f6b66]"><Icon name="clock" size={15} /> {formatDuration(service.durationMinutes)}</span><strong className="shrink-0 text-[16px] font-semibold text-[var(--ink)]">{formatPrice(service.price)}</strong></div></div><div className="mt-auto border-t border-[var(--line)] px-5 py-3.5"><div className="flex items-center justify-between gap-3 text-[11px] text-[#8a857f]"><span>Bugün</span><span>{appointments} randevu · {money(revenue)}</span></div><div className="mt-3 flex items-center justify-between gap-2"><StatusBadge status={service.status} label={serviceStatusLabel(service.status)} /><div className="flex min-w-0 gap-2"><Button variant="secondary" className="h-8 min-h-8 px-3 py-1 text-[12px]" onClick={onEdit} disabled={!canEdit}><Icon name="edit" size={14} /> Düzenle</Button><Button variant="ghost" className="h-8 min-h-8 px-2" onClick={onArchive} disabled={!canDelete || service.status === "ARCHIVED"} aria-label="Arşivle"><Icon name="more" size={17} /></Button></div></div></div></article>;
+  return <article className="group flex min-h-[250px] min-w-0 flex-col overflow-hidden rounded-[20px] border border-[var(--line)] bg-white transition-[transform,box-shadow,border-color] duration-200 hover:-translate-y-0.5 hover:border-[#d8d4cf] hover:shadow-[0_14px_35px_rgba(28,25,23,0.07)]"><div className="p-5"><div className="flex items-start gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[#eaf5fb] text-[#1674bd]"><Icon name="spark" size={19} /></span><div className="min-w-0 flex-1"><h3 className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{service.name}</h3><p className="mt-0.5 truncate text-[12px] text-[var(--muted)]">{service.category ? `${service.category} · ${service.description || "Açıklama yok"}` : service.description || "Hizmet açıklaması bulunmuyor."}</p></div><button type="button" aria-label="Hizmet işlemleri" className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-[#9b9690] hover:bg-[#f5f4f2]" onClick={onEdit}><Icon name="more" size={18} /></button></div><div className="mt-5 flex items-center justify-between gap-3"><span className="inline-flex min-w-0 items-center gap-1.5 text-[12px] text-[#6f6b66]"><Icon name="clock" size={15} /> {formatDuration(service.durationMinutes)}</span><strong className="shrink-0 text-[16px] font-semibold text-[var(--ink)]">{new Intl.NumberFormat("tr-TR", { style: "currency", currency: service.currency || "TRY", maximumFractionDigits: 2 }).format(Number(service.price))}</strong></div></div><div className="mt-auto border-t border-[var(--line)] px-5 py-3.5"><div className="flex items-center justify-between gap-3 text-[11px] text-[#8a857f]"><span>Bugün</span><span>{appointments} randevu · {money(revenue)}</span></div><div className="mt-3 flex items-center justify-between gap-2"><StatusBadge status={service.status} label={serviceStatusLabel(service.status)} /><div className="flex min-w-0 gap-2"><Button variant="secondary" className="h-8 min-h-8 px-3 py-1 text-[12px]" onClick={onEdit} disabled={!canEdit}><Icon name="edit" size={14} /> Düzenle</Button><Button variant="ghost" className="h-8 min-h-8 px-2" onClick={onArchive} disabled={!canDelete || service.status === "ARCHIVED"} aria-label="Arşivle"><Icon name="more" size={17} /></Button></div></div></div></article>;
 }
 
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
