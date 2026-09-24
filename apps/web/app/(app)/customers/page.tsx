@@ -16,7 +16,7 @@ import {
   FilterChip,
   SearchField,
 } from "@/components/data-view";
-import { CheckboxField, FormActions, FormHint, FormStepper } from "@/components/form-system";
+import { CheckboxField, FormActions, FormGrid, FormHint, FormSection, FormStepper } from "@/components/form-system";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import {
   Alert,
@@ -1009,36 +1009,36 @@ function CustomerModal({
           </FormHint>
         ) : null}
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Ad">
-            <TextInput
-              required
-              value={form.firstName}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  firstName: event.target.value,
-                })
-              }
-            />
-          </Field>
-          <Field label="Soyad">
-            <TextInput
-              required
-              value={form.lastName}
-              onChange={(event) =>
-                setForm({
-                  ...form,
-                  lastName: event.target.value,
-                })
-              }
-            />
-          </Field>
-        </div>
-
-        {formStep === 1 ? (
-          <>
-            <div className="grid gap-4 sm:grid-cols-2">
+        {editing || formStep === 1 ? (
+          <FormSection
+            title="Kimlik ve iletişim"
+            description="Müşterinin temel kimlik, iletişim ve kaynak bilgilerini tamamlayın."
+          >
+            <FormGrid>
+              <Field label="Ad" required>
+                <TextInput
+                  required
+                  value={form.firstName}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      firstName: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Soyad" required>
+                <TextInput
+                  required
+                  value={form.lastName}
+                  onChange={(event) =>
+                    setForm({
+                      ...form,
+                      lastName: event.target.value,
+                    })
+                  }
+                />
+              </Field>
               <Field label="Telefon">
                 <TextInput
                   value={form.phone}
@@ -1062,8 +1062,6 @@ function CustomerModal({
                   }
                 />
               </Field>
-            </div>
-            <div className="grid gap-4 sm:grid-cols-2">
               <Field label="Doğum tarihi">
                 <DatePicker
                   value={form.birthDate}
@@ -1094,86 +1092,96 @@ function CustomerModal({
                   }))}
                 />
               </Field>
-            </div>
-          </>
+            </FormGrid>
+          </FormSection>
         ) : null}
 
         {!editing && formStep === 2 ? (
-          <div className="space-y-3">
-            <CheckboxField
-              checked={consents.kvkkAcknowledgement}
-              onChange={(checked) => setConsents({ ...consents, kvkkAcknowledgement: checked })}
-              label="KVKK Aydınlatma Metni bilgilendirmesi tamamlandı"
-              description="Müşteriye kişisel verilerin işlenmesine ilişkin bilgilendirme yapılmıştır."
-            />
-            <CheckboxField
-              checked={consents.membershipAgreement}
-              onChange={(checked) => setConsents({ ...consents, membershipAgreement: checked })}
-              label="Üyelik Sözleşmesi kabul edildi"
-            />
-            <CheckboxField
-              checked={consents.explicitConsent}
-              onChange={(checked) => setConsents({ ...consents, explicitConsent: checked })}
-              label="Açık rıza verildi"
-              description="Zorunlu olmayan veri işleme faaliyetleri için müşterinin tercihini kaydeder."
-            />
-            <div className="pt-2">
-              <p className="mb-2 text-[11px] font-semibold text-[var(--ink)]">İletişim tercihleri</p>
-              <div className="grid gap-2 sm:grid-cols-3">
+          <FormSection
+            title="Onaylar ve iletişim tercihleri"
+            description="Yasal bilgilendirmeleri ve müşterinin iletişim tercihlerini açık şekilde kaydedin."
+          >
+            <div className="grid gap-3 min-[760px]:grid-cols-2">
+              <CheckboxField
+                checked={consents.kvkkAcknowledgement}
+                onChange={(checked) => setConsents({ ...consents, kvkkAcknowledgement: checked })}
+                label="KVKK Aydınlatma Metni bilgilendirmesi tamamlandı"
+                description="Müşteriye kişisel verilerin işlenmesine ilişkin bilgilendirme yapılmıştır."
+              />
+              <CheckboxField
+                checked={consents.membershipAgreement}
+                onChange={(checked) => setConsents({ ...consents, membershipAgreement: checked })}
+                label="Üyelik Sözleşmesi kabul edildi"
+              />
+              <CheckboxField
+                checked={consents.explicitConsent}
+                onChange={(checked) => setConsents({ ...consents, explicitConsent: checked })}
+                label="Açık rıza verildi"
+                description="Zorunlu olmayan veri işleme faaliyetleri için müşterinin tercihini kaydeder."
+              />
+            </div>
+            <div className="border-t border-[var(--line)] pt-4">
+              <p className="mb-3 text-[11px] font-semibold text-[var(--ink)]">Pazarlama iletişim tercihleri</p>
+              <div className="grid gap-2 min-[700px]:grid-cols-3">
                 <CheckboxField checked={consents.marketingSms} onChange={(checked) => setConsents({ ...consents, marketingSms: checked })} label="SMS" />
                 <CheckboxField checked={consents.marketingEmail} onChange={(checked) => setConsents({ ...consents, marketingEmail: checked })} label="E-posta" />
                 <CheckboxField checked={consents.marketingPhone} onChange={(checked) => setConsents({ ...consents, marketingPhone: checked })} label="Telefon" />
               </div>
             </div>
-          </div>
+          </FormSection>
         ) : null}
 
         {!editing && formStep === 3 ? (
-          <div className="space-y-4">
-            <Field label="Alerjiler">
-              <TextInput
-                value={healthForm.allergies}
-                onChange={(event) =>
-                  setHealthForm({
-                    ...healthForm,
-                    allergies: event.target.value,
-                  })
-                }
-              />
-            </Field>
-            <Field label="Hassasiyetler">
-              <TextInput
-                value={healthForm.sensitivities}
-                onChange={(event) =>
-                  setHealthForm({
-                    ...healthForm,
-                    sensitivities: event.target.value,
-                  })
-                }
-              />
-            </Field>
-            <Field label="İlaçlar">
-              <TextInput
-                value={healthForm.medications}
-                onChange={(event) =>
-                  setHealthForm({
-                    ...healthForm,
-                    medications: event.target.value,
-                  })
-                }
-              />
-            </Field>
-            <Field label="Bilinen sağlık durumları">
-              <TextInput
-                value={healthForm.conditions}
-                onChange={(event) =>
-                  setHealthForm({
-                    ...healthForm,
-                    conditions: event.target.value,
-                  })
-                }
-              />
-            </Field>
+          <FormSection
+            title="Sağlık bilgileri"
+            description="Yalnızca hizmet güvenliği ve müşteri deneyimi için gerekli sağlık bilgilerini kaydedin."
+          >
+            <FormGrid>
+              <Field label="Alerjiler">
+                <TextInput
+                  value={healthForm.allergies}
+                  onChange={(event) =>
+                    setHealthForm({
+                      ...healthForm,
+                      allergies: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Hassasiyetler">
+                <TextInput
+                  value={healthForm.sensitivities}
+                  onChange={(event) =>
+                    setHealthForm({
+                      ...healthForm,
+                      sensitivities: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="İlaçlar">
+                <TextInput
+                  value={healthForm.medications}
+                  onChange={(event) =>
+                    setHealthForm({
+                      ...healthForm,
+                      medications: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+              <Field label="Bilinen sağlık durumları">
+                <TextInput
+                  value={healthForm.conditions}
+                  onChange={(event) =>
+                    setHealthForm({
+                      ...healthForm,
+                      conditions: event.target.value,
+                    })
+                  }
+                />
+              </Field>
+            </FormGrid>
             <Field label="Sağlık notları">
               <TextInput
                 value={healthForm.notes}
@@ -1187,7 +1195,7 @@ function CustomerModal({
             </Field>
 
             {hasHealthData(healthForm) ? (
-              <div className="space-y-2">
+              <div className="grid gap-3 border-t border-[var(--line)] pt-4 min-[760px]:grid-cols-2">
                 <CheckboxField
                   checked={consents.healthFormCompletion}
                   onChange={(checked) => setConsents({ ...consents, healthFormCompletion: checked })}
@@ -1200,7 +1208,7 @@ function CustomerModal({
                 />
               </div>
             ) : null}
-          </div>
+          </FormSection>
         ) : null}
 
         {error ? <Alert>{error}</Alert> : null}
