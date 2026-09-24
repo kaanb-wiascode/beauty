@@ -11,7 +11,7 @@
   border-radius: 50%;
   background: #222;
   color: #fff;
-  font-size: 10px;
+  font-size:11px;
   font-weight: 700;
   letter-spacing: -.02em;
 }
@@ -26,7 +26,7 @@
   border-radius: 999px;
   background: #eef2f5;
   color: #50667c;
-  font-size: 9px;
+  font-size:11px;
   font-weight: 650;
   white-space: nowrap;
 }
@@ -102,7 +102,7 @@
 .metric-bar-track { min-width: 0 !important; width: 100% !important; height: 7px !important; overflow: hidden !important; }
 .period-footer {
   min-height: 44px !important; padding: 0 17px !important; display: grid !important;
-  grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size: 10px !important; gap: 8px !important;
+  grid-template-columns: 1fr 1fr 1fr !important; align-items: center !important; font-size:11px !important; gap: 8px !important;
 }
 .period-footer > *:nth-child(2) { text-align: center !important; }
 .period-footer > *:last-child { text-align: right !important; }
@@ -284,11 +284,11 @@
 }
 :global(.activity-item > div > span) {
   margin-top: 3px !important;
-  font-size: 10px !important;
+  font-size:11px !important;
   line-height: 1.15 !important;
 }
 :global(.activity-item time) {
-  font-size: 9px !important;
+  font-size:11px !important;
 }
 
 /* The trend metrics sit inside the panel rather than touching its border. */
@@ -303,7 +303,7 @@
   border-radius: 11px !important;
 }
 :global(.trend-mini span) {
-  font-size: 10px !important;
+  font-size:11px !important;
   line-height: 1.1 !important;
 }
 :global(.trend-mini strong) {
@@ -333,7 +333,7 @@
     font-size: 11px !important;
   }
   :global(.activity-item > div > span) {
-    font-size: 9px !important;
+    font-size:11px !important;
   }
   :global(.panel-body > .grid.grid-cols-3) {
     padding: 10px 12px 3px !important;
