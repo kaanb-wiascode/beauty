@@ -12,6 +12,7 @@ type GoodsReceipt = {
   id: string;
   purchaseOrderId: string;
   supplierBillId: string | null;
+  invoiceNumber?: string | null;
   branchId: string | null;
   receivedAt: string;
   reversedAt: string | null;
