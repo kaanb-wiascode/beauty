@@ -110,9 +110,9 @@ export default function PlatformIamPage() {
       ) : null}
 
       {canManage ? (
-        <Panel title="Platform Yöneticisi Ekle" eyebrow="Açık Yetki Ataması">
+        <Panel title="Platform Yöneticisi Ekle" eyebrow="Yönetici Yetkilendirmesi">
           <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_auto] lg:items-end">
-            <Field label="Kullanıcı Kayıt No"><input value={newUserId} onChange={(event) => setNewUserId(event.target.value)} placeholder="users.id" className="input" /></Field>
+            <Field label="Kullanıcı Kayıt Numarası"><input value={newUserId} onChange={(event) => setNewUserId(event.target.value)} placeholder="Kullanıcı kayıt numarasını girin" className="input" /></Field>
             <Field label="Başlangıç rolü"><Select value={newRole} onChange={(event) => setNewRole(event.target.value)} className="input">{data.roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}</Select></Field>
             <button type="button" disabled={!reasonValid || !newUserId.trim() || busy === "provision"} onClick={() => run("provision", () => provisionPlatformAdmin({ userId: newUserId.trim(), roleSlug: newRole, reason: reason.trim() }), "Platform yöneticisi erişimi tanımlandı.")} className="action-button">{busy === "provision" ? "İşleniyor…" : "Yönetici Ekle"}</button>
           </div>
@@ -122,7 +122,7 @@ export default function PlatformIamPage() {
       <Panel title="Platform Yöneticileri" eyebrow="Atanmış Yöneticiler">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] text-left text-xs">
-            <thead><tr className="border-b border-white/[.07] text-[9px] uppercase tracking-[.13em] text-white/30"><th className="py-3 pr-4">Yönetici</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3">Roller</th>{canManage ? <th className="px-4 py-3">Rol ata</th> : null}<th className="pl-4 py-3">Kullanıcı Kayıt No</th>{canManage ? <th className="pl-4 py-3 text-right">Durum işlemi</th> : null}</tr></thead>
+            <thead><tr className="border-b border-white/[.07] text-[9px] uppercase tracking-[.13em] text-white/30"><th className="py-3 pr-4">Yönetici</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3">Roller</th>{canManage ? <th className="px-4 py-3">Rol ata</th> : null}<th className="pl-4 py-3">Kullanıcı Kaydı</th>{canManage ? <th className="pl-4 py-3 text-right">Durum işlemi</th> : null}</tr></thead>
             <tbody className="divide-y divide-white/[.06]">
               {data.admins.map((admin) => (
                 <tr key={admin.userId}>
@@ -130,7 +130,7 @@ export default function PlatformIamPage() {
                   <td className="px-4 py-4"><Status value={admin.status} /></td>
                   <td className="px-4 py-4"><div className="flex flex-wrap gap-1.5">{admin.roles.map((role) => <span key={role.slug} className="inline-flex items-center gap-1 rounded-full border border-violet-400/20 bg-violet-400/[.08] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{role.name}{canManage && admin.userId !== actorUserId ? <button type="button" disabled={!reasonValid || busy === `remove-${admin.userId}-${role.slug}`} onClick={() => run(`remove-${admin.userId}-${role.slug}`, () => removePlatformRole(admin.userId, role.slug, reason.trim()), `${role.name} rolü kaldırıldı.`)} className="ml-1 text-violet-200/50 hover:text-white">×</button> : null}</span>)}{!admin.roles.length ? <span className="text-white/30">Rol atanmamış</span> : null}</div></td>
                   {canManage ? <td className="px-4 py-4"><div className="flex gap-2"><Select value={roleDrafts[admin.userId] ?? data.roles[0]?.slug ?? ""} onChange={(event) => setRoleDrafts((current) => ({ ...current, [admin.userId]: event.target.value }))} className="input min-w-[160px]"><option value="">Rol seç</option>{data.roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}</Select><button type="button" disabled={!reasonValid || !roleDrafts[admin.userId] || busy === `assign-${admin.userId}`} onClick={() => run(`assign-${admin.userId}`, () => assignPlatformRole(admin.userId, { roleSlug: roleDrafts[admin.userId], reason: reason.trim() }), "Platform rolü atandı.")} className="small-button">Ata</button></div></td> : null}
-                  <td className="pl-4 py-4 font-mono text-[10px] text-white/35">{admin.userId}</td>
+                  <td className="pl-4 py-4 text-[10px] text-white/35">Kayıtlı kullanıcı</td>
                   {canManage ? <td className="pl-4 py-4 text-right"><button type="button" disabled={!reasonValid || admin.userId === actorUserId || busy === `status-${admin.userId}`} onClick={() => run(`status-${admin.userId}`, () => setPlatformAdminStatus(admin.userId, { status: admin.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE", reason: reason.trim() }), admin.status === "ACTIVE" ? "Platform yöneticisi askıya alındı." : "Platform yöneticisi yeniden aktifleştirildi.")} className="small-button">{admin.status === "ACTIVE" ? "Askıya Al" : "Aktifleştir"}</button></td> : null}
                 </tr>
               ))}
@@ -139,7 +139,7 @@ export default function PlatformIamPage() {
         </div>
       </Panel>
 
-      <Panel title="Rol ve Yetki Matrisi" eyebrow="Yetkilendirme Yapısı">
+      <Panel title="Roller ve Yetkiler" eyebrow="Yetkilendirme Yapısı">
         <div className="grid gap-4 xl:grid-cols-3">
           {data.roles.map((role) => {
             const selected = permissionDrafts[role.slug] ?? permissionKeys[0] ?? "";
@@ -150,7 +150,7 @@ export default function PlatformIamPage() {
         </div>
       </Panel>
 
-      <Panel title="Yetki Kataloğu" eyebrow="Kullanılabilir Yetkiler">
+      <Panel title="Kullanılabilir Yetkiler" eyebrow="Yetki Listesi">
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-3">{data.permissions.map((permission) => <div key={`${permission.resource}.${permission.action}`} className="rounded-2xl border border-white/[.07] bg-black/15 p-4"><div className="flex items-center justify-between gap-3"><span className="text-[11px] font-semibold text-violet-200">{userPermissionLabel(permission.resource, permission.action)}</span><span className="text-[9px] text-white/30">{permission.roleCount} rol</span></div><p className="mt-2 text-[10px] leading-5 text-white/40">{permission.description ?? "Açıklama yok."}</p></div>)}</div>
       </Panel>
 
