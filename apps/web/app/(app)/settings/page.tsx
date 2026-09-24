@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { userPermissionLabel } from "@/lib/user-language";
 
 const sections = [
   { href: "/settings/users", title: "Kullanıcılar", description: "İşletme Üyeliklerini, Rolleri Ve Erişim Durumlarını Yönetin.", glyph: "◎" },
@@ -93,7 +94,7 @@ export default function SettingsPage() {
               <div className="mt-3 space-y-2">
                 {dashboard.recentAudit.length === 0 ? <div className="text-xs text-[var(--muted)]">Henüz kayıt yok.</div> : dashboard.recentAudit.slice(0, 5).map((event) => (
                   <div key={event.id} className="flex items-center justify-between gap-3 text-xs">
-                    <span className="truncate text-[var(--ink)]">{event.resource}.{event.action}</span>
+                    <span className="truncate text-[var(--ink)]">{userPermissionLabel(event.resource, event.action)}</span>
                     <span className="shrink-0 text-[var(--muted)]">{new Date(event.createdAt).toLocaleString("tr-TR")}</span>
                   </div>
                 ))}
