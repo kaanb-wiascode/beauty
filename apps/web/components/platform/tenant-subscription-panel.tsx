@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/date-picker";
 import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui";
 
@@ -112,7 +113,12 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
           <input value={discount} onChange={(e) => setDiscount(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
         </label>
         <label className="text-[10px] text-white/45">Yenileme tarihi
-          <input type="date" value={renewsAt} onChange={(e) => setRenewsAt(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
+          <DatePicker
+            value={renewsAt}
+            onChange={setRenewsAt}
+            ariaLabel="Yenileme tarihi"
+            className="mt-1 !border-white/10 !bg-black/25"
+          />
         </label>
       </div>
 
