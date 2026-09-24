@@ -404,14 +404,21 @@ model Staff {
 }
 
 model Service {
-  id              String        @id @default(uuid())
-  tenantId        String
-  branchId        String
-  name            String
-  description     String?
-  durationMinutes Int
-  price           Decimal       @db.Decimal(10, 2)
-  status          ServiceStatus @default(ACTIVE)
+  id                   String        @id @default(uuid())
+  tenantId             String
+  branchId             String
+  name                 String
+  category             String?
+  description          String?
+  durationMinutes      Int
+  preparationMinutes   Int           @default(0)
+  cleanupMinutes       Int           @default(0)
+  price                Decimal       @db.Decimal(10, 2)
+  cost                 Decimal?      @db.Decimal(10, 2)
+  taxRate              Decimal       @default(20) @db.Decimal(5, 2)
+  currency             String        @default("TRY")
+  requiresConsultation Boolean       @default(false)
+  status               ServiceStatus @default(ACTIVE)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt
   appointments    Appointment[]
