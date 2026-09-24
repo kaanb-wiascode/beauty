@@ -248,5 +248,13 @@ Implemented in the first V2 increment:
 - dashboard quick appointment/payment flows migrated
 - customer-source selection migrated
 - inventory module purple focus/primary accents aligned to VALOO blue/cyan
+- authenticated application consistency layer is loaded globally
+- legacy 8-10px application text is normalized to the readable VALOO minimum
+- shared `Select` and `ToolbarSelect` route through the custom VALOO dropdown adapter
+- sidebar and mobile branch context selectors use `ValooSelect`
+- HR dynamic forms, customer 360 selectors and role filters use VALOO controls
+- inventory select helper routes all inventory form selections through `ValooSelect`
+- application dialogs use the accessible VALOO modal foundation, including inventory form shells
+- canonical dialog sizes: sm / md / lg / xl
 
 Remaining legacy screens continue to be migrated incrementally.
