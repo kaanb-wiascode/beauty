@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -174,7 +174,7 @@ export function ExecutionStaffPanel({
         <div className="mt-3 flex flex-col gap-2 border-t border-[var(--line)] pt-3 sm:flex-row sm:items-end">
           <label className="min-w-0 flex-1">
             <span className="mb-1 block text-[11px] font-semibold text-[var(--muted)]">Personel</span>
-            <select
+            <Select
               className="min-h-10 w-full rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
               value={availableStaff.some((item) => item.id === selectedStaffId) ? selectedStaffId : availableStaff[0]?.id ?? ""}
               onChange={(event) => setSelectedStaffId(event.target.value)}
@@ -182,7 +182,7 @@ export function ExecutionStaffPanel({
               {availableStaff.map((item) => (
                 <option key={item.id} value={item.id}>{item.firstName} {item.lastName}</option>
               ))}
-            </select>
+            </Select>
           </label>
           <div className="flex gap-2">
             <Button variant="secondary" disabled={busy} onClick={() => void addAssistant()}>Yardımcı Ekle</Button>
