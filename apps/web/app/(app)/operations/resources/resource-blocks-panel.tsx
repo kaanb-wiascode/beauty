@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -196,7 +196,7 @@ export function ResourceBlocksPanel({
 
           <div className="mt-4 space-y-4">
             <Field label="Kaynak">
-              <select
+              <Select
                 className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3 text-sm"
                 value={resourceId}
                 onChange={(event) => setResourceId(event.target.value)}
@@ -211,7 +211,7 @@ export function ResourceBlocksPanel({
                       : `${item.name} (${item.assetCode})`}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Başlangıç">
               <TextInput
