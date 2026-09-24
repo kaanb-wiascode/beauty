@@ -16,6 +16,7 @@ import {
   FilterChip,
   SearchField,
 } from "@/components/data-view";
+import { CheckboxField, FormActions, FormHint, FormStepper } from "@/components/form-system";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import {
   Alert,
@@ -34,6 +35,7 @@ import {
 import { CardInfo } from "@/components/card-info";
 import { DatePicker } from "@/components/date-picker";
 import { useToast } from "@/components/toast";
+import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
@@ -213,6 +215,7 @@ export default function CustomersPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
+  const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null);
   const [listFilter, setListFilter] = useState<
     "all" | "recent"
   >("all");
@@ -265,6 +268,39 @@ export default function CustomersPage() {
     return () => window.clearTimeout(timer);
   }, [load]);
 
+  useEffect(() => {
+    if (!modalOpen || editing || (!form.phone.trim() && !form.email.trim())) {
+      setDuplicateCustomer(null);
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      const needle = form.phone.trim() || form.email.trim();
+      void api<Paginated<Customer>>(
+        withQuery("/customers", { page: 1, limit: 10, search: needle }),
+      )
+        .then((result) => {
+          const phone = form.phone.replace(/\D/g, "");
+          const email = form.email.trim().toLocaleLowerCase("tr-TR");
+          const duplicate =
+            result.data.find((customer) => {
+              const candidatePhone = (customer.phone ?? "").replace(/\D/g, "");
+              const candidateEmail = (customer.email ?? "")
+                .trim()
+                .toLocaleLowerCase("tr-TR");
+              return Boolean(
+                (phone && candidatePhone === phone) ||
+                  (email && candidateEmail === email),
+              );
+            }) ?? null;
+          setDuplicateCustomer(duplicate);
+        })
+        .catch(() => setDuplicateCustomer(null));
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [editing, form.email, form.phone, modalOpen]);
+
   function handleSearch(value: string) {
     setSearch(value);
     setPage(1);
@@ -280,6 +316,7 @@ export default function CustomersPage() {
     setHealthForm(emptyHealthForm);
     setFormStep(1);
     setFormError("");
+    setDuplicateCustomer(null);
   }
 
   function openCreate() {
@@ -298,6 +335,7 @@ export default function CustomersPage() {
     setHealthForm(emptyHealthForm);
     setFormStep(1);
     setFormError("");
+    setDuplicateCustomer(null);
     setModalOpen(true);
   }
 
@@ -325,11 +363,13 @@ export default function CustomersPage() {
   }
 
   function validateStep1() {
-    if (
-      !form.firstName.trim() ||
-      !form.lastName.trim()
-    ) {
+    if (!form.firstName.trim() || !form.lastName.trim()) {
       setFormError("Ad ve soyad gerekli.");
+      return false;
+    }
+
+    if (!form.phone.trim() && !form.email.trim()) {
+      setFormError("Telefon veya e-posta bilgilerinden en az biri gereklidir.");
       return false;
     }
 
@@ -777,6 +817,7 @@ export default function CustomersPage() {
         formStep={formStep}
         setFormStep={setFormStep}
         error={formError}
+        duplicateCustomer={duplicateCustomer}
         saving={saving}
         onClose={closeModal}
         onSubmit={onSubmit}
@@ -913,6 +954,7 @@ function CustomerModal({
   formStep,
   setFormStep,
   error,
+  duplicateCustomer,
   saving,
   onClose,
   onSubmit,
@@ -928,6 +970,7 @@ function CustomerModal({
   formStep: 1 | 2 | 3;
   setFormStep: React.Dispatch<React.SetStateAction<1 | 2 | 3>>;
   error: string;
+  duplicateCustomer: Customer | null;
   saving: boolean;
   onClose: () => void;
   onSubmit: (event: FormEvent) => void;
@@ -945,31 +988,24 @@ function CustomerModal({
     >
       <form onSubmit={onSubmit} className="space-y-5">
         {!editing ? (
-          <div className="flex items-center gap-2 text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">
-            <span
-              className={
-                formStep >= 1 ? "text-[var(--accent)]" : ""
-              }
-            >
-              1 Bilgiler
-            </span>
-            <span>→</span>
-            <span
-              className={
-                formStep >= 2 ? "text-[var(--accent)]" : ""
-              }
-            >
-              2 Onaylar
-            </span>
-            <span>→</span>
-            <span
-              className={
-                formStep >= 3 ? "text-[var(--accent)]" : ""
-              }
-            >
-              3 Sağlık
-            </span>
-          </div>
+          <FormStepper
+            current={formStep - 1}
+            onStepChange={(index) => {
+              const next = (index + 1) as 1 | 2 | 3;
+              if (next <= formStep) setFormStep(next);
+            }}
+            steps={[
+              { key: "info", label: "Bilgiler", description: "Kimlik ve iletişim" },
+              { key: "consent", label: "Onaylar", description: "İzin ve tercihler" },
+              { key: "health", label: "Sağlık", description: "Opsiyonel sağlık kaydı" },
+            ]}
+          />
+        ) : null}
+
+        {duplicateCustomer ? (
+          <FormHint tone="warning" title="Mevcut müşteri kaydı bulundu">
+            Aynı telefon veya e-posta ile {duplicateCustomer.firstName} {duplicateCustomer.lastName} adlı bir müşteri zaten kayıtlı. Yeni kayıt oluşturmadan önce mevcut profili kontrol edin.
+          </FormHint>
         ) : null}
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -1041,26 +1077,21 @@ function CustomerModal({
                 />
               </Field>
               <Field label="Müşteri kaynağı">
-                <Select
-                  className="control h-11 w-full"
+                <ValooSelect
                   value={form.customerSource}
-                  onChange={(event) =>
+                  onChange={(customerSource) =>
                     setForm({
                       ...form,
-                      customerSource: event.target
-                        .value as FormState["customerSource"],
+                      customerSource: customerSource as FormState["customerSource"],
                     })
                   }
-                >
-                  <option value="">Seçin</option>
-                  {Object.entries(sourceLabels).map(
-                    ([key, label]) => (
-                      <option key={key} value={key}>
-                        {label}
-                      </option>
-                    ),
-                  )}
-                </Select>
+                  searchable={false}
+                  placeholder="Seçin"
+                  options={Object.entries(sourceLabels).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
+                />
               </Field>
             </div>
           </>
@@ -1068,36 +1099,31 @@ function CustomerModal({
 
         {!editing && formStep === 2 ? (
           <div className="space-y-3">
-            {(
-              [
-                "kvkkAcknowledgement",
-                "membershipAgreement",
-                "explicitConsent",
-              ] as const
-            ).map((key) => (
-              <label
-                key={key}
-                className="flex gap-3 rounded-xl border border-[var(--line)] p-3 text-[12px]"
-              >
-                <input
-                  type="checkbox"
-                  checked={consents[key]}
-                  onChange={(event) =>
-                    setConsents({
-                      ...consents,
-                      [key]: event.target.checked,
-                    })
-                  }
-                />
-                <span>
-                  {key === "kvkkAcknowledgement"
-                    ? "KVKK Aydınlatma Metni bilgilendirmesini tamamladım."
-                    : key === "membershipAgreement"
-                      ? "Üyelik Sözleşmesini kabul ediyorum."
-                      : "Açık rıza metnini okudum ve kabul ediyorum."}
-                </span>
-              </label>
-            ))}
+            <CheckboxField
+              checked={consents.kvkkAcknowledgement}
+              onChange={(checked) => setConsents({ ...consents, kvkkAcknowledgement: checked })}
+              label="KVKK Aydınlatma Metni bilgilendirmesi tamamlandı"
+              description="Müşteriye kişisel verilerin işlenmesine ilişkin bilgilendirme yapılmıştır."
+            />
+            <CheckboxField
+              checked={consents.membershipAgreement}
+              onChange={(checked) => setConsents({ ...consents, membershipAgreement: checked })}
+              label="Üyelik Sözleşmesi kabul edildi"
+            />
+            <CheckboxField
+              checked={consents.explicitConsent}
+              onChange={(checked) => setConsents({ ...consents, explicitConsent: checked })}
+              label="Açık rıza verildi"
+              description="Zorunlu olmayan veri işleme faaliyetleri için müşterinin tercihini kaydeder."
+            />
+            <div className="pt-2">
+              <p className="mb-2 text-[11px] font-semibold text-[var(--ink)]">İletişim tercihleri</p>
+              <div className="grid gap-2 sm:grid-cols-3">
+                <CheckboxField checked={consents.marketingSms} onChange={(checked) => setConsents({ ...consents, marketingSms: checked })} label="SMS" />
+                <CheckboxField checked={consents.marketingEmail} onChange={(checked) => setConsents({ ...consents, marketingEmail: checked })} label="E-posta" />
+                <CheckboxField checked={consents.marketingPhone} onChange={(checked) => setConsents({ ...consents, marketingPhone: checked })} label="Telefon" />
+              </div>
+            </div>
           </div>
         ) : null}
 
@@ -1136,6 +1162,17 @@ function CustomerModal({
                 }
               />
             </Field>
+            <Field label="Bilinen sağlık durumları">
+              <TextInput
+                value={healthForm.conditions}
+                onChange={(event) =>
+                  setHealthForm({
+                    ...healthForm,
+                    conditions: event.target.value,
+                  })
+                }
+              />
+            </Field>
             <Field label="Sağlık notları">
               <TextInput
                 value={healthForm.notes}
@@ -1150,38 +1187,16 @@ function CustomerModal({
 
             {hasHealthData(healthForm) ? (
               <div className="space-y-2">
-                <label className="flex gap-3 text-[12px]">
-                  <input
-                    type="checkbox"
-                    checked={consents.healthFormCompletion}
-                    onChange={(event) =>
-                      setConsents({
-                        ...consents,
-                        healthFormCompletion:
-                          event.target.checked,
-                      })
-                    }
-                  />
-                  <span>
-                    Bilgilerin doğru olduğunu beyan ediyorum.
-                  </span>
-                </label>
-                <label className="flex gap-3 text-[12px]">
-                  <input
-                    type="checkbox"
-                    checked={consents.healthDataConsent}
-                    onChange={(event) =>
-                      setConsents({
-                        ...consents,
-                        healthDataConsent:
-                          event.target.checked,
-                      })
-                    }
-                  />
-                  <span>
-                    Sağlık verilerinin işlenmesine açık rıza veriyorum.
-                  </span>
-                </label>
+                <CheckboxField
+                  checked={consents.healthFormCompletion}
+                  onChange={(checked) => setConsents({ ...consents, healthFormCompletion: checked })}
+                  label="Sağlık bilgilerinin doğru olduğu beyan edildi"
+                />
+                <CheckboxField
+                  checked={consents.healthDataConsent}
+                  onChange={(checked) => setConsents({ ...consents, healthDataConsent: checked })}
+                  label="Sağlık verilerinin işlenmesine açık rıza verildi"
+                />
               </div>
             ) : null}
           </div>
@@ -1189,7 +1204,7 @@ function CustomerModal({
 
         {error ? <Alert>{error}</Alert> : null}
 
-        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+        <FormActions sticky>
           <Button
             type="button"
             variant="secondary"
@@ -1219,7 +1234,7 @@ function CustomerModal({
                 ? "Kaydet"
                 : "Devam et"}
           </Button>
-        </div>
+        </FormActions>
       </form>
     </Modal>
   );
