@@ -140,13 +140,13 @@ export default function AuditLogPage() {
           <input
             value={filters.resource}
             onChange={(event) => setFilters((current) => ({ ...current, resource: event.target.value }))}
-            placeholder="Kaynak modül kodu (örn. roles)"
+            placeholder="İşlem alanı (ör. roller)"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <input
             value={filters.action}
             onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}
-            placeholder="İşlem kodu (örn. update)"
+            placeholder="İşlem türü (ör. güncelleme)"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <input
@@ -247,10 +247,10 @@ export default function AuditLogPage() {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Önceki Değerler</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.beforeState, null, 2) ?? "null"}</pre></section>
-              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Sonraki Değerler</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.afterState, null, 2) ?? "null"}</pre></section>
+              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Değişiklik öncesi</h3><p className="mt-3 rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{stateSummary(selected.beforeState)}</p></section>
+              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Değişiklik sonrası</h3><p className="mt-3 rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{stateSummary(selected.afterState)}</p></section>
             </div>
-            <section className="mt-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Ek Teknik Bilgiler</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.metadata, null, 2) ?? "null"}</pre></section>
+            {selected.metadata ? <section className="mt-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Ek kayıt bilgisi</h3><p className="mt-2 text-xs text-[var(--muted)]">Bu işlem için ek sistem bilgileri güvenli biçimde kaydedildi.</p></section> : null}
           </div>
         </div>
       ) : null}
