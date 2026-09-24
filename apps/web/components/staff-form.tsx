@@ -72,7 +72,7 @@ export function StaffEditorForm({
     <form onSubmit={onSubmit} className="flex min-h-0 flex-col">
       <FormStepper steps={steps} current={step} onStepChange={onStepChange} />
 
-      <div className="mt-5 min-h-[360px] overflow-y-auto pr-1">
+      <div className="space-y-5">
         {step === 0 ? (
           <FormSection title="Kişisel Bilgiler" description="Kimlik, İletişim Ve Adres Bilgileri.">
             <FormGrid>
