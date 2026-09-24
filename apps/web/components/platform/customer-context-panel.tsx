@@ -1,5 +1,6 @@
 "use client";
 
+import { DatePicker } from "@/components/date-picker";
 import { useEffect, useState } from "react";
 
 import { ApiError } from "@/lib/api";
@@ -167,11 +168,11 @@ function DateField({ label, value, onChange }: { label: string; value: string; o
   return (
     <label className="block">
       <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-white/25">{label}</span>
-      <input
-        type="date"
+      <DatePicker
         value={value}
-        onChange={(event) => onChange(event.target.value)}
-        className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-xs text-white outline-none focus:border-violet-400/40"
+        onChange={onChange}
+        ariaLabel={label}
+        className="mt-1.5 !border-white/10 !bg-black/20"
       />
     </label>
   );
