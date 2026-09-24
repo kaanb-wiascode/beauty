@@ -136,7 +136,7 @@ export default function HRDashboardPage() {
             <FinanceMetric label="Toplam Çalışan" value={staff.length} detail={`${activeStaff.length} aktif · ${archivedStaff.length} arşiv`} tone="info" />
             <FinanceMetric label="Aktif Çalışan" value={activeStaff.length} detail="Mevcut personel kayıtları" tone="success" />
             <FinanceMetric label="Bugünkü Randevu" value={totalAppointments} detail="Canlı personel performans verisi" tone="neutral" />
-            <FinanceMetric label="Bugünkü Tahsilat" value={money(totalCollected)} detail="Personel performans API'si" tone="success" />
+            <FinanceMetric label="Bugünkü Tahsilat" value={money(totalCollected)} detail="Canlı personel performans verisi" tone="success" />
           </section>
 
           <FinancePanel
