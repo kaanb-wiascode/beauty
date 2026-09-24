@@ -183,10 +183,10 @@ export default function ReportsPage() {
   useEffect(() => { void load(); }, [load]);
 
   if (!canReadReports) {
-    return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-8 text-[13px] text-[var(--muted)]">Raporları Görüntüleme Yetkiniz Bulunmuyor.</div>;
+    return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-8 text-[13px] text-[var(--muted)]">Raporları görüntüleme yetkiniz bulunmuyor.</div>;
   }
 
-  if (loading) return <div className="py-16"><Spinner label="Raporlar Hazırlanıyor..." /></div>;
+  if (loading) return <div className="py-16"><Spinner label="Raporlar hazırlanıyor..." /></div>;
 
   const topStaff = staffReport?.top ?? null;
   const topService = serviceReport?.top ?? null;
@@ -199,34 +199,34 @@ export default function ReportsPage() {
     : [];
 
   function cardValue(key: ReportCatalogKey) {
-    if (key === "staff.performance") return `${staffReport?.total ?? 0} Personel`;
-    if (key === "service.performance") return `${serviceReport?.total ?? 0} Hizmet`;
+    if (key === "staff.performance") return `${staffReport?.total ?? 0} personel`;
+    if (key === "service.performance") return `${serviceReport?.total ?? 0} hizmet`;
     if (key === "payments.summary") return money(payments?.gross ?? 0);
-    return "Raporu Aç";
+    return "Raporu aç";
   }
 
   return (
     <div className="mx-auto max-w-[1440px] space-y-6 pb-10">
       <header>
-        <p className="text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">Analiz Ve Raporlama</p>
-        <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Rapor Merkezi</h1>
+        <p className="text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">Analiz ve raporlama</p>
+        <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Rapor merkezi</h1>
         <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Yetkinize açık raporları tek katalogdan yönetin; son 30 günün temel operasyon ve tahsilat göstergelerini hızlıca izleyin.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Brüt Tahsilat" value={payments ? money(payments.gross) : "—"} detail={payments ? `${payments.paymentCount} Ödeme · Net ${money(payments.net)}` : "Yetkili ödeme özeti yok"} />
-        <Metric label="Randevu Tamamlama Oranı" value={staffReport ? `%${staffReport.summary.completionRate}` : "—"} detail={staffReport ? `${staffReport.summary.completedAppointments} Tamamlanan Randevu` : "Yetkili personel raporu yok"} />
-        <Metric label="En Yüksek Personel Performansı" value={topStaff?.name ?? "—"} detail={topStaff ? money(topStaff.collected) : "Veri Yok"} />
-        <Metric label="En Yüksek Hizmet Performansı" value={topService?.name ?? "—"} detail={topService ? money(topService.collected) : "Veri Yok"} />
+        <Metric label="Brüt tahsilat" value={payments ? money(payments.gross) : "—"} detail={payments ? `${payments.paymentCount} ödeme · Net ${money(payments.net)}` : "Yetkili ödeme özeti yok"} />
+        <Metric label="Randevu tamamlama oranı" value={staffReport ? `%${staffReport.summary.completionRate}` : "—"} detail={staffReport ? `${staffReport.summary.completedAppointments} tamamlanan randevu` : "Yetkili personel raporu yok"} />
+        <Metric label="En yüksek personel performansı" value={topStaff?.name ?? "—"} detail={topStaff ? money(topStaff.collected) : "Veri yok"} />
+        <Metric label="En yüksek hizmet performansı" value={topService?.name ?? "—"} detail={topService ? money(topService.collected) : "Veri yok"} />
       </section>
 
       <section>
         <div className="mb-3 flex items-end justify-between gap-3">
           <div>
-            <h2 className="text-[17px] font-semibold text-[var(--ink)]">Yetkili Rapor Kataloğu</h2>
-            <p className="mt-1 text-[11px] text-[var(--muted)]">Kaynak-domain izinlerinizle kesişen raporlar gösterilir.</p>
+            <h2 className="text-[17px] font-semibold text-[var(--ink)]">Yetkili rapor kataloğu</h2>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">Erişim yetkilerinize uygun raporlar gösterilir.</p>
           </div>
           <span className="text-[11px] text-[var(--muted-soft)]">{catalog.length} rapor</span>
         </div>
@@ -243,12 +243,12 @@ export default function ReportsPage() {
             ))}
           </div>
         ) : (
-          <div className="rounded-[20px] border border-dashed border-[var(--line)] p-8 text-center text-[12px] text-[var(--muted)]">Kaynak-domain izinlerinize uygun rapor bulunmuyor.</div>
+          <div className="rounded-[20px] border border-dashed border-[var(--line)] p-8 text-center text-[12px] text-[var(--muted)]">Erişim yetkilerinize uygun rapor bulunmuyor.</div>
         )}
       </section>
 
       <div className="grid gap-5 xl:grid-cols-2">
-        <Panel title="Ödeme Yöntemleri" description="Son 30 Günlük Brüt Tahsilat Dağılımı">
+        <Panel title="Ödeme yöntemleri" description="Son 30 günlük brüt tahsilat dağılımı">
           <div className="space-y-3">
             {paymentMethods.map((item) => (
               <div key={item.method} className="flex items-center justify-between rounded-[14px] bg-[var(--surface-2)] px-4 py-3">
