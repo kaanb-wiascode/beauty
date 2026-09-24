@@ -405,6 +405,7 @@ export default function AppointmentsPage() {
             customerId: form.customerId,
             staffId: form.staffId,
             serviceId: form.serviceId,
+            ...(form.sessionId ? { sessionId: form.sessionId } : {}),
             startAt: toIso(form.startAt),
             endAt: toIso(form.endAt),
             notes: form.notes,
