@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { FilterChip, SearchField } from "@/components/data-view";
 import { InventoryFormShell, InventorySimpleFormShell } from "@/components/inventory-form-shell";
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
@@ -19,6 +20,7 @@ import { ValooSelect } from "@/components/valoo-controls";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { getActiveBranchId } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import {
   INVENTORY_UNITS,
   formatInventoryMoney,
@@ -436,7 +438,7 @@ function ProductRow({ product }: { product: InventoryProduct }) {
 }
 
 function AssetGrid({ assets }: { assets: InventoryAsset[] }) {
-  return <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{assets.map((item) => <article key={item.id} className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(17,70,104,.035)]"><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--success-soft)] text-[var(--success)]"><Icon name="asset"/></span><span className="rounded-full bg-[var(--success-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--success)]">{inventoryAssetStatusLabel(item.status)}</span></div><h3 className="mt-4 text-[15px] font-semibold text-[var(--ink)]">{item.name}</h3><p className="mt-1 text-[10px] text-[var(--muted)]">{item.assetCode} · {item.categoryName || inventoryAssetTypeLabel(item.assetType)}</p><div className="mt-5 grid grid-cols-2 gap-3 text-[11px]"><Info label="Seri No" value={item.serialNumber || "—"}/><Info label="Konum" value={item.branchName || "Merkez"}/><Info label="Satın Alma" value={item.purchasePrice ? formatInventoryMoney(item.purchasePrice, item.currency) : "—"}/><Info label="Garanti" value={item.warrantyEnd ? dateLabel(item.warrantyEnd) : "—"}/></div><div className="mt-4 flex items-center gap-2 border-t border-[var(--line)] pt-4 text-[10px] text-[var(--muted)]"><Icon name="clock"/> Sonraki Bakım: {item.nextMaintenanceAt ? dateLabel(item.nextMaintenanceAt) : "Planlanmadı"}</div></article>)}{!assets.length ? <div className="col-span-full rounded-[22px] border border-dashed border-[var(--line)] p-12 text-center text-[12px] text-[var(--muted)]">Henüz Envanter Varlığı Yok. “Yeni Envanter” İle İlk Kaydı Oluşturun.</div> : null}</section>;
+  return <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{assets.map((item) => <article key={item.id} className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(17,70,104,.035)]"><div className="mb-2"><CardInfo help={getCardHelp("Varlık Kartı", "varlığın kimlik, konum, satın alma, garanti ve bakım bilgileri")} /></div><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--success-soft)] text-[var(--success)]"><Icon name="asset"/></span><span className="rounded-full bg-[var(--success-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--success)]">{inventoryAssetStatusLabel(item.status)}</span></div><h3 className="mt-4 text-[15px] font-semibold text-[var(--ink)]">{item.name}</h3><p className="mt-1 text-[10px] text-[var(--muted)]">{item.assetCode} · {item.categoryName || inventoryAssetTypeLabel(item.assetType)}</p><div className="mt-5 grid grid-cols-2 gap-3 text-[11px]"><Info label="Seri No" value={item.serialNumber || "—"}/><Info label="Konum" value={item.branchName || "Merkez"}/><Info label="Satın Alma" value={item.purchasePrice ? formatInventoryMoney(item.purchasePrice, item.currency) : "—"}/><Info label="Garanti" value={item.warrantyEnd ? dateLabel(item.warrantyEnd) : "—"}/></div><div className="mt-4 flex items-center gap-2 border-t border-[var(--line)] pt-4 text-[10px] text-[var(--muted)]"><Icon name="clock"/> Sonraki Bakım: {item.nextMaintenanceAt ? dateLabel(item.nextMaintenanceAt) : "Planlanmadı"}</div></article>)}{!assets.length ? <div className="col-span-full rounded-[22px] border border-dashed border-[var(--line)] p-12 text-center text-[12px] text-[var(--muted)]">Henüz Envanter Varlığı Yok. “Yeni Envanter” İle İlk Kaydı Oluşturun.</div> : null}</section>;
 }
 
 function CategoryPanel({ categories, onAdd }: { categories: InventoryCategory[]; onAdd: () => void }) {
@@ -449,13 +451,13 @@ function SupplierPanel({ suppliers, onAdd }: { suppliers: InventorySupplier[]; o
 
 function QuickCard({ icon, title, text, onClick, href }: { icon: IconName; title: string; text: string; onClick?: () => void; href?: string }) {
   const content = <><span className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name={icon}/></span><p className="mt-3 text-[12px] font-semibold text-[var(--ink)]">{title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{text}</p></>;
-  const className = "block rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(17,70,104,.06)]";
-  return href ? <Link href={href} className={className}>{content}</Link> : <button type="button" onClick={onClick} className={className}>{content}</button>;
+  const className = "block w-full rounded-[20px] border border-[var(--line)] bg-[var(--surface)] px-4 pb-4 pt-10 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(17,70,104,.06)]";
+  return <div className="relative"><div className="absolute left-4 top-3 z-20"><CardInfo help={getCardHelp(title, text)} /></div>{href ? <Link href={href} className={className}>{content}</Link> : <button type="button" onClick={onClick} className={className}>{content}</button>}</div>;
 }
 
 function Metric({ icon, label, value, tone }: { icon: IconName; label: string; value: ReactNode; tone?: MetricTone }) {
   const className = tone === "orange" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : tone === "green" ? "bg-[var(--success-soft)] text-[var(--success)]" : tone === "blue" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : tone === "amber" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--surface-2)] text-[var(--muted)]";
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-[10px] ${className}`}><Icon name={icon}/></div><p className="text-[10px] text-[var(--muted)]">{label}</p><p className="mt-1 text-[20px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p></div>;
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="mb-2"><CardInfo help={getCardHelp(label)} /></div><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-[10px] ${className}`}><Icon name={icon}/></div><p className="text-[10px] text-[var(--muted)]">{label}</p><p className="mt-1 text-[20px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p></div>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
