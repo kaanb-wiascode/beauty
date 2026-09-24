@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
-import { PageHeader } from "@/components/ui";
+import { PageHeader, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import {
   ReportFilterBar,
