@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import { Select, useParams } from "next/navigation";
+import { useParams } from "next/navigation";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 
