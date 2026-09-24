@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 import {
   Alert,
   Button,
@@ -12,6 +13,7 @@ import {
   TextInput,
 } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type AutomationResult = {
@@ -274,7 +276,10 @@ function AutomationOverview({ history, loading }: { history: AutomationHistory |
 
 function MetricCard({ label, value, danger = false }: { label: string; value: number; danger?: boolean }) {
   return <GlassCard>
-    <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">{label}</p>
+    <div className="flex items-start justify-between gap-3">
+      <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">{label}</p>
+      <CardInfo help={getCardHelp(label, "Son 7 günlük otomasyon çalışma özetini gösterir.")} />
+    </div>
     <p className={`mt-2 text-[30px] font-semibold tracking-[-.04em] ${danger ? "text-[#8f3d3d]" : "text-[var(--ink)]"}`}>{value}</p>
   </GlassCard>;
 }
