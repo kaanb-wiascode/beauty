@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
+import { userLabel, userPermissionLabel } from "@/lib/user-language";
 
 type AuditEvent = {
   id: string;
@@ -60,14 +61,9 @@ function formatDate(value: string) {
 }
 
 function stateSummary(value: unknown) {
-  if (value === null || value === undefined) return "—";
+  if (value === null || value === undefined) return "Değişiklik bilgisi yok";
   if (typeof value === "string") return value;
-  try {
-    const serialized = JSON.stringify(value);
-    return serialized.length > 120 ? `${serialized.slice(0, 117)}…` : serialized;
-  } catch {
-    return "Kayıt ayrıntısı";
-  }
+  return "Değişiklik ayrıntıları kaydedildi";
 }
 
 export default function AuditLogPage() {
@@ -138,31 +134,31 @@ export default function AuditLogPage() {
           <input
             value={filters.actorUserId}
             onChange={(event) => setFilters((current) => ({ ...current, actorUserId: event.target.value }))}
-            placeholder="Aktör kullanıcı ID"
+            placeholder="İşlemi yapan kullanıcı kayıt no"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <input
             value={filters.resource}
             onChange={(event) => setFilters((current) => ({ ...current, resource: event.target.value }))}
-            placeholder="Modül / kaynak (roles)"
+            placeholder="Kaynak modül kodu (örn. roles)"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <input
             value={filters.action}
             onChange={(event) => setFilters((current) => ({ ...current, action: event.target.value }))}
-            placeholder="Aksiyon (update)"
+            placeholder="İşlem kodu (örn. update)"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <input
             value={filters.companyId}
             onChange={(event) => setFilters((current) => ({ ...current, companyId: event.target.value }))}
-            placeholder="Şirket ID"
+            placeholder="Şirket kayıt no"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <input
             value={filters.branchId}
             onChange={(event) => setFilters((current) => ({ ...current, branchId: event.target.value }))}
-            placeholder="Şube ID"
+            placeholder="Şube kayıt no"
             className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"
           />
           <label className="grid gap-1 text-xs text-[var(--muted)]">
@@ -204,7 +200,7 @@ export default function AuditLogPage() {
             <thead className="border-b border-[var(--line)] bg-[var(--surface-2)] text-xs text-[var(--muted)]">
               <tr>
                 <th className="px-4 py-3 font-medium">Zaman</th>
-                <th className="px-4 py-3 font-medium">Aktör</th>
+                <th className="px-4 py-3 font-medium">İşlemi Yapan</th>
                 <th className="px-4 py-3 font-medium">Kaynak</th>
                 <th className="px-4 py-3 font-medium">Aksiyon</th>
                 <th className="px-4 py-3 font-medium">Hedef</th>
@@ -216,9 +212,9 @@ export default function AuditLogPage() {
               {!loading && events.map((item) => (
                 <tr key={item.id} className="border-b border-[var(--line)] last:border-0">
                   <td className="whitespace-nowrap px-4 py-4 text-xs text-[var(--muted)]">{formatDate(item.createdAt)}</td>
-                  <td className="px-4 py-4"><code className="text-xs text-[var(--ink)]">{item.actorUserId}</code></td>
-                  <td className="px-4 py-4 font-medium text-[var(--ink)]">{item.resource}</td>
-                  <td className="px-4 py-4"><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">{item.action}</span></td>
+                  <td className="px-4 py-4 text-xs text-[var(--ink)]">{item.actorUserId}</td>
+                  <td className="px-4 py-4 font-medium text-[var(--ink)]">{userPermissionLabel(item.resource, item.action)}</td>
+                  <td className="px-4 py-4"><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-xs font-semibold text-[var(--accent)]">Kaydedildi</span></td>
                   <td className="px-4 py-4"><div className="text-xs font-medium text-[var(--ink)]">{item.targetEntityType ?? "—"}</div><div className="mt-0.5 max-w-[180px] truncate text-[11px] text-[var(--muted)]">{item.targetEntityId ?? "—"}</div></td>
                   <td className="max-w-[280px] px-4 py-4 text-xs text-[var(--muted)]"><div className="truncate">{stateSummary(item.afterState)}</div></td>
                   <td className="px-4 py-4 text-right"><button type="button" onClick={() => setSelected(item)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium">İncele</button></td>
@@ -236,25 +232,25 @@ export default function AuditLogPage() {
           <div className="max-h-[88vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-white p-5 shadow-2xl">
             <div className="flex items-start justify-between gap-4 border-b border-[var(--line)] pb-4">
               <div>
-                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{selected.resource} · {selected.action}</div>
+                <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">{userPermissionLabel(selected.resource, selected.action)}</div>
                 <h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">Denetim Kaydı</h2>
-                <p className="mt-1 text-xs text-[var(--muted)]">{formatDate(selected.createdAt)} · Aktör {selected.actorUserId}</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">{formatDate(selected.createdAt)} · Kullanıcı kayıt no {selected.actorUserId}</p>
               </div>
               <button type="button" onClick={() => setSelected(null)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium">Kapat</button>
             </div>
 
             <div className="grid gap-3 py-4 sm:grid-cols-2 lg:grid-cols-4">
               <div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Hedef Türü</div><div className="mt-1 break-all text-sm font-semibold">{selected.targetEntityType ?? "—"}</div></div>
-              <div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Hedef ID</div><div className="mt-1 break-all text-sm font-semibold">{selected.targetEntityId ?? "—"}</div></div>
-              <div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Correlation</div><div className="mt-1 break-all text-sm font-semibold">{selected.correlationId ?? "—"}</div></div>
+              <div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Hedef Kayıt No</div><div className="mt-1 break-all text-sm font-semibold">{selected.targetEntityId ?? "—"}</div></div>
+              <div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">İşlem İzleme No</div><div className="mt-1 break-all text-sm font-semibold">{selected.correlationId ?? "—"}</div></div>
               <div className="rounded-xl bg-[var(--surface-2)] p-3"><div className="text-xs text-[var(--muted)]">Neden</div><div className="mt-1 text-sm font-semibold">{selected.reason ?? "—"}</div></div>
             </div>
 
             <div className="grid gap-4 lg:grid-cols-2">
-              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Önce</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.beforeState, null, 2) ?? "null"}</pre></section>
-              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Sonra</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.afterState, null, 2) ?? "null"}</pre></section>
+              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Önceki Değerler</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.beforeState, null, 2) ?? "null"}</pre></section>
+              <section className="rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Sonraki Değerler</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.afterState, null, 2) ?? "null"}</pre></section>
             </div>
-            <section className="mt-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Kapsam / Metadata</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.metadata, null, 2) ?? "null"}</pre></section>
+            <section className="mt-4 rounded-xl border border-[var(--line)] p-4"><h3 className="text-sm font-semibold">Ek Teknik Bilgiler</h3><pre className="mt-3 overflow-x-auto whitespace-pre-wrap break-words rounded-lg bg-[var(--surface-2)] p-3 text-xs text-[var(--muted)]">{JSON.stringify(selected.metadata, null, 2) ?? "null"}</pre></section>
           </div>
         </div>
       ) : null}
