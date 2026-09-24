@@ -119,7 +119,7 @@
 
 .dashboard-avatar {
   color: var(--accent) !important;
-  background: linear-gradient(135deg, #f2edff, #eaf8f2) !important;
+  background: linear-gradient(135deg, #eaf5fb, #eaf8f2) !important;
   border: 1px solid #e7e0f1 !important;
 }
 
