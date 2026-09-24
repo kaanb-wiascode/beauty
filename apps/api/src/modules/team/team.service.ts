@@ -609,7 +609,7 @@ export class TeamService {
       conversationId,
       currentUserId,
     );
-    const active = [];
+    const active: typeof members = [];
     for (const member of members) {
       const key = `team:typing:${this.tenantId()}:${this.companyId()}:${conversationId}:${member.id}`;
       if (await this.redis.get(key)) active.push(member);
