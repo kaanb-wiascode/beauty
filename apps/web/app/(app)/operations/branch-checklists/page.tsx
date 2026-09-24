@@ -247,7 +247,7 @@ export default function BranchChecklistsPage() {
               </div>
 
               {!run ? (
-                <Button className="mt-4" disabled={!canUpdate || busy === `start:${category}`} onClick={() => void startRun(category)}>{busy === `start:${category}` ? "Başlatılıyor..." : `${categoryLabel[category]} Checklist'ini Başlat`}</Button>
+                <Button className="mt-4" disabled={!canUpdate || busy === `start:${category}`} onClick={() => void startRun(category)}>{busy === `start:${category}` ? "Başlatılıyor..." : `${categoryLabel[category]} kontrol listesini başlat`}</Button>
               ) : (
                 <div className="mt-4 space-y-2">
                   {run.items.map((item) => (
