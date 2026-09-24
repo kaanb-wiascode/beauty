@@ -1,8 +1,10 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userLabel } from "@/lib/user-language";
 import { hasPermission } from "@/lib/auth";
 
@@ -121,5 +123,5 @@ export default function CampaignsPage() {
 }
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <label className="space-y-2 text-[11px] font-semibold text-[var(--muted)]"><span>{label}</span>{children}</label>; }
-function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><p className="mt-3 text-[22px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>; }
+function Metric({ label, value }: { label: string; value: string }) { return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-3 text-[22px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>; }
 function Badge({ children }: { children: React.ReactNode }) { return <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">{children}</span>; }
