@@ -447,6 +447,9 @@ export default function AppointmentsPage() {
   const customerName = selected ? customerMap.get(selected.customerId) ?? "Müşteri" : "";
   const selectedStaff = selected ? staffMap.get(selected.staffId) ?? "Personel" : "";
   const selectedService = selected ? serviceMap.get(selected.serviceId) ?? "Hizmet" : "";
+  const selectedServicePrice = selected
+    ? services.find((item) => item.id === selected.serviceId)?.price
+    : undefined;
   const paymentCustomerName = paymentAppointment
     ? customerMap.get(paymentAppointment.customerId) ?? "Müşteri"
     : "";
