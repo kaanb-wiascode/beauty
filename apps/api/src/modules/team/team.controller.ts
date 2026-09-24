@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Delete,
@@ -159,7 +160,7 @@ export class TeamController {
       buffer: Buffer;
     },
   ) {
-    if (!file) throw new Error('Dosya yüklenemedi.');
+    if (!file) throw new BadRequestException('Dosya yüklenemedi.');
     return this.team.addAttachment(user.sub, id, file);
   }
 
