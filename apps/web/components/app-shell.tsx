@@ -19,7 +19,7 @@ import { ValooSelect } from "./valoo-controls";
 const NAV_SECTIONS = [
   { label: "Genel", items: [
     { href: "/dashboard", label: "Bugün", icon: "home" },
-    { href: "/dashboard/management", label: "Yönetim Cockpit", icon: "trend" },
+    { href: "/dashboard/management", label: "Yönetim Özeti", icon: "trend" },
   ]},
   { label: "Müşteri İlişkileri", items: [
     { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
@@ -31,15 +31,15 @@ const NAV_SECTIONS = [
   { label: "Kurumsal İletişim", items: [
     { href: "/communications", permission: "communications.read", label: "Genel Bakış", icon: "trend" },
     { href: "/communications/campaigns", permission: "communications.read", label: "Kampanyalar", icon: "chart" },
-    { href: "/communications/leads", permission: "communications.read", label: "Lead & Dönüşüm", icon: "users" },
+    { href: "/communications/leads", permission: "communications.read", label: "Potansiyel Müşteri ve Dönüşüm", icon: "users" },
     { href: "/communications/content", permission: "communications.read", label: "İçerik Operasyonu", icon: "calendar" },
     { href: "/communications/approvals", permission: "communications.read", label: "Onay Merkezi", icon: "shield" },
     { href: "/communications/brand", permission: "communications.read", label: "Marka Merkezi", icon: "sparkles" },
     { href: "/communications/assets", permission: "communications.read", label: "Dijital Varlıklar", icon: "file" },
     { href: "/communications/vendors", permission: "communications.read", label: "Ajanslar & İş Ortakları", icon: "briefcase" },
-    { href: "/communications/creators", permission: "communications.read", label: "Influencer / Creator", icon: "users" },
+    { href: "/communications/creators", permission: "communications.read", label: "İçerik Üreticileri", icon: "users" },
     { href: "/communications/integrations", permission: "communications.read", label: "Reklam Hesapları", icon: "activity" },
-    { href: "/communications/routing", permission: "communications.manage", label: "Lead Routing", icon: "arrows" },
+    { href: "/communications/routing", permission: "communications.manage", label: "Talep Yönlendirme", icon: "arrows" },
   ]},
   { label: "Operasyon", items: [
     { href: "/operations", permission: "appointments.read", label: "Canlı Operasyon", icon: "activity" },
@@ -59,7 +59,7 @@ const NAV_SECTIONS = [
     { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
   ]},
   { label: "İnsan Kaynakları", items: [
-    { href: "/hr", label: "İK Genel Bakış", icon: "briefcase" },
+    { href: "/hr", label: "İnsan Kaynakları Genel Bakış", icon: "briefcase" },
     { href: "/hr/employees", label: "Personeller", icon: "users" },
     { href: "/hr/personnel-files", label: "Özlük Dosyaları", icon: "file" },
     { href: "/hr/attendance", label: "Puantaj", icon: "clock" },
