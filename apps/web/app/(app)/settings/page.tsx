@@ -62,7 +62,7 @@ export default function SettingsPage() {
       <header className="border-b border-[var(--line)] pb-5">
         <div className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Yönetim</div>
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Yönetim Merkezi</h1>
-        <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">VALOO Çalışma Alanınızı, Kullanıcı Erişimini Ve Yönetim Politikalarını Yönetin.</p>
+        <p className="mt-1 max-w-2xl text-sm text-[var(--muted)]">VALOO çalışma alanınızı, kullanıcı erişimini ve yönetim politikalarını yönetin.</p>
       </header>
 
       {dashboard && (
