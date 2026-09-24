@@ -5,6 +5,7 @@ import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type Lead = {
   id: string;
@@ -245,7 +246,7 @@ export default function MarketingLeadsPage() {
   }
 
   if (loading && !leads.length) {
-    return <div className="py-20"><Spinner label="Lead inbox yükleniyor..." /></div>;
+    return <div className="py-20"><Spinner label="Potansiyel müşteri kayıtları yükleniyor..." /></div>;
   }
 
   return (
@@ -253,31 +254,31 @@ export default function MarketingLeadsPage() {
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p>
-          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Lead & Dönüşüm Inbox</h1>
-          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Reklam talebini aynı akışta CRM&apos;e, müşteri kaydına ve güvenli randevu planlamasına taşıyın. Şube, izin ve randevu çakışma kuralları korunur.</p>
+          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Potansiyel Müşteriler ve Dönüşüm</h1>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Reklam ve iletişim taleplerini müşteri kaydına ve randevu planlamasına dönüştürün. Şube, yetki ve randevu çakışma kuralları otomatik olarak korunur.</p>
         </div>
-        {canManage ? <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Formu Kapat" : "Lead Ekle"}</Button> : null}
+        {canManage ? <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Formu Kapat" : "Potansiyel Müşteri Ekle"}</Button> : null}
       </header>
       {error ? <Alert>{error}</Alert> : null}
 
       {showForm && canManage ? (
         <form onSubmit={(e) => void createLead(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak<Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option>MANUAL</option><option>META</option><option>GOOGLE_ADS</option><option>TIKTOK</option><option>WEBSITE</option><option>WHATSAPP</option><option>OTHER</option></Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak<Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option value="MANUAL">Elle Eklendi</option><option value="META">Meta Reklamları</option><option value="GOOGLE_ADS">Google Reklamları</option><option value="TIKTOK">TikTok</option><option value="WEBSITE">Web Sitesi</option><option value="WHATSAPP">WhatsApp</option><option value="OTHER">Diğer</option></Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Kampanya<Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</Select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Provider Lead ID<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="Opsiyonel" /></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Reklam Platformu Kayıt No<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="Opsiyonel" /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Ad<input required className={fieldClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Soyad<input required className={fieldClass} value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Telefon<input className={fieldClass} value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">E-posta<input type="email" className={fieldClass} value={email} onChange={(e) => setEmail(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Hizmet İlgisi<input className={fieldClass} value={serviceInterest} onChange={(e) => setServiceInterest(e.target.value)} placeholder="Örn. Lazer epilasyon" /></label>
-          <div className="md:col-span-2 xl:col-span-3"><Button disabled={saving} type="submit">{saving ? "Kaydediliyor..." : "Lead'i Kaydet"}</Button></div>
+          <div className="md:col-span-2 xl:col-span-3"><Button disabled={saving} type="submit">{saving ? "Kaydediliyor..." : "Potansiyel Müşteriyi Kaydet"}</Button></div>
         </form>
       ) : null}
 
       {appointmentLeadId ? (
         <form onSubmit={(e) => void createAppointment(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
           <div className="md:col-span-2 xl:col-span-3">
-            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Marketing Lead Randevusu</h2>
+            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Potansiyel Müşteri Randevusu</h2>
             <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif müşteri, hizmet ve personel aynı şubede doğrulanır; personel çakışması varsa işlem reddedilir.</p>
           </div>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Hizmet<Select required className={fieldClass} value={appointmentServiceId} onChange={(e) => setAppointmentServiceId(e.target.value)}><option value="">Hizmet seçin</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.durationMinutes} dk</option>)}</Select></label>
@@ -293,30 +294,30 @@ export default function MarketingLeadsPage() {
         {leads.length ? (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1320px] text-left">
-              <thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">Lead</th><th className="px-3 py-3">Kaynak</th><th className="px-3 py-3">Kampanya</th><th className="px-3 py-3">İlgi</th><th className="px-3 py-3">Durum</th><th className="px-3 py-3">Operasyon Akışı</th><th className="px-3 py-3">Dönüşüm</th><th className="px-3 py-3">Geliş</th></tr></thead>
+              <thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">Potansiyel Müşteri</th><th className="px-3 py-3">Kaynak</th><th className="px-3 py-3">Kampanya</th><th className="px-3 py-3">İlgi</th><th className="px-3 py-3">Durum</th><th className="px-3 py-3">Operasyon Akışı</th><th className="px-3 py-3">Dönüşüm</th><th className="px-3 py-3">Geliş</th></tr></thead>
               <tbody>{leads.map((lead) => (
                 <tr key={lead.id} className="border-b border-[var(--line)] last:border-0">
                   <td className="px-3 py-4"><p className="text-[13px] font-semibold text-[var(--ink)]">{lead.firstName} {lead.lastName}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{lead.phone || lead.email || "—"}</p></td>
-                  <td className="px-3 py-4 text-[11px] text-[var(--muted)]">{lead.provider}</td>
+                  <td className="px-3 py-4 text-[11px] text-[var(--muted)]">{userLabel(lead.provider)}</td>
                   <td className="px-3 py-4 text-[11px] text-[var(--muted)]">{lead.campaignName ?? "—"}</td>
                   <td className="px-3 py-4 text-[11px] text-[var(--muted)]">{lead.serviceInterest ?? "—"}</td>
-                  <td className="px-3 py-4"><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">{lead.status}</span></td>
+                  <td className="px-3 py-4"><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">{userLabel(lead.status)}</span></td>
                   <td className="px-3 py-4"><div className="flex flex-wrap gap-2">
-                    {!lead.crmLeadId && canManage ? <Button disabled={convertingId === lead.id} onClick={() => void convertToCrm(lead.id)}>{convertingId === lead.id ? "Aktarılıyor..." : "CRM'e Aktar"}</Button> : null}
+                    {!lead.crmLeadId && canManage ? <Button disabled={convertingId === lead.id} onClick={() => void convertToCrm(lead.id)}>{convertingId === lead.id ? "Aktarılıyor..." : "Müşteri İlişkilerine Aktar"}</Button> : null}
                     {lead.crmLeadId && !lead.customerId && canManage ? <Button disabled={customerConvertingId === lead.id} onClick={() => void convertToCustomer(lead.id)}>{customerConvertingId === lead.id ? "Dönüştürülüyor..." : "Müşteriye Dönüştür"}</Button> : null}
                     {lead.customerId && !lead.appointmentId && canScheduleFromInbox ? <Button onClick={() => openAppointment(lead.id)}>Randevu Oluştur</Button> : null}
-                    {lead.crmLeadId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href="/crm/leads">CRM</Link> : null}
+                    {lead.crmLeadId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href="/crm/leads">Müşteri İlişkileri</Link> : null}
                     {lead.customerId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href={`/customers/${lead.customerId}`}>Müşteri</Link> : null}
                     {lead.appointmentId ? <Link className="self-center text-[11px] font-semibold text-[var(--accent)] hover:underline" href="/appointments">Randevu</Link> : null}
                     {lead.customerId && !lead.appointmentId && canCreateAppointment && !canScheduleFromInbox ? <span className="self-center text-[10px] text-[var(--muted)]">Randevu için personel/hizmet okuma izni gerekli.</span> : null}
                   </div></td>
-                  <td className="px-3 py-4 text-[10px] text-[var(--muted)]">{lead.saleId ? "Satış" : lead.appointmentId ? "Randevu" : lead.customerId ? "Müşteri" : lead.crmLeadId ? "CRM" : "Yeni lead"}</td>
+                  <td className="px-3 py-4 text-[10px] text-[var(--muted)]">{lead.saleId ? "Satış" : lead.appointmentId ? "Randevu" : lead.customerId ? "Müşteri" : lead.crmLeadId ? "CRM" : "Yeni potansiyel müşteri"}</td>
                   <td className="px-3 py-4 text-[10px] text-[var(--muted)]">{new Date(lead.receivedAt).toLocaleString("tr-TR")}</td>
                 </tr>
               ))}</tbody>
             </table>
           </div>
-        ) : <div className="py-14 text-center text-[12px] text-[var(--muted)]">Henüz lead yok.</div>}
+        ) : <div className="py-14 text-center text-[12px] text-[var(--muted)]">Henüz potansiyel müşteri kaydı yok.</div>}
       </section>
     </div>
   );
