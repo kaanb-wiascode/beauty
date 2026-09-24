@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
@@ -326,7 +328,7 @@ export default function SupplierOfferComparisonPage() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
 }
 
 function Value({ label, value, strong = false }: { label: string; value: string; strong?: boolean }) {
