@@ -1,7 +1,7 @@
 /* Beauty ERP — Services route polish */
 .services-page{color:var(--ink)}
 .services-page input,.services-page select,.services-page textarea{border-color:var(--line);background:#fff;color:var(--ink);border-radius:12px}
-.services-page input:focus,.services-page select:focus,.services-page textarea:focus{outline:none;border-color:rgba(116,86,232,.42);box-shadow:0 0 0 4px var(--accent-soft)}
+.services-page input:focus,.services-page select:focus,.services-page textarea:focus{outline:none;border-color:rgba(22,116,189,.42);box-shadow:0 0 0 4px var(--accent-soft)}
 .services-page table{border-collapse:separate;border-spacing:0}
 .services-page table thead th{background:#fbfaff;color:var(--muted);font-size:11px;font-weight:600;letter-spacing:.02em}
 .services-page table tbody tr{transition:background-color .16s ease}
