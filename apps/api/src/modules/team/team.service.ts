@@ -1,3 +1,7 @@
+import { createReadStream } from 'node:fs';
+import { mkdir, writeFile } from 'node:fs/promises';
+import { extname, join } from 'node:path';
+import { randomUUID } from 'node:crypto';
 import {
   BadRequestException,
   ForbiddenException,
@@ -9,9 +13,17 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 
 type CreateConversationInput = {
-  type: 'DIRECT' | 'GROUP';
+  type: 'DIRECT' | 'GROUP' | 'CHANNEL';
   name?: string;
   memberUserIds: string[];
+  announcementOnly?: boolean;
+};
+
+type TeamUpload = {
+  originalname: string;
+  mimetype: string;
+  size: number;
+  buffer: Buffer;
 };
 
 type SendMessageInput = {
@@ -46,6 +58,34 @@ export class TeamService {
 
   private companyId() {
     return this.tenantContext.getCompanyId();
+  }
+
+  private uploadRoot() {
+    return process.env.TEAM_UPLOAD_DIR ?? join(process.cwd(), 'data', 'team-uploads');
+  }
+
+  private async requireCanPost(userId: string, conversationId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ announcementOnly: boolean; isAdmin: boolean }>>(
+      `SELECT
+         c.announcement_only AS "announcementOnly",
+         cm.is_admin AS "isAdmin"
+       FROM team_conversations c
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE c.id=$1::text
+         AND cm.user_id=$2::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      conversationId,
+      userId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const membership = rows[0];
+    if (!membership) throw new NotFoundException('Konuşma bulunamadı.');
+    if (membership.announcementOnly && !membership.isAdmin) {
+      throw new ForbiddenException('Bu duyuru kanalında yalnızca yöneticiler mesaj gönderebilir.');
+    }
   }
 
   private async requireActiveUser(userId: string) {
@@ -195,6 +235,7 @@ export class TeamService {
          c.id,
          c.type,
          c.name,
+         c.announcement_only AS "announcementOnly",
          c.created_at AS "createdAt",
          c.updated_at AS "updatedAt",
          COALESCE(
@@ -258,15 +299,32 @@ export class TeamService {
   async createConversation(currentUserId: string, input: CreateConversationInput) {
     await this.requireActiveUser(currentUserId);
 
-    const memberIds = [...new Set([currentUserId, ...input.memberUserIds])];
+    let memberIds = [...new Set([currentUserId, ...input.memberUserIds])];
+    if (input.type === 'CHANNEL' && input.memberUserIds.length === 0) {
+      const activeUsers = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
+        `SELECT DISTINCT u.id
+         FROM users u
+         JOIN memberships m ON m."userId"=u.id
+         WHERE m."tenantId"=$1::text
+           AND m."companyId"=$2::text
+           AND m.status='ACTIVE'`,
+        this.tenantId(),
+        this.companyId(),
+      );
+      memberIds = activeUsers.map((row) => row.id);
+    }
+
     if (input.type === 'DIRECT' && memberIds.length !== 2) {
       throw new BadRequestException('Birebir konuşma iki kullanıcıdan oluşmalıdır.');
     }
     if (input.type === 'GROUP' && memberIds.length < 3) {
       throw new BadRequestException('Grup konuşması en az üç kullanıcıdan oluşmalıdır.');
     }
-    if (input.type === 'GROUP' && !input.name?.trim()) {
-      throw new BadRequestException('Grup adı gereklidir.');
+    if ((input.type === 'GROUP' || input.type === 'CHANNEL') && !input.name?.trim()) {
+      throw new BadRequestException(input.type === 'CHANNEL' ? 'Kanal adı gereklidir.' : 'Grup adı gereklidir.');
+    }
+    if (input.announcementOnly && input.type !== 'CHANNEL') {
+      throw new BadRequestException('Duyuru modu yalnızca kanallarda kullanılabilir.');
     }
 
     const validRows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
@@ -311,14 +369,15 @@ export class TeamService {
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
         `INSERT INTO team_conversations(
-           tenant_id,company_id,type,name,created_by_user_id
-         ) VALUES($1::text,$2::text,$3,$4,$5::text)
+           tenant_id,company_id,type,name,created_by_user_id,announcement_only
+         ) VALUES($1::text,$2::text,$3,$4,$5::text,$6)
          RETURNING id`,
         this.tenantId(),
         this.companyId(),
         input.type,
-        input.type === 'GROUP' ? input.name?.trim() : null,
+        input.type === 'DIRECT' ? null : input.name?.trim(),
         currentUserId,
+        input.type === 'CHANNEL' ? Boolean(input.announcementOnly) : false,
       );
       const conversationId = rows[0]?.id;
       if (!conversationId) throw new BadRequestException('Konuşma oluşturulamadı.');
@@ -377,7 +436,23 @@ export class TeamService {
                AND receipts.user_id<>m.sender_user_id
                AND receipts.last_read_at IS NOT NULL
                AND receipts.last_read_at>=m.created_at
-           ) AS "readByCount"
+           ) AS "readByCount",
+           EXISTS(
+             SELECT 1
+             FROM team_message_pins pin
+             WHERE pin.conversation_id=m.conversation_id
+               AND pin.message_id=m.id
+           ) AS "isPinned",
+           COALESCE((
+             SELECT json_agg(json_build_object(
+               'id', a.id,
+               'originalName', a.original_name,
+               'mimeType', a.mime_type,
+               'sizeBytes', a.size_bytes
+             ) ORDER BY a.created_at)
+             FROM team_message_attachments a
+             WHERE a.message_id=m.id
+           ), '[]'::json) AS attachments
          FROM team_messages m
          JOIN users u ON u.id=m.sender_user_id
          WHERE m.conversation_id=$1::text
@@ -401,7 +476,7 @@ export class TeamService {
     conversationId: string,
     input: SendMessageInput,
   ) {
-    await this.requireConversationMember(currentUserId, conversationId);
+    await this.requireCanPost(currentUserId, conversationId);
 
     if (input.replyToMessageId) {
       const replyRows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
@@ -685,6 +760,172 @@ export class TeamService {
       if (await this.redis.get(key)) active.push(member);
     }
     return active;
+  }
+
+  async togglePin(currentUserId: string, messageId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT m.conversation_id AS "conversationId"
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND m.deleted_at IS NULL
+         AND cm.user_id=$2::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const row = rows[0];
+    if (!row) throw new NotFoundException('Mesaj bulunamadı.');
+
+    const existing = await this.prisma.$queryRawUnsafe<{ messageId: string }[]>(
+      `SELECT message_id AS "messageId"
+       FROM team_message_pins
+       WHERE conversation_id=$1::text AND message_id=$2::text
+       LIMIT 1`,
+      row.conversationId,
+      messageId,
+    );
+
+    if (existing.length) {
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM team_message_pins
+         WHERE conversation_id=$1::text AND message_id=$2::text`,
+        row.conversationId,
+        messageId,
+      );
+      return { pinned: false };
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO team_message_pins(conversation_id,message_id,pinned_by_user_id)
+       VALUES($1::text,$2::text,$3::text)`,
+      row.conversationId,
+      messageId,
+      currentUserId,
+    );
+    return { pinned: true };
+  }
+
+  async pinnedMessages(currentUserId: string, conversationId: string) {
+    await this.requireConversationMember(currentUserId, conversationId);
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         m.id,
+         m.body,
+         m.created_at AS "createdAt",
+         m.sender_user_id AS "senderUserId",
+         concat_ws(' ',u."firstName",u."lastName") AS "senderName",
+         pin.created_at AS "pinnedAt"
+       FROM team_message_pins pin
+       JOIN team_messages m ON m.id=pin.message_id
+       JOIN users u ON u.id=m.sender_user_id
+       WHERE pin.conversation_id=$1::text
+         AND m.deleted_at IS NULL
+       ORDER BY pin.created_at DESC
+       LIMIT 50`,
+      conversationId,
+    );
+  }
+
+  async addAttachment(currentUserId: string, messageId: string, file: TeamUpload) {
+    const allowed = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'application/pdf',
+      'text/plain',
+      'text/csv',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ]);
+    if (!allowed.has(file.mimetype)) {
+      throw new BadRequestException('Bu dosya türü desteklenmiyor.');
+    }
+    if (file.size <= 0 || file.size > 15 * 1024 * 1024) {
+      throw new BadRequestException('Dosya boyutu 15 MB sınırını aşamaz.');
+    }
+
+    const messages = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT m.id
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND m.sender_user_id=$2::text
+         AND m.deleted_at IS NULL
+         AND cm.user_id=$2::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!messages.length) throw new NotFoundException('Dosya eklenebilecek mesaj bulunamadı.');
+
+    const suffix = extname(file.originalname).toLowerCase().slice(0, 12);
+    const storageName = `${this.tenantId()}-${this.companyId()}-${randomUUID()}${suffix}`;
+    const root = this.uploadRoot();
+    await mkdir(root, { recursive: true });
+    await writeFile(join(root, storageName), file.buffer, { flag: 'wx' });
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO team_message_attachments(
+         tenant_id,company_id,message_id,uploaded_by_user_id,
+         original_name,storage_name,mime_type,size_bytes
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,$7,$8)
+       RETURNING id`,
+      this.tenantId(),
+      this.companyId(),
+      messageId,
+      currentUserId,
+      file.originalname.slice(0, 255),
+      storageName,
+      file.mimetype,
+      file.size,
+    );
+    return { id: rows[0]?.id };
+  }
+
+  async openAttachment(currentUserId: string, attachmentId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      storageName: string;
+      originalName: string;
+      mimeType: string;
+    }>>(
+      `SELECT
+         a.storage_name AS "storageName",
+         a.original_name AS "originalName",
+         a.mime_type AS "mimeType"
+       FROM team_message_attachments a
+       JOIN team_messages m ON m.id=a.message_id
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE a.id=$1::text
+         AND cm.user_id=$2::text
+         AND a.tenant_id=$3::text
+         AND a.company_id=$4::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      attachmentId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const attachment = rows[0];
+    if (!attachment) throw new NotFoundException('Dosya bulunamadı.');
+    return {
+      stream: createReadStream(join(this.uploadRoot(), attachment.storageName)),
+      originalName: attachment.originalName,
+      mimeType: attachment.mimeType,
+    };
   }
 
   async updatePresence(currentUserId: string, input: PresenceInput) {
