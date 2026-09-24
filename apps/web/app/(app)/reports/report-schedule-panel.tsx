@@ -29,6 +29,12 @@ const PRESETS: Array<{ value: ReportScheduleDatePreset; label: string }> = [
 
 const WEEKDAYS = ["Pazartesi", "Salı", "Çarşamba", "Perşembe", "Cuma", "Cumartesi", "Pazar"];
 
+const RUN_STATUS_LABELS: Record<ReportScheduleRun["status"], string> = {
+  CLAIMED: "İşleme alındı",
+  QUEUED: "Sırada",
+  FAILED: "Başarısız",
+};
+
 function formatDateTime(value: string | null) {
   if (!value) return "—";
   return new Intl.DateTimeFormat("tr-TR", {
@@ -224,9 +230,9 @@ export function ReportSchedulePanel({
               <div className="flex flex-wrap items-start justify-between gap-3">
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2"><span className="text-[12px] font-semibold text-[var(--ink)]">{schedule.name}</span><span className="text-[10px] text-[var(--muted-soft)]">{schedule.enabled ? "Aktif" : "Duraklatıldı"}</span></div>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">{catalog.find((item) => item.key === schedule.reportKey)?.title ?? schedule.reportKey} · {frequencyLabel(schedule)} · {String(schedule.localHour).padStart(2, "0")}:{String(schedule.localMinute).padStart(2, "0")} · {schedule.format}</p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">{catalog.find((item) => item.key === schedule.reportKey)?.title ?? "Rapor"} · {frequencyLabel(schedule)} · {String(schedule.localHour).padStart(2, "0")}:{String(schedule.localMinute).padStart(2, "0")} · {schedule.format}</p>
                   <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Sonraki: {formatDateTime(schedule.nextRunAt)} · Son çalışma: {formatDateTime(schedule.lastRunAt)}</p>
-                  {schedule.lastErrorCode ? <p className="mt-1 text-[9px] text-red-600">Son hata: {schedule.lastErrorCode}</p> : null}
+                  {schedule.lastErrorCode ? <p className="mt-1 text-[9px] text-red-600">Son çalıştırmada rapor oluşturulamadı.</p> : null}
                 </div>
                 <div className="flex gap-1">
                   <button type="button" onClick={() => void openHistory(schedule)} className="rounded-lg border border-[var(--line)] px-2 py-1 text-[10px] text-[var(--muted)]">Geçmiş</button>
@@ -237,7 +243,7 @@ export function ReportSchedulePanel({
               {historyId === schedule.id ? (
                 <div className="mt-3 border-t border-[var(--line)] pt-3">
                   {runsLoading ? <p className="text-[10px] text-[var(--muted)]">Çalıştırma geçmişi yükleniyor...</p> : runs.length === 0 ? <p className="text-[10px] text-[var(--muted)]">Henüz çalışma kaydı yok.</p> : (
-                    <div className="space-y-1.5">{runs.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 text-[10px]"><span className="text-[var(--muted)]">{formatDateTime(run.scheduledFor)}</span><span className={run.status === "FAILED" ? "text-red-600" : "text-[var(--ink)]"}>{run.status}{run.errorCode ? ` · ${run.errorCode}` : ""}</span></div>)}</div>
+                    <div className="space-y-1.5">{runs.map((run) => <div key={run.id} className="flex flex-wrap items-center justify-between gap-2 text-[10px]"><span className="text-[var(--muted)]">{formatDateTime(run.scheduledFor)}</span><span className={run.status === "FAILED" ? "text-red-600" : "text-[var(--ink)]"}>{RUN_STATUS_LABELS[run.status]}{run.errorCode ? " · Rapor oluşturulamadı" : ""}</span></div>)}</div>
                   )}
                 </div>
               ) : null}
