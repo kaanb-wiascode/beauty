@@ -238,7 +238,7 @@ export default function StaffPage() {
         </DataViewMeta>
       </DataView>
 
-      <Modal open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Personeli düzenle" : "Yeni Personel"} description="Personel özlük dosyasını adım adım oluşturun.">
+      <Modal size="xl" open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Personeli düzenle" : "Yeni Personel"} description="Personel özlük dosyasını adım adım oluşturun.">
         <StaffEditorForm
           form={form}
           step={step}
