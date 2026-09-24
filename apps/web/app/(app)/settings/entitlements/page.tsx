@@ -1,7 +1,9 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 import { api } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type Entitlement = {
   key: string;
@@ -50,8 +52,11 @@ export default function EntitlementsPage() {
           {data.items.map((item) => (
             <div key={item.key} className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
               <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="text-sm font-semibold text-[var(--ink)]">{item.name}</div>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="text-sm font-semibold text-[var(--ink)]">{item.name}</div>
+                    <CardInfo help={getCardHelp(item.name, item.description ?? "Abonelik planınızda bu özelliğin etkin değerini gösterir.")} />
+                  </div>
                 </div>
                 <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)]">{SOURCE_LABELS[item.source]}</span>
               </div>
