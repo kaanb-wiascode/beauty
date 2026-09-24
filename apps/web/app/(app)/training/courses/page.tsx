@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Select, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -366,15 +366,15 @@ export default function TrainingCoursesPage() {
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-[12px] font-medium text-[var(--muted)]">Kategori</span>
-                  <select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]">
+                  <Select value={form.category} onChange={(event) => setForm((current) => ({ ...current, category: event.target.value }))} className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]">
                     {Object.entries(CATEGORY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="block">
                   <span className="mb-2 block text-[12px] font-medium text-[var(--muted)]">Eğitim Tipi</span>
-                  <select value={form.deliveryType} onChange={(event) => setForm((current) => ({ ...current, deliveryType: event.target.value }))} className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]">
+                  <Select value={form.deliveryType} onChange={(event) => setForm((current) => ({ ...current, deliveryType: event.target.value }))} className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[13px] text-[var(--ink)] outline-none focus:border-[var(--accent)]">
                     {Object.entries(DELIVERY_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-                  </select>
+                  </Select>
                 </label>
                 <label className="block sm:col-span-2">
                   <span className="mb-2 block text-[12px] font-medium text-[var(--muted)]">Açıklama</span>
