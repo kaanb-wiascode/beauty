@@ -54,8 +54,8 @@ export class TeamService {
        FROM users u
        JOIN memberships m ON m."userId"=u.id
        WHERE u.id=$1::text
-         AND m.tenant_id=$2::text
-         AND m.company_id=$3::text
+         AND m."tenantId"=$2::text
+         AND m."companyId"=$3::text
          AND m.status='ACTIVE'
        LIMIT 1`,
       userId,
@@ -149,10 +149,10 @@ export class TeamService {
        JOIN roles r ON r.id=m."roleId"
        LEFT JOIN team_user_presence p
          ON p.user_id=u.id
-        AND p.tenant_id=m.tenant_id
-        AND p.company_id=m.company_id
-       WHERE m.tenant_id=$1::text
-         AND m.company_id=$2::text
+        AND p.tenant_id=m."tenantId"
+        AND p.company_id=m."companyId"
+       WHERE m."tenantId"=$1::text
+         AND m."companyId"=$2::text
          AND m.status='ACTIVE'
        ORDER BY
          CASE WHEN u.id=$3::text THEN 0 ELSE 1 END,
@@ -251,8 +251,8 @@ export class TeamService {
        FROM users u
        JOIN memberships m ON m."userId"=u.id
        WHERE u.id=ANY($1::text[])
-         AND m.tenant_id=$2::text
-         AND m.company_id=$3::text
+         AND m."tenantId"=$2::text
+         AND m."companyId"=$3::text
          AND m.status='ACTIVE'`,
       memberIds,
       this.tenantId(),
