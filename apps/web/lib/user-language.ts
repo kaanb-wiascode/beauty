@@ -158,6 +158,8 @@ const USER_LABELS: Record<string, string> = {
   PENDING_REVIEW: "İnceleme Bekliyor",
   NOT_STARTED: "Başlamadı",
   AVAILABLE: "Kullanılabilir",
+  RESERVED: "Ayrıldı",
+  CONSUMED: "Kullanıldı",
   UNAVAILABLE: "Kullanılamıyor",
   ENABLED: "Etkin",
   DISABLED: "Devre Dışı",
