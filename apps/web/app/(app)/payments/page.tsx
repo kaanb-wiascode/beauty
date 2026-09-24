@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
+import { CardInfo } from "@/components/card-info";
 import {
   DataView,
   DataViewMeta,
@@ -30,6 +31,7 @@ import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 
 type Payment = {
   id: string;
@@ -162,7 +164,10 @@ function Kpi({
   return (
     <article className="surface rounded-[20px] border border-[var(--line)] p-5">
       <Icon tone={tone}>{icon}</Icon>
-      <p className="mt-4 text-[11px] font-medium text-[var(--muted)]">{label}</p>
+      <div className="mt-4 flex items-start justify-between gap-3">
+        <p className="text-[11px] font-medium text-[var(--muted)]">{label}</p>
+        <CardInfo help={getCardHelp(label, detail)} />
+      </div>
       <p className="mt-1 text-[26px] font-semibold tracking-[-0.04em] text-[var(--ink)]">
         {value}
       </p>
