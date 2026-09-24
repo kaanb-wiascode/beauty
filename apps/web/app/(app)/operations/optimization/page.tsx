@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 
 import { Alert, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 
 type Recommendation = {
@@ -127,9 +129,9 @@ export default function OperationsOptimizationPage() {
 }
 
 function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">{label}</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></div>;
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></div>;
 }
 
 function Panel({ title, items, empty }: { title: string; items: Recommendation[]; empty: string }) {
-  return <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm"><h2 className="text-sm font-semibold text-[var(--ink)]">{title}</h2><div className="mt-4 space-y-3">{items.length ? items.map((item) => <div key={item.code} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4"><div className="flex items-center gap-2">{item.priority ? <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold">{item.priority}</span> : null}<p className="text-sm font-semibold text-[var(--ink)]">{item.title}</p></div>{item.explanation ? <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p> : null}<p className="mt-2 text-xs font-medium text-[var(--ink)]">Aksiyon: {item.suggestedAction}</p></div>) : <p className="text-sm text-[var(--muted)]">{empty}</p>}</div></section>;
+  return <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm"><div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title, "Operasyon verilerinden üretilen açıklanabilir önerileri gösterir.")} /></div><div className="mt-4 space-y-3">{items.length ? items.map((item) => <div key={item.code} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4"><div className="flex items-center gap-2">{item.priority ? <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold">{item.priority}</span> : null}<p className="text-sm font-semibold text-[var(--ink)]">{item.title}</p></div>{item.explanation ? <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p> : null}<p className="mt-2 text-xs font-medium text-[var(--ink)]">Aksiyon: {item.suggestedAction}</p></div>) : <p className="text-sm text-[var(--muted)]">{empty}</p>}</div></section>;
 }
