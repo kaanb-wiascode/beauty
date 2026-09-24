@@ -19,6 +19,7 @@ type Tab = "overview" | "trial" | "journals" | "accounts";
 
 const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
 const typeLabel: Record<string, string> = { ASSET: "Varlık", LIABILITY: "Yükümlülük", EQUITY: "Özkaynak", REVENUE: "Gelir", EXPENSE: "Gider" };
+const journalStatusLabel: Record<string, string> = { DRAFT: "Taslak", POSTED: "Muhasebeleştirildi" };
 
 export default function AccountingPage() {
   const { showToast } = useToast();
@@ -106,7 +107,7 @@ export default function AccountingPage() {
 
     {tab === "overview" ? <div className="grid gap-5 xl:grid-cols-2">
       <FinancePanel title="Gelir / Gider Dağılımı" description="Muhasebeleştirilmiş gelir ve gider hesapları">
-        <div className="space-y-2">{(income?.rows ?? []).slice(0, 12).map((row) => <Row key={row.accountId} label={`${row.code} · ${row.name}`} value={money.format(Number(row.amount))} detail={typeLabel[row.type] ?? row.type} />)}{!income?.rows?.length ? <EmptyState title="Gelir/gider hareketi yok" description="Muhasebeleştirilmiş gelir veya gider hesabı bulunmuyor." /> : null}</div>
+        <div className="space-y-2">{(income?.rows ?? []).slice(0, 12).map((row) => <Row key={row.accountId} label={`${row.code} · ${row.name}`} value={money.format(Number(row.amount))} detail={typeLabel[row.type] ?? userLabel(row.type)} />)}{!income?.rows?.length ? <EmptyState title="Gelir/gider hareketi yok" description="Muhasebeleştirilmiş gelir veya gider hesabı bulunmuyor." /> : null}</div>
       </FinancePanel>
       <FinancePanel title="Muhasebe Kontrolleri" description="Hızlı finansal bütünlük görünümü">
         <div className="space-y-2">
@@ -123,7 +124,7 @@ export default function AccountingPage() {
     </FinancePanel> : null}
 
     {tab === "journals" ? <FinancePanel title="Yevmiye Kayıtları" description="Taslak ve muhasebeleştirilmiş fişler">
-      <div className="space-y-3">{journals.map((entry) => <article key={entry.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px] text-[var(--ink)]">{entry.number}</strong><span className="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{userLabel(entry.status)}</span></div><p className="mt-1 text-[12px] text-[var(--muted)]">{entry.description}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(entry.entryDate))} · {entry.lines.length} satır</p></div>{entry.status === "DRAFT" && canManage ? <Button disabled={busy} onClick={() => void postJournal(entry.id)}>Muhasebeleştir</Button> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{entry.lines.map((line) => <div key={line.id} className="flex justify-between gap-3 rounded-[10px] bg-white/70 px-3 py-2 text-[10px]"><span className="truncate text-[var(--muted)]">{line.account.code} · {line.account.name}</span><span className="shrink-0 font-semibold text-[var(--ink)]">{Number(line.debit) > 0 ? `B ${money.format(Number(line.debit))}` : `A ${money.format(Number(line.credit))}`}</span></div>)}</div></article>)}{!journals.length ? <EmptyState title="Yevmiye kaydı yok" description="Aktif kapsamda yevmiye kaydı bulunmuyor." /> : null}</div>
+      <div className="space-y-3">{journals.map((entry) => <article key={entry.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px] text-[var(--ink)]">{entry.number}</strong><span className="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{journalStatusLabel[entry.status] ?? userLabel(entry.status)}</span></div><p className="mt-1 text-[12px] text-[var(--muted)]">{entry.description}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(entry.entryDate))} · {entry.lines.length} satır</p></div>{entry.status === "DRAFT" && canManage ? <Button disabled={busy} onClick={() => void postJournal(entry.id)}>Muhasebeleştir</Button> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{entry.lines.map((line) => <div key={line.id} className="flex justify-between gap-3 rounded-[10px] bg-white/70 px-3 py-2 text-[10px]"><span className="truncate text-[var(--muted)]">{line.account.code} · {line.account.name}</span><span className="shrink-0 font-semibold text-[var(--ink)]">{Number(line.debit) > 0 ? `B ${money.format(Number(line.debit))}` : `A ${money.format(Number(line.credit))}`}</span></div>)}</div></article>)}{!journals.length ? <EmptyState title="Yevmiye kaydı yok" description="Aktif kapsamda yevmiye kaydı bulunmuyor." /> : null}</div>
     </FinancePanel> : null}
 
     {tab === "accounts" ? <FinancePanel title="Hesap Planı" description="Şirket hesap planı ve hesap türleri">
