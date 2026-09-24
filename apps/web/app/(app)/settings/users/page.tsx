@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
@@ -200,8 +201,8 @@ export default function UsersPage() {
       <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
         <div className="grid gap-3 border-b border-[var(--line)] p-4 md:grid-cols-[1fr_220px_220px]">
           <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Ad, e-posta veya rol ara…" className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm" />
-          <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ALL">Tüm Roller</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select>
-          <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ALL">Tüm Durumlar</option><option value="ACTIVE">Aktif</option><option value="SUSPENDED">Askıda</option></select>
+          <Select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ALL">Tüm Roller</option>{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</Select>
+          <Select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ALL">Tüm Durumlar</option><option value="ACTIVE">Aktif</option><option value="SUSPENDED">Askıda</option></Select>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full min-w-[980px] text-left text-sm">
@@ -212,7 +213,7 @@ export default function UsersPage() {
                 const owner = membership.role.slug === "owner";
                 return <tr key={membership.id} className="border-b border-[var(--line)] last:border-0">
                   <td className="px-4 py-4"><div className="font-medium text-[var(--ink)]">{membership.user.firstName} {membership.user.lastName}</div><div className="text-xs text-[var(--muted)]">{membership.user.email}</div></td>
-                  <td className="px-4 py-4"><select disabled={busy || owner} value={membership.role.id} onChange={(event) => void changeRole(membership.id, event.target.value)} className="min-h-9 rounded-lg border border-[var(--line)] bg-white px-2 text-sm disabled:opacity-60">{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</select></td>
+                  <td className="px-4 py-4"><Select disabled={busy || owner} value={membership.role.id} onChange={(event) => void changeRole(membership.id, event.target.value)} className="min-h-9 rounded-lg border border-[var(--line)] bg-white px-2 text-sm disabled:opacity-60">{roles.map((role) => <option key={role.id} value={role.id}>{role.name}</option>)}</Select></td>
                   <td className="px-4 py-4"><span className={`rounded-full px-2.5 py-1 text-xs font-semibold ${membership.status === "ACTIVE" ? "bg-[#eaf7ef] text-[#378a5e]" : "bg-[#fff4e6] text-[#a66518]"}`}>{membership.status === "ACTIVE" ? "Aktif" : "Askıda"}</span></td>
                   <td className="px-4 py-4"><div className="flex justify-end gap-2"><button disabled={effectiveLoading} type="button" onClick={() => void openEffectivePermissions(membership.id)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium disabled:opacity-50">Erişim & Yetkiler</button>{!owner ? <button disabled={busy} type="button" onClick={() => void changeStatus(membership.id, membership.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE")} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-medium disabled:opacity-50">{membership.status === "ACTIVE" ? "Askıya Al" : "Aktifleştir"}</button> : null}{!owner ? <button disabled={busy} type="button" onClick={() => void removeMembership(membership)} className="rounded-lg border border-[#f0d8d8] px-3 py-2 text-xs font-medium text-[#9a4545] disabled:opacity-50">Kaldır</button> : null}</div></td>
                 </tr>;
