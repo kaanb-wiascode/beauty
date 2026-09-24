@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { CardInfo } from "@/components/card-info";
+import { DateTimePicker } from "@/components/date-time-picker";
 import {
   DataView,
   DataViewMeta,
@@ -691,8 +692,8 @@ export default function AppointmentsPage() {
           <Field label="Personel" required><Select value={form.staffId} onChange={(event) => setForm((current) => ({ ...current, staffId: event.target.value }))} disabled={loadingRefs}><option value="">Personel Seçin</option>{staff.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
           <Field label="Hizmet" required><Select value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))} disabled={loadingRefs}><option value="">Hizmet Seçin</option>{services.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
           {editing ? <Field label="Durum"><Select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as AppointmentStatus }))}><option value="SCHEDULED">Planlandı</option><option value="CONFIRMED">Onaylandı</option><option value="COMPLETED">Tamamlandı</option><option value="NO_SHOW">Gelmedi</option></Select></Field> : null}
-          <Field label="Başlangıç" required><TextInput type="datetime-local" value={form.startAt} onChange={(event) => setForm((current) => ({ ...current, startAt: event.target.value }))} /></Field>
-          <Field label="Bitiş" required><TextInput type="datetime-local" value={form.endAt} onChange={(event) => setForm((current) => ({ ...current, endAt: event.target.value }))} /></Field>
+          <Field label="Başlangıç" required><DateTimePicker value={form.startAt} max={form.endAt || undefined} ariaLabel="Randevu başlangıcı" onChange={(value) => setForm((current) => ({ ...current, startAt: value }))} /></Field>
+          <Field label="Bitiş" required><DateTimePicker value={form.endAt} min={form.startAt || undefined} ariaLabel="Randevu bitişi" onChange={(value) => setForm((current) => ({ ...current, endAt: value }))} /></Field>
           <div className="sm:col-span-2"><Field label="Not"><TextArea rows={3} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Randevuya Özel Not..." /></Field></div>
         </div>
         <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button><Button onClick={saveAppointment} disabled={saving}>{saving ? "Kaydediliyor..." : editing ? "Değişiklikleri Kaydet" : "Randevuyu Oluştur"}</Button></div>
