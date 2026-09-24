@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -149,12 +149,12 @@ export default function PurchaseOrderOriginsPage() {
 
       <div className="flex flex-col gap-3 rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-3 sm:flex-row">
         <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="PO, tedarikçi, depo veya kaynak ara..." className="min-h-10 flex-1 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)] outline-none focus:border-[var(--accent)]" />
-        <select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="min-h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
+        <Select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="min-h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
           <option value="">Tüm kaynaklar</option>
           <option value="SUPPLIER_OFFER">SupplierOffer</option>
           <option value="SUPPLIER_QUOTE">RFQ / SupplierQuote</option>
           <option value="LEGACY">Manuel / legacy</option>
-        </select>
+        </Select>
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_520px]">
