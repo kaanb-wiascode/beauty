@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { ApiError } from "@/lib/api";
 import {
@@ -90,15 +91,15 @@ export function TenantSubscriptionPanel({ tenantId }: { tenantId: string }) {
 
       <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-6">
         <label className="xl:col-span-2 text-[10px] text-white/45">Plan
-          <select value={planVersionId} onChange={(e) => setPlanVersionId(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white">
+          <Select value={planVersionId} onChange={(e) => setPlanVersionId(e.target.value)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white">
             <option value="">Plan seç</option>
             {activePlans.map((plan) => <option key={plan.versionId!} value={plan.versionId!}>{plan.name} · v{plan.version}</option>)}
-          </select>
+          </Select>
         </label>
         <label className="text-[10px] text-white/45">Durum
-          <select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white">
+          <Select value={status} onChange={(e) => setStatus(e.target.value as typeof status)} className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white">
             <option value="TRIAL">TRIAL</option><option value="ACTIVE">ACTIVE</option><option value="PAST_DUE">PAST_DUE</option>
-          </select>
+          </Select>
         </label>
         <label className="text-[10px] text-white/45">Aylık kontrat
           <input value={monthly} onChange={(e) => setMonthly(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border border-white/10 bg-black/25 px-3 py-2.5 text-xs text-white" />
