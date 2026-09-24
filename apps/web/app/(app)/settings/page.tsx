@@ -6,28 +6,28 @@ import { api } from "@/lib/api";
 import { userPermissionLabel } from "@/lib/user-language";
 
 const sections = [
-  { href: "/settings/users", title: "Kullanıcılar", description: "İşletme Üyeliklerini, Rolleri Ve Erişim Durumlarını Yönetin.", glyph: "◎" },
-  { href: "/settings/invitations", title: "Kullanıcı Davetleri", description: "Tek kullanımlık ve süreli davetlerle yeni kullanıcıların sisteme güvenli şekilde katılmasını yönetin.", glyph: "+" },
-  { href: "/settings/temporary-access", title: "Geçici Erişim", description: "Süreli, Şube Kapsamlı Ve Denetlenebilir Ek Yetkileri Yönetin.", glyph: "◷" },
-  { href: "/settings/break-glass", title: "Acil Erişim", description: "Parola ve iki aşamalı doğrulama ile açılan, en fazla 60 dakika süren acil yetkileri yönetin.", glyph: "!" },
-  { href: "/settings/permission-simulation", title: "Yetki Simülasyonu", description: "Bir Kullanıcının Etkin Rol, Şube, Geçici Ve Yüksek Riskli Yetkilerini Güvenli Şekilde Önizleyin.", glyph: "◉" },
-  { href: "/settings/field-security", title: "Alan Güvenliği", description: "T.C. kimlik numarası, IBAN, ücret ve bordro gibi hassas alanları özel yetki kurallarıyla koruyun.", glyph: "▤" },
-  { href: "/settings/security", title: "Güvenlik Merkezi", description: "Aktif Oturumları İzleyin, Riskli Oturumları Uzaktan Kapatın Ve Hesap Güvenliğini Yönetin.", glyph: "□" },
-  { href: "/settings/roles", title: "Roller Ve Yetkiler", description: "Ekibinizin Erişim Seviyelerini, Rollerini Ve Sistem Yetkilerini Yönetin.", glyph: "◇" },
-  { href: "/settings/role-templates", title: "Rol Şablonları", description: "Hazır Başlangıç Reçetelerinden Şirkete Ait Özelleştirilebilir Roller Oluşturun.", glyph: "◇*" },
-  { href: "/settings/role-clone", title: "Rol Klonlama", description: "Mevcut bir rolün kapsam ve yetkilerini temel alarak şirkete özel yeni roller oluşturun.", glyph: "◇+" },
-  { href: "/settings/approval-workflows", title: "Onay Akışları", description: "Finans, İnsan Kaynakları ve operasyonlar için merkezi ve sürümlenebilir onay kuralları tanımlayın.", glyph: "⇢" },
-  { href: "/settings/approval-inbox", title: "Onay Kutusu", description: "Bekleyen Merkezi Onay Taleplerini İnceleyin, Onaylayın Veya Reddedin.", glyph: "✓" },
-  { href: "/settings/approval-delegations", title: "Onay Vekaletleri", description: "Geçici onay vekaletlerini işlem alanı, süre ve gerekçeye göre yönetin.", glyph: "↔" },
-  { href: "/settings/sod-policies", title: "Görevlerin Ayrılığı", description: "Talep eden ve onaylayan kişilerin aynı kişi olmasını veya yetki çakışmalarını işlem alanına göre yönetin.", glyph: "≠" },
-  { href: "/settings/business-policies", title: "İş Politikaları", description: "İndirim, İade, Masraf Ve Benzeri İş Kurallarını Yetkiden Ayrı Olarak Versiyonlayın.", glyph: "ƒ" },
+  { href: "/settings/users", title: "Kullanıcılar", description: "İşletme üyeliklerini, rolleri ve erişim durumlarını yönetin.", glyph: "◎" },
+  { href: "/settings/invitations", title: "Kullanıcı davetleri", description: "Tek kullanımlık ve süreli davetlerle yeni kullanıcıların sisteme güvenli şekilde katılmasını yönetin.", glyph: "+" },
+  { href: "/settings/temporary-access", title: "Geçici erişim", description: "Süreli, şube kapsamlı ve denetlenebilir ek yetkileri yönetin.", glyph: "◷" },
+  { href: "/settings/break-glass", title: "Acil erişim", description: "Parola ve iki aşamalı doğrulama ile açılan, en fazla 60 dakika süren acil yetkileri yönetin.", glyph: "!" },
+  { href: "/settings/permission-simulation", title: "Yetki simülasyonu", description: "Bir kullanıcının etkin rol, şube, geçici ve yüksek riskli yetkilerini güvenli şekilde önizleyin.", glyph: "◉" },
+  { href: "/settings/field-security", title: "Alan güvenliği", description: "T.C. kimlik numarası, IBAN, ücret ve bordro gibi hassas alanları özel yetki kurallarıyla koruyun.", glyph: "▤" },
+  { href: "/settings/security", title: "Güvenlik merkezi", description: "Aktif oturumları izleyin, riskli oturumları uzaktan kapatın ve hesap güvenliğini yönetin.", glyph: "□" },
+  { href: "/settings/roles", title: "Roller ve yetkiler", description: "Ekibinizin erişim seviyelerini, rollerini ve sistem yetkilerini yönetin.", glyph: "◇" },
+  { href: "/settings/role-templates", title: "Rol şablonları", description: "Hazır başlangıç şablonlarından şirkete özel roller oluşturun.", glyph: "◇*" },
+  { href: "/settings/role-clone", title: "Rol kopyalama", description: "Mevcut bir rolün kapsam ve yetkilerini temel alarak şirkete özel yeni roller oluşturun.", glyph: "◇+" },
+  { href: "/settings/approval-workflows", title: "Onay akışları", description: "Finans, insan kaynakları ve operasyonlar için merkezi ve sürümlenebilir onay kuralları tanımlayın.", glyph: "⇢" },
+  { href: "/settings/approval-inbox", title: "Onay kutusu", description: "Bekleyen merkezi onay taleplerini inceleyin, onaylayın veya reddedin.", glyph: "✓" },
+  { href: "/settings/approval-delegations", title: "Onay vekaletleri", description: "Geçici onay vekaletlerini işlem alanı, süre ve gerekçeye göre yönetin.", glyph: "↔" },
+  { href: "/settings/sod-policies", title: "Görevlerin ayrılığı", description: "Talep eden ve onaylayan kişilerin aynı kişi olmasını veya yetki çakışmalarını işlem alanına göre yönetin.", glyph: "≠" },
+  { href: "/settings/business-policies", title: "İş politikaları", description: "İndirim, iade, masraf ve benzeri iş kurallarını yetkilerden ayrı olarak sürümlendirin.", glyph: "ƒ" },
   { href: "/settings/numbering", title: "Numaralandırma", description: "Belge numaralarını şirket, şube ve yıla göre güvenli ve çakışmasız şekilde yönetin.", glyph: "№" },
-  { href: "/settings/notifications", title: "Bildirim Politikaları", description: "İş Olaylarının Hangi Kitlelere Hangi Kanallardan Bildirileceğini Yönetin.", glyph: "◫" },
-  { href: "/settings/entitlements", title: "Plan Özellikleri", description: "Abonelik planınızla kullanılabilen özellikleri ve modülleri görüntüleyin.", glyph: "◆" },
-  { href: "/settings/integrations", title: "Entegrasyonlar", description: "Bankacılık Ve Ödeme Entegrasyonlarının Sağlık, Senkronizasyon Ve Yapılandırma Durumunu İzleyin.", glyph: "∞" },
-  { href: "/settings/privacy", title: "Veri & Gizlilik", description: "Veri saklama sürelerini ve veri taleplerini kayıt altına alınan bir yönetim süreciyle yönetin.", glyph: "◌" },
-  { href: "/settings/organization", title: "Şirket Ve Şubeler", description: "Şirket Kapsamını, Şubeleri Ve Organizasyon Kullanımını Görüntüleyin.", glyph: "▦" },
-  { href: "/settings/audit", title: "Denetim Kayıtları", description: "Kritik Yönetim Değişikliklerini, Aktörleri Ve Önce/Sonra Durumlarını İnceleyin.", glyph: "≋" },
+  { href: "/settings/notifications", title: "Bildirim politikaları", description: "İş olaylarının hangi kitlelere hangi kanallardan bildirileceğini yönetin.", glyph: "◫" },
+  { href: "/settings/entitlements", title: "Plan özellikleri", description: "Abonelik planınızla kullanılabilen özellikleri ve modülleri görüntüleyin.", glyph: "◆" },
+  { href: "/settings/integrations", title: "Entegrasyonlar", description: "Bankacılık ve ödeme entegrasyonlarının bağlantı sağlığını, veri güncelleme ve yapılandırma durumunu izleyin.", glyph: "∞" },
+  { href: "/settings/privacy", title: "Veri ve gizlilik", description: "Veri saklama sürelerini ve veri taleplerini kayıt altına alınan bir yönetim süreciyle yönetin.", glyph: "◌" },
+  { href: "/settings/organization", title: "Şirket ve şubeler", description: "Şirket kapsamını, şubeleri ve organizasyon kullanımını görüntüleyin.", glyph: "▦" },
+  { href: "/settings/audit", title: "Denetim kayıtları", description: "Kritik yönetim değişikliklerini, işlemi yapan kişileri ve önceki/sonraki durumları inceleyin.", glyph: "≋" },
 ];
 
 type Dashboard = {
@@ -68,7 +68,7 @@ export default function SettingsPage() {
       {dashboard && (
         <section className="space-y-3">
           <div>
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Yapılandırma Sağlığı</h2>
+            <h2 className="text-sm font-semibold text-[var(--ink)]">Yapılandırma sağlığı</h2>
             <p className="mt-1 text-xs text-[var(--muted)]">Erişim, güvenlik ve entegrasyon tarafındaki dikkat gerektiren yönetim sinyalleri.</p>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
@@ -81,7 +81,7 @@ export default function SettingsPage() {
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <div className="text-xs font-semibold text-[var(--ink)]">Erişim Riskleri</div>
+              <div className="text-xs font-semibold text-[var(--ink)]">Erişim riskleri</div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[var(--muted)]">
                 <div>Tüm şirketi görebilen kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.broadCentral}</strong></div>
                 <div>24 saatte bitecek erişim <strong className="ml-1 text-[var(--ink)]">{dashboard.temporaryAccess.expiringSoon}</strong></div>
@@ -90,7 +90,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <div className="text-xs font-semibold text-[var(--ink)]">Son Yönetim Değişiklikleri</div>
+              <div className="text-xs font-semibold text-[var(--ink)]">Son yönetim değişiklikleri</div>
               <div className="mt-3 space-y-2">
                 {dashboard.recentAudit.length === 0 ? <div className="text-xs text-[var(--muted)]">Henüz kayıt yok.</div> : dashboard.recentAudit.slice(0, 5).map((event) => (
                   <div key={event.id} className="flex items-center justify-between gap-3 text-xs">
@@ -106,8 +106,8 @@ export default function SettingsPage() {
 
       <section aria-labelledby="settings-sections" className="space-y-3">
         <div>
-          <h2 id="settings-sections" className="text-sm font-semibold text-[var(--ink)]">Erişim Ve Güvenlik Yönetimi</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">Kullanıcıları, Organizasyon Kapsamını, Yetkilendirme Yapısını Ve Kritik Yönetim Değişikliklerini Ayrı Yönetim Alanlarından Yönetin.</p>
+          <h2 id="settings-sections" className="text-sm font-semibold text-[var(--ink)]">Erişim ve güvenlik yönetimi</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">Kullanıcıları, organizasyon kapsamını, yetkilendirme yapısını ve kritik yönetim değişikliklerini ayrı yönetim alanlarından yönetin.</p>
         </div>
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {sections.map((section) => (
