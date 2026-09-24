@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
+import { DateTimePicker } from "@/components/date-time-picker";
 import {
   CheckboxField,
   FormActions,
@@ -455,21 +456,26 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
           <FormSection className="mt-5" title="Zaman" description="Randevunun başlangıç ve bitiş saatini belirleyin.">
             <FormGrid>
               <Field label="Başlangıç" required>
-                <TextInput
-                  type="datetime-local"
-                  required
+                <DateTimePicker
                   value={appointment.startAt}
-                  onChange={(event) =>
+                  max={appointment.endAt || undefined}
+                  ariaLabel="Randevu başlangıcı"
+                  onChange={(value) =>
                     setAppointment((current) => ({
                       ...current,
-                      startAt: event.target.value,
-                      endAt: addMinutes(event.target.value, selectedService?.durationMinutes ?? 60),
+                      startAt: value,
+                      endAt: addMinutes(value, selectedService?.durationMinutes ?? 60),
                     }))
                   }
                 />
               </Field>
               <Field label="Bitiş" required>
-                <TextInput type="datetime-local" required value={appointment.endAt} onChange={(event) => setAppointment((current) => ({ ...current, endAt: event.target.value }))} />
+                <DateTimePicker
+                  value={appointment.endAt}
+                  min={appointment.startAt || undefined}
+                  ariaLabel="Randevu bitişi"
+                  onChange={(value) => setAppointment((current) => ({ ...current, endAt: value }))}
+                />
               </Field>
             </FormGrid>
             <Field label="Not">
