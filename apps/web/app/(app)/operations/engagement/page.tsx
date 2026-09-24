@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -140,11 +140,11 @@ export default function OperationsEngagementPage() {
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Hatırlatma, Onay & Follow-up</h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Operations yalnız randevu onay durumunu ve kaynak bağlantısını yönetir. Mesaj gönderimi, consent, provider ve idempotency CRM altyapısında kalır.</p>
         <label className="mt-4 block max-w-xs text-xs font-semibold text-[var(--muted)]">İletişim kanalı
-          <select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={channel} onChange={(event) => setChannel(event.target.value as Channel)}>
+          <Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" value={channel} onChange={(event) => setChannel(event.target.value as Channel)}>
             <option value="WHATSAPP">WhatsApp</option>
             <option value="SMS">SMS</option>
             <option value="EMAIL">E-posta</option>
-          </select>
+          </Select>
         </label>
       </header>
 
