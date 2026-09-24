@@ -42,6 +42,7 @@ type Conversation = {
   } | null;
 };
 
+type Reaction = { emoji: string; count: number; reactedByMe: boolean };
 type Message = {
   id: string;
   body: string;
@@ -50,7 +51,22 @@ type Message = {
   replyToMessageId: string | null;
   editedAt: string | null;
   createdAt: string;
+  reactions: Reaction[];
+  readByCount: number;
 };
+
+type ConversationMember = {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  roleName: string;
+  isAdmin: boolean;
+  joinedAt: string;
+  lastReadAt: string | null;
+};
+
+type TypingUser = { id: string; firstName: string; lastName: string };
 
 const STATUS_LABELS: Record<PresenceStatus, string> = {
   AVAILABLE: "Müsait",
@@ -108,7 +124,12 @@ export default function TeamPage() {
   const [composeType, setComposeType] = useState<"DIRECT" | "GROUP">("DIRECT");
   const [groupName, setGroupName] = useState("");
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
+  const [conversationMembers, setConversationMembers] = useState<ConversationMember[]>([]);
+  const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
+  const [replyTo, setReplyTo] = useState<Message | null>(null);
+  const [editingMessage, setEditingMessage] = useState<Message | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
+  const typingTimerRef = useRef<number | null>(null);
 
   const active = useMemo(
     () => conversations.find((conversation) => conversation.id === activeId) ?? null,
@@ -140,6 +161,24 @@ export default function TeamPage() {
     }
   }, [activeId, currentUser?.id]);
 
+  const loadConversationMembers = useCallback(async (conversationId: string) => {
+    try {
+      const result = await api<ConversationMember[]>(`/team/conversations/${conversationId}/members`);
+      setConversationMembers(result);
+    } catch {
+      setConversationMembers([]);
+    }
+  }, []);
+
+  const loadTyping = useCallback(async (conversationId: string) => {
+    try {
+      const result = await api<TypingUser[]>(`/team/conversations/${conversationId}/typing`);
+      setTypingUsers(result);
+    } catch {
+      setTypingUsers([]);
+    }
+  }, []);
+
   const loadMessages = useCallback(async (conversationId: string, silent = false) => {
     if (!silent) setMessagesLoading(true);
     try {
@@ -167,13 +206,20 @@ export default function TeamPage() {
       return;
     }
     void loadMessages(activeId);
-  }, [activeId, loadMessages]);
+    void loadConversationMembers(activeId);
+    void loadTyping(activeId);
+    setReplyTo(null);
+    setEditingMessage(null);
+  }, [activeId, loadMessages, loadConversationMembers, loadTyping]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
       void loadOverview(true);
-      if (activeId) void loadMessages(activeId, true);
-    }, 5000);
+      if (activeId) {
+        void loadMessages(activeId, true);
+        void loadTyping(activeId);
+      }
+    }, 3000);
     return () => window.clearInterval(timer);
   }, [activeId, loadMessages, loadOverview]);
 
@@ -190,14 +236,19 @@ export default function TeamPage() {
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (!activeId || !messageText.trim() || sending) return;
+    if (editingMessage) {
+      await saveEditedMessage();
+      return;
+    }
     const body = messageText.trim();
     setSending(true);
     setMessageText("");
     try {
       await api(`/team/conversations/${activeId}/messages`, {
         method: "POST",
-        body: { body },
+        body: { body, ...(replyTo ? { replyToMessageId: replyTo.id } : {}) },
       });
+      setReplyTo(null);
       await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
     } catch (err) {
       setMessageText(body);
@@ -205,6 +256,52 @@ export default function TeamPage() {
     } finally {
       setSending(false);
     }
+  }
+
+  function signalTyping(value: string) {
+    setMessageText(value);
+    if (!activeId) return;
+    void api(`/team/conversations/${activeId}/typing`, { method: "POST", body: { typing: true } }).catch(() => undefined);
+    if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+    typingTimerRef.current = window.setTimeout(() => {
+      void api(`/team/conversations/${activeId}/typing`, { method: "POST", body: { typing: false } }).catch(() => undefined);
+    }, 1800);
+  }
+
+  async function toggleReaction(messageId: string, emoji: string) {
+    try {
+      await api(`/team/messages/${messageId}/reactions`, { method: "POST", body: { emoji } });
+      if (activeId) await loadMessages(activeId, true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Tepki güncellenemedi.");
+    }
+  }
+
+  async function removeMessage(messageId: string) {
+    try {
+      await api(`/team/messages/${messageId}`, { method: "DELETE" });
+      if (activeId) await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Mesaj silinemedi.");
+    }
+  }
+
+  async function saveEditedMessage() {
+    if (!editingMessage || !messageText.trim()) return;
+    try {
+      await api(`/team/messages/${editingMessage.id}`, { method: "PATCH", body: { body: messageText.trim() } });
+      setEditingMessage(null);
+      setMessageText("");
+      if (activeId) await loadMessages(activeId, true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Mesaj düzenlenemedi.");
+    }
+  }
+
+  function startEditing(message: Message) {
+    setEditingMessage(message);
+    setReplyTo(null);
+    setMessageText(message.body);
   }
 
   function toggleUser(userId: string) {
@@ -352,10 +449,28 @@ export default function TeamPage() {
                       const mine = message.senderUserId === currentUser?.id;
                       return (
                         <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                          <div className={`max-w-[76%] rounded-[18px] px-4 py-3 ${mine ? "bg-[var(--ink)] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
+                          <div className={`group/message max-w-[76%] rounded-[18px] px-4 py-3 ${mine ? "bg-[var(--ink)] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
                             {!mine ? <p className="mb-1 text-[9px] font-semibold text-[#7458c8]">{message.senderName}</p> : null}
+                            {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[#9c86e8] bg-[#faf8ff] text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
                             <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
-                            <p className={`mt-1.5 text-right text-[9px] ${mine ? "text-white/60" : "text-[var(--muted-soft)]"}`}>{timeLabel(message.createdAt)}</p>
+                            <div className="mt-2 flex flex-wrap items-center gap-1">
+                              {(message.reactions ?? []).map((reaction) => (
+                                <button key={reaction.emoji} type="button" onClick={() => void toggleReaction(message.id, reaction.emoji)} className={`rounded-full px-2 py-0.5 text-[10px] ${reaction.reactedByMe ? "bg-[#efe9ff] text-[#694cc0]" : mine ? "bg-white/10 text-white/80" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
+                                  {reaction.emoji} {reaction.count}
+                                </button>
+                              ))}
+                            </div>
+                            <div className="mt-1.5 flex items-center justify-end gap-2">
+                              {mine && message.readByCount > 0 ? <span className="text-[9px] text-white/55">Okundu · {message.readByCount}</span> : null}
+                              {message.editedAt ? <span className={`text-[9px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>düzenlendi</span> : null}
+                              <span className={`text-[9px] ${mine ? "text-white/60" : "text-[var(--muted-soft)]"}`}>{timeLabel(message.createdAt)}</span>
+                            </div>
+                            <div className={`mt-2 flex flex-wrap gap-1 border-t pt-2 ${mine ? "border-white/10" : "border-[var(--line)]"}`}>
+                              <button type="button" onClick={() => setReplyTo(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>Yanıtla</button>
+                              {["👍","❤️","👏"].map((emoji) => <button key={emoji} type="button" onClick={() => void toggleReaction(message.id, emoji)} className="text-[11px]">{emoji}</button>)}
+                              {mine ? <button type="button" onClick={() => startEditing(message)} className="ml-1 text-[9px] font-semibold text-white/65">Düzenle</button> : null}
+                              {mine ? <button type="button" onClick={() => void removeMessage(message.id)} className="text-[9px] font-semibold text-rose-300">Sil</button> : null}
+                            </div>
                           </div>
                         </div>
                       );
@@ -373,17 +488,31 @@ export default function TeamPage() {
               </div>
 
               <form onSubmit={sendMessage} className="border-t border-[var(--line)] bg-white p-4">
+                {typingUsers.length ? (
+                  <p className="mb-2 px-1 text-[10px] font-medium text-[#7657e8]">
+                    {typingUsers.map((user) => user.firstName).join(", ")} yazıyor...
+                  </p>
+                ) : null}
+                {replyTo || editingMessage ? (
+                  <div className="mb-2 flex items-start justify-between rounded-[12px] border border-[#e9e2ff] bg-[#faf8ff] px-3 py-2">
+                    <div className="min-w-0">
+                      <p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#7657e8]">{editingMessage ? "Mesaj düzenleniyor" : `${replyTo?.senderName ?? ""} kişisine yanıt`}</p>
+                      <p className="mt-1 truncate text-[10px] text-[var(--muted)]">{editingMessage?.body ?? replyTo?.body}</p>
+                    </div>
+                    <button type="button" onClick={() => { setReplyTo(null); setEditingMessage(null); setMessageText(""); }} className="ml-3 text-[11px] font-semibold text-[var(--muted)]">×</button>
+                  </div>
+                ) : null}
                 <div className="flex items-end gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-2">
                   <textarea
                     value={messageText}
-                    onChange={(event) => setMessageText(event.target.value)}
+                    onChange={(event) => signalTyping(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
                         event.currentTarget.form?.requestSubmit();
                       }
                     }}
-                    placeholder="Mesajınızı yazın..."
+                    placeholder={editingMessage ? "Mesajı düzenleyin..." : replyTo ? "Yanıtınızı yazın..." : "Mesajınızı yazın..."}
                     className="min-h-[44px] max-h-32 flex-1 resize-none bg-transparent px-2 py-2 text-[12px] text-[var(--ink)] outline-none placeholder:text-[var(--muted-soft)]"
                   />
                   <button
@@ -409,6 +538,25 @@ export default function TeamPage() {
         </main>
 
         <aside className="border-t border-[var(--line)] xl:border-l xl:border-t-0">
+          {active?.type === "GROUP" ? (
+            <div className="border-b border-[var(--line)]">
+              <div className="px-4 py-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Grup Üyeleri</p>
+                <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{conversationMembers.length} kişi</p>
+              </div>
+              <div className="max-h-[220px] overflow-y-auto px-2 pb-3">
+                {conversationMembers.map((member) => (
+                  <div key={member.id} className="flex items-center gap-3 rounded-[12px] px-2 py-2">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1edff] text-[9px] font-semibold text-[#6f54c7]">{initials(member.firstName, member.lastName)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
+                      <p className="truncate text-[9px] text-[var(--muted)]">{member.isAdmin ? "Grup yöneticisi" : member.roleName}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
           <div className="border-b border-[var(--line)] px-4 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Ekip Durumu</p>
             <p className="mt-1 text-[11px] text-[var(--muted-soft)]">{people.filter((person) => person.isOnline).length} kişi çevrim içi</p>
