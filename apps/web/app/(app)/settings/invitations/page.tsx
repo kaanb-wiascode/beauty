@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
@@ -194,14 +195,14 @@ export default function InvitationsPage() {
             <input value={email} onChange={(event) => setEmail(event.target.value)} type="email" placeholder="kullanici@sirket.com" className="block min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--ink)]" />
           </label>
           <label className="space-y-1.5 text-xs font-medium text-[var(--muted)]">Rol
-            <select value={roleId} onChange={(event) => setRoleId(event.target.value)} className="block min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--ink)]">
+            <Select value={roleId} onChange={(event) => setRoleId(event.target.value)} className="block min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--ink)]">
               {roles.map((role) => <option key={role.id} value={role.id}>{role.name} · {role.scope}</option>)}
-            </select>
+            </Select>
           </label>
           <label className="space-y-1.5 text-xs font-medium text-[var(--muted)]">Geçerlilik
-            <select value={expiresInHours} onChange={(event) => setExpiresInHours(Number(event.target.value))} className="block min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--ink)]">
+            <Select value={expiresInHours} onChange={(event) => setExpiresInHours(Number(event.target.value))} className="block min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm text-[var(--ink)]">
               <option value={24}>24 saat</option><option value={72}>3 gün</option><option value={168}>7 gün</option>
-            </select>
+            </Select>
           </label>
         </div>
 
