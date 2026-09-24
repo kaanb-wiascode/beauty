@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 
 type StaffMetric = {
@@ -208,7 +210,10 @@ export function OperationsUtilizationPanel() {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[16px] bg-[var(--surface-2)] p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p>
+        <CardInfo help={getCardHelp(label, "Seçilen operasyon penceresine göre hesaplanan kullanım göstergesini gösterir.")} />
+      </div>
       <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[var(--ink)]">{value}</p>
     </div>
   );
