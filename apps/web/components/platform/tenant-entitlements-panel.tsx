@@ -1,5 +1,6 @@
 "use client";
 
+import { DateTimePicker } from "@/components/date-time-picker";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui";
 
@@ -139,7 +140,7 @@ export function TenantEntitlementsPanel({ tenantId }: { tenantId: string }) {
             {items.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
           </Select>
           <input value={rawValue} onChange={(event) => setRawValue(event.target.value)} placeholder={selected?.valueType === "BOOLEAN" ? "Evet / Hayır" : "Değer"} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
-          <input type="datetime-local" value={endsAt} onChange={(event) => setEndsAt(event.target.value)} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
+          <DateTimePicker value={endsAt} onChange={setEndsAt} ariaLabel="Özel ayar bitiş tarihi" />
           <input value={reason} onChange={(event) => setReason(event.target.value)} placeholder="Gerekçe (en az 8 karakter)" className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
           <button type="button" disabled={busy || !selected || reason.trim().length < 8} onClick={() => void submitOverride()} className="rounded-xl bg-violet-400 px-4 py-2 text-xs font-semibold text-black disabled:opacity-40">
             Özel ayar ekle
