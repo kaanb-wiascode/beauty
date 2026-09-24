@@ -146,7 +146,7 @@ export default function PublicMarketplacePage() {
           <div>
             <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[#1674BD]">{branch.name}</p>
             <h1 className="mt-3 max-w-3xl text-[38px] font-semibold leading-[1.05] tracking-[-.05em] sm:text-[52px]">Kendin İçin Doğru Hizmeti Seç.</h1>
-            <p className="mt-5 max-w-2xl text-[15px] leading-7 text-[#706a64]">{company.name} · {branch.name} Tarafından Sunulan Aktif Hizmetleri, Sürelerini Ve Güncel Fiyatlarını İnceleyin.</p>
+            <p className="mt-5 max-w-2xl text-[15px] leading-7 text-[#706a64]">{company.name} · {branch.name} tarafından sunulan aktif hizmetleri, sürelerini ve güncel fiyatlarını inceleyin.</p>
             <div className="mt-6 flex flex-wrap gap-2 text-[11px] text-[#6d6761]">
               {branch.address ? <Pill>{branch.address}</Pill> : null}
               {branch.phone ? <Pill>{branch.phone}</Pill> : null}
