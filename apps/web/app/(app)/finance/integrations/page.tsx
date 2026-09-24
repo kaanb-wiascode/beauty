@@ -1,10 +1,10 @@
 "use client";
 
-import { Select, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { FormActions, FormGrid, FormHint, FormSection } from "@/components/form-system";
-import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, Spinner, TextInput, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
 
