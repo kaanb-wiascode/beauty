@@ -14,7 +14,7 @@ export const metadata: Metadata = {
     default: "VALOO",
     template: "%s | VALOO",
   },
-  description: "Güzellik ve hizmet işletmeleri için operasyon, CRM ve ERP platformu.",
+  description: "İşletmeler için operasyon, müşteri ilişkileri, finans, insan kaynakları ve yönetim platformu.",
 };
 
 export default function RootLayout({
