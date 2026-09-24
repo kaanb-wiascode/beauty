@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 import { api, ApiError } from "@/lib/api";
 import type { InventorySupplier } from "@/lib/inventory-types";
 
@@ -194,7 +195,7 @@ export default function SupplierNetworkPage() {
     <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
       <PageHeader
         title="Tedarikçi Ağı"
-        description="Şirketinizdeki Tedarikçi Kayıtlarını VALOO Üzerindeki Doğrulanmış Tedarikçilerle Eşleştirin Ve Bağlantıları Tek Ekrandan Yönetin."
+        description="Şirketinizdeki tedarikçi kayıtlarını VALOO üzerindeki doğrulanmış tedarikçilerle eşleştirin ve bağlantıları tek ekrandan yönetin."
         action={
           <Link
             href="/inventory"
@@ -219,7 +220,7 @@ export default function SupplierNetworkPage() {
           <div className="flex items-center justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
             <div>
               <h2 className="text-[15px] font-semibold text-[var(--ink)]">Aktif Bağlantılar</h2>
-              <p className="mt-1 text-[11px] text-[var(--muted)]">Şirketinizdeki Tedarikçi Eşleştirmeleri</p>
+              <p className="mt-1 text-[11px] text-[var(--muted)]">Şirketinizdeki tedarikçi eşleştirmeleri</p>
             </div>
             <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">
               {connections.length} Kayıt
@@ -261,7 +262,7 @@ export default function SupplierNetworkPage() {
                     </div>
 
                     <div className="lg:text-right">
-                      <StatusBadge status={connection.status} label="Aktif" />
+                      <StatusBadge status={connection.status} label={userLabel(connection.status)} />
                       <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{formatDate(connection.updatedAt)}</p>
                     </div>
                   </article>
@@ -271,7 +272,7 @@ export default function SupplierNetworkPage() {
           ) : (
             <EmptyState
               title="Henüz Bağlantı Yok"
-              description="Bir Tedarikçi Kaydını Platformdaki Doğrulanmış Tedarikçiyle Eşleştirdiğinizde Burada Görünecek."
+              description="Bir tedarikçi kaydını platformdaki doğrulanmış tedarikçiyle eşleştirdiğinizde burada görünür."
             />
           )}
         </section>
@@ -280,7 +281,7 @@ export default function SupplierNetworkPage() {
           <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
             <div className="mb-5">
               <h2 className="text-[15px] font-semibold text-[var(--ink)]">Platforma Bağla</h2>
-              <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Mevcut Tedarikçi Kaydınızı VALOO Üzerindeki Tedarikçiyle Eşleştirin.</p>
+              <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Mevcut tedarikçi kaydınızı VALOO üzerindeki doğrulanmış tedarikçiyle eşleştirin.</p>
             </div>
 
             {canManage ? (
@@ -296,18 +297,18 @@ export default function SupplierNetworkPage() {
                   </Select>
                 </Field>
 
-                <Field label="Platform Tedarikçi Kodu" required>
+                <Field label="VALOO tedarikçi kodu" required>
                   <TextInput
                     value={supplierOrganizationId}
                     onChange={(event) => setSupplierOrganizationId(event.target.value)}
-                    placeholder="Tedarikçi Kodunu Girin"
+                    placeholder="Tedarikçi kodunu girin"
                     autoComplete="off"
                     required
                   />
                 </Field>
 
                 <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-3 text-[11px] leading-5 text-[var(--muted)]">
-                  Bu İşlem Mevcut Tedarikçi Kaydınızı VALOO Üzerindeki Doğrulanmış Tedarikçiyle Eşleştirir. Yeni Tedarikçi Oluşturmaz.
+                  Bu işlem mevcut tedarikçi kaydınızı VALOO üzerindeki doğrulanmış tedarikçiyle eşleştirir; yeni bir tedarikçi oluşturmaz.
                 </div>
 
                 <Button type="submit" className="w-full" disabled={saving || !inventorySupplierId || !supplierOrganizationId.trim()}>
@@ -316,7 +317,7 @@ export default function SupplierNetworkPage() {
               </form>
             ) : (
               <div className="rounded-[16px] bg-[var(--surface-2)] px-4 py-4 text-[12px] leading-5 text-[var(--muted)]">
-                Tedarikçi Ağı Bağlantısı Oluşturmak İçin Yönetim Yetkisi Gereklidir.
+                Tedarikçi ağı bağlantısı oluşturmak için yönetim yetkisi gereklidir.
               </div>
             )}
           </section>
