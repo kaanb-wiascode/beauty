@@ -122,7 +122,7 @@ export function TenantGovernancePanel({ tenantId }: { tenantId: string }) {
         <div className="space-y-4 rounded-2xl border border-white/[.07] bg-black/15 p-4">
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-1 xl:grid-cols-2">
             <Info label="Durum" value={userLabel(data.lifecycle.state)} />
-            <Info label="Kayıt sürümü" value={String(data.lifecycle.version)} />
+            <Info label="Değişiklik no" value={String(data.lifecycle.version)} />
             <Info label="Son güncelleme" value={dateTime.format(new Date(data.lifecycle.updatedAt))} />
             <Info label="Güncelleyen" value={data.lifecycle.updatedByEmail ?? "Sistem"} />
           </div>
@@ -186,7 +186,7 @@ export function TenantGovernancePanel({ tenantId }: { tenantId: string }) {
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="text-xs font-semibold text-white">{userPermissionLabel(operation.resource, operation.action)}</span>
                     <span className="rounded-md border border-white/10 px-1.5 py-0.5 text-[9px] font-semibold text-white/45">{userLabel(operation.status)}</span>
-                    <span className="text-[9px] font-semibold text-amber-200/70">{userLabel(operation.riskLevel)} risk</span>
+                    <span className="text-[9px] font-semibold text-amber-200/70">{userLabel(operation.riskLevel)} risk düzeyi</span>
                   </div>
                   <p className="mt-1 text-[11px] leading-5 text-white/45">{operation.reason}</p>
                   <p className="mt-1 truncate text-[9px] text-white/25">Talep eden: {operation.requesterEmail} · Onaylayan: {operation.approverEmail ?? "—"}</p>
