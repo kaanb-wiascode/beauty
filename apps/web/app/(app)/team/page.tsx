@@ -221,7 +221,7 @@ export default function TeamPage() {
       }
     }, 3000);
     return () => window.clearInterval(timer);
-  }, [activeId, loadMessages, loadOverview]);
+  }, [activeId, loadMessages, loadOverview, loadTyping]);
 
   async function changeStatus(next: PresenceStatus) {
     setStatus(next);
