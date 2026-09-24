@@ -16,6 +16,7 @@ import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/u
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 import { PurchaseOrderApprovalModal } from "./purchase-order-approval-modal";
 import { PurchaseOrderReceiptModal } from "./purchase-order-receipt-modal";
 
@@ -127,7 +128,7 @@ export default function PurchasesPage() {
     return requests.filter((row) => {
       if (status && row.status !== status) return false;
       if (!query) return true;
-      return [row.productName, row.warehouseName, row.reason ?? "", row.sku ?? "", STATUS_LABELS[row.status] ?? row.status]
+      return [row.productName, row.warehouseName, row.reason ?? "", row.sku ?? "", STATUS_LABELS[row.status] ?? userLabel(row.status)]
         .some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
     });
   }, [requests, search, status]);
@@ -137,7 +138,7 @@ export default function PurchasesPage() {
     return orders.filter((row) => {
       if (status && row.status !== status) return false;
       if (!query) return true;
-      return [row.supplierName ?? "", row.warehouseName, STATUS_LABELS[row.status] ?? row.status]
+      return [row.supplierName ?? "", row.warehouseName, STATUS_LABELS[row.status] ?? userLabel(row.status)]
         .some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
     });
   }, [orders, search, status]);
@@ -307,7 +308,7 @@ export default function PurchasesPage() {
 
         <DataViewToolbar
           search={<SearchField value={search} placeholder={view === "requests" ? "Ürün, Konum Veya Neden Ara..." : "Tedarikçi, Konum Veya Durum Ara..."} onChange={(event) => setSearch(event.target.value)} onKeyDown={(event) => { if (event.key === "Escape") setSearch(""); }} aria-label="Satın Alma Kayıtlarında Ara" />}
-          actions={<ToolbarSelect value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Satın Alma Durumu"><option value="">Tüm Durumlar</option>{statuses.map((value) => <option key={value} value={value}>{STATUS_LABELS[value] ?? value}</option>)}</ToolbarSelect>}
+          actions={<ToolbarSelect value={status} onChange={(event) => setStatus(event.target.value)} aria-label="Satın Alma Durumu"><option value="">Tüm Durumlar</option>{statuses.map((value) => <option key={value} value={value}>{STATUS_LABELS[value] ?? userLabel(value)}</option>)}</ToolbarSelect>}
           filters={<><FilterChip active={!status} count={totalCount} onClick={() => setStatus("")}>Tümü</FilterChip>{view === "requests" ? <FilterChip active={status === "PENDING"} count={pendingRequestCount} onClick={() => setStatus("PENDING")}>Onay Bekleyen</FilterChip> : <FilterChip active={status === "ORDERED"} count={orders.filter((row) => row.status === "ORDERED").length} onClick={() => setStatus("ORDERED")}>Siparişte</FilterChip>}</>}
         />
 
@@ -363,7 +364,7 @@ function OrderAction({ order, canWrite, busy, disabled, onSubmitApproval, onOrde
 }
 
 function StatusBadge({ status }: { status: string }) {
-  return <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${statusTone(status)}`}>{STATUS_LABELS[status] ?? status}</span>;
+  return <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${statusTone(status)}`}>{STATUS_LABELS[status] ?? userLabel(status)}</span>;
 }
 
 function Quantity({ label, value, accent = false }: { label: string; value: number | string; accent?: boolean }) {
