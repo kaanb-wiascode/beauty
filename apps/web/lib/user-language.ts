@@ -134,6 +134,45 @@ const USER_LABELS: Record<string, string> = {
   BANNER: "Banner",
 };
 
+const USER_RESOURCE_LABELS: Record<string, string> = {
+  appointments: "Randevular",
+  customers: "Müşteriler",
+  staff: "Personel",
+  services: "Hizmetler",
+  payments: "Ödemeler",
+  finance: "Finans",
+  accounting: "Muhasebe",
+  inventory: "Envanter",
+  procurement: "Satın Alma",
+  training: "Eğitim ve Gelişim",
+  communications: "Kurumsal İletişim",
+  crm: "Müşteri İlişkileri",
+  reports: "Raporlar",
+  roles: "Roller ve Yetkiler",
+  hr: "İnsan Kaynakları",
+  settings: "Ayarlar",
+  quality: "Kalite",
+  platform: "Platform Yönetimi",
+};
+
+const USER_ACTION_LABELS: Record<string, string> = {
+  read: "Görüntüleme",
+  view: "Görüntüleme",
+  create: "Oluşturma",
+  update: "Düzenleme",
+  write: "Düzenleme",
+  delete: "Silme",
+  manage: "Yönetme",
+  approve: "Onaylama",
+  reject: "Reddetme",
+  refund: "İade",
+  export: "Dışa Aktarma",
+  import: "İçe Aktarma",
+  assign: "Atama",
+  publish: "Yayınlama",
+  execute: "İşlem Yapma",
+};
+
 const USER_ERROR_MESSAGES: Record<string, string> = {
   "Invalid email or password": "E-Posta Veya Şifre Hatalı.",
   "No active tenant membership": "Aktif İşletme Üyeliği Bulunamadı.",
@@ -237,6 +276,19 @@ export function userLabel(value: string | null | undefined): string {
 export function userLabelOr(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
   return USER_LABELS[value] ?? value;
+}
+
+export function userPermissionLabel(resource: string, action: string): string {
+  const resourceLabel = USER_RESOURCE_LABELS[resource] ?? userLabel(resource);
+  const actionLabel = USER_ACTION_LABELS[action] ?? userLabel(action);
+  return `${resourceLabel} · ${actionLabel}`;
+}
+
+export function userPermissionKeyLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  const [resource, action] = value.split(".");
+  if (!resource || !action) return userLabel(value);
+  return userPermissionLabel(resource, action);
 }
 
 export function userNoticeMessage(message: string): string {
