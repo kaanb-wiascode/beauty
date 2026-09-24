@@ -1,10 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { CardInfo } from "@/components/card-info";
 
 import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type Brand = { id: string; slug: string; name: string; status: string };
 type Product = { id: string; brandId: string | null; brandName: string | null; slug: string; name: string; description: string | null; categoryCode: string | null; status: string; variantCount: number };
@@ -206,7 +208,7 @@ export default function PlatformCatalogPage() {
 }
 
 function Metric({ label, value }: { label: string; value: number }) {
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
+  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-3 text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p></div>;
 }
 
 function FormCard({ title, description, children }: { title: string; description: string; children: ReactNode }) {
