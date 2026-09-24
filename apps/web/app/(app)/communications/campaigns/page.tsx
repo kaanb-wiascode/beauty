@@ -3,6 +3,7 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 import { hasPermission } from "@/lib/auth";
 
 type Campaign = {
@@ -96,15 +97,15 @@ export default function CampaignsPage() {
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <Metric label="Toplam Bütçe" value={money.format(totals.budget)} />
         <Metric label="Harcama" value={money.format(totals.spend)} />
-        <Metric label="Lead" value={String(totals.leads)} />
+        <Metric label="Potansiyel Müşteri" value={String(totals.leads)} />
         <Metric label="Atfedilen Gelir" value={money.format(totals.revenue)} />
       </section>
 
       {showForm && canManage ? (
         <form onSubmit={(event) => void createCampaign(event)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
           <Field label="Kampanya Adı"><input required value={name} onChange={(e) => setName(e.target.value)} className="input" placeholder="Örn. Eylül Lazer Kampanyası" /></Field>
-          <Field label="Amaç"><Select value={objective} onChange={(e) => setObjective(e.target.value)} className="input"><option value="LEAD_GENERATION">Lead Üretimi</option><option value="AWARENESS">Bilinirlik</option><option value="APPOINTMENT">Randevu</option><option value="SALES">Satış</option><option value="RETENTION">Sadakat</option><option value="REACTIVATION">Yeniden Aktivasyon</option></Select></Field>
-          <Field label="Kanal"><Select value={channel} onChange={(e) => setChannel(e.target.value)} className="input"><option>META</option><option>GOOGLE_ADS</option><option>TIKTOK</option><option>WHATSAPP</option><option>MULTI_CHANNEL</option><option>OTHER</option></Select></Field>
+          <Field label="Amaç"><Select value={objective} onChange={(e) => setObjective(e.target.value)} className="input"><option value="LEAD_GENERATION">Potansiyel Müşteri Kazanımı</option><option value="AWARENESS">Bilinirlik</option><option value="APPOINTMENT">Randevu</option><option value="SALES">Satış</option><option value="RETENTION">Sadakat</option><option value="REACTIVATION">Yeniden Kazanım</option></Select></Field>
+          <Field label="Kanal"><Select value={channel} onChange={(e) => setChannel(e.target.value)} className="input"><option value="META">Meta</option><option value="GOOGLE_ADS">Google Ads</option><option value="TIKTOK">TikTok</option><option value="WHATSAPP">WhatsApp</option><option value="MULTI_CHANNEL">Çoklu kanal</option><option value="OTHER">Diğer</option></Select></Field>
           <Field label="Planlanan Bütçe"><input type="number" min="0" step="0.01" value={budget} onChange={(e) => setBudget(e.target.value)} className="input" /></Field>
           <Field label="Başlangıç"><input type="datetime-local" value={startsAt} onChange={(e) => setStartsAt(e.target.value)} className="input" /></Field>
           <Field label="Bitiş"><input type="datetime-local" value={endsAt} onChange={(e) => setEndsAt(e.target.value)} className="input" /></Field>
@@ -113,7 +114,7 @@ export default function CampaignsPage() {
       ) : null}
 
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-        {campaigns.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">Kampanya</th><th className="px-3 py-3">Durum</th><th className="px-3 py-3">Kanal</th><th className="px-3 py-3 text-right">Bütçe</th><th className="px-3 py-3 text-right">Harcama</th><th className="px-3 py-3 text-right">Lead</th><th className="px-3 py-3 text-right">Gelir</th></tr></thead><tbody>{campaigns.map((row) => <tr key={row.id} className="border-b border-[var(--line)] last:border-0"><td className="px-3 py-4"><p className="text-[13px] font-semibold text-[var(--ink)]">{row.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{row.objective.replaceAll("_", " ")}</p></td><td className="px-3 py-4"><Badge>{row.status}</Badge></td><td className="px-3 py-4 text-[11px] text-[var(--muted)]">{row.channel}</td><td className="px-3 py-4 text-right text-[12px] text-[var(--ink)]">{money.format(Number(row.plannedBudget || 0))}</td><td className="px-3 py-4 text-right text-[12px] text-[var(--ink)]">{money.format(Number(row.spentAmount || 0))}</td><td className="px-3 py-4 text-right text-[12px] text-[var(--ink)]">{row.leadCount}</td><td className="px-3 py-4 text-right text-[12px] font-semibold text-[var(--ink)]">{money.format(Number(row.revenue || 0))}</td></tr>)}</tbody></table></div> : <div className="py-14 text-center text-[12px] text-[var(--muted)]">Henüz kampanya yok.</div>}
+        {campaigns.length ? <div className="overflow-x-auto"><table className="w-full min-w-[900px] text-left"><thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">Kampanya</th><th className="px-3 py-3">Durum</th><th className="px-3 py-3">Kanal</th><th className="px-3 py-3 text-right">Bütçe</th><th className="px-3 py-3 text-right">Harcama</th><th className="px-3 py-3 text-right">Lead</th><th className="px-3 py-3 text-right">Gelir</th></tr></thead><tbody>{campaigns.map((row) => <tr key={row.id} className="border-b border-[var(--line)] last:border-0"><td className="px-3 py-4"><p className="text-[13px] font-semibold text-[var(--ink)]">{row.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{userLabel(row.objective)}</p></td><td className="px-3 py-4"><Badge>{userLabel(row.status)}</Badge></td><td className="px-3 py-4 text-[11px] text-[var(--muted)]">{userLabel(row.channel)}</td><td className="px-3 py-4 text-right text-[12px] text-[var(--ink)]">{money.format(Number(row.plannedBudget || 0))}</td><td className="px-3 py-4 text-right text-[12px] text-[var(--ink)]">{money.format(Number(row.spentAmount || 0))}</td><td className="px-3 py-4 text-right text-[12px] text-[var(--ink)]">{row.leadCount}</td><td className="px-3 py-4 text-right text-[12px] font-semibold text-[var(--ink)]">{money.format(Number(row.revenue || 0))}</td></tr>)}</tbody></table></div> : <div className="py-14 text-center text-[12px] text-[var(--muted)]">Henüz kampanya yok.</div>}
       </section>
     </div>
   );
