@@ -879,15 +879,15 @@ function MetricCard({
 
   return (
     <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-      <div className="mb-2">
-        <CardInfo help={getCardHelp(label, detail)} />
-      </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-3">
         <span className="text-[11px] font-medium text-[var(--muted)]">
           {label}
         </span>
-        <span className="text-[13px] text-[var(--muted-soft)]">
-          {icon[tone]}
+        <span className="flex shrink-0 items-center gap-2">
+          <span className="text-[13px] text-[var(--muted-soft)]">
+            {icon[tone]}
+          </span>
+          <CardInfo help={getCardHelp(label, detail)} />
         </span>
       </div>
       <div className="mt-2 text-[24px] font-semibold tracking-[-.03em] text-[var(--ink)]">
