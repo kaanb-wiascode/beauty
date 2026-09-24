@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 import { Alert, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -22,7 +22,7 @@ export default function PersonnelDocumentsPage(){
   const urgent=useMemo(()=>rows.filter(x=>remaining(x.expiresAt)<=30).length,[rows]);
   const risks=useMemo(()=>[...(compliance?.employees??[])].filter(x=>!x.compliant).sort((a,b)=>a.score-b.score),[compliance]);
   return <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">İnsan Kaynakları · Uyum</p><h1 className="mt-1 text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Belge & Uyum Merkezi</h1><p className="mt-1 text-xs text-[var(--muted)]">Zorunlu personel belgelerini, eksikleri, doğrulama durumlarını ve yenileme risklerini merkezi olarak yönetin.</p></div><select className="control h-10 min-w-[160px]" value={days} onChange={e=>setDays(Number(e.target.value))}><option value={30}>30 gün</option><option value={60}>60 gün</option><option value={90}>90 gün</option><option value={180}>180 gün</option><option value={365}>365 gün</option></select></header>
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between"><div><p className="text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">İnsan Kaynakları · Uyum</p><h1 className="mt-1 text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Belge & Uyum Merkezi</h1><p className="mt-1 text-xs text-[var(--muted)]">Zorunlu personel belgelerini, eksikleri, doğrulama durumlarını ve yenileme risklerini merkezi olarak yönetin.</p></div><Select className="control h-10 min-w-[160px]" value={days} onChange={e=>setDays(Number(e.target.value))}><option value={30}>30 gün</option><option value={60}>60 gün</option><option value={90}>90 gün</option><option value={180}>180 gün</option><option value={365}>365 gün</option></Select></header>
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
     {loading?<div className="flex h-64 items-center justify-center"><Spinner/></div>:<>
       <section className="grid gap-3 md:grid-cols-2 xl:grid-cols-5"><Metric label="Uyum Oranı" value={`%${compliance?.summary.complianceRate??100}`}/><Metric label="Uyumlu Personel" value={compliance?.summary.compliant??0}/><Metric label="Aksiyon Gereken" value={compliance?.summary.nonCompliant??0}/><Metric label="Yaklaşan Belge" value={rows.length}/><Metric label="30 Gün İçinde" value={urgent}/></section>
