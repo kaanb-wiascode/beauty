@@ -135,9 +135,18 @@ export class TeamService {
          u."lastName" AS "lastName",
          u.email,
          r.name AS "roleName",
-         COALESCE(p.status,'OFFLINE') AS status,
-         p.status_text AS "statusText",
-         p.status_until AS "statusUntil",
+         CASE
+           WHEN active_session."sessionEndAt" IS NOT NULL THEN 'IN_SESSION'
+           ELSE COALESCE(p.status,'OFFLINE')
+         END AS status,
+         CASE
+           WHEN active_session."sessionEndAt" IS NOT NULL THEN 'Aktif seans'
+           ELSE p.status_text
+         END AS "statusText",
+         CASE
+           WHEN active_session."sessionEndAt" IS NOT NULL THEN active_session."sessionEndAt"
+           ELSE p.status_until
+         END AS "statusUntil",
          p.last_seen_at AS "lastSeenAt",
          CASE
            WHEN p.status='OFFLINE' THEN FALSE
@@ -151,6 +160,20 @@ export class TeamService {
          ON p.user_id=u.id
         AND p.tenant_id=m."tenantId"
         AND p.company_id=m."companyId"
+       LEFT JOIN LATERAL (
+         SELECT MAX(a."endAt") AS "sessionEndAt"
+         FROM "staff" s
+         JOIN "appointments" a ON a."staffId"=s.id
+         JOIN "visit_appointments" va ON va."appointmentId"=a.id
+         JOIN "visits" v ON v.id=va."visitId"
+         JOIN "branches" b ON b.id=s."branchId"
+         WHERE s."userId"=u.id
+           AND s."tenantId"=m."tenantId"
+           AND b."companyId"=m."companyId"
+           AND v."tenantId"=m."tenantId"
+           AND v."companyId"=m."companyId"
+           AND v.status='IN_SERVICE'
+       ) active_session ON TRUE
        WHERE m."tenantId"=$1::text
          AND m."companyId"=$2::text
          AND m.status='ACTIVE'
