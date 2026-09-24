@@ -84,8 +84,8 @@ export default function InventoryActionCenterPage() {
         <Links links={[["Satın Alma Merkezi", "/inventory/purchases"]]} />
       </FinancePanel>
 
-      <FinancePanel title="Muhasebe Mutabakat Riski" description="Stok alt defteri ile 150 hesap bakiyesi karşılaştırması">
-        <Rows rows={[["Stok Alt Defteri", money.format(n(reconciliation.data?.subledgerValue))], ["GL Bakiyesi", money.format(n(reconciliation.data?.glBalance))], ["Fark", money.format(n(reconciliation.data?.variance))], ["Kapsam", reconciliation.data?.scope === "BRANCH" ? "Aktif Şube" : reconciliation.data?.scope === "COMPANY" ? "Şirket" : "—"]]} />
+      <FinancePanel title="Muhasebe mutabakatı" description="Stok kayıtları ile muhasebe bakiyesini karşılaştırın.">
+        <Rows rows={[["Stok kayıtlarındaki değer", money.format(n(reconciliation.data?.subledgerValue))], ["Muhasebe bakiyesi", money.format(n(reconciliation.data?.glBalance))], ["Fark", money.format(n(reconciliation.data?.variance))], ["Kapsam", reconciliation.data?.scope === "BRANCH" ? "Aktif şube" : reconciliation.data?.scope === "COMPANY" ? "Şirket" : "—"]]} />
         <Links links={[["Mutabakat Detayı", "/inventory/analysis"], ["Muhasebe", "/finance/accounting"]]} />
       </FinancePanel>
 
