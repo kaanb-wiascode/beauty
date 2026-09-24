@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import type { ReportCatalogKey } from "./report-catalog-client";
 import type { ReportDateRange } from "./report-filter-bar";
@@ -142,7 +143,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
             <p className="mt-1 text-[11px] text-[var(--muted)]">PDF, Excel veya CSV dosyası sunucuda hazırlanır ve hazır olduğunda güvenli olarak indirilebilir.</p>
           </div>
           <div className="flex items-center gap-2">
-            <select
+            <Select
               value={format}
               onChange={(event) => setFormat(event.target.value as SupportedExportFormat)}
               className="h-10 rounded-xl border border-[var(--line)] bg-white px-3 text-[12px] font-semibold text-[var(--ink)]"
@@ -151,7 +152,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
               <option value="PDF">PDF</option>
               <option value="XLSX">Excel (.xlsx)</option>
               <option value="CSV">CSV</option>
-            </select>
+            </Select>
             <button
               type="button"
               onClick={() => void createExport()}
