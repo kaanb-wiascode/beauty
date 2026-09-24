@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { RedisService } from '../../infrastructure/redis/redis.service';
 
 type CreateConversationInput = {
   type: 'DIRECT' | 'GROUP';
@@ -36,6 +37,7 @@ export class TeamService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly redis: RedisService,
   ) {}
 
   private tenantId() {
@@ -52,8 +54,8 @@ export class TeamService {
        FROM users u
        JOIN memberships m ON m."userId"=u.id
        WHERE u.id=$1::text
-         AND m."tenantId"=$2::text
-         AND m."companyId"=$3::text
+         AND m.tenant_id=$2::text
+         AND m.company_id=$3::text
          AND m.status='ACTIVE'
        LIMIT 1`,
       userId,
@@ -81,6 +83,49 @@ export class TeamService {
     if (!rows.length) throw new NotFoundException('Konuşma bulunamadı.');
   }
 
+  private async requireGroupAdmin(userId: string, conversationId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
+      `SELECT c.id
+       FROM team_conversations c
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE c.id=$1::text
+         AND cm.user_id=$2::text
+         AND cm.is_admin=TRUE
+         AND c.type='GROUP'
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      conversationId,
+      userId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!rows.length) throw new ForbiddenException('Bu grup için yönetici yetkiniz yok.');
+  }
+
+  async unreadSummary(currentUserId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<{ unreadCount: number }[]>(
+      `SELECT COALESCE(SUM(unread_count),0)::int AS "unreadCount"
+       FROM (
+         SELECT COUNT(m.id)::int AS unread_count
+         FROM team_conversation_members cm
+         JOIN team_conversations c ON c.id=cm.conversation_id
+         JOIN team_messages m ON m.conversation_id=c.id
+         WHERE cm.user_id=$1::text
+           AND c.tenant_id=$2::text
+           AND c.company_id=$3::text
+           AND m.deleted_at IS NULL
+           AND m.sender_user_id<>$1::text
+           AND (cm.last_read_at IS NULL OR m.created_at>cm.last_read_at)
+         GROUP BY c.id
+       ) unread`,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    return { unreadCount: rows[0]?.unreadCount ?? 0 };
+  }
+
   async people(currentUserId: string) {
     await this.heartbeat(currentUserId);
     return this.prisma.$queryRawUnsafe(
@@ -104,10 +149,10 @@ export class TeamService {
        JOIN roles r ON r.id=m."roleId"
        LEFT JOIN team_user_presence p
          ON p.user_id=u.id
-        AND p.tenant_id=m."tenantId"
-        AND p.company_id=m."companyId"
-       WHERE m."tenantId"=$1::text
-         AND m."companyId"=$2::text
+        AND p.tenant_id=m.tenant_id
+        AND p.company_id=m.company_id
+       WHERE m.tenant_id=$1::text
+         AND m.company_id=$2::text
          AND m.status='ACTIVE'
        ORDER BY
          CASE WHEN u.id=$3::text THEN 0 ELSE 1 END,
@@ -206,8 +251,8 @@ export class TeamService {
        FROM users u
        JOIN memberships m ON m."userId"=u.id
        WHERE u.id=ANY($1::text[])
-         AND m."tenantId"=$2::text
-         AND m."companyId"=$3::text
+         AND m.tenant_id=$2::text
+         AND m.company_id=$3::text
          AND m.status='ACTIVE'`,
       memberIds,
       this.tenantId(),
@@ -285,12 +330,36 @@ export class TeamService {
            m.edited_at AS "editedAt",
            m.created_at AS "createdAt",
            m.sender_user_id AS "senderUserId",
-           concat_ws(' ',u."firstName",u."lastName") AS "senderName"
+           concat_ws(' ',u."firstName",u."lastName") AS "senderName",
+           COALESCE((
+             SELECT json_agg(json_build_object(
+               'emoji', grouped.emoji,
+               'count', grouped.reaction_count,
+               'reactedByMe', grouped.reacted_by_me
+             ) ORDER BY grouped.emoji)
+             FROM (
+               SELECT
+                 r.emoji,
+                 COUNT(*)::int AS reaction_count,
+                 BOOL_OR(r.user_id=$5::text) AS reacted_by_me
+               FROM team_message_reactions r
+               WHERE r.message_id=m.id
+               GROUP BY r.emoji
+             ) grouped
+           ), '[]'::json) AS reactions,
+           (
+             SELECT COUNT(*)::int
+             FROM team_conversation_members receipts
+             WHERE receipts.conversation_id=m.conversation_id
+               AND receipts.user_id<>m.sender_user_id
+               AND receipts.last_read_at IS NOT NULL
+               AND receipts.last_read_at>=m.created_at
+           ) AS "readByCount"
          FROM team_messages m
          JOIN users u ON u.id=m.sender_user_id
          WHERE m.conversation_id=$1::text
-           AND m."tenantId"=$2::text
-           AND m."companyId"=$3::text
+           AND m.tenant_id=$2::text
+           AND m.company_id=$3::text
            AND m.deleted_at IS NULL
          ORDER BY m.created_at DESC
          LIMIT $4
@@ -300,6 +369,7 @@ export class TeamService {
       this.tenantId(),
       this.companyId(),
       limit,
+      currentUserId,
     );
   }
 
@@ -366,6 +436,185 @@ export class TeamService {
       currentUserId,
     );
     return { ok: true };
+  }
+
+  async editMessage(currentUserId: string, messageId: string, body: string) {
+    const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
+      `UPDATE team_messages m
+       SET body=$1, edited_at=NOW()
+       FROM team_conversations c, team_conversation_members cm
+       WHERE m.id=$2::text
+         AND m.sender_user_id=$3::text
+         AND m.deleted_at IS NULL
+         AND c.id=m.conversation_id
+         AND c.tenant_id=$4::text
+         AND c.company_id=$5::text
+         AND cm.conversation_id=c.id
+         AND cm.user_id=$3::text
+       RETURNING m.id`,
+      body.trim(),
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!rows.length) throw new NotFoundException('Düzenlenebilir mesaj bulunamadı.');
+    return { ok: true };
+  }
+
+  async deleteMessage(currentUserId: string, messageId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
+      `UPDATE team_messages m
+       SET deleted_at=NOW()
+       FROM team_conversations c, team_conversation_members cm
+       WHERE m.id=$1::text
+         AND m.sender_user_id=$2::text
+         AND m.deleted_at IS NULL
+         AND c.id=m.conversation_id
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+         AND cm.conversation_id=c.id
+         AND cm.user_id=$2::text
+       RETURNING m.id`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!rows.length) throw new NotFoundException('Silinebilir mesaj bulunamadı.');
+    return { ok: true };
+  }
+
+  async toggleReaction(currentUserId: string, messageId: string, emoji: string) {
+    const rows = await this.prisma.$queryRawUnsafe<{ conversationId: string }[]>(
+      `SELECT m.conversation_id AS "conversationId"
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND m.deleted_at IS NULL
+         AND cm.user_id=$2::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!rows.length) throw new NotFoundException('Mesaj bulunamadı.');
+
+    const existing = await this.prisma.$queryRawUnsafe<{ emoji: string }[]>(
+      `SELECT emoji FROM team_message_reactions
+       WHERE message_id=$1::text AND user_id=$2::text AND emoji=$3
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      emoji,
+    );
+    if (existing.length) {
+      await this.prisma.$executeRawUnsafe(
+        `DELETE FROM team_message_reactions
+         WHERE message_id=$1::text AND user_id=$2::text AND emoji=$3`,
+        messageId,
+        currentUserId,
+        emoji,
+      );
+      return { active: false };
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO team_message_reactions(message_id,user_id,emoji)
+       VALUES($1::text,$2::text,$3)`,
+      messageId,
+      currentUserId,
+      emoji,
+    );
+    return { active: true };
+  }
+
+  async conversationMembers(currentUserId: string, conversationId: string) {
+    await this.requireConversationMember(currentUserId, conversationId);
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         u.id,
+         u."firstName" AS "firstName",
+         u."lastName" AS "lastName",
+         u.email,
+         cm.is_admin AS "isAdmin",
+         cm.joined_at AS "joinedAt",
+         cm.last_read_at AS "lastReadAt",
+         r.name AS "roleName"
+       FROM team_conversation_members cm
+       JOIN users u ON u.id=cm.user_id
+       JOIN memberships membership
+         ON membership."userId"=u.id
+        AND membership."tenantId"=$2::text
+        AND membership."companyId"=$3::text
+       JOIN roles r ON r.id=membership."roleId"
+       WHERE cm.conversation_id=$1::text
+       ORDER BY cm.is_admin DESC,u."firstName",u."lastName"`,
+      conversationId,
+      this.tenantId(),
+      this.companyId(),
+    );
+  }
+
+  async addGroupMember(currentUserId: string, conversationId: string, userId: string) {
+    await this.requireGroupAdmin(currentUserId, conversationId);
+    await this.requireActiveUser(userId);
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO team_conversation_members(conversation_id,user_id,is_admin)
+       VALUES($1::text,$2::text,FALSE)
+       ON CONFLICT(conversation_id,user_id) DO NOTHING`,
+      conversationId,
+      userId,
+    );
+    return { ok: true };
+  }
+
+  async removeGroupMember(currentUserId: string, conversationId: string, userId: string) {
+    await this.requireGroupAdmin(currentUserId, conversationId);
+    if (userId === currentUserId) {
+      throw new BadRequestException('Grup yöneticisi kendisini bu ekrandan çıkaramaz.');
+    }
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM team_conversation_members
+       WHERE conversation_id=$1::text AND user_id=$2::text`,
+      conversationId,
+      userId,
+    );
+    return { ok: true };
+  }
+
+  async setTyping(currentUserId: string, conversationId: string, typing: boolean) {
+    await this.requireConversationMember(currentUserId, conversationId);
+    const key = `team:typing:${this.tenantId()}:${this.companyId()}:${conversationId}:${currentUserId}`;
+    if (typing) {
+      await this.redis.set(key, String(Date.now()), 8);
+    } else {
+      await this.redis.delete(key);
+    }
+    return { ok: true };
+  }
+
+  async typingUsers(currentUserId: string, conversationId: string) {
+    await this.requireConversationMember(currentUserId, conversationId);
+    const members = await this.prisma.$queryRawUnsafe<{ id: string; firstName: string; lastName: string }[]>(
+      `SELECT u.id,u."firstName" AS "firstName",u."lastName" AS "lastName"
+       FROM team_conversation_members cm
+       JOIN users u ON u.id=cm.user_id
+       WHERE cm.conversation_id=$1::text
+         AND cm.user_id<>$2::text`,
+      conversationId,
+      currentUserId,
+    );
+    const active = [];
+    for (const member of members) {
+      const key = `team:typing:${this.tenantId()}:${this.companyId()}:${conversationId}:${member.id}`;
+      if (await this.redis.get(key)) active.push(member);
+    }
+    return active;
   }
 
   async updatePresence(currentUserId: string, input: PresenceInput) {
