@@ -6,7 +6,7 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { cx } from "@/lib/format";
-import { userErrorMessage, userNoticeMessage } from "@/lib/user-language";
+import { userErrorMessage, userLabel, userNoticeMessage } from "@/lib/user-language";
 import { ValooNativeSelectAdapter } from "@/components/valoo-controls";
 
 export function Alert({
@@ -277,7 +277,7 @@ export function StatusBadge({
         tone,
       )}
     >
-      {label}
+      {userLabel(label)}
     </span>
   );
 }
