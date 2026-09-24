@@ -108,7 +108,7 @@ export default function ServicesPage() {
       setTotalCount(result.meta.total);
       setTotalPages(result.meta.totalPages || 1);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Hizmetler Yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Hizmetler yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -127,7 +127,7 @@ export default function ServicesPage() {
   function openCreate() {
     if (!canCreateService) return;
     if (!hasActiveBranch()) {
-      showToast("Yeni Hizmet Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.", "error");
+      showToast("Yeni hizmet oluşturmak için önce çalışma kapsamından bir şube seçin.", "error");
       return;
     }
     setEditing(null); setForm(emptyForm); setFormError(""); setModalOpen(true);
@@ -143,23 +143,23 @@ export default function ServicesPage() {
   async function onSubmit(event: FormEvent) {
     event.preventDefault();
     if (!editing && !hasActiveBranch()) {
-      setFormError("Yeni Hizmet Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.");
+      setFormError("Yeni hizmet oluşturmak için önce çalışma kapsamından bir şube seçin.");
       return;
     }
     const name = form.name.trim();
     const durationMinutes = Number(form.durationMinutes);
     const price = Number(form.price);
-    if (!name) return setFormError("Hizmet Adı Gereklidir.");
-    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return setFormError("Süre 1 İle 1440 Dakika Arasında Olmalıdır.");
-    if (!Number.isFinite(price) || price < 0) return setFormError("Fiyat 0 Veya Daha Büyük Olmalıdır.");
+    if (!name) return setFormError("Hizmet adı gereklidir.");
+    if (!Number.isInteger(durationMinutes) || durationMinutes < 1 || durationMinutes > 1440) return setFormError("Süre 1 ile 1440 dakika arasında olmalıdır.");
+    if (!Number.isFinite(price) || price < 0) return setFormError("Fiyat 0 veya daha büyük olmalıdır.");
     setSaving(true); setFormError(""); setError("");
     try {
       const payload = toPayload(form);
       if (editing) await api<Service>(`/services/${editing.id}`, { method: "PATCH", body: payload });
       else await api<Service>("/services", { method: "POST", body: payload });
-      setModalOpen(false); showToast(editing ? "Hizmet Güncellendi." : "Hizmet Eklendi."); await load();
+      setModalOpen(false); showToast(editing ? "Hizmet güncellendi." : "Hizmet eklendi."); await load();
     } catch (err) {
-      setFormError(err instanceof ApiError ? err.message : "Hizmet Kaydedilemedi.");
+      setFormError(err instanceof ApiError ? err.message : "Hizmet kaydedilemedi.");
     } finally { setSaving(false); }
   }
 
@@ -168,9 +168,9 @@ export default function ServicesPage() {
     setSaving(true); setError("");
     try {
       await api(`/services/${pendingDelete.id}`, { method: "DELETE" });
-      setPendingDelete(null); showToast("Hizmet Arşivlendi."); await load();
+      setPendingDelete(null); showToast("Hizmet arşivlendi."); await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Hizmet Arşivlenemedi."); setPendingDelete(null);
+      setError(err instanceof ApiError ? err.message : "Hizmet arşivlenemedi."); setPendingDelete(null);
     } finally { setSaving(false); }
   }
 
@@ -199,10 +199,10 @@ export default function ServicesPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <Kpi icon="grid" label="Toplam Hizmet" value={totalCount} hint="Tüm Hizmetler" />
-        <Kpi icon="check" label="Aktif Hizmet" value={activeCount} hint="Bu Sayfadaki Aktif Hizmetler" tone="green" />
-        <Kpi icon="calendar" label="Bugünkü Randevu" value={todayAppointments} hint="Bu Sayfadaki Hizmetler" tone="orange" />
-        <Kpi icon="money" label="Bugünkü Ciro" value={money(todayRevenue)} hint="Bu Sayfadaki Hizmetler" tone="blue" />
+        <Kpi icon="grid" label="Toplam hizmet" value={totalCount} hint="Tüm hizmetler" />
+        <Kpi icon="check" label="Aktif hizmet" value={activeCount} hint="Bu sayfadaki aktif hizmetler" tone="green" />
+        <Kpi icon="calendar" label="Bugünkü randevu" value={todayAppointments} hint="Bu sayfadaki hizmetler" tone="orange" />
+        <Kpi icon="money" label="Bugünkü ciro" value={money(todayRevenue)} hint="Bu sayfadaki hizmetler" tone="blue" />
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_320px]">
@@ -212,8 +212,8 @@ export default function ServicesPage() {
               search={
                 <SearchField
                   value={search}
-                  placeholder="Hizmet Adı Veya Açıklama Ara..."
-                  aria-label="Hizmet Ara"
+                  placeholder="Hizmet adı veya açıklama ara..."
+                  aria-label="Hizmet ara"
                   onChange={(event) => handleSearch(event.target.value)}
                   onKeyDown={(event) => {
                     if (event.key === "Escape" && search) {
@@ -225,13 +225,13 @@ export default function ServicesPage() {
               actions={
                 <ToolbarSelect
                   value={sort}
-                  aria-label="Hizmetleri Sırala"
+                  aria-label="Hizmetleri sırala"
                   onChange={(event) => setSort(event.target.value as ServiceSort)}
                 >
-                  <option value="default">Varsayılan Sıra</option>
-                  <option value="appointments">En Çok Randevu</option>
-                  <option value="revenue">En Yüksek Ciro</option>
-                  <option value="price">En Yüksek Fiyat</option>
+                  <option value="default">Varsayılan sıra</option>
+                  <option value="appointments">En çok randevu</option>
+                  <option value="revenue">En yüksek ciro</option>
+                  <option value="price">En yüksek fiyat</option>
                 </ToolbarSelect>
               }
               filters={
@@ -243,13 +243,13 @@ export default function ServicesPage() {
               }
             />
             <DataViewMeta>
-              <span>Bu Sayfada {visibleServices.length} Hizmet</span>
-              <span>Toplam {totalCount} Hizmet · Sıralama: {sort === "default" ? "Varsayılan" : sort === "appointments" ? "Randevu" : sort === "revenue" ? "Ciro" : "Fiyat"}</span>
+              <span>Bu sayfada {visibleServices.length} hizmet</span>
+              <span>Toplam {totalCount} hizmet · Sıralama: {sort === "default" ? "Varsayılan" : sort === "appointments" ? "Randevu" : sort === "revenue" ? "Ciro" : "Fiyat"}</span>
             </DataViewMeta>
           </DataView>
 
-          {loading ? <Spinner label="Hizmetler Yükleniyor..." /> : visibleServices.length === 0 ? (
-            <section className="rounded-[24px] border border-[var(--line)] bg-white"><EmptyState title={search.trim() ? "Eşleşen Hizmet Yok" : "Henüz Hizmet Yok"} description={search.trim() ? "Arama Kriterinizi Değiştirerek Tekrar Deneyin." : "Yeni Hizmet Ekleyerek Başlayın."} /></section>
+          {loading ? <Spinner label="Hizmetler yükleniyor..." /> : visibleServices.length === 0 ? (
+            <section className="rounded-[24px] border border-[var(--line)] bg-white"><EmptyState title={search.trim() ? "Eşleşen hizmet yok" : "Henüz hizmet yok"} description={search.trim() ? "Arama kriterinizi değiştirerek tekrar deneyin." : "Yeni hizmet ekleyerek başlayın."} /></section>
           ) : (
             <>
               <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
