@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import {
@@ -14,6 +15,7 @@ import {
 import { useToast } from "@/components/toast";
 import { hasPermission } from "@/lib/auth";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type MarketplacePublication = {
   status: "UNPUBLISHED" | "PUBLISHED";
@@ -318,7 +320,10 @@ export default function MarketplacePage() {
 function MetricCard({ label, value, compact = false }: { label: string; value: string; compact?: boolean }) {
   return (
     <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_28px_rgba(17,70,104,.035)]">
-      <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{label}</p>
+        <CardInfo help={getCardHelp(label)} />
+      </div>
       <p className={`mt-3 font-semibold tracking-[-.035em] text-[var(--ink)] ${compact ? "text-[15px]" : "text-[28px]"}`}>{value}</p>
     </div>
   );
