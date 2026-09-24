@@ -2,6 +2,7 @@
 
 import type { FormEventHandler } from "react";
 
+import { DatePicker } from "@/components/date-picker";
 import {
   FormActions,
   FormGrid,
@@ -76,7 +77,7 @@ export function StaffEditorForm({
               <Field label="Ad" required><TextInput required value={form.firstName} onChange={(event) => setField("firstName", event.target.value)} /></Field>
               <Field label="Soyad" required><TextInput required value={form.lastName} onChange={(event) => setField("lastName", event.target.value)} /></Field>
               <Field label="T.C. Kimlik No"><TextInput value={form.profile.identityNumber ?? ""} onChange={(event) => onProfileChange("identityNumber", event.target.value)} /></Field>
-              <Field label="Doğum Tarihi"><TextInput type="date" value={form.profile.birthDate ?? ""} onChange={(event) => onProfileChange("birthDate", event.target.value)} /></Field>
+              <Field label="Doğum Tarihi"><DatePicker value={form.profile.birthDate ?? ""} max={new Date().toISOString().slice(0, 10)} ariaLabel="Doğum Tarihi" onChange={(value) => onProfileChange("birthDate", value)} /></Field>
               <Field label="Doğum Yeri"><TextInput value={form.profile.birthPlace ?? ""} onChange={(event) => onProfileChange("birthPlace", event.target.value)} /></Field>
               <Field label="Uyruk"><TextInput value={form.profile.nationality ?? "Türkiye Cumhuriyeti"} onChange={(event) => onProfileChange("nationality", event.target.value)} /></Field>
               <Field label="Cinsiyet">
@@ -121,7 +122,7 @@ export function StaffEditorForm({
               <Field label="Sicil / Personel No"><TextInput value={form.profile.personnelNumber ?? ""} onChange={(event) => onProfileChange("personnelNumber", event.target.value)} placeholder="PR-0001" /></Field>
               <Field label="Pozisyon"><TextInput value={form.profile.position ?? ""} onChange={(event) => onProfileChange("position", event.target.value)} placeholder="Güzellik Uzmanı" /></Field>
               <Field label="Departman"><TextInput value={form.profile.department ?? ""} onChange={(event) => onProfileChange("department", event.target.value)} placeholder="Güzellik" /></Field>
-              <Field label="İşe Giriş Tarihi"><TextInput type="date" value={form.profile.hireDate ?? ""} onChange={(event) => onProfileChange("hireDate", event.target.value)} /></Field>
+              <Field label="İşe Giriş Tarihi"><DatePicker value={form.profile.hireDate ?? ""} ariaLabel="İşe Giriş Tarihi" onChange={(value) => onProfileChange("hireDate", value)} /></Field>
               <Field label="Çalışma tipi">
                 <ValooSelect
                   value={form.profile.employmentType ?? ""}
