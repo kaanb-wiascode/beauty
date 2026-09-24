@@ -182,8 +182,10 @@ export default function PaymentReportsPage() {
 function MetricCard({ label, value, detail }: { label: string; value: string; detail: string }) {
   return (
     <GlassCard className="min-w-0 p-4">
-      <div className="mb-2"><CardInfo help={getCardHelp(label, detail)} /></div>
-      <p className="truncate text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="truncate text-[11px] font-semibold uppercase tracking-[0.07em] text-[var(--muted-soft)]">{label}</p>
+        <CardInfo help={getCardHelp(label, detail)} />
+      </div>
       <p className="mt-2 truncate text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p>
       <p className="mt-2 truncate text-[11px] text-[var(--muted)]">{detail}</p>
     </GlassCard>
@@ -191,7 +193,7 @@ function MetricCard({ label, value, detail }: { label: string; value: string; de
 }
 
 function CardHeader({ title, subtitle }: { title: string; subtitle: string }) {
-  return <div className="border-b border-[var(--line)] px-5 py-4"><div className="mb-2"><CardInfo help={getCardHelp(title, subtitle)} /></div><h2 className="text-[15px] font-semibold text-[var(--ink)]">{title}</h2><p className="mt-1 text-[11px] text-[var(--muted)]">{subtitle}</p></div>;
+  return <div className="border-b border-[var(--line)] px-5 py-4"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title, subtitle)} /></div><p className="mt-1 text-[11px] text-[var(--muted)]">{subtitle}</p></div>;
 }
 
 function SummaryRow({ label, value, negative = false, strong = false }: { label: string; value: string; negative?: boolean; strong?: boolean }) {
