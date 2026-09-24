@@ -1,9 +1,9 @@
 "use client";
 
-import { Select, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceEmpty, FinancePanel } from "@/components/finance-view";
-import { Alert, Button } from "@/components/ui";
+import { Alert, Button, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type Lesson = { id:string; sequence:number; title:string };
