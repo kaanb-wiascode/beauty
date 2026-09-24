@@ -1,9 +1,11 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 
 import { Alert, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
 
@@ -59,13 +61,13 @@ export default function OperationsIntelligencePage() {
       {data ? (
         <>
           <section className="grid gap-4 md:grid-cols-3">
-            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">İncelenen pencere</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{data.horizonHours} saat</p></div>
-            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">Yaklaşan randevu</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{data.appointments.length}</p></div>
-            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">Analiz</p><p className="mt-2 text-sm font-semibold text-[var(--ink)]">Operasyon risk sinyalleri</p></div>
+            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs text-[var(--muted)]">İncelenen pencere</p><CardInfo help={getCardHelp("İncelenen pencere", "Operasyon risk analizinin kapsadığı ileri zaman aralığını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{data.horizonHours} saat</p></div>
+            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs text-[var(--muted)]">Yaklaşan randevu</p><CardInfo help={getCardHelp("Yaklaşan randevu", "Analiz penceresine giren yaklaşan randevuların sayısını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{data.appointments.length}</p></div>
+            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs text-[var(--muted)]">Analiz</p><CardInfo help={getCardHelp("Analiz", "Yaklaşan operasyon için gecikme ve gelmeme gibi risk sinyallerinin değerlendirildiğini gösterir.")} /></div><p className="mt-2 text-sm font-semibold text-[var(--ink)]">Operasyon risk sinyalleri</p></div>
           </section>
 
           <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Yönetici içgörüleri</h2>
+            <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Yönetici içgörüleri</h2><CardInfo help={getCardHelp("Yönetici içgörüleri", "Yaklaşan operasyon penceresindeki önemli risk ve aksiyon önerilerini özetler.")} /></div>
             <div className="mt-4 space-y-3">
               {data.managerInsights.length ? data.managerInsights.map((item) => (
                 <div key={item.code} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
@@ -78,7 +80,7 @@ export default function OperationsIntelligencePage() {
           </section>
 
           <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
-            <div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Randevu Risk Sinyalleri</h2></div>
+            <div className="border-b border-[var(--line)] px-6 py-4"><div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Randevu Risk Sinyalleri</h2><CardInfo help={getCardHelp("Randevu Risk Sinyalleri", "Her yaklaşan randevu için gelmeme ve gecikme risklerini gösterir.")} /></div></div>
             {data.appointments.length ? <div className="divide-y divide-[var(--line)]">{data.appointments.map((item) => (
               <div key={item.appointmentId} className="grid gap-4 px-6 py-4 lg:grid-cols-[1.2fr_1fr_1fr]">
                 <div><p className="text-sm font-semibold text-[var(--ink)]">{item.customerName} · {item.serviceName}</p><p className="mt-1 text-xs text-[var(--muted)]">{new Date(item.startAt).toLocaleString("tr-TR")} · {item.staffName} · Onay: {item.confirmationStatus ? userLabel(item.confirmationStatus) : "Yok"}</p></div>
