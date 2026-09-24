@@ -1,5 +1,5 @@
 /* Appointments route: local visual rules. Keep scheduling logic in page.tsx. */
-.appointments-page{--appointment-accent:#7657e8;--appointment-green:#39a86b;--appointment-line:#ebe8f1}
+.appointments-page{--appointment-accent:var(--accent);--appointment-green:var(--success);--appointment-line:var(--line)}
 .appointments-page input,.appointments-page select,.appointments-page textarea{min-height:40px;border-radius:10px}
 .appointments-page button{border-radius:10px}
 .appointments-page table{border-collapse:separate;border-spacing:0}
