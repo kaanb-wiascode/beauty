@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import {
   FinanceEmpty,
   FinanceMetric,
@@ -13,6 +14,7 @@ import {
 import { Alert, Button, Spinner } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userLabel } from "@/lib/user-language";
 import {
   CFO_STATUS_LABEL,
@@ -508,11 +510,11 @@ function AlertNotice({ alert }: { alert: CfoExecutiveAlert }) {
 }
 
 function Mini({ label, value, danger = false }: { label: string; value: ReactNode; danger?: boolean }) {
-  return <div className={`rounded-[15px] border p-3 ${danger ? "border-[rgba(214,78,60,.16)] bg-[var(--danger-soft)]" : "border-[var(--line)] bg-[var(--surface-2)]/45"}`}><p className="text-[9px] uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><div className="mt-2 text-[16px] font-semibold text-[var(--ink)]">{value}</div></div>;
+  return <div className={`rounded-[15px] border p-3 ${danger ? "border-[rgba(214,78,60,.16)] bg-[var(--danger-soft)]" : "border-[var(--line)] bg-[var(--surface-2)]/45"}`}><div className="flex items-start justify-between gap-2"><p className="text-[9px] uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><div className="mt-2 text-[16px] font-semibold text-[var(--ink)]">{value}</div></div>;
 }
 
 function MiniCard({ label, value, danger = false }: { label: string; value: ReactNode; danger?: boolean }) {
-  return <div className={`rounded-[18px] border p-4 ${danger ? "border-[rgba(214,78,60,.16)] bg-[var(--danger-soft)]" : "border-[var(--line)] bg-[var(--surface)]"}`}><p className="text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><div className="mt-2 text-[24px] font-semibold text-[var(--ink)]">{value}</div></div>;
+  return <div className={`rounded-[18px] border p-4 ${danger ? "border-[rgba(214,78,60,.16)] bg-[var(--danger-soft)]" : "border-[var(--line)] bg-[var(--surface)]"}`}><div className="flex items-start justify-between gap-2"><p className="text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><div className="mt-2 text-[24px] font-semibold text-[var(--ink)]">{value}</div></div>;
 }
 
 function Score({ value }: { value: number | null }) {
