@@ -50,10 +50,10 @@ export class TeamService {
     const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
       `SELECT u.id
        FROM users u
-       JOIN memberships m ON m.user_id=u.id
+       JOIN memberships m ON m."userId"=u.id
        WHERE u.id=$1::text
-         AND m.tenant_id=$2::text
-         AND m.company_id=$3::text
+         AND m."tenantId"=$2::text
+         AND m."companyId"=$3::text
          AND m.status='ACTIVE'
        LIMIT 1`,
       userId,
@@ -86,8 +86,8 @@ export class TeamService {
     return this.prisma.$queryRawUnsafe(
       `SELECT
          u.id,
-         u.first_name AS "firstName",
-         u.last_name AS "lastName",
+         u."firstName" AS "firstName",
+         u."lastName" AS "lastName",
          u.email,
          r.name AS "roleName",
          COALESCE(p.status,'OFFLINE') AS status,
@@ -100,20 +100,20 @@ export class TeamService {
            ELSE FALSE
          END AS "isOnline"
        FROM memberships m
-       JOIN users u ON u.id=m.user_id
-       JOIN roles r ON r.id=m.role_id
+       JOIN users u ON u.id=m."userId"
+       JOIN roles r ON r.id=m."roleId"
        LEFT JOIN team_user_presence p
          ON p.user_id=u.id
-        AND p.tenant_id=m.tenant_id
-        AND p.company_id=m.company_id
-       WHERE m.tenant_id=$1::text
-         AND m.company_id=$2::text
+        AND p.tenant_id=m."tenantId"
+        AND p.company_id=m."companyId"
+       WHERE m."tenantId"=$1::text
+         AND m."companyId"=$2::text
          AND m.status='ACTIVE'
        ORDER BY
          CASE WHEN u.id=$3::text THEN 0 ELSE 1 END,
          CASE WHEN p.last_seen_at >= NOW() - INTERVAL '90 seconds' AND p.status <> 'OFFLINE' THEN 0 ELSE 1 END,
-         u.first_name,
-         u.last_name`,
+         u."firstName",
+         u."lastName"`,
       this.tenantId(),
       this.companyId(),
       currentUserId,
@@ -132,7 +132,7 @@ export class TeamService {
          COALESCE(
            CASE
              WHEN c.type='DIRECT' THEN (
-               SELECT concat_ws(' ',u.first_name,u.last_name)
+               SELECT concat_ws(' ',u."firstName",u."lastName")
                FROM team_conversation_members other_cm
                JOIN users u ON u.id=other_cm.user_id
                WHERE other_cm.conversation_id=c.id
@@ -148,7 +148,7 @@ export class TeamService {
              'body', m.body,
              'createdAt', m.created_at,
              'senderUserId', m.sender_user_id,
-             'senderName', concat_ws(' ',su.first_name,su.last_name)
+             'senderName', concat_ws(' ',su."firstName",su."lastName")
            )
            FROM team_messages m
            JOIN users su ON su.id=m.sender_user_id
@@ -204,10 +204,10 @@ export class TeamService {
     const validRows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
       `SELECT DISTINCT u.id
        FROM users u
-       JOIN memberships m ON m.user_id=u.id
+       JOIN memberships m ON m."userId"=u.id
        WHERE u.id=ANY($1::text[])
-         AND m.tenant_id=$2::text
-         AND m.company_id=$3::text
+         AND m."tenantId"=$2::text
+         AND m."companyId"=$3::text
          AND m.status='ACTIVE'`,
       memberIds,
       this.tenantId(),
@@ -285,12 +285,12 @@ export class TeamService {
            m.edited_at AS "editedAt",
            m.created_at AS "createdAt",
            m.sender_user_id AS "senderUserId",
-           concat_ws(' ',u.first_name,u.last_name) AS "senderName"
+           concat_ws(' ',u."firstName",u."lastName") AS "senderName"
          FROM team_messages m
          JOIN users u ON u.id=m.sender_user_id
          WHERE m.conversation_id=$1::text
-           AND m.tenant_id=$2::text
-           AND m.company_id=$3::text
+           AND m."tenantId"=$2::text
+           AND m."companyId"=$3::text
            AND m.deleted_at IS NULL
          ORDER BY m.created_at DESC
          LIMIT $4
