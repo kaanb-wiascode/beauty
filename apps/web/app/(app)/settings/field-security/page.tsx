@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Select, FormEvent, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Spinner } from "@/components/ui";
 
@@ -77,7 +77,7 @@ export default function FieldSecurityPage() {
         return <form key={starter.fieldGroup} onSubmit={(e) => save(e, starter)} className="space-y-4 rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
           <div className="flex items-start justify-between gap-3"><div><h2 className="text-sm font-semibold text-[var(--ink)]">{starter.title}</h2><p className="mt-1 text-xs leading-5 text-[var(--muted)]">{starter.description}</p></div><span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">{current ? "CUSTOM" : "DEFAULT"}</span></div>
           <code className="block rounded-lg bg-[var(--surface-2)] px-3 py-2 text-[11px] text-[var(--muted)]">{starter.fieldGroup}</code>
-          <label className="block text-xs text-[var(--muted)]">Gerekli permission<select value={selection[starter.fieldGroup] ?? starter.fallback} onChange={(e) => setSelection((old) => ({ ...old, [starter.fieldGroup]: e.target.value }))} className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]">{permissionKeys.map((permission) => <option key={permission} value={permission}>{permission}</option>)}</select></label>
+          <label className="block text-xs text-[var(--muted)]">Gerekli permission<Select value={selection[starter.fieldGroup] ?? starter.fallback} onChange={(e) => setSelection((old) => ({ ...old, [starter.fieldGroup]: e.target.value }))} className="mt-1 w-full rounded-xl border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm text-[var(--ink)]">{permissionKeys.map((permission) => <option key={permission} value={permission}>{permission}</option>)}</Select></label>
           <div className="flex items-center justify-between gap-3"><div className="text-[11px] text-[var(--muted)]">{current ? `Son güncelleme: ${new Date(current.updatedAt).toLocaleString("tr-TR")}` : `Varsayılan: ${starter.fallback}`}</div><Button type="submit" disabled={busyGroup === starter.fieldGroup}>{busyGroup === starter.fieldGroup ? "Kaydediliyor..." : "Politikayı Kaydet"}</Button></div>
         </form>;
       })}
