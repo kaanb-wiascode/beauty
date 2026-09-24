@@ -167,7 +167,7 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
 
   const description =
     action === "appointment"
-      ? "Randevuyu dashboard'dan ayrılmadan oluştur."
+      ? "Randevuyu ana ekrandan ayrılmadan oluştur."
       : action === "customer"
         ? "Müşteri kaydını hızlıca oluştur."
         : action === "service"
