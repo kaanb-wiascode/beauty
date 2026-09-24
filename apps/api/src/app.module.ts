@@ -56,6 +56,7 @@ import { CreatorsController } from './modules/corporate-communications/creators.
 import { CreatorsService } from './modules/corporate-communications/creators.service';
 import { PrMediaController } from './modules/corporate-communications/pr-media.controller';
 import { PrMediaService } from './modules/corporate-communications/pr-media.service';
+import { TeamModule } from './modules/team/team.module';
 
 @Module({
   imports: [
@@ -113,6 +114,7 @@ import { PrMediaService } from './modules/corporate-communications/pr-media.serv
     VisitsModule,
     OperationsModule,
     CorporateCommunicationsModule,
+    TeamModule,
   ],
   controllers: [
     MarketingVendorsController,
