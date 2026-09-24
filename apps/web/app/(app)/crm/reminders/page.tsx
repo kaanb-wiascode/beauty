@@ -1,5 +1,6 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, EmptyState, PageHeader, Select, Spinner } from "@/components/ui";
