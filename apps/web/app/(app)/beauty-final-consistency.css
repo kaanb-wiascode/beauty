@@ -13,3 +13,97 @@ table tbody tr{border-bottom-color:var(--beauty-line)!important}
 table tbody tr:hover{background:#f1f6fa!important}
 button,a{transition:color .16s ease,background-color .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease}
 @media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:16px!important}table{min-width:680px}input,select,textarea{max-width:100%}}
+
+
+/* VALOO Design System V2 — authenticated application enforcement */
+:root{
+  --valoo-page-title:32px;
+  --valoo-section-title:20px;
+  --valoo-card-title:16px;
+  --valoo-body:14px;
+  --valoo-label:13px;
+  --valoo-secondary:12px;
+  --valoo-caption:11px;
+}
+
+.app-shell,
+.app-content{
+  color:var(--ink);
+}
+
+.app-content{
+  min-width:0;
+}
+
+.app-content .surface{
+  border-radius:var(--radius-card);
+}
+
+.app-content .glass-elevated{
+  border-radius:22px;
+}
+
+.app-content input:not([type="checkbox"]):not([type="radio"]),
+.app-content select,
+.app-content textarea{
+  min-height:44px;
+  border-radius:var(--radius-control);
+  font-size:var(--valoo-body);
+}
+
+.app-content table{
+  font-size:13px;
+}
+
+.app-content table thead th{
+  font-size:12px!important;
+  font-weight:600;
+  letter-spacing:.01em;
+}
+
+.app-content [class*="text-[8px]"],
+.app-content [class*="text-[9px]"]{
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+
+.app-content [class*="text-[10px]"]{
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+.app-sidebar [class*="text-[9px]"],
+.app-sidebar [class*="text-[10px]"]{
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+
+.app-content button:focus-visible,
+.app-content a:focus-visible,
+.app-sidebar button:focus-visible,
+.app-sidebar a:focus-visible{
+  outline:2px solid rgba(22,116,189,.32);
+  outline-offset:2px;
+  box-shadow:0 0 0 4px var(--accent-soft);
+}
+
+.app-content [role="dialog"]{
+  border-radius:var(--radius-dialog);
+}
+
+.app-content .data-table td,
+.app-content .data-table th{
+  line-height:1.45;
+}
+
+@media(max-width:767px){
+  .app-content input:not([type="checkbox"]):not([type="radio"]),
+  .app-content select,
+  .app-content textarea{
+    min-height:48px;
+    font-size:16px;
+  }
+  .app-content table{
+    min-width:0;
+  }
+}
