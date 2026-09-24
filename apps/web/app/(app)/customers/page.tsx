@@ -24,6 +24,7 @@ import {
   Field,
   PageHeader,
   Pagination,
+  Select,
   Spinner,
   TableWrap,
   Td,
@@ -1033,7 +1034,7 @@ function CustomerModal({
                 />
               </Field>
               <Field label="Müşteri kaynağı">
-                <select
+                <Select
                   className="control h-11 w-full"
                   value={form.customerSource}
                   onChange={(event) =>
@@ -1052,7 +1053,7 @@ function CustomerModal({
                       </option>
                     ),
                   )}
-                </select>
+                </Select>
               </Field>
             </div>
           </>
