@@ -416,7 +416,7 @@ export default function SupplierOffersPage() {
                 {availableVariants.map((variant) => <option key={variant.id} value={variant.id}>{variant.brandName ? `${variant.brandName} · ` : ""}{variant.productName} · {variant.variantName}{variant.canonicalSku ? ` · ${variant.canonicalSku}` : ""}</option>)}
               </Select>
             </Field>
-            {selectedVariant ? <p className="rounded-[12px] bg-[#f5f8fa] px-3 py-2 text-[11px] text-[#667482]">Birim: {UNIT_LABELS[selectedVariant.unit] ?? selectedVariant.unit} · Kategori: {selectedVariant.categoryCode || "—"}</p> : null}
+            {selectedVariant ? <p className="rounded-[12px] bg-[#f5f8fa] px-3 py-2 text-[11px] text-[#667482]">Birim: {UNIT_LABELS[selectedVariant.unit] ?? selectedVariant.unit} · Kategori: {selectedVariant.categoryCode ? userLabel(selectedVariant.categoryCode) : "—"}</p> : null}
 
             <div className="grid gap-3 sm:grid-cols-2">
               <Field label="Tedarikçi Stok Kodu"><TextInput value={draft.supplierSku} onChange={(event) => patchDraft("supplierSku", event.target.value)} disabled={!canManage} /></Field>
