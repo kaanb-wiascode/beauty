@@ -336,7 +336,7 @@ export default function ServicesPage() {
         </aside>
       </div>
 
-      <Modal open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Hizmeti düzenle" : "Yeni hizmet"} description="Hizmetin operasyon, fiyatlandırma ve randevu davranışını tanımlayın.">
+      <Modal size="xl" open={modalOpen} onClose={() => { if (!saving) { setModalOpen(false); setFormError(""); } }} title={editing ? "Hizmeti düzenle" : "Yeni hizmet"} description="Hizmetin operasyon, fiyatlandırma ve randevu davranışını tanımlayın.">
         <form onSubmit={onSubmit} className="space-y-5">
           <FormSection
             title="Hizmet bilgileri"
