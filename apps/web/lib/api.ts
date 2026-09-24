@@ -268,3 +268,75 @@ export function withQuery(
   const query = search.toString();
   return query ? `${path}?${query}` : path;
 }
+
+
+export async function apiFormData<T>(
+  path: string,
+  formData: FormData,
+  options: Pick<ApiOptions, "method" | "auth"> = {},
+): Promise<T> {
+  const { method = "POST", auth = true } = options;
+  let accessToken = auth ? getAccessToken() : null;
+
+  if (auth && !accessToken && !path.startsWith("/auth/")) {
+    accessToken = await refreshAccessToken();
+    if (!accessToken) {
+      clearSession();
+      redirectToLogin();
+      throw new ApiError("Oturumunuz Sona Erdi. Lütfen Tekrar Giriş Yapın.", 401);
+    }
+  }
+
+  const request = async (token: string | null) => {
+    const headers: Record<string, string> = {};
+    if (auth && token) headers.Authorization = `Bearer ${token}`;
+    try {
+      return await fetch(`${API_BASE_URL}${path}`, {
+        method,
+        headers,
+        body: formData,
+        credentials: "include",
+      });
+    } catch {
+      throw new ApiError(
+        "Sunucuya Bağlanılamadı. Lütfen Birkaç Dakika Sonra Tekrar Deneyin.",
+        0,
+      );
+    }
+  };
+
+  let response = await request(accessToken);
+
+  if (response.status === 401 && auth && !path.startsWith("/auth/")) {
+    const refreshedToken = await refreshAccessToken();
+    if (refreshedToken) response = await request(refreshedToken);
+    else {
+      clearSession();
+      redirectToLogin();
+    }
+  }
+
+  const text = await response.text();
+  let payload: unknown = null;
+  if (text) {
+    try {
+      payload = JSON.parse(text) as unknown;
+    } catch {
+      payload = text;
+    }
+  }
+
+  if (!response.ok) {
+    const fallback =
+      response.status === 403
+        ? "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor."
+        : response.status === 404
+          ? "Aradığınız Kayıt Bulunamadı."
+          : response.status >= 500
+            ? "İşlem Şu Anda Tamamlanamıyor. Lütfen Birkaç Dakika Sonra Tekrar Deneyin."
+            : "İşlem Tamamlanamadı. Lütfen Bilgileri Kontrol Edip Tekrar Deneyin.";
+    throw new ApiError(readErrorMessage(payload, fallback), response.status);
+  }
+
+  return payload as T;
+}
