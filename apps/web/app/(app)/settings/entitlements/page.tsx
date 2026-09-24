@@ -15,6 +15,12 @@ type Entitlement = {
 
 type Payload = { tenantId: string; companyId: string; items: Entitlement[] };
 
+const SOURCE_LABELS: Record<Entitlement["source"], string> = {
+  OVERRIDE: "Geçici Tanım",
+  PLAN: "Abonelik Planı",
+  DEFAULT: "Varsayılan",
+};
+
 function renderValue(value: unknown) {
   if (typeof value === "boolean") return value ? "Etkin" : "Kapalı";
   if (typeof value === "string" || typeof value === "number") return String(value);
@@ -26,15 +32,15 @@ export default function EntitlementsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Payload>("/admin/entitlements").then(setData).catch((e) => setError(e instanceof Error ? e.message : "Entitlements yüklenemedi."));
+    api<Payload>("/admin/entitlements").then(setData).catch((e) => setError(e instanceof Error ? e.message : "Plan özellikleri yüklenemedi."));
   }, []);
 
   return (
     <main className="mx-auto w-full max-w-[1100px] space-y-6 pb-10">
       <header className="border-b border-[var(--line)] pb-5">
         <div className="text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">Yönetim / Sistem</div>
-        <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Özellikler & Entitlements</h1>
-        <p className="mt-1 text-sm text-[var(--muted)]">Planınızın etkinleştirdiği kabiliyetleri görüntüleyin. Bu ekran yetkileri değil, abonelik/özellik erişimini gösterir.</p>
+        <h1 className="mt-1 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Plan Özellikleri</h1>
+        <p className="mt-1 text-sm text-[var(--muted)]">Abonelik planınızla kullanabildiğiniz özellikleri ve modülleri görüntüleyin. Kullanıcı yetkileri bu ekrandan yönetilmez.</p>
       </header>
 
       {error && <div className="rounded-xl border border-red-500/30 bg-red-500/5 p-4 text-sm text-red-500">{error}</div>}
@@ -46,13 +52,12 @@ export default function EntitlementsPage() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <div className="text-sm font-semibold text-[var(--ink)]">{item.name}</div>
-                  <div className="mt-1 font-mono text-[11px] text-[var(--muted)]">{item.key}</div>
                 </div>
-                <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)]">{item.source}</span>
+                <span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-[11px] font-semibold text-[var(--muted)]">{SOURCE_LABELS[item.source]}</span>
               </div>
               <div className="mt-4 text-xl font-semibold text-[var(--ink)]">{renderValue(item.effectiveValue)}</div>
               {item.description && <p className="mt-2 text-xs leading-5 text-[var(--muted)]">{item.description}</p>}
-              {item.overrideEndsAt && <div className="mt-3 text-[11px] text-[var(--muted)]">Override bitişi: {new Date(item.overrideEndsAt).toLocaleString("tr-TR")}</div>}
+              {item.overrideEndsAt && <div className="mt-3 text-[11px] text-[var(--muted)]">Geçici tanımın bitişi: {new Date(item.overrideEndsAt).toLocaleString("tr-TR")}</div>}
             </div>
           ))}
         </section>
