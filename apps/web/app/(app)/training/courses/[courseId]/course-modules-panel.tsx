@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Select, FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceEmpty, FinancePanel } from "@/components/finance-view";
 import { Alert, Button } from "@/components/ui";
@@ -93,7 +93,7 @@ export function CourseModulesPanel({versionId,lessons,disabled=false}:Props){
 
       <form onSubmit={save} className="grid gap-3 md:grid-cols-2"><input required value={title} onChange={e=>setTitle(e.target.value)} placeholder="Modül başlığı" className="min-h-11 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[13px]"/><input value={description} onChange={e=>setDescription(e.target.value)} placeholder="Kısa açıklama" className="min-h-11 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] px-3.5 text-[13px]"/><div className="md:col-span-2 flex justify-end gap-2">{editingId?<Button type="button" variant="secondary" onClick={cancelEdit}>Vazgeç</Button>:null}<Button type="submit" disabled={disabled||busy!==null}>{editingId?"Modülü Güncelle":"Modül Ekle"}</Button></div></form>
 
-      {lessons.length?<div className="border-t border-[var(--line)] pt-4"><p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Ders → Modül Ataması</p><div className="space-y-2">{lessons.map(lesson=><div key={lesson.id} className="flex flex-col gap-2 rounded-[14px] border border-[var(--line)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[11px] font-medium text-[var(--ink)]">{lesson.sequence}. {lesson.title}</p><p className="mt-0.5 text-[9px] text-[var(--muted)]">{lessonModule.get(lesson.id)?"Modül içinde":"Modülsüz"}</p></div><select value={lessonModule.get(lesson.id)??""} disabled={disabled||busy!==null} onChange={e=>assign(lesson.id,e.target.value)} className="min-h-10 min-w-[220px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px]"><option value="">Modülsüz</option>{modules.map(courseModule=><option key={courseModule.id} value={courseModule.id}>{courseModule.sequence}. {courseModule.title}</option>)}</select></div>)}</div></div>:null}
+      {lessons.length?<div className="border-t border-[var(--line)] pt-4"><p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Ders → Modül Ataması</p><div className="space-y-2">{lessons.map(lesson=><div key={lesson.id} className="flex flex-col gap-2 rounded-[14px] border border-[var(--line)] px-3 py-3 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[11px] font-medium text-[var(--ink)]">{lesson.sequence}. {lesson.title}</p><p className="mt-0.5 text-[9px] text-[var(--muted)]">{lessonModule.get(lesson.id)?"Modül içinde":"Modülsüz"}</p></div><Select value={lessonModule.get(lesson.id)??""} disabled={disabled||busy!==null} onChange={e=>assign(lesson.id,e.target.value)} className="min-h-10 min-w-[220px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px]"><option value="">Modülsüz</option>{modules.map(courseModule=><option key={courseModule.id} value={courseModule.id}>{courseModule.sequence}. {courseModule.title}</option>)}</Select></div>)}</div></div>:null}
     </div>
   </FinancePanel>;
 }
