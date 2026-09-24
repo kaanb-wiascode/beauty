@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type ContentItem = {
   id: string;
@@ -154,7 +155,7 @@ export default function ContentOperationsPage() {
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p>
           <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">İçerik Operasyonu</h1>
-          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Fikirden yayına kadar sosyal medya ve dijital içerik lifecycle&apos;ını kampanya bağlantısı ve zorunlu onay kapısıyla yönetin.</p>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Fikirden yayına kadar sosyal medya ve dijital içerik sürecini kampanyalar ve onay adımlarıyla yönetin.</p>
         </div>
         {canManage ? <Button onClick={() => setShowForm((value) => !value)}>{showForm ? "Formu Kapat" : "Yeni İçerik"}</Button> : null}
       </header>
@@ -164,11 +165,11 @@ export default function ContentOperationsPage() {
       {showForm && canManage ? (
         <form onSubmit={(e) => void create(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-4">
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Başlık<input required className={fieldClass} value={title} onChange={(e) => setTitle(e.target.value)} /></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Platform<Select className={fieldClass} value={platform} onChange={(e) => setPlatform(e.target.value)}><option>INSTAGRAM</option><option>FACEBOOK</option><option>TIKTOK</option><option>YOUTUBE</option><option>LINKEDIN</option><option>WEBSITE</option><option>EMAIL</option><option>SMS</option><option>WHATSAPP</option><option>OTHER</option></Select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Format<Select className={fieldClass} value={format} onChange={(e) => setFormat(e.target.value)}><option>POST</option><option>REEL</option><option>STORY</option><option>VIDEO</option><option>ARTICLE</option><option>EMAIL</option><option>SMS</option><option>BANNER</option><option>OTHER</option></Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Platform<Select className={fieldClass} value={platform} onChange={(e) => setPlatform(e.target.value)}><option value="INSTAGRAM">Instagram</option><option value="FACEBOOK">Facebook</option><option value="TIKTOK">TikTok</option><option value="YOUTUBE">YouTube</option><option value="LINKEDIN">LinkedIn</option><option value="WEBSITE">Web Sitesi</option><option value="EMAIL">E-Posta</option><option value="SMS">SMS</option><option value="WHATSAPP">WhatsApp</option><option value="OTHER">Diğer</option></Select></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Format<Select className={fieldClass} value={format} onChange={(e) => setFormat(e.target.value)}><option value="POST">Gönderi</option><option value="REEL">Kısa Video (Reel)</option><option value="STORY">Hikâye</option><option value="VIDEO">Video</option><option value="ARTICLE">Makale</option><option value="EMAIL">E-Posta</option><option value="SMS">SMS</option><option value="BANNER">Banner</option><option value="OTHER">Diğer</option></Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Kampanya<Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</Select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">CTA<input className={fieldClass} value={cta} onChange={(e) => setCta(e.target.value)} placeholder="Randevu al, Teklif iste..." /></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2 xl:col-span-4">Caption / İçerik Metni<textarea className={areaClass} value={caption} onChange={(e) => setCaption(e.target.value)} /></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2">Eylem Çağrısı<input className={fieldClass} value={cta} onChange={(e) => setCta(e.target.value)} placeholder="Randevu al, Teklif iste..." /></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)] md:col-span-2 xl:col-span-4">İçerik Metni<textarea className={areaClass} value={caption} onChange={(e) => setCaption(e.target.value)} /></label>
           <div className="md:col-span-2 xl:col-span-4"><Button disabled={saving} type="submit">{saving ? "Kaydediliyor..." : "İçeriği Oluştur"}</Button></div>
         </form>
       ) : null}
@@ -190,7 +191,7 @@ export default function ContentOperationsPage() {
                 {(grouped[status] ?? []).map((item) => (
                   <article key={item.id} className="rounded-[15px] border border-[var(--line)] bg-white p-3">
                     <p className="text-[12px] font-semibold text-[var(--ink)]">{item.title}</p>
-                    <p className="mt-1 text-[9px] uppercase tracking-[.08em] text-[var(--muted)]">{item.platform} · {item.format}</p>
+                    <p className="mt-1 text-[9px] uppercase tracking-[.08em] text-[var(--muted)]">{userLabel(item.platform)} · {userLabel(item.format)}</p>
                     {item.campaignName ? <p className="mt-2 text-[10px] text-[var(--muted)]">{item.campaignName}</p> : null}
                     {item.scheduledAt ? <p className="mt-2 text-[10px] text-[var(--muted)]">{new Date(item.scheduledAt).toLocaleString("tr-TR")}</p> : null}
                     {canManage && ["IDEA", "BRIEF", "PRODUCTION"].includes(item.status) ? <Button className="mt-3 w-full" disabled={actingId === item.id} onClick={() => void submitReview(item.id)}>İncelemeye Gönder</Button> : null}
