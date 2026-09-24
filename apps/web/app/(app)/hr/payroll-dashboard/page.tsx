@@ -6,6 +6,7 @@ import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type PayrollDashboard = {
   period: { year: number; month: number };
@@ -72,7 +73,7 @@ export default function PayrollDashboardPage() {
     try {
       setData(await api<PayrollDashboard>(withQuery("/hr/payroll/dashboard", { year, month })));
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Bordro kontrol merkezi yüklenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Bordro kontrol merkezi yüklenemedi.") : "Bordro kontrol merkezi yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -163,13 +164,13 @@ export default function PayrollDashboardPage() {
             <FinanceMetric
               label="Kalan Maaş Borcu"
               value={money(data?.settlements.salaryRemaining)}
-              detail="335 Personele Borçlar"
+              detail="Personel borçları (335 hesap)"
               tone={Number(data?.settlements.salaryRemaining ?? 0) > 0 ? "warning" : "success"}
             />
             <FinanceMetric
               label="Vergi + SGK Kalan"
               value={money(totalTaxAndSocialRemaining)}
-              detail="360 / 361 / 369"
+              detail="Vergi ve SGK yükümlülük hesapları (360 / 361 / 369)"
               tone={totalTaxAndSocialRemaining > 0 ? "warning" : "success"}
             />
           </section>
@@ -209,7 +210,7 @@ export default function PayrollDashboardPage() {
 
             <FinancePanel
               title="Maliyet Merkezi Dağılımı"
-              description="İşveren maliyetinin cost-center kırılımı."
+              description="İşveren maliyetinin maliyet merkezi dağılımı."
             >
               <div className="space-y-3">
                 {costCenters.map((costCenter) => {
@@ -269,7 +270,7 @@ export default function PayrollDashboardPage() {
                       </td>
                       <td className="p-4 text-[var(--muted)]">{period.branchName ?? "Şirket Geneli"}</td>
                       <td className="p-4">
-                        <FinanceStatus status={period.status}>{STATUS_LABELS[period.status] ?? period.status}</FinanceStatus>
+                        <FinanceStatus status={period.status}>{STATUS_LABELS[period.status] ?? userLabel(period.status)}</FinanceStatus>
                       </td>
                       <td className="p-4 text-[var(--muted)]">{dateTime(period.approvedAt)}</td>
                       <td className="p-4 text-[var(--muted)]">{dateTime(period.postedAt)}</td>
