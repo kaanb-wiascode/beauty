@@ -79,13 +79,13 @@ export default function ServiceExecutionsPage() {
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-            Service Operations
+            Hizmet operasyonları
           </p>
           <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">
-            Hizmet İcra Kayıtları
+            Hizmet uygulama kayıtları
           </h1>
           <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-            Fiziksel hizmet başlangıç ve tamamlanma kayıtlarını Visit, Appointment ve ayrılmış oda/ekipman bağlamıyla yönetin. Paket Session tüketimi ayrı ticari aksiyon olarak kalır.
+            Hizmetlerin başlangıç ve tamamlanma kayıtlarını; ziyaret, randevu, oda ve ekipman bilgileriyle birlikte yönetin. Paket kullanım kaydı ayrı bir ticari işlem olarak izlenir.
           </p>
         </div>
         <Button variant="secondary" onClick={() => void load()}>
