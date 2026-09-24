@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { Select, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 
 type HrAnalytics = {
