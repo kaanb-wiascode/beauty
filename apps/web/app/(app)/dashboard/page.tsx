@@ -37,7 +37,7 @@ export default function DashboardPage() {
     let cancelled = false;
     async function load() {
       try { setLoading(true); const result = await api<Report>(`/payments/dashboard-report?from=${encodeURIComponent(startToday().toISOString())}&to=${encodeURIComponent(endToday().toISOString())}`); if (!cancelled) setData(result); }
-      catch (err) { if (!cancelled) setError(err instanceof ApiError ? err.message : "Dashboard verileri yüklenemedi."); }
+      catch (err) { if (!cancelled) setError(err instanceof ApiError ? err.message : "Ana ekran verileri yüklenemedi."); }
       finally { if (!cancelled) setLoading(false); }
     }
     void load(); return () => { cancelled = true; };
@@ -59,8 +59,8 @@ export default function DashboardPage() {
     return [...data.todayAppointments.map((a) => ({ label: fullName(a.customer.firstName,a.customer.lastName), detail: `${a.service.name} · ${time(a.startAt)}`, href: "/appointments" })), ...data.servicePerformance.map((s) => ({ label: s.name, detail: "Hizmet", href: "/services" })), ...data.staffPerformance.map((s) => ({ label: s.name, detail: "Personel", href: "/staff" }))].filter((x) => `${x.label} ${x.detail}`.toLocaleLowerCase("tr-TR").includes(q)).slice(0, 8);
   }, [data, search]);
 
-  if (loading) return <div className="mx-auto max-w-[1380px] py-10"><Spinner label="Dashboard hazırlanıyor..." /></div>;
-  if (!data) return <div className="mx-auto max-w-[1380px] py-10"><Alert onClose={() => setError("")}>{error || "Dashboard verileri bulunamadı."}</Alert></div>;
+  if (loading) return <div className="mx-auto max-w-[1380px] py-10"><Spinner label="Ana ekran hazırlanıyor..." /></div>;
+  if (!data) return <div className="mx-auto max-w-[1380px] py-10"><Alert onClose={() => setError("")}>{error || "Ana ekran verileri bulunamadı."}</Alert></div>;
 
   const today = [...data.todayAppointments].sort((a,b) => +new Date(a.startAt)-+new Date(b.startAt));
   const upcoming = data.upcomingAppointments.filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW").sort((a,b) => +new Date(a.startAt)-+new Date(b.startAt));
@@ -72,9 +72,9 @@ export default function DashboardPage() {
   return <div className={`${styles.page} mx-auto max-w-[1420px] pb-8`}>
     <header className="dashboard-topbar sticky top-0 z-20 bg-[var(--background)]/90 backdrop-blur-xl">
       <div className="flex min-w-0 items-center gap-2">
-        <button className="dashboard-icon-button" type="button" aria-label="Dashboard menüsü" onClick={() => setTool(tool === "menu" ? null : "menu")}><MenuIcon /></button>
+        <button className="dashboard-icon-button" type="button" aria-label="Ana ekran menüsü" onClick={() => setTool(tool === "menu" ? null : "menu")}><MenuIcon /></button>
         <button className={`dashboard-icon-button ${favorite ? "text-[var(--ink)]" : ""}`} type="button" aria-label={favorite ? "Favoriden çıkar" : "Favorilere ekle"} onClick={() => setFavorite((v)=>!v)}><StarIcon filled={favorite} /></button>
-        <div className="hidden items-center gap-2 text-[13px] text-[var(--muted)] sm:flex"><span>Dashboard</span><span className="text-[var(--muted-soft)]">/</span><b className="text-[var(--ink)]">Bugün</b></div>
+        <div className="hidden items-center gap-2 text-[13px] text-[var(--muted)] sm:flex"><span>Ana Ekran</span><span className="text-[var(--muted-soft)]">/</span><b className="text-[var(--ink)]">Bugün</b></div>
       </div>
       <div className="relative flex items-center gap-1.5 sm:gap-2">
         <button className="dashboard-search hidden md:flex" type="button" onClick={() => setTool("search")} aria-label="Ara"><SearchIcon/><span>Ara...</span><kbd>⌘K</kbd></button>
@@ -82,9 +82,9 @@ export default function DashboardPage() {
         <button className="dashboard-icon-button hidden sm:inline-flex" type="button" aria-label="Geçmiş" onClick={() => setTool(tool === "history" ? null : "history")}><HistoryIcon/></button>
         <button className="dashboard-icon-button" type="button" aria-label="Bildirimler" onClick={() => setTool(tool === "notifications" ? null : "notifications")}><BellIcon/></button>
         <div className={styles.profile}>{initials(user?.firstName ?? "K", user?.lastName ?? "D")}</div>
-        {tool === "menu" ? <ToolPopover title="Dashboard"><ToolButton label="Yeni randevu" onClick={()=>{setAction("appointment");setTool(null)}}/><ToolButton label="Yeni müşteri" onClick={()=>{setAction("customer");setTool(null)}}/><ToolButton label="Yeni hizmet" onClick={()=>{setAction("service");setTool(null)}}/></ToolPopover> : null}
-        {tool === "history" ? <ToolPopover title="Son işlemler"><ToolLine title="Dashboard görüntülendi" detail="şimdi"/><ToolLine title="Son 7 gün raporu" detail="bugün"/><ToolLine title="Yaklaşan randevular" detail="bugün"/></ToolPopover> : null}
-        {tool === "notifications" ? <ToolPopover title="Bildirimler"><ToolLine title={`${today.length} bugünkü randevu`} detail="Dashboard"/><ToolLine title={`${data.summary.scheduledAppointments} planlanmış randevu`} detail="Bugün"/><ToolLine title={`${data.summary.paymentCount} ödeme işlemi`} detail="Bugün"/></ToolPopover> : null}
+        {tool === "menu" ? <ToolPopover title="Ana Ekran"><ToolButton label="Yeni randevu" onClick={()=>{setAction("appointment");setTool(null)}}/><ToolButton label="Yeni müşteri" onClick={()=>{setAction("customer");setTool(null)}}/><ToolButton label="Yeni hizmet" onClick={()=>{setAction("service");setTool(null)}}/></ToolPopover> : null}
+        {tool === "history" ? <ToolPopover title="Son işlemler"><ToolLine title="Ana ekran görüntülendi" detail="şimdi"/><ToolLine title="Son 7 gün raporu" detail="bugün"/><ToolLine title="Yaklaşan randevular" detail="bugün"/></ToolPopover> : null}
+        {tool === "notifications" ? <ToolPopover title="Bildirimler"><ToolLine title={`${today.length} bugünkü randevu`} detail="Ana Ekran"/><ToolLine title={`${data.summary.scheduledAppointments} planlanmış randevu`} detail="Bugün"/><ToolLine title={`${data.summary.paymentCount} ödeme işlemi`} detail="Bugün"/></ToolPopover> : null}
       </div>
     </header>
 
