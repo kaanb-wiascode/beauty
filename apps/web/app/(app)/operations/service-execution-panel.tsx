@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 import type { Visit } from "@/lib/types";
 import { ExecutionChecklistPanel } from "./service-executions/execution-checklist-panel";
 import { ExecutionConsumablesPanel } from "./service-executions/execution-consumables-panel";
@@ -235,19 +236,19 @@ export function ServiceExecutionPanel({
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">
-            Service Execution
+            Hizmet uygulama süreci
           </p>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Fiziksel hizmet, personel sorumluluğu, SOP checklist, sarf tüketimi ve ticari handoff ayrı ve izlenebilir aksiyonlardır.
+            Hizmet uygulaması, personel sorumluluğu, standart işlem kontrolü, sarf tüketimi ve ticari kayıt tamamlama adımları ayrı ayrı izlenir.
           </p>
         </div>
         {serviceFlowCompleted ? (
           <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[#2d6a49]">
-            Checkout için hizmet akışı hazır
+            Çıkış işlemi için hizmet akışı hazır
           </span>
         ) : allCompleted && visit.source === "APPOINTMENT" ? (
           <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">
-            Handoff bekleniyor
+            Ticari kayıtların tamamlanması bekleniyor
           </span>
         ) : null}
       </div>
@@ -273,8 +274,8 @@ export function ServiceExecutionPanel({
                 <div>
                   <p className="text-xs font-semibold text-[var(--ink)]">
                     {execution.source === "WALK_IN"
-                      ? `Walk-in · ${execution.walkInServiceDescription ?? execution.serviceId.slice(0, 8)}`
-                      : `Randevu ${execution.appointmentId?.slice(0, 8) ?? "-"}`}
+                      ? `Randevusuz işlem · ${execution.walkInServiceDescription ?? "Hizmet"}`
+                      : "Randevulu işlem"}
                   </p>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
                     {execution.status === "IN_PROGRESS"
@@ -282,8 +283,8 @@ export function ServiceExecutionPanel({
                       : execution.status === "COMPLETED"
                         ? "Hizmet tamamlandı"
                         : "Hizmet iptal edildi"}
-                    {execution.roomId ? ` · Oda ${execution.roomId.slice(0, 8)}` : ""}
-                    {execution.assetId ? ` · Cihaz ${execution.assetId.slice(0, 8)}` : ""}
+                    {execution.roomId ? " · Oda atandı" : ""}
+                    {execution.assetId ? " · Cihaz atandı" : ""}
                   </p>
                 </div>
                 <div className="flex flex-wrap gap-2">
@@ -298,7 +299,7 @@ export function ServiceExecutionPanel({
                       {busyId === `execution:${execution.id}`
                         ? "Tamamlanıyor..."
                         : checklistBlocked[execution.id] !== false
-                          ? "Checklist Bekliyor"
+                          ? "Kontrol listesi bekleniyor"
                           : "Hizmeti Tamamla"}
                     </Button>
                   ) : null}
@@ -343,20 +344,20 @@ export function ServiceExecutionPanel({
                     <div className="text-[11px] text-[var(--muted)]">
                       {execution.source === "WALK_IN" ? (
                         <>
-                          <p>Ticari kaynak: Satış {execution.walkInSaleId?.slice(0, 8) ?? "-"}</p>
-                          <p className="mt-1">Satış durumu: {execution.walkInSaleStatus ?? "Bilinmiyor"}</p>
+                          <p>Ticari kayıt: Satış kaydı</p>
+                          <p className="mt-1">Satış durumu: {userLabel(execution.walkInSaleStatus)}</p>
                         </>
                       ) : (
                         <>
                           <p>
-                            Randevu: {execution.appointmentStatus === "COMPLETED" ? "Tamamlandı" : execution.appointmentStatus ?? "Bilinmiyor"}
+                            Randevu durumu: {userLabel(execution.appointmentStatus)}
                           </p>
                           {execution.packageSessionId ? (
                             <p className="mt-1">
-                              Paket seansı: {execution.packageSessionStatus === "CONSUMED" ? "Tüketildi" : execution.packageSessionStatus ?? "Bilinmiyor"}
+                              Paket kullanım durumu: {userLabel(execution.packageSessionStatus)}
                             </p>
                           ) : (
-                            <p className="mt-1">Paket seansı: Yok</p>
+                            <p className="mt-1">Paket kullanımı: Yok</p>
                           )}
                         </>
                       )}
