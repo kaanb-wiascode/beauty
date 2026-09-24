@@ -16,6 +16,7 @@ import {
 } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import { getStoredUser, hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
@@ -96,7 +97,7 @@ export default function CrmFollowUpsPage() {
       setOpportunities(opportunityRows);
       setAssignees(assigneeRows);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Takip Listesi Yüklenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip listesi yüklenemedi.") : "Takip listesi yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -121,13 +122,13 @@ export default function CrmFollowUpsPage() {
     setError("");
     if (
       !requireActiveBranch(
-        "Takip Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Takip oluşturmak için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
     }
     if (!form.assignedUserId || !form.subject || !form.dueAt) {
-      setError("Konu, Sorumlu Ve Takip Zamanı Gereklidir.");
+      setError("Konu, sorumlu ve takip zamanı gereklidir.");
       return;
     }
     const [kind, id] = form.subject.split(":");
@@ -145,10 +146,10 @@ export default function CrmFollowUpsPage() {
       });
       setCreateOpen(false);
       setForm(emptyForm);
-      showToast("Takip Görevi Oluşturuldu.", "success");
+      showToast("Takip görevi oluşturuldu.", "success");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Takip Oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip oluşturulamadı.") : "Takip oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -157,12 +158,12 @@ export default function CrmFollowUpsPage() {
   async function completeFollowUp(event: FormEvent) {
     event.preventDefault();
     if (!completing || !outcome.trim()) {
-      setError("Görüşme Sonucu Gereklidir.");
+      setError("Görüşme sonucu gereklidir.");
       return;
     }
     if (
       !requireActiveBranch(
-        "Takibi Tamamlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
@@ -176,10 +177,10 @@ export default function CrmFollowUpsPage() {
       });
       setCompleting(null);
       setOutcome("");
-      showToast("Takip Tamamlandı.", "success");
+      showToast("Takip tamamlandı.", "success");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Takip Tamamlanamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip tamamlanamadı.") : "Takip tamamlanamadı.");
     } finally {
       setSaving(false);
     }
@@ -188,7 +189,7 @@ export default function CrmFollowUpsPage() {
   function openReschedule(row: CrmFollowUp) {
     if (
       !requireActiveBranch(
-        "Takibi Yeniden Planlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Takibi yeniden planlamak için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
@@ -206,12 +207,12 @@ export default function CrmFollowUpsPage() {
   async function rescheduleFollowUp(event: FormEvent) {
     event.preventDefault();
     if (!rescheduling || !rescheduleForm.assignedUserId || !rescheduleForm.dueAt) {
-      setError("Sorumlu Ve Yeni Takip Zamanı Gereklidir.");
+      setError("Sorumlu ve yeni takip zamanı gereklidir.");
       return;
     }
     if (
       !requireActiveBranch(
-        "Takibi Yeniden Planlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Takibi yeniden planlamak için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
@@ -230,10 +231,10 @@ export default function CrmFollowUpsPage() {
         },
       });
       setRescheduling(null);
-      showToast("Takip Yeniden Planlandı.", "success");
+      showToast("Takip yeniden planlandı.", "success");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Takip Yeniden Planlanamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip yeniden planlanamadı.") : "Takip yeniden planlanamadı.");
     } finally {
       setSaving(false);
     }
@@ -242,12 +243,12 @@ export default function CrmFollowUpsPage() {
   async function cancelFollowUp(event: FormEvent) {
     event.preventDefault();
     if (!cancelling || !cancellationReason.trim()) {
-      setError("İptal Nedeni Gereklidir.");
+      setError("İptal nedeni gereklidir.");
       return;
     }
     if (
       !requireActiveBranch(
-        "Takibi İptal Etmek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+        "Takibi iptal etmek için önce çalışma kapsamından bir şube seçin.",
       )
     ) {
       return;
@@ -261,10 +262,10 @@ export default function CrmFollowUpsPage() {
       });
       setCancelling(null);
       setCancellationReason("");
-      showToast("Takip İptal Edildi.", "success");
+      showToast("Takip iptal edildi.", "success");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Takip İptal Edilemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip iptal edilemedi.") : "Takip iptal edilemedi.");
     } finally {
       setSaving(false);
     }
@@ -284,7 +285,7 @@ export default function CrmFollowUpsPage() {
           <Button onClick={() => {
             if (
               !requireActiveBranch(
-                "Yeni Takip Oluşturmak İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
+                "Yeni Takip oluşturmak için önce çalışma kapsamından bir şube seçin.",
               )
             ) {
               return;
@@ -335,14 +336,14 @@ export default function CrmFollowUpsPage() {
                   {canManage && row.status === "OPEN" ? (
                     <div className="flex flex-wrap gap-1.5">
                       <Button variant="secondary" className="min-h-8 px-3 py-1 text-[11px]" onClick={() => {
-                        if (!requireActiveBranch("Takibi Tamamlamak İçin Önce Çalışma Kapsamından Bir Şube Seçin.")) return;
+                        if (!requireActiveBranch("Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.")) return;
                         setError("");
                         setOutcome("");
                         setCompleting(row);
                       }}>Tamamla</Button>
                       <Button variant="ghost" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => openReschedule(row)}>Ertele</Button>
                       <Button variant="danger" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => {
-                        if (!requireActiveBranch("Takibi İptal Etmek İçin Önce Çalışma Kapsamından Bir Şube Seçin.")) return;
+                        if (!requireActiveBranch("Takibi iptal etmek için önce çalışma kapsamından bir şube seçin.")) return;
                         setError("");
                         setCancellationReason("");
                         setCancelling(row);
