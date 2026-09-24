@@ -1,9 +1,11 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
 
