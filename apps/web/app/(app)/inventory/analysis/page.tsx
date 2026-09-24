@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { useEffect, useMemo, useState } from "react";
 
 import {
@@ -451,7 +453,10 @@ export default function InventoryAnalysisPage() {
 function MetricCard({ label, value, description }: { label: string; value: string; description: string }) {
   return (
     <article className="rounded-[24px] border border-white/80 bg-white/80 p-5 shadow-[0_12px_34px_rgba(17,70,104,0.06)] backdrop-blur-xl">
-      <p className="text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p>
+        <CardInfo help={getCardHelp(label, description)} />
+      </div>
       <p className="mt-3 text-[25px] font-semibold tracking-[-.035em] text-[var(--ink)]">{value}</p>
       <p className="mt-1 text-[11px] text-[var(--muted)]">{description}</p>
     </article>
