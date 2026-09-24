@@ -16,13 +16,13 @@ import {
   Button,
   EmptyState,
   Field,
-  Modal,
   Select,
   Spinner,
   StatusBadge,
   TextArea,
   TextInput,
 } from "@/components/ui";
+import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
