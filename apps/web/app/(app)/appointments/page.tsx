@@ -5,7 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { CardInfo } from "@/components/card-info";
 import { DateTimePicker } from "@/components/date-time-picker";
-import { FormActions, FormHint, FormSummary, FormSummaryItem } from "@/components/form-system";
+import { FormActions, FormGrid, FormHint, FormSection, FormSummary, FormSummaryItem } from "@/components/form-system";
 import {
   DataView,
   DataViewMeta,
@@ -738,123 +738,141 @@ export default function AppointmentsPage() {
 
       <Modal size="lg" open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu Düzenle" : "Yeni Randevu"} description="Müşteri, hizmet, personel ve zaman bilgilerini tamamlayın.">
         <div className="space-y-5">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Müşteri" required>
-              <ValooSelect
-                value={form.customerId}
-                onChange={(customerId) => setForm((current) => ({ ...current, customerId, sessionId: "" }))}
-                disabled={loadingRefs || Boolean(editing)}
-                loading={loadingRefs}
-                placeholder="Müşteri seçin"
-                searchPlaceholder="Ad, telefon veya e-posta ara…"
-                options={customers.map((item) => ({
-                  value: item.id,
-                  label: fullName(item.firstName, item.lastName),
-                  description: item.phone || item.email || undefined,
-                  keywords: [item.phone, item.email].filter(Boolean).join(" "),
-                }))}
-              />
-            </Field>
-            <Field label="Personel" required>
-              <ValooSelect
-                value={form.staffId}
-                onChange={(staffId) => setForm((current) => ({ ...current, staffId }))}
-                disabled={loadingRefs}
-                loading={loadingRefs}
-                placeholder="Personel seçin"
-                searchPlaceholder="Personel ara…"
-                options={staff.filter((item) => item.status === "ACTIVE").map((item) => ({
-                  value: item.id,
-                  label: fullName(item.firstName, item.lastName),
-                  description: item.profile?.position || item.profile?.department || undefined,
-                }))}
-              />
-            </Field>
-            <Field label="Hizmet" required>
-              <ValooSelect
-                value={form.serviceId}
-                onChange={updateService}
-                disabled={loadingRefs || Boolean(editing)}
-                loading={loadingRefs}
-                placeholder="Hizmet seçin"
-                searchPlaceholder="Hizmet ara…"
-                options={services.filter((item) => item.status === "ACTIVE").map((item) => ({
-                  value: item.id,
-                  label: item.name,
-                  description: `${item.durationMinutes} dk · ₺${Number(item.price).toLocaleString("tr-TR")}`,
-                }))}
-              />
-            </Field>
-            {editing ? (
-              <Field label="Durum">
+          <FormSection
+            title="Randevu bilgileri"
+            description="Müşteri, hizmet, personel ve varsa paket / seans bağlantısını belirleyin."
+          >
+            <FormGrid>
+              <Field label="Müşteri" required>
                 <ValooSelect
-                  value={form.status}
-                  onChange={(status) => setForm((current) => ({ ...current, status: status as AppointmentStatus }))}
-                  searchable={false}
-                  options={[
-                    { value: "SCHEDULED", label: "Planlandı" },
-                    { value: "CONFIRMED", label: "Onaylandı" },
-                    { value: "COMPLETED", label: "Tamamlandı" },
-                    { value: "NO_SHOW", label: "Gelmedi" },
-                  ]}
-                />
-              </Field>
-            ) : eligibleSessions.length || loadingSessions ? (
-              <Field label="Paket / Seans">
-                <ValooSelect
-                  value={form.sessionId}
-                  onChange={(sessionId) => setForm((current) => ({ ...current, sessionId }))}
-                  loading={loadingSessions}
-                  placeholder="Paket kullanmadan devam et"
-                  searchPlaceholder="Paket ara…"
-                  options={eligibleSessions.map((session) => ({
-                    value: session.id,
-                    label: session.customerPackage.package.name,
-                    description: `${session.service.name} · kullanılabilir seans`,
+                  value={form.customerId}
+                  onChange={(customerId) => setForm((current) => ({ ...current, customerId, sessionId: "" }))}
+                  disabled={loadingRefs || Boolean(editing)}
+                  loading={loadingRefs}
+                  placeholder="Müşteri seçin"
+                  searchPlaceholder="Ad, telefon veya e-posta ara…"
+                  options={customers.map((item) => ({
+                    value: item.id,
+                    label: fullName(item.firstName, item.lastName),
+                    description: item.phone || item.email || undefined,
+                    keywords: [item.phone, item.email].filter(Boolean).join(" "),
                   }))}
                 />
               </Field>
-            ) : (
-              <FormHint tone="neutral" title="Paket / seans">
-                Seçilen müşteri ve hizmet için kullanılabilir aktif paket seansı bulunmuyor. Randevu standart hizmet olarak oluşturulacak.
+              <Field label="Personel" required>
+                <ValooSelect
+                  value={form.staffId}
+                  onChange={(staffId) => setForm((current) => ({ ...current, staffId }))}
+                  disabled={loadingRefs}
+                  loading={loadingRefs}
+                  placeholder="Personel seçin"
+                  searchPlaceholder="Personel ara…"
+                  options={staff.filter((item) => item.status === "ACTIVE").map((item) => ({
+                    value: item.id,
+                    label: fullName(item.firstName, item.lastName),
+                    description: item.profile?.position || item.profile?.department || undefined,
+                  }))}
+                />
+              </Field>
+              <Field label="Hizmet" required>
+                <ValooSelect
+                  value={form.serviceId}
+                  onChange={updateService}
+                  disabled={loadingRefs || Boolean(editing)}
+                  loading={loadingRefs}
+                  placeholder="Hizmet seçin"
+                  searchPlaceholder="Hizmet ara…"
+                  options={services.filter((item) => item.status === "ACTIVE").map((item) => ({
+                    value: item.id,
+                    label: item.name,
+                    description: `${item.durationMinutes} dk · ₺${Number(item.price).toLocaleString("tr-TR")}`,
+                  }))}
+                />
+              </Field>
+              {editing ? (
+                <Field label="Durum">
+                  <ValooSelect
+                    value={form.status}
+                    onChange={(status) => setForm((current) => ({ ...current, status: status as AppointmentStatus }))}
+                    searchable={false}
+                    options={[
+                      { value: "SCHEDULED", label: "Planlandı" },
+                      { value: "CONFIRMED", label: "Onaylandı" },
+                      { value: "COMPLETED", label: "Tamamlandı" },
+                      { value: "NO_SHOW", label: "Gelmedi" },
+                    ]}
+                  />
+                </Field>
+              ) : eligibleSessions.length || loadingSessions ? (
+                <Field label="Paket / Seans">
+                  <ValooSelect
+                    value={form.sessionId}
+                    onChange={(sessionId) => setForm((current) => ({ ...current, sessionId }))}
+                    loading={loadingSessions}
+                    placeholder="Paket kullanmadan devam et"
+                    searchPlaceholder="Paket ara…"
+                    options={eligibleSessions.map((session) => ({
+                      value: session.id,
+                      label: session.customerPackage.package.name,
+                      description: `${session.service.name} · kullanılabilir seans`,
+                    }))}
+                  />
+                </Field>
+              ) : (
+                <FormHint tone="neutral" title="Paket / seans">
+                  Seçilen müşteri ve hizmet için kullanılabilir aktif paket seansı bulunmuyor. Randevu standart hizmet olarak oluşturulacak.
+                </FormHint>
+              )}
+            </FormGrid>
+          </FormSection>
+
+          <FormSection
+            title="Zaman planlaması"
+            description="Başlangıç ve bitiş zamanını belirleyin; hizmet seçimi bitiş saatini otomatik hesaplar."
+          >
+            <FormGrid>
+              <Field label="Başlangıç" required>
+                <DateTimePicker
+                  value={form.startAt}
+                  max={form.endAt || undefined}
+                  ariaLabel="Randevu başlangıcı"
+                  onChange={updateStart}
+                />
+              </Field>
+              <Field label="Bitiş" required>
+                <DateTimePicker
+                  value={form.endAt}
+                  min={form.startAt || undefined}
+                  ariaLabel="Randevu bitişi"
+                  onChange={(value) => setForm((current) => ({ ...current, endAt: value }))}
+                />
+              </Field>
+            </FormGrid>
+
+            {formConflict ? (
+              <FormHint tone="warning" title="Personel çakışması">
+                Seçilen personelin bu saat aralığıyla çakışan bir randevusu var. Kaydetmeden önce zamanı veya personeli değiştirin.
               </FormHint>
-            )}
-            <Field label="Başlangıç" required>
-              <DateTimePicker
-                value={form.startAt}
-                max={form.endAt || undefined}
-                ariaLabel="Randevu başlangıcı"
-                onChange={updateStart}
+            ) : form.staffId && form.startAt && form.endAt ? (
+              <FormHint tone="info" title="Zaman kontrolü">
+                Görüntülenen günlük programda bu personel için çakışma görünmüyor. Sunucu kaydetme sırasında son uygunluk kontrolünü tekrar yapacak.
+              </FormHint>
+            ) : null}
+          </FormSection>
+
+          <FormSection
+            title="Notlar"
+            description="Randevuya özel hazırlık, müşteri talebi veya ekip için önemli bilgileri ekleyin."
+          >
+            <Field label="Randevu notu">
+              <TextArea
+                rows={3}
+                value={form.notes}
+                onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+                placeholder="Randevuya özel not, hazırlık bilgisi veya müşteri talebi…"
               />
             </Field>
-            <Field label="Bitiş" required>
-              <DateTimePicker
-                value={form.endAt}
-                min={form.startAt || undefined}
-                ariaLabel="Randevu bitişi"
-                onChange={(value) => setForm((current) => ({ ...current, endAt: value }))}
-              />
-            </Field>
-          </div>
-
-          {formConflict ? (
-            <FormHint tone="warning" title="Personel çakışması">
-              Seçilen personelin bu saat aralığıyla çakışan bir randevusu var. Kaydetmeden önce zamanı veya personeli değiştirin.
-            </FormHint>
-          ) : form.staffId && form.startAt && form.endAt ? (
-            <FormHint tone="info" title="Zaman kontrolü">
-              Görüntülenen günlük programda bu personel için çakışma görünmüyor. Sunucu kaydetme sırasında son uygunluk kontrolünü tekrar yapacak.
-            </FormHint>
-          ) : null}
-
-          <Field label="Not">
-            <TextArea
-              rows={3}
-              value={form.notes}
-              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
-              placeholder="Randevuya özel not, hazırlık bilgisi veya müşteri talebi…"
-            />
-          </Field>
+          </FormSection>
 
           <FormSummary title="Randevu özeti" description="Kaydedilecek randevunun ana bilgileri">
             <FormSummaryItem label="Müşteri" value={formCustomer ? fullName(formCustomer.firstName, formCustomer.lastName) : "Seçilmedi"} />
