@@ -6,9 +6,9 @@ import {
   Alert,
   Button,
   Field,
-  Modal,
   TextInput,
 } from "@/components/ui";
+import { Modal } from "@/components/modal";
 import { ValooSegmentedControl } from "@/components/valoo-controls";
 
 import { api, ApiError } from "@/lib/api";
