@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -110,9 +110,9 @@ export default function TrainingCertificationsPage() {
         <div className="flex flex-wrap items-center gap-2">
           <label className="flex items-center gap-2 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-[11px] text-[var(--muted)]">
             Uyarı penceresi
-            <select value={warningDays} onChange={(event) => setWarningDays(Number(event.target.value))} className="bg-transparent font-semibold text-[var(--ink)] outline-none">
+            <Select value={warningDays} onChange={(event) => setWarningDays(Number(event.target.value))} className="bg-transparent font-semibold text-[var(--ink)] outline-none">
               <option value={15}>15 gün</option><option value={30}>30 gün</option><option value={60}>60 gün</option><option value={90}>90 gün</option>
-            </select>
+            </Select>
           </label>
           <Button variant="secondary" onClick={() => void load()} disabled={loading || busy !== null}>Yenile</Button>
           {canManage ? <Button onClick={() => void processRecertification()} disabled={busy !== null || dueCount === 0}>{busy === "batch" ? "İşleniyor..." : `Recertification Üret (${dueCount})`}</Button> : null}
