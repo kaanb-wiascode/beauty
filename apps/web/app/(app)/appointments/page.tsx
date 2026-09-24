@@ -19,14 +19,13 @@ import {
   Button,
   EmptyState,
   Field,
-  Select,
   Spinner,
   StatusBadge,
   TextArea,
-  TextInput,
 } from "@/components/ui";
 import { Modal } from "@/components/modal";
-import { ValooSegmentedControl, ValooSelect } from "@/components/valoo-controls";
+import { PaymentModal } from "@/components/payment-modal";
+import { ValooSelect } from "@/components/valoo-controls";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -209,9 +208,6 @@ export default function AppointmentsPage() {
   const [pendingCancel, setPendingCancel] = useState<Appointment | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentAppointment, setPaymentAppointment] = useState<Appointment | null>(null);
-  const [paymentAmount, setPaymentAmount] = useState("");
-  const [paymentMethod, setPaymentMethod] = useState<"CASH" | "CARD" | "TRANSFER">("CARD");
-  const [paymentSaving, setPaymentSaving] = useState(false);
 
   const dateFrom = useMemo(() => toIso(startOfDay(selectedDate).toISOString()), [selectedDate]);
   const dateTo = useMemo(() => toIso(endOfDay(selectedDate).toISOString()), [selectedDate]);
@@ -444,46 +440,18 @@ export default function AppointmentsPage() {
       showToast("Ödeme Almak İçin Önce Çalışma Kapsamından Bir Şube Seçin.", "error");
       return;
     }
-    const service = services.find((item) => item.id === selected.serviceId);
     setPaymentAppointment(selected);
-    setPaymentAmount(selected.payment?.amount ? String(selected.payment.amount) : service ? String(service.price) : "");
-    setPaymentMethod("CARD");
     setPaymentOpen(true);
-  }
-
-  async function createPayment() {
-    if (!paymentAppointment || !paymentAmount || !canCreatePayment) return;
-    if (!hasActiveBranch()) {
-      setError("Ödeme Almak İçin Önce Çalışma Kapsamından Bir Şube Seçin.");
-      return;
-    }
-    const amount = Number(paymentAmount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Geçerli Bir Ödeme Tutarı Girin.");
-      return;
-    }
-    setPaymentSaving(true);
-    setError("");
-    try {
-      await api("/payments", {
-        method: "POST",
-        body: { appointmentId: paymentAppointment.id, amount, method: paymentMethod },
-      });
-      setPaymentOpen(false);
-      setPaymentAppointment(null);
-      await loadAppointments();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Ödeme Kaydedilemedi.");
-    } finally {
-      setPaymentSaving(false);
-    }
   }
 
   const customerName = selected ? customerMap.get(selected.customerId) ?? "Müşteri" : "";
   const selectedStaff = selected ? staffMap.get(selected.staffId) ?? "Personel" : "";
   const selectedService = selected ? serviceMap.get(selected.serviceId) ?? "Hizmet" : "";
-  const selectedServicePrice = selected
-    ? services.find((item) => item.id === selected.serviceId)?.price
+  const paymentCustomerName = paymentAppointment
+    ? customerMap.get(paymentAppointment.customerId) ?? "Müşteri"
+    : "";
+  const paymentService = paymentAppointment
+    ? services.find((item) => item.id === paymentAppointment.serviceId)
     : undefined;
 
   const formCustomer = customers.find((item) => item.id === form.customerId);
@@ -905,13 +873,22 @@ export default function AppointmentsPage() {
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>Vazgeç</Button><Button variant="danger" onClick={cancelAppointment} disabled={saving || !canCancelAppointment}>İptal Et</Button></div>
       </Modal>
 
-      <Modal open={paymentOpen} onClose={() => !paymentSaving && setPaymentOpen(false)} title="Ödeme Al" description={paymentAppointment ? `${customerMap.get(paymentAppointment.customerId) ?? "Müşteri"} · ${serviceMap.get(paymentAppointment.serviceId) ?? "Hizmet"}` : ""}>
-        <div className="space-y-4">
-          <Field label="Tutar" required><TextInput type="number" min={0.01} step="0.01" inputMode="decimal" value={paymentAmount} onChange={(event) => setPaymentAmount(event.target.value)} placeholder="0" /></Field>
-          <Field label="Ödeme Yöntemi"><Select value={paymentMethod} onChange={(event) => setPaymentMethod(event.target.value as "CASH" | "CARD" | "TRANSFER")}><option value="CARD">Kart</option><option value="CASH">Nakit</option><option value="TRANSFER">Havale / EFT</option></Select></Field>
-        </div>
-        <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setPaymentOpen(false)} disabled={paymentSaving}>Vazgeç</Button><Button onClick={createPayment} disabled={paymentSaving || !canCreatePayment}>{paymentSaving ? "Kaydediliyor..." : "Ödemeyi Kaydet"}</Button></div>
-      </Modal>
+      <PaymentModal
+        open={paymentOpen}
+        onClose={() => {
+          setPaymentOpen(false);
+          setPaymentAppointment(null);
+        }}
+        appointment={paymentAppointment ? { id: paymentAppointment.id, startAt: paymentAppointment.startAt } : null}
+        customerName={paymentCustomerName}
+        serviceName={paymentService?.name ?? ""}
+        defaultAmount={paymentAppointment?.payment?.amount ?? paymentService?.price ?? 0}
+        onSaved={async () => {
+          setPaymentOpen(false);
+          setPaymentAppointment(null);
+          await loadAppointments();
+        }}
+      />
     </div>
   );
 }
