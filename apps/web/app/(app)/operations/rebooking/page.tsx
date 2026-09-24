@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Paginated, Service } from "@/lib/types";
 
@@ -156,10 +157,10 @@ export default function OperationsRebookingPage() {
 
       {analytics ? (
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">90 Gün Rebooking Oranı</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">%{analytics.rebookingRate}</p></div>
-          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">Tamamlanan Hizmet</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.eligibleCompleted}</p></div>
-          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">Rebooked</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.rebooked}</p></div>
-          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><p className="text-xs font-semibold text-[var(--muted)]">Öneriden Ortalama Sapma</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.avgDeviationDays === null ? "—" : `${analytics.avgDeviationDays > 0 ? "+" : ""}${analytics.avgDeviationDays} gün`}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">90 Gün Rebooking Oranı</p><CardInfo help={getCardHelp("90 Gün Rebooking Oranı", "Son 90 gündeki uygun tamamlanmış hizmetlerin ne kadarının yeni randevuya dönüştüğünü gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">%{analytics.rebookingRate}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">Tamamlanan Hizmet</p><CardInfo help={getCardHelp("Tamamlanan Hizmet", "Yeniden randevu değerlendirmesine uygun tamamlanmış hizmetlerin sayısını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.eligibleCompleted}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">Yeniden Randevu</p><CardInfo help={getCardHelp("Yeniden Randevu", "Kaynak hizmet sonrasında yeni randevu oluşturulmuş kayıtların sayısını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.rebooked}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">Öneriden Ortalama Sapma</p><CardInfo help={getCardHelp("Öneriden Ortalama Sapma", "Gerçek yeniden randevu tarihi ile önerilen dönüş tarihi arasındaki ortalama gün farkını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.avgDeviationDays === null ? "—" : `${analytics.avgDeviationDays > 0 ? "+" : ""}${analytics.avgDeviationDays} gün`}</p></div>
         </section>
       ) : null}
 
