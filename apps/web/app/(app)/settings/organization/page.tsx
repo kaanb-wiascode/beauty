@@ -183,7 +183,7 @@ export default function OrganizationPage() {
         <div className="mb-1 text-xs font-medium text-[var(--muted)]">Yönetim / Organizasyon</div>
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Şirket ve Şubeler</h1>
         <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">
-          Mevcut şirket kapsamınızı, erişilebilir şubeleri, iletişim bilgilerini ve organizasyon yaşam döngüsünü yönetin.
+          Şirket bilgilerinizi, erişebildiğiniz şubeleri, iletişim bilgilerini ve şube durumlarını yönetin.
         </p>
       </header>
 
@@ -201,9 +201,8 @@ export default function OrganizationPage() {
             ) : (
               <>
                 <div>
-                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Aktif Şirket Kapsamı</div>
+                  <div className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted)]">Mevcut Şirket</div>
                   <h2 className="mt-1 text-xl font-semibold text-[var(--ink)]">{company.name}</h2>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{company.slug}</p>
                 </div>
                 <div className="flex items-center gap-2"><span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-xs font-semibold text-[var(--accent)]">{STATUS_LABELS[company.status]}</span><button type="button" onClick={beginCompanyEdit} className="rounded-lg border border-[var(--line)] px-3 py-2 text-xs font-semibold">Şirketi Düzenle</button></div>
               </>
@@ -211,7 +210,7 @@ export default function OrganizationPage() {
           </div>
           <div className="mt-5 grid gap-3 sm:grid-cols-3">
             <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Toplam Şube</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.branches}</div></div>
-            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Üyelik</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.memberships}</div></div>
+            <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Kullanıcı Üyeliği</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.memberships}</div></div>
             <div className="rounded-xl bg-[var(--surface-2)] p-4"><div className="text-xs text-[var(--muted)]">Şirket Rolleri</div><div className="mt-1 text-2xl font-semibold text-[var(--ink)]">{company._count.roles}</div></div>
           </div>
         </section>
