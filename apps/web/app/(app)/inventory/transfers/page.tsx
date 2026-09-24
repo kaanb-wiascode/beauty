@@ -21,6 +21,7 @@ import { Alert, Button, Select, Spinner, TextInput } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { api, ApiError } from "@/lib/api";
 import { getActiveBranchId } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type Transfer = {
   id: string;
@@ -99,7 +100,7 @@ export default function TransfersPage() {
     return rows.filter((row) => {
       if (status && row.status !== status) return false;
       if (!query) return true;
-      return [row.sourceName, row.destinationName, STATUS_LABELS[row.status] ?? row.status].some(
+      return [row.sourceName, row.destinationName, STATUS_LABELS[row.status] ?? userLabel(row.status)].some(
         (value) => value.toLocaleLowerCase("tr-TR").includes(query),
       );
     });
@@ -218,7 +219,7 @@ export default function TransfersPage() {
               <option value="">Tüm Durumlar</option>
               {statuses.map((value) => (
                 <option key={value} value={value}>
-                  {STATUS_LABELS[value] ?? value}
+                  {STATUS_LABELS[value] ?? userLabel(value)}
                 </option>
               ))}
             </ToolbarSelect>
@@ -388,7 +389,7 @@ function TransferStatus({ status }: { status: string }) {
 
   return (
     <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone}`}>
-      {STATUS_LABELS[status] ?? status}
+      {STATUS_LABELS[status] ?? userLabel(status)}
     </span>
   );
 }
