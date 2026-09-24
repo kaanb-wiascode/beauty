@@ -40,6 +40,10 @@ const groupMemberSchema = z.object({
   userId: z.string().uuid(),
 });
 
+const renameGroupSchema = z.object({
+  name: z.string().trim().min(1).max(120),
+});
+
 const typingSchema = z.object({
   typing: z.boolean(),
 });
@@ -138,6 +142,25 @@ export class TeamController {
   ) {
     const parsed = reactionSchema.parse(body);
     return this.team.toggleReaction(user.sub, id, parsed.emoji);
+  }
+
+  @Get('conversations/:id/search')
+  searchMessages(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query('q') query?: string,
+  ) {
+    return this.team.searchMessages(user.sub, id, query ?? '');
+  }
+
+  @Patch('conversations/:id')
+  renameGroup(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = renameGroupSchema.parse(body);
+    return this.team.renameGroup(user.sub, id, parsed.name);
   }
 
   @Get('conversations/:id/members')
