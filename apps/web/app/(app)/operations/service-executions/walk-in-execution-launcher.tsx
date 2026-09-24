@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Button, Spinner } from "@/components/ui";
+import { Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import type { Paginated, Staff } from "@/lib/types";
 
