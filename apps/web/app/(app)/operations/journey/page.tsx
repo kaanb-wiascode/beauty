@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
 import type { Appointment, Paginated } from "@/lib/types";
@@ -67,7 +68,7 @@ export default function OperationsJourneyPage() {
     </header>
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {reliability ? <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {[["Randevu", reliability.totalAppointments],["Gelmedi", reliability.noShows],["Geç iptal", reliability.lateCancellations],["Katılım", reliability.attendanceRate == null ? "—" : `%${reliability.attendanceRate}`],["Onay", reliability.confirmationRate == null ? "—" : `%${reliability.confirmationRate}`]].map(([label,value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">{label}</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></article>)}
+      {[["Randevu", reliability.totalAppointments],["Gelmedi", reliability.noShows],["Geç iptal", reliability.lateCancellations],["Katılım", reliability.attendanceRate == null ? "—" : `%${reliability.attendanceRate}`],["Onay", reliability.confirmationRate == null ? "—" : `%${reliability.confirmationRate}`]].map(([label,value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(String(label), "Müşteri yolculuğu güvenilirlik görünümündeki ilgili göstergenin güncel değerini gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></article>)}
     </section> : null}
     <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
       <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-xs font-semibold text-[var(--muted)]">Randevu<Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seçin</option>{appointments.map((a) => <option key={a.id} value={a.id}>{new Date(a.startAt).toLocaleString("tr-TR")} · {userLabel(a.status)}</option>)}</Select></label><Button disabled={!selectedId} onClick={() => void showTimeline()}>Zaman çizelgesini göster</Button></div>
