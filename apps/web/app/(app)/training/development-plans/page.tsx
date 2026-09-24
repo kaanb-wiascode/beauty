@@ -97,9 +97,9 @@ export default function DevelopmentPlansPage() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <Link href="/training" className="text-[11px] font-semibold text-[var(--accent)] hover:underline">← Learning Operations</Link>
-          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Individual Development Plans</p>
+          <p className="mt-4 text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Bireysel gelişim planları</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">Gelişim Planları</h1>
-          <p className="mt-2 max-w-[900px] text-[13px] leading-6 text-[var(--muted)]">Yetkinlik açığı, kurs, akademi, koçluk, mentorluk, proje ve stretch assignment hedeflerini personel bazlı tek gelişim planında yönetin.</p>
+          <p className="mt-2 max-w-[900px] text-[13px] leading-6 text-[var(--muted)]">Yetkinlik açığı, kurs, akademi, koçluk, mentorluk, proje ve gelişim görevi hedeflerini personel bazlı tek gelişim planında yönetin.</p>
         </div>
         <Button variant="secondary" onClick={() => void load()} disabled={loading || saving}>Yenile</Button>
       </header>
@@ -108,7 +108,7 @@ export default function DevelopmentPlansPage() {
       {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <FinanceMetric label="Aktif IDP" value={metrics.active} detail={`${metrics.people} personel`} tone="info" />
+        <FinanceMetric label="Aktif gelişim planı" value={metrics.active} detail={`${metrics.people} personel`} tone="info" />
         <FinanceMetric label="Açık Gelişim Maddesi" value={metrics.openItems} detail="Tamamlanmayı bekleyen hedef" tone={metrics.openItems ? "warning" : "success"} />
         <FinanceMetric label="Tamamlanan Plan" value={metrics.completed} detail="Kapatılmış gelişim döngüsü" tone="success" />
         <FinanceMetric label="Toplam Plan" value={plans.length} detail="Tüm plan geçmişi" tone="neutral" />
@@ -126,7 +126,7 @@ export default function DevelopmentPlansPage() {
         </FinancePanel>
       ) : null}
 
-      <FinancePanel title="Gelişim Planları" description="Aktif planlardan tamamlanan gelişim geçmişine kadar tüm IDP kayıtları.">
+      <FinancePanel title="Gelişim Planları" description="Aktif planlardan tamamlanan gelişim geçmişine kadar tüm gelişim planı kayıtları.">
         {loading ? <div className="flex min-h-[260px] items-center justify-center"><Spinner label="Gelişim planları yükleniyor..." /></div> : !plans.length ? <FinanceEmpty title="Gelişim planı bulunamadı" description="İlk bireysel gelişim planını oluşturarak başlayın." /> : (
           <div className="grid gap-3 lg:grid-cols-2">
             {plans.map((plan) => {
