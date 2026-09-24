@@ -11,7 +11,8 @@ import {
   FormStepper,
   FormSubmitButton,
 } from "@/components/form-system";
-import { Alert, Button, Field, Select, TextInput } from "@/components/ui";
+import { Alert, Button, Field, TextInput } from "@/components/ui";
+import { ValooSelect } from "@/components/valoo-controls";
 
 export type CustomerSource = "INSTAGRAM" | "GOOGLE" | "REFERRAL" | "WALK_IN" | "OTHER";
 
@@ -147,18 +148,21 @@ export function CustomerEditorForm({
               />
             </Field>
             <Field label="Müşteri kaynağı">
-              <Select
+              <ValooSelect
                 value={form.customerSource}
-                onChange={(event) => setForm((current) => ({
-                  ...current,
-                  customerSource: event.target.value as CustomerFormState["customerSource"],
+                onChange={(customerSource) =>
+                  setForm((current) => ({
+                    ...current,
+                    customerSource: customerSource as CustomerFormState["customerSource"],
+                  }))
+                }
+                searchable={false}
+                placeholder="Seçin"
+                options={Object.entries(customerSourceLabels).map(([key, label]) => ({
+                  value: key,
+                  label,
                 }))}
-              >
-                <option value="">Seçin</option>
-                {Object.entries(customerSourceLabels).map(([key, label]) => (
-                  <option key={key} value={key}>{label}</option>
-                ))}
-              </Select>
+              />
             </Field>
           </FormGrid>
         ) : null}
