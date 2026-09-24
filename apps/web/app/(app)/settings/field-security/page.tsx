@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { api, ApiError } from "@/lib/api";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 
 type Permission = { id: string; resource: string; action: string; description?: string | null };
 type Policy = { id: string; fieldGroup: string; requiredResource: string; requiredAction: string; description: string | null; updatedAt: string };
