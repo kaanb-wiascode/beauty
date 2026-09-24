@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
+import { Select, useCallback, useEffect, useId, useMemo, useRef, useState, type FormEvent } from "react";
 
 import { Modal } from "@/components/modal";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -293,18 +293,18 @@ export default function SupplierOfferComparisonPage() {
 
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold text-[var(--muted)]">Depo</span>
-              <select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
+              <Select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
                 <option value="">Depo Seçin</option>
                 {options.warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}
-              </select>
+              </Select>
             </label>
 
             <label className="block">
               <span className="mb-1.5 block text-[11px] font-semibold text-[var(--muted)]">Envanter Ürünü</span>
-              <select value={inventoryProductId} onChange={(event) => setInventoryProductId(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
+              <Select value={inventoryProductId} onChange={(event) => setInventoryProductId(event.target.value)} className="h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
                 <option value="">Ürün Seçin</option>
                 {mappedProducts.map((product) => <option key={product.inventoryProductId} value={product.inventoryProductId}>{product.inventoryProductName}{product.sku ? ` · ${product.sku}` : ""}</option>)}
-              </select>
+              </Select>
             </label>
 
             <label className="block">
