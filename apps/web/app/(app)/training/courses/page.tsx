@@ -256,7 +256,7 @@ export default function TrainingCoursesPage() {
       </section>
 
       <div className="grid gap-6 xl:grid-cols-[minmax(320px,0.72fr)_minmax(0,1.28fr)]">
-        <FinancePanel title="Kurs Kataloğu" description="Kursu seçerek metadata ve sürüm geçmişini görüntüleyin.">
+        <FinancePanel title="Kurs Kataloğu" description="Kursu seçerek temel bilgilerini ve sürüm geçmişini görüntüleyin.">
           {courses.length ? (
             <div className="space-y-2">
               {courses.map((course) => {
@@ -287,7 +287,7 @@ export default function TrainingCoursesPage() {
         </FinancePanel>
 
         <div className="space-y-6">
-          <FinancePanel title="Kurs Detayı" description="Seçili kursun temel metadata ve sürüm yönetimi.">
+          <FinancePanel title="Kurs Detayı" description="Seçili kursun temel bilgilerini ve sürümlerini yönetin.">
             {selectedCourse ? (
               <div className="space-y-5">
                 <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5">
@@ -354,7 +354,7 @@ export default function TrainingCoursesPage() {
           </FinancePanel>
 
           {canManage ? (
-            <FinancePanel title="Yeni Kurs" description="Kurs metadata kaydını oluşturun; ardından seçili kursta ilk taslak sürümü açın.">
+            <FinancePanel title="Yeni Kurs" description="Kursun temel bilgilerini oluşturun; ardından ilk taslak sürümünü açın.">
               <form className="grid gap-4 sm:grid-cols-2" onSubmit={createCourse}>
                 <label className="block">
                   <span className="mb-2 block text-[12px] font-medium text-[var(--muted)]">Kurs Kodu</span>
