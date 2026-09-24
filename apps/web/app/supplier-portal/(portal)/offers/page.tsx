@@ -1,8 +1,8 @@
 "use client";
 
-import { Select, useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
-import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, Spinner, TextInput, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import { supplierPortalApi } from "@/lib/supplier-portal-api";
 import { getSupplierPortalSession } from "@/lib/supplier-portal-auth";
