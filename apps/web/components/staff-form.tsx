@@ -18,7 +18,7 @@ import {
   TextArea,
   TextInput,
 } from "@/components/ui";
-import { ValooSelect } from "@/components/valoo-controls";
+import { ValooMultiSelect, ValooSelect } from "@/components/valoo-controls";
 import type { StaffProfile } from "@/lib/types";
 
 export type StaffEditorState = {
@@ -40,6 +40,7 @@ type Props = {
   onProfileChange: <K extends keyof StaffProfile>(key: K, value: StaffProfile[K]) => void;
   onStepChange: (step: number) => void;
   onCancel: () => void;
+  serviceOptions: readonly { value: string; label: string; description?: string }[];
 };
 
 const steps = [
@@ -61,6 +62,7 @@ export function StaffEditorForm({
   onProfileChange,
   onStepChange,
   onCancel,
+  serviceOptions,
 }: Props) {
   const setField = <K extends keyof StaffEditorState>(key: K, value: StaffEditorState[K]) => {
     onChange({ ...form, [key]: value });
@@ -151,8 +153,20 @@ export function StaffEditorForm({
                 />
               </Field>
             </FormGrid>
-            <FormHint title="Hizmet Yetkinlikleri" tone="info">
-              Personelin Uygulayabildiği Hizmetler, Hizmet Yetkinlikleri Alanından Ayrıca Yönetilir.
+            <div className="mt-4">
+              <Field label="Hizmet yetkinlikleri">
+                <ValooMultiSelect
+                  values={form.profile.services ?? []}
+                  onChange={(services) => onProfileChange("services", services)}
+                  options={serviceOptions}
+                  placeholder="Personelin uygulayabildiği hizmetleri seçin"
+                  searchPlaceholder="Hizmet ara…"
+                  emptyLabel="Aktif hizmet bulunamadı."
+                />
+              </Field>
+            </div>
+            <FormHint title="Hizmet yetkinlikleri" tone="info">
+              Bu seçim randevu planlamada personel-hizmet eşleşmesini desteklemek için personel profilinde saklanır.
             </FormHint>
           </FormSection>
         ) : null}
@@ -175,7 +189,7 @@ export function StaffEditorForm({
               </Field>
               <Field label="Maaş"><TextInput type="number" min={0} value={form.profile.salary ?? ""} onChange={(event) => onProfileChange("salary", event.target.value === "" ? undefined : Number(event.target.value))} placeholder="0" /></Field>
               <Field label="Banka"><TextInput value={form.profile.bankName ?? ""} onChange={(event) => onProfileChange("bankName", event.target.value)} /></Field>
-              <Field label="IBAN"><TextInput value={form.profile.iban ?? ""} onChange={(event) => onProfileChange("iban", event.target.value)} placeholder="TR00 0000 0000 0000 0000 0000 00" /></Field>
+              <Field label="IBAN"><TextInput value={form.profile.iban ?? ""} onChange={(event) => { const normalized = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26); onProfileChange("iban", normalized.replace(/(.{4})/g, "$1 ").trim()); }} placeholder="TR00 0000 0000 0000 0000 0000 00" /></Field>
             </FormGrid>
             <FormHint title="Hassas Özlük Verileri" tone="warning">
               Maaş Ve IBAN Gibi Finansal Personel Verilerine Erişim Yetkili Rollerle Sınırlandırılmalıdır. Bu Form İnternet Bankacılığı Kullanıcı Adı Veya Parola Toplamaz.
@@ -206,7 +220,7 @@ export function StaffEditorForm({
 
       {error ? <div className="mt-4"><Alert>{error}</Alert></div> : null}
 
-      <FormActions className="sm:justify-between">
+      <FormActions sticky className="sm:justify-between">
         <div>
           {step > 0 ? (
             <Button
