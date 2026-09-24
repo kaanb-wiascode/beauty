@@ -174,6 +174,12 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] { color:var(--secondary)!important; bac
 .data-table tbody tr:hover { background:var(--surface-2)!important; }
 [role="status"] span[aria-hidden="true"] { border-color:rgba(22,116,189,.14)!important; border-top-color:var(--accent)!important; }
 [role="tooltip"] { background:var(--ink)!important; box-shadow:0 8px 22px rgba(17,70,104,.16)!important; }
+[role="tooltip"][data-card-info="true"] {
+  background:rgba(255,255,255,.98)!important;
+  border-color:#dce7f0!important;
+  color:#1f2a35!important;
+  box-shadow:0 18px 50px rgba(31,69,94,.16)!important;
+}
 .glass,.glass-elevated,.surface,.dashboard-panel,.metric-card { border-color:var(--line)!important; }
 .glass,.glass-elevated { background:var(--glass)!important; }
 .surface,.dashboard-panel,.metric-card { background:var(--surface)!important; }
