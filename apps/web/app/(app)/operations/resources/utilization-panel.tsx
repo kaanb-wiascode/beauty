@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -66,7 +66,7 @@ export function OperationsUtilizationPanel() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!hasActiveBranch()) return;
     const from = new Date(window.from);
     const to = new Date(window.to);
@@ -91,26 +91,27 @@ export function OperationsUtilizationPanel() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [window.from, window.to]);
 
+  const initialLoadDone = useRef(false);
   useEffect(() => {
+    if (initialLoadDone.current) return;
+    initialLoadDone.current = true;
     void load();
-    // Initial requested window is intentionally loaded once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [load]);
 
   return (
     <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-            Utilization Engine
+            Kapasite kullanımı
           </p>
           <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
             Personel ve Hizmet Kullanımı
           </h2>
           <p className="mt-1 max-w-3xl text-xs text-[var(--muted)]">
-            Seçilen zaman penceresindeki aktif personel kapasitesini ve appointment-backed kullanımını gösterir. Bu ilk sürüm shift/leave-aware değildir; denominator seçilen pencerenin tamamıdır.
+            Seçilen tarih aralığında aktif personel kapasitesinin ne kadarının randevularla kullanıldığını gösterir. Hesaplama, bu sürümde vardiya ve izinleri ayrıca dikkate almaz; seçilen zaman aralığının tamamını esas alır.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-[190px_190px_auto]">
