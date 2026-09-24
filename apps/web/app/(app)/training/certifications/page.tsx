@@ -138,7 +138,7 @@ export default function TrainingCertificationsPage() {
             {!queue.length ? <FinanceEmpty title="Recertification bekleyen sertifika yok" description={`Önümüzdeki ${data.warningDays} günlük pencere temiz.`} /> : (
               <div className="overflow-x-auto">
                 <table className="min-w-full text-left text-[11px]">
-                  <thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[0.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">Personel</th><th className="px-3 py-3">Sertifika</th><th className="px-3 py-3">Kurs</th><th className="px-3 py-3">Son Tarih</th><th className="px-3 py-3">Lifecycle</th><th className="px-3 py-3">Renewal</th><th className="px-3 py-3 text-right">Aksiyon</th></tr></thead>
+                  <thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[0.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">Personel</th><th className="px-3 py-3">Sertifika</th><th className="px-3 py-3">Kurs</th><th className="px-3 py-3">Son Tarih</th><th className="px-3 py-3">Geçerlilik durumu</th><th className="px-3 py-3">Renewal</th><th className="px-3 py-3 text-right">Aksiyon</th></tr></thead>
                   <tbody className="divide-y divide-[var(--line)]">
                     {queue.map((item) => (
                       <tr key={item.id}>
@@ -157,7 +157,7 @@ export default function TrainingCertificationsPage() {
             )}
           </FinancePanel>
 
-          <FinancePanel title="Sertifika Envanteri" description="Türetilmiş lifecycle durumu ile kalıcı workflow statüsü birlikte izlenir.">
+          <FinancePanel title="Sertifika Envanteri" description="Sertifikanın güncel geçerlilik durumu ile kayıt durumu birlikte izlenir.">
             {!data.certificates.length ? <FinanceEmpty title="Sertifika bulunamadı" description="Tamamlanmış ve sertifika üretmiş bir eğitim henüz yok." /> : (
               <div className="grid gap-2 lg:grid-cols-2">
                 {data.certificates.map((item) => <div key={item.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">{item.courseTitle}</p><p className="mt-1 font-mono text-[9px] text-[var(--muted-soft)]">{item.certificateNo}</p></div><span className="rounded-full border border-[var(--line)] px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{lifecycleLabel(item.lifecycleStatus)}</span></div><div className="mt-3 grid grid-cols-2 gap-2 text-[10px] text-[var(--muted)]"><span>{[item.staffFirstName,item.staffLastName].filter(Boolean).join(" ") || item.staffId}</span><span className="text-right">Son: {date(item.expiresAt)}</span></div></div>)}
