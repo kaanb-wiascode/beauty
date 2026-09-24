@@ -18,7 +18,6 @@ import {
   Button,
   EmptyState,
   Field,
-  Modal,
   PageHeader,
   Panel,
   Spinner,
@@ -27,6 +26,7 @@ import {
   TextInput,
   Th,
 } from "@/components/ui";
+import { Modal } from "@/components/modal";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
