@@ -20,6 +20,8 @@ const USER_LABELS: Record<string, string> = {
   CONNECTED: "Bağlı",
   CONNECTING: "Bağlanıyor",
   DISCONNECTED: "Bağlantı Kesildi",
+  DEGRADED: "Kısmi Sorun",
+  ERROR: "Hata",
   HEALTHY: "Sorunsuz",
   ATTENTION: "Kontrol Gerekli",
   WARNING: "Uyarı",
