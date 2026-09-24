@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import {
   DataView,
@@ -31,6 +32,7 @@ import {
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import { formatDuration, formatPrice, optionalText, serviceStatusLabel } from "@/lib/format";
 import type { CreateServiceInput, Paginated, Service } from "@/lib/types";
 
@@ -326,7 +328,7 @@ function PageTop({ onCreate, disabled }: { onCreate: () => void; disabled: boole
 
 function Kpi({ icon, label, value, hint, tone = "blue" }: { icon: "grid" | "check" | "calendar" | "money"; label: string; value: number | string; hint: string; tone?: "blue" | "green" | "orange" }) {
   const tones = { blue: "bg-[#eaf5fb] text-[#1674bd]", green: "bg-[#eef8f2] text-[#4d936a]", orange: "bg-[#fff5e9] text-[#bd7a30]" };
-  return <article className="rounded-[20px] border border-[var(--line)] bg-white p-5"><div className="flex items-start justify-between gap-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] ${tones[tone]}`}><Icon name={icon} size={21} /></span><span className="rounded-full bg-[#f6f5f3] px-2.5 py-1 text-[11px] font-medium text-[#8a857f]">{hint}</span></div><p className="mt-4 text-[12px] font-medium uppercase tracking-[0.07em] text-[#8c8781]">{label}</p><p className="mt-1 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p></article>;
+  return <article className="rounded-[20px] border border-[var(--line)] bg-white p-5"><div className="flex items-start justify-between gap-4"><span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-[13px] ${tones[tone]}`}><Icon name={icon} size={21} /></span><span className="rounded-full bg-[#f6f5f3] px-2.5 py-1 text-[11px] font-medium text-[#8a857f]">{hint}</span></div><div className="mt-4 flex items-start justify-between gap-3"><p className="text-[12px] font-medium uppercase tracking-[0.07em] text-[#8c8781]">{label}</p><CardInfo help={getCardHelp(label, hint)} /></div><p className="mt-1 text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p></article>;
 }
 
 function ServiceCard({ service, stats, onEdit, onArchive, canEdit, canDelete }: { service: Service; stats?: Performance; onEdit: () => void; onArchive: () => void; canEdit: boolean; canDelete: boolean }) {
@@ -336,7 +338,7 @@ function ServiceCard({ service, stats, onEdit, onArchive, canEdit, canDelete }: 
 }
 
 function Panel({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
-  return <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white"><div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{title}</h2><p className="mt-1 text-[12px] text-[var(--muted)]">{subtitle}</p></div><div className="p-5">{children}</div></section>;
+  return <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white"><div className="border-b border-[var(--line)] px-5 py-4"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title, subtitle)} /></div><p className="mt-1 text-[12px] text-[var(--muted)]">{subtitle}</p></div><div className="p-5">{children}</div></section>;
 }
 
 function PerformancePanel({ ranked }: { ranked: { service: Service; stats?: Performance }[] }) {
