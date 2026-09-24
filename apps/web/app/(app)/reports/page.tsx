@@ -264,8 +264,8 @@ export default function ReportsPage() {
           <div className="grid gap-3 sm:grid-cols-2">
             <ToolLink href="/reports/compare" title="Dönem Karşılaştırma" description="Mevcut dönemi önceki eşit dönemle kıyaslayın." />
             <ToolLink href="/reports/executive" title="Yönetim Raporu" description="Cross-domain yönetim KPI görünümünü açın." />
-            <ToolLink href="/reports/exports" title="Export Center" description="CSV, XLSX ve PDF işlerini yönetin." />
-            <ToolLink href="/reports/schedules" title="Scheduled Reports" description="Periyodik rapor üretim planlarını yönetin." />
+            <ToolLink href="/reports/exports" title="Dışa Aktarım Merkezi" description="Raporları Excel, CSV veya PDF olarak hazırlayın ve indirin." />
+            <ToolLink href="/reports/schedules" title="Zamanlanmış Raporlar" description="Düzenli oluşturulacak raporların zamanlamasını yönetin." />
           </div>
         </Panel>
       </div>
