@@ -63,7 +63,7 @@ export function ExecutionChecklistPanel({
       onChanged?.(result.completionBlocked);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Hizmet checklist'i yüklenemedi.",
+        err instanceof ApiError ? err.message : "Hizmet kontrol listesi yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -95,7 +95,7 @@ export function ExecutionChecklistPanel({
       await load();
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Checklist maddesi güncellenemedi.",
+        err instanceof ApiError ? err.message : "Kontrol listesi maddesi güncellenemedi.",
       );
     } finally {
       setBusyItemId(null);
@@ -105,7 +105,7 @@ export function ExecutionChecklistPanel({
   if (loading) {
     return (
       <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3">
-        <Spinner label="SOP checklist yükleniyor..." />
+        <Spinner label="Hizmet kontrol listesi yükleniyor..." />
       </div>
     );
   }
@@ -115,7 +115,7 @@ export function ExecutionChecklistPanel({
   if (!checklist.items.length) {
     return (
       <div className="mt-3 rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
-        Bu hizmet için aktif SOP / checklist tanımlı değil.
+        Bu hizmet için aktif kontrol listesi tanımlı değil.
       </div>
     );
   }
@@ -126,9 +126,9 @@ export function ExecutionChecklistPanel({
     <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">SOP / Hizmet Checklist</p>
+          <p className="text-xs font-semibold text-[var(--ink)]">Hizmet Kontrol Listesi</p>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Versiyon {checklist.templateVersion} · zorunlu {checklist.requiredCompletedCount}/{checklist.requiredCount}
+            Sürüm {checklist.templateVersion} · zorunlu {checklist.requiredCompletedCount}/{checklist.requiredCount}
           </p>
         </div>
         <span
@@ -138,7 +138,7 @@ export function ExecutionChecklistPanel({
               : "rounded-full bg-[var(--surface-2)] px-3 py-1 text-[11px] font-semibold text-[#2d6a49]"
           }
         >
-          {checklist.completionBlocked ? "Zorunlu adımlar bekliyor" : "Checklist hazır"}
+          {checklist.completionBlocked ? "Zorunlu adımlar bekliyor" : "Kontrol listesi hazır"}
         </span>
       </div>
 
