@@ -1,5 +1,7 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { useEffect, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
@@ -15,4 +17,15 @@ export default function HrReportPage(){
  const [range,setRange]=useState<ReportDateRange>(()=>{const t=reportDateInputValue(new Date());return{from:t,to:t}});const[rows,setRows]=useState<Row[]>([]);const[summary,setSummary]=useState<Summary>(EMPTY);const[loading,setLoading]=useState(true);const[error,setError]=useState("");
  useEffect(()=>{if(reportRangeIsInvalid(range)){setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");setLoading(false);return}let cancelled=false;(async()=>{setLoading(true);setError("");try{const result=await fetchReportPreview<TableReportPreview<Row,Summary>>({reportKey:"hr.workforce",filters:reportRangeToQuery(range),columns:COLUMNS,sort:{key:"date",direction:"desc"},page:1,limit:100});if(!cancelled){setRows(result.data);setSummary(result.meta.summary)}}catch(err){if(!cancelled)setError(err instanceof ApiError?err.message:"İK raporu yüklenemedi.")}finally{if(!cancelled)setLoading(false)}})();return()=>{cancelled=true}},[range]);
  return <div className="mx-auto max-w-6xl space-y-5"><PageHeader title="İK İşgücü Raporları" description="Devam, devamsızlık, çalışma süresi, fazla mesai ve izin hareketlerini hassas bordro verilerinden ayrı izleyin."/>{error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}<ReportFilterBar from={range.from} to={range.to} onChange={setRange}/>{loading?<Spinner label="İK raporu hazırlanıyor..."/>:<><section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><Metric label="Devam Kaydı" value={String(summary.attendanceRecords)} detail={`%${summary.absenceRate} devamsızlık`}/><Metric label="Çalışma Süresi" value={`${Math.round(summary.workedMinutes/60)} saat`} detail="Toplam gerçekleşen süre"/><Metric label="Fazla Mesai" value={`${Math.round(summary.overtimeMinutes/60)} saat`} detail="Toplam fazla mesai"/><Metric label="Onaylı İzin" value={String(summary.approvedLeaveDays)} detail="Gün"/></section><Panel><TableWrap><thead><tr>{COLUMNS.map(c=><Th key={c}>{LABELS[c]}</Th>)}</tr></thead><tbody>{rows.map(r=><tr key={r.date}>{COLUMNS.map(c=><Td key={c} label={LABELS[c]}>{c==="absenceRate"?`%${r[c]}`:String(r[c])}</Td>)}</tr>)}</tbody></TableWrap></Panel></>}</div>}
-function Metric({label,value,detail}:{label:string;value:string;detail:string}){return <GlassCard><p className="text-[11px] text-[var(--muted)]">{label}</p><p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">{value}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p></GlassCard>}
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) {
+  return (
+    <GlassCard>
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[11px] text-[var(--muted)]">{label}</p>
+        <CardInfo help={getCardHelp(label, detail)} />
+      </div>
+      <p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">{value}</p>
+      <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p>
+    </GlassCard>
+  );
+}
