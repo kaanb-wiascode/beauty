@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { ConfirmDialog, Modal } from "@/components/modal";
 import { Alert, Button, GlassCard, PageHeader, Spinner, StatusBadge, TextInput, Field } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import { PaymentModal } from "@/components/payment-modal";
 import { ValooSelect } from "@/components/valoo-controls";
 import { userLabel } from "@/lib/user-language";
@@ -94,7 +96,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
 }
 
 function SectionHeading({ eyebrow, title, action }: { eyebrow?: string; title: string; action?: React.ReactNode }) { return <div className="flex items-start justify-between gap-4"><div>{eyebrow ? <p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">{eyebrow}</p> : null}<h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">{title}</h2></div>{action}</div>; }
-function StatCard({ label, value }: { label: string; value: string | number }) { return <GlassCard className="p-4 sm:p-6"><p className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted-soft)] sm:text-[12px] sm:normal-case sm:tracking-normal sm:text-[var(--muted)]">{label}</p><p className="mt-2 text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)] sm:mt-3 sm:text-[26px]">{value}</p></GlassCard>; }
+function StatCard({ label, value }: { label: string; value: string | number }) { return <GlassCard className="p-4 sm:p-6"><div className="mb-2"><CardInfo help={getCardHelp(label)} /></div><p className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted-soft)] sm:text-[12px] sm:normal-case sm:tracking-normal sm:text-[var(--muted)]">{label}</p><p className="mt-2 text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)] sm:mt-3 sm:text-[26px]">{value}</p></GlassCard>; }
 function InfoRow({ label, value }: { label: string; value: string }) { return <div><p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1 text-[13px] text-[var(--ink)]">{value}</p></div>; }
 function DetailBlock({ label, value }: { label: string; value: string }) { return <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-3.5 py-3 sm:rounded-[16px] sm:px-4 sm:py-3.5"><p className="text-[10px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1.5 text-[12px] leading-5 text-[var(--ink)]">{value}</p></div>; }
 function EmptyInline({ children }: { children: React.ReactNode }) { return <div className="px-4 py-7 text-center text-[12px] text-[var(--muted)] sm:px-6 sm:py-10">{children}</div>; }
