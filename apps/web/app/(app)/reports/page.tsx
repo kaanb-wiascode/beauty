@@ -260,12 +260,12 @@ export default function ReportsPage() {
           </div>
         </Panel>
 
-        <Panel title="Rapor Araçları" description="Analiz, karşılaştırma ve rapor yaşam döngüsü">
+        <Panel title="Rapor araçları" description="Analiz, karşılaştırma, dışa aktarma ve zamanlama işlemleri">
           <div className="grid gap-3 sm:grid-cols-2">
-            <ToolLink href="/reports/compare" title="Dönem Karşılaştırma" description="Mevcut dönemi önceki eşit dönemle kıyaslayın." />
-            <ToolLink href="/reports/executive" title="Yönetim Raporu" description="Cross-domain yönetim KPI görünümünü açın." />
-            <ToolLink href="/reports/exports" title="Dışa Aktarım Merkezi" description="Raporları Excel, CSV veya PDF olarak hazırlayın ve indirin." />
-            <ToolLink href="/reports/schedules" title="Zamanlanmış Raporlar" description="Düzenli oluşturulacak raporların zamanlamasını yönetin." />
+            <ToolLink href="/reports/compare" title="Dönem karşılaştırma" description="Mevcut dönemi önceki eşit dönemle kıyaslayın." />
+            <ToolLink href="/reports/executive" title="Yönetim raporu" description="Farklı modüllerdeki temel performans göstergelerini tek ekranda görüntüleyin." />
+            <ToolLink href="/reports/exports" title="Dışa aktarım merkezi" description="Raporları Excel, CSV veya PDF olarak hazırlayın ve indirin." />
+            <ToolLink href="/reports/schedules" title="Zamanlanmış raporlar" description="Düzenli oluşturulacak raporların zamanlamasını yönetin." />
           </div>
         </Panel>
       </div>
