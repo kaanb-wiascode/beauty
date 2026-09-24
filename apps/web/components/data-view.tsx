@@ -8,6 +8,7 @@ import type {
 } from "react";
 
 import { cx } from "@/lib/format";
+import { ValooNativeSelectAdapter } from "@/components/valoo-controls";
 
 export function DataView({
   children,
@@ -86,7 +87,7 @@ export function SearchField({
       {props.value && props.onKeyDown ? (
         <span
           aria-hidden="true"
-          className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[9px] font-medium text-[var(--muted-soft)]"
+          className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[11px] font-medium text-[var(--muted)]"
         >
           ESC
         </span>
@@ -97,28 +98,13 @@ export function SearchField({
 
 export function ToolbarSelect({
   className,
-  children,
   ...props
 }: SelectHTMLAttributes<HTMLSelectElement>) {
   return (
-    <label className={cx("relative inline-flex", className)}>
-      <select
-        {...props}
-        className={cx(
-          "h-10 min-w-[132px] appearance-none rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 pr-8 text-[11px] font-medium text-[var(--muted)] outline-none transition",
-          "hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.20)] focus:text-[var(--ink)] focus:ring-4 focus:ring-[var(--accent-soft)]",
-          className,
-        )}
-      >
-        {children}
-      </select>
-      <span
-        aria-hidden="true"
-        className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-[10px] text-[var(--muted-soft)]"
-      >
-        ▾
-      </span>
-    </label>
+    <ValooNativeSelectAdapter
+      {...props}
+      className={cx("min-w-[148px]", className)}
+    />
   );
 }
 
@@ -149,7 +135,7 @@ export function FilterChip({
       {typeof count === "number" ? (
         <span
           className={cx(
-            "rounded-full px-1.5 py-0.5 text-[9px] leading-none",
+            "rounded-full px-1.5 py-0.5 text-[11px] leading-none",
             active
               ? "bg-white/15 text-white"
               : "bg-[var(--surface-2)] text-[var(--muted-soft)]",
@@ -193,7 +179,7 @@ export function DataViewMeta({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-2)]/30 px-4 py-3 text-[10px] text-[var(--muted)] sm:px-5">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-2)]/30 px-4 py-3 text-[12px] text-[var(--muted)] sm:px-5">
       {children}
     </div>
   );
