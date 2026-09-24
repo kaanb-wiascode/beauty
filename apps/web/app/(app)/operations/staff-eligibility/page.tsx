@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Select, useEffect, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -79,11 +79,11 @@ export default function StaffEligibilityPolicyPage() {
 
           <div>
             <label className="text-xs font-semibold text-[var(--ink)]">Uygulama modu</label>
-            <select className="mt-2 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm" value={policy.mode} onChange={(e) => setPolicy({ ...policy, mode: e.target.value as Mode })}>
+            <Select className="mt-2 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm" value={policy.mode} onChange={(e) => setPolicy({ ...policy, mode: e.target.value as Mode })}>
               <option value="OFF">OFF — yalnız Operations’ın mevcut conflict kuralları</option>
               <option value="WARN">WARN — HR eksiklerini göster, işleme izin ver</option>
               <option value="BLOCK">BLOCK — HR uygunluğu yoksa booking/execution engelle</option>
-            </select>
+            </Select>
           </div>
 
           <div className="grid gap-3 md:grid-cols-3">
