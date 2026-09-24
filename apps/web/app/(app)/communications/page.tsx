@@ -97,10 +97,10 @@ export default function CommunicationsOverviewPage() {
 
       <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Aktif Kampanya" value={String(dashboard?.activeCampaigns ?? 0)} detail={`${dashboard?.totalCampaigns ?? 0} toplam kampanya`} />
-        <Metric label="Pazarlama Harcaması" value={money.format(dashboard?.spend ?? 0)} detail={dashboard?.cpl == null ? "CPL henüz hesaplanamadı" : `CPL ${money.format(dashboard.cpl)}`} />
-        <Metric label="Marketing Lead" value={String(dashboard?.leads ?? 0)} detail={`${dashboard?.appointments ?? 0} randevuya dönüştü`} />
-        <Metric label="Atfedilen Gelir" value={money.format(dashboard?.revenue ?? 0)} detail={`${dashboard?.wonLeads ?? 0} kazanılmış lead`} />
-        <Metric label="ROAS" value={dashboard?.roas == null ? "—" : `${dashboard.roas.toFixed(2)}x`} detail={dashboard?.cac == null ? "CAC henüz hesaplanamadı" : `CAC ${money.format(dashboard.cac)}`} />
+        <Metric label="Pazarlama Harcaması" value={money.format(dashboard?.spend ?? 0)} detail={dashboard?.cpl == null ? "Potansiyel müşteri başına maliyet henüz hesaplanamadı" : `Potansiyel müşteri başına maliyet ${money.format(dashboard.cpl)}`} />
+        <Metric label="Potansiyel müşteri" value={String(dashboard?.leads ?? 0)} detail={`${dashboard?.appointments ?? 0} randevuya dönüştü`} />
+        <Metric label="Kampanyaya ilişkilendirilen gelir" value={money.format(dashboard?.revenue ?? 0)} detail={`${dashboard?.wonLeads ?? 0} kazanılan potansiyel müşteri`} />
+        <Metric label="Reklam getirisi" value={dashboard?.roas == null ? "—" : `${dashboard.roas.toFixed(2)}x`} detail={dashboard?.cac == null ? "Müşteri kazanım maliyeti henüz hesaplanamadı" : `Müşteri kazanım maliyeti ${money.format(dashboard.cac)}`} />
       </section>
 
       <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
