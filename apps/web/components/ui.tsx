@@ -7,6 +7,7 @@ import type {
 } from "react";
 import { cx } from "@/lib/format";
 import { userErrorMessage, userNoticeMessage } from "@/lib/user-language";
+import { ValooNativeSelectAdapter } from "@/components/valoo-controls";
 
 export function Alert({
   tone = "error",
@@ -236,32 +237,17 @@ export function TextArea({
   );
 }
 
-export function Select({
-  "aria-invalid": ariaInvalid,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      {...props}
-      aria-invalid={ariaInvalid}
-      className={cx(
-        "control",
-        ariaInvalid &&
-          "border-[rgba(143,61,61,0.35)] focus:border-[rgba(143,61,61,0.45)] focus:ring-[rgba(143,61,61,0.10)]",
-        props.className,
-      )}
-    />
-  );
+export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <ValooNativeSelectAdapter {...props} />;
 }
 
 /**
- * Kept as a compatibility export for existing screens.
- * The actual control remains accessible native select for now.
+ * Compatibility export backed by the canonical VALOO custom select.
  */
 export function Dropdown(
   props: SelectHTMLAttributes<HTMLSelectElement>,
 ) {
-  return <Select {...props} />;
+  return <ValooNativeSelectAdapter {...props} />;
 }
 
 export function StatusBadge({
