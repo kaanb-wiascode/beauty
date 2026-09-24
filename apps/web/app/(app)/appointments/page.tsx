@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 
 import { CardInfo } from "@/components/card-info";
 import { DateTimePicker } from "@/components/date-time-picker";
+import { FormActions, FormHint, FormSummary, FormSummaryItem } from "@/components/form-system";
 import {
   DataView,
   DataViewMeta,
@@ -25,6 +26,7 @@ import {
   TextInput,
 } from "@/components/ui";
 import { Modal } from "@/components/modal";
+import { ValooSegmentedControl, ValooSelect } from "@/components/valoo-controls";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
@@ -119,10 +121,17 @@ function appointmentHeight(startAt: string, endAt: string) {
   return Math.max(SLOT_HEIGHT, (minutes / SLOT_MINUTES) * SLOT_HEIGHT);
 }
 
+type EligibleSession = {
+  id: string;
+  customerPackage: { package: { name: string } };
+  service: { name: string };
+};
+
 type FormState = {
   customerId: string;
   staffId: string;
   serviceId: string;
+  sessionId: string;
   startAt: string;
   endAt: string;
   notes: string;
@@ -135,6 +144,7 @@ function emptyForm() {
     customerId: "",
     staffId: "",
     serviceId: "",
+    sessionId: "",
     startAt: start,
     endAt: addMinutesLocal(start, 60),
     notes: "",
@@ -181,6 +191,8 @@ export default function AppointmentsPage() {
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [services, setServices] = useState<Service[]>([]);
+  const [eligibleSessions, setEligibleSessions] = useState<EligibleSession[]>([]);
+  const [loadingSessions, setLoadingSessions] = useState(false);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [search, setSearch] = useState("");
   const [staffFilter, setStaffFilter] = useState("");
@@ -244,6 +256,35 @@ export default function AppointmentsPage() {
 
   useEffect(() => { void loadAppointments(); }, [dateFrom, dateTo]);
   useEffect(() => { void loadReferences(); }, []);
+
+  useEffect(() => {
+    if (!modalOpen || editing || !form.customerId || !form.serviceId) {
+      setEligibleSessions([]);
+      return;
+    }
+
+    let cancelled = false;
+    setLoadingSessions(true);
+    void api<EligibleSession[]>(
+      withQuery("/appointments/eligible-sessions", {
+        customerId: form.customerId,
+        serviceId: form.serviceId,
+      }),
+    )
+      .then((sessions) => {
+        if (!cancelled) setEligibleSessions(sessions);
+      })
+      .catch(() => {
+        if (!cancelled) setEligibleSessions([]);
+      })
+      .finally(() => {
+        if (!cancelled) setLoadingSessions(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [editing, form.customerId, form.serviceId, modalOpen]);
 
   const customerMap = useMemo(
     () => new Map(customers.map((item) => [item.id, fullName(item.firstName, item.lastName)])),
@@ -322,6 +363,7 @@ export default function AppointmentsPage() {
       customerId: appointment.customerId,
       staffId: appointment.staffId,
       serviceId: appointment.serviceId,
+      sessionId: "",
       startAt: toDateTimeLocal(appointment.startAt),
       endAt: toDateTimeLocal(appointment.endAt),
       notes: appointment.notes ?? "",
@@ -442,6 +484,42 @@ export default function AppointmentsPage() {
   const selectedServicePrice = selected
     ? services.find((item) => item.id === selected.serviceId)?.price
     : undefined;
+
+  const formCustomer = customers.find((item) => item.id === form.customerId);
+  const formStaff = staff.find((item) => item.id === form.staffId);
+  const formService = services.find((item) => item.id === form.serviceId);
+  const formConflict = form.staffId && form.startAt && form.endAt
+    ? appointments.find((item) =>
+        item.id !== editing?.id &&
+        item.staffId === form.staffId &&
+        !["CANCELLED", "NO_SHOW"].includes(item.status) &&
+        new Date(item.startAt).getTime() < new Date(form.endAt).getTime() &&
+        new Date(item.endAt).getTime() > new Date(form.startAt).getTime(),
+      )
+    : undefined;
+
+  function updateService(serviceId: string) {
+    const service = services.find((item) => item.id === serviceId);
+    setForm((current) => ({
+      ...current,
+      serviceId,
+      sessionId: "",
+      endAt:
+        service && current.startAt
+          ? addMinutesLocal(current.startAt, service.durationMinutes)
+          : current.endAt,
+    }));
+  }
+
+  function updateStart(startAt: string) {
+    setForm((current) => ({
+      ...current,
+      startAt,
+      endAt: formService
+        ? addMinutesLocal(startAt, formService.durationMinutes)
+        : current.endAt,
+    }));
+  }
 
   return (
     <div className="mx-auto max-w-[1540px] space-y-5 pb-8">
@@ -686,17 +764,140 @@ export default function AppointmentsPage() {
         </aside>
       </div>
 
-      <Modal open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu Düzenle" : "Yeni Randevu"} description="Müşteri, Hizmet, Personel Ve Zaman Bilgilerini Girin.">
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Müşteri" required><Select value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))} disabled={loadingRefs}><option value="">Müşteri Seçin</option>{customers.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
-          <Field label="Personel" required><Select value={form.staffId} onChange={(event) => setForm((current) => ({ ...current, staffId: event.target.value }))} disabled={loadingRefs}><option value="">Personel Seçin</option>{staff.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}</Select></Field>
-          <Field label="Hizmet" required><Select value={form.serviceId} onChange={(event) => setForm((current) => ({ ...current, serviceId: event.target.value }))} disabled={loadingRefs}><option value="">Hizmet Seçin</option>{services.filter((item) => item.status === "ACTIVE").map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field>
-          {editing ? <Field label="Durum"><Select value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value as AppointmentStatus }))}><option value="SCHEDULED">Planlandı</option><option value="CONFIRMED">Onaylandı</option><option value="COMPLETED">Tamamlandı</option><option value="NO_SHOW">Gelmedi</option></Select></Field> : null}
-          <Field label="Başlangıç" required><DateTimePicker value={form.startAt} max={form.endAt || undefined} ariaLabel="Randevu başlangıcı" onChange={(value) => setForm((current) => ({ ...current, startAt: value }))} /></Field>
-          <Field label="Bitiş" required><DateTimePicker value={form.endAt} min={form.startAt || undefined} ariaLabel="Randevu bitişi" onChange={(value) => setForm((current) => ({ ...current, endAt: value }))} /></Field>
-          <div className="sm:col-span-2"><Field label="Not"><TextArea rows={3} value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} placeholder="Randevuya Özel Not..." /></Field></div>
+      <Modal open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu Düzenle" : "Yeni Randevu"} description="Müşteri, hizmet, personel ve zaman bilgilerini tamamlayın.">
+        <div className="space-y-5">
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Müşteri" required>
+              <ValooSelect
+                value={form.customerId}
+                onChange={(customerId) => setForm((current) => ({ ...current, customerId, sessionId: "" }))}
+                disabled={loadingRefs || Boolean(editing)}
+                loading={loadingRefs}
+                placeholder="Müşteri seçin"
+                searchPlaceholder="Ad, telefon veya e-posta ara…"
+                options={customers.map((item) => ({
+                  value: item.id,
+                  label: fullName(item.firstName, item.lastName),
+                  description: item.phone || item.email || undefined,
+                  keywords: [item.phone, item.email].filter(Boolean).join(" "),
+                }))}
+              />
+            </Field>
+            <Field label="Personel" required>
+              <ValooSelect
+                value={form.staffId}
+                onChange={(staffId) => setForm((current) => ({ ...current, staffId }))}
+                disabled={loadingRefs}
+                loading={loadingRefs}
+                placeholder="Personel seçin"
+                searchPlaceholder="Personel ara…"
+                options={staff.filter((item) => item.status === "ACTIVE").map((item) => ({
+                  value: item.id,
+                  label: fullName(item.firstName, item.lastName),
+                  description: item.profile?.position || item.profile?.department || undefined,
+                }))}
+              />
+            </Field>
+            <Field label="Hizmet" required>
+              <ValooSelect
+                value={form.serviceId}
+                onChange={updateService}
+                disabled={loadingRefs || Boolean(editing)}
+                loading={loadingRefs}
+                placeholder="Hizmet seçin"
+                searchPlaceholder="Hizmet ara…"
+                options={services.filter((item) => item.status === "ACTIVE").map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                  description: `${item.durationMinutes} dk · ₺${Number(item.price).toLocaleString("tr-TR")}`,
+                }))}
+              />
+            </Field>
+            {editing ? (
+              <Field label="Durum">
+                <ValooSelect
+                  value={form.status}
+                  onChange={(status) => setForm((current) => ({ ...current, status: status as AppointmentStatus }))}
+                  searchable={false}
+                  options={[
+                    { value: "SCHEDULED", label: "Planlandı" },
+                    { value: "CONFIRMED", label: "Onaylandı" },
+                    { value: "COMPLETED", label: "Tamamlandı" },
+                    { value: "NO_SHOW", label: "Gelmedi" },
+                  ]}
+                />
+              </Field>
+            ) : eligibleSessions.length || loadingSessions ? (
+              <Field label="Paket / Seans">
+                <ValooSelect
+                  value={form.sessionId}
+                  onChange={(sessionId) => setForm((current) => ({ ...current, sessionId }))}
+                  loading={loadingSessions}
+                  placeholder="Paket kullanmadan devam et"
+                  searchPlaceholder="Paket ara…"
+                  options={eligibleSessions.map((session) => ({
+                    value: session.id,
+                    label: session.customerPackage.package.name,
+                    description: `${session.service.name} · kullanılabilir seans`,
+                  }))}
+                />
+              </Field>
+            ) : (
+              <FormHint tone="neutral" title="Paket / seans">
+                Seçilen müşteri ve hizmet için kullanılabilir aktif paket seansı bulunmuyor. Randevu standart hizmet olarak oluşturulacak.
+              </FormHint>
+            )}
+            <Field label="Başlangıç" required>
+              <DateTimePicker
+                value={form.startAt}
+                max={form.endAt || undefined}
+                ariaLabel="Randevu başlangıcı"
+                onChange={updateStart}
+              />
+            </Field>
+            <Field label="Bitiş" required>
+              <DateTimePicker
+                value={form.endAt}
+                min={form.startAt || undefined}
+                ariaLabel="Randevu bitişi"
+                onChange={(value) => setForm((current) => ({ ...current, endAt: value }))}
+              />
+            </Field>
+          </div>
+
+          {formConflict ? (
+            <FormHint tone="warning" title="Personel çakışması">
+              Seçilen personelin bu saat aralığıyla çakışan bir randevusu var. Kaydetmeden önce zamanı veya personeli değiştirin.
+            </FormHint>
+          ) : form.staffId && form.startAt && form.endAt ? (
+            <FormHint tone="info" title="Zaman kontrolü">
+              Görüntülenen günlük programda bu personel için çakışma görünmüyor. Sunucu kaydetme sırasında son uygunluk kontrolünü tekrar yapacak.
+            </FormHint>
+          ) : null}
+
+          <Field label="Not">
+            <TextArea
+              rows={3}
+              value={form.notes}
+              onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))}
+              placeholder="Randevuya özel not, hazırlık bilgisi veya müşteri talebi…"
+            />
+          </Field>
+
+          <FormSummary title="Randevu özeti" description="Kaydedilecek randevunun ana bilgileri">
+            <FormSummaryItem label="Müşteri" value={formCustomer ? fullName(formCustomer.firstName, formCustomer.lastName) : "Seçilmedi"} />
+            <FormSummaryItem label="Hizmet" value={formService?.name ?? "Seçilmedi"} detail={formService ? `${formService.durationMinutes} dk · ₺${Number(formService.price).toLocaleString("tr-TR")}` : undefined} />
+            <FormSummaryItem label="Personel" value={formStaff ? fullName(formStaff.firstName, formStaff.lastName) : "Seçilmedi"} />
+            <FormSummaryItem label="Paket" value={form.sessionId ? eligibleSessions.find((item) => item.id === form.sessionId)?.customerPackage.package.name ?? "Seçili" : "Standart hizmet"} />
+          </FormSummary>
+
+          <FormActions sticky>
+            <Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button>
+            <Button onClick={saveAppointment} disabled={saving || Boolean(formConflict)}>
+              {saving ? "Kaydediliyor..." : editing ? "Değişiklikleri Kaydet" : "Randevuyu Oluştur"}
+            </Button>
+          </FormActions>
         </div>
-        <div className="mt-6 flex justify-end gap-2"><Button variant="secondary" onClick={() => setModalOpen(false)} disabled={saving}>Vazgeç</Button><Button onClick={saveAppointment} disabled={saving}>{saving ? "Kaydediliyor..." : editing ? "Değişiklikleri Kaydet" : "Randevuyu Oluştur"}</Button></div>
       </Modal>
 
       <Modal open={confirmOpen} onClose={() => !saving && setConfirmOpen(false)} title="Randevuyu İptal Et" description={pendingCancel ? `${customerMap.get(pendingCancel.customerId) ?? "Müşteri"} İçin ${formatTime(pendingCancel.startAt)} Randevusu İptal Edilecek.` : ""}>
