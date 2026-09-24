@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { Select, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   DataView,
@@ -369,9 +369,9 @@ function SelectField({
   return (
     <label className="block">
       <span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">{label}</span>
-      <select className="control h-11 w-full" value={value} onChange={(event) => onChange(event.target.value)}>
+      <Select className="control h-11 w-full" value={value} onChange={(event) => onChange(event.target.value)}>
         {children}
-      </select>
+      </Select>
     </label>
   );
 }
