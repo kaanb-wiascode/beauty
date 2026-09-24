@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type CapacityCategory = {
   resourceType: "ROOM" | "ASSET";
@@ -114,11 +115,11 @@ export function OperationsCapacityPanel() {
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-            Capacity Engine
+            Kapasite planlaması
           </p>
           <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">Kaynak Kapasitesi</h2>
           <p className="mt-1 max-w-2xl text-xs text-[var(--muted)]">
-            Seçilen zaman penceresinde oda ve Inventory ekipmanlarının gerçek rezervasyon yükünü gösterir. Hazırlık/temizlik tamponları ve planlı kaynak blokları kapasite hesabına dahildir.
+            Seçilen zaman aralığında oda ve ekipmanların gerçek rezervasyon yükünü gösterir. Hazırlık, temizlik ve planlı kullanım dışı süreler kapasite hesabına dahildir.
           </p>
         </div>
         <div className="grid gap-3 sm:grid-cols-[190px_190px_auto]">
@@ -159,7 +160,7 @@ export function OperationsCapacityPanel() {
               </div>
               {summary.categories.length ? summary.categories.map((category) => (
                 <div key={`${category.resourceType}:${category.category}`} className="grid grid-cols-[minmax(0,1fr)_80px_90px_90px_100px] gap-3 border-b border-[var(--line)] px-4 py-3 text-xs last:border-b-0">
-                  <div><p className="font-semibold text-[var(--ink)]">{category.category}</p><p className="mt-1 text-[var(--muted)]">{category.resourceType === "ROOM" ? "Oda / Kabin" : "Cihaz / Ekipman"}{category.unavailableResources ? ` · ${category.unavailableResources} kullanılamaz` : ""}</p></div>
+                  <div><p className="font-semibold text-[var(--ink)]">{userLabel(category.category)}</p><p className="mt-1 text-[var(--muted)]">{category.resourceType === "ROOM" ? "Oda / Kabin" : "Cihaz / Ekipman"}{category.unavailableResources ? ` · ${category.unavailableResources} kullanılamaz` : ""}</p></div>
                   <span className="text-[var(--muted)]">{category.totalResources}</span>
                   <span className="font-semibold text-[var(--ink)]">%{category.utilizationPercent.toLocaleString("tr-TR")}</span>
                   <span className="text-[var(--muted)]">{formatMinutes(category.blockedMinutes)}</span>
@@ -175,7 +176,7 @@ export function OperationsCapacityPanel() {
                 {summary.bottlenecks.length ? summary.bottlenecks.map((item) => (
                   <div key={`${item.resourceType}:${item.category}`} className="rounded-[14px] bg-[var(--surface-2)] p-3">
                     <div className="flex items-start justify-between gap-3">
-                      <div><p className="text-xs font-semibold text-[var(--ink)]">{item.category}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{reasonLabel[item.reason]}</p></div>
+                      <div><p className="text-xs font-semibold text-[var(--ink)]">{userLabel(item.category)}</p><p className="mt-1 text-[11px] text-[var(--muted)]">{reasonLabel[item.reason]}</p></div>
                       <span className="text-xs font-semibold text-[var(--ink)]">%{item.utilizationPercent.toLocaleString("tr-TR")}</span>
                     </div>
                     <p className="mt-2 text-[11px] text-[var(--muted)]">Kalan {formatMinutes(item.remainingMinutes)}{item.blockedMinutes ? ` · ${formatMinutes(item.blockedMinutes)} bloklu` : ""}{item.unavailableResources ? ` · ${item.unavailableResources} kaynak kullanılamaz` : ""}</p>
