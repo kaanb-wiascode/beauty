@@ -64,6 +64,7 @@ const USER_LABELS: Record<string, string> = {
   DEAD: "Gönderilemedi",
   UNVERIFIED: "Doğrulanmadı",
   SUSPENDED: "Askıda",
+  REVOKED: "İptal Edildi",
   BANK: "Banka",
   CASH: "Nakit",
   CARD: "Kart",
