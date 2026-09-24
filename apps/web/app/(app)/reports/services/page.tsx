@@ -2,7 +2,9 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { ReportDrilldownPanel } from "../report-drilldown-panel";
 import {
   ReportFilterBar,
@@ -88,5 +90,5 @@ export default function ServiceReportPage() {
 
 function Pagination({ page, totalPages, onChange }: { page: number; totalPages: number; onChange: (page: number) => void }) { return <div className="flex items-center justify-end gap-2 border-t border-[var(--line)] px-5 py-4"><button type="button" disabled={page <= 1} onClick={() => onChange(page - 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Önceki</button><span className="text-[11px] text-[var(--muted)]">{page} / {totalPages}</span><button type="button" disabled={page >= totalPages} onClick={() => onChange(page + 1)} className="rounded-lg border border-[var(--line)] px-3 py-2 text-[11px] disabled:opacity-40">Sonraki</button></div>; }
 function SortButton({ label, active, direction, onClick }: { label: string; active: boolean; direction: "asc" | "desc"; onClick: () => void }) { return <button type="button" onClick={onClick} className="inline-flex items-center gap-1"><span>{label}</span><span className="text-[10px] text-[var(--muted-soft)]">{active ? (direction === "asc" ? "↑" : "↓") : "↕"}</span></button>; }
-function Metric({ label, value, detail }: { label: string; value: string; detail: string }) { return <GlassCard><p className="text-[11px] text-[var(--muted)]">{label}</p><p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">{value}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p></GlassCard>; }
+function Metric({ label, value, detail }: { label: string; value: string; detail: string }) { return <GlassCard><div className="mb-2"><CardInfo help={getCardHelp(label, detail)} /></div><p className="text-[11px] text-[var(--muted)]">{label}</p><p className="mt-1.5 text-[24px] font-semibold text-[var(--ink)]">{value}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</p></GlassCard>; }
 function Empty() { return <div className="px-5 py-10 text-center text-[13px] text-[var(--muted)]">Seçilen Tarih Aralığında Veri Bulunamadı.</div>; }
