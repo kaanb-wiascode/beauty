@@ -9,6 +9,7 @@ import { TenantEntitlementsPanel } from "@/components/platform/tenant-entitlemen
 import { TenantGovernancePanel } from "@/components/platform/tenant-governance-panel";
 import { TenantSubscriptionPanel } from "@/components/platform/tenant-subscription-panel";
 import { ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 import {
   getPlatformCustomer360,
   type PlatformCustomer360,
@@ -32,7 +33,7 @@ export default function PlatformCustomer360Page() {
       .then((value) => active && setData(value))
       .catch((reason: unknown) => {
         if (!active) return;
-        setError(reason instanceof ApiError ? reason.message : "Tenant 360 verileri yüklenemedi.");
+        setError(reason instanceof ApiError ? reason.message : "İşletme detayları yüklenemedi.");
       });
     return () => { active = false; };
   }, [tenantId]);
@@ -40,7 +41,7 @@ export default function PlatformCustomer360Page() {
   if (error) {
     return (
       <div className="mx-auto max-w-[1380px]">
-        <Link href="/platform/customers" className="text-xs font-semibold text-violet-300">← Customers</Link>
+        <Link href="/platform/customers" className="text-xs font-semibold text-violet-300">← İşletmeler</Link>
         <div className="mt-5 rounded-2xl border border-red-400/20 bg-red-400/[.07] px-5 py-4 text-sm text-red-100">{error}</div>
       </div>
     );
@@ -57,9 +58,9 @@ export default function PlatformCustomer360Page() {
       <header className="flex flex-col gap-5 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <Link href="/platform/customers" className="text-xs font-semibold text-violet-300">← Customers</Link>
-          <p className="mt-5 text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300">Tenant 360</p>
+          <p className="mt-5 text-[10px] font-semibold uppercase tracking-[.18em] text-violet-300">İşletme genel görünümü</p>
           <h1 className="mt-2 text-3xl font-semibold tracking-[-.04em] text-white sm:text-4xl">{tenant.name}</h1>
-          <p className="mt-2 text-sm text-white/40">{tenant.slug} · {tenant.id}</p>
+          <p className="mt-2 text-sm text-white/40">Platformdaki işletme hesabının genel durumu ve kullanım bilgileri.</p>
         </div>
         <div className="rounded-2xl border border-white/10 bg-white/[.035] px-4 py-3 text-xs text-white/50">Oluşturulma: <span className="font-semibold text-white/75">{date.format(new Date(tenant.createdAt))}</span></div>
       </header>
@@ -68,7 +69,7 @@ export default function PlatformCustomer360Page() {
         <Metric label="Şirket" value={tenant.companyCount} detail={`${tenant.activeCompanyCount} aktif`} />
         <Metric label="Şube" value={tenant.branchCount} detail={`${tenant.activeBranchCount} aktif`} />
         <Metric label="Aktif kullanıcı" value={tenant.activeMembershipCount} />
-        <Metric label="Aktif owner" value={tenant.ownerCount} />
+        <Metric label="Aktif hesap yöneticisi" value={tenant.ownerCount} />
         <Metric label="Şirket aktiflik" value={tenant.companyCount ? Math.round((tenant.activeCompanyCount / tenant.companyCount) * 100) : 0} suffix="%" />
         <Metric label="Şube aktiflik" value={tenant.branchCount ? Math.round((tenant.activeBranchCount / tenant.branchCount) * 100) : 0} suffix="%" />
       </section>
@@ -79,12 +80,12 @@ export default function PlatformCustomer360Page() {
       <TenantEntitlementsPanel tenantId={tenant.id} />
 
       <div className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
-        <Panel title="Organizasyon yapısı" eyebrow="Companies & branches">
+        <Panel title="Organizasyon yapısı" eyebrow="Şirket ve şubeler">
           <div className="divide-y divide-white/[.07]">
             {data.companies.map((company) => (
               <div key={company.id} className="grid gap-4 py-4 sm:grid-cols-[1.5fr_.7fr_.7fr_.7fr] sm:items-center">
                 <div><p className="text-sm font-semibold text-white">{company.name}</p><p className="mt-1 text-[10px] text-white/30">{company.slug}</p></div>
-                <Cell label="Durum" value={company.status} />
+                <Cell label="Durum" value={userLabel(company.status)} />
                 <Cell label="Şube" value={`${company.activeBranchCount} / ${company.branchCount}`} />
                 <Cell label="Oluşturulma" value={date.format(new Date(company.createdAt))} />
               </div>
@@ -93,12 +94,12 @@ export default function PlatformCustomer360Page() {
           </div>
         </Panel>
 
-        <Panel title="Üyelik dağılımı" eyebrow="Membership state">
+        <Panel title="Üyelik dağılımı" eyebrow="Kullanıcı rolleri">
           <div className="space-y-3">
             {data.membershipBreakdown.map((membership) => (
               <div key={`${membership.role}-${membership.status}`} className="rounded-2xl border border-white/[.07] bg-black/15 p-4">
                 <div className="flex items-center justify-between gap-3">
-                  <div><p className="text-xs font-semibold text-white">{membership.role}</p><p className="mt-1 text-[10px] uppercase tracking-[.11em] text-white/30">{membership.status}</p></div>
+                  <div><p className="text-xs font-semibold text-white">{userLabel(membership.role)}</p><p className="mt-1 text-[10px] text-white/30">{userLabel(membership.status)}</p></div>
                   <strong className="text-xl font-semibold tracking-tight text-white">{number.format(membership.count)}</strong>
                 </div>
               </div>
@@ -108,14 +109,14 @@ export default function PlatformCustomer360Page() {
         </Panel>
       </div>
 
-      <Panel title="Tenant kimliği" eyebrow="Account metadata">
+      <Panel title="İşletme hesap bilgileri" eyebrow="Hesap bilgileri">
         <div className="grid gap-5 sm:grid-cols-2 xl:grid-cols-4">
-          <Cell label="Tenant ID" value={tenant.id} />
-          <Cell label="Slug" value={tenant.slug} />
-          <Cell label="Lifecycle" value={`${tenant.lifecycleState} · v${tenant.lifecycleVersion}`} />
+          <Cell label="İşletme kayıt numarası" value={tenant.id} />
+          <Cell label="Kısa adres kodu" value={tenant.slug} />
+          <Cell label="Hesap durumu" value={`${userLabel(tenant.lifecycleState)} · Sürüm ${tenant.lifecycleVersion}`} />
           <Cell label="Oluşturulma" value={date.format(new Date(tenant.createdAt))} />
           <Cell label="Son güncelleme" value={date.format(new Date(tenant.updatedAt))} />
-          <Cell label="Lifecycle nedeni" value={tenant.lifecycleReason ?? "—"} />
+          <Cell label="Durum değişikliği nedeni" value={tenant.lifecycleReason ?? "—"} />
         </div>
       </Panel>
     </div>
