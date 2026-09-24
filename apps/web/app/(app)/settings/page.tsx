@@ -1,8 +1,10 @@
 "use client";
 
 import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userPermissionLabel } from "@/lib/user-language";
 
 const sections = [
@@ -74,14 +76,17 @@ export default function SettingsPage() {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
             {metrics.map(([label, value]) => (
               <div key={String(label)} className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
-                <div className="text-[11px] text-[var(--muted)]">{label}</div>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="text-[11px] text-[var(--muted)]">{label}</div>
+                  <CardInfo help={getCardHelp(String(label), "Yapılandırma sağlığında dikkat gerektiren yönetim sinyalinin güncel değerini gösterir.")} />
+                </div>
                 <div className="mt-2 text-xl font-semibold text-[var(--ink)]">{value}</div>
               </div>
             ))}
           </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <div className="text-xs font-semibold text-[var(--ink)]">Erişim riskleri</div>
+              <div className="flex items-start justify-between gap-3"><div className="text-xs font-semibold text-[var(--ink)]">Erişim riskleri</div><CardInfo help={getCardHelp("Erişim riskleri", "Geniş kapsamlı, süresi dolmak üzere olan veya askıya alınmış erişimlerle ilgili yönetim sinyallerini özetler.")} /></div>
               <div className="mt-3 grid grid-cols-2 gap-3 text-xs text-[var(--muted)]">
                 <div>Tüm şirketi görebilen kullanıcı <strong className="ml-1 text-[var(--ink)]">{dashboard.users.broadCentral}</strong></div>
                 <div>24 saatte bitecek erişim <strong className="ml-1 text-[var(--ink)]">{dashboard.temporaryAccess.expiringSoon}</strong></div>
@@ -90,7 +95,7 @@ export default function SettingsPage() {
               </div>
             </div>
             <div className="rounded-[var(--radius-card)] border border-[var(--line)] bg-[var(--surface)] p-4">
-              <div className="text-xs font-semibold text-[var(--ink)]">Son yönetim değişiklikleri</div>
+              <div className="flex items-start justify-between gap-3"><div className="text-xs font-semibold text-[var(--ink)]">Son yönetim değişiklikleri</div><CardInfo help={getCardHelp("Son yönetim değişiklikleri", "Yakın zamanda yapılan kritik yönetim ve yapılandırma değişikliklerini gösterir.")} /></div>
               <div className="mt-3 space-y-2">
                 {dashboard.recentAudit.length === 0 ? <div className="text-xs text-[var(--muted)]">Henüz kayıt yok.</div> : dashboard.recentAudit.slice(0, 5).map((event) => (
                   <div key={event.id} className="flex items-center justify-between gap-3 text-xs">
