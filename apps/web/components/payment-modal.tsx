@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { DateTimePicker } from "@/components/date-time-picker";
 import {
   FormActions,
+  FormSection,
   FormSummary,
   FormSummaryItem,
 } from "@/components/form-system";
@@ -133,6 +134,7 @@ export function PaymentModal({
 
   return (
     <Modal
+      size="md"
       open={open}
       onClose={handleClose}
       title="Ödeme al"
@@ -163,41 +165,46 @@ export function PaymentModal({
             />
           </FormSummary>
 
-          <Field label="Tahsil edilecek tutar" required>
-            <TextInput
-              type="number"
-              min="0.01"
-              step="0.01"
-              inputMode="decimal"
-              value={amount}
-              onChange={(event) => setAmount(event.target.value)}
-              placeholder="0,00"
-              disabled={saving}
-            />
-          </Field>
+          <FormSection
+            title="Tahsilat bilgileri"
+            description="Tutar, ödeme yöntemi ve işlem zamanını kaydedin."
+          >
+            <Field label="Tahsil edilecek tutar" required>
+              <TextInput
+                type="number"
+                min="0.01"
+                step="0.01"
+                inputMode="decimal"
+                value={amount}
+                onChange={(event) => setAmount(event.target.value)}
+                placeholder="0,00"
+                disabled={saving}
+              />
+            </Field>
 
-          <Field label="Ödeme yöntemi" required>
-            <ValooSegmentedControl
-              value={method}
-              onChange={setMethod}
-              disabled={saving}
-              ariaLabel="Ödeme yöntemi"
-              options={[
-                { value: "CARD", label: "Kart" },
-                { value: "CASH", label: "Nakit" },
-                { value: "TRANSFER", label: "Havale / EFT" },
-              ]}
-            />
-          </Field>
+            <Field label="Ödeme yöntemi" required>
+              <ValooSegmentedControl
+                value={method}
+                onChange={setMethod}
+                disabled={saving}
+                ariaLabel="Ödeme yöntemi"
+                options={[
+                  { value: "CARD", label: "Kart" },
+                  { value: "CASH", label: "Nakit" },
+                  { value: "TRANSFER", label: "Havale / EFT" },
+                ]}
+              />
+            </Field>
 
-          <Field label="Ödeme tarihi ve saati" required>
-            <DateTimePicker
-              value={paidAt}
-              max={localDateTimeNow()}
-              ariaLabel="Ödeme tarihi ve saati"
-              onChange={setPaidAt}
-            />
-          </Field>
+            <Field label="Ödeme tarihi ve saati" required>
+              <DateTimePicker
+                value={paidAt}
+                max={localDateTimeNow()}
+                ariaLabel="Ödeme tarihi ve saati"
+                onChange={setPaidAt}
+              />
+            </Field>
+          </FormSection>
 
           {Number.isFinite(numericAmount) && Number.isFinite(serviceAmount) && numericAmount !== serviceAmount ? (
             <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)]/60 px-4 py-3 text-[11px] text-[var(--muted)]">
