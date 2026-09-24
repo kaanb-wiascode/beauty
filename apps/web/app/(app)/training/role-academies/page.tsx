@@ -1,9 +1,9 @@
 "use client";
 
-import { Select, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { FinanceEmpty, FinanceMetric, FinancePanel } from "@/components/finance-view";
-import { Alert, Button, Spinner } from "@/components/ui";
+import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type Rule={id:string;positionId:string;positionCode:string;positionName:string;programId:string;programCode:string;programTitle:string;autoAssign:boolean;isActive:boolean;eligibleStaff:number};
