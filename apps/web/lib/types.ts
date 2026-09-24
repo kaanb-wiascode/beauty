@@ -24,7 +24,24 @@ export type StaffStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 export type Staff = { id: string; tenantId: string; firstName: string; lastName: string; phone: string | null; email: string | null; profile: StaffProfile | null; status: StaffStatus; createdAt: string; updatedAt: string };
 
 export type ServiceStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
-export type Service = { id: string; tenantId: string; name: string; description: string | null; durationMinutes: number; price: string | number; status: ServiceStatus; createdAt: string; updatedAt: string };
+export type Service = {
+  id: string;
+  tenantId: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  durationMinutes: number;
+  preparationMinutes: number;
+  cleanupMinutes: number;
+  price: string | number;
+  cost: string | number | null;
+  taxRate: string | number;
+  currency: string;
+  requiresConsultation: boolean;
+  status: ServiceStatus;
+  createdAt: string;
+  updatedAt: string;
+};
 export type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 export type Appointment = { id: string; tenantId: string; customerId: string; staffId: string; serviceId: string; startAt: string; endAt: string; status: AppointmentStatus; notes: string | null; payment: { id: string; amount: string | number; method: "CASH" | "CARD" | "TRANSFER"; paidAt: string } | null; createdAt: string; updatedAt: string };
 
@@ -72,7 +89,19 @@ export type CreateCustomerInput = { firstName: string; lastName: string; phone?:
 export type UpdateCustomerInput = { firstName?: string; lastName?: string; phone?: string | null; email?: string | null; birthDate?: string | null; customerSource?: CustomerSource | null };
 export type CreateStaffInput = { firstName: string; lastName: string; phone?: string; email?: string; profile?: StaffProfile };
 export type UpdateStaffInput = { firstName?: string; lastName?: string; phone?: string; email?: string; profile?: StaffProfile };
-export type CreateServiceInput = { name: string; description?: string; durationMinutes: number; price: number };
-export type UpdateServiceInput = { name?: string; description?: string; durationMinutes?: number; price?: number };
-export type CreateAppointmentInput = { customerId: string; staffId: string; serviceId: string; startAt: string; endAt: string; notes?: string };
+export type CreateServiceInput = {
+  name: string;
+  category?: string;
+  description?: string;
+  durationMinutes: number;
+  preparationMinutes: number;
+  cleanupMinutes: number;
+  price: number;
+  cost?: number;
+  taxRate: number;
+  currency: string;
+  requiresConsultation: boolean;
+};
+export type UpdateServiceInput = Partial<CreateServiceInput>;
+export type CreateAppointmentInput = { customerId: string; staffId: string; serviceId: string; sessionId?: string; startAt: string; endAt: string; notes?: string };
 export type UpdateAppointmentInput = { customerId?: string; staffId?: string; serviceId?: string; startAt?: string; endAt?: string; notes?: string; status?: AppointmentStatus };
