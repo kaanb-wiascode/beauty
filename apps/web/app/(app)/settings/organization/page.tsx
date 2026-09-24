@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Select } from "@/components/ui";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
@@ -194,7 +195,7 @@ export default function OrganizationPage() {
             {companyEditing ? (
               <div className="grid w-full gap-3 md:grid-cols-[1fr_220px_auto]">
                 <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Şirket adı</span><input value={companyName} onChange={(event) => setCompanyName(event.target.value)} className="min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm" /></label>
-                <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Durum</span><select value={companyStatus} onChange={(event) => setCompanyStatus(event.target.value as OrganizationStatus)} className="min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ACTIVE">Aktif</option><option value="INACTIVE">Pasif</option><option value="ARCHIVED">Arşivlendi</option></select></label>
+                <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Durum</span><Select value={companyStatus} onChange={(event) => setCompanyStatus(event.target.value as OrganizationStatus)} className="min-h-10 w-full rounded-xl border border-[var(--line)] bg-white px-3 text-sm"><option value="ACTIVE">Aktif</option><option value="INACTIVE">Pasif</option><option value="ARCHIVED">Arşivlendi</option></Select></label>
                 <div className="flex items-end gap-2"><button type="button" disabled={companySaving} onClick={() => void saveCompany()} className="min-h-10 rounded-xl bg-[var(--accent)] px-4 text-xs font-semibold text-white disabled:opacity-50">{companySaving ? "Kaydediliyor…" : "Kaydet"}</button><button type="button" disabled={companySaving} onClick={() => setCompanyEditing(false)} className="min-h-10 rounded-xl border border-[var(--line)] px-4 text-xs font-semibold">Vazgeç</button></div>
               </div>
             ) : (
@@ -248,7 +249,7 @@ export default function OrganizationPage() {
         <div className="grid gap-3 py-4 sm:grid-cols-2">
           <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Şube adı</span><input value={branchDraft.name} onChange={(event) => setBranchDraft((current) => ({ ...current, name: event.target.value }))} className="min-h-10 w-full rounded-xl border border-[var(--line)] px-3 text-sm" /></label>
           <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Kod</span><input value={branchDraft.code} onChange={(event) => setBranchDraft((current) => ({ ...current, code: event.target.value }))} className="min-h-10 w-full rounded-xl border border-[var(--line)] px-3 text-sm" /></label>
-          <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Durum</span><select value={branchDraft.status} onChange={(event) => setBranchDraft((current) => ({ ...current, status: event.target.value as OrganizationStatus }))} className="min-h-10 w-full rounded-xl border border-[var(--line)] px-3 text-sm"><option value="ACTIVE">Aktif</option><option value="INACTIVE">Pasif</option><option value="ARCHIVED">Arşivlendi</option></select></label>
+          <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Durum</span><Select value={branchDraft.status} onChange={(event) => setBranchDraft((current) => ({ ...current, status: event.target.value as OrganizationStatus }))} className="min-h-10 w-full rounded-xl border border-[var(--line)] px-3 text-sm"><option value="ACTIVE">Aktif</option><option value="INACTIVE">Pasif</option><option value="ARCHIVED">Arşivlendi</option></Select></label>
           <label className="space-y-1"><span className="text-xs font-medium text-[var(--muted)]">Telefon</span><input value={branchDraft.phone} onChange={(event) => setBranchDraft((current) => ({ ...current, phone: event.target.value }))} className="min-h-10 w-full rounded-xl border border-[var(--line)] px-3 text-sm" /></label>
           <label className="space-y-1 sm:col-span-2"><span className="text-xs font-medium text-[var(--muted)]">E-posta</span><input type="email" value={branchDraft.email} onChange={(event) => setBranchDraft((current) => ({ ...current, email: event.target.value }))} className="min-h-10 w-full rounded-xl border border-[var(--line)] px-3 text-sm" /></label>
           <label className="space-y-1 sm:col-span-2"><span className="text-xs font-medium text-[var(--muted)]">Adres</span><textarea value={branchDraft.address} onChange={(event) => setBranchDraft((current) => ({ ...current, address: event.target.value }))} rows={3} className="w-full rounded-xl border border-[var(--line)] px-3 py-2 text-sm" /></label>
