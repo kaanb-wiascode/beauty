@@ -1,4 +1,4 @@
-/* Beauty ERP dashboard visual pass — light, purple + green */
+/* VALOO dashboard visual pass — light, blue/cyan + semantic green */
 
 .dashboard-topbar {
   border-bottom-color: var(--line) !important;
@@ -33,11 +33,11 @@
   border: 0 !important;
   border-radius: 13px !important;
   background: linear-gradient(135deg, var(--accent), #9475f3) !important;
-  box-shadow: 0 9px 22px rgba(116,86,232,.18) !important;
+  box-shadow: 0 9px 22px rgba(22,116,189,.18) !important;
 }
 .dashboard-primary-action:hover {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
-  box-shadow: 0 11px 25px rgba(116,86,232,.22) !important;
+  box-shadow: 0 11px 25px rgba(22,116,189,.22) !important;
 }
 
 .metric-card {
@@ -62,7 +62,7 @@
   color: var(--secondary) !important;
   background: var(--secondary-soft) !important;
 }
-.metric-icon.info { color: #7666c5 !important; background: #f0edff !important; }
+.metric-icon.info { color: var(--accent) !important; background: var(--accent-soft) !important; }
 .metric-icon.warning { color: var(--warning) !important; background: var(--warning-soft) !important; }
 .metric-card strong { color: var(--ink) !important; }
 .metric-badge.success { color: var(--secondary) !important; background: var(--secondary-soft) !important; }
@@ -114,7 +114,7 @@
 /* User avatar uses the Beauty gradient instead of black. */
 .profile {
   background: linear-gradient(135deg, #9675ef, var(--accent), var(--secondary)) !important;
-  box-shadow: 0 5px 14px rgba(116,86,232,.18) !important;
+  box-shadow: 0 5px 14px rgba(22,116,189,.18) !important;
 }
 
 .dashboard-avatar {
