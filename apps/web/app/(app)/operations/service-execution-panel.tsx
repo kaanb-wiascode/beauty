@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -409,7 +409,7 @@ export function ServiceExecutionPanel({
                 <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">
                   Başlatılacak randevu
                 </span>
-                <select
+                <Select
                   className="min-h-11 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm"
                   value={
                     executableAppointmentIds.includes(selectedAppointmentId)
@@ -423,7 +423,7 @@ export function ServiceExecutionPanel({
                       Randevu {appointmentId.slice(0, 8)}
                     </option>
                   ))}
-                </select>
+                </Select>
               </label>
               <Button
                 disabled={!canUpdate || Boolean(busyId)}
