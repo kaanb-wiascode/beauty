@@ -736,7 +736,7 @@ export default function AppointmentsPage() {
         </aside>
       </div>
 
-      <Modal open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu Düzenle" : "Yeni Randevu"} description="Müşteri, hizmet, personel ve zaman bilgilerini tamamlayın.">
+      <Modal size="lg" open={modalOpen} onClose={() => !saving && setModalOpen(false)} title={editing ? "Randevuyu Düzenle" : "Yeni Randevu"} description="Müşteri, hizmet, personel ve zaman bilgilerini tamamlayın.">
         <div className="space-y-5">
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Müşteri" required>
