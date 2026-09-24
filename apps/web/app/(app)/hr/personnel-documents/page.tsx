@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Select, useEffect, useMemo, useState } from "react";
-import { Alert, Spinner } from "@/components/ui";
+import { useEffect, useMemo, useState } from "react";
+import { Alert, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
