@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type Dashboard = {
   activeCampaigns: number;
@@ -113,7 +114,7 @@ export default function CommunicationsOverviewPage() {
                       <p className="text-[13px] font-semibold text-[var(--ink)]">{campaign.name}</p>
                       <Status value={campaign.status} />
                     </div>
-                    <p className="mt-1 text-[11px] text-[var(--muted)]">{campaign.channel} · {campaign.leadCount} lead</p>
+                    <p className="mt-1 text-[11px] text-[var(--muted)]">{userLabel(campaign.channel)} · {campaign.leadCount} potansiyel müşteri</p>
                   </div>
                   <div className="text-left md:text-right">
                     <p className="text-[12px] font-semibold text-[var(--ink)]">{money.format(Number(campaign.spentAmount || 0))}</p>
@@ -134,7 +135,7 @@ export default function CommunicationsOverviewPage() {
                     <p className="truncate text-[13px] font-semibold text-[var(--ink)]">{lead.firstName} {lead.lastName}</p>
                     <Status value={lead.status} />
                   </div>
-                  <p className="mt-1 text-[11px] text-[var(--muted)]">{lead.provider} · {lead.campaignName ?? "Kampanyasız"}</p>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">{userLabel(lead.provider)} · {lead.campaignName ?? "Kampanyasız"}</p>
                   {lead.serviceInterest ? <p className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">İlgi: {lead.serviceInterest}</p> : null}
                 </div>
               ))}
@@ -146,7 +147,7 @@ export default function CommunicationsOverviewPage() {
       <section className="grid gap-4 md:grid-cols-3">
         <QuickLink href="/communications/integrations" title="Reklam Hesapları" text="Meta, Google Ads ve TikTok bağlantı altyapısını yönetin." />
         <QuickLink href="/communications/brand" title="Marka Merkezi" text="Logo, guideline, font, şablon ve marka kurallarını tek yerde yönetin." />
-        <QuickLink href="/communications/routing" title="Lead Routing" text="Kampanya taleplerini şube ve ekiplere otomatik dağıtacak kuralları hazırlayın." />
+        <QuickLink href="/communications/routing" title="Talep Dağıtımı" text="Kampanya taleplerini şube ve ekiplere otomatik dağıtacak kuralları hazırlayın." />
       </section>
     </div>
   );
@@ -157,7 +158,7 @@ function Header() {
     <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_12px_36px_rgba(17,70,104,0.04)]">
       <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Büyüme & Marka Operasyonları</p>
       <h1 className="text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Kurumsal İletişim</h1>
-      <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--muted)]">Kampanya, reklam kaynağı, marketing lead, marka varlıkları, şube dağıtımı ve gelir attribution verilerini tek operasyon merkezinde yönetin.</p>
+      <p className="mt-2 max-w-4xl text-[13px] leading-6 text-[var(--muted)]">Kampanyaları, reklam kaynaklarını, potansiyel müşterileri, marka içeriklerini, şube dağıtımını ve kampanyalara bağlı gelirleri tek merkezden yönetin.</p>
     </header>
   );
 }
@@ -171,7 +172,7 @@ function Panel({ title, action, children }: { title: string; action?: React.Reac
 }
 
 function Status({ value }: { value: string }) {
-  return <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--accent)]">{value.replaceAll("_", " ")}</span>;
+  return <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">{userLabel(value)}</span>;
 }
 
 function Empty({ text, href, label }: { text: string; href: string; label: string }) {
