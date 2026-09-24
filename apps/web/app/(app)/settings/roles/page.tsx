@@ -8,6 +8,7 @@ import { Button, TextArea, TextInput } from "@/components/ui";
 import { SearchField } from "@/components/data-view";
 import { ValooMultiSelect, ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError } from "@/lib/api";
+import { userActionLabel, userResourceLabel } from "@/lib/user-language";
 
 type Permission = { id: string; resource: string; action: string; description: string | null };
 type RolePermission = { permission: Permission };
@@ -56,7 +57,7 @@ export default function RolesPage() {
     const groups = new Map<string, Permission[]>();
     permissions.forEach((permission) => {
       if (resourceFilter !== "ALL" && permission.resource !== resourceFilter) return;
-      const label = `${RESOURCE_LABELS[permission.resource] ?? permission.resource} ${ACTION_LABELS[permission.action] ?? permission.action} ${permission.description ?? ""}`.toLocaleLowerCase("tr-TR");
+      const label = `${RESOURCE_LABELS[permission.resource] ?? userResourceLabel(permission.resource)} ${ACTION_LABELS[permission.action] ?? userActionLabel(permission.action)} ${permission.description ?? ""}`.toLocaleLowerCase("tr-TR");
       if (normalized && !label.includes(normalized)) return;
       groups.set(permission.resource, [...(groups.get(permission.resource) ?? []), permission]);
     });
@@ -156,7 +157,7 @@ export default function RolesPage() {
       <section className="space-y-4">{selectedRole ? <>
         <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between"><div><h2 className="text-lg font-semibold text-[var(--ink)]">{selectedRole.name}</h2><p className="text-xs text-[var(--muted)]">{selectedPermissionIds.length} yetki seçili · {selectedRole._count.memberships} kullanıcı atanmış</p></div><div className="flex gap-2">{selectedRole.slug !== "owner" ? <Button disabled={selectedRole._count.memberships > 0} type="button" variant="danger" size="sm" onClick={() => void deleteRole()}>Rolü sil</Button> : null}<Button disabled={saving || !dirty} type="button" size="sm" onClick={() => void savePermissions()}>{saving ? "Kaydediliyor…" : dirty ? "Değişiklikleri kaydet" : "Kaydedildi"}</Button></div></div></div>
         <div className="space-y-3">
-          <div className="grid gap-3 md:grid-cols-[1fr_240px]"><SearchField value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Yetki ara…" aria-label="Yetki ara" /><ValooSelect value={resourceFilter} onChange={setResourceFilter} placeholder="Tüm modüller" searchPlaceholder="Modül ara…" options={[{value:"ALL",label:"Tüm modüller"},...resources.map((resource)=>({value:resource,label:RESOURCE_LABELS[resource]??resource}))]}/></div>
+          <div className="grid gap-3 md:grid-cols-[1fr_240px]"><SearchField value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Yetki ara…" aria-label="Yetki ara" /><ValooSelect value={resourceFilter} onChange={setResourceFilter} placeholder="Tüm modüller" searchPlaceholder="Modül ara…" options={[{value:"ALL",label:"Tüm modüller"},...resources.map((resource)=>({value:resource,label:RESOURCE_LABELS[resource] ?? userResourceLabel(resource)}))]}/></div>
           <div>
             <label className="mb-2 block text-[13px] font-medium text-[var(--ink)]">Hızlı yetki seçimi</label>
             <ValooMultiSelect
@@ -167,7 +168,7 @@ export default function RolesPage() {
               ariaLabel="Hızlı yetki seçimi"
               options={permissions.map((permission) => ({
                 value: permission.id,
-                label: `${RESOURCE_LABELS[permission.resource] ?? permission.resource} · ${ACTION_LABELS[permission.action] ?? permission.action}`,
+                label: `${RESOURCE_LABELS[permission.resource] ?? userResourceLabel(permission.resource)} · ${ACTION_LABELS[permission.action] ?? userActionLabel(permission.action)}`,
                 description: permission.description ?? undefined,
                 keywords: `${permission.resource} ${permission.action}`,
               }))}
@@ -175,7 +176,7 @@ export default function RolesPage() {
             <p className="mt-1.5 text-[12px] leading-5 text-[var(--muted)]">Arama yaparak birden fazla yetkiyi hızlıca ekleyebilir veya kaldırabilirsiniz.</p>
           </div>
         </div>
-        <div className="space-y-3">{groupedPermissions.map(([resource, list]) => <div key={resource} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]"><div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3"><div><h3 className="text-sm font-semibold text-[var(--ink)]">{RESOURCE_LABELS[resource] ?? resource}</h3><p className="text-xs text-[var(--muted)]">{list.filter((permission) => selectedPermissionIds.includes(permission.id)).length}/{list.length} seçili</p></div><Button type="button" variant="link" size="sm" onClick={() => toggleResource(resource)}>{list.every((permission) => selectedPermissionIds.includes(permission.id)) ? "Tümünü kaldır" : "Tümünü seç"}</Button></div><div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">{list.map((permission) => <label key={permission.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] p-3 hover:bg-[var(--surface-2)]"><input type="checkbox" checked={selectedPermissionIds.includes(permission.id)} onChange={() => togglePermission(permission.id)} className="mt-0.5 h-[18px] w-[18px] rounded-[5px] accent-[var(--accent)]" /><span><span className="block text-sm font-medium text-[var(--ink)]">{ACTION_LABELS[permission.action] ?? permission.action}</span>{permission.description ? <span className="mt-0.5 block text-xs text-[var(--muted)]">{permission.description}</span> : null}</span></label>)}</div></div>)}</div>
+        <div className="space-y-3">{groupedPermissions.map(([resource, list]) => <div key={resource} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)]"><div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3"><div><h3 className="text-sm font-semibold text-[var(--ink)]">{RESOURCE_LABELS[resource] ?? userResourceLabel(resource)}</h3><p className="text-xs text-[var(--muted)]">{list.filter((permission) => selectedPermissionIds.includes(permission.id)).length}/{list.length} seçili</p></div><Button type="button" variant="link" size="sm" onClick={() => toggleResource(resource)}>{list.every((permission) => selectedPermissionIds.includes(permission.id)) ? "Tümünü kaldır" : "Tümünü seç"}</Button></div><div className="grid gap-2 p-4 sm:grid-cols-2 xl:grid-cols-3">{list.map((permission) => <label key={permission.id} className="flex cursor-pointer items-start gap-3 rounded-xl border border-[var(--line)] p-3 hover:bg-[var(--surface-2)]"><input type="checkbox" checked={selectedPermissionIds.includes(permission.id)} onChange={() => togglePermission(permission.id)} className="mt-0.5 h-[18px] w-[18px] rounded-[5px] accent-[var(--accent)]" /><span><span className="block text-sm font-medium text-[var(--ink)]">{ACTION_LABELS[permission.action] ?? userActionLabel(permission.action)}</span>{permission.description ? <span className="mt-0.5 block text-xs text-[var(--muted)]">{permission.description}</span> : null}</span></label>)}</div></div>)}</div>
       </> : <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] px-4 py-10 text-center text-sm text-[var(--muted)]">Henüz rol bulunmuyor.</div>}</section>
     </div>
     <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni rol" description="Rol adını ve isteğe bağlı açıklamasını tanımlayın.">
