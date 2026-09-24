@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 import type { Appointment, Paginated } from "@/lib/types";
 
 type Timeline = { events: Array<{ occurredAt: string; source: string; title: string; detail: string | null }> };
@@ -52,7 +53,7 @@ export default function OperationsJourneyPage() {
     try {
       setTimeline(await api<Timeline>(`/operations/timeline/appointments/${selectedId}`));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Timeline yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Zaman çizelgesi yüklenemedi.");
     }
   }
 
@@ -60,18 +61,18 @@ export default function OperationsJourneyPage() {
 
   return <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
     <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Customer Journey</p>
-      <h1 className="mt-2 text-2xl font-semibold text-[var(--ink)]">Timeline & Güvenilirlik</h1>
+      <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Müşteri yolculuğu</p>
+      <h1 className="mt-2 text-2xl font-semibold text-[var(--ink)]">Zaman Çizelgesi ve Güvenilirlik</h1>
       <p className="mt-2 text-sm text-[var(--muted)]">Randevu, ziyaret, hizmet, onay ve ödeme sinyallerini tek görünümde birleştirir.</p>
     </header>
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {reliability ? <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-      {[["Randevu", reliability.totalAppointments],["No-show", reliability.noShows],["Geç iptal", reliability.lateCancellations],["Katılım", reliability.attendanceRate == null ? "—" : `%${reliability.attendanceRate}`],["Onay", reliability.confirmationRate == null ? "—" : `%${reliability.confirmationRate}`]].map(([label,value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">{label}</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></article>)}
+      {[["Randevu", reliability.totalAppointments],["Gelmedi", reliability.noShows],["Geç iptal", reliability.lateCancellations],["Katılım", reliability.attendanceRate == null ? "—" : `%${reliability.attendanceRate}`],["Onay", reliability.confirmationRate == null ? "—" : `%${reliability.confirmationRate}`]].map(([label,value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">{label}</p><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></article>)}
     </section> : null}
     <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-xs font-semibold text-[var(--muted)]">Randevu<Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seçin</option>{appointments.map((a) => <option key={a.id} value={a.id}>{new Date(a.startAt).toLocaleString("tr-TR")} · {a.status}</option>)}</Select></label><Button disabled={!selectedId} onClick={() => void showTimeline()}>Timeline Göster</Button></div>
-      {timeline ? <div className="mt-5 space-y-3">{timeline.events.map((e, i) => <article key={`${e.occurredAt}-${i}`} className="rounded-[18px] bg-[var(--surface-2)] p-4"><div className="flex gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{e.title}</p><span className="text-[10px] text-[var(--muted)]">{e.source}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{new Date(e.occurredAt).toLocaleString("tr-TR")}</p>{e.detail ? <p className="mt-2 text-xs text-[var(--muted)]">{e.detail}</p> : null}</article>)}</div> : null}
+      <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-xs font-semibold text-[var(--muted)]">Randevu<Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seçin</option>{appointments.map((a) => <option key={a.id} value={a.id}>{new Date(a.startAt).toLocaleString("tr-TR")} · {userLabel(a.status)}</option>)}</Select></label><Button disabled={!selectedId} onClick={() => void showTimeline()}>Zaman çizelgesini göster</Button></div>
+      {timeline ? <div className="mt-5 space-y-3">{timeline.events.map((e, i) => <article key={`${e.occurredAt}-${i}`} className="rounded-[18px] bg-[var(--surface-2)] p-4"><div className="flex gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{e.title}</p><span className="text-[10px] text-[var(--muted)]">{userLabel(e.source)}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{new Date(e.occurredAt).toLocaleString("tr-TR")}</p>{e.detail ? <p className="mt-2 text-xs text-[var(--muted)]">{e.detail}</p> : null}</article>)}</div> : null}
     </section>
-    {reliability ? <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)]"><div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Müşteri Göstergeleri</h2></div><div className="divide-y divide-[var(--line)]">{reliability.customers.slice(0,30).map((c) => <div key={c.customerId} className="grid gap-2 px-6 py-4 md:grid-cols-[1fr_repeat(4,110px)]"><div><p className="text-sm font-semibold text-[var(--ink)]">{c.customerName}</p><p className="text-xs text-[var(--muted)]">{c.appointmentCount} randevu</p></div><p className="text-xs">No-show {c.noShowCount}</p><p className="text-xs">Geç iptal {c.lateCancellationCount}</p><p className="text-xs">Katılım {c.attendanceRate == null ? "—" : `%${c.attendanceRate}`}</p><p className="text-xs">Onay {c.confirmationRate == null ? "—" : `%${c.confirmationRate}`}</p></div>)}</div></section> : null}
+    {reliability ? <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)]"><div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Müşteri Göstergeleri</h2></div><div className="divide-y divide-[var(--line)]">{reliability.customers.slice(0,30).map((c) => <div key={c.customerId} className="grid gap-2 px-6 py-4 md:grid-cols-[1fr_repeat(4,110px)]"><div><p className="text-sm font-semibold text-[var(--ink)]">{c.customerName}</p><p className="text-xs text-[var(--muted)]">{c.appointmentCount} randevu</p></div><p className="text-xs">Gelmedi {c.noShowCount}</p><p className="text-xs">Geç iptal {c.lateCancellationCount}</p><p className="text-xs">Katılım {c.attendanceRate == null ? "—" : `%${c.attendanceRate}`}</p><p className="text-xs">Onay {c.confirmationRate == null ? "—" : `%${c.confirmationRate}`}</p></div>)}</div></section> : null}
   </div>;
 }
