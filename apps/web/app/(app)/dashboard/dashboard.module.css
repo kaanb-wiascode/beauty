@@ -501,3 +501,155 @@
     height: 13px !important;
   }
 }
+
+
+/* Quick actions v2: narrow-rail layout, no text collisions or truncation. */
+:global(.quick-actions) {
+  padding: 12px 14px 14px !important;
+  display: grid !important;
+  grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+  gap: 10px !important;
+}
+
+:global(.quick-action) {
+  width: 100% !important;
+  min-width: 0 !important;
+  min-height: 86px !important;
+  height: auto !important;
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  justify-content: space-between !important;
+  gap: 10px !important;
+  margin: 0 !important;
+  padding: 11px 12px !important;
+  border: 1px solid var(--line) !important;
+  border-radius: 15px !important;
+  background: rgba(255,255,255,.84) !important;
+  box-shadow: 0 4px 14px rgba(17,70,104,.035) !important;
+  color: var(--ink) !important;
+  text-align: left !important;
+  transition: transform .18s ease, border-color .18s ease, background-color .18s ease, box-shadow .18s ease !important;
+}
+
+:global(.quick-action:hover) {
+  transform: translateY(-1px) !important;
+  border-color: #bfd5e5 !important;
+  background: #f8fbfd !important;
+  box-shadow: 0 8px 20px rgba(17,70,104,.07) !important;
+}
+
+:global(.quick-action-top) {
+  width: 100% !important;
+  min-width: 0 !important;
+  display: flex !important;
+  align-items: center !important;
+  justify-content: space-between !important;
+  gap: 8px !important;
+}
+
+:global(.quick-action-icon) {
+  width: 36px !important;
+  min-width: 36px !important;
+  height: 36px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  border-radius: 11px !important;
+  background: var(--surface-2) !important;
+  color: var(--muted) !important;
+  overflow: hidden !important;
+}
+
+:global(.quick-action-icon svg) {
+  width: 17px !important;
+  height: 17px !important;
+  display: block !important;
+}
+
+:global(.quick-action-arrow) {
+  width: 18px !important;
+  min-width: 18px !important;
+  height: 18px !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  color: var(--muted-soft) !important;
+  transition: transform .18s ease, color .18s ease !important;
+}
+
+:global(.quick-action-arrow svg) {
+  width: 15px !important;
+  height: 15px !important;
+  display: block !important;
+}
+
+:global(.quick-action:hover .quick-action-arrow) {
+  transform: translateX(2px) !important;
+  color: var(--accent) !important;
+}
+
+:global(.quick-action:hover .quick-action-icon) {
+  background: var(--accent-soft) !important;
+  color: var(--accent) !important;
+}
+
+:global(.quick-action-label) {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+  max-width: none !important;
+  overflow: visible !important;
+  text-overflow: clip !important;
+  white-space: normal !important;
+  word-break: normal !important;
+  font-size: 13px !important;
+  line-height: 1.15 !important;
+  font-weight: 650 !important;
+  letter-spacing: -.015em !important;
+  color: var(--ink) !important;
+}
+
+:global(.quick-action:focus-visible) {
+  outline: none !important;
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 4px var(--accent-soft) !important;
+}
+
+@media (max-width: 767px) {
+  :global(.quick-actions) {
+    padding: 10px 12px 12px !important;
+    gap: 8px !important;
+  }
+
+  :global(.quick-action) {
+    min-height: 82px !important;
+    padding: 10px !important;
+    gap: 9px !important;
+    border-radius: 14px !important;
+  }
+
+  :global(.quick-action-icon) {
+    width: 32px !important;
+    min-width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
+  }
+
+  :global(.quick-action-icon svg) {
+    width: 15px !important;
+    height: 15px !important;
+  }
+
+  :global(.quick-action-label) {
+    font-size: 11px !important;
+    line-height: 1.15 !important;
+  }
+
+  :global(.quick-action-arrow),
+  :global(.quick-action-arrow svg) {
+    width: 13px !important;
+    min-width: 13px !important;
+    height: 13px !important;
+  }
+}
