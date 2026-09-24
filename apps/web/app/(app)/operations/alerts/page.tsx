@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 
 type AlertSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
@@ -114,15 +115,19 @@ export default function OperationsAlertsPage() {
       {data ? (
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           {(["CRITICAL", "HIGH", "WARNING", "INFO"] as AlertSeverity[]).map((level) => (
-            <button
-              key={level}
-              type="button"
-              onClick={() => setSeverity((current) => current === level ? "ALL" : level)}
-              className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 text-left shadow-sm transition hover:bg-[var(--surface-2)]"
-            >
-              <p className="text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">{severityLabel[level]}</p>
-              <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{data.counts[level]}</p>
-            </button>
+            <div key={level} className="relative">
+              <button
+                type="button"
+                onClick={() => setSeverity((current) => current === level ? "ALL" : level)}
+                className="w-full rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 text-left shadow-sm transition hover:bg-[var(--surface-2)]"
+              >
+                <p className="pr-7 text-[11px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">{severityLabel[level]}</p>
+                <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{data.counts[level]}</p>
+              </button>
+              <div className="absolute right-4 top-4 z-20">
+                <CardInfo help={getCardHelp(severityLabel[level], "Bu önem seviyesindeki aktif operasyon uyarılarının sayısını gösterir.")} />
+              </div>
+            </div>
           ))}
         </section>
       ) : null}
