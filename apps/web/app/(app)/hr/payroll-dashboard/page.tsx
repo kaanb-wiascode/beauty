@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { Select, useEffect, useMemo, useState } from "react";
 
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
@@ -113,7 +113,7 @@ export default function PayrollDashboardPage() {
             onChange={(event) => setYear(Number(event.target.value))}
             aria-label="Bordro yılı"
           />
-          <select
+          <Select
             className="control h-10 min-w-[120px]"
             value={month}
             onChange={(event) => setMonth(Number(event.target.value))}
@@ -124,7 +124,7 @@ export default function PayrollDashboardPage() {
                 {index + 1}. Ay
               </option>
             ))}
-          </select>
+          </Select>
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>
             Yenile
           </Button>
