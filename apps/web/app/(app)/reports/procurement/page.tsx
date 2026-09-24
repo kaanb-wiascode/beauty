@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Alert, GlassCard, PageHeader, Panel, Spinner, TableWrap, Td, Th } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 import { ReportFilterBar, reportDateInputValue, reportRangeIsInvalid, reportRangeToQuery, type ReportDateRange } from "../report-filter-bar";
 import { fetchReportPreview, type TableReportPreview } from "../report-preview-client";
 import { useReportTableState } from "../use-report-table-state";
@@ -56,7 +57,7 @@ export default function ProcurementReportPage() {
       <Panel>
         {rows.length === 0 ? <div className="px-5 py-10 text-center text-[13px] text-[var(--muted)]">Seçilen dönemde satın alma siparişi bulunamadı.</div> : <TableWrap><thead><tr>{table.visibleColumnList.map((column) => <Th key={column}><button type="button" onClick={() => table.toggleSort(column)}>{LABELS[column]}</button></Th>)}</tr></thead><tbody>{rows.map((row, index) => <tr key={`${row.date}-${row.status}-${index}`}>
           {table.visibleColumns.has("date") ? <Td label="Tarih">{row.date}</Td> : null}
-          {table.visibleColumns.has("status") ? <Td label="Durum">{row.status}</Td> : null}
+          {table.visibleColumns.has("status") ? <Td label="Durum">{userLabel(row.status)}</Td> : null}
           {table.visibleColumns.has("orderCount") ? <Td label="Sipariş">{row.orderCount}</Td> : null}
           {table.visibleColumns.has("totalAmount") ? <Td label="Toplam Tutar">{money(row.totalAmount)}</Td> : null}
           {table.visibleColumns.has("itemCount") ? <Td label="Kalem">{row.itemCount}</Td> : null}
