@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Select, useCallback, useEffect, useMemo, useState } from "react";
 
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
@@ -145,7 +145,7 @@ export default function IntegrationOperationsPage() {
           </p>
         </div>
         <div className="flex flex-col gap-2 sm:flex-row">
-          <select
+          <Select
             value={selected}
             onChange={(event) => setSelected(event.target.value)}
             className="control h-11 min-w-[260px]"
@@ -156,7 +156,7 @@ export default function IntegrationOperationsPage() {
                 {integration.displayName} · {integration.provider}
               </option>
             ))}
-          </select>
+          </Select>
           <Button disabled={!selected || loading} onClick={() => void loadSelected(selected)}>
             {loading ? "Yükleniyor…" : "Yenile"}
           </Button>
