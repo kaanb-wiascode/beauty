@@ -50,7 +50,7 @@ export default function OperationsChecklistsPage() {
   useEffect(() => {
     async function loadServices() {
       if (!hasActiveBranch()) {
-        setError("SOP yönetimi için önce çalışma kapsamından bir şube seçin.");
+        setError("Standart hizmet akışlarını yönetmek için önce çalışma kapsamından bir şube seçin.");
         setLoading(false);
         return;
       }
@@ -84,7 +84,7 @@ export default function OperationsChecklistsPage() {
         `/operations/service-checklists/services/${serviceId}/active`,
       );
       setActiveTemplate(template);
-      setName(template?.name ?? "Hizmet SOP Checklist");
+      setName(template?.name ?? "Hizmet Kontrol Listesi");
       setItems(
         template?.items.length
           ? template.items.map((item) => ({ ...item }))
@@ -92,7 +92,7 @@ export default function OperationsChecklistsPage() {
       );
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Aktif SOP template yüklenemedi.",
+        err instanceof ApiError ? err.message : "Aktif hizmet kontrol listesi yüklenemedi.",
       );
     }
   }
@@ -121,7 +121,7 @@ export default function OperationsChecklistsPage() {
       !normalizedItems.length ||
       normalizedItems.some((item) => !item.code || !item.title)
     ) {
-      setError("Her checklist maddesi için kod ve başlık zorunludur.");
+      setError("Her kontrol listesi maddesi için kod ve başlık zorunludur.");
       return;
     }
 
@@ -141,11 +141,11 @@ export default function OperationsChecklistsPage() {
       setItems(saved.items.map((item) => ({ ...item })));
       setMessage(
         saved.duplicate
-          ? `Tanım değişmedi; aktif versiyon ${saved.version} korunuyor.`
-          : `SOP versiyon ${saved.version} aktif edildi. Yeni hizmet icraları bu snapshot'ı kullanacak.`,
+          ? `Tanım değişmedi; aktif sürüm ${saved.version} korunuyor.`
+          : `Standart hizmet akışının ${saved.version}. sürümü etkinleştirildi. Yeni hizmet uygulamalarında bu sürüm kullanılacak.`,
       );
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "SOP versiyonu kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Standart hizmet akışı sürümü kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -154,7 +154,7 @@ export default function OperationsChecklistsPage() {
   if (loading) {
     return (
       <div className="mx-auto max-w-[1420px] py-10">
-        <Spinner label="SOP çalışma alanı hazırlanıyor..." />
+        <Spinner label="Hizmet kontrol listeleri hazırlanıyor..." />
       </div>
     );
   }
@@ -163,13 +163,13 @@ export default function OperationsChecklistsPage() {
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-          Service SOP Engine
+          Standart hizmet akışları
         </p>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">
-          Hizmet SOP ve Checklist Yönetimi
+          Hizmet Kontrol Listeleri
         </h1>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
-          Hizmet bazında versiyonlu uygulama adımları tanımlayın. Hizmet başladığında aktif versiyon execution üzerine snapshot alınır; sonraki template değişiklikleri geçmiş hizmet kanıtını değiştirmez.
+          Her hizmet için uygulanacak kontrol adımlarını sürümler halinde tanımlayın. Hizmet başladığında geçerli sürüm kayda alınır; sonraki değişiklikler geçmiş hizmet kayıtlarını etkilemez.
         </p>
       </header>
 
@@ -198,7 +198,7 @@ export default function OperationsChecklistsPage() {
           </Field>
           <div className="rounded-[14px] bg-[var(--surface-2)] px-4 py-3">
             <p className="text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">
-              Aktif Versiyon
+              Aktif sürüm
             </p>
             <p className="mt-1 text-sm font-semibold text-[var(--ink)]">
               {activeTemplate ? `v${activeTemplate.version}` : "Henüz yok"}
@@ -209,11 +209,11 @@ export default function OperationsChecklistsPage() {
 
       {selectedServiceId ? (
         <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-          <Field label="Checklist adı">
+          <Field label="Kontrol listesi adı">
             <TextInput
               value={name}
               onChange={(event) => setName(event.target.value)}
-              placeholder="Lazer Epilasyon SOP"
+              placeholder="Örn. Standart hizmet kontrol listesi"
             />
           </Field>
 
@@ -278,7 +278,7 @@ export default function OperationsChecklistsPage() {
               Adım Ekle
             </Button>
             <Button disabled={!canUpdate || saving} onClick={() => void saveVersion()}>
-              {saving ? "Versiyon Kaydediliyor..." : "Yeni SOP Versiyonunu Yayınla"}
+              {saving ? "Sürüm kaydediliyor..." : "Yeni sürümü yayınla"}
             </Button>
           </div>
         </section>
