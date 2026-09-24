@@ -216,3 +216,136 @@ span[class~="bg-[rgba(47,122,86,0.10)]"] { color:var(--secondary)!important; bac
       radial-gradient(70% 28% at 0% 100%,rgba(5,81,176,.07),transparent 72%)!important;
   }
 }
+
+
+/* VALOO V2 — global product contract */
+.valoo-v2 {
+  color: var(--ink);
+  background: var(--background);
+}
+
+.valoo-v2 :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+  min-height: 44px;
+  border-color: var(--line);
+  border-radius: var(--radius-control);
+  font-size: var(--text-body);
+  line-height: 1.35;
+}
+
+.valoo-v2 :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select):focus {
+  border-color: rgba(22,116,189,.46);
+  box-shadow: 0 0 0 4px var(--accent-soft);
+  outline: none;
+}
+
+.valoo-v2 :where(button, [role="button"], a, input, textarea, select):focus-visible {
+  outline: 2px solid rgba(22,116,189,.32);
+  outline-offset: 2px;
+}
+
+.valoo-v2 :where(.surface, .glass-elevated, .dashboard-panel, .metric-card) {
+  border-color: var(--line);
+}
+
+.valoo-v2 :where(.surface, .dashboard-panel, .metric-card) {
+  background: var(--surface);
+}
+
+.valoo-v2 :where(.surface, .dashboard-panel, .metric-card):not([class*="rounded-full"]) {
+  border-radius: var(--radius-card);
+}
+
+.valoo-v2 :where([role="dialog"]) {
+  border-radius: var(--radius-dialog);
+}
+
+.valoo-v2 :where(table) {
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.valoo-v2 :where(table thead th) {
+  color: var(--muted) !important;
+  font-size: 12px !important;
+  font-weight: 600;
+  letter-spacing: .01em;
+}
+
+.valoo-v2 :where(table tbody tr) {
+  border-bottom-color: var(--line) !important;
+}
+
+.valoo-v2 :where(table tbody tr:hover) {
+  background: var(--surface-2) !important;
+}
+
+.valoo-v2 [class*="text-[8px]"],
+.valoo-v2 [class*="text-[9px]"],
+.valoo-v2 [class*="text-[10px]"] {
+  font-size: var(--text-caption) !important;
+  line-height: 1.4 !important;
+}
+
+.valoo-v2 :where(.dashboard-primary-action) {
+  min-height: 42px;
+  border-color: var(--accent) !important;
+  border-radius: var(--radius-control) !important;
+  background: linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end)) !important;
+  color: #fff !important;
+  font-size: 14px !important;
+  box-shadow: 0 7px 18px rgba(22,116,189,.17) !important;
+}
+
+.valoo-v2 :where(.metric-card p, .panel-header p, .schedule-time span, .rail-time, .activity-item span, .period-footer) {
+  color: var(--muted) !important;
+}
+
+.valoo-v2 :where(.metric-badge, .panel-link-button, .count-chip, .soft-chip, .quick-action b) {
+  font-size: var(--text-caption) !important;
+}
+
+.valoo-v2 :where(.panel-header h2) {
+  font-size: var(--text-card-title) !important;
+}
+
+.valoo-v2 :where(.dashboard-panel, .metric-card, .glass-elevated) {
+  box-shadow: var(--shadow-soft);
+}
+
+.valoo-v2 :where(.dashboard-search, .panel-action-button, .quick-action) {
+  border-color: var(--line);
+  border-radius: var(--radius-control);
+}
+
+.valoo-v2 :where(.dashboard-search, .panel-action-button) {
+  background: var(--surface-2);
+}
+
+.valoo-v2 :where(.quick-action:hover, .panel-action-button:hover, .panel-footer-link:hover) {
+  border-color: var(--line-strong);
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.valoo-v2 :where(.bg-\[\#f2edff\], .bg-\[\#eee8ff\], .bg-\[\#eee9ff\], .bg-\[\#f1edff\], .bg-\[\#ebe5ff\]) {
+  background: var(--accent-soft) !important;
+}
+
+.valoo-v2 :where(.text-\[\#7657e8\], .text-\[\#7052df\], .text-\[\#7f68d8\], .text-\[\#8d73e8\]) {
+  color: var(--accent) !important;
+}
+
+@media (max-width: 767px) {
+  .valoo-v2 :where(input:not([type="checkbox"]):not([type="radio"]), textarea, select) {
+    min-height: 48px;
+    font-size: 16px;
+  }
+
+  .valoo-v2 :where(button:not([tabindex="-1"]), [role="button"]) {
+    min-height: 44px;
+  }
+
+  .valoo-v2 :where(.surface, .glass-elevated, .dashboard-panel, .metric-card):not([class*="rounded-full"]) {
+    border-radius: 16px;
+  }
+}
