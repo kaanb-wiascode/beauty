@@ -12,7 +12,7 @@ table thead th{color:var(--beauty-muted)!important;border-bottom-color:var(--bea
 table tbody tr{border-bottom-color:var(--beauty-line)!important}
 table tbody tr:hover{background:#f1f6fa!important}
 button,a{transition:color .16s ease,background-color .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease}
-@media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:16px!important}table{min-width:680px}input,select,textarea{max-width:100%}}
+@media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:var(--radius-card)!important}table{min-width:0}input,select,textarea{max-width:100%}}
 
 
 /* VALOO Design System V2 — authenticated application enforcement */
@@ -40,7 +40,7 @@ button,a{transition:color .16s ease,background-color .16s ease,border-color .16s
 }
 
 .app-content .glass-elevated{
-  border-radius:22px;
+  border-radius:var(--radius-card);
 }
 
 .app-content input:not([type="checkbox"]):not([type="radio"]),
@@ -52,7 +52,9 @@ button,a{transition:color .16s ease,background-color .16s ease,border-color .16s
 }
 
 .app-content table{
+  width:100%;
   font-size:13px;
+  line-height:1.45;
 }
 
 .app-content table thead th{
@@ -96,14 +98,75 @@ button,a{transition:color .16s ease,background-color .16s ease,border-color .16s
   line-height:1.45;
 }
 
+.app-content h1{
+  font-size:var(--valoo-page-title);
+  line-height:1.08;
+  letter-spacing:-.035em;
+}
+
+.app-content h2{
+  font-size:max(18px,1em);
+}
+
+.app-content h3{
+  font-size:max(16px,1em);
+}
+
+.app-content :where(label){
+  font-size:max(var(--valoo-label),1em);
+}
+
+.app-content :where(.surface,.glass-elevated){
+  border-color:var(--line);
+}
+
+.app-content :where(button,[role="button"]){
+  font-family:inherit;
+}
+
+.app-content :where(input,textarea,select)::placeholder{
+  color:var(--muted);
+  opacity:.82;
+}
+
+.app-content :where(input,textarea,select):disabled{
+  cursor:not-allowed;
+  opacity:.55;
+}
+
+.app-content :where(button,[role="button"],a,input,textarea,select):focus-visible{
+  outline:2px solid rgba(22,116,189,.32);
+  outline-offset:2px;
+}
+
+.app-content .data-table tbody tr{
+  transition:background-color var(--motion-fast) var(--ease-out);
+}
+
 @media(max-width:767px){
+  .app-content h1{
+    font-size:26px;
+  }
+
   .app-content input:not([type="checkbox"]):not([type="radio"]),
   .app-content select,
   .app-content textarea{
     min-height:48px;
     font-size:16px;
   }
+
+  .app-content button:not([tabindex="-1"]),
+  .app-sidebar button:not([tabindex="-1"]),
+  .app-content [role="button"]{
+    min-height:44px;
+  }
+
   .app-content table{
     min-width:0;
+  }
+
+  .app-content .surface,
+  .app-content .glass-elevated{
+    border-radius:16px;
   }
 }
