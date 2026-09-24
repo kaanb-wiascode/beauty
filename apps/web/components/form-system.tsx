@@ -19,7 +19,12 @@ export function FormSection({
   className?: string;
 }) {
   return (
-    <section className={cx("space-y-4", className)}>
+    <section
+      className={cx(
+        "space-y-4 rounded-[18px] border border-[var(--line)] bg-white/70 p-4 shadow-[0_4px_16px_rgba(31,69,94,.025)] sm:p-5",
+        className,
+      )}
+    >
       {title || description ? (
         <div>
           {title ? (
@@ -52,8 +57,8 @@ export function FormGrid({
     <div
       className={cx(
         "grid gap-4 sm:gap-5",
-        columns === 2 && "sm:grid-cols-2",
-        columns === 3 && "sm:grid-cols-2 lg:grid-cols-3",
+        columns === 2 && "min-[760px]:grid-cols-2",
+        columns === 3 && "min-[760px]:grid-cols-2 min-[1120px]:grid-cols-3",
         className,
       )}
     >
@@ -76,7 +81,7 @@ export function FormActions({
       className={cx(
         "mt-6 flex flex-col-reverse gap-2.5 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end",
         sticky &&
-          "sticky bottom-0 z-10 -mx-1 bg-[linear-gradient(to_top,var(--surface)_76%,rgba(255,255,255,0))] px-1 pb-1 pt-5",
+          "sticky bottom-0 z-30 -mx-2 rounded-t-[16px] border-t border-[var(--line)] bg-white/[0.96] px-2 pb-1 pt-4 shadow-[0_-14px_28px_rgba(31,69,94,.07)] backdrop-blur-xl",
         className,
       )}
     >
@@ -211,11 +216,13 @@ function StepContent({
   index,
   active,
   complete,
+  showDescription,
 }: {
   step: FormStep;
   index: number;
   active: boolean;
   complete: boolean;
+  showDescription: boolean;
 }) {
   return (
     <>
@@ -232,10 +239,10 @@ function StepContent({
         >
           {complete ? "✓" : index + 1}
         </span>
-        <span className="truncate text-[12px] font-semibold">{step.label}</span>
+        <span className="whitespace-normal text-[12px] font-semibold leading-4">{step.label}</span>
       </span>
-      {step.description ? (
-        <span className="mt-1 block truncate pl-8 text-[11px] text-[var(--muted)]">
+      {step.description && showDescription ? (
+        <span className="mt-1 block whitespace-normal pl-8 text-[10px] leading-4 text-[var(--muted)]">
           {step.description}
         </span>
       ) : null}
@@ -255,12 +262,13 @@ export function FormStepper({
   return (
     <nav
       aria-label="Form adımları"
-      className="grid gap-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/70 p-1.5 sm:grid-cols-2 lg:grid-cols-[repeat(var(--step-count),minmax(0,1fr))]"
+      className="sticky top-0 z-20 mb-5 grid gap-2 rounded-[16px] border border-[var(--line)] bg-[rgba(247,250,252,.96)] p-1.5 shadow-[0_8px_24px_rgba(31,69,94,.05)] backdrop-blur-xl min-[700px]:grid-cols-2 min-[1040px]:grid-cols-[repeat(var(--step-count),minmax(0,1fr))]"
       style={{ "--step-count": steps.length } as CSSProperties}
     >
       {steps.map((step, index) => {
         const active = index === current;
         const complete = index < current;
+        const showDescription = steps.length <= 4;
         const className = cx(
           "min-w-0 rounded-[12px] px-3.5 py-3 text-left transition",
           active
@@ -277,7 +285,7 @@ export function FormStepper({
               onClick={() => onStepChange(index)}
               className={className}
             >
-              <StepContent step={step} index={index} active={active} complete={complete} />
+              <StepContent step={step} index={index} active={active} complete={complete} showDescription={showDescription} />
             </button>
           );
         }
@@ -288,7 +296,7 @@ export function FormStepper({
             aria-current={active ? "step" : undefined}
             className={className}
           >
-            <StepContent step={step} index={index} active={active} complete={complete} />
+            <StepContent step={step} index={index} active={active} complete={complete} showDescription={showDescription} />
           </div>
         );
       })}
