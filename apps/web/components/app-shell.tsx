@@ -143,7 +143,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
+function NavLinks({ pathname, collapsed, teamUnread }: { pathname: string; collapsed: boolean; teamUnread: number }) {
   const visibleSections = useMemo(
     () => NAV_SECTIONS.map((section) => ({ ...section, items: section.items.filter(isAllowed) })).filter((section) => section.items.length),
     [],
@@ -225,7 +225,9 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                       {!collapsed ? (
                         <>
                           <span className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em]">{item.label}</span>
-                          {"badge" in item && item.badge ? (
+                          {item.href === "/team" && teamUnread > 0 ? (
+                            <span className="rounded-full bg-[#eee8ff] px-2 py-0.5 text-[11px] font-semibold text-[#7657e8]">{teamUnread > 99 ? "99+" : teamUnread}</span>
+                          ) : "badge" in item && item.badge ? (
                             <span className="rounded-full bg-[#dff3fb] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{item.badge}</span>
                           ) : null}
                         </>
@@ -256,12 +258,31 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [contextOptions, setContextOptions] = useState<ContextOptions | null>(null);
   const [switchingBranch, setSwitchingBranch] = useState(false);
   const [branchError, setBranchError] = useState("");
+  const [teamUnread, setTeamUnread] = useState(0);
   const user = getStoredUser();
   const tenant = getStoredTenant();
 
   useEffect(() => {
     if (window.localStorage.getItem("beauty-erp-sidebar-collapsed") === "true") setCollapsed(true);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    async function loadUnread() {
+      try {
+        const result = await api<{ unreadCount: number }>("/team/unread-summary");
+        if (active) setTeamUnread(result.unreadCount);
+      } catch {
+        if (active) setTeamUnread(0);
+      }
+    }
+    void loadUnread();
+    const timer = window.setInterval(() => void loadUnread(), 5000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
+  }, [pathname]);
 
   useEffect(() => {
     let active = true;
