@@ -7,9 +7,9 @@ import {
   Button,
   Field,
   Modal,
-  Select,
   TextInput,
 } from "@/components/ui";
+import { ValooSegmentedControl } from "@/components/valoo-controls";
 
 import { api, ApiError } from "@/lib/api";
 
@@ -133,21 +133,17 @@ export function PaymentModal({
           </Field>
 
           <Field label="Ödeme yöntemi">
-            <Select
+            <ValooSegmentedControl
               value={method}
-              onChange={(event) =>
-                setMethod(
-                  event.target.value as PaymentMethod,
-                )
-              }
+              onChange={setMethod}
               disabled={saving}
-            >
-              <option value="CARD">Kart</option>
-              <option value="CASH">Nakit</option>
-              <option value="TRANSFER">
-                Havale / EFT
-              </option>
-            </Select>
+              ariaLabel="Ödeme yöntemi"
+              options={[
+                { value: "CARD", label: "Kart" },
+                { value: "CASH", label: "Nakit" },
+                { value: "TRANSFER", label: "Havale / EFT" },
+              ]}
+            />
           </Field>
 
           <div className="flex justify-end gap-3">
