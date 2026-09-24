@@ -16,6 +16,7 @@ model User {
   createdAt    DateTime     @default(now())
   updatedAt    DateTime     @updatedAt
   memberships  Membership[]
+  staffProfiles Staff[]
 
   @@map("users")
 }
@@ -382,6 +383,7 @@ model Staff {
   id           String              @id @default(uuid())
   tenantId     String
   branchId     String
+  userId       String?
   firstName    String
   lastName     String
   phone        String?
@@ -394,7 +396,10 @@ model Staff {
   careEvents   CustomerCareEvent[]
   tenant       Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   branch       Branch              @relation(fields: [branchId], references: [id], onDelete: Restrict)
+  user         User?               @relation(fields: [userId], references: [id], onDelete: SetNull)
 
+  @@unique([tenantId, userId])
+  @@index([userId])
   @@index([tenantId])
   @@index([branchId])
   @@index([tenantId, branchId])
