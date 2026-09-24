@@ -533,6 +533,53 @@ export class TeamService {
     return { active: true };
   }
 
+  async renameGroup(currentUserId: string, conversationId: string, name: string) {
+    await this.requireGroupAdmin(currentUserId, conversationId);
+    const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
+      `UPDATE team_conversations
+       SET name=$1, updated_at=NOW()
+       WHERE id=$2::text
+         AND type='GROUP'
+         AND tenant_id=$3::text
+         AND company_id=$4::text
+       RETURNING id`,
+      name.trim(),
+      conversationId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!rows.length) throw new NotFoundException('Grup bulunamadı.');
+    return { ok: true };
+  }
+
+  async searchMessages(currentUserId: string, conversationId: string, query: string) {
+    await this.requireConversationMember(currentUserId, conversationId);
+    const normalized = query.trim();
+    if (!normalized) return [];
+
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         m.id,
+         m.body,
+         m.created_at AS "createdAt",
+         m.sender_user_id AS "senderUserId",
+         concat_ws(' ',u."firstName",u."lastName") AS "senderName"
+       FROM team_messages m
+       JOIN users u ON u.id=m.sender_user_id
+       WHERE m.conversation_id=$1::text
+         AND m.tenant_id=$2::text
+         AND m.company_id=$3::text
+         AND m.deleted_at IS NULL
+         AND m.body ILIKE '%' || $4 || '%'
+       ORDER BY m.created_at DESC
+       LIMIT 50`,
+      conversationId,
+      this.tenantId(),
+      this.companyId(),
+      normalized,
+    );
+  }
+
   async conversationMembers(currentUserId: string, conversationId: string) {
     await this.requireConversationMember(currentUserId, conversationId);
     return this.prisma.$queryRawUnsafe(
