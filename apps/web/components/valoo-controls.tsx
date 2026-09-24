@@ -1,6 +1,8 @@
 "use client";
 
 import {
+  Children,
+  isValidElement,
   useEffect,
   useId,
   useMemo,
@@ -8,7 +10,9 @@ import {
   useState,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
+  type ReactNode,
   type RefObject,
+  type SelectHTMLAttributes,
 } from "react";
 import { createPortal } from "react-dom";
 
@@ -567,6 +571,126 @@ export function ValooMultiSelect({
           style={floatingStyle}
         />
       ) : null}
+    </div>
+  );
+}
+
+function optionLabel(node: ReactNode): string {
+  return Children.toArray(node)
+    .map((part) => {
+      if (typeof part === "string" || typeof part === "number") return String(part);
+      if (isValidElement<{ children?: ReactNode }>(part)) return optionLabel(part.props.children);
+      return "";
+    })
+    .join("");
+}
+
+export function ValooNativeSelectAdapter({
+  children,
+  className,
+  value,
+  defaultValue,
+  disabled,
+  name,
+  id,
+  onChange,
+  multiple,
+  required,
+  ...props
+}: SelectHTMLAttributes<HTMLSelectElement>) {
+  const nativeRef = useRef<HTMLSelectElement>(null);
+  const options = Children.toArray(children).flatMap((child) => {
+    if (!isValidElement<{ value?: string | number; children?: ReactNode; disabled?: boolean }>(child)) {
+      return [];
+    }
+
+    if (child.type === "optgroup") {
+      return Children.toArray(child.props.children).flatMap((nested) => {
+        if (!isValidElement<{ value?: string | number; children?: ReactNode; disabled?: boolean }>(nested) || nested.type !== "option") {
+          return [];
+        }
+        const nestedValue = nested.props.value === undefined ? "" : String(nested.props.value);
+        return [{
+          value: nestedValue,
+          label: optionLabel(nested.props.children) || nestedValue,
+          disabled: nested.props.disabled,
+        }];
+      });
+    }
+
+    if (child.type !== "option") return [];
+    const optionValue = child.props.value === undefined ? "" : String(child.props.value);
+    return [{
+      value: optionValue,
+      label: optionLabel(child.props.children) || optionValue,
+      disabled: child.props.disabled,
+    }];
+  });
+
+  const normalizedControlledValue =
+    typeof value === "string" || typeof value === "number" ? String(value) : undefined;
+  const normalizedDefaultValue =
+    typeof defaultValue === "string" || typeof defaultValue === "number"
+      ? String(defaultValue)
+      : undefined;
+  const [internalValue, setInternalValue] = useState(
+    () => normalizedDefaultValue ?? options[0]?.value ?? "",
+  );
+  const currentValue = normalizedControlledValue ?? internalValue;
+
+  if (multiple) {
+    return (
+      <select
+        {...props}
+        id={id}
+        name={name}
+        multiple
+        required={required}
+        disabled={disabled}
+        value={value}
+        defaultValue={defaultValue}
+        onChange={onChange}
+        className={cx("control min-h-11 w-full", className)}
+      >
+        {children}
+      </select>
+    );
+  }
+
+  function handleValueChange(nextValue: string) {
+    if (normalizedControlledValue === undefined) setInternalValue(nextValue);
+    const native = nativeRef.current;
+    if (!native) return;
+    native.value = nextValue;
+    native.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+
+  return (
+    <div className={cx("relative", className)}>
+      <ValooSelect
+        value={currentValue}
+        onChange={handleValueChange}
+        disabled={disabled}
+        searchable={options.length > 7}
+        placeholder={options.find((option) => option.value === "")?.label ?? "Seçin"}
+        ariaLabel={props["aria-label"]}
+        options={options}
+      />
+      <select
+        {...props}
+        ref={nativeRef}
+        id={id}
+        name={name}
+        required={required}
+        disabled={disabled}
+        value={currentValue}
+        onChange={onChange}
+        tabIndex={-1}
+        aria-hidden="true"
+        className="sr-only"
+      >
+        {children}
+      </select>
     </div>
   );
 }
