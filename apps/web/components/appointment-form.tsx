@@ -2,7 +2,8 @@
 
 import type { AppointmentStatus, Customer, Service, Staff } from "@/lib/types";
 import { fullName } from "@/lib/format";
-import { Field, Select, TextArea, TextInput } from "@/components/ui";
+import { Button, Field, TextArea, TextInput } from "@/components/ui";
+import { ValooSegmentedControl, ValooSelect } from "@/components/valoo-controls";
 import {
   FormActions,
   FormGrid,
@@ -52,56 +53,71 @@ export function AppointmentEditorForm({
       >
         <FormGrid>
           <Field label="Müşteri" required>
-            <Select
+            <ValooSelect
               value={value.customerId}
-              onChange={(event) => onChange({ ...value, customerId: event.target.value })}
+              onChange={(customerId) => onChange({ ...value, customerId })}
               disabled={loadingRefs}
-            >
-              <option value="">Müşteri seçin</option>
-              {customers.map((item) => (
-                <option key={item.id} value={item.id}>
-                  {fullName(item.firstName, item.lastName)}
-                </option>
-              ))}
-            </Select>
+              loading={loadingRefs}
+              placeholder="Müşteri seçin"
+              searchPlaceholder="Müşteri ara…"
+              options={customers.map((item) => ({
+                value: item.id,
+                label: fullName(item.firstName, item.lastName),
+                keywords: [item.phone, item.email].filter(Boolean).join(" "),
+              }))}
+            />
           </Field>
           <Field label="Personel" required>
-            <Select
+            <ValooSelect
               value={value.staffId}
-              onChange={(event) => onChange({ ...value, staffId: event.target.value })}
+              onChange={(staffId) => onChange({ ...value, staffId })}
               disabled={loadingRefs}
-            >
-              <option value="">Personel seçin</option>
-              {staff.filter((item) => item.status === "ACTIVE").map((item) => (
-                <option key={item.id} value={item.id}>
-                  {fullName(item.firstName, item.lastName)}
-                </option>
-              ))}
-            </Select>
+              loading={loadingRefs}
+              placeholder="Personel seçin"
+              searchPlaceholder="Personel ara…"
+              options={staff
+                .filter((item) => item.status === "ACTIVE")
+                .map((item) => ({
+                  value: item.id,
+                  label: fullName(item.firstName, item.lastName),
+                }))}
+            />
           </Field>
           <Field label="Hizmet" required>
-            <Select
+            <ValooSelect
               value={value.serviceId}
-              onChange={(event) => onChange({ ...value, serviceId: event.target.value })}
+              onChange={(serviceId) => onChange({ ...value, serviceId })}
               disabled={loadingRefs}
-            >
-              <option value="">Hizmet seçin</option>
-              {services.filter((item) => item.status === "ACTIVE").map((item) => (
-                <option key={item.id} value={item.id}>{item.name}</option>
-              ))}
-            </Select>
+              loading={loadingRefs}
+              placeholder="Hizmet seçin"
+              searchPlaceholder="Hizmet ara…"
+              options={services
+                .filter((item) => item.status === "ACTIVE")
+                .map((item) => ({
+                  value: item.id,
+                  label: item.name,
+                  description:
+                    typeof item.durationMinutes === "number"
+                      ? `${item.durationMinutes} dk`
+                      : undefined,
+                }))}
+            />
           </Field>
           {editing ? (
             <Field label="Durum">
-              <Select
+              <ValooSelect
                 value={value.status}
-                onChange={(event) => onChange({ ...value, status: event.target.value as AppointmentStatus })}
-              >
-                <option value="SCHEDULED">Planlandı</option>
-                <option value="CONFIRMED">Onaylandı</option>
-                <option value="COMPLETED">Tamamlandı</option>
-                <option value="NO_SHOW">Gelmedi</option>
-              </Select>
+                onChange={(status) =>
+                  onChange({ ...value, status: status as AppointmentStatus })
+                }
+                searchable={false}
+                options={[
+                  { value: "SCHEDULED", label: "Planlandı" },
+                  { value: "CONFIRMED", label: "Onaylandı" },
+                  { value: "COMPLETED", label: "Tamamlandı" },
+                  { value: "NO_SHOW", label: "Gelmedi" },
+                ]}
+              />
             </Field>
           ) : null}
         </FormGrid>
@@ -143,14 +159,9 @@ export function AppointmentEditorForm({
       </FormHint>
 
       <FormActions>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          className="inline-flex min-h-10 items-center justify-center rounded-[14px] px-4 py-2.5 text-[14px] font-medium text-[var(--muted)] transition hover:bg-black/[0.04] disabled:opacity-40"
-        >
+        <Button type="button" variant="secondary" onClick={onCancel} disabled={saving}>
           Vazgeç
-        </button>
+        </Button>
         <FormSubmitButton
           type="button"
           saving={saving}
@@ -195,14 +206,16 @@ export function AppointmentPaymentForm({
             />
           </Field>
           <Field label="Ödeme yöntemi">
-            <Select
+            <ValooSegmentedControl
               value={method}
-              onChange={(event) => onMethodChange(event.target.value as "CASH" | "CARD" | "TRANSFER")}
-            >
-              <option value="CARD">Kart</option>
-              <option value="CASH">Nakit</option>
-              <option value="TRANSFER">Havale / EFT</option>
-            </Select>
+              onChange={onMethodChange}
+              ariaLabel="Ödeme yöntemi"
+              options={[
+                { value: "CARD", label: "Kart" },
+                { value: "CASH", label: "Nakit" },
+                { value: "TRANSFER", label: "Havale / EFT" },
+              ]}
+            />
           </Field>
         </FormGrid>
       </FormSection>
