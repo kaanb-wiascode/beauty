@@ -126,7 +126,7 @@ export function FilterChip({
       className={cx(
         "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9",
         active
-          ? "border-[var(--ink)] bg-[var(--ink)] text-white"
+          ? "border-[rgba(22,116,189,.18)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_1px_4px_rgba(17,70,104,.06)]"
           : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:border-[rgba(22,116,189,.18)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
         className,
       )}
@@ -137,7 +137,7 @@ export function FilterChip({
           className={cx(
             "rounded-full px-1.5 py-0.5 text-[11px] leading-none",
             active
-              ? "bg-white/15 text-white"
+              ? "bg-white text-[var(--accent)]"
               : "bg-[var(--surface-2)] text-[var(--muted-soft)]",
           )}
         >
