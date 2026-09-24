@@ -31,9 +31,11 @@ import {
   TextInput,
   Th,
 } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import { optionalText } from "@/lib/format";
 import type { Customer, Paginated } from "@/lib/types";
 
@@ -877,6 +879,9 @@ function MetricCard({
 
   return (
     <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+      <div className="mb-2">
+        <CardInfo help={getCardHelp(label, detail)} />
+      </div>
       <div className="flex items-center justify-between">
         <span className="text-[11px] font-medium text-[var(--muted)]">
           {label}
