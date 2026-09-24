@@ -1,6 +1,6 @@
 "use client";
 
-import { Select, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import { useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 import {
   DataView,
@@ -17,7 +17,7 @@ import {
   FormSection,
   FormSubmitButton,
 } from "@/components/form-system";
-import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, Select, Spinner, TextInput } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { api, ApiError } from "@/lib/api";
 import { getActiveBranchId } from "@/lib/auth";
@@ -387,7 +387,7 @@ function TransferStatus({ status }: { status: string }) {
           : "bg-[var(--accent-soft)] text-[var(--accent)]";
 
   return (
-    <span className={`w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${tone}`}>
+    <span className={`w-fit rounded-full px-2.5 py-1 text-[11px] font-semibold ${tone}`}>
       {STATUS_LABELS[status] ?? status}
     </span>
   );
