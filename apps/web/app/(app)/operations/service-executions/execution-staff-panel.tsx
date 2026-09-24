@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type Assignment = {
   id: string;
@@ -147,8 +148,8 @@ export function ExecutionStaffPanel({
     <div className="mt-3 rounded-[12px] border border-[var(--line)] p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Personel & Handoff</p>
-          <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif sorumluluk ve yardımcı personel geçmişi execution audit zincirinde korunur.</p>
+          <p className="text-xs font-semibold text-[var(--ink)]">Personel Sorumluluğu</p>
+          <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif sorumluluk ve yardımcı personel geçmişi işlem kayıtlarında korunur.</p>
         </div>
       </div>
 
@@ -158,7 +159,7 @@ export function ExecutionStaffPanel({
             <div>
               <p className="text-xs font-medium text-[var(--ink)]">{assignment.staffName || assignment.staffId.slice(0, 8)}</p>
               <p className="text-[11px] text-[var(--muted)]">
-                {assignment.role} · {assignment.endedAt ? "Tamamlandı" : "Aktif"}
+                {userLabel(assignment.role)} · {assignment.endedAt ? "Tamamlandı" : "Aktif"}
               </p>
             </div>
             {canUpdate && !assignment.endedAt && assignment.role !== "PRIMARY" ? (
