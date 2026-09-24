@@ -17,7 +17,8 @@ import {
   FormSection,
   FormSubmitButton,
 } from "@/components/form-system";
-import { Alert, Button, Modal, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { Modal } from "@/components/modal";
 import { api, ApiError } from "@/lib/api";
 import { getActiveBranchId } from "@/lib/auth";
 
