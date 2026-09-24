@@ -8,7 +8,7 @@ import { Button, TextArea, TextInput } from "@/components/ui";
 import { SearchField } from "@/components/data-view";
 import { ValooMultiSelect, ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError } from "@/lib/api";
-import { userActionLabel, userResourceLabel } from "@/lib/user-language";
+import { userActionLabel, userErrorMessage, userResourceLabel } from "@/lib/user-language";
 
 type Permission = { id: string; resource: string; action: string; description: string | null };
 type RolePermission = { permission: Permission };
@@ -79,7 +79,7 @@ export default function RolesPage() {
         setPermissions(permissionData);
         setSelectedRoleId(roleData[0]?.id ?? "");
       })
-      .catch((err) => { if (active) setError(err instanceof ApiError ? err.message : "Roller yüklenemedi."); })
+      .catch((err) => { if (active) setError(err instanceof ApiError ? userErrorMessage(err.message, "Roller yüklenemedi.") : "Roller yüklenemedi."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -94,7 +94,7 @@ export default function RolesPage() {
         setSelectedPermissionIds(ids);
         setSavedPermissionIds(ids);
       })
-      .catch((err) => { if (active) setError(err instanceof ApiError ? err.message : "Rol yetkileri yüklenemedi."); });
+      .catch((err) => { if (active) setError(err instanceof ApiError ? userErrorMessage(err.message, "Rol yetkileri yüklenemedi.") : "Rol yetkileri yüklenemedi."); });
     return () => { active = false; };
   }, [selectedRoleId]);
 
@@ -125,7 +125,7 @@ export default function RolesPage() {
       setSelectedPermissionIds(ids); setSavedPermissionIds(ids);
       setRoles((current) => current.map((role) => role.id === updated.id ? { ...role, _count: { ...role._count, rolePermissions: ids.length } } : role));
       showToast("Rol yetkileri güncellendi.");
-    } catch (err) { setError(err instanceof ApiError ? err.message : "Yetkiler kaydedilemedi."); }
+    } catch (err) { setError(err instanceof ApiError ? userErrorMessage(err.message, "Yetkiler kaydedilemedi.") : "Yetkiler kaydedilemedi."); }
     finally { setSaving(false); }
   }
   async function createRole() {
@@ -136,7 +136,7 @@ export default function RolesPage() {
       const role = await api<Role>("/roles", { method: "POST", body: { name, description: newRoleDescription.trim() || undefined } });
       setRoles((current) => [...current, role]); setSelectedRoleId(role.id); setCreateOpen(false); setNewRoleName(""); setNewRoleDescription("");
       showToast("Rol oluşturuldu.");
-    } catch (err) { setError(err instanceof ApiError ? err.message : "Rol oluşturulamadı."); }
+    } catch (err) { setError(err instanceof ApiError ? userErrorMessage(err.message, "Rol oluşturulamadı.") : "Rol oluşturulamadı."); }
     finally { setCreatingRole(false); }
   }
   async function deleteRole() {
@@ -147,7 +147,7 @@ export default function RolesPage() {
       await api(`/roles/${selectedRole.id}`, { method: "DELETE" });
       const remaining = roles.filter((role) => role.id !== selectedRole.id);
       setRoles(remaining); setSelectedRoleId(remaining[0]?.id ?? ""); showToast("Rol silindi.");
-    } catch (err) { setError(err instanceof ApiError ? err.message : "Rol silinemedi."); }
+    } catch (err) { setError(err instanceof ApiError ? userErrorMessage(err.message, "Rol silinemedi.") : "Rol silinemedi."); }
   }
 
   if (loading) return <div className="flex min-h-[50vh] items-center justify-center text-sm text-[var(--muted)]">Yükleniyor…</div>;
