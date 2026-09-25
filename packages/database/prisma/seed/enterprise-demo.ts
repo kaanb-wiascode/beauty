@@ -310,7 +310,12 @@ async function seedHr(
        CROSS JOIN generate_series(CURRENT_DATE-INTERVAL '45 days',CURRENT_DATE,INTERVAL '1 day') d
        WHERE s."tenantId"=$1::text
          AND EXTRACT(ISODOW FROM d) < 7
-       ON CONFLICT(staff_id,work_date) DO NOTHING`,
+         AND NOT EXISTS (
+           SELECT 1
+           FROM attendance_records existing
+           WHERE existing.staff_id=s.id
+             AND existing.work_date=d::date
+         )`,
       tenantId,
     );
   }
