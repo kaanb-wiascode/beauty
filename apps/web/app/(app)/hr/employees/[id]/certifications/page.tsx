@@ -3,7 +3,7 @@ import Link from "next/link";
 import { DatePicker } from "@/components/date-picker";
 import { Select } from "@/components/ui";
 import { useParams } from "next/navigation";
-import { FormEvent,useEffect,useState } from "react";
+import { FormEvent,useCallback,useEffect,useState } from "react";
 import { api,ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
@@ -19,8 +19,8 @@ const days=(v?:string|null)=>v?Math.ceil((new Date(`${v}T00:00:00`).getTime()-ne
 export default function EmployeeCertificationsPage(){
  const{id}=useParams<{id:string}>();const[allowed,setAllowed]=useState(false),[manage,setManage]=useState(false),[rows,setRows]=useState<Row[]>([]),[types,setTypes]=useState<Type[]>([]),[form,setForm]=useState<Form>(EMPTY),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState("");
  useEffect(()=>{const sensitive=hasPermission("hr_sensitive","read");setAllowed(sensitive);setManage(sensitive&&hasPermission("hr","manage"))},[]);
- async function load(){if(!allowed)return;setLoading(true);setError("");try{const[data,typeData]=await Promise.all([api<Row[]>(`/hr/employees/${id}/certifications`),api<Type[]>("/hr/certification-types")]);setRows(data);setTypes(typeData);setForm(x=>x.certificationTypeId?x:{...x,certificationTypeId:typeData[0]?.id??""})}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika kayıtları yüklenemedi."):"Sertifika kayıtları yüklenemedi.")}finally{setLoading(false)}}
- useEffect(()=>{if(allowed)void load();else setLoading(false)},[allowed,id]);
+ const load=useCallback(async()=>{if(!allowed)return;setLoading(true);setError("");try{const[data,typeData]=await Promise.all([api<Row[]>(`/hr/employees/${id}/certifications`),api<Type[]>("/hr/certification-types")]);setRows(data);setTypes(typeData);setForm(x=>x.certificationTypeId?x:{...x,certificationTypeId:typeData[0]?.id??""})}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika kayıtları yüklenemedi."):"Sertifika kayıtları yüklenemedi.")}finally{setLoading(false)}},[allowed,id]);
+ useEffect(()=>{if(allowed)void load();else setLoading(false)},[allowed,load]);
  async function create(e:FormEvent){e.preventDefault();if(!manage||!form.certificationTypeId)return;setBusy(true);setError("");try{await api(`/hr/employees/${id}/certifications`,{method:"POST",body:JSON.stringify(form)});setForm({...EMPTY,certificationTypeId:types[0]?.id??""});await load()}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika oluşturulamadı."):"Sertifika oluşturulamadı.")}finally{setBusy(false)}}
  async function verify(row:Row,status:"VERIFIED"|"REJECTED"){const note=status==="REJECTED"?window.prompt("Reddetme gerekçesi:"):window.prompt("Doğrulama notu (opsiyonel):");if(status==="REJECTED"&&!note)return;setBusy(true);try{await api(`/hr/employees/${id}/certifications/${row.id}/verify`,{method:"PATCH",body:JSON.stringify({status,note:note||undefined})});await load()}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika durumu güncellenemedi."):"Sertifika durumu güncellenemedi.")}finally{setBusy(false)}}
  async function revoke(row:Row){const note=window.prompt("Yetkinliğin geri alınma gerekçesi:");if(!note)return;setBusy(true);try{await api(`/hr/employees/${id}/certifications/${row.id}/revoke`,{method:"POST",body:JSON.stringify({note})});await load()}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika iptal edilemedi."):"Sertifika iptal edilemedi.")}finally{setBusy(false)}}
