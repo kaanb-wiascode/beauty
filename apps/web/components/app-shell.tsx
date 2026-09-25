@@ -69,7 +69,7 @@ const NAV_SECTIONS = [
     { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
     { href: "/finance/integrations", label: "Banka ve ödeme bağlantıları", icon: "wallet" },
     { href: "/finance/integrations/operations", label: "Bağlantı İşlemleri", icon: "activity" },
-    { href: "/finance/integrations/transactions", label: "POS İşlem Operasyonları", icon: "receipt" },
+    { href: "/finance/integrations/transactions", label: "POS İşlem Yönetimi", icon: "receipt" },
     { href: "/finance/reconciliation", label: "Mutabakat Merkezi", icon: "arrows" },
     { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
   ]},
@@ -86,7 +86,7 @@ const NAV_SECTIONS = [
     { href: "/hr/shift-exchanges", permission: "hr.read", label: "Vardiya Değişimleri", icon: "arrows" },
     { href: "/hr/capacity", permission: "hr.read", label: "İş Gücü Kapasitesi", icon: "chart" },
     { href: "/hr/planning", permission: "hr.read", label: "İK Planlama", icon: "calendar" },
-    { href: "/hr/self-service", permission: "hr.read", label: "Çalışan Self Servis", icon: "user" },
+    { href: "/hr/self-service", permission: "hr.read", label: "Çalışan İşlemleri", icon: "user" },
     { href: "/hr/talent", permission: "hr.read", label: "Yetenek Yönetimi", icon: "trend" },
     { href: "/hr/rewards", permission: "hr.read", label: "Toplam Ödül ve Yan Haklar", icon: "wallet" },
     { href: "/hr/rewards/manage", permission: "hr.manage", label: "Ödül ve Masraf İşlemleri", icon: "receipt" },
@@ -94,7 +94,7 @@ const NAV_SECTIONS = [
     { href: "/hr/operations-control", permission: "hr.read", label: "İK Operasyon Kontrolü", icon: "activity" },
   ]},
   { label: "Gelişim", items: [
-    { href: "/training", permission: "training.read", label: "Eğitim ve yetkinlik", icon: "chart" },
+    { href: "/training", permission: "training.read", label: "Eğitim ve Yetkinlik", icon: "chart" },
     { href: "/training/analytics", permission: "training.read", label: "Eğitim Analizi", icon: "trend" },
     { href: "/training/staff", permission: "training.read", label: "Personel Gelişim Profilleri", icon: "users" },
     { href: "/training/question-bank", permission: "training.manage", label: "Soru Bankası", icon: "file" },
@@ -113,7 +113,7 @@ const NAV_SECTIONS = [
   { label: "Kalite Yönetimi", items: [
     { href: "/quality", permission: "quality.read", label: "Kalite Merkezi", icon: "shield" },
     { href: "/quality/inspections", permission: "quality.read", label: "Denetimler", icon: "file" },
-    { href: "/quality/capa", permission: "quality.read", label: "CAPA", icon: "activity" },
+    { href: "/quality/capa", permission: "quality.read", label: "Düzeltici / Önleyici Faaliyetler", icon: "activity" },
     { href: "/quality/evidence", permission: "quality.read", label: "Kalite Kanıtları", icon: "file" },
     { href: "/quality/governance", permission: "quality.read", label: "Politikalar ve Skorlar", icon: "chart" },
   ]},
@@ -124,7 +124,7 @@ const NAV_SECTIONS = [
     { href: "/quality/comparison", permissions: ["quality.read", "training.read"], label: "Kalite ve gelişim karşılaştırma", icon: "activity" },
   ]},
   { label: "Yönetim", items: [
-    { href: "/settings/roles", permission: "roles.read", label: "Roller ve yetkiler", icon: "shield" },
+    { href: "/settings/roles", permission: "roles.read", label: "Roller ve Yetkiler", icon: "shield" },
     { href: "/settings", label: "Ayarlar", icon: "settings" },
   ]},
 ] as const;
