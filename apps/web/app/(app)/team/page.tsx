@@ -1219,71 +1219,65 @@ export default function TeamPage() {
         </aside>
       </section>
 
-      {preview ? (
-        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={() => {
-          if (preview.url.startsWith("blob:")) URL.revokeObjectURL(preview.url);
+      <Modal
+        open={Boolean(preview)}
+        onClose={() => {
+          if (preview?.url.startsWith("blob:")) URL.revokeObjectURL(preview.url);
           setPreview(null);
-        }}>
-          <div className="w-full max-w-[780px] overflow-hidden rounded-[22px] bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
-              <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{preview.name}</p>
-              <button type="button" onClick={() => { if (preview.url.startsWith("blob:")) URL.revokeObjectURL(preview.url); setPreview(null); }} className="rounded-[9px] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">Kapat</button>
-            </div>
-            <div className="flex min-h-[220px] items-center justify-center bg-[#f7f6f9] p-4">
-              {preview.mimeType.startsWith("image/") ? (
-                <div
-                  role="img"
-                  aria-label={preview.name}
-                  className="h-[70vh] w-full rounded-[14px] bg-contain bg-center bg-no-repeat"
-                  style={{ backgroundImage: `url("${preview.url}")` }}
-                />
-              ) : null}
-              {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
-              {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[70vh] w-full rounded-[12px] bg-white" /> : null}
-            </div>
+        }}
+        title={preview?.name ?? "Dosya önizleme"}
+        description="Dosya güvenli ekip alanından görüntüleniyor."
+        size="lg"
+      >
+        {preview ? (
+          <div className="flex min-h-[220px] items-center justify-center rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4">
+            {preview.mimeType.startsWith("image/") ? (
+              <div
+                role="img"
+                aria-label={preview.name}
+                className="h-[65vh] w-full rounded-[14px] bg-contain bg-center bg-no-repeat"
+                style={{ backgroundImage: `url("${preview.url}")` }}
+              />
+            ) : null}
+            {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
+            {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[65vh] w-full rounded-[14px] bg-white" /> : null}
           </div>
-        </div>
-      ) : null}
+        ) : null}
+      </Modal>
 
-      {readerList.length || readerModalTitle ? (
-        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" onMouseDown={() => { setReaderList([]); setReaderModalTitle(""); }}>
-          <div className="w-full max-w-[480px] overflow-hidden rounded-[22px] bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
-            <div className="border-b border-[var(--line)] px-5 py-4">
-              <h3 className="text-[14px] font-semibold text-[var(--ink)]">Duyuruyu okuyanlar</h3>
-              <p className="mt-1 line-clamp-2 text-[10px] text-[var(--muted)]">{readerModalTitle}</p>
+      <Modal
+        open={Boolean(readerList.length || readerModalTitle)}
+        onClose={() => { setReaderList([]); setReaderModalTitle(""); }}
+        title="Duyuruyu okuyanlar"
+        description={readerModalTitle || "Duyuru onay detayları"}
+        size="sm"
+      >
+        <div className="max-h-[420px] overflow-y-auto">
+          {readerList.length ? readerList.map((reader) => (
+            <div key={reader.id} className="flex items-center gap-3 rounded-[12px] border border-transparent px-2 py-2.5 transition hover:border-[var(--line)] hover:bg-[var(--surface-2)]">
+              <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[9px] font-semibold text-[var(--accent)]">{initials(reader.firstName, reader.lastName)}</div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{reader.firstName} {reader.lastName}</p>
+                <p className="truncate text-[10px] text-[var(--muted)]">{reader.email}</p>
+              </div>
+              <span className="text-[9px] text-[var(--muted-soft)]">{timeLabel(reader.acknowledgedAt)}</span>
             </div>
-            <div className="max-h-[420px] overflow-y-auto p-3">
-              {readerList.length ? readerList.map((reader) => (
-                <div key={reader.id} className="flex items-center gap-3 rounded-[12px] px-2 py-2.5 hover:bg-[var(--surface-2)]">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1edff] text-[9px] font-semibold text-[#6f54c7]">{initials(reader.firstName, reader.lastName)}</div>
-                  <div className="min-w-0 flex-1">
-                    <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{reader.firstName} {reader.lastName}</p>
-                    <p className="truncate text-[9px] text-[var(--muted)]">{reader.email}</p>
-                  </div>
-                  <span className="text-[8px] text-[var(--muted-soft)]">{timeLabel(reader.acknowledgedAt)}</span>
-                </div>
-              )) : <p className="px-3 py-8 text-center text-[10px] text-[var(--muted)]">Henüz kimse “Okudum” demedi.</p>}
-            </div>
-            <div className="flex justify-end border-t border-[var(--line)] px-4 py-3">
-              <button type="button" onClick={() => { setReaderList([]); setReaderModalTitle(""); }} className="rounded-[10px] bg-[var(--ink)] px-4 py-2 text-[10px] font-semibold text-white">Kapat</button>
-            </div>
-          </div>
+          )) : <p className="px-3 py-8 text-center text-[12px] text-[var(--muted)]">Henüz kimse “Okudum” demedi.</p>}
         </div>
-      ) : null}
+        <div className="mt-5 flex justify-end border-t border-[var(--line)] pt-4">
+          <Button variant="secondary" onClick={() => { setReaderList([]); setReaderModalTitle(""); }}>Kapat</Button>
+        </div>
+      </Modal>
 
-      {composeOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onMouseDown={() => setComposeOpen(false)}>
-          <form
-            onSubmit={createConversation}
-            onMouseDown={(event) => event.stopPropagation()}
-            className="w-full max-w-[560px] overflow-hidden rounded-[24px] border border-white/50 bg-white shadow-[0_30px_100px_rgba(26,22,38,.25)]"
-          >
-            <div className="border-b border-[var(--line)] px-5 py-4">
-              <h2 className="text-[16px] font-semibold tracking-[-.02em] text-[var(--ink)]">Yeni konuşma</h2>
-              <p className="mt-1 text-[11px] text-[var(--muted)]">Birebir mesajlaşın veya ekip üyelerinden bir grup oluşturun.</p>
-            </div>
-            <div className="space-y-4 p-5">
-              <div className="grid grid-cols-3 gap-2 rounded-[14px] bg-[var(--surface-2)] p-1">
+      <Modal
+        open={composeOpen}
+        onClose={() => setComposeOpen(false)}
+        title="Yeni konuşma"
+        description="Birebir mesajlaşın, bir grup oluşturun veya ekip kanalı açın."
+      >
+        <form onSubmit={createConversation}>
+          <div className="space-y-5">
+              <div className="grid grid-cols-3 gap-2 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/60 p-1.5">
                 {(["DIRECT", "GROUP", "CHANNEL"] as const).map((type) => (
                   <button
                     key={type}
@@ -1292,7 +1286,7 @@ export default function TeamPage() {
                       setComposeType(type);
                       setSelectedUsers([]);
                     }}
-                    className={`rounded-[11px] px-3 py-2 text-[11px] font-semibold ${composeType === type ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--muted)]"}`}
+                    className={`min-h-10 rounded-[11px] px-3 text-[12px] font-semibold transition ${composeType === type ? "bg-white text-[var(--accent)] shadow-[0_2px_8px_rgba(17,70,104,.08)] ring-1 ring-[rgba(22,116,189,.12)]" : "text-[var(--muted)] hover:bg-white/70 hover:text-[var(--ink)]"}`}
                   >
                     {type === "DIRECT" ? "Birebir" : type === "GROUP" ? "Grup" : "Kanal"}
                   </button>
@@ -1306,13 +1300,13 @@ export default function TeamPage() {
                     value={groupName}
                     onChange={(event) => setGroupName(event.target.value)}
                     placeholder={composeType === "CHANNEL" ? "Örn. Operasyon" : "Örn. Satış Ekibi"}
-                    className="h-11 w-full rounded-[12px] border border-[var(--line)] px-3 text-[12px] outline-none focus:border-[#9f89e8]"
+                    className="control h-11 w-full text-[13px]"
                   />
                 </label>
               ) : null}
 
               {composeType === "CHANNEL" ? (
-                <label className="flex items-start gap-3 rounded-[14px] border border-[var(--line)] bg-[#fcfbfd] p-3">
+                <label className="flex items-start gap-3 rounded-[14px] border border-[rgba(22,116,189,.14)] bg-[var(--accent-soft)]/45 p-4">
                   <input
                     type="checkbox"
                     checked={announcementOnly}
@@ -1340,28 +1334,27 @@ export default function TeamPage() {
                           if (composeType === "DIRECT") setSelectedUsers([person.id]);
                           else toggleUser(person.id);
                         }}
-                        className={`flex w-full items-center gap-3 rounded-[12px] p-2.5 text-left ${checked ? "bg-[#f4f0ff]" : "hover:bg-[var(--surface-2)]"}`}
+                        className={`flex w-full items-center gap-3 rounded-[12px] border p-2.5 text-left transition ${checked ? "border-[rgba(22,116,189,.15)] bg-[var(--accent-soft)]" : "border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-2)]"}`}
                       >
                         <PersonAvatar person={person} size="sm" />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{person.firstName} {person.lastName}</p>
                           <p className="mt-0.5 text-[9px] text-[var(--muted)]">{person.roleName}</p>
                         </div>
-                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${checked ? "border-[#7458c8] bg-[#7458c8] text-white" : "border-[var(--line)] text-transparent"}`}>✓</span>
+                        <span className={`flex h-5 w-5 items-center justify-center rounded-full border text-[10px] ${checked ? "border-[var(--accent)] bg-[var(--accent)] text-white" : "border-[var(--line)] text-transparent"}`}>✓</span>
                       </button>
                     );
                   })}
                 </div>
               </div>
               ) : null}
-            </div>
-            <div className="flex justify-end gap-2 border-t border-[var(--line)] px-5 py-4">
-              <button type="button" onClick={() => setComposeOpen(false)} className="h-10 rounded-[12px] border border-[var(--line)] px-4 text-[11px] font-semibold text-[var(--muted)]">Vazgeç</button>
-              <button type="submit" className="h-10 rounded-[12px] bg-[var(--ink)] px-4 text-[11px] font-semibold text-white">Konuşmayı oluştur</button>
-            </div>
-          </form>
-        </div>
-      ) : null}
+          </div>
+          <div className="mt-6 flex justify-end gap-2 border-t border-[var(--line)] pt-5">
+            <Button type="button" variant="secondary" onClick={() => setComposeOpen(false)}>Vazgeç</Button>
+            <Button type="submit">Konuşmayı oluştur</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
