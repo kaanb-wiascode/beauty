@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { api, ApiError } from "@/lib/api";
 import { Alert, Button, Spinner, TextInput, Select } from "@/components/ui";
 import { userPermissionLabel, userLabel } from "@/lib/user-language";
@@ -31,19 +31,19 @@ export default function BreakGlassPage() {
   const [error, setError] = useState<string | null>(null);
   const [now, setNow] = useState<number | null>(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     const [p, e] = await Promise.all([
       api<Permission[]>("/roles/permissions"),
       api<EventRow[]>("/admin/break-glass"),
     ]);
     setPermissions(p);
     setEvents(e);
-    if (!permissionId && p[0]) setPermissionId(p[0].id);
-  };
+    setPermissionId((current) => current || p[0]?.id || "");
+  }, []);
 
   useEffect(() => {
     load().catch((e) => setError(e instanceof ApiError ? e.message : "Acil erişim verileri yüklenemedi."));
-  }, []);
+  }, [load]);
 
   useEffect(() => {
     const refreshNow = () => setNow(Date.now());
