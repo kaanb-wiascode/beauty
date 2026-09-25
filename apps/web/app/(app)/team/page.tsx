@@ -300,6 +300,17 @@ export default function TeamPage() {
   }, [activeId]);
 
   useEffect(() => {
+    return () => {
+      const recorder = mediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") recorder.stop();
+      mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+      if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+      if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
+      if (preview?.url.startsWith("blob:")) URL.revokeObjectURL(preview.url);
+    };
+  }, [preview]);
+
+  useEffect(() => {
     if (!activeId) {
       setMessages([]);
       return;
@@ -547,7 +558,14 @@ export default function TeamPage() {
 
       recorder.start(250);
       recordingTimerRef.current = window.setInterval(() => {
-        setRecordingSeconds((seconds) => seconds + 1);
+        setRecordingSeconds((seconds) => {
+          const next = seconds + 1;
+          if (next >= 120) {
+            const activeRecorder = mediaRecorderRef.current;
+            if (activeRecorder && activeRecorder.state !== "inactive") activeRecorder.stop();
+          }
+          return next;
+        });
       }, 1000);
     } catch {
       setError("Mikrofona erişilemedi. Tarayıcı mikrofon iznini kontrol edin.");
@@ -928,7 +946,7 @@ export default function TeamPage() {
                                     onClick={() => void openAttachment(attachment)}
                                     className={`flex w-full items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left ${mine ? "border-white/15 bg-white/5" : "border-[var(--line)] bg-[var(--surface-2)]"}`}
                                   >
-                                    <span className="text-[13px]">{attachment.mimeType.startsWith("image/") ? "🖼" : attachment.mimeType === "application/pdf" ? "PDF" : "DOC"}</span>
+                                    <span className="text-[13px]">{attachment.mimeType.startsWith("image/") ? "🖼" : attachment.mimeType.startsWith("audio/") ? "SES" : attachment.mimeType === "application/pdf" ? "PDF" : "DOC"}</span>
                                     <span className="min-w-0 flex-1 truncate text-[9px] font-semibold">{attachment.originalName}</span>
                                     <span className={`text-[8px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>{Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB</span>
                                   </button>
@@ -1049,7 +1067,7 @@ export default function TeamPage() {
                     {recording ? `Kaydı bitir · ${recordingSeconds}s` : "Ses kaydet"}
                   </button>
                   <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] ${canPost ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-not-allowed opacity-50"}`}>
-                    {selectedFile ? "Dosya seçildi" : "Dosya ekle"}
+                    {selectedFile ? (selectedFile.type.startsWith("audio/") ? "Ses kaydı hazır" : "Dosya seçildi") : "Dosya ekle"}
                     <input
                       type="file"
                       disabled={!canPost}
