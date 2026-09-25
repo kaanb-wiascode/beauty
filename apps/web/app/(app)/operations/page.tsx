@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { CardInfo } from "@/components/card-info";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
@@ -121,7 +121,7 @@ export default function OperationsPage() {
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [readinessByVisit, setReadinessByVisit] = useState<Record<string, CheckoutReadiness>>({});
 
-  async function loadCheckoutReadiness(items: Visit[]) {
+  const loadCheckoutReadiness = useCallback(async (items: Visit[]) => {
     const checkoutVisits = items.filter((visit) => visit.status === "CHECKOUT_PENDING");
     if (!checkoutVisits.length) {
       setReadinessByVisit({});
@@ -140,9 +140,9 @@ export default function OperationsPage() {
       if (result.status === "fulfilled") next[result.value[0]] = result.value[1];
     }
     setReadinessByVisit(next);
-  }
+  }, []);
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!hasActiveBranch()) {
       setVisits([]);
       setAppointments([]);
@@ -175,11 +175,11 @@ export default function OperationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [loadCheckoutReadiness]);
 
   useEffect(() => {
     void load();
-  }, []);
+  }, [load]);
 
   const customerMap = useMemo(
     () => new Map(customers.map((customer) => [customer.id, `${customer.firstName} ${customer.lastName}`.trim()])),
