@@ -5,7 +5,7 @@ import { Select } from "@/components/ui";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
-import { userLabel, userPermissionLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel, userPermissionLabel } from "@/lib/user-language";
 
 type Membership = {
   id: string;
@@ -80,7 +80,7 @@ export default function TemporaryAccessPage() {
       setBranches(branchRows.filter((item) => item.status === "ACTIVE"));
       setGrants(grantRows);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Geçici erişim bilgileri yüklenemedi.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message, "Geçici erişim bilgileri yüklenemedi.") : "Geçici erişim bilgileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -116,7 +116,7 @@ export default function TemporaryAccessPage() {
       setReason("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Geçici erişim oluşturulamadı.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message, "Geçici erişim oluşturulamadı.") : "Geçici erişim oluşturulamadı.");
     } finally {
       setSaving(false);
     }
