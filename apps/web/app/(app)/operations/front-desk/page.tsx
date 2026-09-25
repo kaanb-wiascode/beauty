@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, PageHeader, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type Visit={id:string;customerId:string;source:string;status:string;note:string|null;version:number;appointmentIds:string[];createdAt:string;checkedInAt:string|null};
