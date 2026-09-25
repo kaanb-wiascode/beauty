@@ -38,7 +38,7 @@ export default function CfoPlanningPage() {
         { title: "Ödeme Öncelikleri", path: `/profitability/treasury/payments/priorities?asOf=${asOf}` },
         { title: "Çalışma Sermayesi", path: `/profitability/cfo/working-capital?asOf=${asOf}` },
         { title: "Nakit Dayanma Süresi", path: `/profitability/cfo/cash-runway?asOf=${asOf}` },
-        { title: "CFO Dashboard", path: `/profitability/cfo/dashboard?asOf=${asOf}` },
+        { title: "Finans Yönetim Paneli", path: `/profitability/cfo/dashboard?asOf=${asOf}` },
         { title: "Finansal Sağlık Eşikleri", path: "/profitability/cfo/health/thresholds" },
         { title: "Finansal Sağlık", path: `/profitability/cfo/health?asOf=${asOf}` },
         { title: "Yönetim Uyarıları", path: `/profitability/cfo/executive-alerts?asOf=${asOf}` },
@@ -47,7 +47,7 @@ export default function CfoPlanningPage() {
         { title: "Yönetici Finans Özeti", path: `/profitability/cfo/executive-summary?asOf=${asOf}` },
         { title: "Finans Görev Özeti", path: "/profitability/cfo/actions/summary" },
         { title: "Finans Görev Politikası", path: "/profitability/cfo/actions/policy" },
-        { title: "Finans Görev SLA", path: `/profitability/cfo/actions/sla?asOf=${asOf}` },
+        { title: "Finans Görev Yanıt Süreleri", path: `/profitability/cfo/actions/sla?asOf=${asOf}` },
         { title: "Finansal Sağlık Trendi", path: `/profitability/cfo/health/trend?asOf=${asOf}` },
         { title: "Finansal Sağlık Önerileri", path: `/profitability/cfo/health/recommendations?asOf=${asOf}` },
       ]}
@@ -71,13 +71,13 @@ export default function CfoPlanningPage() {
           title: "Maliyet Merkezi Dağılımı Kaydet",
           path: "/profitability/cost-centers/{id}/allocations",
           fields: [
-            { name: "id", label: "Maliyet Merkezi ID", required: true },
+            { name: "id", label: "Maliyet Merkezi Kodu", required: true },
             {
               name: "allocations",
               label: "Şube Dağılımları",
               type: "json",
               required: true,
-              placeholder: '[{"branchId":"UUID","percent":100}]',
+              placeholder: '[{"branchId":"ŞUBE_KODU","percent":100}]',
             },
           ],
         },
@@ -85,8 +85,8 @@ export default function CfoPlanningPage() {
           title: "Muhasebe Satırına Maliyet Merkezi Ata",
           path: "/profitability/journal-lines/{journalEntryLineId}/cost-center",
           fields: [
-            { name: "journalEntryLineId", label: "Yevmiye Satırı ID", required: true },
-            { name: "costCenterId", label: "Maliyet Merkezi ID", required: true },
+            { name: "journalEntryLineId", label: "Yevmiye Satırı Kodu", required: true },
+            { name: "costCenterId", label: "Maliyet Merkezi Kodu", required: true },
           ],
         },
         {
@@ -94,7 +94,7 @@ export default function CfoPlanningPage() {
           path: "/profitability/budgets",
           fields: [
             { name: "targetType", label: "Hedef Türü", type: "select", required: true, options: [{ value: "BRANCH", label: "Şube" }, { value: "COST_CENTER", label: "Maliyet Merkezi" }] },
-            { name: "targetId", label: "Hedef ID", required: true },
+            { name: "targetId", label: "Hedef Kodu", required: true },
             { name: "metricType", label: "Bütçe Türü", type: "select", required: true, options: [{ value: "REVENUE", label: "Gelir" }, { value: "EXPENSE", label: "Gider" }] },
             { name: "periodStart", label: "Başlangıç", type: "date", required: true, defaultValue: from },
             { name: "periodEnd", label: "Bitiş", type: "date", required: true, defaultValue: to },
@@ -138,7 +138,7 @@ export default function CfoPlanningPage() {
           title: "Personel Komisyon Oranı Güncelle",
           path: "/profitability/staff/{staffId}/commission",
           fields: [
-            { name: "staffId", label: "Personel ID", required: true },
+            { name: "staffId", label: "Personel Kodu", required: true },
             { name: "rate", label: "Komisyon Oranı (%)", type: "number", required: true },
           ],
         },
@@ -146,8 +146,8 @@ export default function CfoPlanningPage() {
           title: "Satış Kalemini Randevuya Bağla",
           path: "/profitability/sale-items/{saleItemId}/attribute",
           fields: [
-            { name: "saleItemId", label: "Satış Kalemi ID", required: true },
-            { name: "appointmentId", label: "Randevu ID", required: true },
+            { name: "saleItemId", label: "Satış Kalemi Kodu", required: true },
+            { name: "appointmentId", label: "Randevu Kodu", required: true },
           ],
         },
       ]}
