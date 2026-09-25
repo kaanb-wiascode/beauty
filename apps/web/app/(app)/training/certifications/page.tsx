@@ -95,7 +95,7 @@ export default function TrainingCertificationsPage() {
     }
   }
 
-  const queue = data?.recertificationQueue ?? [];
+  const queue = useMemo(() => data?.recertificationQueue ?? [], [data]);
   const dueCount = useMemo(() => queue.filter((item) => item.renewalState === "DUE").length, [queue]);
 
   return (
