@@ -13,6 +13,7 @@ import { Observable } from 'rxjs';
 import type { MessageEvent } from '@nestjs/common';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { RedisService } from '../../infrastructure/redis/redis.service';
+import { ObjectStorageService } from '../../common/storage/object-storage.service';
 
 type CreateConversationInput = {
   type: 'DIRECT' | 'GROUP' | 'CHANNEL';
@@ -52,6 +53,7 @@ export class TeamService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly redis: RedisService,
+    private readonly objectStorage: ObjectStorageService,
   ) {}
 
   private tenantId() {
@@ -64,6 +66,21 @@ export class TeamService {
 
   private uploadRoot() {
     return process.env.TEAM_UPLOAD_DIR ?? join(process.cwd(), 'data', 'team-uploads');
+  }
+
+  private keySegment(value: string) {
+    return value.replace(/[^a-zA-Z0-9._-]/g, '_');
+  }
+
+  private teamObjectPrefix(conversationId: string, messageId: string) {
+    return [
+      'private',
+      'team-messaging',
+      this.keySegment(this.tenantId()),
+      this.keySegment(this.companyId()),
+      this.keySegment(conversationId),
+      this.keySegment(messageId),
+    ].join('/');
   }
 
   private eventChannel(userId: string) {
@@ -1068,6 +1085,163 @@ export class TeamService {
        LIMIT 50`,
       conversationId,
     );
+  }
+
+  async prepareAttachmentUpload(
+    currentUserId: string,
+    messageId: string,
+    input: { filename: string; mimeType: string; byteSize: number },
+  ) {
+    const allowed = new Set([
+      'image/jpeg',
+      'image/png',
+      'image/webp',
+      'audio/webm',
+      'audio/ogg',
+      'audio/mpeg',
+      'audio/mp4',
+      'application/pdf',
+      'text/plain',
+      'text/csv',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    ]);
+    const mimeType = input.mimeType.trim().toLowerCase();
+    if (!allowed.has(mimeType)) throw new BadRequestException('Bu dosya türü desteklenmiyor.');
+    if (!Number.isSafeInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > 15 * 1024 * 1024) {
+      throw new BadRequestException('Dosya boyutu 15 MB sınırını aşamaz.');
+    }
+
+    const messages = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT m.conversation_id AS "conversationId"
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND m.sender_user_id=$2::text
+         AND m.deleted_at IS NULL
+         AND cm.user_id=$2::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const message = messages[0];
+    if (!message) throw new NotFoundException('Dosya eklenebilecek mesaj bulunamadı.');
+
+    const objectKey = `${this.teamObjectPrefix(message.conversationId, messageId)}/${randomUUID()}`;
+    const signed = await this.objectStorage.presignPut(objectKey, mimeType);
+    return {
+      objectKey,
+      uploadUrl: signed.url,
+      expiresAt: signed.expiresAt,
+      requiredHeaders: signed.requiredHeaders,
+      maxBytes: 15 * 1024 * 1024,
+      filename: input.filename.slice(0, 255),
+    };
+  }
+
+  async completeAttachmentUpload(
+    currentUserId: string,
+    messageId: string,
+    input: { objectKey: string; filename: string },
+  ) {
+    const messages = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT m.conversation_id AS "conversationId"
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND m.sender_user_id=$2::text
+         AND m.deleted_at IS NULL
+         AND cm.user_id=$2::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const message = messages[0];
+    if (!message) throw new NotFoundException('Dosya eklenebilecek mesaj bulunamadı.');
+
+    const expectedPrefix = this.teamObjectPrefix(message.conversationId, messageId);
+    if (!input.objectKey.startsWith(`${expectedPrefix}/`)) {
+      throw new BadRequestException('Dosya bu mesajın güvenli saklama alanına ait değil.');
+    }
+
+    const head = await this.objectStorage.head(input.objectKey);
+    if (head.byteSize == null || head.byteSize <= 0 || head.byteSize > 15 * 1024 * 1024) {
+      await this.objectStorage.remove(input.objectKey).catch(() => undefined);
+      throw new BadRequestException('Yüklenen dosyanın boyutu geçersiz.');
+    }
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO team_message_attachments(
+         tenant_id,company_id,message_id,uploaded_by_user_id,
+         original_name,storage_name,mime_type,size_bytes
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,$7,$8)
+       RETURNING id`,
+      this.tenantId(),
+      this.companyId(),
+      messageId,
+      currentUserId,
+      input.filename.slice(0, 255),
+      input.objectKey,
+      head.mimeType ?? 'application/octet-stream',
+      head.byteSize,
+    );
+
+    await this.publishConversationEvent(message.conversationId, 'attachment.added', {
+      messageId,
+      attachmentId: rows[0]?.id ?? null,
+    });
+    return { id: rows[0]?.id };
+  }
+
+  async attachmentAccess(currentUserId: string, attachmentId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      storageName: string;
+      originalName: string;
+      mimeType: string;
+    }>>(
+      `SELECT
+         a.storage_name AS "storageName",
+         a.original_name AS "originalName",
+         a.mime_type AS "mimeType"
+       FROM team_message_attachments a
+       JOIN team_messages m ON m.id=a.message_id
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE a.id=$1::text
+         AND cm.user_id=$2::text
+         AND a.tenant_id=$3::text
+         AND a.company_id=$4::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      attachmentId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const attachment = rows[0];
+    if (!attachment) throw new NotFoundException('Dosya bulunamadı.');
+    if (!attachment.storageName.startsWith('private/team-messaging/')) {
+      return { mode: 'local' as const, mimeType: attachment.mimeType, originalName: attachment.originalName };
+    }
+    const signed = await this.objectStorage.presignGet(attachment.storageName);
+    return {
+      mode: 'object' as const,
+      url: signed.url,
+      expiresAt: signed.expiresAt,
+      mimeType: attachment.mimeType,
+      originalName: attachment.originalName,
+    };
   }
 
   async addAttachment(currentUserId: string, messageId: string, file: TeamUpload) {
