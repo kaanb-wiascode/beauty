@@ -220,7 +220,7 @@ export class TeamService {
        WHERE c.id=$1::text
          AND cm.user_id=$2::text
          AND cm.is_admin=TRUE
-         AND c.type='GROUP'
+         AND c.type IN ('GROUP','CHANNEL')
          AND c.tenant_id=$3::text
          AND c.company_id=$4::text
        LIMIT 1`,
@@ -229,7 +229,7 @@ export class TeamService {
       this.tenantId(),
       this.companyId(),
     );
-    if (!rows.length) throw new ForbiddenException('Bu grup için yönetici yetkiniz yok.');
+    if (!rows.length) throw new ForbiddenException('Bu konuşma için yönetici yetkiniz yok.');
   }
 
   async unreadSummary(currentUserId: string) {
@@ -859,6 +859,75 @@ export class TeamService {
     );
   }
 
+  async setConversationAdmin(
+    currentUserId: string,
+    conversationId: string,
+    userId: string,
+    isAdmin: boolean,
+  ) {
+    await this.requireGroupAdmin(currentUserId, conversationId);
+    if (userId === currentUserId && !isAdmin) {
+      throw new BadRequestException('Kendi yönetici yetkinizi bu ekrandan kaldıramazsınız.');
+    }
+    await this.requireActiveUser(userId);
+    const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
+      `UPDATE team_conversation_members cm
+       SET is_admin=$1
+       FROM team_conversations c
+       WHERE cm.conversation_id=$2::text
+         AND cm.user_id=$3::text
+         AND c.id=cm.conversation_id
+         AND c.type IN ('GROUP','CHANNEL')
+         AND c.tenant_id=$4::text
+         AND c.company_id=$5::text
+       RETURNING cm.user_id AS id`,
+      isAdmin,
+      conversationId,
+      userId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    if (!rows.length) throw new NotFoundException('Ekip üyesi bu konuşmada bulunamadı.');
+    await this.publishConversationEvent(conversationId, 'conversation.updated');
+    return { ok: true };
+  }
+
+  async announcementReaders(currentUserId: string, messageId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string; isAdmin: boolean }>>(
+      `SELECT m.conversation_id AS "conversationId", cm.is_admin AS "isAdmin"
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND cm.user_id=$2::text
+         AND c.announcement_only=TRUE
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const access = rows[0];
+    if (!access) throw new NotFoundException('Duyuru bulunamadı.');
+    if (!access.isAdmin) throw new ForbiddenException('Okuyanlar listesini yalnızca kanal yöneticileri görüntüleyebilir.');
+
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         u.id,
+         u."firstName" AS "firstName",
+         u."lastName" AS "lastName",
+         u.email,
+         ack.acknowledged_at AS "acknowledgedAt"
+       FROM team_announcement_acknowledgements ack
+       JOIN users u ON u.id=ack.user_id
+       WHERE ack.message_id=$1::text
+       ORDER BY ack.acknowledged_at DESC`,
+      messageId,
+    );
+  }
+
   async addGroupMember(currentUserId: string, conversationId: string, userId: string) {
     await this.requireGroupAdmin(currentUserId, conversationId);
     await this.requireActiveUser(userId);
@@ -1006,6 +1075,10 @@ export class TeamService {
       'image/jpeg',
       'image/png',
       'image/webp',
+      'audio/webm',
+      'audio/ogg',
+      'audio/mpeg',
+      'audio/mp4',
       'application/pdf',
       'text/plain',
       'text/csv',
