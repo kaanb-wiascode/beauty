@@ -55,7 +55,7 @@ function readErrorMessage(payload: unknown, fallback: string) {
 function redirectToLogin() {
   if (typeof window === "undefined") return;
   if (window.location.pathname.startsWith("/login")) return;
-  window.location.assign("/login");
+  window.location.href = "/login";
 }
 
 let refreshInFlight: Promise<string | null> | null = null;
