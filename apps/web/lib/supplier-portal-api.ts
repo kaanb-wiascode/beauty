@@ -16,7 +16,7 @@ type SupplierPortalApiOptions = {
 function redirectToSupplierLogin() {
   if (typeof window === "undefined") return;
   if (window.location.pathname.startsWith("/supplier-portal/login")) return;
-  window.location.href = "/supplier-portal/login";
+  window.location.replace(new URL("/supplier-portal/login", window.location.origin).toString());
 }
 
 function readMessage(payload: unknown, fallback: string) {
