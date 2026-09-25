@@ -153,7 +153,12 @@ export class TeamService {
       void this.redis.subscribe(channel, (raw) => {
         try {
           const parsed = JSON.parse(raw) as unknown;
-          subscriber.next({ data: parsed });
+          subscriber.next({
+            data:
+              parsed !== null && typeof parsed === 'object'
+                ? (parsed as Record<string, unknown>)
+                : { type: 'team.refresh' },
+          });
         } catch {
           subscriber.next({ data: { type: 'team.refresh' } });
         }
@@ -599,7 +604,13 @@ export class TeamService {
       if (!replyRows.length) throw new BadRequestException('Yanıtlanan mesaj bulunamadı.');
     }
 
-    const rows = await this.prisma.$queryRawUnsafe(
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      body: string;
+      replyToMessageId: string | null;
+      createdAt: Date;
+      senderUserId: string;
+    }>>(
       `INSERT INTO team_messages(
          tenant_id,company_id,conversation_id,sender_user_id,body,reply_to_message_id
        ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6::text)
@@ -628,7 +639,7 @@ export class TeamService {
       this.companyId(),
     );
 
-    const created = rows[0] as { id?: string } | undefined;
+    const created = rows[0];
     const senderRows = await this.prisma.$queryRawUnsafe<Array<{ senderName: string }>>(
       `SELECT concat_ws(' ',"firstName","lastName") AS "senderName"
        FROM users
@@ -1390,7 +1401,12 @@ export class TeamService {
 
   async updatePresence(currentUserId: string, input: PresenceInput) {
     await this.requireActiveUser(currentUserId);
-    const rows = await this.prisma.$queryRawUnsafe(
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      status: PresenceStatus;
+      statusText: string | null;
+      statusUntil: Date | null;
+      lastSeenAt: Date;
+    }>>(
       `INSERT INTO team_user_presence(
          tenant_id,company_id,user_id,status,status_text,status_until,last_seen_at
        ) VALUES($1::text,$2::text,$3::text,$4,$5,$6::timestamptz,NOW())
