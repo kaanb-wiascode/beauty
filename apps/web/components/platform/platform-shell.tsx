@@ -7,8 +7,8 @@ import type { ReactNode } from "react";
 const navigation = [
   { href: "/platform", label: "Command Center", eyebrow: "Overview" },
   { href: "/platform/customers", label: "Customers", eyebrow: "Tenants" },
-  { href: "/platform/control-plane", label: "Operasyon Merkezi", eyebrow: "Control Plane" },
-  { href: "/platform/customer-ops", label: "Müşteri Operasyonu", eyebrow: "Customer Ops" },
+  { href: "/platform/control-plane", label: "Operasyon Merkezi", eyebrow: "Platform Operasyonları" },
+  { href: "/platform/customer-ops", label: "Müşteri Operasyonu", eyebrow: "Müşteri Operasyonları" },
   { href: "/platform/iam", label: "Platform IAM", eyebrow: "Access" },
   { href: "/platform/approvals", label: "Onay kuyruğu", eyebrow: "Yönetim" },
   { href: "/platform/audit", label: "Denetim kayıtları", eyebrow: "Güvenlik" },
@@ -33,12 +33,12 @@ export function PlatformShell({ children }: { children: ReactNode }) {
                 <div className="grid h-10 w-10 place-items-center rounded-2xl border border-white/15 bg-white/10 text-sm font-semibold shadow-[0_0_40px_rgba(109,94,252,.18)]">V</div>
                 <div>
                   <p className="text-[10px] font-semibold uppercase tracking-[.22em] text-violet-300">VALOO</p>
-                  <h1 className="mt-0.5 text-sm font-semibold tracking-tight text-white">Platform Control Plane</h1>
+                  <h1 className="mt-0.5 text-sm font-semibold tracking-tight text-white">Platform Yönetim Merkezi</h1>
                 </div>
               </div>
-              <p className="mt-4 hidden max-w-[220px] text-xs leading-5 text-white/45 lg:block">Tenant operasyonlarından ayrılmış sağlayıcı yönetim yüzeyi.</p>
+              <p className="mt-4 hidden max-w-[220px] text-xs leading-5 text-white/45 lg:block">İşletmelerden bağımsız çalışan merkezi platform yönetim alanı.</p>
             </div>
-            <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.12em] text-emerald-300 lg:mt-5 lg:inline-flex">Control plane</div>
+            <div className="rounded-full border border-emerald-400/20 bg-emerald-400/10 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[.12em] text-emerald-300 lg:mt-5 lg:inline-flex">Platform yönetimi</div>
           </div>
 
           <nav className="mt-5 grid grid-cols-2 gap-2 lg:mt-10 lg:grid-cols-1">
@@ -59,7 +59,7 @@ export function PlatformShell({ children }: { children: ReactNode }) {
 
           <div className="mt-8 hidden rounded-2xl border border-amber-300/15 bg-amber-300/[.06] p-4 lg:block">
             <p className="text-[10px] font-semibold uppercase tracking-[.14em] text-amber-200/80">Güvenlik sınırı</p>
-            <p className="mt-2 text-[11px] leading-5 text-white/45">Bu yüzey tenant rol ve izinlerinden bağımsız platform IAM ile korunur.</p>
+            <p className="mt-2 text-[11px] leading-5 text-white/45">Bu alan işletme içi rollerden bağımsız platform erişim yetkileriyle korunur.</p>
           </div>
         </aside>
 
