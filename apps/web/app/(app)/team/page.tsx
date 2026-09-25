@@ -2,6 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, apiFormData, apiResponse, ApiError } from "@/lib/api";
+import { Alert, Button, PageHeader, Spinner, TextInput } from "@/components/ui";
+import { Modal } from "@/components/modal";
+import { SearchField } from "@/components/data-view";
+import { ValooSelect } from "@/components/valoo-controls";
 import { getStoredUser } from "@/lib/auth";
 
 type PresenceStatus =
@@ -797,59 +801,44 @@ export default function TeamPage() {
   const selectablePeople = people.filter((person) => person.id !== currentUser?.id);
 
   if (loading) {
-    return <div className="flex min-h-[520px] items-center justify-center text-[13px] text-[var(--muted)]">Ekip iletişimi hazırlanıyor...</div>;
+    return <Spinner label="Ekip iletişimi hazırlanıyor..." />;
   }
 
   return (
     <div className="mx-auto max-w-[1600px] space-y-5 pb-8">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted)]">EKİP</p>
-          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Mesajlar ve Ekip Durumu</h1>
-          <p className="mt-1 text-[13px] text-[var(--muted)]">Ekip içi konuşmalar, grup mesajları ve anlık müsaitlik tek ekranda.</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {notificationPermission === "default" ? (
-            <button
-              type="button"
-              onClick={() => void enableNotifications()}
-              className="h-10 rounded-[12px] border border-[var(--line)] bg-white px-3 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)]"
-            >
-              Bildirimleri Aç
-            </button>
-          ) : null}
-          <select
-            value={status}
-            onChange={(event) => void changeStatus(event.target.value as PresenceStatus)}
-            className="h-10 rounded-[12px] border border-[var(--line)] bg-white px-3 text-[12px] font-medium text-[var(--ink)] outline-none"
-            aria-label="Ekip durumu"
-          >
-            {Object.entries(STATUS_LABELS).map(([value, label]) => (
-              <option key={value} value={value}>{label}</option>
-            ))}
-          </select>
-          <button
-            type="button"
-            onClick={() => setComposeOpen(true)}
-            className="h-10 rounded-[12px] bg-[var(--ink)] px-4 text-[12px] font-semibold text-white transition hover:opacity-90"
-          >
-            Yeni konuşma
-          </button>
-        </div>
-      </header>
+      <PageHeader
+        title="Mesajlar ve Ekip Durumu"
+        description="Ekip içi konuşmalar, kanallar, duyurular ve anlık müsaitlik bilgilerini tek ekrandan yönetin."
+        action={
+          <div className="flex flex-wrap items-center gap-2">
+            {notificationPermission === "default" ? (
+              <Button variant="secondary" size="sm" onClick={() => void enableNotifications()}>
+                Bildirimleri Aç
+              </Button>
+            ) : null}
+            <div className="min-w-[170px]">
+              <ValooSelect
+                value={status}
+                onChange={(value) => void changeStatus(value as PresenceStatus)}
+                ariaLabel="Ekip durumu"
+                searchable={false}
+                options={Object.entries(STATUS_LABELS).map(([value, label]) => ({ value, label }))}
+              />
+            </div>
+            <Button size="sm" onClick={() => setComposeOpen(true)}>
+              Yeni konuşma
+            </Button>
+          </div>
+        }
+      />
 
-      {error ? (
-        <div className="flex items-center justify-between rounded-[14px] border border-rose-200 bg-rose-50 px-4 py-3 text-[12px] text-rose-700">
-          <span>{error}</span>
-          <button type="button" onClick={() => setError("")} className="font-semibold">Kapat</button>
-        </div>
-      ) : null}
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid min-h-[680px] overflow-hidden rounded-[24px] border border-[var(--line)] bg-white shadow-[0_18px_60px_rgba(27,24,39,.05)] xl:grid-cols-[320px_minmax(0,1fr)_280px]">
+      <section className="grid min-h-[680px] overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(17,70,104,.045)] xl:grid-cols-[320px_minmax(0,1fr)_300px]">
         <aside className="border-b border-[var(--line)] xl:border-b-0 xl:border-r">
-          <div className="border-b border-[var(--line)] px-4 py-4">
-            <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Konuşmalar</p>
-            <p className="mt-1 text-[11px] text-[var(--muted-soft)]">{conversations.length} aktif konuşma</p>
+          <div className="border-b border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-4">
+            <p className="text-[13px] font-semibold text-[var(--ink)]">Konuşmalar</p>
+            <p className="mt-1 text-[11px] text-[var(--muted)]">{conversations.length} aktif konuşma</p>
           </div>
           <div className="max-h-[610px] overflow-y-auto p-2">
             {conversations.map((conversation) => (
@@ -857,16 +846,16 @@ export default function TeamPage() {
                 key={conversation.id}
                 type="button"
                 onClick={() => setActiveId(conversation.id)}
-                className={`mb-1 flex w-full items-start gap-3 rounded-[16px] p-3 text-left transition ${activeId === conversation.id ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-2)]"}`}
+                className={`mb-1 flex w-full items-start gap-3 rounded-[14px] border p-3 text-left transition ${activeId === conversation.id ? "border-[rgba(22,116,189,.16)] bg-[var(--accent-soft)] shadow-[0_3px_12px_rgba(17,70,104,.05)]" : "border-transparent hover:border-[var(--line)] hover:bg-[var(--surface-2)]"}`}
               >
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[#f1edff] text-[11px] font-semibold text-[#6f54c7]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">
                   {conversation.type === "CHANNEL" ? (conversation.announcementOnly ? "DU" : "#") : conversation.type === "GROUP" ? "GR" : conversation.displayName.slice(0, 2).toUpperCase()}
                 </div>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center gap-2">
                     <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{conversation.displayName}</p>
                     {conversation.unreadCount > 0 ? (
-                      <span className="ml-auto min-w-5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-center text-[9px] font-semibold text-white">
+                      <span className="ml-auto min-w-5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-center text-[9px] font-semibold text-white shadow-[0_3px_8px_rgba(22,116,189,.16)]">
                         {conversation.unreadCount}
                       </span>
                     ) : null}
@@ -886,7 +875,7 @@ export default function TeamPage() {
         <main className="flex min-h-[620px] min-w-0 flex-col">
           {active ? (
             <>
-              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-[var(--line)] bg-white/90 px-5 py-4 backdrop-blur-xl">
                 <div>
                   <h2 className="text-[14px] font-semibold text-[var(--ink)]">{active.displayName}</h2>
                   <p className="mt-0.5 text-[10px] text-[var(--muted)]">
@@ -895,11 +884,12 @@ export default function TeamPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <div className="relative">
-                    <input
+                    <SearchField
                       value={searchText}
                       onChange={(event) => void searchMessages(event.target.value)}
                       placeholder="Mesaj ara..."
-                      className="h-9 w-[180px] rounded-[11px] border border-[var(--line)] bg-white px-3 text-[10px] outline-none focus:border-[#9f89e8]"
+                      aria-label="Mesaj ara"
+                      className="w-[220px]"
                     />
                     {searchText ? (
                       <div className="absolute right-0 top-11 z-20 w-[320px] overflow-hidden rounded-[16px] border border-[var(--line)] bg-white shadow-[0_18px_60px_rgba(27,24,39,.14)]">
@@ -923,13 +913,13 @@ export default function TeamPage() {
                       </div>
                     ) : null}
                   </div>
-                  <span className="rounded-full bg-[#f4f2f8] px-3 py-1 text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]">
+                  <span className="rounded-full border border-[rgba(22,116,189,.12)] bg-[var(--accent-soft)] px-3 py-1.5 text-[10px] font-semibold text-[var(--accent)]">
                     {active.type === "CHANNEL" ? (active.announcementOnly ? "Duyuru" : "Kanal") : active.type === "GROUP" ? "Grup" : "Direkt"}
                   </span>
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto bg-[#fcfbfd] px-5 py-5">
+              <div className="flex-1 overflow-y-auto bg-[linear-gradient(180deg,var(--surface-2)_0%,#fff_100%)] px-5 py-5">
                 {messagesLoading ? (
                   <div className="py-12 text-center text-[12px] text-[var(--muted)]">Mesajlar yükleniyor...</div>
                 ) : messages.length ? (
@@ -938,7 +928,7 @@ export default function TeamPage() {
                       const mine = message.senderUserId === currentUser?.id;
                       return (
                         <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-                          <div className={`group/message max-w-[76%] rounded-[18px] px-4 py-3 ${mine ? "bg-[var(--ink)] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
+                          <div className={`group/message max-w-[76%] rounded-[18px] px-4 py-3 shadow-[0_3px_12px_rgba(17,70,104,.04)] ${mine ? "bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
                             {!mine ? <p className="mb-1 text-[9px] font-semibold text-[#7458c8]">{message.senderName}</p> : null}
                             {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[#9c86e8] bg-[#faf8ff] text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
                             <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
@@ -1013,7 +1003,7 @@ export default function TeamPage() {
                 )}
               </div>
 
-              <form onSubmit={sendMessage} className="border-t border-[var(--line)] bg-white p-4">
+              <form onSubmit={sendMessage} className="border-t border-[var(--line)] bg-white/95 p-4 backdrop-blur-xl">
                 {!canPost ? (
                   <div className="mb-3 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-medium text-amber-800">
                     Bu duyuru kanalında yalnızca yöneticiler mesaj paylaşabilir.
@@ -1033,7 +1023,7 @@ export default function TeamPage() {
                     <button type="button" onClick={() => { setReplyTo(null); setEditingMessage(null); setMessageText(""); }} className="ml-3 text-[11px] font-semibold text-[var(--muted)]">×</button>
                   </div>
                 ) : null}
-                <div className="relative flex items-end gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-2">
+                <div className="relative flex items-end gap-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/70 p-2 shadow-[inset_0_1px_0_rgba(255,255,255,.75)] focus-within:border-[rgba(22,116,189,.22)] focus-within:bg-white focus-within:ring-4 focus-within:ring-[var(--accent-soft)]">
                   <textarea
                     value={messageText}
                     disabled={!canPost}
@@ -1067,11 +1057,11 @@ export default function TeamPage() {
                     type="button"
                     disabled={!canPost}
                     onClick={() => void (recording ? stopVoiceRecording() : startVoiceRecording())}
-                    className={`h-10 rounded-[12px] border px-3 text-[10px] font-semibold ${recording ? "border-rose-200 bg-rose-50 text-rose-700" : "border-[var(--line)] bg-white text-[var(--muted)] hover:text-[var(--ink)]"} disabled:cursor-not-allowed disabled:opacity-50`}
+                    className={`h-10 rounded-[12px] border px-3 text-[10px] font-semibold transition ${recording ? "border-[rgba(196,81,103,.18)] bg-[var(--danger-soft)] text-[var(--danger)]" : "border-[var(--line)] bg-white text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]"} disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     {recording ? `Kaydı bitir · ${recordingSeconds}s` : "Ses kaydet"}
                   </button>
-                  <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] ${canPost ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-not-allowed opacity-50"}`}>
+                  <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] transition ${canPost ? "cursor-pointer hover:border-[var(--line-strong)] hover:text-[var(--accent)]" : "cursor-not-allowed opacity-50"}`}>
                     {selectedFile ? (selectedFile.type.startsWith("audio/") ? "Ses kaydı hazır" : "Dosya seçildi") : "Dosya ekle"}
                     <input
                       type="file"
@@ -1084,7 +1074,7 @@ export default function TeamPage() {
                   <button
                     type="submit"
                     disabled={!canPost || sending || (!messageText.trim() && !selectedFile)}
-                    className="h-10 rounded-[12px] bg-[var(--accent)] px-4 text-[11px] font-semibold text-white disabled:cursor-not-allowed disabled:opacity-40"
+                    className="h-10 rounded-[12px] border border-[var(--accent)] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] px-4 text-[11px] font-semibold text-white shadow-[0_7px_18px_rgba(22,116,189,.17)] transition hover:shadow-[0_9px_24px_rgba(22,116,189,.22)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? "Gönderiliyor..." : "Gönder"}
                   </button>
@@ -1101,7 +1091,7 @@ export default function TeamPage() {
           ) : (
             <div className="flex flex-1 items-center justify-center p-8 text-center">
               <div>
-                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-[#f1edff] text-[18px] font-semibold text-[#6f54c7]">E</div>
+                <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-[18px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">E</div>
                 <p className="mt-4 text-[15px] font-semibold text-[var(--ink)]">Ekip iletişimine hoş geldiniz</p>
                 <p className="mx-auto mt-1 max-w-sm text-[11px] leading-5 text-[var(--muted)]">Bir ekip üyesiyle birebir konuşun veya bir grup oluşturarak departman iletişimini tek yerde yönetin.</p>
               </div>
@@ -1118,7 +1108,7 @@ export default function TeamPage() {
               </div>
               <div className="max-h-[180px] overflow-y-auto px-2 pb-3">
                 {pinnedMessages.map((pinned) => (
-                  <div key={pinned.id} className="rounded-[11px] px-2 py-2 hover:bg-[var(--surface-2)]">
+                  <div key={pinned.id} className="rounded-[12px] border border-transparent px-2.5 py-2.5 transition hover:border-[var(--line)] hover:bg-[var(--surface-2)]">
                     <p className="text-[8px] font-semibold text-[#7657e8]">{pinned.senderName}</p>
                     <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-[var(--ink)]">{pinned.body}</p>
                   </div>
@@ -1135,7 +1125,7 @@ export default function TeamPage() {
                     <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{conversationMembers.length} kişi</p>
                   </div>
                   {currentConversationMember?.isAdmin ? (
-                    <button type="button" onClick={() => setMemberPickerOpen((value) => !value)} className="rounded-[9px] bg-[#f1edff] px-2.5 py-1.5 text-[9px] font-semibold text-[#6f54c7]">+ Üye</button>
+                    <Button type="button" variant="ghost" size="sm" onClick={() => setMemberPickerOpen((value) => !value)}>+ Üye</Button>
                   ) : null}
                 </div>
 
@@ -1145,9 +1135,9 @@ export default function TeamPage() {
                       value={groupEditing ? groupNameDraft : active.displayName}
                       onFocus={() => { setGroupEditing(true); setGroupNameDraft(active.displayName); }}
                       onChange={(event) => { setGroupEditing(true); setGroupNameDraft(event.target.value); }}
-                      className="h-9 min-w-0 flex-1 rounded-[10px] border border-[var(--line)] px-2.5 text-[10px] outline-none focus:border-[#9f89e8]"
+                      className="control h-10 min-w-0 flex-1 text-[11px]"
                     />
-                    {groupEditing ? <button type="button" onClick={() => void renameActiveGroup()} className="rounded-[10px] bg-[var(--ink)] px-3 text-[9px] font-semibold text-white">Kaydet</button> : null}
+                    {groupEditing ? <Button type="button" size="sm" onClick={() => void renameActiveGroup()}>Kaydet</Button> : null}
                   </div>
                 ) : null}
 
@@ -1168,14 +1158,14 @@ export default function TeamPage() {
               <div className="max-h-[240px] overflow-y-auto px-2 pb-3">
                 {conversationMembers.map((member) => (
                   <div key={member.id} className="flex items-center gap-3 rounded-[12px] px-2 py-2">
-                    <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1edff] text-[9px] font-semibold text-[#6f54c7]">{initials(member.firstName, member.lastName)}</div>
+                    <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[9px] font-semibold text-[var(--accent)]">{initials(member.firstName, member.lastName)}</div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
                       <p className="truncate text-[9px] text-[var(--muted)]">{member.isAdmin ? (active.type === "CHANNEL" ? "Kanal yöneticisi" : "Grup yöneticisi") : member.roleName}</p>
                     </div>
                     {currentConversationMember?.isAdmin && member.id !== currentUser?.id ? (
                       <div className="flex items-center gap-1">
-                        <button type="button" onClick={() => void setConversationAdmin(member.id, !member.isAdmin)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-[#6f54c7] hover:bg-[#f1edff]">
+                        <button type="button" onClick={() => void setConversationAdmin(member.id, !member.isAdmin)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)]">
                           {member.isAdmin ? "Yöneticiliği kaldır" : "Yönetici yap"}
                         </button>
                         {!member.isAdmin ? <button type="button" onClick={() => void removeMember(member.id)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-rose-600 hover:bg-rose-50">Çıkar</button> : null}
@@ -1191,7 +1181,7 @@ export default function TeamPage() {
             <p className="mt-1 text-[11px] text-[var(--muted-soft)]">{people.filter((person) => person.isOnline).length} kişi çevrim içi</p>
           </div>
           {me ? (
-            <div className="border-b border-[var(--line)] bg-[#faf8ff] p-4">
+            <div className="border-b border-[var(--line)] bg-[var(--accent-soft)]/45 p-4">
               <div className="flex items-center gap-3">
                 <PersonAvatar person={me} />
                 <div className="min-w-0">
