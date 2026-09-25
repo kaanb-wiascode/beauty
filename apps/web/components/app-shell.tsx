@@ -303,7 +303,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         event.type === "message.deleted" ||
         event.type === "conversation.created" ||
         event.type === "conversation.updated" ||
-        event.type === "conversation.removed"
+        event.type === "conversation.removed" ||
+        event.type === "read.updated"
       ) {
         void loadUnread();
       }
