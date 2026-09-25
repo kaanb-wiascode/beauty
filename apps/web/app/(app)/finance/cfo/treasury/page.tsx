@@ -109,6 +109,8 @@ export default function TreasuryCockpitPage() {
   }, [load]);
 
   const reportingCurrency = position?.reportingCurrency ?? "TRY";
+  const book = position?.book;
+  const bankVariance = position?.bankVariance;
   const providerBalances = position?.provider?.bankBalancesByCurrency ?? [];
   const settlementForecast = position?.posSettlementForecast;
   const settlementTotals = settlementForecast?.totalsByCurrency ?? [];
@@ -158,11 +160,11 @@ export default function TreasuryCockpitPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <FinanceMetric label="Mevcut Nakit" value={money(position?.book.actualCash)} detail="Kasa Ve Banka Toplamı" tone="success" />
-        <FinanceMetric label="Hesaba Geçmeyi Bekleyen" value={money(position?.book.nearCash)} detail="POS Alacakları" />
-        <FinanceMetric label="Toplam Likit Pozisyon" value={money(position?.book.totalLiquidPosition)} detail="Mevcut Nakit Ve Bekleyen POS" tone="success" />
-        <FinanceMetric label="Canlı Banka Bakiyesi" value={position?.bankVariance.comparable ? money(position.bankVariance.providerCurrentBalance, reportingCurrency) : "—"} detail={position?.bankVariance.comparable ? `${reportingCurrency} Güncel Banka Bakiyesi` : "Raporlama Para Birimi Ayarlanmalı"} />
-        <FinanceMetric label="Banka Bakiye Farkı" value={position?.bankVariance.comparable ? signedMoney(position.bankVariance.currentVariance, reportingCurrency) : "—"} detail="Canlı Banka Bakiyesi İle Muhasebe Bakiyesi Farkı" tone={varianceTone(position?.bankVariance.currentVariance)} />
+        <FinanceMetric label="Mevcut Nakit" value={money(book?.actualCash)} detail="Kasa Ve Banka Toplamı" tone="success" />
+        <FinanceMetric label="Hesaba Geçmeyi Bekleyen" value={money(book?.nearCash)} detail="POS Alacakları" />
+        <FinanceMetric label="Toplam Likit Pozisyon" value={money(book?.totalLiquidPosition)} detail="Mevcut Nakit Ve Bekleyen POS" tone="success" />
+        <FinanceMetric label="Canlı Banka Bakiyesi" value={bankVariance?.comparable ? money(bankVariance?.providerCurrentBalance, reportingCurrency) : "—"} detail={bankVariance?.comparable ? `${reportingCurrency} Güncel Banka Bakiyesi` : "Raporlama Para Birimi Ayarlanmalı"} />
+        <FinanceMetric label="Banka Bakiye Farkı" value={bankVariance?.comparable ? signedMoney(bankVariance?.currentVariance, reportingCurrency) : "—"} detail="Canlı Banka Bakiyesi İle Muhasebe Bakiyesi Farkı" tone={varianceTone(bankVariance?.currentVariance)} />
         <FinanceMetric label="Beklenen POS Geçişi" value={money(forecastTotal?.netAmount, reportingCurrency)} detail={`${forecastTotal?.transactionCount ?? 0} İşlem`} />
       </section>
 
@@ -172,8 +174,8 @@ export default function TreasuryCockpitPage() {
         </FinancePanel>
         <FinancePanel title="Nakit Kontrolü" description="Muhasebe, Banka Ve POS Görünümü">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Mini label="Kasa" value={money(position?.book.cashOnHand)} />
-            <Mini label="Bankalar" value={money(position?.book.bankBalance)} />
+            <Mini label="Kasa" value={money(book?.cashOnHand)} />
+            <Mini label="Bankalar" value={money(book?.bankBalance)} />
             <Mini label="Kullanılabilir Banka Bakiyesi" value={providerBalance ? money(providerBalance.availableBalance, providerBalance.currency) : "—"} />
             <Mini label="Mutabakat Oranı" value={percent(reconciliation?.matched, reconciliation?.total)} />
             <Mini label="Geçiş Tarihi Bilinmeyen POS" value={money(unknownTiming?.netAmount, reportingCurrency)} />
