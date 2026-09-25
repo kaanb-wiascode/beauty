@@ -37,7 +37,7 @@ import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
-import { formatDuration, formatPrice, optionalText, serviceStatusLabel } from "@/lib/format";
+import { formatDuration, optionalText, serviceStatusLabel } from "@/lib/format";
 import type { CreateServiceInput, Paginated, Service } from "@/lib/types";
 
 type FormState = {
