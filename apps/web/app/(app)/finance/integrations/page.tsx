@@ -18,6 +18,8 @@ type CredentialStatus = { configured: boolean; fields: string[]; requiredFields:
 type BankTransaction = { id: string; bankName: string; bookedAt: string; amount: number | string; currency: string; description: string | null; counterpartyName: string | null; reconciliationStatus: string };
 type Liquidity = { accountCount: number; byCurrency: Record<string, { current: number; available: number }> };
 type PosSummary = { currencies: Array<{ currency: string; nearCash: number | string; settled: number | string; transactionCount: number }> };
+type TreasuryPosition = { accountCount: number; byCurrency: Record<string, { cash: number; nearCash: number; totalLiquidity: number; currentBankBalance: number; settledPos: number }> };
+type SettlementForecast = { horizonDays: number; totals: Record<string, { grossAmount: number; feeAmount: number; netAmount: number; transactionCount: number }>; days: Array<{ date: string; currency: string; transactionCount: number; grossAmount: number | string; feeAmount: number | string; netAmount: number | string }> };
 type ConnectResult = { integrationId: string; provider: string; mode: string; message: string; authorizationUrl?: string };
 type DetailsState = { health?: Health; credentials?: CredentialStatus };
 
@@ -47,6 +49,8 @@ export default function FinancialIntegrationsPage() {
   const [liquidity, setLiquidity] = useState<Liquidity | null>(null);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [posSummary, setPosSummary] = useState<PosSummary | null>(null);
+  const [treasuryPosition, setTreasuryPosition] = useState<TreasuryPosition | null>(null);
+  const [settlementForecast, setSettlementForecast] = useState<SettlementForecast | null>(null);
   const [kind, setKind] = useState<IntegrationKind>("OPEN_BANKING");
   const [provider, setProvider] = useState("");
   const [displayName, setDisplayName] = useState("Ana Banka Bağlantısı");
@@ -61,18 +65,22 @@ export default function FinancialIntegrationsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [providerRows, integrationRows, liquidityData, transactionRows, posData] = await Promise.all([
+      const [providerRows, integrationRows, liquidityData, transactionRows, posData, treasuryData, forecastData] = await Promise.all([
         api<Provider[]>("/financial-integrations/providers"),
         api<Integration[]>("/financial-integrations"),
         api<Liquidity>("/financial-integrations/liquidity"),
         api<BankTransaction[]>("/financial-integrations/bank-transactions?limit=50"),
         api<PosSummary>("/financial-integrations/pos/summary"),
+        api<TreasuryPosition>("/financial-integrations/treasury-position"),
+        api<SettlementForecast>("/financial-integrations/pos/settlement-forecast?days=14"),
       ]);
       setProviders(providerRows);
       setIntegrations(integrationRows);
       setLiquidity(liquidityData);
       setTransactions(transactionRows);
       setPosSummary(posData);
+      setTreasuryPosition(treasuryData);
+      setSettlementForecast(forecastData);
       setError(null);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Banka Ve Ödeme Bağlantıları Yüklenemedi.");
@@ -89,7 +97,9 @@ export default function FinancialIntegrationsPage() {
     integrations.length > 0 ||
     Boolean(liquidity) ||
     transactions.length > 0 ||
-    Boolean(posSummary);
+    Boolean(posSummary) ||
+    Boolean(treasuryPosition) ||
+    Boolean(settlementForecast);
   useEffect(() => {
     setProvider(kindProviders[0]?.provider ?? "");
     setDisplayName(kind === "OPEN_BANKING" ? "Ana Banka Bağlantısı" : "Online POS");
@@ -210,6 +220,27 @@ export default function FinancialIntegrationsPage() {
       <FinancePanel title="Yeni Bağlantı" description="Yalnızca Sistem Tarafından Desteklenen Banka Ve Ödeme Kuruluşları Gösterilir."><FormSection><div className="grid grid-cols-2 gap-2 rounded-[14px] bg-[var(--surface-2)] p-1.5">{(["OPEN_BANKING", "VIRTUAL_POS"] as IntegrationKind[]).map((value) => <button key={value} type="button" onClick={() => setKind(value)} className={`rounded-[11px] px-3 py-2.5 text-[11px] font-semibold ${kind === value ? "bg-[var(--surface)] text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>{value === "OPEN_BANKING" ? "Banka Bağla" : "Sanal POS Bağla"}</button>)}</div><label className="block"><span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">Hizmet Sağlayıcı</span><Select className="control h-11 w-full" value={provider} onChange={(event) => setProvider(event.target.value)}>{kindProviders.map((item) => <option key={item.provider} value={item.provider}>{item.displayName}{item.runtimeReady ? "" : " · Kısmen Kullanıma Hazır"}</option>)}</Select></label><label className="block"><span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">Bağlantı Adı</span><TextInput value={displayName} onChange={(event) => setDisplayName(event.target.value)}/></label><FormHint tone="warning" title="Bağlantı Bilgisi Güvenliği">İnternet Bankacılığı Kullanıcı Adı Veya Şifresi Toplanmaz. Gizli Bilgiler Yalnızca Güvenli Kasada Şifreli Olarak Saklanır Ve Sonradan Görüntülenmez.</FormHint></FormSection><FormActions><Button type="button" onClick={() => void createIntegration()} disabled={busy !== null || displayName.trim().length < 2 || !provider}>{busy === "create" ? "Oluşturuluyor…" : "Bağlantıyı Oluştur"}</Button></FormActions></FinancePanel>
 
       <FinancePanel title="Bağlantılar" description="Bağlantı Durumu, İzin Süresi Ve Veri Güncelleme Yönetimi"><div className="space-y-3">{integrations.map((item) => { const state = details[item.id]; const health = state?.health; const credentialFields = state?.credentials?.requiredFields ?? providers.find((entry) => entry.kind === item.kind && entry.provider === item.provider)?.credentialFields ?? []; const isOpen = expanded === item.id; return <article key={item.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/30 p-4"><div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between"><div className="min-w-0"><div className="flex flex-wrap items-center gap-2"><p className="truncate text-[13px] font-semibold text-[var(--ink)]">{item.displayName}</p><FinanceStatus status={financeStatus(item.status)} label={item.status}/>{health ? <FinanceStatus status={financeStatus(health.healthy ? "HEALTHY" : "ATTENTION")} label={health.healthy ? "HEALTHY" : "ATTENTION"}/> : null}</div><p className="mt-1 text-[11px] text-[var(--muted)]">{item.provider} · {item.kind === "OPEN_BANKING" ? "Banka" : "Sanal POS"}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">Son Güncelleme: {dateTime(item.lastSyncAt)}{item.consentExpiresAt ? ` · Bağlantı İzni Bitişi: ${dateTime(item.consentExpiresAt)}` : ""}</p>{item.lastError ? <p className="mt-1 text-[10px] text-[var(--danger)]">Bağlantı Kontrolü Gerekiyor.</p> : null}</div><div className="flex flex-wrap gap-2"><Button variant="secondary" onClick={() => void (isOpen ? Promise.resolve(setExpanded(null)) : loadDetails(item.id))}>{isOpen ? "Kapat" : "Yönet"}</Button>{item.status === "CONNECTED" ? <><Button variant="secondary" onClick={() => void syncNow(item.id)} disabled={busy !== null}>Verileri Güncelle</Button><Button variant="secondary" onClick={() => void disconnect(item.id)} disabled={busy !== null}>Bağlantıyı Kes</Button></> : <Button onClick={() => void connect(item.id)} disabled={busy !== null}>Bağlan</Button>}</div></div>{isOpen ? <div className="mt-4 space-y-4 border-t border-[var(--line)] pt-4"><div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Mini label="Bağlantı Desteği" value={health?.adapterAvailable ? "Hazır" : "Kullanılamıyor"}/><Mini label="Çalışma Durumu" value={health?.runtimeReady ? "Hazır" : "Kısmen Hazır"}/><Mini label="Bağlantı Bilgileri" value={health?.hasCredentials ? "Ayarlanmış" : "Eksik"}/><Mini label="Son Veri Güncelleme Durumu" value={userLabel(health?.sync.lastStatus)}/></div>{health?.consent.expiresAt ? <FormHint tone={health.consent.expired || health.consent.expiringSoon ? "warning" : "info"}>Bağlantı İzni Bitişi: {dateTime(health.consent.expiresAt)}{health.consent.expired ? " · Süresi Doldu" : health.consent.expiringSoon ? " · Yakında Dolacak" : ""}</FormHint> : null}{health?.sync.stale ? <FormHint tone="warning">Son Başarılı Veri Güncellemesi Eski. Verileri Güncelle Seçeneğini Kullanmanız Önerilir.</FormHint> : null}{health?.banking ? <div className="grid gap-3 sm:grid-cols-3"><Mini label="Aktif Hesap" value={String(health.banking.activeAccountCount)}/><Mini label="Pasif Hesap" value={String(health.banking.inactiveAccountCount)}/><Mini label="Eşleştirilmemiş Hareket" value={String(health.banking.unmatchedTransactionCount)}/></div> : null}{item.authType === "API_KEY" ? <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">Bağlantı Bilgileri</p><p className="mt-1 text-[10px] text-[var(--muted)]">Gizli Değerler Sonradan Görüntülenmez. Yalnızca Hangi Alanların Ayarlanmış Olduğu Gösterilir.</p></div>{state?.credentials?.configured ? <Button variant="secondary" onClick={() => void clearCredentials(item.id)} disabled={busy !== null}>Güvenli Kasadan Temizle</Button> : null}</div><FormGrid className="mt-4">{credentialFields.map((field) => <label key={field.key} className="block"><span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">{field.label}{field.required ? " *" : ""}</span><input type={field.secret === false ? "text" : "password"} autoComplete="off" value={credentialValues[item.id]?.[field.key] ?? ""} onChange={(event) => setCredentialValues((current) => ({ ...current, [item.id]: { ...(current[item.id] ?? {}), [field.key]: event.target.value } }))} className="control h-11 w-full" placeholder={state?.credentials?.fields.includes(field.key) ? "Kaydedilmiş · Değiştirmek İçin Yeniden Girin" : ""}/></label>)}</FormGrid>{credentialFields.length ? <div className="mt-4 flex justify-end"><Button onClick={() => void saveCredentials(item)} disabled={busy !== null}>Bağlantı Bilgilerini Kaydet</Button></div> : <p className="mt-3 text-[10px] text-[var(--muted)]">Bu Bağlantı İçin Ek Bilgi Girişi Gerekmiyor.</p>}</div> : null}</div> : null}</article>; })}{!integrations.length ? <FinanceEmpty title="Henüz Banka Veya Ödeme Bağlantısı Yok."/> : null}</div></FinancePanel>
+    </section>
+
+    <section className="grid gap-5 xl:grid-cols-2">
+      <FinancePanel title="Hazine Pozisyonu" description="Banka bakiyesi ve hesaba geçmeyi bekleyen POS tutarlarını birlikte izleyin.">
+        <div className="space-y-3">
+          {Object.entries(treasuryPosition?.byCurrency ?? {}).map(([currency, row]) => <div key={currency} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 p-4">
+            <div className="flex items-center justify-between gap-4"><div><p className="text-[11px] font-semibold text-[var(--ink)]">{currency}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Toplam likidite</p></div><p className="text-[14px] font-semibold text-[var(--ink)]">{money(row.totalLiquidity,currency)}</p></div>
+            <div className="mt-3 grid grid-cols-2 gap-3"><Mini label="Nakit" value={money(row.cash,currency)}/><Mini label="Yakın Nakit" value={money(row.nearCash,currency)}/></div>
+          </div>)}
+          {!Object.keys(treasuryPosition?.byCurrency ?? {}).length ? <FinanceEmpty title="Hazine pozisyonu bulunmuyor."/> : null}
+        </div>
+      </FinancePanel>
+      <FinancePanel title="14 Günlük POS Tahsilat Tahmini" description="Henüz hesaba geçmemiş POS işlemlerinin beklenen tahsilat takvimi.">
+        <div className="space-y-3">
+          {settlementForecast?.days.slice(0,14).map((row,index) => <div key={`${row.date}-${row.currency}-${index}`} className="flex items-center justify-between gap-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3">
+            <div><p className="text-[11px] font-semibold text-[var(--ink)]">{new Date(row.date).toLocaleDateString("tr-TR")}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{row.transactionCount} işlem · {row.currency}</p></div>
+            <div className="text-right"><p className="text-[13px] font-semibold text-[var(--ink)]">{money(row.netAmount,row.currency)}</p><p className="mt-1 text-[9px] text-[var(--muted-soft)]">Net beklenen tahsilat</p></div>
+          </div>)}
+          {!settlementForecast?.days.length ? <FinanceEmpty title="Bekleyen POS tahsilatı bulunmuyor."/> : null}
+        </div>
+      </FinancePanel>
     </section>
 
     <section className="grid gap-5 xl:grid-cols-2"><FinancePanel title="Banka Pozisyonu" description="Para Birimi Bazında Mevcut Ve Kullanılabilir Bakiyeler"><div className="space-y-3">{totals.map(([currency, value]) => <div key={currency} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3"><div><p className="text-[11px] font-semibold text-[var(--ink)]">{currency}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Kullanılabilir Bakiye</p></div><div className="text-right"><p className="text-[13px] font-semibold text-[var(--ink)]">{money(value.available, currency)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Mevcut Bakiye: {money(value.current, currency)}</p></div></div>)}{!totals.length ? <FinanceEmpty title="Bağlı Banka Hesabı Bulunmuyor."/> : null}</div></FinancePanel><FinancePanel title="POS Pozisyonu" description="Henüz Hesaba Geçmeyen Ve Hesaba Geçen POS Tutarları"><div className="space-y-3">{posSummary?.currencies?.map((row) => <div key={row.currency} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3"><div className="flex justify-between"><span className="text-[11px] font-semibold text-[var(--ink)]">{row.currency}</span><span className="text-[10px] text-[var(--muted)]">{row.transactionCount} İşlem</span></div><div className="mt-3 grid grid-cols-2 gap-3"><Mini label="Hesaba Geçmeyi Bekleyen" value={money(row.nearCash, row.currency)}/><Mini label="Hesaba Geçen" value={money(row.settled, row.currency)}/></div></div>)}{!posSummary?.currencies?.length ? <FinanceEmpty title="POS İşlemi Bulunmuyor."/> : null}</div></FinancePanel></section>
