@@ -47,6 +47,11 @@ const groupMemberSchema = z.object({
   userId: z.string().uuid(),
 });
 
+const conversationAdminSchema = z.object({
+  userId: z.string().uuid(),
+  isAdmin: z.boolean(),
+});
+
 const renameGroupSchema = z.object({
   name: z.string().trim().min(1).max(120),
 });
@@ -182,6 +187,14 @@ export class TeamController {
     });
   }
 
+  @Get('messages/:id/acknowledgements')
+  announcementReaders(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.announcementReaders(user.sub, id);
+  }
+
   @Post('messages/:id/acknowledge')
   acknowledgeAnnouncement(
     @CurrentUser() user: JwtPayload,
@@ -233,6 +246,16 @@ export class TeamController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.team.conversationMembers(user.sub, id);
+  }
+
+  @Patch('conversations/:id/admin')
+  setConversationAdmin(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = conversationAdminSchema.parse(body);
+    return this.team.setConversationAdmin(user.sub, id, parsed.userId, parsed.isAdmin);
   }
 
   @Post('conversations/:id/members')
