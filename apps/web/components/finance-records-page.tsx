@@ -53,6 +53,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const basePath=expense?"/finance/expenses":"/finance/income";
   const title=expense?"Gider Yönetimi":"Gelir Yönetimi";
   const canManage=hasPermission("finance","manage");
+  const canReadAccounting=hasPermission("accounting","read");
 
   const[records,setRecords]=useState<FinanceRecord[]>([]);
   const[categories,setCategories]=useState<Category[]>([]);
@@ -72,7 +73,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         api<FinanceRecord[]>(expense?"/finance/expenses?limit=200":"/finance/income?limit=200"),
         api<Category[]>(\`/finance/setup/\${expense?"expense":"income"}-categories\`),
         api<CostCenter[]>("/finance/setup/cost-centers"),
-        api<Account[]>("/accounting/accounts"),
+        canReadAccounting ? api<Account[]>("/accounting/accounts") : Promise.resolve([] as Account[]),
       ]);
       if(!nextCategories.length&&canManage){
         await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});
@@ -84,7 +85,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
       setAccounts(nextAccounts.filter(x=>x.active&&x.type==="ASSET"));
     }catch(e){setError(e instanceof ApiError?e.message:"Finans kayıtları yüklenemedi.");}
     finally{setLoading(false);}
-  },[expense,canManage]);
+  },[expense,canManage,canReadAccounting]);
   useEffect(()=>{void load();},[load]);
 
   const filtered=useMemo(()=>records.filter(record=>{
