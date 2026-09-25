@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { FinanceEmpty, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -45,7 +45,7 @@ export function PayrollPolicyPanel({year,month}:{year:number;month:number}){
   const [error,setError]=useState("");
   const [success,setSuccess]=useState("");
 
-  async function load(){
+  const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
       const [settings,result]=await Promise.all([
@@ -55,9 +55,9 @@ export function PayrollPolicyPanel({year,month}:{year:number;month:number}){
       setPolicy(settings);setPreview(result);
     }catch(requestError){setError(requestError instanceof ApiError?requestError.message:"Bordro politikası yüklenemedi.");}
     finally{setLoading(false);}
-  }
+  },[year,month]);
 
-  useEffect(()=>{void load();},[year,month]);
+  useEffect(()=>{void load();},[load]);
 
   async function save(){
     setSaving(true);setError("");setSuccess("");
