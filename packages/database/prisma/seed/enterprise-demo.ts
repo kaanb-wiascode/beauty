@@ -660,19 +660,25 @@ async function seedTraining(
     }
 
     if (await tableExists("training_exams")) {
+      const examId = `enterprise-demo-exam-${String(index + 1).padStart(2, "0")}`;
       const exams = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO training_exams(
-           tenant_id,company_id,course_version_id,title,pass_score,max_attempts,is_active,created_by_user_id
-         ) VALUES($1,$2,$3,$4,70,3,TRUE,$5)
+           id,tenant_id,company_id,course_version_id,title,pass_score,max_attempts,is_active,created_by_user_id
+         ) VALUES($1,$2,$3,$4,$5,70,3,TRUE,$6)
+         ON CONFLICT(id) DO UPDATE SET
+           course_version_id=EXCLUDED.course_version_id,title=EXCLUDED.title,
+           pass_score=EXCLUDED.pass_score,max_attempts=EXCLUDED.max_attempts,
+           is_active=TRUE,updated_at=NOW()
          RETURNING id`,
+        examId,
         tenantId,
         companyId,
         versionId,
         `${title} Değerlendirme Sınavı`,
         ownerUserId,
       );
-      const examId = exams[0]?.id;
-      if (examId && (await tableExists("training_exam_questions"))) {
+      const activeExamId = exams[0]?.id;
+      if (activeExamId && (await tableExists("training_exam_questions"))) {
         for (let q = 1; q <= 5; q += 1) {
           await prisma.$executeRawUnsafe(
             `INSERT INTO training_exam_questions(
@@ -684,7 +690,7 @@ async function seedTraining(
                            correct_answer=EXCLUDED.correct_answer`,
             tenantId,
             companyId,
-            examId,
+            activeExamId,
             q,
             `${title}: ${q}. örnek sınav sorusu`,
             JSON.stringify(["A seçeneği", "B seçeneği", "C seçeneği", "D seçeneği"]),
