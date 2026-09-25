@@ -104,13 +104,18 @@ export class CrmLeadService {
             l.consultation_need AS "consultationNeed",l.customer_intent AS "customerIntent"`;
   }
 
+  private salesSelect() {
+    return `l.team,l.lead_score AS "leadScore",l.lead_temperature AS "leadTemperature",
+            l.first_contacted_at AS "firstContactedAt",l.first_response_at AS "firstResponseAt"`;
+  }
+
   async list(filters: { status?: string; ownerUserId?: string; search?: string; limit?: number }) {
     const context = this.context();
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
     return this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
       `SELECT l.id,l.first_name AS "firstName",l.last_name AS "lastName",l.phone,l.alternative_phone AS "alternativePhone",l.email,
               l.preferred_contact_channel AS "preferredContactChannel",l.language,l.timezone,
-              ${this.acquisitionSelect()},${this.commercialSelect()},l.status,l.interest_note AS "interestNote",l.customer_id AS "customerId",
+              ${this.acquisitionSelect()},${this.commercialSelect()},${this.salesSelect()},l.status,l.interest_note AS "interestNote",l.customer_id AS "customerId",
               l.owner_user_id AS "ownerUserId",l.version,l.created_at AS "createdAt",l.updated_at AS "updatedAt",
               o.id AS "opportunityId",o.stage AS "opportunityStage",o.estimated_value AS "estimatedValue"
        FROM crm_leads l LEFT JOIN crm_opportunities o ON o.lead_id=l.id
@@ -187,10 +192,11 @@ export class CrmLeadService {
            preferred_contact_channel,language,timezone,source,source_detail,campaign_id,campaign_name,ad_set_id,ad_set_name,
            ad_id,ad_name,landing_page,referrer,utm_source,utm_medium,utm_campaign,utm_content,utm_term,click_identifiers,
            interested_service_ids,interested_package_ids,preferred_branch_id,estimated_budget,budget_currency,purchase_urgency,consultation_need,customer_intent,
-           interest_note,created_by_user_id
+           team,lead_score,lead_temperature,first_contacted_at,first_response_at,interest_note,created_by_user_id
          ) VALUES(
            $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
-           $20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30::text[],$31::text[],$32::text,$33,$34,$35,$36,$37,$38,$39::text
+           $20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30::text[],$31::text[],$32::text,$33,$34,$35,$36,$37,
+           $38,$39,$40,$41,$42,$43,$44::text
          )
          RETURNING id,first_name AS "firstName",last_name AS "lastName",phone,alternative_phone AS "alternativePhone",email,
                    preferred_contact_channel AS "preferredContactChannel",language,timezone,source,source_detail AS "sourceDetail",
@@ -200,8 +206,9 @@ export class CrmLeadService {
                    click_identifiers AS "clickIdentifiers",interested_service_ids AS "interestedServiceIds",
                    interested_package_ids AS "interestedPackageIds",preferred_branch_id AS "preferredBranchId",
                    estimated_budget AS "estimatedBudget",budget_currency AS "budgetCurrency",purchase_urgency AS "purchaseUrgency",
-                   consultation_need AS "consultationNeed",customer_intent AS "customerIntent",status,interest_note AS "interestNote",
-                   owner_user_id AS "ownerUserId",customer_id AS "customerId",version`,
+                   consultation_need AS "consultationNeed",customer_intent AS "customerIntent",team,lead_score AS "leadScore",
+                   lead_temperature AS "leadTemperature",first_contacted_at AS "firstContactedAt",first_response_at AS "firstResponseAt",
+                   status,interest_note AS "interestNote",owner_user_id AS "ownerUserId",customer_id AS "customerId",version`,
         context.tenantId, context.companyId, branchId, input.customerId ?? null, input.ownerUserId ?? actorUserId,
         input.firstName, input.lastName, input.phone ?? null, input.alternativePhone ?? null, input.email?.toLowerCase() ?? null,
         input.preferredContactChannel ?? null, input.language ?? null, input.timezone ?? null, input.source,
@@ -210,7 +217,8 @@ export class CrmLeadService {
         input.utmSource ?? null, input.utmMedium ?? null, input.utmCampaign ?? null, input.utmContent ?? null, input.utmTerm ?? null,
         JSON.stringify(input.clickIdentifiers ?? {}), input.interestedServiceIds ?? [], input.interestedPackageIds ?? [],
         input.preferredBranchId ?? null, input.estimatedBudget ?? null, input.budgetCurrency, input.purchaseUrgency ?? null,
-        input.consultationNeed ?? null, input.customerIntent ?? null, input.interestNote ?? null, actorUserId,
+        input.consultationNeed ?? null, input.customerIntent ?? null, input.team ?? null, input.leadScore,
+        input.leadTemperature, input.firstContactedAt ?? null, input.firstResponseAt ?? null, input.interestNote ?? null, actorUserId,
       );
       await tx.$executeRawUnsafe(
         `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
