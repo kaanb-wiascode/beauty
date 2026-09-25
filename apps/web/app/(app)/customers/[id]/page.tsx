@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 
 import { CardInfo } from "@/components/card-info";
 import { DatePicker } from "@/components/date-picker";
@@ -59,8 +59,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const [profileError, setProfileError] = useState("");
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "", phone: "", email: "", birthDate: "", customerSource: "" as CustomerSource | "", allergies: "", sensitivities: "", medications: "", conditions: "", notes: "" });
 
-  const load = async () => { setLoading(true); setError(""); try { const { id } = await params; const result = await api<CustomerDetail>(`/customers/${id}`); setCustomer(result); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } };
-  useEffect(() => { void load(); }, [params]);
+  const load = useCallback(async () => { setLoading(true); setError(""); try { const { id } = await params; const result = await api<CustomerDetail>(`/customers/${id}`); setCustomer(result); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } }, [params]);
+  useEffect(() => { void load(); }, [load]);
   const initials = useMemo(() => { if (!customer) return "?"; return `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase(); }, [customer]);
 
   function openProfileModal() { if (!customer || !canUpdateCustomer) return; setProfileForm({ firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone ?? "", email: customer.email ?? "", birthDate: customer.birthDate ? customer.birthDate.slice(0, 10) : "", customerSource: customer.customerSource ?? "", allergies: customer.healthProfile?.allergies ?? "", sensitivities: customer.healthProfile?.sensitivities ?? "", medications: customer.healthProfile?.medications ?? "", conditions: customer.healthProfile?.conditions ?? "", notes: customer.healthProfile?.notes ?? "" }); setProfileError(""); setProfileModalOpen(true); }
