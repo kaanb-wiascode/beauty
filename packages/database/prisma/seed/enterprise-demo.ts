@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import {
   AppointmentStatus,
   PaymentMethod,
@@ -1000,6 +1001,281 @@ async function seedCrm(
   }
 }
 
+
+async function seedQualityAndCommunications(
+  tenantId: string,
+  companyId: string,
+  ownerUserId: string,
+  branches: Array<{ id: string; code: string; name: string }>,
+) {
+  if (await tableExists("corporate_marketing_vendors")) {
+    const vendorTypes = [
+      "SOCIAL_MEDIA_AGENCY","AD_AGENCY","PRODUCTION","PHOTOGRAPHER",
+      "INFLUENCER_AGENCY","FREELANCER","PR_AGENCY","OTHER",
+    ];
+    for (let index = 0; index < 8; index += 1) {
+      const name = `VALOO Pazarlama Partneri ${index + 1}`;
+      const existing = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM corporate_marketing_vendors
+         WHERE tenant_id=$1 AND company_id=$2 AND name=$3 LIMIT 1`,
+        tenantId,
+        companyId,
+        name,
+      );
+      const id = existing[0]?.id ?? randomUUID();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO corporate_marketing_vendors(
+           id,tenant_id,company_id,branch_id,name,vendor_type,status,
+           contact_name,contact_email,contact_phone,contract_starts_at,contract_ends_at,
+           service_scope,monthly_fee,currency,payment_model,kpi_commitments,
+           performance_notes,attributed_revenue,metadata,created_by_user_id
+         ) VALUES(
+           $1,$2,$3,$4,$5,$6,'ACTIVE',$7,$8,$9,
+           CURRENT_DATE-INTERVAL '6 months',CURRENT_DATE+INTERVAL '12 months',
+           $10,$11,'TRY',$12,$13::jsonb,$14,$15,$16::jsonb,$17
+         )
+         ON CONFLICT(id) DO UPDATE SET
+           status='ACTIVE',monthly_fee=EXCLUDED.monthly_fee,
+           attributed_revenue=EXCLUDED.attributed_revenue,
+           performance_notes=EXCLUDED.performance_notes,updated_at=NOW()`,
+        id,
+        tenantId,
+        companyId,
+        index < 4 ? branches[index % branches.length].id : null,
+        name,
+        vendorTypes[index % vendorTypes.length],
+        `Partner Yetkilisi ${index + 1}`,
+        `marketing${index + 1}@${DEMO_DOMAIN}`,
+        `+90212${String(5560000 + index).padStart(7, "0")}`,
+        index % 2 === 0 ? "Sosyal medya, reklam ve içerik üretimi" : "Prodüksiyon ve marka iletişimi",
+        45000 + index * 7500,
+        index % 3 === 0 ? "PERFORMANCE" : "MONTHLY_RETAINER",
+        JSON.stringify({ leadTarget: 250 + index * 25, roasTarget: 4 + index * 0.2 }),
+        index % 2 === 0 ? "Hedeflerin üzerinde performans." : "Aylık optimizasyon toplantısı planlandı.",
+        210000 + index * 65000,
+        JSON.stringify({ enterpriseDemo: true }),
+        ownerUserId,
+      );
+    }
+  }
+
+  if ((await tableExists("customer_feedback")) && (await tableExists("quality_cases"))) {
+    const appointments = await prisma.$queryRawUnsafe<Array<{
+      id: string;
+      branchId: string;
+      customerId: string;
+      serviceId: string;
+      staffId: string;
+    }>>(
+      `SELECT
+         a.id,
+         a."branchId" AS "branchId",
+         a."customerId" AS "customerId",
+         a."serviceId" AS "serviceId",
+         a."staffId" AS "staffId"
+       FROM appointments a
+       WHERE a."tenantId"=$1
+         AND a.status='COMPLETED'
+         AND a.notes LIKE $2
+       ORDER BY a."startAt" DESC
+       LIMIT 30`,
+      tenantId,
+      `${APPOINTMENT_PREFIX}%`,
+    );
+
+    for (let index = 0; index < Math.min(24, appointments.length); index += 1) {
+      const appointment = appointments[index];
+      const classification = index % 7 === 0 ? "NEGATIVE" : index % 5 === 0 ? "NEUTRAL" : "POSITIVE";
+      const rating = classification === "NEGATIVE" ? 2 : classification === "NEUTRAL" ? 3 : 5;
+      const feedbackRows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM customer_feedback
+         WHERE tenant_id=$1 AND company_id=$2 AND appointment_id=$3 LIMIT 1`,
+        tenantId,
+        companyId,
+        appointment.id,
+      );
+      const feedbackId = feedbackRows[0]?.id ?? randomUUID();
+      await prisma.$executeRawUnsafe(
+        `INSERT INTO customer_feedback(
+           id,tenant_id,company_id,branch_id,customer_id,appointment_id,
+           service_id,staff_id,source,classification,overall_rating,comment,
+           submitted_at,created_by_user_id
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,'POST_SERVICE',$9,$10,$11,$12,$13)
+         ON CONFLICT(id) DO UPDATE SET
+           classification=EXCLUDED.classification,overall_rating=EXCLUDED.overall_rating,
+           comment=EXCLUDED.comment,updated_at=NOW()`,
+        feedbackId,
+        tenantId,
+        companyId,
+        appointment.branchId,
+        appointment.customerId,
+        appointment.id,
+        appointment.serviceId,
+        appointment.staffId,
+        classification,
+        rating,
+        classification === "POSITIVE"
+          ? "Hizmet ve ekip yaklaşımından çok memnun kaldım."
+          : classification === "NEUTRAL"
+            ? "Hizmet iyiydi, bekleme süresi biraz azaltılabilir."
+            : "Randevu başlangıç süresi ve bilgilendirme geliştirilmelidir.",
+        addDays(new Date(), -(index % 20)),
+        ownerUserId,
+      );
+
+      if (classification !== "POSITIVE") {
+        const caseRows = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM quality_cases
+           WHERE tenant_id=$1 AND company_id=$2 AND feedback_id=$3 LIMIT 1`,
+          tenantId,
+          companyId,
+          feedbackId,
+        );
+        const caseId = caseRows[0]?.id ?? randomUUID();
+        const status = index % 4 === 0 ? "RESOLVED" : index % 3 === 0 ? "INVESTIGATING" : "OPEN";
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO quality_cases(
+             id,tenant_id,company_id,branch_id,feedback_id,customer_id,appointment_id,
+             service_id,staff_id,source_type,category,severity,status,title,description,
+             assigned_user_id,sla_due_at,root_cause,corrective_action,preventive_action,
+             resolution,customer_follow_up,opened_at,resolved_at,created_by_user_id,updated_by_user_id
+           ) VALUES(
+             $1,$2,$3,$4,$5,$6,$7,$8,$9,'FEEDBACK',$10,$11,$12,$13,$14,
+             $15,NOW()+INTERVAL '48 hours',$16,$17,$18,$19,$20,$21,$22,$15,$15
+           )
+           ON CONFLICT(id) DO UPDATE SET
+             severity=EXCLUDED.severity,status=EXCLUDED.status,title=EXCLUDED.title,
+             corrective_action=EXCLUDED.corrective_action,resolution=EXCLUDED.resolution,
+             updated_by_user_id=EXCLUDED.updated_by_user_id,updated_at=NOW()`,
+          caseId,
+          tenantId,
+          companyId,
+          appointment.branchId,
+          feedbackId,
+          appointment.customerId,
+          appointment.id,
+          appointment.serviceId,
+          appointment.staffId,
+          index % 2 === 0 ? "WAIT_TIME" : "SERVICE_STANDARD",
+          index % 6 === 0 ? "HIGH" : "MEDIUM",
+          status,
+          `Demo kalite vakası #${index + 1}`,
+          "Sunum amacıyla oluşturulmuş müşteri deneyimi kalite vakası.",
+          ownerUserId,
+          "Yoğun saatlerde süreç standardının sapması.",
+          "Şube ekibine operasyon standardı hatırlatıldı.",
+          "Vardiya planı ve randevu aralıkları yeniden gözden geçirildi.",
+          status === "RESOLVED" ? "Müşteri ile görüşüldü ve konu çözüldü." : null,
+          status === "RESOLVED" ? "Müşteri memnuniyet teyidi alındı." : "Takip planlandı.",
+          addDays(new Date(), -(index % 18)),
+          status === "RESOLVED" ? addDays(new Date(), -(index % 5)) : null,
+        );
+      }
+    }
+  }
+
+  if (await tableExists("team_conversations")) {
+    const users = await prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT m."userId" AS "userId"
+       FROM memberships m
+       WHERE m."tenantId"=$1
+         AND m."companyId"=$2
+         AND m.status='ACTIVE'
+       ORDER BY m."createdAt" ASC`,
+      tenantId,
+      companyId,
+    );
+    const userIds = users.map((row) => row.userId);
+    const channels = [
+      ["Genel Duyurular", true],
+      ["Operasyon", false],
+      ["İK & Eğitim", false],
+      ["Satış Başarıları", false],
+    ] as const;
+
+    for (let index = 0; index < channels.length; index += 1) {
+      const [name, announcementOnly] = channels[index];
+      const existing = await prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM team_conversations
+         WHERE tenant_id=$1 AND company_id=$2 AND type='CHANNEL' AND name=$3 LIMIT 1`,
+        tenantId,
+        companyId,
+        name,
+      );
+      const conversationId = existing[0]?.id ?? randomUUID();
+      if (!existing.length) {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO team_conversations(
+             id,tenant_id,company_id,type,name,created_by_user_id,announcement_only
+           ) VALUES($1,$2,$3,'CHANNEL',$4,$5,$6)`,
+          conversationId,
+          tenantId,
+          companyId,
+          name,
+          ownerUserId,
+          announcementOnly,
+        );
+      }
+      for (let userIndex = 0; userIndex < userIds.length; userIndex += 1) {
+        await prisma.$executeRawUnsafe(
+          `INSERT INTO team_conversation_members(conversation_id,user_id,is_admin,last_read_at)
+           VALUES($1,$2,$3,NOW())
+           ON CONFLICT(conversation_id,user_id)
+           DO UPDATE SET is_admin=EXCLUDED.is_admin`,
+          conversationId,
+          userIds[userIndex],
+          userIds[userIndex] === ownerUserId || userIndex < 6,
+        );
+      }
+      const messageCount = await prisma.$queryRawUnsafe<Array<{ count: number }>>(
+        `SELECT COUNT(*)::int AS count FROM team_messages WHERE conversation_id=$1`,
+        conversationId,
+      );
+      if (Number(messageCount[0]?.count ?? 0) === 0) {
+        const bodies = index === 0
+          ? [
+              "Hoş geldiniz. Bu kanal şirket genelindeki önemli duyurular için kullanılmaktadır.",
+              "Ekim ayı operasyon ve eğitim takvimi yayınlandı.",
+              "Aylık yönetim toplantısı cuma günü saat 10:00'da gerçekleştirilecektir.",
+              "Müşteri deneyimi standartlarında yeni kontrol listesi devreye alınmıştır.",
+            ]
+          : index === 1
+            ? [
+                "Bugünkü şube doluluk oranları dashboard üzerinden takip edilebilir.",
+                "Stok kritik seviyedeki ürünler için satın alma talepleri oluşturuldu.",
+                "Hafta sonu yoğunluğu için vardiya planlarını kontrol edelim.",
+                "Bölge müdürleri gün sonu operasyon notlarını bu kanaldan paylaşabilir.",
+              ]
+            : index === 2
+              ? [
+                  "Yeni eğitim atamaları çalışanların gelişim ekranlarına tanımlandı.",
+                  "Lazer uygulama standardı sınavı bu hafta tamamlanmalı.",
+                  "İzin talepleri ve eksik personel evrakları İK ekranından takip edilebilir.",
+                ]
+              : [
+                  "Bu ayın en yüksek dönüşüm oranı Nişantaşı ve Çankaya şubelerinde.",
+                  "VIP bakım paketlerinde kampanya geri dönüşleri olumlu ilerliyor.",
+                  "CRM takiplerini gün sonunda kapatmayı unutmayalım.",
+                ];
+        for (let messageIndex = 0; messageIndex < bodies.length; messageIndex += 1) {
+          await prisma.$executeRawUnsafe(
+            `INSERT INTO team_messages(
+               id,tenant_id,company_id,conversation_id,sender_user_id,body,created_at
+             ) VALUES($1,$2,$3,$4,$5,$6,NOW()-($7::int*INTERVAL '1 hour'))`,
+            randomUUID(),
+            tenantId,
+            companyId,
+            conversationId,
+            ownerUserId,
+            bodies[messageIndex],
+            (bodies.length - messageIndex) * 4 + index,
+          );
+        }
+      }
+    }
+  }
+}
+
 async function main() {
   console.log("🏗️  VALOO Enterprise demo seed başlıyor...");
 
@@ -1332,6 +1608,7 @@ async function main() {
   await seedInventory(tenant.id, company.id, branchRecords);
   await seedHr(tenant.id, createdStaff.map((item) => item.id));
   await seedTraining(tenant.id, company.id, owner.id, createdStaff);
+  await seedQualityAndCommunications(tenant.id, company.id, owner.id, branchRecords);
 
   console.log("");
   console.log("✅ VALOO Enterprise sunum demosu hazır.");
