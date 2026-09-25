@@ -11,7 +11,6 @@ const prisma = new PrismaClient();
 
 const DEMO_TENANT_SLUG = "valoo-enterprise-demo";
 const DEMO_COMPANY_SLUG = "valoo-enterprise-group";
-const DEMO_PASSWORD = "Demo2026!";
 const DEMO_PASSWORD_HASH =
   "$argon2id$v=19$m=65536,t=3,p=4$D5bOeUCU5d/cOI9PFahXhg$7lBErjeCanRH30cpOzjC4zjd6mSA+oFvTabpo51iaNM";
 const APPOINTMENT_PREFIX = "VALOO_ENTERPRISE_DEMO:";
@@ -744,6 +743,223 @@ async function seedTraining(
   }
 }
 
+
+async function seedCommerceAndFinance(
+  tenantId: string,
+  companyId: string,
+  branches: Array<{ id: string; code: string; name: string }>,
+  customersByBranch: Map<string, Array<{ id: string }>>,
+  servicesByBranch: Map<string, Array<{ id: string; durationMinutes: number; price: { toString(): string } }>>,
+) {
+  for (let branchIndex = 0; branchIndex < branches.length; branchIndex += 1) {
+    const branch = branches[branchIndex];
+    const services = servicesByBranch.get(branch.id) ?? [];
+    const customers = customersByBranch.get(branch.id) ?? [];
+    if (!services.length || !customers.length) continue;
+
+    const packageNames = [
+      ["Premium Cilt Bakım Paketi", 4, 7200],
+      ["Lazer Avantaj Paketi", 8, 11900],
+      ["Yıllık Beauty Club", 12, 18900],
+    ] as const;
+    const packageIds: string[] = [];
+
+    for (let packageIndex = 0; packageIndex < packageNames.length; packageIndex += 1) {
+      const [name, quantity, price] = packageNames[packageIndex];
+      const existing = await prisma.servicePackage.findFirst({
+        where: { tenantId, branchId: branch.id, name },
+      });
+      const packageRecord = existing
+        ? await prisma.servicePackage.update({
+            where: { id: existing.id },
+            data: {
+              description: "Enterprise demo satış paketi",
+              price,
+              validityDays: 365,
+              active: true,
+            },
+          })
+        : await prisma.servicePackage.create({
+            data: {
+              tenantId,
+              branchId: branch.id,
+              name,
+              description: "Enterprise demo satış paketi",
+              price,
+              validityDays: 365,
+              active: true,
+            },
+          });
+      packageIds.push(packageRecord.id);
+      const service = services[(packageIndex * 3) % services.length];
+      await prisma.packageItem.upsert({
+        where: { packageId_serviceId: { packageId: packageRecord.id, serviceId: service.id } },
+        update: { quantity },
+        create: { packageId: packageRecord.id, serviceId: service.id, quantity },
+      });
+    }
+
+    const existingSales = await prisma.sale.findMany({
+      where: {
+        tenantId,
+        branchId: branch.id,
+        customerId: { in: customers.slice(0, 10).map((item) => item.id) },
+      },
+      select: { id: true, customerId: true },
+    });
+    const existingByCustomer = new Map(existingSales.map((sale) => [sale.customerId, sale.id]));
+
+    for (let saleIndex = 0; saleIndex < Math.min(10, customers.length); saleIndex += 1) {
+      const customer = customers[saleIndex];
+      const packageId = packageIds[saleIndex % packageIds.length];
+      const packageRecord = await prisma.servicePackage.findUniqueOrThrow({ where: { id: packageId } });
+      let saleId = existingByCustomer.get(customer.id);
+      if (!saleId) {
+        const sale = await prisma.sale.create({
+          data: {
+            tenantId,
+            branchId: branch.id,
+            customerId: customer.id,
+            status: "CONFIRMED",
+            subtotal: packageRecord.price,
+            discountTotal: saleIndex % 4 === 0 ? 500 : 0,
+            total: Number(packageRecord.price) - (saleIndex % 4 === 0 ? 500 : 0),
+            confirmedAt: addDays(new Date(), -(saleIndex + branchIndex * 2 + 5)),
+          },
+        });
+        saleId = sale.id;
+        await prisma.saleItem.create({
+          data: {
+            saleId,
+            type: "PACKAGE",
+            packageId,
+            description: packageRecord.name,
+            quantity: 1,
+            unitPrice: packageRecord.price,
+            lineTotal: packageRecord.price,
+          },
+        });
+      }
+
+      const sale = await prisma.sale.findUniqueOrThrow({ where: { id: saleId } });
+      const paymentExists = await prisma.salePayment.findFirst({ where: { tenantId, saleId } });
+      if (!paymentExists) {
+        await prisma.salePayment.create({
+          data: {
+            tenantId,
+            branchId: branch.id,
+            saleId,
+            amount: sale.total,
+            method: [PaymentMethod.CARD, PaymentMethod.CASH, PaymentMethod.TRANSFER][saleIndex % 3],
+            status: "COMPLETED",
+            paidAt: sale.confirmedAt ?? new Date(),
+            reference: `DEMO-${branch.code}-${saleIndex + 1}`,
+            note: "Enterprise demo paket tahsilatı",
+          },
+        });
+      }
+
+      let customerPackage = await prisma.customerPackage.findFirst({
+        where: { tenantId, branchId: branch.id, customerId: customer.id, saleId },
+      });
+      if (!customerPackage) {
+        customerPackage = await prisma.customerPackage.create({
+          data: {
+            tenantId,
+            branchId: branch.id,
+            customerId: customer.id,
+            packageId,
+            saleId,
+            status: "ACTIVE",
+            purchasedAt: sale.confirmedAt ?? new Date(),
+            expiresAt: addDays(sale.confirmedAt ?? new Date(), 365),
+          },
+        });
+      }
+      const packageItems = await prisma.packageItem.findMany({ where: { packageId } });
+      for (const item of packageItems) {
+        const existingSessions = await prisma.session.count({
+          where: { tenantId, customerPackageId: customerPackage.id, serviceId: item.serviceId },
+        });
+        for (let sequence = existingSessions; sequence < item.quantity; sequence += 1) {
+          await prisma.session.create({
+            data: {
+              tenantId,
+              branchId: branch.id,
+              customerPackageId: customerPackage.id,
+              serviceId: item.serviceId,
+              status: sequence < Math.min(2, item.quantity) ? "CONSUMED" : "AVAILABLE",
+              consumedAt: sequence < Math.min(2, item.quantity)
+                ? addDays(new Date(), -(20 + sequence * 12 + saleIndex))
+                : null,
+            },
+          });
+        }
+      }
+    }
+  }
+
+  const accounts = [
+    ["100", "Kasa", "ASSET"],
+    ["102", "Bankalar", "ASSET"],
+    ["120", "Alıcılar", "ASSET"],
+    ["320", "Satıcılar", "LIABILITY"],
+    ["500", "Sermaye", "EQUITY"],
+    ["600", "Hizmet Satış Gelirleri", "REVENUE"],
+    ["601", "Paket Satış Gelirleri", "REVENUE"],
+    ["740", "Personel Giderleri", "EXPENSE"],
+    ["760", "Pazarlama Giderleri", "EXPENSE"],
+    ["770", "Genel Yönetim Giderleri", "EXPENSE"],
+  ] as const;
+
+  const accountIds = new Map<string, string>();
+  for (const [code, name, type] of accounts) {
+    const account = await prisma.chartOfAccount.upsert({
+      where: { companyId_code: { companyId, code } },
+      update: { name, type, active: true },
+      create: { tenantId, companyId, code, name, type, active: true },
+    });
+    accountIds.set(code, account.id);
+  }
+
+  for (let monthOffset = 0; monthOffset < 8; monthOffset += 1) {
+    const date = new Date();
+    date.setMonth(date.getMonth() - monthOffset);
+    date.setDate(5);
+    const number = `DEMO-${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+    const revenue = 780000 + monthOffset * 42500;
+    const personnel = 360000 + monthOffset * 12000;
+    const marketing = 55000 + monthOffset * 3500;
+    const existing = await prisma.journalEntry.findFirst({ where: { companyId, number } });
+    const entry = existing ?? await prisma.journalEntry.create({
+      data: {
+        tenantId,
+        companyId,
+        branchId: branches[monthOffset % branches.length].id,
+        number,
+        status: "POSTED",
+        entryDate: date,
+        description: "Enterprise demo aylık finansal hareket özeti",
+        referenceType: "DEMO_MONTHLY_CLOSE",
+        referenceId: number,
+        postedAt: date,
+      },
+    });
+    if (!existing) {
+      await prisma.journalEntryLine.createMany({
+        data: [
+          { journalEntryId: entry.id, accountId: accountIds.get("102")!, debit: revenue, credit: 0, memo: "Aylık tahsilatlar" },
+          { journalEntryId: entry.id, accountId: accountIds.get("600")!, debit: 0, credit: revenue, memo: "Hizmet gelirleri" },
+          { journalEntryId: entry.id, accountId: accountIds.get("740")!, debit: personnel, credit: 0, memo: "Personel giderleri" },
+          { journalEntryId: entry.id, accountId: accountIds.get("102")!, debit: 0, credit: personnel, memo: "Personel ödemeleri" },
+          { journalEntryId: entry.id, accountId: accountIds.get("760")!, debit: marketing, credit: 0, memo: "Pazarlama giderleri" },
+          { journalEntryId: entry.id, accountId: accountIds.get("102")!, debit: 0, credit: marketing, memo: "Pazarlama ödemeleri" },
+        ],
+      });
+    }
+  }
+}
+
 async function seedCrm(
   tenantId: string,
   companyId: string,
@@ -1111,6 +1327,7 @@ async function main() {
     });
   }
 
+  await seedCommerceAndFinance(tenant.id, company.id, branchRecords, customersByBranch, servicesByBranch);
   await seedCrm(tenant.id, company.id, branchRecords, owner.id);
   await seedInventory(tenant.id, company.id, branchRecords);
   await seedHr(tenant.id, createdStaff.map((item) => item.id));
@@ -1126,9 +1343,7 @@ async function main() {
   console.log(`📅 Demo randevusu: ${appointments.length}`);
   console.log(`📚 Eğitim kataloğu: ${TRAINING_COURSES.length}`);
   console.log("");
-  console.log("🔐 Tüm demo kullanıcılarında ortak parola:");
-  console.log(`   ${DEMO_PASSWORD}`);
-  console.log("");
+  console.log("🔐 Tüm demo kullanıcıları aynı sunum parolasını kullanır.");
   console.log("Örnek kullanıcılar:");
   console.log(`   owner@${DEMO_DOMAIN}      Şirket Sahibi`);
   console.log(`   gm@${DEMO_DOMAIN}         Genel Müdür`);
