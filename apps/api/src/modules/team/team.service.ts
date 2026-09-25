@@ -455,7 +455,7 @@ export class TeamService {
       if (existing.length) return { id: existing[0].id, existing: true };
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const created = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<{ id: string }[]>(
         `INSERT INTO team_conversations(
            tenant_id,company_id,type,name,created_by_user_id,announcement_only
@@ -481,9 +481,10 @@ export class TeamService {
           userId === currentUserId,
         );
       }
-      await this.publishConversationEvent(conversationId, 'conversation.created');
       return { id: conversationId, existing: false };
     });
+    await this.publishConversationEvent(created.id, 'conversation.created');
+    return created;
   }
 
   async messages(currentUserId: string, conversationId: string, rawLimit: number) {
@@ -625,20 +626,26 @@ export class TeamService {
       body: input.body.trim().slice(0, 240),
     });
 
-    const mentioned = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
-      `SELECT DISTINCT u.id AS "userId"
+    const mentionCandidates = await this.prisma.$queryRawUnsafe<Array<{ userId: string; firstName: string }>>(
+      `SELECT u.id AS "userId", u."firstName" AS "firstName"
        FROM team_conversation_members cm
        JOIN users u ON u.id=cm.user_id
        WHERE cm.conversation_id=$1::text
-         AND cm.user_id<>$2::text
-         AND $3 ~* ('(^|\\s)@' || regexp_replace(u."firstName", '([\\W])', '\\\\1', 'g') || '(\\s|$)')`,
+         AND cm.user_id<>$2::text`,
       conversationId,
       currentUserId,
-      input.body,
     );
-    if (mentioned.length) {
+    const lowerBody = input.body.toLocaleLowerCase('tr-TR');
+    const mentionedUserIds = mentionCandidates
+      .filter((candidate) => {
+        const token = `@${candidate.firstName}`.toLocaleLowerCase('tr-TR');
+        return lowerBody.split(/\s+/).some((part) => part.replace(/[.,!?;:]+$/u, '') === token);
+      })
+      .map((candidate) => candidate.userId);
+
+    if (mentionedUserIds.length) {
       await this.publishToUsers(
-        mentioned.map((row) => row.userId),
+        mentionedUserIds,
         'mention.created',
         {
           conversationId,
