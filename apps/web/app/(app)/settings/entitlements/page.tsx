@@ -2,7 +2,8 @@
 
 import { useEffect, useState } from "react";
 import { CardInfo } from "@/components/card-info";
-import { api } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
+import { userErrorMessage, userFieldLabel, userLabel } from "@/lib/user-language";
 import { getCardHelp } from "@/lib/card-help";
 
 type Entitlement = {
@@ -25,8 +26,15 @@ const SOURCE_LABELS: Record<Entitlement["source"], string> = {
 
 function renderValue(value: unknown) {
   if (typeof value === "boolean") return value ? "Etkin" : "Kapalı";
-  if (typeof value === "string" || typeof value === "number") return String(value);
-  return JSON.stringify(value);
+  if (typeof value === "string") return userLabel(value);
+  if (typeof value === "number") return new Intl.NumberFormat("tr-TR").format(value);
+  if (Array.isArray(value)) return value.map((item) => typeof item === "string" ? userLabel(item) : String(item)).join(", ");
+  if (value && typeof value === "object") {
+    return Object.entries(value as Record<string, unknown>)
+      .map(([key, item]) => `${userFieldLabel(key)}: ${typeof item === "string" ? userLabel(item) : String(item ?? "—")}`)
+      .join(" · ");
+  }
+  return "—";
 }
 
 export default function EntitlementsPage() {
@@ -34,7 +42,7 @@ export default function EntitlementsPage() {
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    api<Payload>("/admin/entitlements").then(setData).catch((e) => setError(e instanceof Error ? e.message : "Plan özellikleri yüklenemedi."));
+    api<Payload>("/admin/entitlements").then(setData).catch((e) => setError(e instanceof ApiError ? userErrorMessage(e.message, "Plan özellikleri yüklenemedi.") : "Plan özellikleri yüklenemedi."));
   }, []);
 
   return (
