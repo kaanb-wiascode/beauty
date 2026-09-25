@@ -69,6 +69,7 @@ const NAV_SECTIONS = [
     { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
     { href: "/finance/integrations", label: "Banka ve ödeme bağlantıları", icon: "wallet" },
     { href: "/finance/integrations/operations", label: "Bağlantı İşlemleri", icon: "activity" },
+    { href: "/finance/integrations/transactions", label: "POS İşlem Operasyonları", icon: "receipt" },
     { href: "/finance/reconciliation", label: "Mutabakat Merkezi", icon: "arrows" },
     { href: "/reports/payments", permission: "payments.read", label: "Kasa", icon: "receipt" },
   ]},
