@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
@@ -67,7 +67,7 @@ export default function PayrollDashboardPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -77,11 +77,11 @@ export default function PayrollDashboardPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [year, month]);
 
   useEffect(() => {
     void load();
-  }, [year, month]);
+  }, [load]);
 
   const employerCost = Number(data?.totals.employerCost ?? 0);
   const costCenters = useMemo(() => data?.costCenters ?? [], [data]);
