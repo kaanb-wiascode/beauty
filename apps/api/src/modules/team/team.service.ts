@@ -669,6 +669,7 @@ export class TeamService {
       conversationId,
       currentUserId,
     );
+    await this.publishToUsers([currentUserId], 'read.updated', { conversationId });
     return { ok: true };
   }
 
