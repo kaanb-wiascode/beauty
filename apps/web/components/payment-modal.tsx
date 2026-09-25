@@ -18,6 +18,7 @@ import {
 import { ValooSegmentedControl } from "@/components/valoo-controls";
 
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 
 type PaymentMethod = "CASH" | "CARD" | "TRANSFER";
 
@@ -121,7 +122,7 @@ export function PaymentModal({
     } catch (err) {
       setError(
         err instanceof ApiError
-          ? err.message
+          ? userErrorMessage(err.message, "Ödeme kaydedilemedi.")
           : "Ödeme kaydedilemedi.",
       );
     } finally {
