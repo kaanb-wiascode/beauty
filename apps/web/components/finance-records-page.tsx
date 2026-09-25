@@ -45,7 +45,7 @@ const statusLabel=(value:string|undefined)=>value?(labels[value]??value):"—";
 function pill(value:string|undefined){
   const positive=["APPROVED","PAID","COLLECTED","POSTED"].includes(value??"");
   const negative=["REJECTED","CANCELLED","REVERSED"].includes(value??"");
-  return \`inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold \${positive?"bg-[var(--secondary-soft)] text-[var(--secondary)]":negative?"bg-[var(--danger-soft)] text-[var(--danger)]":"bg-[var(--surface-2)] text-[var(--muted)]"}\`;
+  return `inline-flex rounded-full px-2.5 py-1 text-[11px] font-semibold ${positive?"bg-[var(--secondary-soft)] text-[var(--secondary)]":negative?"bg-[var(--danger-soft)] text-[var(--danger)]":"bg-[var(--surface-2)] text-[var(--muted)]"}`;
 }
 
 export function FinanceRecordsPage({mode}:{mode:Mode}){
@@ -71,13 +71,13 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     try{
       let[nextRecords,nextCategories,nextCostCenters,nextAccounts]=await Promise.all([
         api<FinanceRecord[]>(expense?"/finance/expenses?limit=200":"/finance/income?limit=200"),
-        api<Category[]>(\`/finance/setup/\${expense?"expense":"income"}-categories\`),
+        api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`),
         api<CostCenter[]>("/finance/setup/cost-centers"),
         canReadAccounting ? api<Account[]>("/accounting/accounts") : Promise.resolve([] as Account[]),
       ]);
       if(!nextCategories.length&&canManage){
         await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});
-        nextCategories=await api<Category[]>(\`/finance/setup/\${expense?"expense":"income"}-categories\`);
+        nextCategories=await api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`);
       }
       setRecords(nextRecords);
       setCategories(nextCategories.filter(x=>x.active));
@@ -123,7 +123,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         currency:form.currency.toUpperCase(),exchangeRate:Number(form.exchangeRate||1),
         ...(form.description?{description:form.description}:{}),
       }});
-      setCreateOpen(false);setForm(initialForm());setNotice(\`\${expense?"Gider":"Gelir"} kaydı oluşturuldu.\`);await load();
+      setCreateOpen(false);setForm(initialForm());setNotice(`${expense?"Gider":"Gelir"} kaydı oluşturuldu.`);await load();
     }catch(e){setError(e instanceof ApiError?e.message:"Kayıt oluşturulamadı.");}
     finally{setWorking(false);}
   }
@@ -131,8 +131,8 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   async function transition(action:"submit"|"approve"){
     if(!selected)return;setWorking(true);setError("");
     try{
-      await api(\`\${basePath}/\${selected.id}/\${action}\`,{method:"POST"});
-      const next=await api<FinanceRecord>(\`\${basePath}/\${selected.id}\`);
+      await api(`${basePath}/${selected.id}/${action}`,{method:"POST"});
+      const next=await api<FinanceRecord>(`${basePath}/${selected.id}`);
       setSelected(next);setNotice(action==="submit"?"Kayıt onaya gönderildi.":"Kayıt onaylandı.");await load();
     }catch(e){setError(e instanceof ApiError?e.message:"İşlem tamamlanamadı.");}
     finally{setWorking(false);}
@@ -141,9 +141,9 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   async function postAccounting(){
     if(!selected)return;setWorking(true);setError("");
     try{
-      await api(\`\${basePath}/\${selected.id}/accounting/prepare\`,{method:"POST"});
-      await api(\`\${basePath}/\${selected.id}/accounting/post\`,{method:"POST"});
-      const next=await api<FinanceRecord>(\`\${basePath}/\${selected.id}\`);
+      await api(`${basePath}/${selected.id}/accounting/prepare`,{method:"POST"});
+      await api(`${basePath}/${selected.id}/accounting/post`,{method:"POST"});
+      const next=await api<FinanceRecord>(`${basePath}/${selected.id}`);
       setSelected(next);setNotice("Kayıt muhasebeleştirildi.");await load();
     }catch(e){setError(e instanceof ApiError?e.message:"Muhasebeleştirme tamamlanamadı. Kategori muhasebe eşlemesini kontrol edin.");}
     finally{setWorking(false);}
@@ -156,7 +156,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   async function recordMoney(event:FormEvent){
     event.preventDefault();if(!selected||!accountId||!Number(amount))return;setWorking(true);setError("");
     try{
-      const path=expense?\`\${basePath}/\${selected.id}/payments\`:\`\${basePath}/\${selected.id}/collections\`;
+      const path=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;
       const body=expense
         ?{amount:Number(amount),paymentAccountId:accountId,method,...(reference?{reference}:{})}
         :{amount:Number(amount),collectionAccountId:accountId,method,...(reference?{reference}:{})};
@@ -166,7 +166,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     finally{setWorking(false);}
   }
 
-  if(loading&&!records.length)return <Spinner label={\`\${title} hazırlanıyor...\`}/>;
+  if(loading&&!records.length)return <Spinner label={`${title} hazırlanıyor...`}/>;
 
   return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
     <PageHeader title={title} description={expense?"Gideri kaydetme, onay, muhasebe ve ödeme süreçlerini tek merkezden yönetin.":"Satış dışı ve operasyonel gelirlerin kayıt, onay, muhasebe ve tahsilat süreçlerini yönetin."} action={canManage?<Button onClick={()=>{setForm(initialForm());setCreateOpen(true);}}>+ Yeni {expense?"Gider":"Gelir"}</Button>:undefined}/>
@@ -206,7 +206,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
       </table></div>:<EmptyState title="Kayıt bulunamadı" description={expense?"Henüz gider kaydı yok veya filtrelere uyan kayıt bulunamadı.":"Henüz gelir kaydı yok veya filtrelere uyan kayıt bulunamadı."}/>}
     </section>
 
-    <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title={\`Yeni \${expense?"Gider":"Gelir"}\`} description="Finansal olayı kaydedin. Ödeme veya tahsilat ayrı bir nakit hareketi olarak işlenir.">
+    <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title={`Yeni ${expense?"Gider":"Gelir"}`} description="Finansal olayı kaydedin. Ödeme veya tahsilat ayrı bir nakit hareketi olarak işlenir.">
       <form onSubmit={createRecord} className="space-y-5">
         <FormSection title="Kayıt Bilgileri"><FormGrid>
           <Field label="Kategori" required><Select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} required><option value="">Kategori seçin</option>{categories.map(x=><option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</Select></Field>
