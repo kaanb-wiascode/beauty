@@ -10,6 +10,7 @@ import { Alert, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getStoredTenant, getStoredUser } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
+import { userErrorMessage } from "@/lib/user-language";
 import styles from "./dashboard.module.css";
 
 type Status = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
@@ -39,7 +40,7 @@ export default function DashboardPage() {
     let cancelled = false;
     async function load() {
       try { setLoading(true); const result = await api<Report>(`/payments/dashboard-report?from=${encodeURIComponent(startToday().toISOString())}&to=${encodeURIComponent(endToday().toISOString())}`); if (!cancelled) setData(result); }
-      catch (err) { if (!cancelled) setError(err instanceof ApiError ? err.message : "Ana ekran verileri yüklenemedi."); }
+      catch (err) { if (!cancelled) setError(err instanceof ApiError ? userErrorMessage(err.message, "Ana ekran verileri yüklenemedi.") : "Ana ekran verileri yüklenemedi."); }
       finally { if (!cancelled) setLoading(false); }
     }
     void load(); return () => { cancelled = true; };
