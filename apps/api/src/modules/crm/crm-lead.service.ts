@@ -136,7 +136,7 @@ export class CrmLeadService {
       `SELECT l.id,l.branch_id AS "branchId",l.first_name AS "firstName",l.last_name AS "lastName",
               l.phone,l.alternative_phone AS "alternativePhone",l.email,
               l.preferred_contact_channel AS "preferredContactChannel",l.language,l.timezone,
-              ${this.acquisitionSelect()},${this.commercialSelect()},l.status,l.interest_note AS "interestNote",l.lost_reason AS "lostReason",
+              ${this.acquisitionSelect()},${this.commercialSelect()},${this.salesSelect()},l.status,l.interest_note AS "interestNote",l.lost_reason AS "lostReason",
               l.customer_id AS "customerId",l.owner_user_id AS "ownerUserId",l.version,
               l.created_at AS "createdAt",l.updated_at AS "updatedAt"
        FROM crm_leads l
