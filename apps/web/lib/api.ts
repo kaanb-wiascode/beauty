@@ -68,7 +68,6 @@ async function refreshAccessToken(): Promise<string | null> {
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
-        signal,
       });
 
       if (!response.ok) return null;
@@ -122,6 +121,7 @@ export async function apiResponse(
         method,
         headers,
         credentials: "include",
+        signal,
       });
     } catch {
       throw new ApiError(
