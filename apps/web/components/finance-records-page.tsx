@@ -70,12 +70,13 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
-      let[nextRecords,nextCategories,nextCostCenters,nextAccounts]=await Promise.all([
+      const[nextRecords,initialCategories,nextCostCenters,nextAccounts]=await Promise.all([
         api<FinanceRecord[]>(expense?"/finance/expenses?limit=200":"/finance/income?limit=200"),
         api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`),
         api<CostCenter[]>("/finance/setup/cost-centers"),
         canReadAccounting ? api<Account[]>("/accounting/accounts") : Promise.resolve([] as Account[]),
       ]);
+      let nextCategories=initialCategories;
       if(!nextCategories.length&&canManage){
         await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});
         nextCategories=await api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`);
