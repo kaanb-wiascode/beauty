@@ -790,7 +790,7 @@ export class TeamService {
       `UPDATE team_conversations
        SET name=$1, updated_at=NOW()
        WHERE id=$2::text
-         AND type='GROUP'
+         AND type IN ('GROUP','CHANNEL')
          AND tenant_id=$3::text
          AND company_id=$4::text
        RETURNING id`,
@@ -799,7 +799,7 @@ export class TeamService {
       this.tenantId(),
       this.companyId(),
     );
-    if (!rows.length) throw new NotFoundException('Grup bulunamadı.');
+    if (!rows.length) throw new NotFoundException('Grup veya kanal bulunamadı.');
     await this.publishConversationEvent(conversationId, 'conversation.updated');
     return { ok: true };
   }
