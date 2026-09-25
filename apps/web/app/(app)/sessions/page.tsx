@@ -1,6 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, EmptyState, PageHeader, Select, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 type Session={id:string;status:"AVAILABLE"|"RESERVED"|"CONSUMED"|"CANCELLED";appointmentId:string|null;service:{id:string;name:string};customerPackage:{id:string;customer:{id:string;firstName:string;lastName:string};package:{id:string;name:string}};consumedAt?:string|null};
