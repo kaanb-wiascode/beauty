@@ -1108,8 +1108,9 @@ export class TeamService {
     ]);
     const mimeType = input.mimeType.trim().toLowerCase();
     if (!allowed.has(mimeType)) throw new BadRequestException('Bu dosya türü desteklenmiyor.');
-    if (!Number.isSafeInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > 15 * 1024 * 1024) {
-      throw new BadRequestException('Dosya boyutu 15 MB sınırını aşamaz.');
+    const maxBytes = Math.min(15 * 1024 * 1024, this.objectStorage.maxBytes());
+    if (!Number.isSafeInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > maxBytes) {
+      throw new BadRequestException('Dosya boyutu izin verilen sınırı aşıyor.');
     }
 
     const messages = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
@@ -1139,7 +1140,7 @@ export class TeamService {
       uploadUrl: signed.url,
       expiresAt: signed.expiresAt,
       requiredHeaders: signed.requiredHeaders,
-      maxBytes: 15 * 1024 * 1024,
+      maxBytes,
       filename: input.filename.slice(0, 255),
     };
   }
@@ -1175,7 +1176,8 @@ export class TeamService {
     }
 
     const head = await this.objectStorage.head(input.objectKey);
-    if (head.byteSize == null || head.byteSize <= 0 || head.byteSize > 15 * 1024 * 1024) {
+    const maxBytes = Math.min(15 * 1024 * 1024, this.objectStorage.maxBytes());
+    if (head.byteSize == null || head.byteSize <= 0 || head.byteSize > maxBytes) {
       await this.objectStorage.remove(input.objectKey).catch(() => undefined);
       throw new BadRequestException('Yüklenen dosyanın boyutu geçersiz.');
     }
