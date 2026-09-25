@@ -23,7 +23,7 @@ export type EnterpriseAction = {
 export type EnterpriseFormField = {
   name: string;
   label: string;
-  type?: "text" | "number" | "date" | "datetime-local" | "textarea" | "select" | "boolean";
+  type?: "text" | "number" | "date" | "datetime-local" | "textarea" | "select" | "boolean" | "json";
   required?: boolean;
   placeholder?: string;
   options?: Array<{ value: string; label: string }>;
@@ -166,7 +166,16 @@ export function EnterpriseDataPage({
       if (consumed.has(field.name)) continue;
       const raw = values[field.name];
       if (raw === "" || raw === undefined) continue;
-      body[field.name] = field.type === "number" ? Number(raw) : field.type === "boolean" ? raw === "true" : raw;
+      if (field.type === "json") {
+        try {
+          body[field.name] = JSON.parse(raw);
+        } catch {
+          setError(`${field.label} geçerli bir JSON değeri olmalıdır.`);
+          return;
+        }
+      } else {
+        body[field.name] = field.type === "number" ? Number(raw) : field.type === "boolean" ? raw === "true" : raw;
+      }
     }
     setWorking(form.title);
     setError("");
