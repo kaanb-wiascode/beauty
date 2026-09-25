@@ -17,6 +17,16 @@ export default function FinanceObligationsPage(){
       {name:"priority",label:"Öncelik",type:"select",defaultValue:"NORMAL",options:[{value:"LOW",label:"Düşük"},{value:"NORMAL",label:"Normal"},{value:"HIGH",label:"Yüksek"},{value:"CRITICAL",label:"Kritik"}]},
       {name:"description",label:"Açıklama",type:"textarea"},
     ]},
+    {title:"Ödeme Tahsisi Yap",description:"Kaydedilmiş gider ödemesini finansal yükümlülüğe tahsis edin.",path:"/finance/obligations/{id}/payment-allocations",fields:[
+      {name:"id",label:"Yükümlülük ID",required:true},
+      {name:"expensePaymentId",label:"Gider Ödeme ID",required:true},
+      {name:"amount",label:"Tahsis Tutarı",type:"number"},
+    ]},
+    {title:"Ödeme Tahsisini Geri Al",path:"/finance/obligations/{id}/payment-allocations/{allocationId}/reverse",fields:[
+      {name:"id",label:"Yükümlülük ID",required:true},
+      {name:"allocationId",label:"Tahsis ID",required:true},
+      {name:"reason",label:"Geri Alma Nedeni",type:"textarea",required:true},
+    ]},
     {title:"Tekrarlayan Kural Oluştur",description:"Düzenli kira, abonelik veya benzeri yükümlülükleri otomatik üretin.",path:"/finance/obligations/rules/create",fields:[
       {name:"name",label:"Kural Adı",required:true},
       {name:"obligationType",label:"Yükümlülük Türü",required:true},
