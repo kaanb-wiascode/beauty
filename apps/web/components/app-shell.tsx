@@ -45,11 +45,16 @@ const NAV_SECTIONS = [
     { href: "/communications/routing", permission: "communications.manage", label: "Talep Yönlendirme", icon: "arrows" },
   ]},
   { label: "Operasyon", items: [
+    { href: "/operations/front-desk", permission: "appointments.read", label: "Resepsiyon & Ziyaretler", icon: "user" },
     { href: "/operations", permission: "appointments.read", label: "Canlı Operasyon", icon: "activity" },
     { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
     { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
     { href: "/payments", permission: "payments.read", label: "Ödemeler", icon: "wallet" },
+  ]},
+  { label: "Satış ve Hizmet", items: [
+    { href: "/sales", permission: "payments.read", label: "Satışlar", icon: "receipt" },
+    { href: "/sessions", permission: "appointments.read", label: "Seanslar", icon: "calendar" },
   ]},
   { label: "Finans Yönetimi", items: [
     { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
@@ -57,6 +62,7 @@ const NAV_SECTIONS = [
     { href: "/finance/expenses", permission: "finance.read", label: "Giderler", icon: "receipt" },
     { href: "/finance/obligations", permission: "finance.read", label: "Yükümlülükler", icon: "calendar" },
     { href: "/finance/configuration", permission: "finance.read", label: "Finans Yapılandırması", icon: "settings" },
+    { href: "/finance/tax", permission: "accounting.read", label: "Vergi Yönetimi", icon: "file" },
     { href: "/finance/accounting", permission: "accounting.read", label: "Muhasebe", icon: "file" },
     { href: "/finance/accounts-payable", permission: "finance.read", label: "Tedarikçi Borçları", icon: "receipt" },
     { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
