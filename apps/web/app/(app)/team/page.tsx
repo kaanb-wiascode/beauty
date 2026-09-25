@@ -182,6 +182,7 @@ export default function TeamPage() {
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
   const recordingTimerRef = useRef<number | null>(null);
+  const previewUrlRef = useRef<string | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -300,15 +301,19 @@ export default function TeamPage() {
   }, [activeId]);
 
   useEffect(() => {
+    previewUrlRef.current = preview?.url ?? null;
+  }, [preview]);
+
+  useEffect(() => {
     return () => {
       const recorder = mediaRecorderRef.current;
       if (recorder && recorder.state !== "inactive") recorder.stop();
       mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
       if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
       if (typingTimerRef.current) window.clearTimeout(typingTimerRef.current);
-      if (preview?.url.startsWith("blob:")) URL.revokeObjectURL(preview.url);
+      if (previewUrlRef.current?.startsWith("blob:")) URL.revokeObjectURL(previewUrlRef.current);
     };
-  }, [preview]);
+  }, []);
 
   useEffect(() => {
     if (!activeId) {
