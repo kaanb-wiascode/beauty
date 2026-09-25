@@ -114,7 +114,7 @@ export default function TreasuryCockpitPage() {
   const providerBalances = position?.provider?.bankBalancesByCurrency ?? [];
   const settlementForecast = position?.posSettlementForecast;
   const settlementTotals = settlementForecast?.totalsByCurrency ?? [];
-  const settlementSchedule = settlementForecast?.scheduled ?? [];
+  const settlementSchedule = useMemo(() => settlementForecast?.scheduled ?? [], [settlementForecast]);
   const settlementUnknownTiming = settlementForecast?.unknownTiming ?? [];
 
   const providerBalance = providerBalances.find(
