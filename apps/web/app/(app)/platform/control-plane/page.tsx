@@ -7,6 +7,7 @@ export default function PlatformControlPlanePage(){return <EnterpriseDataPage ey
 {title:"Tenant Sağlığı",path:"/platform/customer-success/health?limit=100"},
 {title:"Destek Özeti",path:"/platform/support/summary"},
 {title:"Destek Talepleri",path:"/platform/support/tickets?limit=100"},
+{title:"Destek SLA Politikaları",path:"/platform/support/sla/policies"},
 {title:"Destek Oturumları",path:"/platform/support-sessions?limit=100"},
 {title:"Entitlement Kataloğu",path:"/platform/entitlements"},
 ]} actions={[
