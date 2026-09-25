@@ -77,6 +77,16 @@ type PinnedMessage = { id: string; body: string; createdAt: string; senderUserId
 type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
 type AnnouncementReader = { id: string; firstName: string; lastName: string; email: string; acknowledgedAt: string };
 type AttachmentPreview = { url: string; mimeType: string; name: string };
+type PreparedAttachment = {
+  objectKey: string;
+  uploadUrl: string;
+  requiredHeaders: Record<string, string>;
+  maxBytes: number;
+  filename: string;
+};
+type AttachmentAccess =
+  | { mode: "object"; url: string; mimeType: string; originalName: string; expiresAt: string }
+  | { mode: "local"; mimeType: string; originalName: string };
 type TeamRealtimeEvent = {
   type: string;
   payload?: {
@@ -417,6 +427,40 @@ export default function TeamPage() {
     }
   }
 
+  async function uploadMessageAttachment(messageId: string, file: File) {
+    try {
+      const prepared = await api<PreparedAttachment>(`/team/messages/${messageId}/attachments/prepare`, {
+        method: "POST",
+        body: {
+          filename: file.name,
+          mimeType: file.type || "application/octet-stream",
+          byteSize: file.size,
+        },
+      });
+
+      const uploadResponse = await fetch(prepared.uploadUrl, {
+        method: "PUT",
+        headers: prepared.requiredHeaders,
+        body: file,
+      });
+      if (!uploadResponse.ok) {
+        throw new ApiError("Dosya güvenli saklama alanına yüklenemedi.", uploadResponse.status);
+      }
+
+      await api(`/team/messages/${messageId}/attachments/complete`, {
+        method: "POST",
+        body: { objectKey: prepared.objectKey, filename: file.name },
+      });
+      return;
+    } catch (err) {
+      if (!(err instanceof ApiError) || err.status !== 503) throw err;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    await apiFormData(`/team/messages/${messageId}/attachments`, formData);
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
     if (!activeId || !canPost || (!messageText.trim() && !selectedFile) || sending) return;
@@ -433,9 +477,7 @@ export default function TeamPage() {
         body: { body, ...(replyTo ? { replyToMessageId: replyTo.id } : {}) },
       });
       if (selectedFile) {
-        const formData = new FormData();
-        formData.append("file", selectedFile);
-        await apiFormData(`/team/messages/${created.id}/attachments`, formData);
+        await uploadMessageAttachment(created.id, selectedFile);
       }
       setReplyTo(null);
       setSelectedFile(null);
@@ -521,6 +563,19 @@ export default function TeamPage() {
 
   async function openAttachment(attachment: Attachment) {
     try {
+      const access = await api<AttachmentAccess>(`/team/attachments/${attachment.id}/access`);
+      if (access.mode === "object") {
+        if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType === "application/pdf") {
+          setPreview((current) => {
+            if (current?.url.startsWith("blob:")) URL.revokeObjectURL(current.url);
+            return { url: access.url, mimeType: attachment.mimeType, name: attachment.originalName };
+          });
+          return;
+        }
+        window.open(access.url, "_blank", "noopener,noreferrer");
+        return;
+      }
+
       const response = await apiResponse(`/team/attachments/${attachment.id}`);
       if (!response.ok) throw new ApiError("Dosya açılamadı.", response.status);
       const blob = await response.blob();
@@ -528,7 +583,7 @@ export default function TeamPage() {
 
       if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType === "application/pdf") {
         setPreview((current) => {
-          if (current) URL.revokeObjectURL(current.url);
+          if (current?.url.startsWith("blob:")) URL.revokeObjectURL(current.url);
           return { url, mimeType: attachment.mimeType, name: attachment.originalName };
         });
         return;
@@ -1146,18 +1201,18 @@ export default function TeamPage() {
 
       {preview ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={() => {
-          URL.revokeObjectURL(preview.url);
+          if (preview.url.startsWith("blob:")) URL.revokeObjectURL(preview.url);
           setPreview(null);
         }}>
           <div className="w-full max-w-[780px] overflow-hidden rounded-[22px] bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
               <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{preview.name}</p>
-              <button type="button" onClick={() => { URL.revokeObjectURL(preview.url); setPreview(null); }} className="rounded-[9px] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">Kapat</button>
+              <button type="button" onClick={() => { if (preview.url.startsWith("blob:")) URL.revokeObjectURL(preview.url); setPreview(null); }} className="rounded-[9px] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">Kapat</button>
             </div>
             <div className="flex min-h-[220px] items-center justify-center bg-[#f7f6f9] p-4">
-              {preview.mimeType.startsWith("image/") ? <img src={preview.url} alt={preview.name} className="max-h-[70vh] max-w-full rounded-[14px] object-contain" /> : null}
+              {preview.mimeType.startsWith("image/") ? <object data={preview.url} type={preview.mimeType} aria-label={preview.name} className="max-h-[70vh] max-w-full rounded-[14px]" /> : null}
               {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
-              {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[70vh] w-full rounded-[12px] bg-white" /> : null}
+              {preview.mimeType === "application/pdf" ? <object data={preview.url} type="application/pdf" aria-label={preview.name} className="h-[70vh] w-full rounded-[12px] bg-white" /> : null}
             </div>
           </div>
         </div>
