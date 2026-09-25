@@ -34,6 +34,15 @@ type InventoryOverview = {
 type PurchaseRequest = { id: string; status: string; requestedQuantity?: number; createdAt?: string };
 type PurchaseOrder = { id: string; status: string; totalAmount?: number; supplierName?: string | null; warehouseName?: string | null };
 type StaffPage = { data?: Array<{ id: string; status?: string }> };
+type AdminOverview = {
+  users: { active: number; suspended: number; withoutBranchScope: number; broadCentral: number };
+  invitations: { pending: number };
+  roles: { total: number };
+  branches: { active: number; inactive: number };
+  temporaryAccess: { active: number; expiringSoon: number };
+  mfa: { enrolled: number; eligible: number; coveragePercent: number };
+  integrations: { total: number; unhealthy: number };
+};
 
 type ModuleLoad<T> = { data: T | null; error: string };
 
@@ -47,6 +56,7 @@ export default function ManagementCockpitPage() {
   const [requests, setRequests] = useState<ModuleLoad<PurchaseRequest[]>>({ data: null, error: "" });
   const [orders, setOrders] = useState<ModuleLoad<PurchaseOrder[]>>({ data: null, error: "" });
   const [staff, setStaff] = useState<ModuleLoad<StaffPage>>({ data: null, error: "" });
+  const [admin, setAdmin] = useState<ModuleLoad<AdminOverview>>({ data: null, error: "" });
   const [loading, setLoading] = useState(true);
 
   const load = useCallback(async () => {
@@ -61,6 +71,7 @@ export default function ManagementCockpitPage() {
       api<PurchaseRequest[]>("/procurement/purchase-requests"),
       api<PurchaseOrder[]>("/procurement/purchase-orders"),
       api<StaffPage>("/staff?page=1&limit=100"),
+      api<AdminOverview>("/admin/dashboard"),
     ]);
     const apply = <T,>(result: PromiseSettledResult<T>): ModuleLoad<T> => result.status === "fulfilled"
       ? { data: result.value, error: "" }
@@ -71,6 +82,7 @@ export default function ManagementCockpitPage() {
     setRequests(apply(calls[3] as PromiseSettledResult<PurchaseRequest[]>));
     setOrders(apply(calls[4] as PromiseSettledResult<PurchaseOrder[]>));
     setStaff(apply(calls[5] as PromiseSettledResult<StaffPage>));
+    setAdmin(apply(calls[6] as PromiseSettledResult<AdminOverview>));
     setLoading(false);
   }, []);
 
@@ -88,7 +100,7 @@ export default function ManagementCockpitPage() {
   }, [orders.data, requests.data]);
 
   const activeStaff = (staff.data?.data ?? []).filter((row) => row.status === "ACTIVE").length;
-  const moduleErrors = [crm.error, finance.error, inventory.error, requests.error, orders.error, staff.error].filter(Boolean);
+  const moduleErrors = [crm.error, finance.error, inventory.error, requests.error, orders.error, staff.error, admin.error].filter(Boolean);
 
   if (loading && !crm.data && !finance.data && !inventory.data) {
     return <div className="mx-auto max-w-[1480px] py-20"><Spinner label="ERP yönetim görünümü hazırlanıyor..." /></div>;
@@ -155,6 +167,18 @@ export default function ManagementCockpitPage() {
             ["İK Veri Durumu", staff.error ? "Kontrol gerekli" : "Güncel"],
           ]} />
           <ModuleLinks links={[["İK Aksiyon Merkezi", "/hr/actions"], ["İK Kontrol Merkezi", "/hr"], ["Bordro", "/hr/payroll-dashboard"], ["Eğitim & Yetkinlik", "/training"], ["Kalite", "/quality/comparison"]]} />
+        </FinancePanel>
+
+        <FinancePanel title="Yönetim & Erişim Güvenliği" description="Kullanıcı, MFA, kapsam ve geçici erişim riskleri">
+          <ModuleRows rows={[
+            ["Aktif Kullanıcı", admin.data?.users.active ?? "—"],
+            ["Askıya Alınmış Kullanıcı", admin.data?.users.suspended ?? "—"],
+            ["Şube Kapsamı Eksik", admin.data?.users.withoutBranchScope ?? "—"],
+            ["MFA Kapsaması", admin.data ? `%${number.format(admin.data.mfa.coveragePercent)}` : "—"],
+            ["Bekleyen Davet", admin.data?.invitations.pending ?? "—"],
+            ["Sağlıksız Entegrasyon", admin.data?.integrations.unhealthy ?? "—"],
+          ]} />
+          <ModuleLinks links={[["Kullanıcılar", "/settings/users"], ["Roller ve Yetkiler", "/settings/roles"], ["Geçici Erişim", "/settings/temporary-access"], ["Entegrasyonlar", "/settings/integrations"]]} />
         </FinancePanel>
       </section>
     </div>
