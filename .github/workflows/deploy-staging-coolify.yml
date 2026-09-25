@@ -56,11 +56,14 @@ jobs:
           ref: ${{ steps.inputs.outputs.release_sha }}
           fetch-depth: 0
 
-      - name: Verify candidate belongs to release branch
+      - name: Verify candidate belongs to a release branch
         shell: bash
         run: |
-          git fetch origin feature/core-commerce-foundation
-          git merge-base --is-ancestor             "${{ steps.inputs.outputs.release_sha }}"             origin/feature/core-commerce-foundation
+          git fetch origin '+refs/heads/release/*:refs/remotes/origin/release/*'
+          if ! git branch -r --contains "${{ steps.inputs.outputs.release_sha }}" | grep -Eq 'origin/release/'; then
+            echo "Release SHA must belong to a release/* branch." >&2
+            exit 1
+          fi
 
       - name: Install staging connectivity clients
         shell: bash
