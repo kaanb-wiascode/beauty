@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -45,7 +45,7 @@ export default function OperationsCancellationsPage() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
 
-  async function load(selectedOutcome: Outcome = outcome) {
+  const load = useCallback(async (selectedOutcome: Outcome) => {
     if (!hasActiveBranch()) {
       setLoading(false);
       setError("İptal / no-show yönetimi için önce aktif bir şube seçin.");
@@ -68,9 +68,9 @@ export default function OperationsCancellationsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
-  useEffect(() => { void load(); }, []);
+  useEffect(() => { void load("CANCELLED"); }, [load]);
 
   const eligibleAppointments = useMemo(
     () => appointments.filter((item) => !["COMPLETED", "CANCELLED", "NO_SHOW"].includes(item.status)),
