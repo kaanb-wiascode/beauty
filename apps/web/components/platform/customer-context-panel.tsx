@@ -39,13 +39,13 @@ export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
     setCustomerSuccessOwnerUserId(value.account?.customerSuccessOwnerUserId ?? "");
     setGoLiveAt(toDateInput(value.account?.goLiveAt));
     setRenewalAt(toDateInput(value.account?.renewalAt));
-  }, [refresh]);
+  }, [tenantId]);
 
   useEffect(() => {
     refresh().catch((reason: unknown) => {
       setError(reason instanceof ApiError ? userErrorMessage(reason.message, "Müşteri bilgileri yüklenemedi.") : "Müşteri bilgileri yüklenemedi.");
     });
-  }, [tenantId]);
+  }, [refresh]);
 
   async function saveAccount() {
     setBusy(true);
