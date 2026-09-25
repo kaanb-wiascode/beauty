@@ -148,11 +148,11 @@ export default function CrmLeadsPage() {
       );
   }, []);
 
-  function requireActiveBranch(message: string) {
+  const requireActiveBranch = useCallback((message: string) => {
     if (hasActiveBranch()) return true;
     showToast(message, "error");
     return false;
-  }
+  }, [showToast]);
 
   useEffect(() => {
     if (
@@ -168,7 +168,7 @@ export default function CrmLeadsPage() {
         setCreateOpen(true);
       }
     }
-  }, [canManage]);
+  }, [canManage, requireActiveBranch]);
 
   const counts = useMemo(
     () => ({
