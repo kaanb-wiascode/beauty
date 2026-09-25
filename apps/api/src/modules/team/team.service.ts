@@ -611,10 +611,44 @@ export class TeamService {
     );
 
     const created = rows[0] as { id?: string } | undefined;
+    const senderRows = await this.prisma.$queryRawUnsafe<Array<{ senderName: string }>>(
+      `SELECT concat_ws(' ',"firstName","lastName") AS "senderName"
+       FROM users
+       WHERE id=$1::text
+       LIMIT 1`,
+      currentUserId,
+    );
     await this.publishConversationEvent(conversationId, 'message.created', {
       messageId: created?.id ?? null,
       senderUserId: currentUserId,
+      senderName: senderRows[0]?.senderName ?? 'Ekip üyesi',
+      body: input.body.trim().slice(0, 240),
     });
+
+    const mentioned = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT DISTINCT u.id AS "userId"
+       FROM team_conversation_members cm
+       JOIN users u ON u.id=cm.user_id
+       WHERE cm.conversation_id=$1::text
+         AND cm.user_id<>$2::text
+         AND $3 ~* ('(^|\\s)@' || regexp_replace(u."firstName", '([\\W])', '\\\\1', 'g') || '(\\s|$)')`,
+      conversationId,
+      currentUserId,
+      input.body,
+    );
+    if (mentioned.length) {
+      await this.publishToUsers(
+        mentioned.map((row) => row.userId),
+        'mention.created',
+        {
+          conversationId,
+          messageId: created?.id ?? null,
+          senderUserId: currentUserId,
+          senderName: senderRows[0]?.senderName ?? 'Ekip üyesi',
+          body: input.body.trim().slice(0, 240),
+        },
+      );
+    }
     return created;
   }
 
