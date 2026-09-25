@@ -28,6 +28,7 @@ export type ApiOptions = {
   method?: ApiMethod;
   body?: unknown;
   auth?: boolean;
+  signal?: AbortSignal;
 };
 
 function readErrorMessage(payload: unknown, fallback: string) {
@@ -67,6 +68,7 @@ async function refreshAccessToken(): Promise<string | null> {
       const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
         method: "POST",
         credentials: "include",
+        signal,
       });
 
       if (!response.ok) return null;
@@ -94,9 +96,9 @@ async function refreshAccessToken(): Promise<string | null> {
 
 export async function apiResponse(
   path: string,
-  options: Pick<ApiOptions, "method" | "auth"> = {},
+  options: Pick<ApiOptions, "method" | "auth" | "signal"> = {},
 ): Promise<Response> {
-  const { method = "GET", auth = true } = options;
+  const { method = "GET", auth = true, signal } = options;
   let accessToken = auth ? getAccessToken() : null;
 
   if (auth && !accessToken && !path.startsWith("/auth/")) {
