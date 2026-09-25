@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { Alert, Button, EmptyState, Field, PageHeader, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage, userFieldLabel, userLabel } from "@/lib/user-language";
 
 type Data = Record<string, unknown>;
 type Endpoint = readonly [string, string];
@@ -45,15 +46,15 @@ export default function PlatformCustomerOpsPage() {
     if (tenant) {
       const id = encodeURIComponent(tenant);
       endpoints.push(
-        ["Onboarding", `/platform/onboarding/${id}`],
+        ["Başlangıç Kurulumu", `/platform/onboarding/${id}`],
         ["Abonelik", `/platform/customers/${id}/subscription`],
-        ["Entitlement", `/platform/customers/${id}/entitlements`],
+        ["Kullanım Hakları", `/platform/customers/${id}/entitlements`],
         ["Müşteri Başarısı", `/platform/customer-success/${id}`],
-        ["Tenant Sağlığı", `/platform/customer-success/${id}/health`],
+        ["İşletme Sağlığı", `/platform/customer-success/${id}/health`],
       );
     }
     if (provisioningRunId.trim()) {
-      endpoints.push(["Provisioning Çalışması", `/platform/provisioning/${encodeURIComponent(provisioningRunId.trim())}`]);
+      endpoints.push(["Kurulum İşlemi", `/platform/provisioning/${encodeURIComponent(provisioningRunId.trim())}`]);
     }
     if (supportTicketId.trim()) {
       endpoints.push(["Destek Talebi", `/platform/support/tickets/${encodeURIComponent(supportTicketId.trim())}`]);
@@ -72,7 +73,7 @@ export default function PlatformCustomerOpsPage() {
     settled.forEach((result, index) => {
       const [title] = endpoints[index];
       if (result.status === "fulfilled") next[title] = result.value;
-      else failures.push(result.reason instanceof ApiError ? result.reason.message : `${title} yüklenemedi.`);
+      else failures.push(result.reason instanceof ApiError ? userErrorMessage(result.reason.message, `${title} yüklenemedi.`) : `${title} yüklenemedi.`);
     });
 
     setData(next);
@@ -86,23 +87,23 @@ export default function PlatformCustomerOpsPage() {
     <div className="mx-auto max-w-[1450px] space-y-6 pb-12">
       <PageHeader
         title="Platform Müşteri Operasyonu"
-        description="Tenant operasyonlarını, provisioning çalışmalarını ve destek kayıtlarını gerçek backend verileriyle tek platform-admin ekranında inceleyin."
+        description="İşletme operasyonlarını, kurulum işlemlerini ve destek kayıtlarını merkezi platform yönetim ekranından inceleyin."
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-          <Field label="Tenant ID">
-            <TextInput value={tenantId} onChange={(event) => setTenantId(event.target.value)} placeholder="Tenant kimliği" />
+          <Field label="İşletme Kodu">
+            <TextInput value={tenantId} onChange={(event) => setTenantId(event.target.value)} placeholder="İşletme kodunu girin" />
           </Field>
-          <Field label="Provisioning Run ID">
-            <TextInput value={provisioningRunId} onChange={(event) => setProvisioningRunId(event.target.value)} placeholder="Provisioning çalışma kimliği" />
+          <Field label="Kurulum İşlemi Kodu">
+            <TextInput value={provisioningRunId} onChange={(event) => setProvisioningRunId(event.target.value)} placeholder="Kurulum işlemi kodunu girin" />
           </Field>
-          <Field label="Destek Talebi ID">
+          <Field label="Destek Talebi Kodu">
             <TextInput value={supportTicketId} onChange={(event) => setSupportTicketId(event.target.value)} placeholder="Destek talebi kimliği" />
           </Field>
-          <Field label="Destek Oturumu ID">
+          <Field label="Destek Oturumu Kodu">
             <TextInput value={supportSessionId} onChange={(event) => setSupportSessionId(event.target.value)} placeholder="Destek oturumu kimliği" />
           </Field>
         </div>
@@ -139,13 +140,13 @@ function Section({ title, value }: { title: string; value: unknown }) {
           <table className="w-full min-w-[760px] text-left text-xs">
             <thead>
               <tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/40">
-                {visibleKeys.map((key) => <th key={key} className="px-4 py-3">{key.replace(/([a-z])([A-Z])/g, "$1 $2")}</th>)}
+                {visibleKeys.map((key) => <th key={key} className="px-4 py-3">{userFieldLabel(key)}</th>)}
               </tr>
             </thead>
             <tbody>
               {records.map((row, index) => (
                 <tr key={String(row.id ?? row.tenantId ?? index)} className="border-b border-[var(--line)] last:border-0">
-                  {visibleKeys.map((key) => <td key={key} className="max-w-[340px] truncate px-4 py-4 text-[var(--muted)]">{show(row[key])}</td>)}
+                  {visibleKeys.map((key) => <td key={key} className="max-w-[340px] truncate px-4 py-4 text-[var(--muted)]">{typeof row[key] === "string" ? userLabel(String(row[key])) : show(row[key])}</td>)}
                 </tr>
               ))}
             </tbody>
