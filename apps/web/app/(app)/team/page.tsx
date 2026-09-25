@@ -1217,9 +1217,16 @@ export default function TeamPage() {
               <button type="button" onClick={() => { if (preview.url.startsWith("blob:")) URL.revokeObjectURL(preview.url); setPreview(null); }} className="rounded-[9px] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">Kapat</button>
             </div>
             <div className="flex min-h-[220px] items-center justify-center bg-[#f7f6f9] p-4">
-              {preview.mimeType.startsWith("image/") ? <object data={preview.url} type={preview.mimeType} aria-label={preview.name} className="max-h-[70vh] max-w-full rounded-[14px]" /> : null}
+              {preview.mimeType.startsWith("image/") ? (
+                <div
+                  role="img"
+                  aria-label={preview.name}
+                  className="h-[70vh] w-full rounded-[14px] bg-contain bg-center bg-no-repeat"
+                  style={{ backgroundImage: `url("${preview.url}")` }}
+                />
+              ) : null}
               {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
-              {preview.mimeType === "application/pdf" ? <object data={preview.url} type="application/pdf" aria-label={preview.name} className="h-[70vh] w-full rounded-[12px] bg-white" /> : null}
+              {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[70vh] w-full rounded-[12px] bg-white" /> : null}
             </div>
           </div>
         </div>
