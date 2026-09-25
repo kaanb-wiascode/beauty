@@ -285,11 +285,11 @@ export default function TeamPage() {
   }, [activeId, loadMessages, loadConversationMembers, loadTyping, loadPinnedMessages]);
 
   useEffect(() => {
-    const controller = new AbortController();
-    let reconnectTimer: number | null = null;
+    function handleBrowserEvent(raw: Event) {
+      const custom = raw as CustomEvent<TeamRealtimeEvent>;
+      const event = custom.detail;
+      if (!event || event.type === "heartbeat") return;
 
-    function handleRealtimeEvent(event: TeamRealtimeEvent) {
-      if (event.type === "heartbeat") return;
       const conversationId = event.payload?.conversationId;
       const currentConversationId = activeIdRef.current;
 
@@ -368,58 +368,8 @@ export default function TeamPage() {
       }
     }
 
-    async function connect() {
-      if (controller.signal.aborted) return;
-      try {
-        const response = await apiResponse("/team/events", { signal: controller.signal });
-        if (!response.ok || !response.body) {
-          throw new ApiError("Gerçek zamanlı bağlantı kurulamadı.", response.status);
-        }
-
-        const reader = response.body.getReader();
-        const decoder = new TextDecoder();
-        let buffer = "";
-
-        while (!controller.signal.aborted) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buffer += decoder.decode(value, { stream: true });
-
-          let separatorIndex = buffer.indexOf("\n\n");
-          while (separatorIndex >= 0) {
-            const block = buffer.slice(0, separatorIndex);
-            buffer = buffer.slice(separatorIndex + 2);
-            const data = block
-              .split("\n")
-              .filter((line) => line.startsWith("data:"))
-              .map((line) => line.slice(5).trim())
-              .join("");
-
-            if (data) {
-              try {
-                handleRealtimeEvent(JSON.parse(data) as TeamRealtimeEvent);
-              } catch {
-                // Bozuk tek bir event stream bağlantısını sonlandırmamalı.
-              }
-            }
-            separatorIndex = buffer.indexOf("\n\n");
-          }
-        }
-      } catch (err) {
-        if (controller.signal.aborted) return;
-        if (err instanceof ApiError && err.status === 401) return;
-      }
-
-      if (!controller.signal.aborted) {
-        reconnectTimer = window.setTimeout(() => void connect(), 1500);
-      }
-    }
-
-    void connect();
-    return () => {
-      controller.abort();
-      if (reconnectTimer) window.clearTimeout(reconnectTimer);
-    };
+    window.addEventListener("valoo:team-realtime", handleBrowserEvent);
+    return () => window.removeEventListener("valoo:team-realtime", handleBrowserEvent);
   }, [
     currentUser?.id,
     loadConversationMembers,
@@ -427,14 +377,6 @@ export default function TeamPage() {
     loadOverview,
     loadPinnedMessages,
   ]);
-
-  useEffect(() => {
-    void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
-    const timer = window.setInterval(() => {
-      void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
-    }, 30000);
-    return () => window.clearInterval(timer);
-  }, []);
 
   async function changeStatus(next: PresenceStatus) {
     setStatus(next);
