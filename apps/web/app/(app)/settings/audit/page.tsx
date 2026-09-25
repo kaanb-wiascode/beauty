@@ -3,7 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 
 import { api, ApiError } from "@/lib/api";
-import { userLabel, userPermissionLabel } from "@/lib/user-language";
+import { userPermissionLabel } from "@/lib/user-language";
 
 type AuditEvent = {
   id: string;
