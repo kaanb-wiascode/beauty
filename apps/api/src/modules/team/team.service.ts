@@ -1107,6 +1107,38 @@ export class TeamService {
     };
   }
 
+  async acknowledgeAnnouncement(currentUserId: string, messageId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT m.conversation_id AS "conversationId"
+       FROM team_messages m
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE m.id=$1::text
+         AND cm.user_id=$2::text
+         AND c.announcement_only=TRUE
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+         AND m.deleted_at IS NULL
+       LIMIT 1`,
+      messageId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const row = rows[0];
+    if (!row) throw new NotFoundException('Onaylanabilir duyuru bulunamadı.');
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO team_announcement_acknowledgements(message_id,user_id)
+       VALUES($1::text,$2::text)
+       ON CONFLICT(message_id,user_id) DO UPDATE SET acknowledged_at=NOW()`,
+      messageId,
+      currentUserId,
+    );
+    await this.publishConversationEvent(row.conversationId, 'announcement.acknowledged', { messageId, userId: currentUserId });
+    return { ok: true };
+  }
+
   async updatePresence(currentUserId: string, input: PresenceInput) {
     await this.requireActiveUser(currentUserId);
     const rows = await this.prisma.$queryRawUnsafe(
