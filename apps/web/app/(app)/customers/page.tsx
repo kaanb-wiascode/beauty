@@ -25,7 +25,6 @@ import {
   Field,
   PageHeader,
   Pagination,
-  Select,
   Spinner,
   TableWrap,
   Td,
