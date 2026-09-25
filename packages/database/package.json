@@ -14,7 +14,8 @@
     "migrate:dev": "prisma migrate dev",
     "migrate:deploy": "prisma migrate deploy",
     "studio": "prisma studio",
-    "seed": "ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/demo.ts && ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/repair-owner-permissions.ts && ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/repair-demo-login.ts && ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/repair-demo-context.ts"
+    "seed": "ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/demo.ts && ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/repair-owner-permissions.ts && ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/repair-demo-login.ts && ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/repair-demo-context.ts",
+    "seed:enterprise": "ts-node --compiler-options '{\"module\":\"NodeNext\",\"types\":[\"node\"]}' prisma/seed/enterprise-demo.ts"
   },
   "dependencies": {
     "@nestjs/common": "^11.1.6",
