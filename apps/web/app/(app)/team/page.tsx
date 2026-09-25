@@ -73,6 +73,21 @@ type ConversationMember = {
 type TypingUser = { id: string; firstName: string; lastName: string };
 type PinnedMessage = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string; pinnedAt: string };
 type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
+type TeamRealtimeEvent = {
+  type: string;
+  payload?: {
+    conversationId?: string;
+    messageId?: string | null;
+    senderUserId?: string;
+    senderName?: string;
+    body?: string;
+    userId?: string;
+    firstName?: string;
+    lastName?: string;
+    typing?: boolean;
+  };
+  at?: string;
+};
 
 const STATUS_LABELS: Record<PresenceStatus, string> = {
   AVAILABLE: "Müsait",
@@ -145,6 +160,7 @@ export default function TeamPage() {
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
   const endRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
+  const activeIdRef = useRef<string | null>(null);
 
   const active = useMemo(
     () => conversations.find((conversation) => conversation.id === activeId) ?? null,
@@ -248,6 +264,10 @@ export default function TeamPage() {
   }, [loadOverview]);
 
   useEffect(() => {
+    activeIdRef.current = activeId;
+  }, [activeId]);
+
+  useEffect(() => {
     if (!activeId) {
       setMessages([]);
       return;
@@ -265,15 +285,156 @@ export default function TeamPage() {
   }, [activeId, loadMessages, loadConversationMembers, loadTyping, loadPinnedMessages]);
 
   useEffect(() => {
-    const timer = window.setInterval(() => {
-      void loadOverview(true);
-      if (activeId) {
-        void loadMessages(activeId, true);
-        void loadTyping(activeId);
+    const controller = new AbortController();
+    let reconnectTimer: number | null = null;
+
+    function handleRealtimeEvent(event: TeamRealtimeEvent) {
+      if (event.type === "heartbeat") return;
+      const conversationId = event.payload?.conversationId;
+      const currentConversationId = activeIdRef.current;
+
+      if (event.type === "typing.updated" && conversationId === currentConversationId) {
+        const userId = event.payload?.userId;
+        if (!userId || userId === currentUser?.id) return;
+        setTypingUsers((current) => {
+          const filtered = current.filter((user) => user.id !== userId);
+          if (!event.payload?.typing) return filtered;
+          return [
+            ...filtered,
+            {
+              id: userId,
+              firstName: event.payload?.firstName ?? "",
+              lastName: event.payload?.lastName ?? "",
+            },
+          ];
+        });
+        return;
       }
-    }, 3000);
+
+      if (event.type === "presence.updated") {
+        void loadOverview(true);
+        return;
+      }
+
+      if (
+        event.type === "conversation.created" ||
+        event.type === "conversation.updated" ||
+        event.type === "conversation.removed"
+      ) {
+        void loadOverview(true);
+        if (conversationId === currentConversationId && currentConversationId) {
+          void loadConversationMembers(currentConversationId);
+        }
+        return;
+      }
+
+      if (
+        event.type === "message.created" ||
+        event.type === "message.updated" ||
+        event.type === "message.deleted" ||
+        event.type === "reaction.updated" ||
+        event.type === "attachment.added" ||
+        event.type === "pin.updated"
+      ) {
+        void loadOverview(true);
+        if (conversationId === currentConversationId && currentConversationId) {
+          void loadMessages(currentConversationId, true);
+          if (event.type === "pin.updated") void loadPinnedMessages(currentConversationId);
+        }
+
+        if (
+          event.type === "message.created" &&
+          event.payload?.senderUserId &&
+          event.payload.senderUserId !== currentUser?.id &&
+          typeof Notification !== "undefined" &&
+          Notification.permission === "granted"
+        ) {
+          new Notification(event.payload.senderName ?? "Yeni ekip mesajı", {
+            body: event.payload.body ?? "Yeni bir mesajınız var.",
+          });
+        }
+        return;
+      }
+
+      if (
+        event.type === "mention.created" &&
+        event.payload?.senderUserId !== currentUser?.id &&
+        typeof Notification !== "undefined" &&
+        Notification.permission === "granted"
+      ) {
+        new Notification("Bir ekip üyesi sizi etiketledi", {
+          body: `${event.payload?.senderName ?? "Ekip üyesi"}: ${event.payload?.body ?? ""}`,
+        });
+      }
+    }
+
+    async function connect() {
+      if (controller.signal.aborted) return;
+      try {
+        const response = await apiResponse("/team/events", { signal: controller.signal });
+        if (!response.ok || !response.body) {
+          throw new ApiError("Gerçek zamanlı bağlantı kurulamadı.", response.status);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (!controller.signal.aborted) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let separatorIndex = buffer.indexOf("\n\n");
+          while (separatorIndex >= 0) {
+            const block = buffer.slice(0, separatorIndex);
+            buffer = buffer.slice(separatorIndex + 2);
+            const data = block
+              .split("\n")
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).trim())
+              .join("");
+
+            if (data) {
+              try {
+                handleRealtimeEvent(JSON.parse(data) as TeamRealtimeEvent);
+              } catch {
+                // Bozuk tek bir event stream bağlantısını sonlandırmamalı.
+              }
+            }
+            separatorIndex = buffer.indexOf("\n\n");
+          }
+        }
+      } catch (err) {
+        if (controller.signal.aborted) return;
+        if (err instanceof ApiError && err.status === 401) return;
+      }
+
+      if (!controller.signal.aborted) {
+        reconnectTimer = window.setTimeout(() => void connect(), 1500);
+      }
+    }
+
+    void connect();
+    return () => {
+      controller.abort();
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
+    };
+  }, [
+    currentUser?.id,
+    loadConversationMembers,
+    loadMessages,
+    loadOverview,
+    loadPinnedMessages,
+  ]);
+
+  useEffect(() => {
+    void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
+    }, 30000);
     return () => window.clearInterval(timer);
-  }, [activeId, loadMessages, loadOverview, loadTyping]);
+  }, []);
 
   async function changeStatus(next: PresenceStatus) {
     setStatus(next);
