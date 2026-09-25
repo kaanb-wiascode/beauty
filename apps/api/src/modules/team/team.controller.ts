@@ -60,6 +60,17 @@ const typingSchema = z.object({
   typing: z.boolean(),
 });
 
+const prepareAttachmentSchema = z.object({
+  filename: z.string().trim().min(1).max(255),
+  mimeType: z.string().trim().min(1).max(160),
+  byteSize: z.number().int().positive().max(15 * 1024 * 1024),
+});
+
+const completeAttachmentSchema = z.object({
+  objectKey: z.string().trim().min(1).max(1024),
+  filename: z.string().trim().min(1).max(255),
+});
+
 const presenceSchema = z.object({
   status: z.enum([
     'AVAILABLE',
@@ -157,6 +168,32 @@ export class TeamController {
     @Param('id', ParseUUIDPipe) id: string,
   ) {
     return this.team.togglePin(user.sub, id);
+  }
+
+  @Post('messages/:id/attachments/prepare')
+  prepareAttachmentUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    return this.team.prepareAttachmentUpload(user.sub, id, prepareAttachmentSchema.parse(body));
+  }
+
+  @Post('messages/:id/attachments/complete')
+  completeAttachmentUpload(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    return this.team.completeAttachmentUpload(user.sub, id, completeAttachmentSchema.parse(body));
+  }
+
+  @Get('attachments/:id/access')
+  attachmentAccess(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.attachmentAccess(user.sub, id);
   }
 
   @Post('messages/:id/attachments')
