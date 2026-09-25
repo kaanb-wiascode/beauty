@@ -158,6 +158,7 @@ export default function TeamPage() {
   const [groupEditing, setGroupEditing] = useState(false);
   const [groupNameDraft, setGroupNameDraft] = useState("");
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
+  const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
   const endRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -262,6 +263,14 @@ export default function TeamPage() {
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
+
+  useEffect(() => {
+    if (typeof Notification === "undefined") {
+      setNotificationPermission("unsupported");
+      return;
+    }
+    setNotificationPermission(Notification.permission);
+  }, []);
 
   useEffect(() => {
     activeIdRef.current = activeId;
@@ -377,6 +386,12 @@ export default function TeamPage() {
     loadOverview,
     loadPinnedMessages,
   ]);
+
+  async function enableNotifications() {
+    if (typeof Notification === "undefined") return;
+    const permission = await Notification.requestPermission();
+    setNotificationPermission(permission);
+  }
 
   async function changeStatus(next: PresenceStatus) {
     setStatus(next);
@@ -602,6 +617,15 @@ export default function TeamPage() {
           <p className="mt-1 text-[13px] text-[var(--muted)]">Ekip içi konuşmalar, grup mesajları ve anlık müsaitlik tek ekranda.</p>
         </div>
         <div className="flex items-center gap-2">
+          {notificationPermission === "default" ? (
+            <button
+              type="button"
+              onClick={() => void enableNotifications()}
+              className="h-10 rounded-[12px] border border-[var(--line)] bg-white px-3 text-[11px] font-semibold text-[var(--muted)] hover:text-[var(--ink)]"
+            >
+              Bildirimleri Aç
+            </button>
+          ) : null}
           <select
             value={status}
             onChange={(event) => void changeStatus(event.target.value as PresenceStatus)}
