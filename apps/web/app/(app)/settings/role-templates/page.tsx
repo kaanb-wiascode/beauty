@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { userErrorMessage, userPermissionKeyLabel } from "@/lib/user-language";
 
 type Template = {
   key: string;
@@ -12,6 +13,17 @@ type Template = {
   scope: "CENTRAL" | "COMPANY" | "BRANCH";
   permissions: string[];
   permissionCount: number;
+};
+
+const templateLabels: Record<string, { name: string; description: string }> = {
+  "general-manager": { name: "Genel Müdür", description: "Şirket genelindeki operasyonları ve temel yönetim verilerini görüntüler." },
+  "branch-manager": { name: "Şube Müdürü", description: "Şube operasyonlarını, personeli, müşterileri ve ticari süreçleri yönetir." },
+  reception: { name: "Resepsiyon", description: "Müşteri, randevu ve ödeme kabul süreçlerini yürütür." },
+  finance: { name: "Finans", description: "Finans, muhasebe, ödeme ve raporlama süreçlerini yönetir." },
+  accountant: { name: "Muhasebe", description: "Muhasebe kayıtlarını ve finansal raporları yönetir." },
+  hr: { name: "İnsan Kaynakları", description: "İnsan kaynakları ve personel süreçlerini yönetir." },
+  warehouse: { name: "Depo ve Stok", description: "Stok, depo ve envanter hareketlerini yönetir." },
+  auditor: { name: "Denetçi", description: "Finans, muhasebe, stok ve İK verilerini görüntüleme odaklı denetler." },
 };
 
 const scopeLabels = {
@@ -30,12 +42,13 @@ export default function RoleTemplatesPage() {
   useEffect(() => {
     api<Template[]>("/roles/templates")
       .then(setTemplates)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Rol şablonları yüklenemedi."))
+      .catch((err) => setError(err instanceof ApiError ? userErrorMessage(err.message, "Rol şablonları yüklenemedi.") : "Rol şablonları yüklenemedi."))
       .finally(() => setLoading(false));
   }, []);
 
   async function instantiate(template: Template) {
-    const name = window.prompt("Oluşturulacak rol adı", template.name)?.trim();
+    const label = templateLabels[template.key];
+    const name = window.prompt("Oluşturulacak rol adı", label?.name ?? template.name)?.trim();
     if (!name) return;
     setCreating(template.key);
     setError("");
@@ -46,7 +59,7 @@ export default function RoleTemplatesPage() {
       });
       showToast(`${name} rolü oluşturuldu.`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Rol şablondan oluşturulamadı.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message, "Rol şablondan oluşturulamadı.") : "Rol şablondan oluşturulamadı.");
     } finally {
       setCreating(null);
     }
@@ -61,7 +74,7 @@ export default function RoleTemplatesPage() {
       <header className="border-b border-[var(--line)] pb-5">
         <div className="mb-1 text-xs font-medium text-[var(--muted)]">Yönetim / Erişim</div>
         <h1 className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">Rol Şablonları</h1>
-        <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">Başlangıç şablonları tenant-owned rollere kopyalanır. Şablonun kendisi değişmez; oluşturulan rol daha sonra normal Rol ve Yetkiler ekranından özelleştirilebilir.</p>
+        <p className="mt-1 max-w-3xl text-sm text-[var(--muted)]">Hazır rol şablonlarını şirketinize kopyalayarak hızlıca başlayabilirsiniz. Şablon değişmeden kalır; oluşturulan rolü daha sonra Roller ve Yetkiler ekranından özelleştirebilirsiniz.</p>
       </header>
 
       {error ? <div className="rounded-xl border border-[#f0d8d8] bg-[#fff8f8] px-4 py-3 text-sm text-[#9a4545]">{error}</div> : null}
@@ -71,8 +84,8 @@ export default function RoleTemplatesPage() {
           <article key={template.key} className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
             <div className="flex items-start justify-between gap-3">
               <div>
-                <h2 className="text-base font-semibold text-[var(--ink)]">{template.name}</h2>
-                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{template.description}</p>
+                <h2 className="text-base font-semibold text-[var(--ink)]">{templateLabels[template.key]?.name ?? template.name}</h2>
+                <p className="mt-1 text-xs leading-5 text-[var(--muted)]">{templateLabels[template.key]?.description ?? template.description}</p>
               </div>
               <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[11px] font-semibold text-[var(--accent)]">{scopeLabels[template.scope]}</span>
             </div>
@@ -81,7 +94,7 @@ export default function RoleTemplatesPage() {
             </div>
             <div className="mt-4 flex flex-wrap gap-1.5">
               {template.permissions.slice(0, 6).map((permission) => (
-                <span key={permission} className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] text-[var(--muted)]">{permission}</span>
+                <span key={permission} className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] text-[var(--muted)]">{userPermissionKeyLabel(permission)}</span>
               ))}
               {template.permissions.length > 6 ? <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] text-[var(--muted)]">+{template.permissions.length - 6}</span> : null}
             </div>
