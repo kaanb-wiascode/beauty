@@ -2,7 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api, apiFormData, apiResponse, ApiError } from "@/lib/api";
-import { Alert, Button, PageHeader, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, PageHeader, Spinner } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { SearchField } from "@/components/data-view";
 import { ValooSelect } from "@/components/valoo-controls";
@@ -139,7 +139,7 @@ function PersonAvatar({ person, size = "md" }: { person: Person; size?: "sm" | "
   const box = size === "sm" ? "h-8 w-8 text-[10px]" : "h-10 w-10 text-[11px]";
   return (
     <div className="relative shrink-0">
-      <div className={`${box} flex items-center justify-center rounded-[13px] bg-[#f1edff] font-semibold text-[#6f54c7]`}>
+      <div className={`${box} flex items-center justify-center rounded-[13px] bg-[var(--accent-soft)] font-semibold text-[var(--accent)]`}>
         {initials(person.firstName, person.lastName)}
       </div>
       <span className={`absolute -bottom-0.5 -right-0.5 h-3 w-3 rounded-full border-2 border-white ${person.isOnline ? STATUS_DOT[person.status] : "bg-slate-300"}`} />
@@ -904,7 +904,7 @@ export default function TeamPage() {
                               onClick={() => setSearchText("")}
                               className="w-full rounded-[11px] px-3 py-2 text-left hover:bg-[var(--surface-2)]"
                             >
-                              <p className="text-[9px] font-semibold text-[#7657e8]">{result.senderName} · {timeLabel(result.createdAt)}</p>
+                              <p className="text-[9px] font-semibold text-[var(--accent)]">{result.senderName} · {timeLabel(result.createdAt)}</p>
                               <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--ink)]">{result.body}</p>
                             </button>
                           ))}
@@ -929,8 +929,8 @@ export default function TeamPage() {
                       return (
                         <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
                           <div className={`group/message max-w-[76%] rounded-[18px] px-4 py-3 shadow-[0_3px_12px_rgba(17,70,104,.04)] ${mine ? "bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
-                            {!mine ? <p className="mb-1 text-[9px] font-semibold text-[#7458c8]">{message.senderName}</p> : null}
-                            {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[#9c86e8] bg-[#faf8ff] text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
+                            {!mine ? <p className="mb-1 text-[9px] font-semibold text-[var(--accent)]">{message.senderName}</p> : null}
+                            {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[var(--accent)] bg-[var(--accent-soft)]/45 text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
                             <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
                             {message.attachments?.length ? (
                               <div className="mt-2 space-y-1.5">
@@ -950,7 +950,7 @@ export default function TeamPage() {
                             ) : null}
                             <div className="mt-2 flex flex-wrap items-center gap-1">
                               {(message.reactions ?? []).map((reaction) => (
-                                <button key={reaction.emoji} type="button" onClick={() => void toggleReaction(message.id, reaction.emoji)} className={`rounded-full px-2 py-0.5 text-[10px] ${reaction.reactedByMe ? "bg-[#efe9ff] text-[#694cc0]" : mine ? "bg-white/10 text-white/80" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
+                                <button key={reaction.emoji} type="button" onClick={() => void toggleReaction(message.id, reaction.emoji)} className={`rounded-full px-2 py-0.5 text-[10px] ${reaction.reactedByMe ? "bg-[var(--accent-soft)] text-[var(--accent)]" : mine ? "bg-white/10 text-white/80" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
                                   {reaction.emoji} {reaction.count}
                                 </button>
                               ))}
@@ -1010,14 +1010,14 @@ export default function TeamPage() {
                   </div>
                 ) : null}
                 {typingUsers.length ? (
-                  <p className="mb-2 px-1 text-[10px] font-medium text-[#7657e8]">
+                  <p className="mb-2 px-1 text-[10px] font-medium text-[var(--accent)]">
                     {typingUsers.map((user) => user.firstName).join(", ")} yazıyor...
                   </p>
                 ) : null}
                 {replyTo || editingMessage ? (
-                  <div className="mb-2 flex items-start justify-between rounded-[12px] border border-[#e9e2ff] bg-[#faf8ff] px-3 py-2">
+                  <div className="mb-2 flex items-start justify-between rounded-[12px] border border-[rgba(22,116,189,.14)] bg-[var(--accent-soft)]/45 px-3 py-2">
                     <div className="min-w-0">
-                      <p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[#7657e8]">{editingMessage ? "Mesaj düzenleniyor" : `${replyTo?.senderName ?? ""} kişisine yanıt`}</p>
+                      <p className="text-[9px] font-semibold uppercase tracking-[.08em] text-[var(--accent)]">{editingMessage ? "Mesaj düzenleniyor" : `${replyTo?.senderName ?? ""} kişisine yanıt`}</p>
                       <p className="mt-1 truncate text-[10px] text-[var(--muted)]">{editingMessage?.body ?? replyTo?.body}</p>
                     </div>
                     <button type="button" onClick={() => { setReplyTo(null); setEditingMessage(null); setMessageText(""); }} className="ml-3 text-[11px] font-semibold text-[var(--muted)]">×</button>
@@ -1043,7 +1043,7 @@ export default function TeamPage() {
                       <div className="p-1.5">
                         {mentionSuggestions.map((member) => (
                           <button key={member.id} type="button" onClick={() => insertMention(member)} className="flex w-full items-center gap-2 rounded-[10px] px-2 py-2 text-left hover:bg-[var(--surface-2)]">
-                            <div className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[#f1edff] text-[8px] font-semibold text-[#6f54c7]">{initials(member.firstName, member.lastName)}</div>
+                            <div className="flex h-7 w-7 items-center justify-center rounded-[9px] bg-[var(--accent-soft)] text-[8px] font-semibold text-[var(--accent)]">{initials(member.firstName, member.lastName)}</div>
                             <div className="min-w-0">
                               <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
                               <p className="truncate text-[8px] text-[var(--muted)]">{member.roleName}</p>
@@ -1080,7 +1080,7 @@ export default function TeamPage() {
                   </button>
                 </div>
                 {selectedFile ? (
-                  <div className="mt-2 flex items-center justify-between rounded-[10px] bg-[#faf8ff] px-3 py-2 text-[9px] text-[var(--muted)]">
+                  <div className="mt-2 flex items-center justify-between rounded-[10px] bg-[var(--accent-soft)]/45 px-3 py-2 text-[9px] text-[var(--muted)]">
                     <span className="truncate">{selectedFile.name} · {Math.max(1, Math.round(selectedFile.size / 1024))} KB</span>
                     <button type="button" onClick={() => setSelectedFile(null)} className="font-semibold text-rose-600">Kaldır</button>
                   </div>
@@ -1109,7 +1109,7 @@ export default function TeamPage() {
               <div className="max-h-[180px] overflow-y-auto px-2 pb-3">
                 {pinnedMessages.map((pinned) => (
                   <div key={pinned.id} className="rounded-[12px] border border-transparent px-2.5 py-2.5 transition hover:border-[var(--line)] hover:bg-[var(--surface-2)]">
-                    <p className="text-[8px] font-semibold text-[#7657e8]">{pinned.senderName}</p>
+                    <p className="text-[8px] font-semibold text-[var(--accent)]">{pinned.senderName}</p>
                     <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-[var(--ink)]">{pinned.body}</p>
                   </div>
                 ))}
@@ -1142,7 +1142,7 @@ export default function TeamPage() {
                 ) : null}
 
                 {memberPickerOpen ? (
-                  <div className="rounded-[12px] border border-[var(--line)] bg-[#fcfbfd] p-2">
+                  <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)]/55 p-2">
                     <p className="mb-1 px-1 text-[9px] font-semibold text-[var(--muted)]">{active.type === "CHANNEL" ? "Kanala eklenebilecek kişiler" : "Gruba eklenebilecek kişiler"}</p>
                     <div className="max-h-[150px] overflow-y-auto">
                       {selectablePeople.filter((person) => !conversationMembers.some((member) => member.id === person.id)).map((person) => (
