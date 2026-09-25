@@ -65,6 +65,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const[createOpen,setCreateOpen]=useState(false),[selected,setSelected]=useState<FinanceRecord|null>(null),[moneyOpen,setMoneyOpen]=useState(false);
   const[form,setForm]=useState<RecordForm>(initialForm);
   const[amount,setAmount]=useState(""),[accountId,setAccountId]=useState(""),[method,setMethod]=useState("TRANSFER"),[reference,setReference]=useState("");
+  const[moneyHistory,setMoneyHistory]=useState<Array<Record<string,unknown>>>([]);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
@@ -87,6 +88,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     finally{setLoading(false);}
   },[expense,canManage,canReadAccounting]);
   useEffect(()=>{void load();},[load]);
+  useEffect(()=>{if(!selected){setMoneyHistory([]);return;}void(async()=>{try{const path=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;const result=await api<Array<Record<string,unknown>>>(path);setMoneyHistory(Array.isArray(result)?result:[])}catch{setMoneyHistory([])}})()},[selected,expense,basePath]);
 
   const filtered=useMemo(()=>records.filter(record=>{
     if(approvalFilter&&record.approvalStatus!==approvalFilter)return false;
@@ -151,6 +153,22 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
 
   function openMoney(record:FinanceRecord){
     setSelected(record);setAmount(String(record.grossAmount));setAccountId(accounts[0]?.id??"");setMethod("TRANSFER");setReference("");setMoneyOpen(true);
+  }
+
+  async function reverseMoney(item:Record<string,unknown>){
+    if(!selected)return;
+    const id=String(item.id??""); if(!id)return;
+    const reason=window.prompt(expense?"Ödeme ters kayıt nedeni":"Tahsilat ters kayıt nedeni");
+    if(!reason?.trim())return;
+    setWorking(true);setError("");
+    try{
+      const path=expense?`${basePath}/${selected.id}/payments/${id}/reverse`:`${basePath}/${selected.id}/collections/${id}/reverse`;
+      await api(path,{method:"POST",body:{reason:reason.trim()}});
+      setNotice(expense?"Ödeme ters kaydı oluşturuldu.":"Tahsilat ters kaydı oluşturuldu.");
+      const historyPath=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;
+      const history=await api<Array<Record<string,unknown>>>(historyPath);setMoneyHistory(Array.isArray(history)?history:[]);
+      await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Ters kayıt oluşturulamadı.")}finally{setWorking(false)}
   }
 
   async function recordMoney(event:FormEvent){
@@ -238,6 +256,15 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4"><Detail label="Brüt Tutar" value={money(selected.grossAmount,selected.currency)}/><Detail label="Net Tutar" value={money(selected.netAmount,selected.currency)}/><Detail label="Vergi" value={money(selected.taxAmount,selected.currency)}/>{expense?<Detail label="Stopaj" value={money(selected.withholdingAmount,selected.currency)}/>:<Detail label="Vade" value={date(selected.dueDate)}/>}</section>
         <section className="grid gap-4 rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)]/35 p-5 md:grid-cols-2">
           <Detail label="Kategori" value={categories.find(x=>x.id===selected.categoryId)?.name??"—"}/><Detail label="Karşı Taraf" value={selected.counterpartyName||"—"}/><Detail label="İşlem Tarihi" value={date(selected.transactionDate)}/><Detail label="Belge" value={[selected.documentType,selected.documentNumber].filter(Boolean).join(" · ")||"—"}/><Detail label="Onay Durumu" value={statusLabel(selected.approvalStatus)}/><Detail label={expense?"Ödeme Durumu":"Tahsilat Durumu"} value={statusLabel(expense?selected.paymentStatus:selected.collectionStatus)}/><Detail label="Muhasebe Durumu" value={statusLabel(selected.accountingStatus)}/><Detail label="Açıklama" value={selected.description||"—"}/>
+        </section>
+        <section className="overflow-hidden rounded-[16px] border border-[var(--line)]">
+          <div className="border-b border-[var(--line)] px-4 py-3"><h3 className="text-[12px] font-semibold text-[var(--ink)]">{expense?"Ödeme Geçmişi":"Tahsilat Geçmişi"}</h3></div>
+          {moneyHistory.length?<div className="divide-y divide-[var(--line)]">{moneyHistory.map((item,index)=><div key={String(item.id??index)} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Tutar</p><p className="text-[12px] font-semibold text-[var(--ink)]">{money(Number(item.amount??0),selected.currency)}</p></div>
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Hesap</p><p className="text-[11px] text-[var(--muted)]">{String(item.paymentAccountName??item.collectionAccountName??"—")}</p></div>
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Referans</p><p className="text-[11px] text-[var(--muted)]">{String(item.reference??"—")}</p></div>
+            <div>{canManage&&!item.reversalId?<Button size="sm" variant="danger" disabled={working} onClick={()=>void reverseMoney(item)}>Geri Al</Button>:<span className="text-[10px] text-[var(--muted-soft)]">{item.reversalId?"Ters kayıtlı":""}</span>}</div>
+          </div>)}</div>:<div className="px-4 py-6 text-center text-[11px] text-[var(--muted)]">Henüz hareket yok.</div>}
         </section>
         {canManage?<div className="flex flex-wrap gap-2 border-t border-[var(--line)] pt-5">
           {["DRAFT","REJECTED"].includes(selected.approvalStatus)?<Button onClick={()=>void transition("submit")} disabled={working}>Onaya Gönder</Button>:null}
