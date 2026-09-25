@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { FormEvent, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -16,7 +16,7 @@ const date=(v?:string|null)=>v?new Date(v).toLocaleDateString("tr-TR"):"—";
 const daysLeft=(v?:string|null)=>v?Math.ceil((new Date(v).getTime()-Date.now())/86400000):null;
 
 export default function EmployeeDocumentsPage(){const{id}=useParams<{id:string}>();const[rows,setRows]=useState<DocumentRow[]>([]),[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[form,setForm]=useState<FormState>(EMPTY);const canSensitive=hasPermission("hr_sensitive","read"),canManage=hasPermission("hr","manage")&&canSensitive;
-async function load(){setLoading(true);setError("");try{const path=canSensitive?`/hr/employees/${id}/documents/sensitive`:`/hr/employees/${id}/documents`;setRows(await api<DocumentRow[]>(path))}catch(e){setError(e instanceof ApiError?e.message:"Personel belgeleri yüklenemedi.")}finally{setLoading(false)}}useEffect(()=>{void load()},[id,canSensitive]);
+const load=useCallback(async()=>{setLoading(true);setError("");try{const path=canSensitive?`/hr/employees/${id}/documents/sensitive`:`/hr/employees/${id}/documents`;setRows(await api<DocumentRow[]>(path))}catch(e){setError(e instanceof ApiError?e.message:"Personel belgeleri yüklenemedi.")}finally{setLoading(false)},[canSensitive,id]);useEffect(()=>{void load()},[load]);
 async function create(e:FormEvent){e.preventDefault();if(!canManage)return;setSaving(true);setError("");try{await api(`/hr/employees/${id}/documents`,{method:"POST",body:{...form,documentNumber:form.documentNumber||undefined,issuedAt:form.issuedAt||undefined,expiresAt:form.expiresAt||undefined,fileKey:form.fileKey||undefined,fileName:form.fileName||undefined,mimeType:form.mimeType||undefined,notes:form.notes||undefined}});setForm(EMPTY);await load()}catch(x){setError(x instanceof ApiError?x.message:"Belge kaydedilemedi.")}finally{setSaving(false)}}
 async function verify(row:DocumentRow,status:"VERIFIED"|"REJECTED"){let note="";if(status==="REJECTED"){note=window.prompt("Ret gerekçesi")?.trim()||"";if(!note)return}try{await api(`/hr/employees/${id}/documents/${row.id}/verify`,{method:"PATCH",body:{status,note:note||undefined}});await load()}catch(e){setError(e instanceof ApiError?e.message:"Belge doğrulanamadı.")}}
 async function archive(row:DocumentRow){if(!window.confirm(`${row.title} arşivlensin mi?`))return;try{await api(`/hr/employees/${id}/documents/${row.id}/archive`,{method:"POST"});await load()}catch(e){setError(e instanceof ApiError?e.message:"Belge arşivlenemedi.")}}
