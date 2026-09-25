@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
 import { useSearchParams } from "next/navigation";
 
 import { CardInfo } from "@/components/card-info";
@@ -212,7 +212,7 @@ export default function AppointmentsPage() {
   const dateFrom = useMemo(() => toIso(startOfDay(selectedDate).toISOString()), [selectedDate]);
   const dateTo = useMemo(() => toIso(endOfDay(selectedDate).toISOString()), [selectedDate]);
 
-  async function loadAppointments() {
+  const loadAppointments = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
@@ -230,7 +230,7 @@ export default function AppointmentsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, [dateFrom, dateTo]);
 
   async function loadReferences() {
     setLoadingRefs(true);
@@ -250,7 +250,7 @@ export default function AppointmentsPage() {
     }
   }
 
-  useEffect(() => { void loadAppointments(); }, [dateFrom, dateTo]);
+  useEffect(() => { void loadAppointments(); }, [loadAppointments]);
   useEffect(() => { void loadReferences(); }, []);
 
   useEffect(() => {
