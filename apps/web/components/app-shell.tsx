@@ -364,7 +364,7 @@ export function AppShell({ children }: { children: ReactNode }) {
       controller.abort();
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
     };
-  }, [pathname]);
+  }, []);
 
   useEffect(() => {
     void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
