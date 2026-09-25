@@ -1,2 +1,5 @@
 import { EnterpriseDataPage } from "@/components/enterprise-data-page";
-export default function QualityCapaPage(){return <EnterpriseDataPage eyebrow="Kalite Yönetimi" title="CAPA · Düzeltici ve Önleyici Faaliyetler" description="Kök neden, düzeltici faaliyet, önleyici faaliyet ve doğrulama süreçlerini izleyin." sections={[{title:"CAPA Kayıtları",path:"/quality/capa?limit=250"}]} />;}
+export default function QualityCapaPage(){return <EnterpriseDataPage eyebrow="Kalite Yönetimi" title="CAPA · Düzeltici ve Önleyici Faaliyetler" description="Kök neden, düzeltici faaliyet, önleyici faaliyet ve doğrulama süreçlerini izleyin." sections={[{title:"CAPA Kayıtları",path:"/quality/capa?limit=250"}]} forms={[
+{title:"CAPA Durumunu Güncelle",path:"/quality/capa/{id}/transition",fields:[{name:"id",label:"CAPA ID",required:true},{name:"status",label:"Yeni Durum",type:"select",required:true,options:[{value:"IN_PROGRESS",label:"Devam Ediyor"},{value:"VERIFICATION",label:"Doğrulama"},{value:"CLOSED",label:"Kapalı"}]},{name:"note",label:"Not",type:"textarea"}]},
+{title:"CAPA Doğrulaması",path:"/quality/capa/{id}/verify",fields:[{name:"id",label:"CAPA ID",required:true},{name:"effective",label:"Etkili Oldu",type:"boolean",defaultValue:"true"},{name:"result",label:"Doğrulama Sonucu",type:"textarea",required:true}]}
+]} />;}
