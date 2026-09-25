@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
-import { api } from "@/lib/api";
+import { api, apiResponse, ApiError } from "@/lib/api";
 import {
   clearSession,
   getStoredTenant,
@@ -117,6 +117,22 @@ type ContextOptions = {
 
 type SwitchContextResponse = {
   accessToken: string;
+};
+
+type TeamRealtimeEvent = {
+  type: string;
+  payload?: {
+    conversationId?: string;
+    messageId?: string | null;
+    senderUserId?: string;
+    senderName?: string;
+    body?: string;
+    userId?: string;
+    firstName?: string;
+    lastName?: string;
+    typing?: boolean;
+  };
+  at?: string;
 };
 
 function hasPermissionKey(permission: string) {
@@ -268,6 +284,9 @@ export function AppShell({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     let active = true;
+    const controller = new AbortController();
+    let reconnectTimer: number | null = null;
+
     async function loadUnread() {
       try {
         const result = await api<{ unreadCount: number }>("/team/unread-summary");
@@ -276,13 +295,84 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (active) setTeamUnread(0);
       }
     }
+
+    function handleEvent(event: TeamRealtimeEvent) {
+      window.dispatchEvent(new CustomEvent<TeamRealtimeEvent>("valoo:team-realtime", { detail: event }));
+      if (
+        event.type === "message.created" ||
+        event.type === "message.deleted" ||
+        event.type === "conversation.created" ||
+        event.type === "conversation.updated" ||
+        event.type === "conversation.removed"
+      ) {
+        void loadUnread();
+      }
+    }
+
+    async function connect() {
+      if (controller.signal.aborted) return;
+      try {
+        const response = await apiResponse("/team/events", { signal: controller.signal });
+        if (!response.ok || !response.body) {
+          throw new ApiError("Gerçek zamanlı bağlantı kurulamadı.", response.status);
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+
+        while (!controller.signal.aborted) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+
+          let separatorIndex = buffer.indexOf("\n\n");
+          while (separatorIndex >= 0) {
+            const block = buffer.slice(0, separatorIndex);
+            buffer = buffer.slice(separatorIndex + 2);
+            const data = block
+              .split("\n")
+              .filter((line) => line.startsWith("data:"))
+              .map((line) => line.slice(5).trim())
+              .join("");
+
+            if (data) {
+              try {
+                handleEvent(JSON.parse(data) as TeamRealtimeEvent);
+              } catch {
+                // Tek bir bozuk event bağlantıyı kesmemeli.
+              }
+            }
+            separatorIndex = buffer.indexOf("\n\n");
+          }
+        }
+      } catch (error) {
+        if (controller.signal.aborted) return;
+        if (error instanceof ApiError && error.status === 401) return;
+      }
+
+      if (!controller.signal.aborted) {
+        reconnectTimer = window.setTimeout(() => void connect(), 1500);
+      }
+    }
+
     void loadUnread();
-    const timer = window.setInterval(() => void loadUnread(), 5000);
+    void connect();
+
     return () => {
       active = false;
-      window.clearInterval(timer);
+      controller.abort();
+      if (reconnectTimer) window.clearTimeout(reconnectTimer);
     };
   }, [pathname]);
+
+  useEffect(() => {
+    void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
+    const timer = window.setInterval(() => {
+      void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
+    }, 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -449,7 +539,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mx-auto mt-4 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">{user ? getInitials(user.firstName, user.lastName) : "V"}</div>
         )}
 
-        <NavLinks pathname={pathname} collapsed={collapsed} />
+        <NavLinks pathname={pathname} collapsed={collapsed} teamUnread={teamUnread} />
 
         <div className={cx("mt-auto border-t border-[var(--line)]", collapsed ? "flex justify-center p-3" : "p-4")}>
           <button
