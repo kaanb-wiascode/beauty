@@ -9,6 +9,7 @@ import {
   Patch,
   Post,
   Query,
+  Sse,
   StreamableFile,
   UploadedFile,
   UseGuards,
@@ -81,6 +82,11 @@ export class TeamController {
   @Get('conversations')
   conversations(@CurrentUser() user: JwtPayload) {
     return this.team.conversations(user.sub);
+  }
+
+  @Sse('events')
+  events(@CurrentUser() user: JwtPayload) {
+    return this.team.events(user.sub);
   }
 
   @Get('unread-summary')
