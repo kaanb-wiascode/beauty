@@ -9,6 +9,8 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
+import { Observable } from 'rxjs';
+import type { MessageEvent } from '@nestjs/common';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { RedisService } from '../../infrastructure/redis/redis.service';
 
@@ -62,6 +64,89 @@ export class TeamService {
 
   private uploadRoot() {
     return process.env.TEAM_UPLOAD_DIR ?? join(process.cwd(), 'data', 'team-uploads');
+  }
+
+  private eventChannel(userId: string) {
+    return `team:events:${this.tenantId()}:${this.companyId()}:${userId}`;
+  }
+
+  private async publishToUsers(
+    userIds: string[],
+    type: string,
+    payload: Record<string, unknown>,
+  ) {
+    const unique = [...new Set(userIds)];
+    const message = JSON.stringify({
+      type,
+      payload,
+      at: new Date().toISOString(),
+    });
+    await Promise.all(
+      unique.map((userId) => this.redis.publish(this.eventChannel(userId), message)),
+    );
+  }
+
+  private async conversationUserIds(conversationId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT cm.user_id AS "userId"
+       FROM team_conversation_members cm
+       JOIN team_conversations c ON c.id=cm.conversation_id
+       WHERE cm.conversation_id=$1::text
+         AND c.tenant_id=$2::text
+         AND c.company_id=$3::text`,
+      conversationId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    return rows.map((row) => row.userId);
+  }
+
+  private async publishConversationEvent(
+    conversationId: string,
+    type: string,
+    payload: Record<string, unknown> = {},
+  ) {
+    const userIds = await this.conversationUserIds(conversationId);
+    await this.publishToUsers(userIds, type, { conversationId, ...payload });
+  }
+
+  private async publishCompanyEvent(
+    type: string,
+    payload: Record<string, unknown> = {},
+  ) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT DISTINCT m."userId" AS "userId"
+       FROM memberships m
+       WHERE m."tenantId"=$1::text
+         AND m."companyId"=$2::text
+         AND m.status='ACTIVE'`,
+      this.tenantId(),
+      this.companyId(),
+    );
+    await this.publishToUsers(rows.map((row) => row.userId), type, payload);
+  }
+
+  events(currentUserId: string): Observable<MessageEvent> {
+    const channel = this.eventChannel(currentUserId);
+    return new Observable<MessageEvent>((subscriber) => {
+      let unsubscribe: (() => Promise<void>) | undefined;
+      void this.redis.subscribe(channel, (raw) => {
+        try {
+          const parsed = JSON.parse(raw) as unknown;
+          subscriber.next({ data: parsed });
+        } catch {
+          subscriber.next({ data: { type: 'team.refresh' } });
+        }
+      }).then((cleanup) => {
+        unsubscribe = cleanup;
+      }).catch((error: unknown) => {
+        subscriber.error(error);
+      });
+
+      return () => {
+        if (unsubscribe) void unsubscribe();
+      };
+    });
   }
 
   private async requireCanPost(userId: string, conversationId: string) {
@@ -392,6 +477,7 @@ export class TeamService {
           userId === currentUserId,
         );
       }
+      await this.publishConversationEvent(conversationId, 'conversation.created');
       return { id: conversationId, existing: false };
     });
   }
@@ -520,7 +606,12 @@ export class TeamService {
       this.companyId(),
     );
 
-    return rows[0];
+    const created = rows[0] as { id?: string } | undefined;
+    await this.publishConversationEvent(conversationId, 'message.created', {
+      messageId: created?.id ?? null,
+      senderUserId: currentUserId,
+    });
+    return created;
   }
 
   async markRead(currentUserId: string, conversationId: string) {
@@ -557,6 +648,13 @@ export class TeamService {
       this.companyId(),
     );
     if (!rows.length) throw new NotFoundException('Düzenlenebilir mesaj bulunamadı.');
+    const conversation = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT conversation_id AS "conversationId" FROM team_messages WHERE id=$1::text LIMIT 1`,
+      messageId,
+    );
+    if (conversation[0]) {
+      await this.publishConversationEvent(conversation[0].conversationId, 'message.updated', { messageId });
+    }
     return { ok: true };
   }
 
@@ -580,6 +678,13 @@ export class TeamService {
       this.companyId(),
     );
     if (!rows.length) throw new NotFoundException('Silinebilir mesaj bulunamadı.');
+    const conversation = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT conversation_id AS "conversationId" FROM team_messages WHERE id=$1::text LIMIT 1`,
+      messageId,
+    );
+    if (conversation[0]) {
+      await this.publishConversationEvent(conversation[0].conversationId, 'message.deleted', { messageId });
+    }
     return { ok: true };
   }
 
@@ -618,6 +723,7 @@ export class TeamService {
         currentUserId,
         emoji,
       );
+      await this.publishConversationEvent(rows[0].conversationId, 'reaction.updated', { messageId });
       return { active: false };
     }
 
@@ -628,6 +734,7 @@ export class TeamService {
       currentUserId,
       emoji,
     );
+    await this.publishConversationEvent(rows[0].conversationId, 'reaction.updated', { messageId });
     return { active: true };
   }
 
@@ -647,6 +754,7 @@ export class TeamService {
       this.companyId(),
     );
     if (!rows.length) throw new NotFoundException('Grup bulunamadı.');
+    await this.publishConversationEvent(conversationId, 'conversation.updated');
     return { ok: true };
   }
 
@@ -715,6 +823,7 @@ export class TeamService {
       conversationId,
       userId,
     );
+    await this.publishConversationEvent(conversationId, 'conversation.updated');
     return { ok: true };
   }
 
@@ -729,6 +838,8 @@ export class TeamService {
       conversationId,
       userId,
     );
+    await this.publishConversationEvent(conversationId, 'conversation.updated');
+    await this.publishToUsers([userId], 'conversation.removed', { conversationId });
     return { ok: true };
   }
 
@@ -740,6 +851,16 @@ export class TeamService {
     } else {
       await this.redis.delete(key);
     }
+    const names = await this.prisma.$queryRawUnsafe<Array<{ firstName: string; lastName: string }>>(
+      `SELECT "firstName","lastName" FROM users WHERE id=$1::text LIMIT 1`,
+      currentUserId,
+    );
+    await this.publishConversationEvent(conversationId, 'typing.updated', {
+      userId: currentUserId,
+      firstName: names[0]?.firstName ?? '',
+      lastName: names[0]?.lastName ?? '',
+      typing,
+    });
     return { ok: true };
   }
 
@@ -798,6 +919,7 @@ export class TeamService {
         row.conversationId,
         messageId,
       );
+      await this.publishConversationEvent(row.conversationId, 'pin.updated', { messageId });
       return { pinned: false };
     }
 
@@ -808,6 +930,7 @@ export class TeamService {
       messageId,
       currentUserId,
     );
+    await this.publishConversationEvent(row.conversationId, 'pin.updated', { messageId });
     return { pinned: true };
   }
 
@@ -890,6 +1013,16 @@ export class TeamService {
       file.mimetype,
       file.size,
     );
+    const conversation = await this.prisma.$queryRawUnsafe<Array<{ conversationId: string }>>(
+      `SELECT conversation_id AS "conversationId" FROM team_messages WHERE id=$1::text LIMIT 1`,
+      messageId,
+    );
+    if (conversation[0]) {
+      await this.publishConversationEvent(conversation[0].conversationId, 'attachment.added', {
+        messageId,
+        attachmentId: rows[0]?.id ?? null,
+      });
+    }
     return { id: rows[0]?.id };
   }
 
@@ -953,6 +1086,7 @@ export class TeamService {
       input.statusText ?? null,
       input.statusUntil ?? null,
     );
+    await this.publishCompanyEvent('presence.updated', { userId: currentUserId });
     return rows[0];
   }
 
