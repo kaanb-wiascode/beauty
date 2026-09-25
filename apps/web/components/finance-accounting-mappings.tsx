@@ -15,10 +15,10 @@ export function FinanceAccountingMappings(){
  const[loading,setLoading]=useState(true),[saving,setSaving]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const[expenseForm,setExpenseForm]=useState({categoryId:"",expenseAccountId:"",taxAccountId:"",payableAccountId:"",withholdingAccountId:""});
  const[incomeForm,setIncomeForm]=useState({categoryId:"",revenueAccountId:"",taxAccountId:"",receivableAccountId:""});
- async function load(){setLoading(true);setError("");try{let[ec,ic,a,em,im]=await Promise.all([
+ async function load(){setLoading(true);setError("");try{const[initialExpenseCategories,initialIncomeCategories,a,em,im]=await Promise.all([
  api<Category[]>("/finance/setup/expense-categories"),api<Category[]>("/finance/setup/income-categories"),api<Account[]>("/accounting/accounts"),
  api<ExpenseMapping[]>("/finance/setup/expense-accounting-mappings"),api<IncomeMapping[]>("/finance/setup/income-accounting-mappings")
- ]);if(!ec.length||!ic.length){await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});[ec,ic]=await Promise.all([api<Category[]>("/finance/setup/expense-categories"),api<Category[]>("/finance/setup/income-categories")])}
+ ]);let ec=initialExpenseCategories,ic=initialIncomeCategories;if(!ec.length||!ic.length){await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});[ec,ic]=await Promise.all([api<Category[]>("/finance/setup/expense-categories"),api<Category[]>("/finance/setup/income-categories")])}
  setExpenseCategories(ec.filter(x=>x.active));setIncomeCategories(ic.filter(x=>x.active));setAccounts(a.filter(x=>x.active));setExpenseMappings(em);setIncomeMappings(im)}catch(e){setError(e instanceof ApiError?e.message:"Finans yapılandırması yüklenemedi.")}finally{setLoading(false)}}
  useEffect(()=>{void load()},[]);
  const expenseAccounts=useMemo(()=>accounts.filter(x=>x.type==="EXPENSE"),[accounts]),revenueAccounts=useMemo(()=>accounts.filter(x=>x.type==="REVENUE"),[accounts]),assetAccounts=useMemo(()=>accounts.filter(x=>x.type==="ASSET"),[accounts]),liabilityAccounts=useMemo(()=>accounts.filter(x=>x.type==="LIABILITY"),[accounts]);
