@@ -104,6 +104,7 @@ const NAV_SECTIONS = [
     { href: "/quality", permission: "quality.read", label: "Kalite Merkezi", icon: "shield" },
     { href: "/quality/inspections", permission: "quality.read", label: "Denetimler", icon: "file" },
     { href: "/quality/capa", permission: "quality.read", label: "CAPA", icon: "activity" },
+    { href: "/quality/evidence", permission: "quality.read", label: "Kalite Kanıtları", icon: "file" },
     { href: "/quality/governance", permission: "quality.read", label: "Politikalar ve Skorlar", icon: "chart" },
   ]},
   { label: "Analiz", items: [
