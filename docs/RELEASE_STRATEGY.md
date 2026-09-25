@@ -23,8 +23,8 @@
    - `Build Web image`
 7. Deploy the exact release SHA to staging.
 8. Complete staging verification and business acceptance.
-9. Merge the release pull request to `main`.
-10. Deploy the exact approved main SHA to production and create a stable SemVer tag.
+9. Merge the release pull request to `main` using a **merge commit**. Do not squash or rebase the release PR; the approved release SHA must remain an ancestor of `main`.
+10. Deploy the exact approved release SHA from `main` to production and create a stable SemVer tag.
 
 ## Release freeze rule
 
