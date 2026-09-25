@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { useToast } from "@/components/toast";
-import { userDomainLabel, userLabel, userPermissionLabel } from "@/lib/user-language";
+import { userLabel, userPermissionLabel } from "@/lib/user-language";
 
 type Policy={id:string;policyKey:string;domain:string;action:string;name:string;description:string|null;version:number;status:string;rules:Record<string,unknown>;publishedAt:string|null;createdAt:string};
 
