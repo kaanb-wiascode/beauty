@@ -106,6 +106,7 @@ const NAV_SECTIONS = [
     { href: "/inventory/counts", label: "Stok Sayımları", icon: "file" },
     { href: "/inventory/service-materials", label: "Hizmet Malzemeleri", icon: "sparkles" },
     { href: "/inventory/purchases", label: "Satın Alma", icon: "cart" },
+    { href: "/inventory/purchases/governance", label: "Satın Alma Kontrolü", icon: "shield" },
     { href: "/inventory/transfers", label: "Depo Transferleri", icon: "arrows" },
     { href: "/inventory/movements", label: "Stok Hareketleri", icon: "activity" },
   ]},
