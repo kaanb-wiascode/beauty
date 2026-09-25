@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { FormActions, FormGrid, FormSection } from "@/components/form-system";
 import { Modal } from "@/components/modal";
@@ -105,6 +105,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   async function createRecord(event:FormEvent){
     event.preventDefault();
     if(!form.categoryId||!form.transactionDate||!form.grossAmount||!form.netAmount){setError("Kategori, işlem tarihi, brüt tutar ve net tutar zorunludur.");return;}
+    if(!expense&&Math.abs(Number(form.netAmount)+Number(form.taxAmount||0)-Number(form.grossAmount))>0.01){setError("Gelir kaydında net tutar ile vergi toplamı brüt tutara eşit olmalıdır.");return;}
     setWorking(true);setError("");
     try{
       await api(basePath,{method:"POST",body:{
