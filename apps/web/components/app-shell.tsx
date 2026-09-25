@@ -53,6 +53,8 @@ const NAV_SECTIONS = [
   ]},
   { label: "Finans Yönetimi", items: [
     { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
+    { href: "/finance/income", permission: "finance.read", label: "Gelirler", icon: "trend" },
+    { href: "/finance/expenses", permission: "finance.read", label: "Giderler", icon: "receipt" },
     { href: "/finance/accounting", permission: "accounting.read", label: "Muhasebe", icon: "file" },
     { href: "/finance/accounts-payable", permission: "finance.read", label: "Tedarikçi Borçları", icon: "receipt" },
     { href: "/finance/cfo/treasury", label: "Nakit Yönetimi", icon: "activity" },
