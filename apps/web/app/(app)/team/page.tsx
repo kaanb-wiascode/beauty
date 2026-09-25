@@ -523,8 +523,15 @@ export default function TeamPage() {
         if (event.data.size > 0) recordedChunksRef.current.push(event.data);
       };
       recorder.onstop = () => {
-        const type = recorder.mimeType || "audio/webm";
-        const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const recorderType = recorder.mimeType || "audio/webm";
+        const type = recorderType.startsWith("audio/mp4")
+          ? "audio/mp4"
+          : recorderType.startsWith("audio/ogg")
+            ? "audio/ogg"
+            : recorderType.startsWith("audio/mpeg")
+              ? "audio/mpeg"
+              : "audio/webm";
+        const extension = type === "audio/mp4" ? "m4a" : type === "audio/ogg" ? "ogg" : type === "audio/mpeg" ? "mp3" : "webm";
         const blob = new Blob(recordedChunksRef.current, { type });
         if (blob.size > 0) {
           setSelectedFile(new File([blob], `sesli-mesaj-${Date.now()}.${extension}`, { type }));
@@ -675,7 +682,7 @@ export default function TeamPage() {
       setGroupEditing(false);
       await loadOverview(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Grup adı güncellenemedi.");
+      setError(err instanceof ApiError ? err.message : active?.type === "CHANNEL" ? "Kanal adı güncellenemedi." : "Grup adı güncellenemedi.");
     }
   }
 
