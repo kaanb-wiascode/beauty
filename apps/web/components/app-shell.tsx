@@ -81,6 +81,7 @@ const NAV_SECTIONS = [
     { href: "/hr/self-service", permission: "hr.read", label: "Çalışan Self Servis", icon: "user" },
     { href: "/hr/talent", permission: "hr.read", label: "Yetenek Yönetimi", icon: "trend" },
     { href: "/hr/rewards", permission: "hr.read", label: "Toplam Ödül ve Yan Haklar", icon: "wallet" },
+    { href: "/hr/rewards/manage", permission: "hr.manage", label: "Ödül ve Masraf İşlemleri", icon: "receipt" },
     { href: "/hr/skill-scheduling", permission: "hr.read", label: "Yetkinliğe Göre Planlama", icon: "calendar" },
     { href: "/hr/operations-control", permission: "hr.read", label: "İK Operasyon Kontrolü", icon: "activity" },
   ]},
