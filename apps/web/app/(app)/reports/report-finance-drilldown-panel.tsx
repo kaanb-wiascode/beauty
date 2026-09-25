@@ -39,13 +39,14 @@ export function ReportFinanceDrilldownPanel({
     useState<ReportFinanceDrilldownResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { from, to } = filters;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
 
-    fetchReportFinanceDrilldown({ rowId, filters })
+    fetchReportFinanceDrilldown({ rowId, filters: { from, to } })
       .then((value) => {
         if (!cancelled) setResult(value);
       })
@@ -65,7 +66,7 @@ export function ReportFinanceDrilldownPanel({
     return () => {
       cancelled = true;
     };
-  }, [filters.from, filters.to, rowId]);
+  }, [from, to, rowId]);
 
   return (
     <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-lg">
