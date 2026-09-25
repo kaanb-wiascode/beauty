@@ -130,6 +130,9 @@ export class TeamService {
     const channel = this.eventChannel(currentUserId);
     return new Observable<MessageEvent>((subscriber) => {
       let unsubscribe: (() => Promise<void>) | undefined;
+      const keepAlive = setInterval(() => {
+        subscriber.next({ data: { type: 'heartbeat', at: new Date().toISOString() } });
+      }, 15000);
       void this.redis.subscribe(channel, (raw) => {
         try {
           const parsed = JSON.parse(raw) as unknown;
@@ -144,6 +147,7 @@ export class TeamService {
       });
 
       return () => {
+        clearInterval(keepAlive);
         if (unsubscribe) void unsubscribe();
       };
     });
