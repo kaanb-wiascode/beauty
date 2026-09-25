@@ -109,17 +109,23 @@ export default function TreasuryCockpitPage() {
   }, [load]);
 
   const reportingCurrency = position?.reportingCurrency ?? "TRY";
-  const providerBalance = position?.provider.bankBalancesByCurrency.find(
+  const providerBalances = position?.provider?.bankBalancesByCurrency ?? [];
+  const settlementForecast = position?.posSettlementForecast;
+  const settlementTotals = settlementForecast?.totalsByCurrency ?? [];
+  const settlementSchedule = settlementForecast?.scheduled ?? [];
+  const settlementUnknownTiming = settlementForecast?.unknownTiming ?? [];
+
+  const providerBalance = providerBalances.find(
     (item) => item.currency === position?.reportingCurrency,
   );
-  const forecastTotal = position?.posSettlementForecast.totalsByCurrency.find(
+  const forecastTotal = settlementTotals.find(
     (item) => item.currency === reportingCurrency,
   );
   const chartDays = useMemo(
-    () => position?.posSettlementForecast.scheduled.filter((day) => day.currency === reportingCurrency) ?? [],
-    [position, reportingCurrency],
+    () => settlementSchedule.filter((day) => day.currency === reportingCurrency),
+    [settlementSchedule, reportingCurrency],
   );
-  const unknownTiming = position?.posSettlementForecast.unknownTiming.find(
+  const unknownTiming = settlementUnknownTiming.find(
     (item) => item.currency === reportingCurrency,
   );
 
@@ -185,7 +191,7 @@ export default function TreasuryCockpitPage() {
       <section className="grid gap-5 xl:grid-cols-2">
         <FinancePanel title="Banka Bakiyeleri" description="Para Birimi Bazında Güncel Banka Görünümü">
           <div className="grid gap-3 sm:grid-cols-2">
-            {(position?.provider.bankBalancesByCurrency ?? []).map((item) => (
+            {providerBalances.map((item) => (
               <div key={item.currency} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/40 p-4">
                 <div className="flex items-center justify-between">
                   <p className="text-[11px] font-semibold text-[var(--muted)]">{item.currency}</p>
@@ -196,13 +202,13 @@ export default function TreasuryCockpitPage() {
                 <p className="mt-2 text-[9px] text-[var(--muted-soft)]">{dateTime(item.balanceAsOf)}</p>
               </div>
             ))}
-            {!position?.provider.bankBalancesByCurrency.length ? <FinanceEmpty title="Banka Bakiyesi Bulunamadı." /> : null}
+            {!providerBalances.length ? <FinanceEmpty title="Banka Bakiyesi Bulunamadı." /> : null}
           </div>
         </FinancePanel>
 
         <FinancePanel title="POS Geçiş İstisnaları" description="Hesaba Geçiş Zamanı Bilinmeyen POS Tutarları">
           <div className="space-y-2">
-            {(position?.posSettlementForecast.unknownTiming ?? []).map((item) => (
+            {settlementUnknownTiming.map((item) => (
               <div key={item.currency} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3">
                 <div>
                   <p className="text-[12px] font-semibold text-[var(--ink)]">{item.currency}</p>
@@ -211,7 +217,7 @@ export default function TreasuryCockpitPage() {
                 <p className="text-[14px] font-semibold text-[var(--ink)]">{money(item.netAmount, item.currency)}</p>
               </div>
             ))}
-            {!position?.posSettlementForecast.unknownTiming.length ? <FinanceEmpty title="Hesaba Geçiş Tarihi Bilinmeyen POS İşlemi Yok." /> : null}
+            {!settlementUnknownTiming.length ? <FinanceEmpty title="Hesaba Geçiş Tarihi Bilinmeyen POS İşlemi Yok." /> : null}
           </div>
         </FinancePanel>
       </section>
