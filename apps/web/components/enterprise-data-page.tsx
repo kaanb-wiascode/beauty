@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { Alert, Button, EmptyState, PageHeader, Spinner } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
 
@@ -18,6 +18,25 @@ export type EnterpriseAction = {
   method?: "POST" | "PATCH" | "PUT";
   body?: Record<string, unknown>;
   success?: string;
+};
+
+export type EnterpriseFormField = {
+  name: string;
+  label: string;
+  type?: "text" | "number" | "date" | "datetime-local" | "textarea" | "select" | "boolean";
+  required?: boolean;
+  placeholder?: string;
+  options?: Array<{ value: string; label: string }>;
+  defaultValue?: string;
+};
+
+export type EnterpriseMutationForm = {
+  title: string;
+  description?: string;
+  path: string;
+  method?: "POST" | "PATCH" | "PUT";
+  success?: string;
+  fields: EnterpriseFormField[];
 };
 
 function humanize(key: string) {
@@ -75,18 +94,23 @@ export function EnterpriseDataPage({
   description,
   sections,
   actions = [],
+  forms = [],
 }: {
   eyebrow: string;
   title: string;
   description: string;
   sections: EnterpriseSection[];
   actions?: EnterpriseAction[];
+  forms?: EnterpriseMutationForm[];
 }) {
   const [data, setData] = useState<Record<string, unknown>>({});
   const [loading, setLoading] = useState(true);
   const [working, setWorking] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>(() =>
+    Object.fromEntries(forms.map((form) => [form.title, Object.fromEntries(form.fields.map((field) => [field.name, field.defaultValue ?? ""]))])),
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -120,6 +144,44 @@ export function EnterpriseDataPage({
     }
   }
 
+  async function submitForm(form: EnterpriseMutationForm) {
+    const values = formValues[form.title] ?? {};
+    for (const field of form.fields) {
+      if (field.required && !String(values[field.name] ?? "").trim()) {
+        setError(`${field.label} zorunludur.`);
+        return;
+      }
+    }
+    let path = form.path;
+    const consumed = new Set<string>();
+    for (const field of form.fields) {
+      const token = `{${field.name}}`;
+      if (path.includes(token)) {
+        path = path.replaceAll(token, encodeURIComponent(String(values[field.name] ?? "")));
+        consumed.add(field.name);
+      }
+    }
+    const body: Record<string, unknown> = {};
+    for (const field of form.fields) {
+      if (consumed.has(field.name)) continue;
+      const raw = values[field.name];
+      if (raw === "" || raw === undefined) continue;
+      body[field.name] = field.type === "number" ? Number(raw) : field.type === "boolean" ? raw === "true" : raw;
+    }
+    setWorking(form.title);
+    setError("");
+    setNotice("");
+    try {
+      await api(path, { method: form.method ?? "POST", body });
+      setNotice(form.success ?? `${form.title} tamamlandı.`);
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "İşlem tamamlanamadı.");
+    } finally {
+      setWorking("");
+    }
+  }
+
   const totalRecords = useMemo(() => sections.reduce((sum, section) => sum + rowsFrom(data[section.title]).length, 0), [data, sections]);
 
   return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
@@ -133,6 +195,24 @@ export function EnterpriseDataPage({
 
     {actions.length ? <section className="flex flex-wrap gap-2 rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
       {actions.map((action) => <Button key={action.label} variant="secondary" disabled={Boolean(working)} onClick={() => void run(action)}>{working === action.label ? "İşleniyor..." : action.label}</Button>)}
+    </section> : null}
+
+    {forms.length ? <section className="grid gap-5 xl:grid-cols-2">
+      {forms.map((form) => {
+        const values = formValues[form.title] ?? {};
+        return <div key={form.title} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{form.title}</h2>
+          {form.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{form.description}</p> : null}
+          <div className="mt-4 grid gap-4">
+            {form.fields.map((field) => <Field key={field.name} label={field.label} required={field.required}>
+              {field.type === "select" || field.type === "boolean" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
+                {field.type === "boolean" ? <><option value="true">Evet</option><option value="false">Hayır</option></> : <><option value="">Seçin</option>{field.options?.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</>}
+              </Select> : field.type === "textarea" ? <TextArea rows={3} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/> : <TextInput type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime-local" ? "datetime-local" : "text"} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/>}
+            </Field>)}
+          </div>
+          <Button className="mt-5" onClick={() => void submitForm(form)} disabled={Boolean(working)}>{working === form.title ? "İşleniyor..." : form.title}</Button>
+        </div>;
+      })}
     </section> : null}
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
