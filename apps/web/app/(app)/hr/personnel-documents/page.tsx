@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { CardInfo } from "@/components/card-info";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
@@ -19,8 +19,8 @@ const remaining=(v:string)=>Math.ceil((new Date(v).getTime()-Date.now())/8640000
 export default function PersonnelDocumentsPage(){
   const[rows,setRows]=useState<Row[]>([]),[compliance,setCompliance]=useState<Compliance|null>(null),[days,setDays]=useState(60),[loading,setLoading]=useState(true),[error,setError]=useState("");
   const sensitive=hasPermission("hr_sensitive","read");
-  async function load(){setLoading(true);setError("");try{const expiringPath=sensitive?`/hr/personnel-documents/expiring/sensitive?days=${days}`:`/hr/personnel-documents/expiring?days=${days}`,compliancePath=sensitive?"/hr/personnel-documents/compliance/sensitive":"/hr/personnel-documents/compliance";const[r,c]=await Promise.all([api<Row[]>(expiringPath),api<Compliance>(compliancePath)]);setRows(r);setCompliance(c)}catch(e){setError(e instanceof ApiError?e.message:"Belge uyum verileri yüklenemedi.")}finally{setLoading(false)}}
-  useEffect(()=>{void load()},[days,sensitive]);
+  const load=useCallback(async()=>{setLoading(true);setError("");try{const expiringPath=sensitive?`/hr/personnel-documents/expiring/sensitive?days=${days}`:`/hr/personnel-documents/expiring?days=${days}`,compliancePath=sensitive?"/hr/personnel-documents/compliance/sensitive":"/hr/personnel-documents/compliance";const[r,c]=await Promise.all([api<Row[]>(expiringPath),api<Compliance>(compliancePath)]);setRows(r);setCompliance(c)}catch(e){setError(e instanceof ApiError?e.message:"Belge uyum verileri yüklenemedi.")}finally{setLoading(false)}},[days,sensitive]);
+  useEffect(()=>{void load()},[load]);
   const urgent=useMemo(()=>rows.filter(x=>remaining(x.expiresAt)<=30).length,[rows]);
   const risks=useMemo(()=>[...(compliance?.employees??[])].filter(x=>!x.compliant).sort((a,b)=>a.score-b.score),[compliance]);
   return <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
