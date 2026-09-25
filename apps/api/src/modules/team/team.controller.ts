@@ -182,6 +182,14 @@ export class TeamController {
     });
   }
 
+  @Post('messages/:id/acknowledge')
+  acknowledgeAnnouncement(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.acknowledgeAnnouncement(user.sub, id);
+  }
+
   @Post('messages/:id/reactions')
   toggleReaction(
     @CurrentUser() user: JwtPayload,
