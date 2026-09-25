@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - feature/core-commerce-foundation
+      - "release/**"
   pull_request:
     branches:
       - main
