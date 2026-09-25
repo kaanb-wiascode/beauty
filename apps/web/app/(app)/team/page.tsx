@@ -75,6 +75,8 @@ type ConversationMember = {
 type TypingUser = { id: string; firstName: string; lastName: string };
 type PinnedMessage = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string; pinnedAt: string };
 type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
+type AnnouncementReader = { id: string; firstName: string; lastName: string; email: string; acknowledgedAt: string };
+type AttachmentPreview = { url: string; mimeType: string; name: string };
 type TeamRealtimeEvent = {
   type: string;
   payload?: {
@@ -161,6 +163,15 @@ export default function TeamPage() {
   const [groupNameDraft, setGroupNameDraft] = useState("");
   const [memberPickerOpen, setMemberPickerOpen] = useState(false);
   const [notificationPermission, setNotificationPermission] = useState<NotificationPermission | "unsupported">("unsupported");
+  const [recording, setRecording] = useState(false);
+  const [recordingSeconds, setRecordingSeconds] = useState(0);
+  const [preview, setPreview] = useState<AttachmentPreview | null>(null);
+  const [readerList, setReaderList] = useState<AnnouncementReader[]>([]);
+  const [readerModalTitle, setReaderModalTitle] = useState("");
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const mediaStreamRef = useRef<MediaStream | null>(null);
+  const recordedChunksRef = useRef<Blob[]>([]);
+  const recordingTimerRef = useRef<number | null>(null);
   const endRef = useRef<HTMLDivElement | null>(null);
   const typingTimerRef = useRef<number | null>(null);
   const activeIdRef = useRef<string | null>(null);
@@ -447,6 +458,58 @@ export default function TeamPage() {
     }, 1800);
   }
 
+  async function startVoiceRecording() {
+    if (!canPost || recording) return;
+    if (typeof MediaRecorder === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      setError("Bu tarayıcı ses kaydını desteklemiyor.");
+      return;
+    }
+
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const preferredTypes = ["audio/webm;codecs=opus", "audio/mp4", "audio/webm"];
+      const mimeType = preferredTypes.find((type) => MediaRecorder.isTypeSupported(type));
+      const recorder = mimeType ? new MediaRecorder(stream, { mimeType }) : new MediaRecorder(stream);
+
+      mediaStreamRef.current = stream;
+      mediaRecorderRef.current = recorder;
+      recordedChunksRef.current = [];
+      setRecordingSeconds(0);
+      setRecording(true);
+
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) recordedChunksRef.current.push(event.data);
+      };
+      recorder.onstop = () => {
+        const type = recorder.mimeType || "audio/webm";
+        const extension = type.includes("mp4") ? "m4a" : type.includes("ogg") ? "ogg" : "webm";
+        const blob = new Blob(recordedChunksRef.current, { type });
+        if (blob.size > 0) {
+          setSelectedFile(new File([blob], `sesli-mesaj-${Date.now()}.${extension}`, { type }));
+        }
+        mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
+        mediaStreamRef.current = null;
+        mediaRecorderRef.current = null;
+        recordedChunksRef.current = [];
+        if (recordingTimerRef.current) window.clearInterval(recordingTimerRef.current);
+        recordingTimerRef.current = null;
+        setRecording(false);
+      };
+
+      recorder.start(250);
+      recordingTimerRef.current = window.setInterval(() => {
+        setRecordingSeconds((seconds) => seconds + 1);
+      }, 1000);
+    } catch {
+      setError("Mikrofona erişilemedi. Tarayıcı mikrofon iznini kontrol edin.");
+    }
+  }
+
+  function stopVoiceRecording() {
+    const recorder = mediaRecorderRef.current;
+    if (recorder && recorder.state !== "inactive") recorder.stop();
+  }
+
   async function togglePin(messageId: string) {
     try {
       await api(`/team/messages/${messageId}/pin`, { method: "POST" });
@@ -462,10 +525,29 @@ export default function TeamPage() {
       if (!response.ok) throw new ApiError("Dosya açılamadı.", response.status);
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
+
+      if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType === "application/pdf") {
+        setPreview((current) => {
+          if (current) URL.revokeObjectURL(current.url);
+          return { url, mimeType: attachment.mimeType, name: attachment.originalName };
+        });
+        return;
+      }
+
       window.open(url, "_blank", "noopener,noreferrer");
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Dosya açılamadı.");
+    }
+  }
+
+  async function showAnnouncementReaders(message: Message) {
+    try {
+      const readers = await api<AnnouncementReader[]>(`/team/messages/${message.id}/acknowledgements`);
+      setReaderList(readers);
+      setReaderModalTitle(message.body.slice(0, 80) || "Duyuru");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Okuyanlar listesi yüklenemedi.");
     }
   }
 
@@ -532,7 +614,7 @@ export default function TeamPage() {
   }
 
   async function renameActiveGroup() {
-    if (!activeId || active?.type !== "GROUP" || !groupNameDraft.trim()) return;
+    if (!activeId || active?.type === "DIRECT" || !groupNameDraft.trim()) return;
     try {
       await api(`/team/conversations/${activeId}`, { method: "PATCH", body: { name: groupNameDraft.trim() } });
       setGroupEditing(false);
@@ -550,6 +632,19 @@ export default function TeamPage() {
       setMemberPickerOpen(false);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Üye eklenemedi.");
+    }
+  }
+
+  async function setConversationAdmin(userId: string, isAdmin: boolean) {
+    if (!activeId) return;
+    try {
+      await api(`/team/conversations/${activeId}/admin`, {
+        method: "PATCH",
+        body: { userId, isAdmin },
+      });
+      await loadConversationMembers(activeId);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Yönetici yetkisi güncellenemedi.");
     }
   }
 
@@ -787,9 +882,13 @@ export default function TeamPage() {
                             </div>
                             {active?.announcementOnly ? (
                               <div className="mt-2 flex items-center justify-between gap-2 rounded-[10px] border border-amber-200/70 bg-amber-50/70 px-2.5 py-2">
-                                <span className="text-[9px] font-medium text-amber-800">
-                                  {message.acknowledgedCount} kişi okudu
-                                </span>
+                                {currentConversationMember?.isAdmin ? (
+                                  <button type="button" onClick={() => void showAnnouncementReaders(message)} className="text-[9px] font-semibold text-amber-800 underline-offset-2 hover:underline">
+                                    {message.acknowledgedCount} kişi okudu
+                                  </button>
+                                ) : (
+                                  <span className="text-[9px] font-medium text-amber-800">{message.acknowledgedCount} kişi okudu</span>
+                                )}
                                 {!mine ? (
                                   <button
                                     type="button"
@@ -879,12 +978,20 @@ export default function TeamPage() {
                       </div>
                     </div>
                   ) : null}
+                  <button
+                    type="button"
+                    disabled={!canPost}
+                    onClick={() => void (recording ? stopVoiceRecording() : startVoiceRecording())}
+                    className={`h-10 rounded-[12px] border px-3 text-[10px] font-semibold ${recording ? "border-rose-200 bg-rose-50 text-rose-700" : "border-[var(--line)] bg-white text-[var(--muted)] hover:text-[var(--ink)]"} disabled:cursor-not-allowed disabled:opacity-50`}
+                  >
+                    {recording ? `Kaydı bitir · ${recordingSeconds}s` : "Ses kaydet"}
+                  </button>
                   <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] ${canPost ? "cursor-pointer hover:text-[var(--ink)]" : "cursor-not-allowed opacity-50"}`}>
                     {selectedFile ? "Dosya seçildi" : "Dosya ekle"}
                     <input
                       type="file"
                       disabled={!canPost}
-                      accept="image/jpeg,image/png,image/webp,application/pdf,text/plain,text/csv,.docx,.xlsx"
+                      accept="image/jpeg,image/png,image/webp,audio/webm,audio/ogg,audio/mpeg,audio/mp4,application/pdf,text/plain,text/csv,.docx,.xlsx"
                       className="hidden"
                       onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                     />
@@ -934,12 +1041,12 @@ export default function TeamPage() {
               </div>
             </div>
           ) : null}
-          {active?.type === "GROUP" ? (
+          {active?.type === "GROUP" || active?.type === "CHANNEL" ? (
             <div className="border-b border-[var(--line)]">
               <div className="space-y-3 px-4 py-4">
                 <div className="flex items-center justify-between gap-2">
                   <div>
-                    <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Grup Yönetimi</p>
+                    <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">{active.type === "CHANNEL" ? "Kanal Yönetimi" : "Grup Yönetimi"}</p>
                     <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{conversationMembers.length} kişi</p>
                   </div>
                   {currentConversationMember?.isAdmin ? (
@@ -961,7 +1068,7 @@ export default function TeamPage() {
 
                 {memberPickerOpen ? (
                   <div className="rounded-[12px] border border-[var(--line)] bg-[#fcfbfd] p-2">
-                    <p className="mb-1 px-1 text-[9px] font-semibold text-[var(--muted)]">Gruba eklenebilecek kişiler</p>
+                    <p className="mb-1 px-1 text-[9px] font-semibold text-[var(--muted)]">{active.type === "CHANNEL" ? "Kanala eklenebilecek kişiler" : "Gruba eklenebilecek kişiler"}</p>
                     <div className="max-h-[150px] overflow-y-auto">
                       {selectablePeople.filter((person) => !conversationMembers.some((member) => member.id === person.id)).map((person) => (
                         <button key={person.id} type="button" onClick={() => void addMember(person.id)} className="flex w-full items-center gap-2 rounded-[9px] px-2 py-2 text-left hover:bg-white">
@@ -979,10 +1086,15 @@ export default function TeamPage() {
                     <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1edff] text-[9px] font-semibold text-[#6f54c7]">{initials(member.firstName, member.lastName)}</div>
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
-                      <p className="truncate text-[9px] text-[var(--muted)]">{member.isAdmin ? "Grup yöneticisi" : member.roleName}</p>
+                      <p className="truncate text-[9px] text-[var(--muted)]">{member.isAdmin ? (active.type === "CHANNEL" ? "Kanal yöneticisi" : "Grup yöneticisi") : member.roleName}</p>
                     </div>
-                    {currentConversationMember?.isAdmin && !member.isAdmin && member.id !== currentUser?.id ? (
-                      <button type="button" onClick={() => void removeMember(member.id)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-rose-600 hover:bg-rose-50">Çıkar</button>
+                    {currentConversationMember?.isAdmin && member.id !== currentUser?.id ? (
+                      <div className="flex items-center gap-1">
+                        <button type="button" onClick={() => void setConversationAdmin(member.id, !member.isAdmin)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-[#6f54c7] hover:bg-[#f1edff]">
+                          {member.isAdmin ? "Yöneticiliği kaldır" : "Yönetici yap"}
+                        </button>
+                        {!member.isAdmin ? <button type="button" onClick={() => void removeMember(member.id)} className="rounded-[8px] px-2 py-1 text-[8px] font-semibold text-rose-600 hover:bg-rose-50">Çıkar</button> : null}
+                      </div>
                     ) : null}
                   </div>
                 ))}
@@ -1031,6 +1143,51 @@ export default function TeamPage() {
           </div>
         </aside>
       </section>
+
+      {preview ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-black/55 p-4 backdrop-blur-sm" onMouseDown={() => {
+          URL.revokeObjectURL(preview.url);
+          setPreview(null);
+        }}>
+          <div className="w-full max-w-[780px] overflow-hidden rounded-[22px] bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3">
+              <p className="truncate text-[12px] font-semibold text-[var(--ink)]">{preview.name}</p>
+              <button type="button" onClick={() => { URL.revokeObjectURL(preview.url); setPreview(null); }} className="rounded-[9px] px-3 py-1.5 text-[11px] font-semibold text-[var(--muted)]">Kapat</button>
+            </div>
+            <div className="flex min-h-[220px] items-center justify-center bg-[#f7f6f9] p-4">
+              {preview.mimeType.startsWith("image/") ? <img src={preview.url} alt={preview.name} className="max-h-[70vh] max-w-full rounded-[14px] object-contain" /> : null}
+              {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
+              {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[70vh] w-full rounded-[12px] bg-white" /> : null}
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {readerList.length || readerModalTitle ? (
+        <div className="fixed inset-0 z-[65] flex items-center justify-center bg-black/35 p-4 backdrop-blur-sm" onMouseDown={() => { setReaderList([]); setReaderModalTitle(""); }}>
+          <div className="w-full max-w-[480px] overflow-hidden rounded-[22px] bg-white shadow-2xl" onMouseDown={(event) => event.stopPropagation()}>
+            <div className="border-b border-[var(--line)] px-5 py-4">
+              <h3 className="text-[14px] font-semibold text-[var(--ink)]">Duyuruyu okuyanlar</h3>
+              <p className="mt-1 line-clamp-2 text-[10px] text-[var(--muted)]">{readerModalTitle}</p>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto p-3">
+              {readerList.length ? readerList.map((reader) => (
+                <div key={reader.id} className="flex items-center gap-3 rounded-[12px] px-2 py-2.5 hover:bg-[var(--surface-2)]">
+                  <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[#f1edff] text-[9px] font-semibold text-[#6f54c7]">{initials(reader.firstName, reader.lastName)}</div>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{reader.firstName} {reader.lastName}</p>
+                    <p className="truncate text-[9px] text-[var(--muted)]">{reader.email}</p>
+                  </div>
+                  <span className="text-[8px] text-[var(--muted-soft)]">{timeLabel(reader.acknowledgedAt)}</span>
+                </div>
+              )) : <p className="px-3 py-8 text-center text-[10px] text-[var(--muted)]">Henüz kimse “Okudum” demedi.</p>}
+            </div>
+            <div className="flex justify-end border-t border-[var(--line)] px-4 py-3">
+              <button type="button" onClick={() => { setReaderList([]); setReaderModalTitle(""); }} className="rounded-[10px] bg-[var(--ink)] px-4 py-2 text-[10px] font-semibold text-white">Kapat</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {composeOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4 backdrop-blur-sm" onMouseDown={() => setComposeOpen(false)}>
