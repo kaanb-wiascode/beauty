@@ -6,7 +6,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui";
 
 import { api, ApiError } from "@/lib/api";
-import { userPermissionLabel } from "@/lib/user-language";
+import { userErrorMessage, userPermissionLabel } from "@/lib/user-language";
 
 type Membership = {
   id: string;
@@ -89,7 +89,7 @@ export default function PermissionSimulationPage() {
         setMemberships(activeRows);
         setMembershipId(activeRows[0]?.id ?? "");
       })
-      .catch((err) => { if (active) setError(err instanceof ApiError ? err.message : "Kullanıcılar yüklenemedi."); })
+      .catch((err) => { if (active) setError(err instanceof ApiError ? userErrorMessage(err.message, "Kullanıcılar yüklenemedi.") : "Kullanıcılar yüklenemedi."); })
       .finally(() => { if (active) setLoading(false); });
     return () => { active = false; };
   }, []);
@@ -101,7 +101,7 @@ export default function PermissionSimulationPage() {
     setError("");
     api<EffectiveAccess>(`/memberships/${membershipId}/effective-permissions`)
       .then((data) => { if (active) setEffective(data); })
-      .catch((err) => { if (active) setError(err instanceof ApiError ? err.message : "Yetki simülasyonu yüklenemedi."); })
+      .catch((err) => { if (active) setError(err instanceof ApiError ? userErrorMessage(err.message, "Yetki incelemesi yüklenemedi.") : "Yetki incelemesi yüklenemedi."); })
       .finally(() => { if (active) setSimulating(false); });
     return () => { active = false; };
   }, [membershipId]);
