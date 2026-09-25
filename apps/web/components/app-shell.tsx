@@ -58,6 +58,7 @@ const NAV_SECTIONS = [
   ]},
   { label: "Finans Yönetimi", items: [
     { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
+    { href: "/finance/cfo/planning", label: "Planlama ve Kârlılık", icon: "chart" },
     { href: "/finance/income", permission: "finance.read", label: "Gelirler", icon: "trend" },
     { href: "/finance/expenses", permission: "finance.read", label: "Giderler", icon: "receipt" },
     { href: "/finance/obligations", permission: "finance.read", label: "Yükümlülükler", icon: "calendar" },
