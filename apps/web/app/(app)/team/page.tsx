@@ -57,6 +57,8 @@ type Message = {
   readByCount: number;
   isPinned: boolean;
   attachments: Attachment[];
+  acknowledgedByMe: boolean;
+  acknowledgedCount: number;
 };
 
 type ConversationMember = {
@@ -343,7 +345,8 @@ export default function TeamPage() {
         event.type === "message.deleted" ||
         event.type === "reaction.updated" ||
         event.type === "attachment.added" ||
-        event.type === "pin.updated"
+        event.type === "pin.updated" ||
+        event.type === "announcement.acknowledged"
       ) {
         void loadOverview(true);
         if (conversationId === currentConversationId && currentConversationId) {
@@ -463,6 +466,15 @@ export default function TeamPage() {
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Dosya açılamadı.");
+    }
+  }
+
+  async function acknowledgeAnnouncement(messageId: string) {
+    try {
+      await api(`/team/messages/${messageId}/acknowledge`, { method: "POST" });
+      if (activeId) await loadMessages(activeId, true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Duyuru onaylanamadı.");
     }
   }
 
@@ -773,6 +785,22 @@ export default function TeamPage() {
                                 </button>
                               ))}
                             </div>
+                            {active?.announcementOnly ? (
+                              <div className="mt-2 flex items-center justify-between gap-2 rounded-[10px] border border-amber-200/70 bg-amber-50/70 px-2.5 py-2">
+                                <span className="text-[9px] font-medium text-amber-800">
+                                  {message.acknowledgedCount} kişi okudu
+                                </span>
+                                {!mine ? (
+                                  <button
+                                    type="button"
+                                    onClick={() => void acknowledgeAnnouncement(message.id)}
+                                    className={`rounded-[8px] px-2.5 py-1 text-[9px] font-semibold ${message.acknowledgedByMe ? "bg-emerald-100 text-emerald-700" : "bg-amber-200 text-amber-900"}`}
+                                  >
+                                    {message.acknowledgedByMe ? "Okudum" : "Okudum olarak işaretle"}
+                                  </button>
+                                ) : null}
+                              </div>
+                            ) : null}
                             <div className="mt-1.5 flex items-center justify-end gap-2">
                               {mine && message.readByCount > 0 ? <span className="text-[9px] text-white/55">Okundu · {message.readByCount}</span> : null}
                               {message.editedAt ? <span className={`text-[9px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>düzenlendi</span> : null}
