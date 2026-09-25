@@ -22,6 +22,38 @@ export default function PosTransactionOperationsPage() {
       ]}
       forms={[
         {
+          title: "Bağlantı Kimlik Bilgilerini Döndür",
+          path: "/financial-integrations/{integrationId}/credentials/rotate",
+          fields: [
+            { name: "integrationId", label: "Finansal Entegrasyon ID", required: true },
+          ],
+        },
+        {
+          title: "Manuel POS Settlement Kaydı Oluştur",
+          path: "/financial-integrations/{integrationId}/pos/settlements",
+          fields: [
+            { name: "integrationId", label: "Finansal Entegrasyon ID", required: true },
+            { name: "providerSettlementId", label: "Sağlayıcı Settlement ID", required: true },
+            { name: "bankAccountId", label: "Banka Hesabı ID" },
+            {
+              name: "transactionIds",
+              label: "POS İşlem ID Listesi",
+              type: "json",
+              required: true,
+              placeholder: '["UUID-1","UUID-2"]',
+            },
+            { name: "settledAt", label: "Settlement Tarihi", type: "datetime-local", required: true },
+          ],
+        },
+        {
+          title: "Settlement Verisini Sağlayıcıdan İçe Aktar",
+          path: "/financial-integrations/{integrationId}/pos/settlements/import",
+          fields: [
+            { name: "integrationId", label: "Finansal Entegrasyon ID", required: true },
+            { name: "date", label: "Settlement Tarihi", type: "date", required: true },
+          ],
+        },
+        {
           title: "POS İşlemini Satış Ödemesine Bağla",
           path: "/financial-integrations/pos/transactions/{posTransactionId}/link-payment",
           fields: [
