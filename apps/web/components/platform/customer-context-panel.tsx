@@ -1,7 +1,7 @@
 "use client";
 
 import { DatePicker } from "@/components/date-picker";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { ApiError } from "@/lib/api";
 import { userErrorMessage } from "@/lib/user-language";
@@ -31,7 +31,7 @@ export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
   const [goLiveAt, setGoLiveAt] = useState("");
   const [renewalAt, setRenewalAt] = useState("");
 
-  async function refresh() {
+  const refresh = useCallback(async () => {
     const value = await getPlatformCustomerContext(tenantId);
     setData(value);
     setLegalName(value.account?.legalName ?? "");
@@ -39,7 +39,7 @@ export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
     setCustomerSuccessOwnerUserId(value.account?.customerSuccessOwnerUserId ?? "");
     setGoLiveAt(toDateInput(value.account?.goLiveAt));
     setRenewalAt(toDateInput(value.account?.renewalAt));
-  }
+  }, [refresh]);
 
   useEffect(() => {
     refresh().catch((reason: unknown) => {
