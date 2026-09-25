@@ -1402,7 +1402,7 @@ export class TeamService {
   async updatePresence(currentUserId: string, input: PresenceInput) {
     await this.requireActiveUser(currentUserId);
     const rows = await this.prisma.$queryRawUnsafe<Array<{
-      status: PresenceStatus;
+      status: PresenceInput['status'];
       statusText: string | null;
       statusUntil: Date | null;
       lastSeenAt: Date;
