@@ -1,0 +1,698 @@
+import {
+  BadRequestException,
+  ConflictException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
+import { Prisma, PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { AccountingService } from '../accounting/accounting.service';
+import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
+import { InstallmentsService } from '../installments/installments.service';
+
+interface SaleItemInput {
+  type: 'SERVICE' | 'PACKAGE';
+  referenceId: string;
+  quantity: number;
+}
+
+interface CreateSaleInput {
+  customerId: string;
+  discountTotal: number;
+  items: SaleItemInput[];
+}
+
+interface CreateSaleFromOpportunityInput {
+  version: number;
+  customerId?: string;
+  discountTotal: number;
+  items: SaleItemInput[];
+}
+
+interface AddSalePaymentInput {
+  amount: number;
+  method: 'CASH' | 'CARD' | 'TRANSFER';
+  reference?: string;
+  note?: string;
+}
+
+interface RefundSalePaymentInput {
+  reason: string;
+}
+
+type SaleLine = {
+  type: 'SERVICE' | 'PACKAGE';
+  serviceId: string | null;
+  packageId: string | null;
+  description: string;
+  quantity: number;
+  unitPrice: number;
+};
+
+@Injectable()
+export class SalesService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly installmentsService: InstallmentsService,
+    private readonly accountingService: AccountingService,
+  ) {}
+
+  private requireBranchId(): string {
+    const branchId = this.tenantContext.getBranchId();
+    if (!branchId)
+      throw new BadRequestException(
+        'A branch must be selected for this operation.',
+      );
+    return branchId;
+  }
+
+  private async resolveSaleLines(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    branchId: string,
+    items: SaleItemInput[],
+  ): Promise<SaleLine[]> {
+    return Promise.all(
+      items.map(async (item) => {
+        if (item.type === 'SERVICE') {
+          const service = await tx.service.findFirst({
+            where: {
+              id: item.referenceId,
+              tenantId,
+              branchId,
+              status: 'ACTIVE',
+            },
+          });
+          if (!service)
+            throw new BadRequestException(
+              'One or more sale services are invalid.',
+            );
+          return {
+            type: 'SERVICE' as const,
+            serviceId: service.id,
+            packageId: null,
+            description: service.name,
+            quantity: item.quantity,
+            unitPrice: Number(service.price),
+          };
+        }
+
+        const servicePackage = await tx.servicePackage.findFirst({
+          where: { id: item.referenceId, tenantId, branchId, active: true },
+        });
+        if (!servicePackage)
+          throw new BadRequestException(
+            'One or more sale packages are invalid.',
+          );
+        return {
+          type: 'PACKAGE' as const,
+          serviceId: null,
+          packageId: servicePackage.id,
+          description: servicePackage.name,
+          quantity: item.quantity,
+          unitPrice: Number(servicePackage.price),
+        };
+      }),
+    );
+  }
+
+  private async createSaleRecord(
+    tx: Prisma.TransactionClient,
+    input: CreateSaleInput,
+    tenantId: string,
+    branchId: string,
+  ) {
+    const customer = await tx.customer.findFirst({
+      where: { id: input.customerId, tenantId, branchId },
+      select: { id: true },
+    });
+    if (!customer) throw new NotFoundException('Customer not found');
+
+    const lines = await this.resolveSaleLines(
+      tx,
+      tenantId,
+      branchId,
+      input.items,
+    );
+    let totals: ReturnType<typeof calculateSaleTotals>;
+    try {
+      totals = calculateSaleTotals(lines, input.discountTotal);
+    } catch (error) {
+      if (error instanceof Error) {
+        throw new BadRequestException(error.message);
+      }
+      throw error;
+    }
+
+    const sale = await tx.sale.create({
+      data: {
+        tenantId,
+        branchId,
+        customerId: input.customerId,
+        subtotal: totals.subtotal,
+        discountTotal: totals.discountTotal,
+        total: totals.total,
+        items: {
+          create: lines.map((line) => ({
+            type: line.type,
+            serviceId: line.serviceId,
+            packageId: line.packageId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: line.quantity * line.unitPrice,
+          })),
+        },
+      },
+      include: { items: true },
+    });
+
+    return { sale, lines, totals };
+  }
+
+  private async paymentSummary(
+    saleId: string,
+    tenantId: string,
+    branchId: string,
+  ) {
+    const sale = await this.prisma.sale.findFirst({
+      where: { id: saleId, tenantId, branchId },
+      select: { id: true, total: true, status: true },
+    });
+    if (!sale) throw new NotFoundException('Sale not found');
+
+    const aggregate = await this.prisma.salePayment.aggregate({
+      where: { saleId, tenantId, branchId, status: 'COMPLETED' },
+      _sum: { amount: true },
+    });
+
+    const total = Number(sale.total);
+    const paid = Number(aggregate._sum.amount ?? 0);
+    const balance = Math.max(
+      0,
+      Math.round((total - paid + Number.EPSILON) * 100) / 100,
+    );
+
+    return {
+      saleId: sale.id,
+      saleStatus: sale.status,
+      total,
+      paid,
+      balance,
+      paymentStatus:
+        paid <= 0 ? 'UNPAID' : balance > 0 ? 'PARTIALLY_PAID' : 'PAID',
+    };
+  }
+
+  async create(input: CreateSaleInput) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const { sale } = await this.createSaleRecord(
+          tx,
+          input,
+          tenantId,
+          branchId,
+        );
+        return sale;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async createFromOpportunity(
+    opportunityId: string,
+    input: CreateSaleFromOpportunityInput,
+    actorUserId: string,
+  ) {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.requireBranchId();
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const rows = await tx.$queryRawUnsafe<
+          Array<{
+            id: string;
+            title: string;
+            stage: string;
+            version: number;
+            customerId: string | null;
+            saleId: string | null;
+            estimatedValue: Prisma.Decimal | null;
+            currency: string;
+          }>
+        >(
+          `SELECT id,title,stage,version,customer_id AS "customerId",sale_id AS "saleId",
+                estimated_value AS "estimatedValue",currency
+         FROM crm_opportunities
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+         FOR UPDATE`,
+          opportunityId,
+          tenantId,
+          companyId,
+          branchId,
+        );
+
+        const opportunity = rows[0];
+        if (!opportunity)
+          throw new NotFoundException('CRM opportunity not found.');
+
+        if (opportunity.saleId) {
+          const sale = await tx.sale.findFirst({
+            where: { id: opportunity.saleId, tenantId, branchId },
+            include: { items: true },
+          });
+          if (!sale) throw new ConflictException('Linked sale is missing.');
+          return { sale, idempotent: true };
+        }
+
+        if (opportunity.stage !== 'WON') {
+          throw new BadRequestException(
+            'Only won opportunities can be converted to a sale.',
+          );
+        }
+        if (opportunity.version !== input.version) {
+          throw new ConflictException('Opportunity version is stale.');
+        }
+
+        const customerId = input.customerId ?? opportunity.customerId;
+        if (!customerId) {
+          throw new BadRequestException(
+            'A customer must be linked before creating the sale.',
+          );
+        }
+
+        const { sale, lines, totals } = await this.createSaleRecord(
+          tx,
+          {
+            customerId,
+            discountTotal: input.discountTotal,
+            items: input.items,
+          },
+          tenantId,
+          branchId,
+        );
+
+        const convertedAt = new Date();
+        const snapshot = {
+          opportunityId: opportunity.id,
+          opportunityTitle: opportunity.title,
+          estimatedValue:
+            opportunity.estimatedValue == null
+              ? null
+              : Number(opportunity.estimatedValue),
+          currency: opportunity.currency,
+          customerId,
+          saleId: sale.id,
+          subtotal: Number(totals.subtotal),
+          discountTotal: Number(totals.discountTotal),
+          total: Number(totals.total),
+          items: lines.map((line) => ({
+            type: line.type,
+            referenceId: line.serviceId ?? line.packageId,
+            description: line.description,
+            quantity: line.quantity,
+            unitPrice: line.unitPrice,
+            lineTotal: line.quantity * line.unitPrice,
+          })),
+        };
+
+        await tx.$executeRawUnsafe(
+          `UPDATE crm_opportunities
+         SET customer_id=$5::text,sale_id=$6::text,commercial_snapshot=$7::jsonb,
+             converted_at=$8::timestamptz,version=version+1,updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+          opportunity.id,
+          tenantId,
+          companyId,
+          branchId,
+          customerId,
+          sale.id,
+          JSON.stringify(snapshot),
+          convertedAt,
+        );
+
+        await tx.$executeRawUnsafe(
+          `INSERT INTO crm_events(
+           tenant_id,company_id,branch_id,opportunity_id,event_type,actor_user_id,metadata
+         ) VALUES($1::text,$2::text,$3::text,$4::text,'OPPORTUNITY_SALE_CREATED',$5::text,$6::jsonb)`,
+          tenantId,
+          companyId,
+          branchId,
+          opportunity.id,
+          actorUserId,
+          JSON.stringify({ saleId: sale.id, total: Number(totals.total) }),
+        );
+
+        return { sale, idempotent: false };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async findAll() {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+    return this.prisma.sale.findMany({
+      where: { tenantId, branchId },
+      include: {
+        customer: true,
+        items: true,
+        customerPackages: true,
+        payments: true,
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOne(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+    const sale = await this.prisma.sale.findFirst({
+      where: { id, tenantId, branchId },
+      include: {
+        customer: true,
+        items: true,
+        payments: { orderBy: { paidAt: 'desc' } },
+        installmentPlan: {
+          include: { installments: { orderBy: { sequence: 'asc' } } },
+        },
+        customerPackages: { include: { sessions: true, package: true } },
+      },
+    });
+    if (!sale) throw new NotFoundException('Sale not found');
+    return sale;
+  }
+
+  async getPaymentSummary(id: string) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+    return this.paymentSummary(id, tenantId, branchId);
+  }
+
+  async addPayment(id: string, input: AddSalePaymentInput) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+
+    if (!Number.isFinite(input.amount) || input.amount <= 0) {
+      throw new BadRequestException(
+        'Payment amount must be greater than zero.',
+      );
+    }
+
+    const payment = await this.prisma.$transaction(
+      async (tx) => {
+        const sales = await tx.$queryRawUnsafe<
+          Array<{
+            id: string;
+            total: Prisma.Decimal;
+            status: string;
+          }>
+        >(
+          `SELECT id,total,status::text AS status FROM sales
+         WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text
+         FOR UPDATE`,
+          id,
+          tenantId,
+          branchId,
+        );
+        if (!sales.length) throw new NotFoundException('Sale not found');
+        const sale = sales[0];
+        if (sale.status !== 'CONFIRMED') {
+          throw new BadRequestException(
+            'Payments can only be recorded for confirmed sales.',
+          );
+        }
+
+        const aggregate = await tx.salePayment.aggregate({
+          where: { saleId: sale.id, tenantId, branchId, status: 'COMPLETED' },
+          _sum: { amount: true },
+        });
+
+        const paid = Number(aggregate._sum.amount ?? 0);
+        const total = Number(sale.total);
+        const remaining =
+          Math.round((total - paid + Number.EPSILON) * 100) / 100;
+        const amount = Math.round((input.amount + Number.EPSILON) * 100) / 100;
+
+        if (remaining <= 0) {
+          throw new BadRequestException('Sale is already fully paid.');
+        }
+        if (amount > remaining) {
+          throw new BadRequestException(
+            `Payment exceeds remaining balance of ${remaining.toFixed(2)}.`,
+          );
+        }
+
+        const createdPayment = await tx.salePayment.create({
+          data: {
+            tenantId,
+            branchId,
+            saleId: sale.id,
+            amount,
+            method: input.method,
+            reference: input.reference?.trim() || null,
+            note: input.note?.trim() || null,
+          },
+        });
+
+        await this.installmentsService.allocatePayment(
+          tx,
+          sale.id,
+          createdPayment.id,
+          amount,
+        );
+        await this.accountingService.recordSalePayment(
+          tx,
+          createdPayment.id,
+          createdPayment.method,
+          {
+            tenantId,
+            branchId,
+            entryDate: createdPayment.paidAt,
+            amount,
+          },
+        );
+        return createdPayment;
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return {
+      payment,
+      summary: await this.paymentSummary(id, tenantId, branchId),
+    };
+  }
+
+  async refundPayment(
+    saleId: string,
+    paymentId: string,
+    input: RefundSalePaymentInput,
+  ) {
+    const tenantId = this.tenantContext.getTenantId();
+    const branchId = this.requireBranchId();
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('Refund reason is required.');
+
+    const payment = await this.prisma.$transaction(
+      async (tx) => {
+        const sales = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM sales
+         WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text
+         FOR UPDATE`,
+          saleId,
+          tenantId,
+          branchId,
+        );
+        if (!sales.length) throw new NotFoundException('Sale not found');
+
+        const existing = await tx.salePayment.findFirst({
+          where: { id: paymentId, saleId, tenantId, branchId },
+        });
+        if (!existing) throw new NotFoundException('Sale payment not found');
+        if (existing.status !== 'COMPLETED') {
+          throw new ConflictException(
+            'Only completed payments can be refunded.',
+          );
+        }
+
+        const refundedAt = new Date();
+        const claimed = await tx.salePayment.updateMany({
+          where: {
+            id: existing.id,
+            saleId,
+            tenantId,
+            branchId,
+            status: 'COMPLETED',
+          },
+          data: {
+            status: 'REFUNDED',
+            refundedAt,
+            refundReason: reason,
+          },
+        });
+
+        if (claimed.count !== 1) {
+          throw new ConflictException('Sale payment is no longer refundable.');
+        }
+
+        await this.accountingService.recordSalePaymentRefund(
+          tx,
+          existing.id,
+          existing.method,
+          {
+            tenantId,
+            branchId,
+            entryDate: refundedAt,
+            amount: Number(existing.amount),
+          },
+        );
+
+        return tx.salePayment.findUniqueOrThrow({ where: { id: existing.id } });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+
+    return {
+      payment,
+      summary: await this.paymentSummary(saleId, tenantId, branchId),
+    };
+  }
+
+  async confirm(id: string) {
+    const sale = await this.findOne(id);
+    if (sale.status !== 'DRAFT') {
+      throw new BadRequestException('Only draft sales can be confirmed.');
+    }
+
+    const packageItems = sale.items.filter(
+      (item) => item.type === 'PACKAGE' && item.packageId,
+    );
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const confirmedAt = new Date();
+        const claimed = await tx.sale.updateMany({
+          where: {
+            id: sale.id,
+            tenantId: sale.tenantId,
+            branchId: sale.branchId,
+            status: 'DRAFT',
+          },
+          data: { status: 'CONFIRMED', confirmedAt },
+        });
+        if (claimed.count !== 1) {
+          throw new ConflictException(
+            'Sale is no longer in a confirmable state.',
+          );
+        }
+
+        for (const line of packageItems) {
+          const definition = await tx.servicePackage.findFirst({
+            where: {
+              id: line.packageId!,
+              tenantId: sale.tenantId,
+              branchId: sale.branchId,
+              active: true,
+            },
+            include: { items: true },
+          });
+          if (!definition) {
+            throw new BadRequestException(
+              'A package in this sale is no longer available.',
+            );
+          }
+
+          for (
+            let packageIndex = 0;
+            packageIndex < line.quantity;
+            packageIndex += 1
+          ) {
+            const purchasedAt = new Date();
+            const expiresAt = definition.validityDays
+              ? new Date(
+                  purchasedAt.getTime() +
+                    definition.validityDays * 24 * 60 * 60 * 1000,
+                )
+              : null;
+
+            const customerPackage = await tx.customerPackage.create({
+              data: {
+                tenantId: sale.tenantId,
+                branchId: sale.branchId,
+                customerId: sale.customerId,
+                packageId: definition.id,
+                saleId: sale.id,
+                purchasedAt,
+                expiresAt,
+              },
+            });
+
+            const sessions = definition.items.flatMap((item) =>
+              Array.from({ length: item.quantity }, () => ({
+                tenantId: sale.tenantId,
+                branchId: sale.branchId,
+                customerPackageId: customerPackage.id,
+                serviceId: item.serviceId,
+              })),
+            );
+
+            if (sessions.length > 0) {
+              await tx.session.createMany({ data: sessions });
+            }
+          }
+        }
+
+        await this.accountingService.recordSaleConfirmed(tx, sale.id, {
+          tenantId: sale.tenantId,
+          branchId: sale.branchId,
+          entryDate: confirmedAt,
+          amount: Number(sale.total),
+        });
+
+        return tx.sale.findUnique({
+          where: { id: sale.id },
+          include: {
+            items: true,
+            payments: true,
+            installmentPlan: {
+              include: { installments: { orderBy: { sequence: 'asc' } } },
+            },
+            customerPackages: { include: { package: true, sessions: true } },
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async cancel(id: string) {
+    const sale = await this.findOne(id);
+    if (sale.status !== 'DRAFT') {
+      throw new BadRequestException('Only draft sales can be cancelled in v1.');
+    }
+
+    const cancelledAt = new Date();
+    const claimed = await this.prisma.sale.updateMany({
+      where: {
+        id: sale.id,
+        tenantId: sale.tenantId,
+        branchId: sale.branchId,
+        status: 'DRAFT',
+      },
+      data: { status: 'CANCELLED', cancelledAt },
+    });
+
+    if (claimed.count !== 1) {
+      throw new ConflictException('Sale is no longer in a cancellable state.');
+    }
+
+    return this.prisma.sale.findUniqueOrThrow({
+      where: { id: sale.id },
+    });
+  }
+}

@@ -1,0 +1,372 @@
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Get,
+  Param,
+  Post,
+  Query,
+  Req,
+  UnauthorizedException,
+  UseGuards,
+} from '@nestjs/common';
+
+import { PlatformJwtAuthGuard } from '../../common/auth/platform-jwt-auth.guard';
+import { RequirePlatformPermission } from '../../common/auth/platform-permissions.decorator';
+import { PlatformPermissionsGuard } from '../../common/auth/platform-permissions.guard';
+import { PlatformAuditReadService } from './platform-audit-read.service';
+import { PlatformIamMutationService } from './platform-iam-mutation.service';
+import { PlatformIamReadService } from './platform-iam-read.service';
+import { PlatformPrivilegedExecutionService } from './platform-privileged-execution.service';
+import { PlatformPrivilegedOperationsService } from './platform-privileged-operations.service';
+import {
+  getPlatformOperationContext,
+  type PlatformRequestLike,
+} from './platform-request-context';
+import { PlatformReadModelService } from './platform-read-model.service';
+import { PlatformTenantGovernanceReadService } from './platform-tenant-governance-read.service';
+
+type PlatformRequest = PlatformRequestLike & { user?: { sub?: string } };
+type TenantLifecycleState = 'ACTIVE' | 'RESTRICTED' | 'SUSPENDED';
+
+@Controller('platform')
+@UseGuards(PlatformJwtAuthGuard, PlatformPermissionsGuard)
+export class PlatformControlPlaneController {
+  constructor(
+    private readonly readModel: PlatformReadModelService,
+    private readonly tenantGovernance: PlatformTenantGovernanceReadService,
+    private readonly iamRead: PlatformIamReadService,
+    private readonly iamMutation: PlatformIamMutationService,
+    private readonly auditRead: PlatformAuditReadService,
+    private readonly privilegedOperations: PlatformPrivilegedOperationsService,
+    private readonly privilegedExecution: PlatformPrivilegedExecutionService,
+  ) {}
+
+  @Get('command-center')
+  @RequirePlatformPermission('command_center', 'read')
+  getCommandCenter() {
+    return this.readModel.getCommandCenter();
+  }
+
+  @Get('customers')
+  @RequirePlatformPermission('customers', 'read')
+  listCustomers(
+    @Query('search') search?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.readModel.listTenants({
+      search,
+      limit: this.parseOptionalInteger(limit),
+      offset: this.parseOptionalInteger(offset),
+    });
+  }
+
+  @Get('customers/:tenantId/governance')
+  @RequirePlatformPermission('customers', 'read')
+  getCustomerGovernance(@Param('tenantId') tenantId: string) {
+    return this.tenantGovernance.getTenantGovernance(tenantId);
+  }
+
+  @Get('customers/:tenantId')
+  @RequirePlatformPermission('customers', 'read')
+  getCustomer360(@Param('tenantId') tenantId: string) {
+    return this.readModel.getTenant360(tenantId);
+  }
+
+  @Post('customers/:tenantId/lifecycle')
+  @RequirePlatformPermission('customers', 'manage')
+  requestCustomerLifecycleChange(
+    @Req() request: PlatformRequest,
+    @Param('tenantId') tenantId: string,
+    @Body() body: { state?: string; expectedVersion?: number; reason?: string },
+  ) {
+    const state = (body.state ?? '').trim().toUpperCase() as TenantLifecycleState;
+    const actionByState: Record<TenantLifecycleState, string> = {
+      ACTIVE: 'lifecycle.reactivate',
+      RESTRICTED: 'lifecycle.restrict',
+      SUSPENDED: 'lifecycle.suspend',
+    };
+    const action = actionByState[state];
+    if (!action) {
+      throw new BadRequestException('Tenant lifecycle state must be ACTIVE, RESTRICTED, or SUSPENDED.');
+    }
+    if (!Number.isInteger(body.expectedVersion) || (body.expectedVersion as number) < 0) {
+      throw new BadRequestException('expectedVersion must be a non-negative integer.');
+    }
+
+    return this.privilegedOperations.create({
+      actorUserId: this.actor(request),
+      resource: 'customers',
+      action,
+      targetEntityType: 'tenant',
+      targetEntityId: tenantId,
+      targetTenantId: tenantId,
+      reason: body.reason ?? '',
+      payload: { tenantId, expectedVersion: body.expectedVersion },
+      context: getPlatformOperationContext(request),
+    });
+  }
+
+  @Get('iam')
+  @RequirePlatformPermission('platform_iam', 'read')
+  getIamOverview() {
+    return this.iamRead.getOverview();
+  }
+
+  @Post('iam/admins')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  provisionAdmin(
+    @Req() request: PlatformRequest,
+    @Body() body: { userId?: string; roleSlug?: string; reason?: string },
+  ) {
+    return this.requestIamOperation(request, {
+      action: 'admin.provision',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: body.userId ?? null,
+      reason: body.reason ?? '',
+      payload: { userId: body.userId ?? '', roleSlug: body.roleSlug },
+    });
+  }
+
+  @Post('iam/admins/:userId/status')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  setAdminStatus(
+    @Req() request: PlatformRequest,
+    @Param('userId') userId: string,
+    @Body() body: { status?: string; reason?: string },
+  ) {
+    const status = (body.status ?? '').trim().toUpperCase();
+    if (status === 'ACTIVE') {
+      return this.iamMutation.setAdminStatus(
+        { actorUserId: this.actor(request), reason: body.reason ?? '' },
+        { userId, status },
+      );
+    }
+    if (status !== 'SUSPENDED') {
+      throw new BadRequestException('Platform admin status must be ACTIVE or SUSPENDED.');
+    }
+    return this.requestIamOperation(request, {
+      action: 'admin.suspend',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: userId,
+      reason: body.reason ?? '',
+      payload: { userId },
+    });
+  }
+
+  @Post('iam/admins/:userId/roles')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  assignRole(
+    @Req() request: PlatformRequest,
+    @Param('userId') userId: string,
+    @Body() body: { roleSlug?: string; reason?: string },
+  ) {
+    return this.requestIamOperation(request, {
+      action: 'role.assign',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: userId,
+      reason: body.reason ?? '',
+      payload: { userId, roleSlug: body.roleSlug ?? '' },
+    });
+  }
+
+  @Post('iam/admins/:userId/roles/:roleSlug/remove')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  removeRole(
+    @Req() request: PlatformRequest,
+    @Param('userId') userId: string,
+    @Param('roleSlug') roleSlug: string,
+    @Body() body: { reason?: string },
+  ) {
+    return this.requestIamOperation(request, {
+      action: 'role.remove',
+      targetEntityType: 'platform_admin_user',
+      targetEntityId: userId,
+      reason: body.reason ?? '',
+      payload: { userId, roleSlug },
+    });
+  }
+
+  @Post('iam/roles/:roleSlug/permissions')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  grantRolePermission(
+    @Req() request: PlatformRequest,
+    @Param('roleSlug') roleSlug: string,
+    @Body() body: { resource?: string; action?: string; reason?: string },
+  ) {
+    return this.requestIamOperation(request, {
+      action: 'permission.grant',
+      targetEntityType: 'platform_role',
+      targetEntityId: roleSlug,
+      reason: body.reason ?? '',
+      payload: {
+        roleSlug,
+        resource: body.resource ?? '',
+        action: body.action ?? '',
+      },
+    });
+  }
+
+  @Post('iam/roles/:roleSlug/permissions/revoke')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  revokeRolePermission(
+    @Req() request: PlatformRequest,
+    @Param('roleSlug') roleSlug: string,
+    @Body() body: { resource?: string; action?: string; reason?: string },
+  ) {
+    return this.requestIamOperation(request, {
+      action: 'permission.revoke',
+      targetEntityType: 'platform_role',
+      targetEntityId: roleSlug,
+      reason: body.reason ?? '',
+      payload: {
+        roleSlug,
+        resource: body.resource ?? '',
+        action: body.action ?? '',
+      },
+    });
+  }
+
+  @Get('privileged-operations')
+  @RequirePlatformPermission('privileged_operations', 'read')
+  listPrivilegedOperations(
+    @Query('status') status?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.privilegedOperations.list({
+      status,
+      limit: this.parseOptionalInteger(limit),
+      offset: this.parseOptionalInteger(offset),
+    });
+  }
+
+  @Post('privileged-operations')
+  @RequirePlatformPermission('privileged_operations', 'manage')
+  createPrivilegedOperation(
+    @Req() request: PlatformRequest,
+    @Body()
+    body: {
+      resource?: string;
+      action?: string;
+      targetEntityType?: string | null;
+      targetEntityId?: string | null;
+      targetTenantId?: string | null;
+      reason?: string;
+      payload?: unknown;
+    },
+  ) {
+    return this.privilegedOperations.create({
+      actorUserId: this.actor(request),
+      resource: body.resource ?? '',
+      action: body.action ?? '',
+      targetEntityType: body.targetEntityType,
+      targetEntityId: body.targetEntityId,
+      targetTenantId: body.targetTenantId,
+      reason: body.reason ?? '',
+      payload: body.payload,
+      context: getPlatformOperationContext(request),
+    });
+  }
+
+  @Post('privileged-operations/:requestId/decision')
+  @RequirePlatformPermission('privileged_operations', 'manage')
+  decidePrivilegedOperation(
+    @Req() request: PlatformRequest,
+    @Param('requestId') requestId: string,
+    @Body() body: { decision?: 'APPROVED' | 'REJECTED'; reason?: string },
+  ) {
+    const decision = body.decision;
+    if (decision !== 'APPROVED' && decision !== 'REJECTED') {
+      throw new BadRequestException('A valid privileged operation decision is required.');
+    }
+    return this.privilegedOperations.decide({
+      actorUserId: this.actor(request),
+      requestId,
+      decision,
+      reason: body.reason ?? '',
+      context: getPlatformOperationContext(request),
+    });
+  }
+
+  @Post('privileged-operations/:requestId/execute')
+  @RequirePlatformPermission('privileged_operations', 'manage')
+  executePrivilegedOperation(
+    @Req() request: PlatformRequest,
+    @Param('requestId') requestId: string,
+  ) {
+    return this.privilegedExecution.execute({
+      actorUserId: this.actor(request),
+      requestId,
+      context: getPlatformOperationContext(request),
+    });
+  }
+
+  @Get('audit')
+  @RequirePlatformPermission('platform_audit', 'read')
+  listAuditEvents(
+    @Query('actorUserId') actorUserId?: string,
+    @Query('resource') resource?: string,
+    @Query('action') action?: string,
+    @Query('targetTenantId') targetTenantId?: string,
+    @Query('correlationId') correlationId?: string,
+    @Query('requestId') requestId?: string,
+    @Query('riskLevel') riskLevel?: string,
+    @Query('approvalRequestId') approvalRequestId?: string,
+    @Query('limit') limit?: string,
+    @Query('offset') offset?: string,
+  ) {
+    return this.auditRead.list({
+      actorUserId,
+      resource,
+      action,
+      targetTenantId,
+      correlationId,
+      requestId,
+      riskLevel,
+      approvalRequestId,
+      limit: this.parseOptionalInteger(limit),
+      offset: this.parseOptionalInteger(offset),
+    });
+  }
+
+  private requestIamOperation(
+    request: PlatformRequest,
+    input: {
+      action: string;
+      targetEntityType: string;
+      targetEntityId: string | null;
+      reason: string;
+      payload: unknown;
+    },
+  ) {
+    return this.privilegedOperations.create({
+      actorUserId: this.actor(request),
+      resource: 'platform_iam',
+      action: input.action,
+      targetEntityType: input.targetEntityType,
+      targetEntityId: input.targetEntityId,
+      reason: input.reason,
+      payload: input.payload,
+      context: getPlatformOperationContext(request),
+    });
+  }
+
+  private actor(request: PlatformRequest) {
+    const actorUserId = request.user?.sub;
+    if (!actorUserId) {
+      throw new UnauthorizedException('Authenticated platform actor is missing.');
+    }
+    return actorUserId;
+  }
+
+  private parseOptionalInteger(value?: string) {
+    if (value === undefined || value.trim() === '') {
+      return undefined;
+    }
+
+    const parsed = Number(value);
+    return Number.isInteger(parsed) ? parsed : undefined;
+  }
+}

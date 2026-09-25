@@ -10,8 +10,11 @@ const inter = Inter({
 });
 
 export const metadata: Metadata = {
-  title: "Beauty ERP",
-  description: "Beauty salon management system",
+  title: {
+    default: "VALOO",
+    template: "%s | VALOO",
+  },
+  description: "İşletmeler için operasyon, müşteri ilişkileri, finans, insan kaynakları ve yönetim platformu.",
 };
 
 export default function RootLayout({
@@ -20,8 +23,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="tr" className={inter.variable}>
-      <body className="ambient-root">{children}</body>
+    <html lang="tr" className={inter.variable} data-scroll-behavior="smooth">
+      <body className="ambient-root valoo-v2">{children}</body>
     </html>
   );
 }

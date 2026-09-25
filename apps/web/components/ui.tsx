@@ -6,6 +6,8 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { cx } from "@/lib/format";
+import { userErrorMessage, userLabel, userNoticeMessage } from "@/lib/user-language";
+import { ValooNativeSelectAdapter } from "@/components/valoo-controls";
 
 export function Alert({
   tone = "error",
@@ -17,24 +19,30 @@ export function Alert({
   onClose?: () => void;
 }) {
   const isError = tone === "error";
+  const safeChildren =
+    typeof children === "string"
+      ? isError
+        ? userErrorMessage(children)
+        : userNoticeMessage(children)
+      : children;
 
   return (
     <div
       role="alert"
       className={cx(
-        "flex items-start justify-between gap-4 rounded-[20px] px-4 py-3.5 text-sm leading-6",
+        "flex items-start justify-between gap-4 rounded-[var(--radius-control)] border px-4 py-3.5 text-[14px] leading-6",
         isError
-          ? "bg-[rgba(143,61,61,0.08)] text-[#7a3333]"
-          : "bg-[rgba(47,122,86,0.10)] text-[#2d5c45]",
+          ? "border-[rgba(196,81,103,.18)] bg-[var(--danger-soft)] text-[var(--danger)]"
+          : "border-[rgba(23,138,97,.16)] bg-[var(--secondary-soft)] text-[var(--secondary)]",
       )}
     >
-      <p>{children}</p>
+      <p>{safeChildren}</p>
 
       {onClose ? (
         <button
           type="button"
           onClick={onClose}
-          aria-label="Uyarıyı kapat"
+          aria-label="Uyarıyı Kapat"
           className="shrink-0 rounded-lg px-1 py-0.5 text-xs font-medium opacity-60 transition-opacity duration-[180ms] hover:opacity-100 focus-visible:opacity-100"
         >
           Kapat
@@ -76,7 +84,7 @@ export function PageHeader({
   return (
     <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
       <div className="min-w-0 max-w-xl">
-        <h1 className="text-[30px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[40px]">
+        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[32px]">
           {title}
         </h1>
 
@@ -103,26 +111,39 @@ export function PageHeader({
 }
 
 type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: "primary" | "secondary" | "ghost" | "danger";
+  variant?: "primary" | "secondary" | "ghost" | "danger" | "success" | "link";
+  size?: "sm" | "md" | "lg" | "icon";
 };
 
 export function Button({
   children,
   type = "button",
   variant = "primary",
+  size = "md",
   disabled,
   className,
   ...props
 }: ButtonProps) {
   const variants = {
     primary:
-      "border border-[#DED9D3] bg-[#F3F1EE] text-[#514A43] shadow-[0_2px_8px_rgba(81,74,67,0.06)] hover:bg-[#EAE7E3] active:bg-[#E4E0DB]",
+      "border border-[var(--accent)] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white shadow-[0_7px_18px_rgba(22,116,189,.17)] hover:shadow-[0_9px_24px_rgba(22,116,189,.22)]",
     secondary:
-      "bg-white/70 text-[var(--ink)] shadow-[inset_0_0_0_1px_var(--line)] hover:bg-white",
+      "border border-[var(--line)] bg-white text-[var(--ink)] shadow-[0_1px_2px_rgba(17,70,104,.03)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]",
     ghost:
-      "text-[var(--muted)] hover:bg-black/[0.04] hover:text-[var(--ink)]",
+      "border border-transparent bg-transparent text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
     danger:
-      "text-[#8f3d3d] hover:bg-[rgba(143,61,61,0.08)] hover:text-[#7a3333]",
+      "border border-transparent bg-[var(--danger-soft)] text-[var(--danger)] hover:border-[rgba(196,81,103,.18)] hover:bg-[#ffe6eb]",
+    success:
+      "border border-transparent bg-[var(--secondary)] text-white shadow-[0_6px_16px_rgba(23,138,97,.14)] hover:bg-[var(--secondary-strong)]",
+    link:
+      "border border-transparent bg-transparent px-0 text-[var(--accent)] shadow-none hover:text-[var(--accent-strong)]",
+  };
+
+  const sizes = {
+    sm: "min-h-9 rounded-[10px] px-3 text-[12px]",
+    md: "min-h-[42px] rounded-[12px] px-4 text-[14px]",
+    lg: "min-h-12 rounded-[14px] px-5 text-[14px]",
+    icon: "h-[42px] w-[42px] rounded-[12px] p-0",
   };
 
   return (
@@ -131,8 +152,9 @@ export function Button({
       type={type}
       disabled={disabled}
       className={cx(
-        "inline-flex min-h-10 items-center justify-center gap-2 rounded-[14px] px-4 py-2.5 text-[14px] font-medium tracking-[-0.01em] transition-[transform,background-color,border-color,opacity,color,box-shadow] duration-[180ms] [transition-timing-function:var(--ease-out)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-40 disabled:active:scale-100",
+        "inline-flex items-center justify-center gap-2 font-medium tracking-[-0.01em] transition-[transform,background-color,border-color,opacity,color,box-shadow] duration-[var(--motion-base)] [transition-timing-function:var(--ease-out)] active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-45 disabled:active:scale-100",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
+        sizes[size],
         variants[variant],
         className,
       )}
@@ -146,14 +168,18 @@ export function Field({
   label,
   children,
   required,
+  hint,
+  error,
 }: {
   label: string;
   children: ReactNode;
   required?: boolean;
+  hint?: ReactNode;
+  error?: ReactNode;
 }) {
   return (
     <label className="block">
-      <span className="mb-2 block text-[13px] font-medium text-[var(--muted)]">
+      <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">
         {label}
         {required ? (
           <span className="ml-1 text-[var(--accent)]" aria-hidden="true">
@@ -162,6 +188,15 @@ export function Field({
         ) : null}
       </span>
       {children}
+      {error ? (
+        <span className="mt-1.5 block text-[12px] leading-5 text-[var(--danger)]">
+          {error}
+        </span>
+      ) : hint ? (
+        <span className="mt-1.5 block text-[12px] leading-5 text-[var(--muted)]">
+          {hint}
+        </span>
+      ) : null}
     </label>
   );
 }
@@ -202,32 +237,17 @@ export function TextArea({
   );
 }
 
-export function Select({
-  "aria-invalid": ariaInvalid,
-  ...props
-}: SelectHTMLAttributes<HTMLSelectElement>) {
-  return (
-    <select
-      {...props}
-      aria-invalid={ariaInvalid}
-      className={cx(
-        "control",
-        ariaInvalid &&
-          "border-[rgba(143,61,61,0.35)] focus:border-[rgba(143,61,61,0.45)] focus:ring-[rgba(143,61,61,0.10)]",
-        props.className,
-      )}
-    />
-  );
+export function Select(props: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <ValooNativeSelectAdapter {...props} />;
 }
 
 /**
- * Kept as a compatibility export for existing screens.
- * The actual control remains accessible native select for now.
+ * Compatibility export backed by the canonical VALOO custom select.
  */
 export function Dropdown(
   props: SelectHTMLAttributes<HTMLSelectElement>,
 ) {
-  return <Select {...props} />;
+  return <ValooNativeSelectAdapter {...props} />;
 }
 
 export function StatusBadge({
@@ -257,7 +277,7 @@ export function StatusBadge({
         tone,
       )}
     >
-      {label}
+      {userLabel(label)}
     </span>
   );
 }
@@ -333,7 +353,7 @@ export function Pagination({
 
 export function Panel({ children }: { children: ReactNode }) {
   return (
-    <section className="surface overflow-hidden rounded-[28px]">
+    <section className="surface overflow-hidden rounded-[20px]">
       {children}
     </section>
   );
@@ -349,7 +369,7 @@ export function GlassCard({
   return (
     <article
       className={cx(
-        "glass-elevated rounded-[28px] p-7",
+        "glass-elevated rounded-[var(--radius-card)] p-5 sm:p-6",
         className,
       )}
     >
@@ -361,7 +381,7 @@ export function GlassCard({
 export function TableWrap({ children }: { children: ReactNode }) {
   return (
     <div className="overflow-x-auto">
-      <table className="data-table min-w-full text-left text-[14px]">
+      <table className="data-table min-w-full text-left text-[13px]">
         {children}
       </table>
     </div>
@@ -433,7 +453,7 @@ export function IconButton({
     <button
       {...props}
       className={cx(
-        "inline-flex h-10 w-10 items-center justify-center rounded-full text-[var(--ink)] transition-[background-color,color,transform] duration-[180ms] hover:bg-black/[0.05] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40",
+        "inline-flex h-[42px] w-[42px] items-center justify-center rounded-[var(--radius-control)] text-[var(--ink)] transition-[background-color,color,transform] duration-[var(--motion-base)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] active:scale-[0.96] disabled:cursor-not-allowed disabled:opacity-40",
         "focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
         className,
       )}

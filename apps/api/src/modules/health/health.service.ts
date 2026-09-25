@@ -9,20 +9,40 @@ export class HealthService {
     private readonly redis: RedisService,
   ) {}
 
-  async check() {
-    const database = await this.checkDatabase();
-    const redis = await this.checkRedis();
+  live() {
+    return {
+      status: 'ok' as const,
+      timestamp: new Date().toISOString(),
+    };
+  }
+
+  release() {
+    return {
+      status: 'ok' as const,
+      releaseSha: process.env.RELEASE_SHA ?? 'development',
+    };
+  }
+
+  async ready() {
+    const [database, redis] = await Promise.all([
+      this.checkDatabase(),
+      this.checkRedis(),
+    ]);
 
     const isHealthy = database === 'up' && redis === 'up';
 
     return {
-      status: isHealthy ? 'ok' : 'degraded',
+      status: isHealthy ? ('ok' as const) : ('degraded' as const),
       timestamp: new Date().toISOString(),
       services: {
         database,
         redis,
       },
     };
+  }
+
+  async check() {
+    return this.ready();
   }
 
   private async checkDatabase(): Promise<'up' | 'down'> {

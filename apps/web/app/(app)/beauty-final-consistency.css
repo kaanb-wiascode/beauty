@@ -1,15 +1,172 @@
-/* Beauty ERP — shared light UI consistency layer */
-:root{--beauty-page:#f7f7fb;--beauty-surface:#fff;--beauty-ink:#302b3f;--beauty-muted:#77748a;--beauty-line:#e8e4ee;--beauty-purple:#7456e8;--beauty-purple-hover:#6546d9;--beauty-purple-soft:#f1edff;--beauty-green:#39a86b;--beauty-green-soft:#eaf8f0}
+/* VALOO — shared light UI consistency layer */
+:root{--beauty-page:#f7fafc;--beauty-surface:#fff;--beauty-ink:#17212b;--beauty-muted:#667482;--beauty-line:#dfe7ed;--beauty-purple:#1674bd;--beauty-purple-hover:#0b5fa9;--beauty-purple-soft:#eaf5fb;--beauty-green:#178a61;--beauty-green-soft:#eaf7f1}
 html,body{background:var(--beauty-page);color:var(--beauty-ink)}
 button,a,input,select,textarea{font-family:inherit}
 input,select,textarea{color:var(--beauty-ink)}
-input::placeholder,textarea::placeholder{color:#aaa6b7}
+input::placeholder,textarea::placeholder{color:#8a98a5}
 button:focus-visible,a:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:0;box-shadow:0 0 0 4px var(--beauty-purple-soft)}
 input:not([type="checkbox"]):not([type="radio"]),select,textarea{border-color:var(--beauty-line)}
-input:not([type="checkbox"]):not([type="radio"]):focus,select:focus,textarea:focus{border-color:rgba(116,86,232,.42);box-shadow:0 0 0 4px var(--beauty-purple-soft);outline:none}
+input:not([type="checkbox"]):not([type="radio"]):focus,select:focus,textarea:focus{border-color:rgba(22,116,189,.42);box-shadow:0 0 0 4px var(--beauty-purple-soft);outline:none}
 button:disabled{cursor:not-allowed;opacity:.55}
 table thead th{color:var(--beauty-muted)!important;border-bottom-color:var(--beauty-line)!important}
 table tbody tr{border-bottom-color:var(--beauty-line)!important}
-table tbody tr:hover{background:#fbf9ff!important}
+table tbody tr:hover{background:#f1f6fa!important}
 button,a{transition:color .16s ease,background-color .16s ease,border-color .16s ease,transform .16s ease,box-shadow .16s ease}
-@media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:16px!important}table{min-width:680px}input,select,textarea{max-width:100%}}
+@media(max-width:767px){body{overflow-x:hidden}.surface{border-radius:var(--radius-card)!important}table{min-width:0}input,select,textarea{max-width:100%}}
+
+
+/* VALOO Design System V2 — authenticated application enforcement */
+:root{
+  --valoo-page-title:32px;
+  --valoo-section-title:20px;
+  --valoo-card-title:16px;
+  --valoo-body:14px;
+  --valoo-label:13px;
+  --valoo-secondary:12px;
+  --valoo-caption:11px;
+}
+
+.app-shell,
+.app-content{
+  color:var(--ink);
+}
+
+.app-content{
+  min-width:0;
+}
+
+.app-content .surface{
+  border-radius:var(--radius-card);
+}
+
+.app-content .glass-elevated{
+  border-radius:var(--radius-card);
+}
+
+.app-content input:not([type="checkbox"]):not([type="radio"]),
+.app-content select,
+.app-content textarea{
+  min-height:44px;
+  border-radius:var(--radius-control);
+  font-size:var(--valoo-body);
+}
+
+.app-content table{
+  width:100%;
+  font-size:13px;
+  line-height:1.45;
+}
+
+.app-content table thead th{
+  font-size:12px!important;
+  font-weight:600;
+  letter-spacing:.01em;
+}
+
+.app-content [class*="text-[8px]"],
+.app-content [class*="text-[9px]"]{
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+
+.app-content [class*="text-[10px]"]{
+  font-size:11px!important;
+  line-height:1.4!important;
+}
+
+.app-sidebar [class*="text-[9px]"],
+.app-sidebar [class*="text-[10px]"]{
+  font-size:11px!important;
+  line-height:1.35!important;
+}
+
+.app-content button:focus-visible,
+.app-content a:focus-visible,
+.app-sidebar button:focus-visible,
+.app-sidebar a:focus-visible{
+  outline:2px solid rgba(22,116,189,.32);
+  outline-offset:2px;
+  box-shadow:0 0 0 4px var(--accent-soft);
+}
+
+.app-content [role="dialog"]{
+  border-radius:var(--radius-dialog);
+}
+
+.app-content .data-table td,
+.app-content .data-table th{
+  line-height:1.45;
+}
+
+.app-content h1{
+  font-size:var(--valoo-page-title);
+  line-height:1.08;
+  letter-spacing:-.035em;
+}
+
+.app-content h2{
+  font-size:max(18px,1em);
+}
+
+.app-content h3{
+  font-size:max(16px,1em);
+}
+
+.app-content :where(label){
+  font-size:max(var(--valoo-label),1em);
+}
+
+.app-content :where(.surface,.glass-elevated){
+  border-color:var(--line);
+}
+
+.app-content :where(button,[role="button"]){
+  font-family:inherit;
+}
+
+.app-content :where(input,textarea,select)::placeholder{
+  color:var(--muted);
+  opacity:.82;
+}
+
+.app-content :where(input,textarea,select):disabled{
+  cursor:not-allowed;
+  opacity:.55;
+}
+
+.app-content :where(button,[role="button"],a,input,textarea,select):focus-visible{
+  outline:2px solid rgba(22,116,189,.32);
+  outline-offset:2px;
+}
+
+.app-content .data-table tbody tr{
+  transition:background-color var(--motion-fast) var(--ease-out);
+}
+
+@media(max-width:767px){
+  .app-content h1{
+    font-size:26px;
+  }
+
+  .app-content input:not([type="checkbox"]):not([type="radio"]),
+  .app-content select,
+  .app-content textarea{
+    min-height:48px;
+    font-size:16px;
+  }
+
+  .app-content button:not([tabindex="-1"]),
+  .app-sidebar button:not([tabindex="-1"]),
+  .app-content [role="button"]{
+    min-height:44px;
+  }
+
+  .app-content table{
+    min-width:0;
+  }
+
+  .app-content .surface,
+  .app-content .glass-elevated{
+    border-radius:16px;
+  }
+}

@@ -5,7 +5,7 @@ export type Paginated<T> = {
 
 export type AuthUser = { id: string; email: string; firstName: string; lastName: string };
 export type AuthTenant = { id: string; name: string; slug: string };
-export type LoginResponse = { accessToken: string; refreshToken: string; user: AuthUser; tenant: AuthTenant; membership: { id: string; role: string; status: string; permissions: string[] } };
+export type LoginResponse = { accessToken: string; user: AuthUser; tenant: AuthTenant; membership: { id: string; role: string; status: string; permissions: string[] } };
 
 export type CustomerSource = "INSTAGRAM" | "GOOGLE" | "REFERRAL" | "WALK_IN" | "OTHER";
 export type Customer = { id: string; tenantId: string; firstName: string; lastName: string; phone: string | null; email: string | null; birthDate: string | null; customerSource: CustomerSource | null; createdAt: string; updatedAt: string };
@@ -24,15 +24,84 @@ export type StaffStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
 export type Staff = { id: string; tenantId: string; firstName: string; lastName: string; phone: string | null; email: string | null; profile: StaffProfile | null; status: StaffStatus; createdAt: string; updatedAt: string };
 
 export type ServiceStatus = "ACTIVE" | "INACTIVE" | "ARCHIVED";
-export type Service = { id: string; tenantId: string; name: string; description: string | null; durationMinutes: number; price: string | number; status: ServiceStatus; createdAt: string; updatedAt: string };
+export type Service = {
+  id: string;
+  tenantId: string;
+  name: string;
+  category: string | null;
+  description: string | null;
+  durationMinutes: number;
+  preparationMinutes: number;
+  cleanupMinutes: number;
+  price: string | number;
+  cost: string | number | null;
+  taxRate: string | number;
+  currency: string;
+  requiresConsultation: boolean;
+  status: ServiceStatus;
+  createdAt: string;
+  updatedAt: string;
+};
 export type AppointmentStatus = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 export type Appointment = { id: string; tenantId: string; customerId: string; staffId: string; serviceId: string; startAt: string; endAt: string; status: AppointmentStatus; notes: string | null; payment: { id: string; amount: string | number; method: "CASH" | "CARD" | "TRANSFER"; paidAt: string } | null; createdAt: string; updatedAt: string };
+
+export type VisitStatus = "EXPECTED" | "ARRIVED" | "CHECKED_IN" | "WAITING" | "IN_SERVICE" | "SERVICE_COMPLETED" | "CHECKOUT_PENDING" | "CHECKED_OUT" | "CANCELLED";
+export type VisitSource = "APPOINTMENT" | "WALK_IN";
+export type Visit = {
+  id: string;
+  tenantId: string;
+  companyId: string;
+  branchId: string;
+  customerId: string;
+  source: VisitSource;
+  status: VisitStatus;
+  note: string | null;
+  idempotencyKey: string | null;
+  arrivedAt: string | null;
+  checkedInAt: string | null;
+  serviceStartedAt: string | null;
+  serviceCompletedAt: string | null;
+  checkoutPendingAt: string | null;
+  checkedOutAt: string | null;
+  cancelledAt: string | null;
+  version: number;
+  createdByMembershipId: string;
+  createdAt: string;
+  updatedAt: string;
+  appointmentIds?: string[];
+};
+export type VisitEvent = {
+  id: string;
+  visitId: string;
+  actorMembershipId: string;
+  eventType: string;
+  fromStatus: VisitStatus | null;
+  toStatus: VisitStatus | null;
+  note: string | null;
+  createdAt: string;
+};
+export type VisitDetail = Visit & {
+  appointmentIds: string[];
+  timeline: VisitEvent[];
+};
 
 export type CreateCustomerInput = { firstName: string; lastName: string; phone?: string; email?: string; birthDate?: string; customerSource?: CustomerSource; healthProfile?: { allergies?: string; sensitivities?: string; medications?: string; conditions?: string; notes?: string }; consents?: { kvkkAcknowledgement?: boolean; explicitConsent?: boolean; membershipAgreement?: boolean; healthFormCompletion?: boolean; healthDataConsent?: boolean; marketingSms?: boolean; marketingEmail?: boolean; marketingPhone?: boolean } };
 export type UpdateCustomerInput = { firstName?: string; lastName?: string; phone?: string | null; email?: string | null; birthDate?: string | null; customerSource?: CustomerSource | null };
 export type CreateStaffInput = { firstName: string; lastName: string; phone?: string; email?: string; profile?: StaffProfile };
 export type UpdateStaffInput = { firstName?: string; lastName?: string; phone?: string; email?: string; profile?: StaffProfile };
-export type CreateServiceInput = { name: string; description?: string; durationMinutes: number; price: number };
-export type UpdateServiceInput = { name?: string; description?: string; durationMinutes?: number; price?: number };
-export type CreateAppointmentInput = { customerId: string; staffId: string; serviceId: string; startAt: string; endAt: string; notes?: string };
+export type CreateServiceInput = {
+  name: string;
+  category?: string;
+  description?: string;
+  durationMinutes: number;
+  preparationMinutes: number;
+  cleanupMinutes: number;
+  price: number;
+  cost?: number;
+  taxRate: number;
+  currency: string;
+  requiresConsultation: boolean;
+};
+export type UpdateServiceInput = Partial<CreateServiceInput>;
+export type CreateAppointmentInput = { customerId: string; staffId: string; serviceId: string; sessionId?: string; startAt: string; endAt: string; notes?: string };
 export type UpdateAppointmentInput = { customerId?: string; staffId?: string; serviceId?: string; startAt?: string; endAt?: string; notes?: string; status?: AppointmentStatus };
