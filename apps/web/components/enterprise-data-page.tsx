@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userFieldLabel, userLabel } from "@/lib/user-language";
 
 export type EnterpriseSection = {
   title: string;
@@ -40,11 +40,7 @@ export type EnterpriseMutationForm = {
 };
 
 function humanize(key: string) {
-  const spaced = key
-    .replace(/([a-z0-9])([A-Z])/g, "$1 $2")
-    .replaceAll("_", " ")
-    .trim();
-  return userLabel(spaced.replace(/\b\w/g, (char) => char.toUpperCase()));
+  return userFieldLabel(key);
 }
 
 function display(value: unknown): string {
@@ -120,7 +116,7 @@ export function EnterpriseDataPage({
     const failures: string[] = [];
     settled.forEach((result, index) => {
       if (result.status === "fulfilled") next[sections[index].title] = result.value;
-      else failures.push(result.reason instanceof ApiError ? result.reason.message : `${sections[index].title} yüklenemedi.`);
+      else failures.push(result.reason instanceof ApiError ? userErrorMessage(result.reason.message, `${sections[index].title} yüklenemedi.`) : `${sections[index].title} yüklenemedi.`);
     });
     setData(next);
     if (failures.length) setError(failures.join(" "));
@@ -138,7 +134,7 @@ export function EnterpriseDataPage({
       setNotice(action.success ?? `${action.label} tamamlandı.`);
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "İşlem tamamlanamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message) : "İşlem tamamlanamadı.");
     } finally {
       setWorking("");
     }
@@ -170,7 +166,7 @@ export function EnterpriseDataPage({
         try {
           body[field.name] = JSON.parse(raw);
         } catch {
-          setError(`${field.label} geçerli bir JSON değeri olmalıdır.`);
+          setError(`${field.label} alanındaki liste veya yapı biçimi geçerli değil. Lütfen örneğe uygun girin.`);
           return;
         }
       } else {
@@ -185,7 +181,7 @@ export function EnterpriseDataPage({
       setNotice(form.success ?? `${form.title} tamamlandı.`);
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "İşlem tamamlanamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message) : "İşlem tamamlanamadı.");
     } finally {
       setWorking("");
     }
