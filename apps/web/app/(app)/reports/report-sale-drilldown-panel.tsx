@@ -37,13 +37,14 @@ export function ReportSaleDrilldownPanel({
   const [result, setResult] = useState<ReportSaleDrilldownResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const { from, to } = filters;
 
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
     setError("");
 
-    fetchReportSaleDrilldown({ rowId, filters })
+    fetchReportSaleDrilldown({ rowId, filters: { from, to } })
       .then((value) => {
         if (!cancelled) setResult(value);
       })
@@ -61,7 +62,7 @@ export function ReportSaleDrilldownPanel({
     return () => {
       cancelled = true;
     };
-  }, [filters.from, filters.to, rowId]);
+  }, [from, to, rowId]);
 
   return (
     <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] shadow-lg">
