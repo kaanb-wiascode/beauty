@@ -1,6 +1,9 @@
 name: Deploy staging via Coolify
 
 on:
+  push:
+    branches:
+      - "release/**"
   workflow_dispatch:
     inputs:
       release_sha:
@@ -33,8 +36,8 @@ jobs:
         id: inputs
         shell: bash
         run: |
-          sha="${{ inputs.release_sha }}"
-          url="${{ inputs.staging_url }}"
+          sha="${{ inputs.release_sha || github.sha }}"
+          url="${{ inputs.staging_url || vars.STAGING_URL }}"
 
           if [[ ! "$sha" =~ ^[0-9a-f]{40}$ ]]; then
             echo "release_sha must be a full lowercase 40-character Git SHA" >&2
