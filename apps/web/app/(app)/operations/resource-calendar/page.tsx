@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -57,7 +57,7 @@ export default function OperationsResourceCalendarPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
-  async function load() {
+  const load = useCallback(async (rangeFrom: string, rangeTo: string) => {
     if (!hasActiveBranch()) {
       setEvents([]);
       setError("Kaynak takvimi için önce aktif bir şube seçin.");
@@ -68,8 +68,8 @@ export default function OperationsResourceCalendarPage() {
     setLoading(true);
     setError("");
     try {
-      const from = dayStart(new Date(`${fromDate}T00:00:00`));
-      const to = dayEnd(new Date(`${toDate}T00:00:00`));
+      const from = dayStart(new Date(`${rangeFrom}T00:00:00`));
+      const to = dayEnd(new Date(`${rangeTo}T00:00:00`));
       if (from > to) {
         setError("Başlangıç tarihi bitiş tarihinden sonra olamaz.");
         return;
@@ -87,11 +87,12 @@ export default function OperationsResourceCalendarPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
-    void load();
-  }, []);
+    const initialDate = inputDate(new Date());
+    void load(initialDate, initialDate);
+  }, [load]);
 
   const groups = useMemo(() => {
     const map = new Map<string, { name: string; kind: "ROOM" | "ASSET"; items: CalendarEvent[] }>();
@@ -127,7 +128,7 @@ export default function OperationsResourceCalendarPage() {
             Bitiş
             <input className="min-h-11 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)]" type="date" value={toDate} onChange={(event) => setToDate(event.target.value)} />
           </label>
-          <Button disabled={loading} onClick={() => void load()}>{loading ? "Yükleniyor..." : "Takvimi Getir"}</Button>
+          <Button disabled={loading} onClick={() => void load(fromDate, toDate)}>{loading ? "Yükleniyor..." : "Takvimi Getir"}</Button>
         </div>
       </section>
 
