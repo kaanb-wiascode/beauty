@@ -564,7 +564,7 @@ async function seedInventory(
       await prisma.$executeRawUnsafe(
         `INSERT INTO inventory_purchase_orders(
            id,tenant_id,company_id,supplier_id,warehouse_id,status,total_amount,note,ordered_at,received_at
-         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)
+         ) VALUES($1,$2,$3,$4,$5,$6::"InventoryPurchaseStatus",$7,$8,$9,$10)
          ON CONFLICT(id) DO UPDATE SET status=EXCLUDED.status,total_amount=EXCLUDED.total_amount,updated_at=NOW()`,
         `enterprise-demo-po-${String(index + 1).padStart(2, "0")}`,
         tenantId,
