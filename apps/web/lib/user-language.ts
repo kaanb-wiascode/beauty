@@ -181,6 +181,12 @@ const USER_LABELS: Record<string, string> = {
   DISABLED: "Devre Dışı",
   LOCKED: "Kilitli",
   BLOCKED: "Engellendi",
+  SKIPPED: "Atlandı",
+  READ_ONLY: "Salt Okunur",
+  CONTROLLED_WRITE: "Kontrollü Düzenleme",
+  ENTERPRISE: "Kurumsal",
+  STARTER: "Başlangıç",
+  PROFESSIONAL: "Profesyonel",
   CREATED: "Oluşturuldu",
   UPDATED: "Güncellendi",
   DELETED: "Silindi",
@@ -219,6 +225,65 @@ const USER_RESOURCE_LABELS: Record<string, string> = {
   tenant: "Şirket",
   audit: "Denetim",
   organization: "Organizasyon",
+};
+
+const USER_FIELD_LABELS: Record<string, string> = {
+  id: "Kayıt Kodu",
+  tenantId: "İşletme Kodu",
+  tenantName: "İşletme Adı",
+  tenantSlug: "İşletme Kısa Adı",
+  companyId: "Şirket Kodu",
+  companyName: "Şirket Adı",
+  companySlug: "Şirket Kısa Adı",
+  branchId: "Şube Kodu",
+  branchName: "Şube",
+  roleId: "Rol Kodu",
+  membershipId: "Üyelik Kodu",
+  userId: "Kullanıcı Kodu",
+  staffId: "Personel Kodu",
+  staffName: "Personel",
+  customerId: "Müşteri Kodu",
+  customerName: "Müşteri",
+  serviceId: "Hizmet Kodu",
+  appointmentId: "Randevu Kodu",
+  paymentId: "Ödeme Kodu",
+  planVersionId: "Plan Sürümü Kodu",
+  provisioningRunId: "Kurulum İşlemi Kodu",
+  runId: "İşlem Kodu",
+  ticketId: "Destek Talebi Kodu",
+  supportTicketId: "Destek Talebi Kodu",
+  sessionId: "Destek Oturumu Kodu",
+  requestId: "Talep Kodu",
+  integrationId: "Entegrasyon Kodu",
+  posTransactionId: "POS İşlem Kodu",
+  salePaymentId: "Satış Ödemesi Kodu",
+  bankAccountId: "Banka Hesabı Kodu",
+  providerSettlementId: "Sağlayıcı Tahsilat Kodu",
+  externalEventId: "Harici İşlem Kodu",
+  costCenterId: "Maliyet Merkezi Kodu",
+  journalEntryLineId: "Yevmiye Satırı Kodu",
+  saleItemId: "Satış Kalemi Kodu",
+  purchaseOrderItemId: "Sipariş Kalemi Kodu",
+  goodsReceiptItemId: "Mal Kabul Kalemi Kodu",
+  entitlementKey: "Kullanım Hakkı",
+  itemKey: "Madde Anahtarı",
+  createdAt: "Oluşturulma",
+  updatedAt: "Güncellenme",
+  startsAt: "Başlangıç",
+  endsAt: "Bitiş",
+  renewsAt: "Yenileme",
+  dueAt: "Vade",
+  happenedAt: "Olay Tarihi",
+  settledAt: "Hesaba Geçiş Tarihi",
+  firstContactedAt: "İlk İletişim",
+  firstResponseAt: "İlk Yanıt",
+  leadScore: "Potansiyel Müşteri Puanı",
+  leadTemperature: "Potansiyel Müşteri Önceliği",
+  riskStatus: "Risk Durumu",
+  successStage: "Başarı Aşaması",
+  accessMode: "Erişim Biçimi",
+  initialResponseMinutes: "İlk Yanıt Süresi (dk)",
+  resolutionMinutes: "Çözüm Süresi (dk)",
 };
 
 const USER_DOMAIN_LABELS: Record<string, string> = {
@@ -426,6 +491,11 @@ export function userLabel(value: string | null | undefined): string {
 export function userLabelOr(value: string | null | undefined, fallback: string): string {
   if (!value) return fallback;
   return USER_LABELS[value] ?? humanizeSystemValue(value);
+}
+
+export function userFieldLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_FIELD_LABELS[value] ?? humanizeSystemValue(value);
 }
 
 export function userDomainLabel(value: string | null | undefined): string {
