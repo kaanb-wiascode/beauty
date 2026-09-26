@@ -218,7 +218,7 @@ export default function InventoryAnalysisPage() {
 
   if (error && !valuations.length && !reconciliation && !details.length && !movementSummary.length && !inTransit.length) {
     return (
-      <div className="mx-auto max-w-[1500px] space-y-6 pb-10">
+      <div className="mx-auto max-w-[1500px] space-y-4 pb-8 sm:space-y-6 sm:pb-10">
         <PageHeader
           title="Envanter Analizi"
           description="Stok Değerini, Muhasebe Mutabakatını, Hareket Yoğunluğunu Ve Transferdeki Stokları Aktif Şube Kapsamında İzleyin."
@@ -236,7 +236,7 @@ export default function InventoryAnalysisPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-6 pb-10">
+    <div className="mx-auto max-w-[1500px] space-y-4 pb-8 sm:space-y-6 sm:pb-10">
       <PageHeader
         title="Envanter Analizi"
         description="Stok Değerini, Muhasebe Mutabakatını, Hareket Yoğunluğunu Ve Transferdeki Stokları Aktif Şube Kapsamında İzleyin."
@@ -253,7 +253,7 @@ export default function InventoryAnalysisPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Toplam Stok Değeri" value={formatPrice(totals.value)} description="Aktif Kapsamdaki Depolar" />
         <MetricCard label="Toplam Stok Miktarı" value={formatQuantity(totals.quantity)} description={`${valuations.length} Depo`} />
         <MetricCard label="Hareket Sayısı" value={formatQuantity(movementTotals.count)} description="Seçili Tarih Aralığı" />
@@ -261,8 +261,8 @@ export default function InventoryAnalysisPage() {
       </section>
 
       <Panel>
-        <div className="grid gap-4 border-b border-[var(--line)] p-5 md:grid-cols-4 md:items-end">
-          <Field label="Depo">
+        <div className="grid grid-cols-2 gap-3 border-b border-[var(--line)] p-4 md:grid-cols-4 md:items-end md:p-5">
+          <div className="col-span-2 md:col-span-1"><Field label="Depo">
             <Select
               value={filters.warehouseId}
               onChange={(event) =>
@@ -276,7 +276,7 @@ export default function InventoryAnalysisPage() {
                 </option>
               ))}
             </Select>
-          </Field>
+          </Field></div>
           <Field label="Başlangıç Tarihi">
             <TextInput
               type="date"
@@ -297,13 +297,13 @@ export default function InventoryAnalysisPage() {
               }
             />
           </Field>
-          <Button disabled={refreshing} onClick={() => void load(filters)}>
+          <Button className="col-span-2 md:col-span-1" disabled={refreshing} onClick={() => void load(filters)}>
             Filtreleri Uygula
           </Button>
         </div>
       </Panel>
 
-      <section className="grid gap-5 xl:grid-cols-[1.35fr_.65fr]">
+      <section className="grid gap-4 xl:grid-cols-[1.35fr_.65fr] sm:gap-5">
         <Panel>
           <SectionHeading
             title="Depo Değerleri"
@@ -353,7 +353,7 @@ export default function InventoryAnalysisPage() {
         </Panel>
       </section>
 
-      <section className="grid gap-5 xl:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-2 sm:gap-5">
         <Panel>
           <SectionHeading
             title="Stok Hareket Özeti"
@@ -452,12 +452,12 @@ export default function InventoryAnalysisPage() {
 
 function MetricCard({ label, value, description }: { label: string; value: string; description: string }) {
   return (
-    <article className="rounded-[24px] border border-white/80 bg-white/80 p-5 shadow-[0_12px_34px_rgba(17,70,104,0.06)] backdrop-blur-xl">
+    <article className="rounded-[16px] border border-white/80 bg-white/88 p-4 shadow-[0_7px_22px_rgba(17,70,104,0.05)] backdrop-blur-xl sm:rounded-[24px] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-semibold uppercase tracking-[.1em] text-[var(--muted-soft)]">{label}</p>
         <CardInfo help={getCardHelp(label, description)} />
       </div>
-      <p className="mt-3 text-[25px] font-semibold tracking-[-.035em] text-[var(--ink)]">{value}</p>
+      <p className="mt-2 text-[22px] font-semibold tracking-[-.035em] text-[var(--ink)] sm:mt-3 sm:text-[25px]">{value}</p>
       <p className="mt-1 text-[11px] text-[var(--muted)]">{description}</p>
     </article>
   );
@@ -465,9 +465,9 @@ function MetricCard({ label, value, description }: { label: string; value: strin
 
 function SectionHeading({ title, description }: { title: string; description: string }) {
   return (
-    <div className="px-5 pb-4 pt-5">
-      <h2 className="text-[17px] font-semibold tracking-[-.02em] text-[var(--ink)]">{title}</h2>
-      <p className="mt-1 text-[12px] leading-5 text-[var(--muted)]">{description}</p>
+    <div className="px-4 pb-3 pt-4 sm:px-5 sm:pb-4 sm:pt-5">
+      <h2 className="text-[15px] font-semibold tracking-[-.02em] text-[var(--ink)] sm:text-[17px]">{title}</h2>
+      <p className="mt-1 text-[11px] leading-5 text-[var(--muted)] sm:text-[12px]">{description}</p>
     </div>
   );
 }
@@ -482,5 +482,5 @@ function KeyValue({ label, value }: { label: string; value: string }) {
 }
 
 function EmptyRow({ text }: { text: string }) {
-  return <p className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">{text}</p>;
+  return <p className="px-4 py-6 text-center text-[11px] text-[var(--muted)] sm:px-5 sm:py-8 sm:text-[12px]">{text}</p>;
 }
