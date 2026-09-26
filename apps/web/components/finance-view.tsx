@@ -27,7 +27,7 @@ export function FinanceMetric({
   };
 
   return (
-    <article className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(17,70,104,0.04)]">
+    <article className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_7px_22px_rgba(17,70,104,0.04)] sm:rounded-[20px] sm:p-5">
       <div className="flex items-start justify-between gap-3">
         <p className="text-[11px] font-medium text-[var(--muted)]">{label}</p>
         <div className="flex shrink-0 items-center gap-2">
@@ -35,8 +35,8 @@ export function FinanceMetric({
           <CardInfo help={getCardHelp(label, typeof detail === "string" ? detail : undefined)} />
         </div>
       </div>
-      <div className="mt-2 text-[26px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</div>
-      {detail ? <div className="mt-1 text-[10px] text-[var(--muted-soft)]">{detail}</div> : null}
+      <div className="mt-1.5 text-[23px] font-semibold tracking-[-0.04em] text-[var(--ink)] sm:mt-2 sm:text-[26px]">{value}</div>
+      {detail ? <div className="mt-1 text-[11px] text-[var(--muted-soft)]">{detail}</div> : null}
     </article>
   );
 }
@@ -55,8 +55,8 @@ export function FinancePanel({
   className?: string;
 }) {
   return (
-    <section className={cx("overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(17,70,104,0.04)]", className)}>
-      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+    <section className={cx("overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_7px_22px_rgba(17,70,104,0.04)] sm:rounded-[22px]", className)}>
+      <div className="flex flex-col gap-2.5 border-b border-[var(--line)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{title}</h2>
@@ -66,13 +66,13 @@ export function FinancePanel({
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
       </div>
-      <div className="p-5">{children}</div>
+      <div className="p-4 sm:p-5">{children}</div>
     </section>
   );
 }
 
 export function FinanceTabs({ children }: { children: ReactNode }) {
-  return <div className="flex flex-wrap gap-1 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-1.5">{children}</div>;
+  return <div className="flex flex-nowrap gap-1 overflow-x-auto rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-1.5 sm:flex-wrap sm:rounded-[16px]">{children}</div>;
 }
 
 export function FinanceTab({
@@ -86,7 +86,7 @@ export function FinanceTab({
       {...props}
       type={props.type ?? "button"}
       className={cx(
-        "rounded-[11px] px-3.5 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
+        "shrink-0 rounded-[10px] px-3 py-2 text-[11px] font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]",
         active
           ? "border border-[rgba(22,116,189,.16)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_1px_4px_rgba(17,70,104,.08)]"
           : "border border-transparent text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
