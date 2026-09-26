@@ -103,7 +103,7 @@ export function MobileContextSwitcher() {
         type="button"
         onClick={() => setOpen(true)}
         aria-haspopup="dialog"
-        className="fixed bottom-[91px] right-3 z-[69] inline-flex max-w-[70vw] items-center gap-2 rounded-full border border-white/80 bg-white/92 px-3 py-2 text-[11px] font-semibold text-[var(--ink)] shadow-[0_10px_30px_rgba(15,23,42,0.12)] backdrop-blur-2xl lg:hidden"
+        className="fixed bottom-[80px] right-3 z-[69] inline-flex h-9 max-w-[62vw] items-center gap-2 rounded-full border border-white/80 bg-white/94 px-3 text-[10px] font-semibold text-[var(--ink)] shadow-[0_8px_24px_rgba(15,23,42,0.10)] backdrop-blur-2xl lg:hidden"
       >
         <span aria-hidden="true" className="h-2 w-2 rounded-full bg-[var(--accent)]" />
         <span className="truncate">{activeBranchName}</span>
@@ -124,7 +124,7 @@ export function MobileContextSwitcher() {
             role="dialog"
             aria-modal="true"
             aria-labelledby="mobile-context-title"
-            className="absolute inset-x-3 bottom-[84px] rounded-[24px] border border-white/80 bg-white/95 p-5 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-2xl"
+            className="absolute inset-x-3 bottom-[76px] rounded-[20px] border border-white/80 bg-white/96 p-4 shadow-[0_18px_54px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
           >
             <div className="flex items-start justify-between gap-4">
               <div>
