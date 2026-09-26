@@ -1,0 +1,57 @@
+name: Production infrastructure preflight
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-infrastructure-preflight
+  cancel-in-progress: true
+
+jobs:
+  preflight:
+    name: Validate external production dependencies
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Install connectivity clients
+        shell: bash
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes postgresql-client-16 redis-tools
+          python3 -m pip install --disable-pip-version-check --quiet awscli
+
+      - name: Validate production infrastructure
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PRODUCTION_APPLICATION_UUID: ${{ secrets.COOLIFY_PRODUCTION_APPLICATION_UUID }}
+          PRODUCTION_DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+          PRODUCTION_REDIS_URL: ${{ secrets.PRODUCTION_REDIS_URL }}
+          PRODUCTION_OBJECT_STORAGE_BUCKET: ${{ secrets.PRODUCTION_OBJECT_STORAGE_BUCKET }}
+          PRODUCTION_OBJECT_STORAGE_REGION: ${{ secrets.PRODUCTION_OBJECT_STORAGE_REGION }}
+          PRODUCTION_OBJECT_STORAGE_ENDPOINT: ${{ secrets.PRODUCTION_OBJECT_STORAGE_ENDPOINT }}
+          PRODUCTION_OBJECT_STORAGE_ACCESS_KEY_ID: ${{ secrets.PRODUCTION_OBJECT_STORAGE_ACCESS_KEY_ID }}
+          PRODUCTION_OBJECT_STORAGE_SECRET_ACCESS_KEY: ${{ secrets.PRODUCTION_OBJECT_STORAGE_SECRET_ACCESS_KEY }}
+        run: bash scripts/release/verify-production-infrastructure.sh
+
+      - name: Write preflight summary
+        if: always()
+        env:
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL }}
+        shell: bash
+        run: |
+          {
+            echo "## VALOO production infrastructure preflight"
+            echo
+            echo "- Production URL: ${PRODUCTION_URL:-not-configured}"
+            echo "- Result: ${{ job.status }}"
+            echo "- Run ID: $GITHUB_RUN_ID"
+          } >> "$GITHUB_STEP_SUMMARY"

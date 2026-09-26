@@ -1,11 +1,18 @@
 packages:
   - "apps/*"
   - "packages/*"
+overrides:
+  deepmerge-ts: 8.0.1
+  js-yaml: 4.3.2
+  multer: 2.3.0
+
 allowBuilds:
   '@prisma/client': false
   '@prisma/engines': false
   argon2: true
+  cpu-features: false
   prisma: false
+  ssh2: true
   unrs-resolver: false
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.18'

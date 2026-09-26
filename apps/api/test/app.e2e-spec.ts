@@ -1,29 +1,619 @@
-import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaService } from '@beauty-erp/database';
 import request from 'supertest';
-import { App } from 'supertest/types';
+import { randomUUID } from 'node:crypto';
+
 import { AppModule } from './../src/app.module';
+import { PrismaExceptionFilter } from './../src/common/database/prisma-exception.filter';
+import { ZodExceptionFilter } from './../src/common/validation/zod-exception.filter';
 
-describe('AppController (e2e)', () => {
-  let app: INestApplication<App>;
+jest.setTimeout(90_000);
 
-  beforeEach(async () => {
+describe('Core Business Flow (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+
+  beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
       imports: [AppModule],
     }).compile();
 
     app = moduleFixture.createNestApplication();
+    app.useGlobalFilters(
+      new PrismaExceptionFilter(),
+      new ZodExceptionFilter(),
+    );
     await app.init();
+    prisma = moduleFixture.get(PrismaService);
   });
 
-  it('/ (GET)', () => {
-    return request(app.getHttpServer())
-      .get('/')
-      .expect(200)
-      .expect('Hello World!');
-  });
-
-  afterEach(async () => {
+  afterAll(async () => {
     await app.close();
+  });
+
+  it('runs core operations, CRM and inventory lifecycle with branch isolation', async () => {
+    const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
+    const email = `e2e-${suffix}@example.test`;
+    const password = 'E2eStrongPassword!2026';
+    const tenantSlug = `e2e-${suffix}`;
+
+    const register = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email,
+        password,
+        firstName: 'E2E',
+        lastName: 'Owner',
+        tenantName: `E2E ${suffix}`,
+        tenantSlug,
+      })
+      .expect(201);
+
+    const ownerUserId = register.body.user.id as string;
+    const branchAId = register.body.branch.id as string;
+    const companyId = register.body.company.id as string;
+    const membershipId = register.body.membership.id as string;
+
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(201);
+
+    const centralToken = login.body.accessToken as string;
+    expect(login.body.branch).toBeNull();
+
+    await request(app.getHttpServer())
+      .post('/customers')
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ firstName: 'Şubesiz', lastName: 'Kayıt' })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/crm/leads')
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        firstName: 'Şubesiz',
+        lastName: 'CRM',
+        phone: `+90554${suffix.slice(0, 7)}`,
+        source: 'MANUAL',
+      })
+      .expect(400);
+
+    const branchAContext = await request(app.getHttpServer())
+      .post('/auth/context/switch')
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ membershipId, branchId: branchAId })
+      .expect(201);
+
+    const branchAToken = branchAContext.body.accessToken as string;
+
+    const lead = await request(app.getHttpServer())
+      .post('/crm/leads')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        firstName: 'CRM',
+        lastName: 'E2E',
+        phone: `+90553${suffix.slice(0, 7)}`,
+        source: 'MANUAL',
+        interestNote: 'E2E CRM Akışı',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .patch(`/crm/leads/${lead.body.id}`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: lead.body.version,
+        interestNote: 'CENTRAL Güncelleme Engellenmeli',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/crm/leads/${lead.body.id}/qualify`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: lead.body.version,
+        title: 'CENTRAL Satış Fırsatı Engellenmeli',
+        estimatedValue: 1200,
+        probability: 35,
+      })
+      .expect(400);
+
+    const opportunity = await request(app.getHttpServer())
+      .post(`/crm/leads/${lead.body.id}/qualify`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: lead.body.version,
+        title: `E2E Satış Fırsatı ${suffix}`,
+        estimatedValue: 1200,
+        probability: 35,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: opportunity.body.version,
+        stage: 'NEEDS_ANALYSIS',
+        probability: 45,
+      })
+      .expect(400);
+
+    const transitionedOpportunity = await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: opportunity.body.version,
+        stage: 'NEEDS_ANALYSIS',
+        probability: 45,
+      })
+      .expect(201);
+
+    expect(transitionedOpportunity.body.stage).toBe('NEEDS_ANALYSIS');
+
+    const followUpDueAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const followUp = await request(app.getHttpServer())
+      .post('/crm/follow-ups')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        opportunityId: opportunity.body.id,
+        assignedUserId: ownerUserId,
+        channel: 'CALL',
+        dueAt: followUpDueAt.toISOString(),
+        note: 'E2E CRM Takibi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/complete`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ version: followUp.body.version, outcome: 'Engellenmeli' })
+      .expect(400);
+
+    const rescheduledDueAt = new Date(followUpDueAt.getTime() + 60 * 60 * 1000);
+    await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/reschedule`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: followUp.body.version,
+        dueAt: rescheduledDueAt.toISOString(),
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/cancel`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ version: followUp.body.version, reason: 'Engellenmeli' })
+      .expect(400);
+
+    const rescheduledFollowUp = await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/reschedule`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: followUp.body.version,
+        dueAt: rescheduledDueAt.toISOString(),
+        channel: 'WHATSAPP',
+        note: 'E2E Yeniden Planlandı',
+      })
+      .expect(201);
+
+    const completedFollowUp = await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${followUp.body.id}/complete`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: rescheduledFollowUp.body.version,
+        outcome: 'E2E Görüşme Tamamlandı',
+      })
+      .expect(201);
+
+    expect(completedFollowUp.body.status).toBe('COMPLETED');
+
+    const cancellableFollowUp = await request(app.getHttpServer())
+      .post('/crm/follow-ups')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        leadId: lead.body.id,
+        assignedUserId: ownerUserId,
+        channel: 'EMAIL',
+        dueAt: new Date(followUpDueAt.getTime() + 2 * 60 * 60 * 1000).toISOString(),
+        note: 'E2E İptal Akışı',
+      })
+      .expect(201);
+
+    const cancelledFollowUp = await request(app.getHttpServer())
+      .post(`/crm/follow-ups/${cancellableFollowUp.body.id}/cancel`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: cancellableFollowUp.body.version,
+        reason: 'E2E Plan Değişikliği',
+      })
+      .expect(201);
+
+    expect(cancelledFollowUp.body.status).toBe('CANCELLED');
+
+    const customer = await request(app.getHttpServer())
+      .post('/customers')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        firstName: 'Ayşe',
+        lastName: 'E2E',
+        phone: `+90555${suffix.slice(0, 7)}`,
+        customerSource: 'WALK_IN',
+      })
+      .expect(201);
+
+    const staff = await request(app.getHttpServer())
+      .post('/staff')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        firstName: 'Deniz',
+        lastName: 'E2E',
+        email: `staff-${suffix}@example.test`,
+      })
+      .expect(201);
+
+    const service = await request(app.getHttpServer())
+      .post('/services')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        name: `E2E Cilt Bakımı ${suffix}`,
+        durationMinutes: 60,
+        price: 350,
+      })
+      .expect(201);
+
+    const proposalOpportunity = await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: transitionedOpportunity.body.version,
+        stage: 'PROPOSAL',
+        probability: 75,
+      })
+      .expect(201);
+
+    const wonOpportunity = await request(app.getHttpServer())
+      .post(`/crm/opportunities/${opportunity.body.id}/transition`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: proposalOpportunity.body.version,
+        stage: 'WON',
+        probability: 100,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/sales/from-opportunity/${opportunity.body.id}`)
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({
+        version: wonOpportunity.body.version,
+        customerId: customer.body.id,
+        discountTotal: 50,
+        items: [{ type: 'SERVICE', referenceId: service.body.id, quantity: 2 }],
+      })
+      .expect(400);
+
+    const opportunitySale = await request(app.getHttpServer())
+      .post(`/sales/from-opportunity/${opportunity.body.id}`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: wonOpportunity.body.version,
+        customerId: customer.body.id,
+        discountTotal: 50,
+        items: [{ type: 'SERVICE', referenceId: service.body.id, quantity: 2 }],
+      })
+      .expect(201);
+
+    expect(opportunitySale.body.idempotent).toBe(false);
+    expect(opportunitySale.body.sale.status).toBe('DRAFT');
+    expect(Number(opportunitySale.body.sale.total)).toBe(650);
+
+    const repeatedOpportunitySale = await request(app.getHttpServer())
+      .post(`/sales/from-opportunity/${opportunity.body.id}`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        version: wonOpportunity.body.version,
+        customerId: customer.body.id,
+        discountTotal: 0,
+        items: [{ type: 'SERVICE', referenceId: service.body.id, quantity: 1 }],
+      })
+      .expect(201);
+
+    expect(repeatedOpportunitySale.body.idempotent).toBe(true);
+    expect(repeatedOpportunitySale.body.sale.id).toBe(opportunitySale.body.sale.id);
+    expect(Number(repeatedOpportunitySale.body.sale.total)).toBe(650);
+
+    const confirmedOpportunitySale = await request(app.getHttpServer())
+      .post(`/sales/${opportunitySale.body.sale.id}/confirm`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(201);
+
+    expect(confirmedOpportunitySale.body.status).toBe('CONFIRMED');
+
+    const opportunitySalePayment = await request(app.getHttpServer())
+      .post(`/sales/${opportunitySale.body.sale.id}/payments`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({ amount: 650, method: 'CARD', reference: `CRM-E2E-${suffix}` })
+      .expect(201);
+
+    expect(opportunitySalePayment.body.summary.paymentStatus).toBe('PAID');
+    expect(opportunitySalePayment.body.summary.balance).toBe(0);
+
+    const opportunitySaleSummary = await request(app.getHttpServer())
+      .get(`/sales/${opportunitySale.body.sale.id}/payment-summary`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+
+    expect(opportunitySaleSummary.body.paymentStatus).toBe('PAID');
+    expect(opportunitySaleSummary.body.paid).toBe(650);
+    expect(opportunitySaleSummary.body.balance).toBe(0);
+
+    const startAt = new Date(Date.now() + 48 * 60 * 60 * 1000);
+    startAt.setUTCMinutes(0, 0, 0);
+    const endAt = new Date(startAt.getTime() + 60 * 60 * 1000);
+
+    const appointment = await request(app.getHttpServer())
+      .post('/appointments')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        customerId: customer.body.id,
+        staffId: staff.body.id,
+        serviceId: service.body.id,
+        startAt: startAt.toISOString(),
+        endAt: endAt.toISOString(),
+      })
+      .expect(201);
+
+    const payment = await request(app.getHttpServer())
+      .post('/payments')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        appointmentId: appointment.body.id,
+        amount: 350,
+        method: 'CARD',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/payments')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        appointmentId: appointment.body.id,
+        amount: 350,
+        method: 'CARD',
+      })
+      .expect(409);
+
+    const refunded = await request(app.getHttpServer())
+      .post(`/payments/${payment.body.id}/refund`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({ reason: 'E2E İade Testi' })
+      .expect(201);
+
+    expect(refunded.body.status).toBe('REFUNDED');
+
+    await request(app.getHttpServer())
+      .post(`/payments/${payment.body.id}/refund`)
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({ reason: 'İkinci İade Engellenmeli' })
+      .expect(409);
+
+    const overlapStart = new Date(startAt.getTime() + 3 * 60 * 60 * 1000);
+    const overlapEnd = new Date(overlapStart.getTime() + 60 * 60 * 1000);
+    const concurrentPayload = {
+      customerId: customer.body.id,
+      staffId: staff.body.id,
+      serviceId: service.body.id,
+      startAt: overlapStart.toISOString(),
+      endAt: overlapEnd.toISOString(),
+    };
+
+    const concurrentResults = await Promise.all([
+      request(app.getHttpServer())
+        .post('/appointments')
+        .set('Authorization', `Bearer ${branchAToken}`)
+        .send(concurrentPayload),
+      request(app.getHttpServer())
+        .post('/appointments')
+        .set('Authorization', `Bearer ${branchAToken}`)
+        .send(concurrentPayload),
+    ]);
+
+    expect(concurrentResults.map((result) => result.status).sort()).toEqual([
+      201,
+      409,
+    ]);
+
+    const branchAOverview = await request(app.getHttpServer())
+      .get('/inventory/overview')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+
+    const branchAWarehouse = branchAOverview.body.warehouses.find(
+      (warehouse: { branchId: string | null }) => warehouse.branchId === branchAId,
+    );
+    expect(branchAWarehouse).toBeDefined();
+
+    const inventoryProduct = await request(app.getHttpServer())
+      .post('/inventory/products')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        name: `E2E Stok Ürünü ${suffix}`,
+        unit: 'UNIT',
+        warehouseId: branchAWarehouse.id,
+        initialQuantity: 10,
+        minimumQuantity: 2,
+        targetQuantity: 12,
+        purchasePrice: 50,
+      })
+      .expect(201);
+
+    const branchB = await prisma.branch.create({
+      data: {
+        companyId,
+        name: `E2E İkinci Şube ${suffix}`,
+        code: `E2E-${suffix.slice(0, 8).toUpperCase()}`,
+      },
+      select: { id: true },
+    });
+
+    const branchBContext = await request(app.getHttpServer())
+      .post('/auth/context/switch')
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ membershipId, branchId: branchB.id })
+      .expect(201);
+
+    const branchBToken = branchBContext.body.accessToken as string;
+
+    const branchBOverview = await request(app.getHttpServer())
+      .get('/inventory/overview')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .expect(200);
+
+    const branchBWarehouse = branchBOverview.body.warehouses.find(
+      (warehouse: { branchId: string | null }) => warehouse.branchId === branchB.id,
+    );
+    expect(branchBWarehouse).toBeDefined();
+
+    await request(app.getHttpServer())
+      .post('/inventory/movements')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .send({
+        productId: inventoryProduct.body.id,
+        warehouseId: branchBWarehouse.id,
+        quantity: 3,
+        type: 'ADJUSTMENT_IN',
+        note: 'E2E Şube B Stok Girişi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post('/inventory/movements')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        productId: inventoryProduct.body.id,
+        warehouseId: branchBWarehouse.id,
+        quantity: 1,
+        type: 'ADJUSTMENT_IN',
+        note: 'Şube Dışı Hareket Engellenmeli',
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/inventory/purchase-orders')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        warehouseId: branchBWarehouse.id,
+        items: [
+          {
+            productId: inventoryProduct.body.id,
+            quantity: 1,
+            unitCost: 50,
+          },
+        ],
+      })
+      .expect(400);
+
+    await request(app.getHttpServer())
+      .post('/inventory/transfers')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        sourceWarehouseId: branchBWarehouse.id,
+        destinationWarehouseId: branchAWarehouse.id,
+        items: [{ productId: inventoryProduct.body.id, quantity: 1 }],
+      })
+      .expect(400);
+
+    const validTransfer = await request(app.getHttpServer())
+      .post('/inventory/transfers')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .send({
+        sourceWarehouseId: branchAWarehouse.id,
+        destinationWarehouseId: branchBWarehouse.id,
+        items: [{ productId: inventoryProduct.body.id, quantity: 1 }],
+      })
+      .expect(201);
+
+    expect(validTransfer.body.status).toBe('PENDING');
+
+    const branchAMovements = await request(app.getHttpServer())
+      .get('/inventory/movements')
+      .set('Authorization', `Bearer ${branchAToken}`)
+      .expect(200);
+
+    expect(
+      branchAMovements.body.every(
+        (movement: { warehouseName: string }) =>
+          movement.warehouseName === branchAWarehouse.name,
+      ),
+    ).toBe(true);
+
+    await request(app.getHttpServer())
+      .get(`/customers/${customer.body.id}`)
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .expect(404);
+
+    await request(app.getHttpServer())
+      .get(`/crm/leads/${lead.body.id}`)
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .expect(404);
+
+    const customerB = await request(app.getHttpServer())
+      .post('/customers')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .send({ firstName: 'B Şubesi', lastName: 'Müşteri' })
+      .expect(201);
+
+    const leadB = await request(app.getHttpServer())
+      .post('/crm/leads')
+      .set('Authorization', `Bearer ${branchBToken}`)
+      .send({
+        firstName: 'B Şubesi',
+        lastName: 'CRM',
+        phone: `+90552${suffix.slice(0, 7)}`,
+        source: 'MANUAL',
+      })
+      .expect(201);
+
+    const allBranchesContext = await request(app.getHttpServer())
+      .post('/auth/context/switch')
+      .set('Authorization', `Bearer ${centralToken}`)
+      .send({ membershipId, branchId: null })
+      .expect(201);
+
+    const allBranchesToken = allBranchesContext.body.accessToken as string;
+    const customers = await request(app.getHttpServer())
+      .get('/customers?limit=100')
+      .set('Authorization', `Bearer ${allBranchesToken}`)
+      .expect(200);
+
+    const customerIds = customers.body.data.map((row: { id: string }) => row.id);
+    expect(customerIds).toEqual(
+      expect.arrayContaining([customer.body.id, customerB.body.id]),
+    );
+
+    const allLeads = await request(app.getHttpServer())
+      .get('/crm/leads?limit=200')
+      .set('Authorization', `Bearer ${allBranchesToken}`)
+      .expect(200);
+
+    const leadIds = allLeads.body.map((row: { id: string }) => row.id);
+    expect(leadIds).toEqual(
+      expect.arrayContaining([lead.body.id, leadB.body.id]),
+    );
+
+    const allMovements = await request(app.getHttpServer())
+      .get('/inventory/movements')
+      .set('Authorization', `Bearer ${allBranchesToken}`)
+      .expect(200);
+
+    const movementWarehouseNames = allMovements.body.map(
+      (movement: { warehouseName: string }) => movement.warehouseName,
+    );
+    expect(movementWarehouseNames).toEqual(
+      expect.arrayContaining([branchAWarehouse.name, branchBWarehouse.name]),
+    );
   });
 });

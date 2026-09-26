@@ -37,6 +37,22 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['services', 'create'],
   ['services', 'update'],
   ['services', 'delete'],
+  ['inventory', 'read'],
+  ['inventory', 'write'],
+  ['crm', 'read'],
+  ['crm', 'manage'],
+  ['training', 'read'],
+  ['training', 'manage'],
+  ['quality', 'read'],
+  ['quality', 'manage'],
+  ['finance', 'read'],
+  ['finance', 'manage'],
+  ['accounting', 'read'],
+  ['accounting', 'manage'],
+  ['hr', 'read'],
+  ['hr', 'manage'],
+  ['financial_integrations', 'read'],
+  ['financial_integrations', 'manage'],
 ] as const;
 
 @Injectable()
@@ -381,13 +397,18 @@ export class AuthService {
       );
     }
 
+    const firstActiveBranchId =
+      membership.branchAccesses.find(
+        (access) => access.branch.status === 'ACTIVE',
+      )?.branchId ?? null;
+
     const branchId =
-      membership.role.scope === 'BRANCH'
-        ? membership.branchAccesses[0]?.branchId ?? null
-        : null;
+      membership.role.scope === 'CENTRAL'
+        ? null
+        : firstActiveBranchId;
 
     if (
-      membership.role.scope === 'BRANCH' &&
+      membership.role.scope !== 'CENTRAL' &&
       !branchId
     ) {
       throw new UnauthorizedException(
@@ -483,7 +504,7 @@ export class AuthService {
     }
 
     if (branchId === null) {
-      if (membership.role.scope === 'BRANCH') {
+      if (membership.role.scope !== 'CENTRAL') {
         throw new UnauthorizedException('A branch is required for this role');
       }
     } else {
@@ -564,7 +585,7 @@ export class AuthService {
     }
 
     const key = `auth:refresh:${refreshToken}`;
-    const sessionData = await this.redis.get(key);
+    const sessionData = await this.redis.getAndDelete(key);
 
     if (!sessionData) {
       throw new UnauthorizedException('Invalid or expired refresh token');
@@ -629,20 +650,37 @@ export class AuthService {
       );
     }
 
-    const branchId =
-      membership.role.scope === 'BRANCH'
-        ? (
-            session.branchId &&
-            membership.branchAccesses.some(
-              (access) => access.branchId === session.branchId,
-            )
-              ? session.branchId
-              : membership.branchAccesses[0]?.branchId ?? null
-          )
-        : null;
+    let branchId = session.branchId ?? null;
+
+    if (branchId) {
+      const activeBranch = await this.prisma.branch.findFirst({
+        where: {
+          id: branchId,
+          companyId,
+          status: 'ACTIVE',
+        },
+        select: { id: true },
+      });
+      const hasBranchAccess =
+        membership.role.scope === 'CENTRAL' ||
+        membership.branchAccesses.some(
+          (access) => access.branchId === branchId,
+        );
+
+      if (!activeBranch || !hasBranchAccess) {
+        branchId = null;
+      }
+    }
+
+    if (membership.role.scope !== 'CENTRAL' && !branchId) {
+      branchId =
+        membership.branchAccesses.find(
+          (access) => access.branch.status === 'ACTIVE',
+        )?.branchId ?? null;
+    }
 
     if (
-      membership.role.scope === 'BRANCH' &&
+      membership.role.scope !== 'CENTRAL' &&
       !branchId
     ) {
       await this.redis.delete(key);

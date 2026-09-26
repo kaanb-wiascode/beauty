@@ -5,13 +5,7 @@ export const listAppointmentsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 
   status: z
-    .enum([
-      'SCHEDULED',
-      'CONFIRMED',
-      'COMPLETED',
-      'CANCELLED',
-      'NO_SHOW',
-    ])
+    .enum(['SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'])
     .optional(),
 
   staffId: z.string().uuid().optional(),
@@ -22,6 +16,4 @@ export const listAppointmentsSchema = z.object({
   to: z.coerce.date().optional(),
 });
 
-export type ListAppointmentsInput = z.infer<
-  typeof listAppointmentsSchema
->;
+export type ListAppointmentsInput = z.infer<typeof listAppointmentsSchema>;

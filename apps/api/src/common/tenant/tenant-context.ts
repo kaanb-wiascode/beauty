@@ -4,17 +4,30 @@ import type { RoleScopeValue } from '../auth/jwt.strategy';
 
 export interface TenantContextValue {
   tenantId: string;
+  membershipId: string;
   companyId: string;
   branchId: string | null;
   roleScope: RoleScopeValue;
 }
 
+type SystemTenantContextValue = Omit<TenantContextValue, 'membershipId'>;
+type TenantRuntimeContextValue = SystemTenantContextValue & {
+  membershipId: string | null;
+};
+
 @Injectable({ scope: Scope.REQUEST })
 export class TenantContext {
-  private context: TenantContextValue | null = null;
+  private context: TenantRuntimeContextValue | null = null;
 
   setContext(context: TenantContextValue): void {
     this.context = context;
+  }
+
+  setSystemContext(context: SystemTenantContextValue): void {
+    this.context = {
+      ...context,
+      membershipId: null,
+    };
   }
 
   setTenantId(tenantId: string): void {
@@ -34,22 +47,42 @@ export class TenantContext {
   }
 
   getTenantId(): string {
-    return this.getContext().tenantId;
+    return this.requireContext().tenantId;
+  }
+
+  getMembershipId(): string {
+    const membershipId = this.requireContext().membershipId;
+    if (!membershipId) {
+      throw new Error('Membership context is unavailable for system context');
+    }
+    return membershipId;
   }
 
   getCompanyId(): string {
-    return this.getContext().companyId;
+    return this.requireContext().companyId;
   }
 
   getBranchId(): string | null {
-    return this.getContext().branchId;
+    return this.requireContext().branchId;
   }
 
   getRoleScope(): RoleScopeValue {
-    return this.getContext().roleScope;
+    return this.requireContext().roleScope;
   }
 
   getContext(): TenantContextValue {
+    const context = this.requireContext();
+    if (!context.membershipId) {
+      throw new Error('Membership context is unavailable for system context');
+    }
+
+    return {
+      ...context,
+      membershipId: context.membershipId,
+    };
+  }
+
+  private requireContext(): TenantRuntimeContextValue {
     if (!this.context) {
       throw new Error('Tenant context is not initialized');
     }
