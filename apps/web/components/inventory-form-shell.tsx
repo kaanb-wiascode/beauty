@@ -34,20 +34,20 @@ export function InventoryFormShell({
   return (
     <Modal open onClose={onClose} title={title} description={description} size="xl">
       <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
-        <div className="mb-4 text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">
+        <div className="mb-3 text-[10px] font-semibold uppercase tracking-[.14em] text-[var(--accent)] sm:mb-4 sm:text-[11px] sm:tracking-[.16em]">
           {eyebrow}
         </div>
 
-        <div className="border-y border-[var(--line)] py-3">
+        <div className="border-y border-[var(--line)] py-2 sm:py-3">
           <FormStepper steps={steps} current={activeStep} onStepChange={onStepChange} />
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto py-6">
+        <div className="min-h-0 flex-1 overflow-y-auto py-4 sm:py-6">
           <div className="mx-auto max-w-[920px]">{children}</div>
         </div>
 
-        <FormActions className="mt-0 border-t border-[var(--line)] py-4">
-          <span className="mr-auto self-center text-[11px] text-[var(--muted)]">
+        <FormActions className="mt-0 border-t border-[var(--line)] py-3 sm:py-4">
+          <span className="hidden mr-auto self-center text-[11px] text-[var(--muted)] sm:inline">
             * zorunlu alanlar · bilgiler kayıt geçmişine işlenir
           </span>
           <Button type="button" variant="secondary" onClick={onClose} disabled={saving}>
