@@ -78,17 +78,17 @@ export function Modal({
   return (
     <div className={cx("fixed inset-0 z-50 flex items-end justify-center p-0 sm:items-center sm:p-6", open ? "animate-fade-in" : "pointer-events-none opacity-0")}>
       <button type="button" aria-label="Kapat" tabIndex={-1} className="absolute inset-0 cursor-default bg-[rgba(26,23,20,0.28)] backdrop-blur-[10px]" onClick={onClose} />
-      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cx("glass-elevated relative z-10 flex max-h-[94dvh] w-full flex-col overflow-hidden rounded-t-[var(--radius-dialog)] sm:max-h-[92vh] sm:rounded-[var(--radius-dialog)]", sizeClass, open ? "animate-sheet-in sm:animate-rise-in" : "animate-sheet-out")}>
-        <div className={cx("shrink-0 border-b border-[var(--line)] px-5 py-5 sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-labelledby={titleId} aria-describedby={description ? descriptionId : undefined} className={cx("glass-elevated relative z-10 flex max-h-[92dvh] w-full flex-col overflow-hidden rounded-t-[20px] sm:max-h-[92vh] sm:rounded-[var(--radius-dialog)]", sizeClass, open ? "animate-sheet-in sm:animate-rise-in" : "animate-sheet-out")}>
+        <div className={cx("shrink-0 border-b border-[var(--line)] px-4 py-4 sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
-              <h2 id={titleId} className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{title}</h2>
-              {description ? <p id={descriptionId} className="mt-1.5 max-w-[760px] text-[13px] leading-5 text-[var(--muted)] sm:text-sm sm:leading-6">{description}</p> : null}
+              <h2 id={titleId} className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{title}</h2>
+              {description ? <p id={descriptionId} className="mt-1 max-w-[760px] text-[12px] leading-5 text-[var(--muted)] sm:mt-1.5 sm:text-sm sm:leading-6">{description}</p> : null}
             </div>
-            <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[12px] border border-[var(--line)] bg-white text-[20px] leading-none text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">×</button>
+            <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] sm:h-[42px] sm:w-[42px] sm:rounded-[12px] border border-[var(--line)] bg-white text-[20px] leading-none text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">×</button>
           </div>
         </div>
-        <div className={cx("min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-5 [scrollbar-gutter:stable] sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
+        <div className={cx("min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 [scrollbar-gutter:stable] sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
           {children}
         </div>
       </div>
