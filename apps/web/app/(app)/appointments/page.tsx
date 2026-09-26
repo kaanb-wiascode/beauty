@@ -494,24 +494,24 @@ export default function AppointmentsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-[1540px] space-y-5 pb-8">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+    <div className="mx-auto max-w-[1540px] space-y-4 pb-8 sm:space-y-5">
+      <div className="flex flex-col gap-3 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-[var(--muted-soft)]">Operasyon · Takvim</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)] sm:text-[38px]">Randevular</h1>
-          <p className="mt-1 text-[14px] text-[var(--muted)]">Günlük Programı, Personel Dağılımını Ve Randevu Durumlarını Yönetin.</p>
+          <p className="mt-1 text-[13px] leading-5 text-[var(--muted)] sm:text-[14px]">Günlük Programı, Personel Dağılımını Ve Randevu Durumlarını Yönetin.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="flex items-center rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-1 shadow-[0_4px_18px_rgba(17,70,104,0.04)]">
+        <div className="grid grid-cols-2 items-center gap-2 sm:flex sm:flex-wrap">
+          <div className="col-span-2 flex w-full items-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1 shadow-[0_4px_18px_rgba(17,70,104,0.04)] sm:col-span-1 sm:w-auto sm:rounded-[14px]">
             <Button variant="ghost" className="h-9 min-h-9 px-2.5" onClick={() => setSelectedDate(addDays(selectedDate, -1))}>‹</Button>
-            <button type="button" className="flex min-h-9 items-center gap-2 px-3 text-[13px] font-medium text-[var(--ink)]" onClick={() => setSelectedDate(startOfDay(new Date()))}>
+            <button type="button" className="flex min-h-9 min-w-0 flex-1 items-center justify-center gap-2 px-2 text-[12px] font-medium text-[var(--ink)] sm:flex-none sm:px-3 sm:text-[13px]" onClick={() => setSelectedDate(startOfDay(new Date()))}>
               <Icon name="calendar" className="h-4 w-4 text-[var(--accent)]" />
               <span className="capitalize">{formatDay(selectedDate)}</span>
             </button>
             <Button variant="ghost" className="h-9 min-h-9 px-2.5" onClick={() => setSelectedDate(addDays(selectedDate, 1))}>›</Button>
           </div>
-          <Button variant="secondary" onClick={() => setSelectedDate(startOfDay(new Date()))}>Bugün</Button>
-          {canCreateAppointment ? <Button onClick={() => openCreate()}>＋ Yeni Randevu</Button> : null}
+          <Button className="w-full sm:w-auto" variant="secondary" onClick={() => setSelectedDate(startOfDay(new Date()))}>Bugün</Button>
+          {canCreateAppointment ? <Button className="w-full sm:w-auto" onClick={() => openCreate()}>＋ Yeni Randevu</Button> : null}
         </div>
       </div>
 
@@ -540,11 +540,11 @@ export default function AppointmentsPage() {
             }
             actions={
               <>
-                <ToolbarSelect value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)} aria-label="Personel Filtresi">
+                <ToolbarSelect className="min-w-0 flex-1" value={staffFilter} onChange={(event) => setStaffFilter(event.target.value)} aria-label="Personel Filtresi">
                   <option value="">Tüm Personel</option>
                   {staff.map((item) => <option key={item.id} value={item.id}>{fullName(item.firstName, item.lastName)}</option>)}
                 </ToolbarSelect>
-                <ToolbarSelect value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} aria-label="Hizmet Filtresi">
+                <ToolbarSelect className="min-w-0 flex-1" value={serviceFilter} onChange={(event) => setServiceFilter(event.target.value)} aria-label="Hizmet Filtresi">
                   <option value="">Tüm Hizmetler</option>
                   {services.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
                 </ToolbarSelect>
@@ -926,15 +926,15 @@ function Metric({
   icon: "calendar" | "clock" | "check" | "x";
 }) {
   return (
-    <div className="surface rounded-[20px] p-4 sm:p-5">
+    <div className="surface rounded-[16px] p-3.5 sm:rounded-[20px] sm:p-5">
       <div className="flex items-start justify-between gap-3">
-        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[13px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name={icon} className="h-[19px] w-[19px]" /></div>
+        <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--accent)] sm:h-10 sm:w-10 sm:rounded-[13px]"><Icon name={icon} className="h-[19px] w-[19px]" /></div>
         <div className="flex min-w-0 items-start gap-2">
           <span className="mt-1 text-[11px] font-medium text-[var(--muted)]">{label}</span>
           <CardInfo help={getCardHelp(label, detail)} />
         </div>
       </div>
-      <div className="mt-3 flex items-end justify-between gap-2"><strong className="text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</strong><span className="text-[11px] text-[var(--muted)]">{detail}</span></div>
+      <div className="mt-2.5 flex items-end justify-between gap-2"><strong className="text-[24px] sm:text-[28px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</strong><span className="text-[11px] text-[var(--muted)]">{detail}</span></div>
     </div>
   );
 }
