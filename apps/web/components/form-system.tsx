@@ -21,19 +21,19 @@ export function FormSection({
   return (
     <section
       className={cx(
-        "space-y-4 rounded-[18px] border border-[var(--line)] bg-white/70 p-4 shadow-[0_4px_16px_rgba(31,69,94,.025)] sm:p-5",
+        "space-y-3 rounded-[16px] border border-[var(--line)] bg-white/70 p-3.5 shadow-[0_4px_16px_rgba(31,69,94,.025)] sm:space-y-4 sm:rounded-[18px] sm:p-5",
         className,
       )}
     >
       {title || description ? (
         <div>
           {title ? (
-            <h3 className="text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)]">
+            <h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[16px]">
               {title}
             </h3>
           ) : null}
           {description ? (
-            <p className="mt-1 text-[13px] leading-5 text-[var(--muted)]">
+            <p className="mt-1 text-[12px] leading-5 text-[var(--muted)] sm:text-[13px]">
               {description}
             </p>
           ) : null}
@@ -56,7 +56,7 @@ export function FormGrid({
   return (
     <div
       className={cx(
-        "grid gap-4 sm:gap-5",
+        "grid gap-3 sm:gap-5",
         columns === 2 && "min-[760px]:grid-cols-2",
         columns === 3 && "min-[760px]:grid-cols-2 min-[1120px]:grid-cols-3",
         className,
@@ -79,9 +79,9 @@ export function FormActions({
   return (
     <div
       className={cx(
-        "mt-6 flex flex-col-reverse gap-2.5 border-t border-[var(--line)] pt-5 sm:flex-row sm:justify-end",
+        "mt-4 flex flex-col-reverse gap-2 border-t border-[var(--line)] pt-4 sm:mt-6 sm:flex-row sm:justify-end sm:gap-2.5 sm:pt-5",
         sticky &&
-          "sticky bottom-0 z-30 -mx-2 rounded-t-[16px] border-t border-[var(--line)] bg-white/[0.96] px-2 pb-1 pt-4 shadow-[0_-14px_28px_rgba(31,69,94,.07)] backdrop-blur-xl",
+          "sticky bottom-0 z-30 -mx-1 rounded-t-[14px] border-t border-[var(--line)] bg-white/[0.97] px-1 pb-1 pt-3 shadow-[0_-10px_24px_rgba(31,69,94,.06)] backdrop-blur-xl sm:-mx-2 sm:rounded-t-[16px] sm:px-2 sm:pt-4",
         className,
       )}
     >
@@ -115,7 +115,7 @@ export function FormSummary({
   return (
     <aside
       className={cx(
-        "rounded-[16px] border border-[rgba(22,116,189,.14)] bg-[var(--accent-soft)]/45 p-4",
+        "rounded-[14px] border border-[rgba(22,116,189,.14)] bg-[var(--accent-soft)]/45 p-3.5 sm:rounded-[16px] sm:p-4",
         className,
       )}
     >
@@ -187,7 +187,7 @@ export function CheckboxField({
   disabled?: boolean;
 }) {
   return (
-    <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]/60">
+    <label className="flex cursor-pointer items-start gap-3 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-3.5 sm:p-4 transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]/60">
       <input
         type="checkbox"
         checked={checked}
@@ -262,7 +262,7 @@ export function FormStepper({
   return (
     <nav
       aria-label="Form adımları"
-      className="sticky top-0 z-20 mb-5 grid gap-2 rounded-[16px] border border-[var(--line)] bg-[rgba(247,250,252,.96)] p-1.5 shadow-[0_8px_24px_rgba(31,69,94,.05)] backdrop-blur-xl min-[700px]:grid-cols-2 min-[1040px]:grid-cols-[repeat(var(--step-count),minmax(0,1fr))]"
+      className="sticky top-0 z-20 mb-4 flex gap-1.5 overflow-x-auto rounded-[14px] border border-[var(--line)] bg-[rgba(247,250,252,.96)] p-1.5 shadow-[0_8px_24px_rgba(31,69,94,.05)] backdrop-blur-xl min-[700px]:grid min-[700px]:grid-cols-2 min-[1040px]:grid-cols-[repeat(var(--step-count),minmax(0,1fr))] sm:mb-5 sm:rounded-[16px]"
       style={{ "--step-count": steps.length } as CSSProperties}
     >
       {steps.map((step, index) => {
@@ -270,7 +270,7 @@ export function FormStepper({
         const complete = index < current;
         const showDescription = steps.length <= 4;
         const className = cx(
-          "min-w-0 rounded-[12px] px-3.5 py-3 text-left transition",
+          "min-w-[150px] shrink-0 rounded-[11px] px-3 py-2.5 text-left transition min-[700px]:min-w-0 min-[700px]:shrink sm:rounded-[12px] sm:px-3.5 sm:py-3",
           active
             ? "bg-white text-[var(--ink)] shadow-sm"
             : "text-[var(--muted)] hover:bg-white/60",
