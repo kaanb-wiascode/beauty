@@ -23,7 +23,7 @@ type Position = {
 };
 
 const WEEKDAYS = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"] as const;
-const POPOVER_WIDTH = 328;
+const POPOVER_WIDTH = 312;
 const VIEWPORT_GAP = 12;
 const TRIGGER_GAP = 8;
 
@@ -152,7 +152,7 @@ export function DatePicker({
       Math.max(VIEWPORT_GAP, window.innerWidth - width - VIEWPORT_GAP),
     );
 
-    const estimatedHeight = 390;
+    const estimatedHeight = 356;
     const roomBelow = window.innerHeight - rect.bottom;
     const top =
       roomBelow >= estimatedHeight + TRIGGER_GAP
@@ -222,7 +222,7 @@ export function DatePicker({
             ref={popoverRef}
             role="dialog"
             aria-label="Takvim"
-            className="fixed z-[10020] rounded-[20px] border border-[#dce7f0] bg-white/[0.98] p-4 shadow-[0_22px_65px_rgba(31,69,94,.18)] backdrop-blur-xl"
+            className="fixed z-[10020] rounded-[16px] border border-[#dce7f0] bg-white/[0.98] p-3.5 shadow-[0_18px_52px_rgba(31,69,94,.16)] backdrop-blur-xl sm:rounded-[20px] sm:p-4"
             style={{
               top: position.top,
               left: position.left,
@@ -253,7 +253,7 @@ export function DatePicker({
               </button>
             </div>
 
-            <div className="mt-4 grid grid-cols-7 gap-1">
+            <div className="mt-3 grid grid-cols-7 gap-1 sm:mt-4">
               {WEEKDAYS.map((day) => (
                 <div
                   key={day}
@@ -278,7 +278,7 @@ export function DatePicker({
                     aria-pressed={isSelected}
                     onClick={() => selectDate(date)}
                     className={cx(
-                      "relative flex h-9 items-center justify-center rounded-[11px] text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(22,116,189,.12)]",
+                      "relative flex h-8 items-center justify-center rounded-[10px] text-[11px] font-medium transition sm:h-9 sm:rounded-[11px] sm:text-[12px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(22,116,189,.12)]",
                       isSelected
                         ? "bg-[var(--accent)] text-white shadow-[0_6px_16px_rgba(22,116,189,.20)]"
                         : isCurrentMonth
@@ -296,7 +296,7 @@ export function DatePicker({
               })}
             </div>
 
-            <div className="mt-4 flex items-center justify-between border-t border-[#e7eef4] pt-3">
+            <div className="mt-3 flex items-center justify-between border-t border-[#e7eef4] pt-3 sm:mt-4">
               <button
                 type="button"
                 onClick={() => selectDate(today)}
@@ -330,14 +330,14 @@ export function DatePicker({
           setOpen((current) => !current);
         }}
         className={cx(
-          "control flex min-h-[42px] w-full items-center gap-3 text-left",
+          "control flex min-h-[42px] w-full items-center gap-2.5 text-left sm:gap-3",
           "transition-[border-color,box-shadow,background-color] duration-[180ms]",
           open && "border-[var(--accent)] ring-4 ring-[var(--accent-soft)]",
           disabled && "cursor-not-allowed opacity-50",
           className,
         )}
       >
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] bg-[var(--surface-2)] text-[var(--muted)]">
+        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px] bg-[var(--surface-2)] text-[var(--muted)] sm:h-8 sm:w-8 sm:rounded-[10px]">
           <CalendarIcon />
         </span>
 
