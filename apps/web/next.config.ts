@@ -1,6 +1,5 @@
 import type { NextConfig } from "next";
 
-const API_ORIGIN = process.env.API_URL ?? "http://localhost:3000";
 const isProduction = process.env.NODE_ENV === "production";
 const RELEASE_SHA = process.env.RELEASE_SHA ?? "development";
 
@@ -51,14 +50,6 @@ const nextConfig: NextConfig = {
       {
         source: "/:path*",
         headers: SECURITY_HEADERS,
-      },
-    ];
-  },
-  async rewrites() {
-    return [
-      {
-        source: "/backend/:path*",
-        destination: `${API_ORIGIN}/:path*`,
       },
     ];
   },
