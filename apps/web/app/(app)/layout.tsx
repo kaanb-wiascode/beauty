@@ -7,6 +7,7 @@ import { MobileContextSwitcher } from "@/components/mobile-context-switcher";
 import { MobileNav } from "@/components/mobile-nav";
 import { ToastProvider } from "@/components/toast";
 import "./beauty-final-consistency.css";
+import "./mobile-system.css";
 import "./dashboard/sidebar-responsive.css";
 import "./dashboard/dashboard-shell-fix.css";
 
