@@ -98,7 +98,7 @@ export function DateTimePicker({
   return (
     <div
       className={cx(
-        "grid min-w-0 grid-cols-[minmax(0,1fr)_112px] gap-2",
+        "grid min-w-0 grid-cols-[minmax(0,1fr)_96px] gap-2 sm:grid-cols-[minmax(0,1fr)_112px]",
         className,
       )}
     >
@@ -113,7 +113,7 @@ export function DateTimePicker({
 
       <div
         className={cx(
-          "control flex min-h-[42px] min-w-0 items-center gap-2 px-3",
+          "control flex min-h-[42px] min-w-0 items-center gap-1.5 px-2.5 sm:gap-2 sm:px-3",
           "transition-[border-color,box-shadow,background-color] duration-[180ms]",
           "focus-within:border-[var(--accent)] focus-within:ring-4 focus-within:ring-[var(--accent-soft)]",
           disabled && "cursor-not-allowed opacity-50",
@@ -148,7 +148,7 @@ export function DateTimePicker({
               if (parts.date) onChange(`${parts.date}T${next}`);
             }
           }}
-          className="min-w-0 flex-1 bg-transparent text-center text-[13px] font-semibold tabular-nums text-[var(--ink)] outline-none placeholder:text-[var(--muted-soft)]"
+          className="min-w-0 flex-1 bg-transparent text-center text-[12px] font-semibold tabular-nums sm:text-[13px] text-[var(--ink)] outline-none placeholder:text-[var(--muted-soft)]"
         />
       </div>
     </div>
