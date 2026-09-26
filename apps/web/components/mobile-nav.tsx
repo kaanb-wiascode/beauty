@@ -197,9 +197,9 @@ export function MobileNav() {
             role="dialog"
             aria-modal="true"
             aria-label="Mobil Navigasyon"
-            className="absolute inset-x-3 bottom-[84px] max-h-[72vh] overflow-hidden rounded-[26px] border border-white/80 bg-white/95 shadow-[0_24px_80px_rgba(15,23,42,0.22)] backdrop-blur-2xl"
+            className="absolute inset-x-3 bottom-[76px] max-h-[74dvh] overflow-hidden rounded-[20px] border border-white/80 bg-white/96 shadow-[0_18px_54px_rgba(15,23,42,0.18)] backdrop-blur-2xl"
           >
-            <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3.5">
               <div>
                 <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">VALOO</p>
                 <h2 className="mt-1 text-[17px] font-semibold text-[var(--ink)]">Tüm Modüller</h2>
@@ -213,7 +213,7 @@ export function MobileNav() {
                 ×
               </button>
             </div>
-            <div className="max-h-[calc(72vh-72px)] overflow-y-auto px-3 py-3">
+            <div className="max-h-[calc(74dvh-64px)] overflow-y-auto px-3 py-3">
               {sections.map((section) => (
                 <div key={section.label} className="mb-4 last:mb-0">
                   <p className="px-2 pb-1.5 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">
@@ -228,7 +228,7 @@ export function MobileNav() {
                           href={item.href}
                           aria-current={active ? "page" : undefined}
                           className={cx(
-                            "flex min-h-12 items-center gap-2.5 rounded-[14px] px-3 py-2 text-[12px] font-medium",
+                            "flex min-h-11 items-center gap-2 rounded-[12px] px-2.5 py-2 text-[12px] font-medium",
                             active
                               ? "bg-[var(--accent-soft)] text-[var(--accent)]"
                               : "bg-[var(--surface-2)]/55 text-[var(--muted)]",
@@ -251,7 +251,7 @@ export function MobileNav() {
 
       <nav
         aria-label="Mobil Ana Navigasyon"
-        className="fixed inset-x-3 bottom-3 z-[70] flex h-[68px] items-center justify-around rounded-[22px] border border-white/80 bg-white/92 px-2 shadow-[0_14px_45px_rgba(15,23,42,0.16)] backdrop-blur-2xl lg:hidden"
+        className="fixed inset-x-3 bottom-[max(8px,env(safe-area-inset-bottom))] z-[70] flex h-[64px] items-center justify-around rounded-[20px] border border-white/80 bg-white/94 px-1.5 shadow-[0_12px_36px_rgba(15,23,42,0.14)] backdrop-blur-2xl lg:hidden"
       >
         {primaryItems.map((item) => {
           const active = isActive(pathname, item.href);
@@ -261,7 +261,7 @@ export function MobileNav() {
               href={item.href}
               aria-current={active ? "page" : undefined}
               className={cx(
-                "flex min-w-[54px] flex-col items-center justify-center gap-1 rounded-[14px] px-2 py-1.5 text-[9px] font-semibold",
+                "flex min-w-[52px] flex-col items-center justify-center gap-0.5 rounded-[12px] px-1.5 py-1 text-[10px] font-semibold",
                 active ? "text-[var(--accent)]" : "text-[var(--muted)]",
               )}
             >
@@ -278,7 +278,7 @@ export function MobileNav() {
           aria-expanded={open}
           aria-controls="mobile-navigation-menu"
           className={cx(
-            "flex min-w-[54px] flex-col items-center justify-center gap-1 rounded-[14px] px-2 py-1.5 text-[9px] font-semibold",
+            "flex min-w-[52px] flex-col items-center justify-center gap-0.5 rounded-[12px] px-1.5 py-1 text-[10px] font-semibold",
             open ? "text-[var(--accent)]" : "text-[var(--muted)]",
           )}
         >
