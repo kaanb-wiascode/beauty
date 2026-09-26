@@ -1,11 +1,13 @@
-/* VALOO Mobile System — centralized responsive density and safe-area layer */
+/* VALOO responsive system — one breakpoint contract for phone + tablet navigation.
+   Navigation switches to mobile below Tailwind lg (1024px), therefore structural
+   responsive rules must cover the same 0-1023px range. Phone density stays <=767px. */
 
-@media (max-width: 767px) {
+@media (max-width: 1023px) {
   :root {
-    --mobile-page-gutter: 16px;
-    --mobile-section-gap: 14px;
-    --mobile-card-radius: 16px;
-    --mobile-card-pad: 16px;
+    --mobile-page-gutter: 20px;
+    --mobile-section-gap: 16px;
+    --mobile-card-radius: 18px;
+    --mobile-card-pad: 18px;
     --mobile-control-height: 44px;
     --mobile-bottom-nav-height: 64px;
   }
@@ -27,7 +29,7 @@
   .app-content {
     width: 100%;
     min-width: 0;
-    padding-bottom: calc(150px + env(safe-area-inset-bottom)) !important;
+    padding-bottom: calc(118px + env(safe-area-inset-bottom)) !important;
   }
 
   .app-content > * {
@@ -40,7 +42,7 @@
   }
 
   .app-content h1 {
-    font-size: 28px !important;
+    font-size: 30px !important;
     line-height: 1.08 !important;
     letter-spacing: -.04em !important;
   }
@@ -94,6 +96,100 @@
     border-radius: 10px !important;
   }
 
+  .app-content [class*="overflow-x-auto"] {
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: none;
+  }
+
+  .app-content [class*="overflow-x-auto"]::-webkit-scrollbar {
+    display: none;
+  }
+
+  .app-content [class*="min-w-[330px]"],
+  .app-content [class*="min-w-[300px]"],
+  .app-content [class*="min-w-[280px]"],
+  .app-content [class*="min-w-[260px]"] {
+    min-width: 0 !important;
+  }
+
+  .app-content [class*="max-w-[1500px]"],
+  .app-content [class*="max-w-[1540px]"],
+  .app-content [class*="max-w-[1440px]"],
+  .app-content [class*="max-w-[1420px]"],
+  .app-content [class*="max-w-[1380px]"],
+  .app-content [class*="max-w-[1320px]"],
+  .app-content [class*="max-w-[1280px]"],
+  .app-content [class*="max-w-[1240px]"] {
+    max-width: none !important;
+  }
+
+  .app-content [class*="rounded-[20px]"][class*="p-5"],
+  .app-content [class*="rounded-[22px]"][class*="p-5"],
+  .app-content [class*="rounded-[24px]"][class*="p-5"],
+  .app-content [class*="rounded-[24px]"][class*="p-6"],
+  .app-content [class*="rounded-[26px]"][class*="p-5"],
+  .app-content [class*="rounded-[26px]"][class*="p-6"] {
+    padding: 18px !important;
+  }
+
+  .app-content [class*="border-b"][class*="px-5"][class*="py-4"] {
+    padding: 14px 16px !important;
+  }
+
+  .app-content > [class*="space-y-6"] > :not(:first-child) {
+    margin-top: 18px !important;
+  }
+
+  .app-content > [class*="space-y-5"] > :not(:first-child) {
+    margin-top: 16px !important;
+  }
+
+  .app-content > [class*="space-y-4"] > :not(:first-child) {
+    margin-top: 14px !important;
+  }
+
+  .app-content > * > header[class*="rounded-[24px]"] {
+    border-radius: var(--mobile-card-radius) !important;
+    padding: 18px !important;
+    box-shadow: 0 7px 22px rgba(17,70,104,.05) !important;
+  }
+
+  .app-content [class*="rounded-[16px]"][class*="p-8"],
+  .app-content [class*="rounded-[22px]"][class*="p-8"] {
+    padding: 20px !important;
+  }
+
+  .app-content [class*="shadow-[0_12px_34px"],
+  .app-content [class*="shadow-[0_10px_30px"],
+  .app-content [class*="shadow-[0_8px_24px"] {
+    box-shadow: 0 7px 22px rgba(17,70,104,.05) !important;
+  }
+
+  [role="dialog"] {
+    max-width: 100vw;
+  }
+
+  [role="dialog"] form {
+    max-width: 100%;
+  }
+}
+
+@media (max-width: 767px) {
+  :root {
+    --mobile-page-gutter: 16px;
+    --mobile-section-gap: 14px;
+    --mobile-card-radius: 16px;
+    --mobile-card-pad: 16px;
+  }
+
+  .app-content {
+    padding-bottom: calc(150px + env(safe-area-inset-bottom)) !important;
+  }
+
+  .app-content h1 {
+    font-size: 28px !important;
+  }
+
   .dashboard-hero {
     gap: 12px !important;
     padding-top: 8px !important;
@@ -140,18 +236,15 @@
     padding: 3px 7px !important;
   }
 
-  .dashboard-panel {
+  .dashboard-panel,
+  .dashboard-rail,
+  .dashboard-rail > * {
     width: 100% !important;
     min-width: 0 !important;
   }
 
   .dashboard-rail {
-    width: 100% !important;
     gap: 12px !important;
-  }
-
-  .dashboard-rail > * {
-    width: 100% !important;
   }
 
   .panel-header {
@@ -211,25 +304,6 @@
     gap: 12px !important;
   }
 
-  /* Horizontal filter/tab strips remain usable without inflating page height. */
-  .app-content [class*="overflow-x-auto"] {
-    -webkit-overflow-scrolling: touch;
-    scrollbar-width: none;
-  }
-
-  .app-content [class*="overflow-x-auto"]::-webkit-scrollbar {
-    display: none;
-  }
-
-  /* Prevent common desktop fixed-width utilities from forcing overflow on phones. */
-  .app-content [class*="min-w-[330px]"],
-  .app-content [class*="min-w-[300px]"],
-  .app-content [class*="min-w-[280px]"],
-  .app-content [class*="min-w-[260px]"] {
-    min-width: 0 !important;
-  }
-
-  /* Compact common two-column KPI layouts while preserving tap comfort. */
   .app-content .grid.grid-cols-2 {
     column-gap: 10px;
     row-gap: 10px;
@@ -251,10 +325,6 @@
     padding: 16px !important;
   }
 
-  .app-content [class*="border-b"][class*="px-5"][class*="py-4"] {
-    padding: 14px 16px !important;
-  }
-
   .app-content > [class*="space-y-6"] > :not(:first-child) {
     margin-top: 16px !important;
   }
@@ -270,50 +340,10 @@
   .app-content > * > header[class*="rounded-[24px]"] {
     border-radius: 16px !important;
     padding: 16px !important;
-    box-shadow: 0 7px 22px rgba(17,70,104,.05) !important;
   }
 
   .app-content > * > header[class*="rounded-[24px]"] h1 {
     font-size: 28px !important;
-  }
-
-  .app-content [class*="rounded-[16px]"][class*="p-8"],
-  .app-content [class*="rounded-[22px]"][class*="p-8"] {
-    padding: 20px !important;
-  }
-
-  .app-content [class*="space-y-6"] {
-    row-gap: 16px;
-  }
-
-  .app-content [class*="space-y-5"] {
-    row-gap: 14px;
-  }
-
-  .app-content [class*="max-w-[1500px]"],
-  .app-content [class*="max-w-[1540px]"],
-  .app-content [class*="max-w-[1440px]"],
-  .app-content [class*="max-w-[1420px]"],
-  .app-content [class*="max-w-[1380px]"],
-  .app-content [class*="max-w-[1320px]"],
-  .app-content [class*="max-w-[1280px]"],
-  .app-content [class*="max-w-[1240px]"] {
-    max-width: none !important;
-  }
-
-  .app-content [class*="shadow-[0_12px_34px"],
-  .app-content [class*="shadow-[0_10px_30px"],
-  .app-content [class*="shadow-[0_8px_24px"] {
-    box-shadow: 0 7px 22px rgba(17,70,104,.05) !important;
-  }
-
-  /* Modal sheets: use the viewport efficiently and keep actions visible. */
-  [role="dialog"] {
-    max-width: 100vw;
-  }
-
-  [role="dialog"] form {
-    max-width: 100%;
   }
 }
 
@@ -334,15 +364,5 @@
 
   .metric-card strong {
     font-size: 19px !important;
-  }
-}
-
-@media (min-width: 768px) and (max-width: 1023px) {
-  .app-shell {
-    padding: 12px !important;
-  }
-
-  .app-content {
-    padding-bottom: 96px !important;
   }
 }
