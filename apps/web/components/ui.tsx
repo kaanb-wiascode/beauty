@@ -30,7 +30,7 @@ export function Alert({
     <div
       role="alert"
       className={cx(
-        "flex items-start justify-between gap-4 rounded-[var(--radius-control)] border px-4 py-3.5 text-[14px] leading-6",
+        "flex items-start justify-between gap-3 rounded-[var(--radius-control)] border px-3.5 py-3 text-[13px] leading-5 sm:px-4 sm:py-3.5 sm:text-[14px] sm:leading-6",
         isError
           ? "border-[rgba(196,81,103,.18)] bg-[var(--danger-soft)] text-[var(--danger)]"
           : "border-[rgba(23,138,97,.16)] bg-[var(--secondary-soft)] text-[var(--secondary)]",
@@ -61,7 +61,7 @@ export function Spinner({
     <div
       role="status"
       aria-live="polite"
-      className="flex flex-col items-center justify-center gap-4 py-20 text-[var(--muted)]"
+      className="flex flex-col items-center justify-center gap-3 py-12 text-[var(--muted)] sm:py-20"
     >
       <span
         aria-hidden="true"
@@ -82,20 +82,20 @@ export function PageHeader({
   action?: ReactNode;
 }) {
   return (
-    <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
       <div className="min-w-0 max-w-xl">
-        <h1 className="text-[28px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[32px]">
+        <h1 className="text-[27px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[32px]">
           {title}
         </h1>
 
         {description ? (
-          <p className="mt-2 text-[14px] leading-6 text-[var(--muted)] sm:text-[15px] sm:leading-7">
+          <p className="mt-1.5 text-[13px] leading-5 text-[var(--muted)] sm:mt-2 sm:text-[15px] sm:leading-7">
             {description}
           </p>
         ) : null}
 
         {action ? (
-          <div className="mt-4 flex w-fit max-w-full sm:hidden">
+          <div className="mt-3 flex w-full max-w-full sm:hidden [&>*]:w-full">
             {action}
           </div>
         ) : null}
@@ -292,19 +292,19 @@ export function EmptyState({
   action?: ReactNode;
 }) {
   return (
-    <div className="px-6 py-20 text-center">
+    <div className="px-5 py-10 text-center sm:px-6 sm:py-20">
       <div
         aria-hidden="true"
-        className="mx-auto mb-5 flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--accent-soft)] text-[var(--accent)]"
+        className="mx-auto mb-3 flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent-soft)] text-[var(--accent)] sm:mb-5 sm:h-12 sm:w-12 sm:rounded-2xl"
       >
         <span className="h-2.5 w-2.5 rounded-full bg-current" />
       </div>
 
-      <h3 className="text-[17px] font-semibold tracking-[-0.02em] text-[var(--ink)]">
+      <h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[17px]">
         {title}
       </h3>
 
-      <p className="mx-auto mt-2 max-w-sm text-sm leading-6 text-[var(--muted)]">
+      <p className="mx-auto mt-1.5 max-w-sm text-[12px] leading-5 text-[var(--muted)] sm:mt-2 sm:text-sm sm:leading-6">
         {description}
       </p>
 
@@ -369,7 +369,7 @@ export function GlassCard({
   return (
     <article
       className={cx(
-        "glass-elevated rounded-[var(--radius-card)] p-5 sm:p-6",
+        "glass-elevated rounded-[16px] p-4 sm:rounded-[var(--radius-card)] sm:p-6",
         className,
       )}
     >
@@ -487,8 +487,8 @@ export function Modal({
         }
       }}
     >
-      <div className="max-h-[90vh] w-full max-w-xl overflow-y-auto rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_24px_80px_rgba(28,25,23,0.18)]">
-        <div className="mb-6 flex items-start justify-between gap-4">
+      <div className="max-h-[92dvh] w-full max-w-xl overflow-y-auto rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_20px_64px_rgba(28,25,23,0.16)] sm:max-h-[90vh] sm:rounded-[24px] sm:p-6">
+        <div className="mb-4 flex items-start justify-between gap-4 sm:mb-6">
           <div>
             <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)]">
               {title}
