@@ -80,7 +80,7 @@ export function CardInfo({
             id={tooltipId}
             role="tooltip"
             data-card-info="true"
-            className="pointer-events-none fixed z-[10000] rounded-[18px] border border-[#dce7f0] bg-white/95 p-4 text-left shadow-[0_18px_50px_rgba(31,69,94,.16)] backdrop-blur-xl"
+            className="pointer-events-none fixed z-[10000] rounded-[14px] border border-[#dce7f0] bg-white/96 p-3.5 text-left shadow-[0_14px_40px_rgba(31,69,94,.14)] backdrop-blur-xl sm:rounded-[18px] sm:p-4"
             style={{
               top: position.top,
               left: position.left,
@@ -132,11 +132,12 @@ export function CardInfo({
     <>
       <button
         ref={triggerRef}
+        data-card-info-trigger="true"
         type="button"
         aria-label={`${help.title} hakkında bilgi`}
         aria-describedby={open ? tooltipId : undefined}
         className={cx(
-          "inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full border border-[#d7e3ec] bg-white text-[11px] font-semibold text-[#6f8090] shadow-[0_1px_3px_rgba(17,70,104,.07)] transition hover:border-[#bcd3e4] hover:bg-[#f3f8fc] hover:text-[#1674bd] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(22,116,189,.12)]",
+          "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] border border-[#d7e3ec] bg-white text-[11px] sm:h-5 sm:w-5 sm:rounded-full font-semibold text-[#6f8090] shadow-[0_1px_3px_rgba(17,70,104,.07)] transition hover:border-[#bcd3e4] hover:bg-[#f3f8fc] hover:text-[#1674bd] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[rgba(22,116,189,.12)]",
           className,
         )}
         onPointerEnter={(event) => {
