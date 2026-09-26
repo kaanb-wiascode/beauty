@@ -20,7 +20,7 @@ export function DataView({
   return (
     <section
       className={cx(
-        "overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(17,70,104,0.045)]",
+        "overflow-hidden rounded-[16px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_7px_22px_rgba(17,70,104,0.045)] sm:rounded-[20px]",
         className,
       )}
     >
@@ -39,8 +39,8 @@ export function DataViewToolbar({
   filters?: ReactNode;
 }) {
   return (
-    <div className="border-b border-[var(--line)] px-4 py-4 sm:px-5 sm:py-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+    <div className="border-b border-[var(--line)] px-4 py-3.5 sm:px-5 sm:py-5">
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center">
         <div className="min-w-0 flex-1">{search}</div>
 
         {actions ? (
@@ -51,7 +51,7 @@ export function DataViewToolbar({
       </div>
 
       {filters ? (
-        <div className="mt-3 flex flex-wrap gap-2 sm:mt-4">
+        <div className="mt-2.5 flex flex-wrap gap-2 sm:mt-4">
           {filters}
         </div>
       ) : null}
@@ -78,7 +78,7 @@ export function SearchField({
         aria-label={props["aria-label"] ?? "Ara"}
         enterKeyHint={props.enterKeyHint ?? "search"}
         className={cx(
-          "h-11 w-full rounded-[var(--radius-control)] border border-transparent bg-[var(--surface-2)]/70 pl-11 pr-10 text-[14px] text-[var(--ink)] outline-none transition",
+          "h-11 w-full rounded-[var(--radius-control)] border border-transparent bg-[var(--surface-2)]/70 pl-10 pr-9 text-[14px] text-[var(--ink)] outline-none transition",
           "placeholder:text-[var(--muted-soft)] hover:bg-[var(--surface-2)] focus:border-[rgba(22,116,189,.22)] focus:bg-white focus:ring-4 focus:ring-[var(--accent-soft)]",
           className,
         )}
@@ -124,7 +124,7 @@ export function FilterChip({
       type={props.type ?? "button"}
       aria-pressed={props["aria-pressed"] ?? active}
       className={cx(
-        "inline-flex min-h-11 items-center gap-1.5 rounded-full border px-3.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9",
+        "inline-flex min-h-10 items-center gap-1.5 rounded-full border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-9",
         active
           ? "border-[rgba(22,116,189,.18)] bg-[var(--accent-soft)] text-[var(--accent)] shadow-[0_1px_4px_rgba(17,70,104,.06)]"
           : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:border-[rgba(22,116,189,.18)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
@@ -161,7 +161,7 @@ export function ToolbarButton({
       {...props}
       type={props.type ?? "button"}
       className={cx(
-        "inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3.5 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-10",
+        "inline-flex min-h-10 items-center justify-center gap-2 rounded-[var(--radius-control)] border px-3 text-[12px] font-medium transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-40 sm:min-h-10",
         active
           ? "border-[rgba(22,116,189,.18)] bg-[var(--accent-soft)] text-[var(--accent)]"
           : "border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
@@ -179,7 +179,7 @@ export function DataViewMeta({
   children: ReactNode;
 }) {
   return (
-    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-2)]/30 px-4 py-3 text-[12px] text-[var(--muted)] sm:px-5">
+    <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] bg-[var(--surface-2)]/30 px-4 py-2.5 text-[11px] text-[var(--muted)] sm:px-5 sm:py-3 sm:text-[12px]">
       {children}
     </div>
   );
