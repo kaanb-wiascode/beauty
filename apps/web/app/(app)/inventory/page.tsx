@@ -255,22 +255,22 @@ export default function InventoryPage() {
   if (loading && !data) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Envanter Hazırlanıyor..."/></div>;
   if (error && !data) return <div className="mx-auto max-w-[760px] space-y-4 py-16"><Alert>{error}</Alert><div className="flex justify-center"><Button onClick={() => void load()}>Tekrar Dene</Button></div></div>;
 
-  return <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
-    <header className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+  return <div className="mx-auto max-w-[1480px] space-y-4 pb-8 sm:space-y-6 sm:pb-10">
+    <header className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
       <div>
-        <p className="mb-2 text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">Envanter Yönetimi</p>
-        <h1 className="text-[34px] font-semibold tracking-[-.04em] text-[var(--ink)]">Stok Ve Envanter</h1>
-        <p className="mt-2 max-w-2xl text-[14px] leading-6 text-[var(--muted)]">Ürünleri, Sarf Malzemelerini, Şube Stoklarını Ve Şirket Varlıklarını Tek Ekrandan Yönetin.</p>
+        <p className="mb-1.5 text-[10px] font-semibold uppercase tracking-[.13em] text-[var(--muted-soft)] sm:mb-2 sm:text-[11px] sm:tracking-[.15em]">Envanter Yönetimi</p>
+        <h1 className="text-[28px] font-semibold tracking-[-.04em] text-[var(--ink)] sm:text-[34px]">Stok Ve Envanter</h1>
+        <p className="mt-1.5 max-w-2xl text-[13px] leading-5 text-[var(--muted)] sm:mt-2 sm:text-[14px] sm:leading-6">Ürünleri, Sarf Malzemelerini, Şube Stoklarını Ve Şirket Varlıklarını Tek Ekrandan Yönetin.</p>
       </div>
-      <div className="flex flex-wrap gap-2">
-        <Button onClick={() => { setProductTab("Genel"); setProductOpen(true); }}><Icon name="box"/>Yeni Ürün</Button>
-        <Button variant="secondary" onClick={() => { setAsset({ ...emptyAsset, branchId: activeBranchId ?? "" }); setAssetTab("Genel"); setAssetOpen(true); }}><Icon name="asset"/>Yeni Envanter</Button>
+      <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap">
+        <Button className="w-full sm:w-auto" onClick={() => { setProductTab("Genel"); setProductOpen(true); }}><Icon name="box"/>Yeni Ürün</Button>
+        <Button className="w-full sm:w-auto" variant="secondary" onClick={() => { setAsset({ ...emptyAsset, branchId: activeBranchId ?? "" }); setAssetTab("Genel"); setAssetOpen(true); }}><Icon name="asset"/>Yeni Envanter</Button>
       </div>
     </header>
 
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
       <Metric icon="box" label="Toplam Ürün" value={data?.metrics.totalProducts ?? 0}/>
       <Metric icon="alert" label="Kritik Stok" value={data?.metrics.criticalProducts ?? 0} tone="orange"/>
       <Metric icon="asset" label="Varlık" value={data?.assetCount ?? assets.length} tone="green"/>
@@ -279,7 +279,7 @@ export default function InventoryPage() {
       <Metric icon="clock" label="Satın Alma" value={data?.purchaseRequests?.filter((item) => ["PENDING", "APPROVED", "ORDERED"].includes(item.status)).length ?? 0} tone="blue"/>
     </div>
 
-    <div className="flex flex-col gap-3 rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_8px_28px_rgba(17,70,104,.035)] lg:flex-row lg:items-center">
+    <div className="flex flex-col gap-2.5 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-2.5 sm:gap-3 sm:rounded-[20px] sm:p-3 shadow-[0_8px_28px_rgba(17,70,104,.035)] lg:flex-row lg:items-center">
       <div className="flex gap-1 overflow-x-auto">
         {(["Tümü", "Ürünler", "Varlıklar", "Kritik Stok", "Kategoriler", "Tedarikçiler"] as InventoryTab[]).map((value) => (
           <FilterChip key={value} active={tab === value} onClick={() => setTab(value)}>{value}</FilterChip>
@@ -291,15 +291,15 @@ export default function InventoryPage() {
     </div>
 
     {tab === "Varlıklar" ? <AssetGrid assets={assets}/> : tab === "Kategoriler" ? <CategoryPanel categories={categories} onAdd={() => setCategoryOpen(true)}/> : tab === "Tedarikçiler" ? <SupplierPanel suppliers={suppliers} onAdd={() => setSupplierOpen(true)}/> : (
-      <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] sm:gap-6">
         <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
-          <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+          <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3.5 sm:px-5 sm:py-4">
             <div><h2 className="text-[15px] font-semibold text-[var(--ink)]">Ürün Kataloğu</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Şube Ve Ana Depo Stoklarıyla Birlikte</p></div>
             <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{visible.length} Kayıt</span>
           </div>
           <div className="divide-y divide-[var(--line)]">{visible.map((product) => <ProductRow key={product.id} product={product}/>)}{!visible.length ? <div className="px-6 py-16 text-center text-[13px] text-[var(--muted)]">Ürün Bulunamadı.</div> : null}</div>
         </section>
-        <aside className="space-y-5">
+        <aside className="space-y-4 sm:space-y-5">
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
             <div className="flex items-center justify-between border-b border-[var(--line)] p-5"><div><h2 className="text-[15px] font-semibold text-[var(--ink)]">Kritik stok</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Otomatik satın alma önerisi</p></div><Icon name="alert"/></div>
             {(data?.critical ?? []).slice(0, 5).map((product) => <div key={product.id} className="border-b border-[var(--line)] px-5 py-4 last:border-0"><div className="flex justify-between gap-3"><span className="truncate text-[12px] font-medium text-[var(--ink)]">{product.name}</span><span className="text-[11px] font-semibold text-[var(--warning)]">{formatInventoryQuantity(product.quantity)} {inventoryUnitLabel(product.unit)}</span></div><div className="mt-2 flex items-center gap-2"><div className="h-1.5 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)]"><div className="h-full rounded-full bg-[var(--warning)]" style={{ width: `${Math.min(100, (Number(product.quantity) / (Number(product.targetQuantity) || Number(product.minimumQuantity) || 1)) * 100)}%` }}/></div><span className="text-[9px] text-[var(--muted-soft)]">Minimum {formatInventoryQuantity(product.minimumQuantity)}</span></div></div>)}
@@ -313,7 +313,7 @@ export default function InventoryPage() {
       </div>
     )}
 
-    <section className="grid gap-3 md:grid-cols-4">
+    <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
       <QuickCard icon="category" title="Kategori yönetimi" text={`${categories.length} kategori aktif`} onClick={() => setTab("Kategoriler")}/>
       <QuickCard icon="supplier" title="Tedarikçi ağı" text={`${suppliers.length} tedarikçi kayıtlı`} onClick={() => setTab("Tedarikçiler")}/>
       <QuickCard icon="truck" title="Satın alma" text={`${data?.purchaseRequests?.length ?? 0} satın alma önerisi`} href="/inventory/purchases"/>
@@ -426,24 +426,24 @@ function reactNodeText(node: ReactNode): string {
 }
 
 function Toggle({ label, value, onChange }: { label: string; value: boolean; onChange: (value: boolean) => void }) {
-  return <button type="button" role="switch" aria-checked={value} onClick={() => onChange(!value)} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3 text-left"><span className="text-[12px] font-medium text-[var(--ink)]">{label}</span><span className={`h-5 w-9 rounded-full p-0.5 transition ${value ? "bg-[var(--accent)]" : "bg-[var(--line)]"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${value ? "translate-x-4" : "translate-x-0"}`}/></span></button>;
+  return <button type="button" role="switch" aria-checked={value} onClick={() => onChange(!value)} className="flex items-center justify-between rounded-[12px] border border-[var(--line)] px-3.5 py-2.5 text-left sm:rounded-[14px] sm:px-4 sm:py-3"><span className="text-[12px] font-medium text-[var(--ink)]">{label}</span><span className={`h-5 w-9 rounded-full p-0.5 transition ${value ? "bg-[var(--accent)]" : "bg-[var(--line)]"}`}><span className={`block h-4 w-4 rounded-full bg-white transition ${value ? "translate-x-4" : "translate-x-0"}`}/></span></button>;
 }
 
 function Hint({ children, tone = "info" }: { children: ReactNode; tone?: "info" | "warning" }) {
-  return <div className={`rounded-[14px] border p-4 text-[12px] leading-5 ${tone === "warning" ? "border-[rgba(190,116,37,.16)] bg-[rgba(190,116,37,.06)] text-[var(--muted)]" : "border-[var(--line)] bg-[var(--surface-2)]/55 text-[var(--muted)]"}`}>{children}</div>;
+  return <div className={`rounded-[12px] border p-3.5 text-[12px] leading-5 sm:rounded-[14px] sm:p-4 ${tone === "warning" ? "border-[rgba(190,116,37,.16)] bg-[rgba(190,116,37,.06)] text-[var(--muted)]" : "border-[var(--line)] bg-[var(--surface-2)]/55 text-[var(--muted)]"}`}>{children}</div>;
 }
 
 function ProductRow({ product }: { product: InventoryProduct }) {
   const critical = Number(product.minimumQuantity) > 0 && Number(product.quantity) <= Number(product.minimumQuantity);
-  return <div className="flex items-center gap-4 px-5 py-4 transition hover:bg-[var(--surface-2)]/35"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--surface-2)] text-[var(--muted)]"><Icon name="box"/></span><div className="min-w-0 flex-1"><div className="truncate text-[13px] font-semibold text-[var(--ink)]">{product.name}</div><div className="mt-1 truncate text-[10px] text-[var(--muted)]">{product.categoryName || "Kategorisiz"}{product.sku ? ` · Stok Kodu ${product.sku}` : ""}{product.barcode ? ` · ${product.barcode}` : ""}</div></div><div className="hidden min-w-[100px] text-right md:block"><div className="text-[12px] font-semibold text-[var(--ink)]">{formatInventoryQuantity(product.quantity)} {inventoryUnitLabel(product.unit)}</div><div className="mt-1 text-[10px] text-[var(--muted-soft)]">Minimum {formatInventoryQuantity(product.minimumQuantity)}</div></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${critical ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--success-soft)] text-[var(--success)]"}`}>{critical ? "Kritik" : "Normal"}</span></div>;
+  return <div className="flex items-center gap-3 px-4 py-3.5 transition hover:bg-[var(--surface-2)]/35 sm:gap-4 sm:px-5 sm:py-4"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--surface-2)] text-[var(--muted)]"><Icon name="box"/></span><div className="min-w-0 flex-1"><div className="truncate text-[13px] font-semibold text-[var(--ink)]">{product.name}</div><div className="mt-1 truncate text-[10px] text-[var(--muted)]">{product.categoryName || "Kategorisiz"}{product.sku ? ` · Stok Kodu ${product.sku}` : ""}{product.barcode ? ` · ${product.barcode}` : ""}</div></div><div className="hidden min-w-[100px] text-right md:block"><div className="text-[12px] font-semibold text-[var(--ink)]">{formatInventoryQuantity(product.quantity)} {inventoryUnitLabel(product.unit)}</div><div className="mt-1 text-[10px] text-[var(--muted-soft)]">Minimum {formatInventoryQuantity(product.minimumQuantity)}</div></div><span className={`rounded-full px-2.5 py-1 text-[9px] font-semibold ${critical ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--success-soft)] text-[var(--success)]"}`}>{critical ? "Kritik" : "Normal"}</span></div>;
 }
 
 function AssetGrid({ assets }: { assets: InventoryAsset[] }) {
-  return <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{assets.map((item) => <article key={item.id} className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_24px_rgba(17,70,104,.035)]"><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--success-soft)] text-[var(--success)]"><Icon name="asset"/></span><span className="rounded-full bg-[var(--success-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--success)]">{inventoryAssetStatusLabel(item.status)}</span></div><div className="mt-4 flex items-start justify-between gap-3"><h3 className="text-[15px] font-semibold text-[var(--ink)]">{item.name}</h3><CardInfo help={getCardHelp("Varlık Kartı", "varlığın kimlik, konum, satın alma, garanti ve bakım bilgileri")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">{item.assetCode} · {item.categoryName || inventoryAssetTypeLabel(item.assetType)}</p><div className="mt-5 grid grid-cols-2 gap-3 text-[11px]"><Info label="Seri No" value={item.serialNumber || "—"}/><Info label="Konum" value={item.branchName || "Merkez"}/><Info label="Satın Alma" value={item.purchasePrice ? formatInventoryMoney(item.purchasePrice, item.currency) : "—"}/><Info label="Garanti" value={item.warrantyEnd ? dateLabel(item.warrantyEnd) : "—"}/></div><div className="mt-4 flex items-center gap-2 border-t border-[var(--line)] pt-4 text-[10px] text-[var(--muted)]"><Icon name="clock"/> Sonraki Bakım: {item.nextMaintenanceAt ? dateLabel(item.nextMaintenanceAt) : "Planlanmadı"}</div></article>)}{!assets.length ? <div className="col-span-full rounded-[22px] border border-dashed border-[var(--line)] p-12 text-center text-[12px] text-[var(--muted)]">Henüz Envanter Varlığı Yok. “Yeni Envanter” İle İlk Kaydı Oluşturun.</div> : null}</section>;
+  return <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">{assets.map((item) => <article key={item.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_7px_22px_rgba(17,70,104,.035)] sm:rounded-[22px] sm:p-5"><div className="flex items-start justify-between gap-3"><span className="flex h-10 w-10 items-center justify-center rounded-[12px] bg-[var(--success-soft)] text-[var(--success)]"><Icon name="asset"/></span><span className="rounded-full bg-[var(--success-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--success)]">{inventoryAssetStatusLabel(item.status)}</span></div><div className="mt-4 flex items-start justify-between gap-3"><h3 className="text-[15px] font-semibold text-[var(--ink)]">{item.name}</h3><CardInfo help={getCardHelp("Varlık Kartı", "varlığın kimlik, konum, satın alma, garanti ve bakım bilgileri")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">{item.assetCode} · {item.categoryName || inventoryAssetTypeLabel(item.assetType)}</p><div className="mt-5 grid grid-cols-2 gap-3 text-[11px]"><Info label="Seri No" value={item.serialNumber || "—"}/><Info label="Konum" value={item.branchName || "Merkez"}/><Info label="Satın Alma" value={item.purchasePrice ? formatInventoryMoney(item.purchasePrice, item.currency) : "—"}/><Info label="Garanti" value={item.warrantyEnd ? dateLabel(item.warrantyEnd) : "—"}/></div><div className="mt-4 flex items-center gap-2 border-t border-[var(--line)] pt-4 text-[10px] text-[var(--muted)]"><Icon name="clock"/> Sonraki Bakım: {item.nextMaintenanceAt ? dateLabel(item.nextMaintenanceAt) : "Planlanmadı"}</div></article>)}{!assets.length ? <div className="col-span-full rounded-[22px] border border-dashed border-[var(--line)] p-12 text-center text-[12px] text-[var(--muted)]">Henüz Envanter Varlığı Yok. “Yeni Envanter” İle İlk Kaydı Oluşturun.</div> : null}</section>;
 }
 
 function CategoryPanel({ categories, onAdd }: { categories: InventoryCategory[]; onAdd: () => void }) {
-  return <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center justify-between"><div><h2 className="text-[15px] font-semibold text-[var(--ink)]">Kategori Ağacı</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Ürün Ve Varlıkları Standartlaştırın.</p></div><Button onClick={onAdd}><Icon name="plus"/>Yeni Kategori</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category) => <div key={category.id} className="rounded-[16px] border border-[var(--line)] p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name="category"/></span><div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[var(--ink)]">{category.name}</p><p className="mt-0.5 text-[9px] text-[var(--muted-soft)]">{category.code || "Kodsuz"}</p></div></div>{category.description ? <p className="mt-3 text-[10px] leading-4 text-[var(--muted)]">{category.description}</p> : null}</div>)}</div></section>;
+  return <section className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:rounded-[22px] sm:p-5"><div className="flex items-center justify-between"><div><h2 className="text-[15px] font-semibold text-[var(--ink)]">Kategori Ağacı</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Ürün Ve Varlıkları Standartlaştırın.</p></div><Button onClick={onAdd}><Icon name="plus"/>Yeni Kategori</Button></div><div className="mt-5 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">{categories.map((category) => <div key={category.id} className="rounded-[16px] border border-[var(--line)] p-4"><div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name="category"/></span><div className="min-w-0"><p className="truncate text-[12px] font-semibold text-[var(--ink)]">{category.name}</p><p className="mt-0.5 text-[9px] text-[var(--muted-soft)]">{category.code || "Kodsuz"}</p></div></div>{category.description ? <p className="mt-3 text-[10px] leading-4 text-[var(--muted)]">{category.description}</p> : null}</div>)}</div></section>;
 }
 
 function SupplierPanel({ suppliers, onAdd }: { suppliers: InventorySupplier[]; onAdd: () => void }) {
@@ -451,13 +451,13 @@ function SupplierPanel({ suppliers, onAdd }: { suppliers: InventorySupplier[]; o
 }
 
 function QuickCard({ icon, title, text, onClick, href }: { icon: IconName; title: string; text: string; onClick?: () => void; href?: string }) {
-  const actionClassName = "absolute inset-0 rounded-[20px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]";
-  return <div className="group relative rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(17,70,104,.06)]">{href ? <Link href={href} aria-label={title} className={actionClassName} /> : <button type="button" aria-label={title} onClick={onClick} className={actionClassName} />}<div className="pointer-events-none relative"><span className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name={icon}/></span><div className="mt-3 flex items-start justify-between gap-3"><p className="text-[12px] font-semibold text-[var(--ink)]">{title}</p><span className="pointer-events-auto"><CardInfo help={getCardHelp(title, text)} /></span></div><p className="mt-1 text-[10px] text-[var(--muted)]">{text}</p></div></div>;
+  const actionClassName = "absolute inset-0 rounded-[16px] sm:rounded-[20px] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]";
+  return <div className="group relative rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3.5 sm:rounded-[20px] sm:p-4 text-left transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(17,70,104,.06)]">{href ? <Link href={href} aria-label={title} className={actionClassName} /> : <button type="button" aria-label={title} onClick={onClick} className={actionClassName} />}<div className="pointer-events-none relative"><span className="flex h-9 w-9 items-center justify-center rounded-[11px] bg-[var(--accent-soft)] text-[var(--accent)]"><Icon name={icon}/></span><div className="mt-3 flex items-start justify-between gap-3"><p className="text-[12px] font-semibold text-[var(--ink)]">{title}</p><span className="pointer-events-auto"><CardInfo help={getCardHelp(title, text)} /></span></div><p className="mt-1 text-[10px] text-[var(--muted)]">{text}</p></div></div>;
 }
 
 function Metric({ icon, label, value, tone }: { icon: IconName; label: string; value: ReactNode; tone?: MetricTone }) {
   const className = tone === "orange" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : tone === "green" ? "bg-[var(--success-soft)] text-[var(--success)]" : tone === "blue" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : tone === "amber" ? "bg-[var(--warning-soft)] text-[var(--warning)]" : "bg-[var(--surface-2)] text-[var(--muted)]";
-  return <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className={`mb-3 flex h-8 w-8 items-center justify-center rounded-[10px] ${className}`}><Icon name={icon}/></div><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-1 text-[20px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p></div>;
+  return <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3.5 sm:rounded-[20px] sm:p-4"><div className={`mb-2 flex h-8 w-8 items-center justify-center rounded-[10px] sm:mb-3 ${className}`}><Icon name={icon}/></div><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-1 text-[20px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p></div>;
 }
 
 function Info({ label, value }: { label: string; value: string }) {
