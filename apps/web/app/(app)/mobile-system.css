@@ -82,9 +82,16 @@
     min-height: var(--mobile-control-height) !important;
   }
 
-  .app-content button:not([tabindex="-1"]),
-  .app-content [role="button"] {
+  .app-content button:not([tabindex="-1"]):not([data-card-info-trigger="true"]),
+  .app-content [role="button"]:not([data-card-info-trigger="true"]) {
     min-height: 40px;
+  }
+
+  .app-content [data-card-info-trigger="true"] {
+    min-height: 32px !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 10px !important;
   }
 
   .dashboard-hero {
@@ -226,6 +233,36 @@
   .app-content .grid.grid-cols-2 {
     column-gap: 10px;
     row-gap: 10px;
+  }
+
+  .app-content [class*="xl:grid-cols-4"] {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px !important;
+  }
+
+  .app-content [class*="space-y-6"] {
+    row-gap: 16px;
+  }
+
+  .app-content [class*="space-y-5"] {
+    row-gap: 14px;
+  }
+
+  .app-content [class*="max-w-[1500px]"],
+  .app-content [class*="max-w-[1540px]"],
+  .app-content [class*="max-w-[1440px]"],
+  .app-content [class*="max-w-[1420px]"],
+  .app-content [class*="max-w-[1380px]"],
+  .app-content [class*="max-w-[1320px]"],
+  .app-content [class*="max-w-[1280px]"],
+  .app-content [class*="max-w-[1240px]"] {
+    max-width: none !important;
+  }
+
+  .app-content [class*="shadow-[0_12px_34px"],
+  .app-content [class*="shadow-[0_10px_30px"],
+  .app-content [class*="shadow-[0_8px_24px"] {
+    box-shadow: 0 7px 22px rgba(17,70,104,.05) !important;
   }
 
   /* Modal sheets: use the viewport efficiently and keep actions visible. */
