@@ -235,9 +235,51 @@
     row-gap: 10px;
   }
 
-  .app-content [class*="xl:grid-cols-4"] {
+  .app-content [class*="xl:grid-cols-4"],
+  .app-content [class*="xl:grid-cols-5"],
+  .app-content [class*="xl:grid-cols-6"] {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 10px !important;
+  }
+
+  .app-content [class*="rounded-[20px]"][class*="p-5"],
+  .app-content [class*="rounded-[22px]"][class*="p-5"],
+  .app-content [class*="rounded-[24px]"][class*="p-5"],
+  .app-content [class*="rounded-[24px]"][class*="p-6"],
+  .app-content [class*="rounded-[26px]"][class*="p-5"],
+  .app-content [class*="rounded-[26px]"][class*="p-6"] {
+    padding: 16px !important;
+  }
+
+  .app-content [class*="border-b"][class*="px-5"][class*="py-4"] {
+    padding: 14px 16px !important;
+  }
+
+  .app-content > [class*="space-y-6"] > :not(:first-child) {
+    margin-top: 16px !important;
+  }
+
+  .app-content > [class*="space-y-5"] > :not(:first-child) {
+    margin-top: 14px !important;
+  }
+
+  .app-content > [class*="space-y-4"] > :not(:first-child) {
+    margin-top: 12px !important;
+  }
+
+  .app-content > * > header[class*="rounded-[24px]"] {
+    border-radius: 16px !important;
+    padding: 16px !important;
+    box-shadow: 0 7px 22px rgba(17,70,104,.05) !important;
+  }
+
+  .app-content > * > header[class*="rounded-[24px]"] h1 {
+    font-size: 28px !important;
+  }
+
+  .app-content [class*="rounded-[16px]"][class*="p-8"],
+  .app-content [class*="rounded-[22px]"][class*="p-8"] {
+    padding: 20px !important;
   }
 
   .app-content [class*="space-y-6"] {
