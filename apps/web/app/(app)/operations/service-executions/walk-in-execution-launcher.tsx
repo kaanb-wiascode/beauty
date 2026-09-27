@@ -3,7 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Button, Spinner, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
+import { userLabel } from "@/lib/user-language";
 import type { Paginated, Staff } from "@/lib/types";
 
 type CommercialItem = {
@@ -14,6 +17,9 @@ type CommercialItem = {
   serviceName: string;
   durationMinutes: number;
 };
+
+type SaleOption = { id: string; customerId: string; status: string; total: number | string; createdAt: string; items?: Array<{ type: string; description: string }> };
+type VisitSummary = { id: string; customerId: string };
 
 type CommercialContext = {
   id: string;
@@ -52,6 +58,7 @@ export function WalkInExecutionLauncher({
 }) {
   const [context, setContext] = useState<CommercialContext | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
+  const [saleOptions, setSaleOptions] = useState<SaleOption[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [requirement, setRequirement] = useState<Requirement | null>(null);
@@ -66,16 +73,19 @@ export function WalkInExecutionLauncher({
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const [commercial, staffResult, roomResult, assetResult] = await Promise.all([
+      const [commercial, staffResult, roomResult, assetResult, visit, sales] = await Promise.all([
         api<CommercialContext | null>(`/operations/walk-in-commercial/${visitId}`),
         api<Paginated<Staff>>(`/staff?page=1&limit=100&status=ACTIVE`),
         api<Room[]>(`/operations/resources/rooms`),
         api<Asset[]>(`/operations/resources/assets`),
+        api<VisitSummary>(`/visits/${visitId}`),
+        api<SaleOption[]>("/sales"),
       ]);
       setContext(commercial);
       setStaff(staffResult.data);
       setRooms(roomResult);
       setAssets(assetResult);
+      setSaleOptions(sales.filter((sale) => sale.customerId === visit.customerId && sale.status === "CONFIRMED"));
       setSaleItemId((current) =>
         commercial?.serviceItems.some((item) => item.saleItemId === current)
           ? current
@@ -174,17 +184,23 @@ export function WalkInExecutionLauncher({
   if (!context) {
     return (
       <div className="rounded-[14px] border border-dashed border-[var(--line)] p-3">
-        <p className="text-xs font-semibold text-[var(--ink)]">Randevusuz Müşteri Satış Bağlantısı</p>
+        <div className="flex items-start gap-2"><p className="text-xs font-semibold text-[var(--ink)]">Randevusuz Müşteri Satış Bağlantısı</p><CardInfo help={getCardHelp("Randevusuz Müşteri Satış Bağlantısı")} /></div>
         <p className="mt-1 text-[11px] text-[var(--muted)]">
-          Appointment oluşturmadan hizmet başlatmak için aynı müşteriye ait CONFIRMED hizmet satışını Visit&apos;e bağlayın.
+          Randevu oluşturmadan hizmet başlatmak için aynı müşteriye ait onaylanmış hizmet satışını seçin.
         </p>
         <div className="mt-3 flex flex-col gap-2 sm:flex-row">
-          <input
+          <Select
             className="min-h-11 flex-1 rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm"
-            placeholder="Sale ID"
             value={saleId}
             onChange={(event) => setSaleId(event.target.value)}
-          />
+          >
+            <option value="">Onaylı satış seçin</option>
+            {saleOptions.map((sale) => (
+              <option key={sale.id} value={sale.id}>
+                {new Date(sale.createdAt).toLocaleDateString("tr-TR")} · {Number(sale.total).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })} · {sale.items?.filter((item) => item.type === "SERVICE").map((item) => item.description).join(", ") || "Hizmet satışı"}
+              </option>
+            ))}
+          </Select>
           <Button disabled={!canUpdate || busy || !saleId.trim()} onClick={() => void linkSale()}>
             {busy ? "Bağlanıyor..." : "Satışı Bağla"}
           </Button>
@@ -197,9 +213,9 @@ export function WalkInExecutionLauncher({
     <div className="rounded-[14px] border border-dashed border-[var(--line)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Randevusuz Hizmet Başlat</p>
+          <div className="flex items-start gap-2"><p className="text-xs font-semibold text-[var(--ink)]">Randevusuz Hizmet Başlat</p><CardInfo help={getCardHelp("Randevusuz Hizmet Başlat")} /></div>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Satış {context.saleId.slice(0, 8)} · {context.saleStatus} · Tahsilat {context.paidTotal}/{context.saleTotal}
+            Bağlı satış · {userLabel(context.saleStatus)} · Tahsilat {Number(context.paidTotal).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })} / {Number(context.saleTotal).toLocaleString("tr-TR", { style: "currency", currency: "TRY" })}
           </p>
         </div>
       </div>
