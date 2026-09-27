@@ -78,6 +78,120 @@ type ConnectionHealth = {
   }>;
 };
 
+const configurationHelp: Record<string, { label: string; help: { title: string; description: string; interpretation?: string; source?: string } }> = {
+  MARKETING_INTEGRATION_MASTER_KEY: {
+    label: "VALOO Entegrasyon Şifreleme Anahtarı",
+    help: {
+      title: "VALOO Entegrasyon Şifreleme Anahtarı",
+      description: "OAuth erişim ve yenileme anahtarlarını veritabanında şifreli saklamak için VALOO sunucusunda kullanılan merkezi güvenlik anahtarıdır. Kullanıcıdan alınmaz ve platform hesabıyla ilişkili değildir.",
+      interpretation: "Render ortam değişkenlerinde yalnızca platform yöneticisi tarafından bir kez tanımlanır. Son kullanıcı bu değeri hiçbir zaman görmez veya girmez.",
+      source: "VALOO sunucu güvenlik yapılandırması",
+    },
+  },
+  META_OAUTH_CLIENT_ID: {
+    label: "Meta Uygulama Kimliği (App ID)",
+    help: {
+      title: "Meta Uygulama Kimliği (App ID)",
+      description: "VALOO adına oluşturulan merkezi Meta Developer uygulamasının kimliğidir. Meta'nın kullanıcıyı hangi uygulamanın izin istediğini tanıması için gerekir.",
+      interpretation: "Meta for Developers içinde VALOO uygulaması oluşturulduktan sonra App Dashboard > Settings > Basic bölümündeki App ID alınır ve Render'da META_OAUTH_CLIENT_ID olarak yalnızca bir kez tanımlanır.",
+      source: "Meta for Developers",
+    },
+  },
+  META_OAUTH_CLIENT_SECRET: {
+    label: "Meta Uygulama Gizli Anahtarı",
+    help: {
+      title: "Meta Uygulama Gizli Anahtarı",
+      description: "VALOO'nun Meta'ya sunucu tarafında kendisini doğrulamasını sağlayan gizli uygulama anahtarıdır.",
+      interpretation: "Meta App Dashboard > Settings > Basic bölümündeki App Secret değeri alınır ve yalnızca Render secret/env alanına kaydedilir. Arayüzde veya kaynak kodda gösterilmemelidir.",
+      source: "Meta for Developers",
+    },
+  },
+  META_GRAPH_API_VERSION: {
+    label: "Meta Graph API Sürümü",
+    help: {
+      title: "Meta Graph API Sürümü",
+      description: "VALOO'nun Meta Graph API çağrılarında kullanacağı desteklenen API sürümünü belirler.",
+      interpretation: "Meta uygulamasının desteklediği güncel sürüm seçilir ve Render'da META_GRAPH_API_VERSION olarak tanımlanır. Sürüm yükseltmeleri platform yöneticisi tarafından merkezi olarak yapılır.",
+      source: "Meta Graph API dokümantasyonu",
+    },
+  },
+  GOOGLE_OAUTH_CLIENT_ID: {
+    label: "Google OAuth İstemci Kimliği",
+    help: {
+      title: "Google OAuth İstemci Kimliği",
+      description: "VALOO'nun Google izin ekranını açabilmesi için Google Cloud projesinde oluşturulan Web application OAuth istemcisinin kimliğidir.",
+      interpretation: "Google Cloud Console > APIs & Services > Credentials > Create Credentials > OAuth client ID yolundan Web application oluşturulur. Yetkili redirect URI olarak VALOO OAuth callback adresi eklenir ve Client ID Render'a kaydedilir.",
+      source: "Google Cloud / Google Ads API",
+    },
+  },
+  GOOGLE_OAUTH_CLIENT_SECRET: {
+    label: "Google OAuth İstemci Gizli Anahtarı",
+    help: {
+      title: "Google OAuth İstemci Gizli Anahtarı",
+      description: "Google'dan dönen authorization code değerini erişim/yenileme tokenına çevirmek için VALOO backend'inin kullandığı gizli anahtardır.",
+      interpretation: "Google Cloud Console'daki aynı OAuth istemcisinden alınır ve yalnızca Render'da GOOGLE_OAUTH_CLIENT_SECRET olarak saklanır. Kullanıcıya gösterilmez.",
+      source: "Google Cloud OAuth 2.0",
+    },
+  },
+  GOOGLE_OAUTH_REDIRECT_URI: {
+    label: "Google Geri Dönüş Adresi",
+    help: {
+      title: "Google OAuth Geri Dönüş Adresi",
+      description: "Google izin ekranı tamamlandığında kullanıcının VALOO'ya geri gönderileceği adrestir.",
+      interpretation: "Google Cloud OAuth istemcisindeki Authorized redirect URIs listesine https://valoo-staging-web.onrender.com/communications/integrations/oauth/callback adresi birebir eklenmelidir. Protokol, yol ve sondaki karakterler tam eşleşmelidir.",
+      source: "Google OAuth 2.0 Web Server Applications",
+    },
+  },
+  TIKTOK_BUSINESS_APP_ID: {
+    label: "TikTok for Business App ID",
+    help: {
+      title: "TikTok for Business App ID",
+      description: "VALOO adına TikTok API for Business portalında oluşturulan developer uygulamasının kimliğidir.",
+      interpretation: "TikTok API for Business > My Apps bölümünde VALOO developer app oluşturulur. Basic Information alanındaki App ID alınır ve Render'da TIKTOK_BUSINESS_APP_ID olarak tanımlanır.",
+      source: "TikTok API for Business",
+    },
+  },
+  TIKTOK_BUSINESS_SECRET: {
+    label: "TikTok for Business App Secret",
+    help: {
+      title: "TikTok for Business App Secret",
+      description: "TikTok authorization code değerini access token'a çevirmek için VALOO backend'inin kullandığı gizli uygulama anahtarıdır.",
+      interpretation: "TikTok API for Business > My Apps > Basic Information alanından alınır. Yalnızca Render secret/env alanında saklanır; son kullanıcıya gösterilmez.",
+      source: "TikTok API for Business",
+    },
+  },
+  TIKTOK_BUSINESS_AUTHORIZATION_URL: {
+    label: "TikTok Reklamveren Yetkilendirme Adresi",
+    help: {
+      title: "TikTok Reklamveren Yetkilendirme Adresi",
+      description: "Kullanıcı 'Bağla' dediğinde VALOO'nun yönlendireceği TikTok resmi izin ekranı adresidir.",
+      interpretation: "TikTok API for Business > My Apps içinde redirect URL olarak VALOO callback adresi tanımlanır ve portalın ürettiği Advertiser authorization URL Render'da TIKTOK_BUSINESS_AUTHORIZATION_URL olarak kaydedilir.",
+      source: "TikTok API for Business Authorization",
+    },
+  },
+};
+
+const providerSetupHelp: Record<string, { title: string; description: string; interpretation: string; source: string }> = {
+  META: {
+    title: "Meta Entegrasyonu Nasıl Kurulur?",
+    description: "VALOO için merkezi bir Meta Developer uygulaması bir kez oluşturulur. Uygulamada Facebook Login/Business yetkileri, gerekli reklam ve Lead Ads izinleri ile OAuth callback adresi yapılandırılır.",
+    interpretation: "Platform kurulumu tamamlandıktan sonra müşteriler App ID veya Secret girmez. Yalnızca 'Bağla' düğmesine basar, Meta izin ekranında onay verir ve VALOO'ya geri döner.",
+    source: "Meta for Developers",
+  },
+  GOOGLE_ADS: {
+    title: "Google Ads Entegrasyonu Nasıl Kurulur?",
+    description: "VALOO için bir Google Cloud projesi oluşturulur, Google Ads API etkinleştirilir, OAuth consent screen hazırlanır ve Web application tipinde OAuth istemcisi oluşturulur.",
+    interpretation: "Callback URI Google Cloud'da yetkili redirect URI olarak tanımlandıktan sonra Client ID ve Client Secret yalnızca sunucuya kaydedilir. Google Ads developer token artık yeni erişim modelinde zorunlu kurulum kapısı değildir.",
+    source: "Google Ads API / Google Cloud",
+  },
+  TIKTOK: {
+    title: "TikTok Ads Entegrasyonu Nasıl Kurulur?",
+    description: "TikTok for Business hesabıyla developer kaydı yapılır, VALOO için developer app oluşturulur, gerekli Marketing API izinleri ve redirect URL tanımlanır.",
+    interpretation: "TikTok portalının oluşturduğu Advertiser authorization URL VALOO'ya kaydedilir. Son kullanıcı 'Bağla' ile TikTok izin ekranına gider; onay sonrası code otomatik olarak VALOO callback'ine döner.",
+    source: "TikTok API for Business",
+  },
+};
+
 const healthLabel: Record<string, string> = {
   HEALTHY: "Bağlı ve Çalışıyor",
   ATTENTION: "Kontrol Gerekiyor",
@@ -309,9 +423,23 @@ export default function AdvertisingConnectionsPage() {
                 {provider.configuredCount}/{provider.requiredCount} gerekli ayar tanımlı
               </p>
               {!provider.ready ? (
-                <p className="mt-2 break-words text-[9px] leading-4 text-[var(--muted)]">
-                  Eksik: {provider.missing.join(", ")}
-                </p>
+                <div className="mt-3 space-y-2">
+                  {provider.missing.map((key) => {
+                    const item = configurationHelp[key];
+                    return (
+                      <div key={key} className="flex items-center justify-between gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-2">
+                        <span className="text-[9px] font-medium text-[var(--ink)]">
+                          {item?.label ?? key}
+                        </span>
+                        {item ? <CardInfo help={item.help} /> : null}
+                      </div>
+                    );
+                  })}
+                  <div className="flex items-center gap-2 pt-1">
+                    <span className="text-[9px] font-semibold text-amber-700">Kurulum rehberi</span>
+                    <CardInfo help={providerSetupHelp[provider.provider] ?? getCardHelp(provider.label, "Platform kurulumu hakkında bilgi.")} />
+                  </div>
+                </div>
               ) : null}
             </div>
           ))}
@@ -337,9 +465,22 @@ export default function AdvertisingConnectionsPage() {
       <Metric title="Son Veri Eşitleme" value={health?.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString("tr-TR") : "Henüz yok"} detail="Bağlı platformlardan alınan en son veri zamanı" />
     </section>
 
-    <Alert>
-      Bir hesabın burada kayıtlı olması, platformla canlı veri bağlantısının kurulduğu anlamına gelmez. Canlı bağlantılar yalnızca yetkilendirme bilgileri güvenli biçimde yapılandırıldıktan ve bağlantı sağlığı doğrulandıktan sonra “Bağlı ve Çalışıyor” olarak gösterilir.
-    </Alert>
+    <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+      <div className="flex items-center gap-2">
+        <h2 className="text-[13px] font-semibold text-[var(--ink)]">Entegrasyon Nasıl Çalışır?</h2>
+        <CardInfo help={getCardHelp("Entegrasyon Nasıl Çalışır?", "Teknik uygulama kimlikleri VALOO platform yöneticisi tarafından yalnızca bir kez kurulur. Son kullanıcı bu anahtarları görmez; yalnızca platform hesabına giriş yapıp izin verir.")} />
+      </div>
+      <div className="mt-3 grid gap-3 md:grid-cols-2">
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
+          <p className="text-[10px] font-semibold text-[var(--ink)]">1. VALOO Platform Kurulumu · Tek Sefer</p>
+          <p className="mt-1 text-[9px] leading-4 text-[var(--muted)]">Meta, Google ve TikTok geliştirici uygulamaları oluşturulur; App ID/Secret ve callback adresleri güvenli sunucu ortamına tanımlanır.</p>
+        </div>
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
+          <p className="text-[10px] font-semibold text-[var(--ink)]">2. İşletme Hesabı Bağlama · Otomatik</p>
+          <p className="mt-1 text-[9px] leading-4 text-[var(--muted)]">Kullanıcı yalnızca “Bağla” der → resmi platform izin ekranında onay verir → VALOO’ya döner → reklam hesapları otomatik keşfedilir.</p>
+        </div>
+      </div>
+    </section>
 
     <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
       {canManage ? (
