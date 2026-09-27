@@ -12,6 +12,18 @@ export const crmInteractionTypeSchema = z.enum([
 
 export const crmInteractionDirectionSchema = z.enum(['INBOUND', 'OUTBOUND']);
 export const crmInteractionStatusSchema = z.enum(['PLANNED', 'COMPLETED', 'CANCELLED']);
+export const crmInteractionOutcomeSchema = z.enum([
+  'REACHED',
+  'NOT_REACHED',
+  'INTERESTED',
+  'UNDECIDED',
+  'AWAITING_QUOTE',
+  'APPOINTMENT_CREATED',
+  'CALLBACK',
+  'SALE',
+  'NOT_INTERESTED',
+  'OTHER',
+]);
 
 export const createCrmInteractionSchema = z.object({
   customerId: z.string().uuid().optional(),
@@ -21,6 +33,7 @@ export const createCrmInteractionSchema = z.object({
   type: crmInteractionTypeSchema,
   direction: crmInteractionDirectionSchema,
   status: crmInteractionStatusSchema.default('COMPLETED'),
+  outcomeCode: crmInteractionOutcomeSchema.optional(),
   result: z.string().trim().min(1).max(500).optional(),
   notes: z.string().trim().max(4000).optional(),
   startedAt: z.coerce.date().optional(),
@@ -44,6 +57,7 @@ export const listCrmInteractionsSchema = z.object({
   type: crmInteractionTypeSchema.optional(),
   direction: crmInteractionDirectionSchema.optional(),
   status: crmInteractionStatusSchema.optional(),
+  outcomeCode: crmInteractionOutcomeSchema.optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
   limit: z.coerce.number().int().min(1).max(200).default(100),
