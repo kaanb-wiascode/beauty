@@ -8,6 +8,10 @@ describe('ServiceExecutionsService', () => {
   const appointmentFindFirst = jest.fn();
   const appointmentUpdate = jest.fn();
   const appointmentFindUnique = jest.fn();
+  const sessionUpdateMany = jest.fn();
+  const sessionFindUnique = jest.fn();
+  const sessionCount = jest.fn();
+  const customerPackageUpdateMany = jest.fn();
   const transaction = jest.fn(async (callback: (tx: unknown) => Promise<unknown>) =>
     callback({
       $queryRawUnsafe: queryRawUnsafe,
@@ -16,6 +20,14 @@ describe('ServiceExecutionsService', () => {
         findFirst: appointmentFindFirst,
         update: appointmentUpdate,
         findUnique: appointmentFindUnique,
+      },
+      session: {
+        updateMany: sessionUpdateMany,
+        findUnique: sessionFindUnique,
+        count: sessionCount,
+      },
+      customerPackage: {
+        updateMany: customerPackageUpdateMany,
       },
     }),
   );
@@ -36,6 +48,10 @@ describe('ServiceExecutionsService', () => {
     appointmentFindFirst.mockReset();
     appointmentUpdate.mockReset();
     appointmentFindUnique.mockReset();
+    sessionUpdateMany.mockReset();
+    sessionFindUnique.mockReset();
+    sessionCount.mockReset();
+    customerPackageUpdateMany.mockReset();
     transaction.mockClear();
   });
 
@@ -146,7 +162,7 @@ describe('ServiceExecutionsService', () => {
       service.start('visit-1', {
         appointmentId: '00000000-0000-4000-8000-000000000001',
       }),
-    ).rejects.toThrow('Service requires an active LASER equipment allocation.');
+    ).rejects.toThrow('Bu hizmet için gerekli türde aktif ve kullanılabilir bir cihaz ayrılması gerekir.');
   });
 
   it('rejects stale completion versions', async () => {
@@ -206,7 +222,7 @@ describe('ServiceExecutionsService', () => {
     expect(appointmentUpdate).not.toHaveBeenCalled();
   });
 
-  it('completes the appointment handoff without consuming its reserved package session', async () => {
+  it('completes the appointment handoff and consumes its reserved package session', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
@@ -236,10 +252,14 @@ describe('ServiceExecutionsService', () => {
       id: 'appointment-1',
       status: 'COMPLETED',
     });
+    sessionUpdateMany.mockResolvedValue({ count: 1 });
+    sessionFindUnique.mockResolvedValue({ customerPackageId: 'package-1' });
+    sessionCount.mockResolvedValue(0);
+    customerPackageUpdateMany.mockResolvedValue({ count: 1 });
     appointmentFindUnique.mockResolvedValue({
       id: 'appointment-1',
       status: 'COMPLETED',
-      session: { id: 'session-1', status: 'RESERVED' },
+      session: { id: 'session-1', status: 'CONSUMED' },
     });
 
     const service = new ServiceExecutionsService(prisma, tenantContext);
@@ -249,7 +269,21 @@ describe('ServiceExecutionsService', () => {
       where: { id: 'appointment-1' },
       data: { status: 'COMPLETED' },
     });
-    expect(result.packageSessionRequiresExplicitConsumption).toBe(true);
-    expect(result.appointment?.session?.status).toBe('RESERVED');
+    expect(sessionUpdateMany).toHaveBeenCalledWith({
+      where: {
+        id: 'session-1',
+        tenantId: 'tenant-1',
+        branchId: 'branch-1',
+        appointmentId: 'appointment-1',
+        status: 'RESERVED',
+      },
+      data: {
+        status: 'CONSUMED',
+        consumedAt: expect.any(Date),
+      },
+    });
+    expect(result.packageSessionRequiresExplicitConsumption).toBe(false);
+    expect(result.consumedSessionId).toBe('session-1');
+    expect(result.appointment?.session?.status).toBe('CONSUMED');
   });
 });
