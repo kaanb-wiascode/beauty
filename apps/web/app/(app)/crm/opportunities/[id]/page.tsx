@@ -32,6 +32,8 @@ type CrmQuote = {
   discountTotal: string | number;
   total: string | number;
   validUntil: string | null;
+  saleId?: string | null;
+  convertedAt?: string | null;
   version: number;
   createdAt: string;
 };
@@ -93,7 +95,7 @@ function localInput(value: string | Date) {
 }
 function nextHour() { const date = new Date(); date.setMinutes(0, 0, 0); date.setHours(date.getHours() + 1); return localInput(date); }
 function eventLabel(type: string) {
-  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı", SALE_CONFIRMED: "Satış Onaylandı", SALE_CANCELLED: "Satış İptal Edildi", SALE_PAYMENT_RECEIVED: "Ödeme Alındı", SALE_PAYMENT_REFUNDED: "Ödeme İade Edildi", QUOTE_CREATED: "Teklif Oluşturuldu", QUOTE_STATUS_CHANGED: "Teklif Durumu Güncellendi" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
+  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı", SALE_CONFIRMED: "Satış Onaylandı", SALE_CANCELLED: "Satış İptal Edildi", SALE_PAYMENT_RECEIVED: "Ödeme Alındı", SALE_PAYMENT_REFUNDED: "Ödeme İade Edildi", QUOTE_CREATED: "Teklif Oluşturuldu", QUOTE_STATUS_CHANGED: "Teklif Durumu Güncellendi", QUOTE_CONVERTED_TO_SALE: "Teklif Satışa Dönüştürüldü" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
 }
 function eventSummary(metadata: Record<string, unknown> | null) {
   return metadata ? Object.entries(metadata).filter(([, v]) => v !== null && v !== undefined && v !== "").slice(0, 4).map(([k, v]) => `${k}: ${String(v)}`).join(" · ") : null;
@@ -374,7 +376,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
             {quote.status === "SENT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "VIEWED")}>Görüntülendi</Button> : null}
             {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "ACCEPTED")}>Kabul Edildi</Button> : null}
             {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "REJECTED")}>Reddedildi</Button> : null}
-            {quote.status === "ACCEPTED" && !opportunity.saleId ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void convertQuoteToSale(quote)}>Satışa Dönüştür</Button> : null}
+            {quote.status === "ACCEPTED" && !quote.saleId && !opportunity.saleId ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void convertQuoteToSale(quote)}>Satışa Dönüştür</Button> : null}
+            {quote.saleId ? <Link href="/sales"><Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]">Satışı Aç</Button></Link> : null}
             {!["ACCEPTED","REJECTED","CANCELLED","EXPIRED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "CANCELLED")}>İptal Et</Button> : null}
           </div> : null}
         </div>
