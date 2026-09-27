@@ -9,6 +9,7 @@ describe('CrmCustomer360Service', () => {
         userId: 'user-1',
         ownerUserIds: [],
         restrictOwners: false,
+        branchId: 'branch-a',
       }),
     } as never;
   }
