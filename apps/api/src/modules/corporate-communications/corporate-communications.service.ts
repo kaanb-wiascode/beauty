@@ -453,9 +453,11 @@ export class CorporateCommunicationsService {
           ? 'ATTENTION'
           : row.status === 'CONNECTED' && credentialsConfigured
             ? 'HEALTHY'
-            : row.status === 'CONNECTED'
-              ? 'AUTH_REQUIRED'
-              : 'DISCONNECTED';
+            : row.status === 'AUTHORIZED' && credentialsConfigured
+              ? 'VERIFY_REQUIRED'
+              : row.status === 'CONNECTED'
+                ? 'AUTH_REQUIRED'
+                : 'DISCONNECTED';
       return {
         ...row,
         credentialsConfigured,
@@ -467,6 +469,7 @@ export class CorporateCommunicationsService {
       total: connections.length,
       connected: connections.filter((item) => item.health === 'HEALTHY').length,
       attention: connections.filter((item) => item.health === 'ATTENTION').length,
+      verificationRequired: connections.filter((item) => item.health === 'VERIFY_REQUIRED').length,
       authorizationRequired: connections.filter((item) => item.health === 'AUTH_REQUIRED').length,
       disconnected: connections.filter((item) => item.health === 'DISCONNECTED').length,
       lastSyncAt: connections
