@@ -23,6 +23,9 @@ describe('CrmReportingService', () => {
       {
         getContext: () => ({ tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' }),
       } as never,
+      {
+        resolve: jest.fn().mockResolvedValue({ scope: 'BRANCH', userId: 'user-1', ownerUserIds: [], restrictOwners: false, branchId: 'branch-1' }),
+      } as never,
     );
 
     const result = await service.performance({
@@ -37,6 +40,8 @@ describe('CrmReportingService', () => {
       'branch-1',
       expect.any(Date),
       expect.any(Date),
+      false,
+      [],
     );
     const sql = queryRaw.mock.calls[0]?.[0] as string;
     expect(sql).toContain("COUNT(*) FILTER (WHERE o.stage NOT IN ('WON','LOST'))");
