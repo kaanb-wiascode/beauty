@@ -273,6 +273,9 @@ export class CrmQuoteService {
         ...(quote.customerId ? { customerId: quote.customerId } : {}),
         channel,
         ...(channel === 'EMAIL' ? { subject: `Teklifiniz · ${quote.quoteNumber}` } : {}),
+        ...(quote.status === 'DRAFT'
+          ? { idempotencyKey: `CRM_QUOTE_INITIAL:${quote.id}:${channel}:v${quote.version}` }
+          : {}),
         body,
       },
       actorUserId,
