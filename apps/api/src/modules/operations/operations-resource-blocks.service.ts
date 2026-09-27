@@ -80,6 +80,7 @@ export class OperationsResourceBlocksService {
   async create(input: CreateResourceBlockInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         const resourceKey = input.roomId
@@ -181,58 +182,65 @@ export class OperationsResourceBlocksService {
           input.reason,
           membershipId,
         );
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'resource.blocked',
+            aggregateType: 'resource_block',
+            aggregateId: created[0].id,
+            payload: {
+              roomId: created[0].roomId,
+              assetId: created[0].assetId,
+              blockedFrom: created[0].blockedFrom.toISOString(),
+              blockedTo: created[0].blockedTo.toISOString(),
+            },
+          })) ?? null;
         return created[0];
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'resource.blocked',
-      aggregateType: 'resource_block',
-      aggregateId: result.id,
-      payload: {
-        roomId: result.roomId,
-        assetId: result.assetId,
-        blockedFrom: result.blockedFrom.toISOString(),
-        blockedTo: result.blockedTo.toISOString(),
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
   async cancel(blockId: string, input: CancelResourceBlockInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
-    const rows = await this.prisma.$queryRawUnsafe<ResourceBlockRow[]>(
-      `UPDATE operations_resource_blocks
-       SET status = 'CANCELLED', version = version + 1,
-           cancelled_by_membership_id = $5, cancelled_at = CURRENT_TIMESTAMP,
-           updated_at = CURRENT_TIMESTAMP
-       WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
-         AND status = 'ACTIVE' AND version = $6
-       RETURNING id, room_id AS "roomId", inventory_asset_id AS "assetId",
-                 blocked_from AS "blockedFrom", blocked_to AS "blockedTo",
-                 reason, status, version, cancelled_at AS "cancelledAt"`,
-      blockId,
-      tenantId,
-      companyId,
-      branchId,
-      membershipId,
-      input.expectedVersion,
-    );
-    if (!rows[0]) {
-      throw new ConflictException(
-        'Kaynak kullanılamama kaydı değişti veya artık aktif değil. Lütfen ekranı yenileyin.',
+    let eventId: string | null = null;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<ResourceBlockRow[]>(
+        `UPDATE operations_resource_blocks
+         SET status = 'CANCELLED', version = version + 1,
+             cancelled_by_membership_id = $5, cancelled_at = CURRENT_TIMESTAMP,
+             updated_at = CURRENT_TIMESTAMP
+         WHERE id = $1 AND tenant_id = $2 AND company_id = $3 AND branch_id = $4
+           AND status = 'ACTIVE' AND version = $6
+         RETURNING id, room_id AS "roomId", inventory_asset_id AS "assetId",
+                   blocked_from AS "blockedFrom", blocked_to AS "blockedTo",
+                   reason, status, version, cancelled_at AS "cancelledAt"`,
+        blockId,
+        tenantId,
+        companyId,
+        branchId,
+        membershipId,
+        input.expectedVersion,
       );
-    }
-    const result = rows[0];
-    await this.domainEvents?.publish({
-      eventName: 'resource.block_released',
-      aggregateType: 'resource_block',
-      aggregateId: result.id,
-      payload: {
-        roomId: result.roomId,
-        assetId: result.assetId,
-      },
+      if (!rows[0]) {
+        throw new ConflictException(
+          'Kaynak kullanılamama kaydı değişti veya artık aktif değil. Lütfen ekranı yenileyin.',
+        );
+      }
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'resource.block_released',
+          aggregateType: 'resource_block',
+          aggregateId: rows[0].id,
+          payload: {
+            roomId: rows[0].roomId,
+            assetId: rows[0].assetId,
+          },
+        })) ?? null;
+      return rows[0];
     });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 }
