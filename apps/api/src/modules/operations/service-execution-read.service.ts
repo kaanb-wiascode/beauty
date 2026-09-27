@@ -38,10 +38,10 @@ export class ServiceExecutionReadService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
     if (!tenantId || !companyId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId };
   }
@@ -58,10 +58,10 @@ export class ServiceExecutionReadService {
       companyId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Service execution not found.');
+    if (!rows[0]) throw new NotFoundException('Hizmet uygulama kaydı bulunamadı.');
     if (!rows[0].appointmentId) {
       throw new BadRequestException(
-        'Walk-in service executions do not have an appointment completion handoff.',
+        'Randevusuz hizmet uygulamalarında tamamlanacak bağlı bir randevu bulunmaz.',
       );
     }
     return rows[0].appointmentId;
