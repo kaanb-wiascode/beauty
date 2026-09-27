@@ -38,6 +38,7 @@ export const envSchema = z.object({
   META_OAUTH_TOKEN_URL: z.string().url().optional(),
   META_OAUTH_REDIRECT_URI: z.string().url().optional(),
   META_OAUTH_SCOPES: z.string().trim().min(1).optional(),
+  META_GRAPH_API_BASE_URL: z.string().url().optional(),
 
   GOOGLE_OAUTH_CLIENT_ID: z.string().trim().min(1).optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().trim().min(1).optional(),
@@ -48,6 +49,7 @@ export const envSchema = z.object({
   TIKTOK_BUSINESS_SECRET: z.string().trim().min(1).optional(),
   TIKTOK_BUSINESS_AUTHORIZATION_URL: z.string().url().optional(),
   TIKTOK_BUSINESS_TOKEN_URL: z.string().url().optional(),
+  TIKTOK_BUSINESS_VERIFY_URL: z.string().trim().min(1).optional(),
 
   QUALITY_NOTIFICATION_WEBHOOK_URL: z.string().url().optional(),
   QUALITY_NOTIFICATION_WEBHOOK_SECRET: z.string().min(32).optional(),
