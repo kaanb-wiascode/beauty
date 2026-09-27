@@ -32,21 +32,21 @@ export class VisitsController {
 
   @Post('check-in')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async checkIn(@Body() body: unknown) {
     return this.visitsService.checkIn(checkInVisitSchema.parse(body));
   }
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   async findAll(@Query() query: unknown) {
     return this.visitsService.findAll(listVisitsSchema.parse(query));
   }
 
   @Get(':id/checkout-readiness')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   async checkoutReadinessForVisit(
     @Param('id', new ParseUUIDPipe()) id: string,
   ) {
@@ -55,14 +55,14 @@ export class VisitsController {
 
   @Get(':id')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   async findOne(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.visitsService.findOne(id);
   }
 
   @Post(':id/transition')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async transition(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -75,7 +75,7 @@ export class VisitsController {
 
   @Post(':id/check-out')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async checkOut(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
