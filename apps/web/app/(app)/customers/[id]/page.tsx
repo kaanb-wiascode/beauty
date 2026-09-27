@@ -100,6 +100,42 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const load = useCallback(async () => { setLoading(true); setError(""); try { const { id } = await params; const [result, crmResult] = await Promise.all([api<CustomerDetail>(`/customers/${id}`), api<Customer360>(`/crm/operations/customer-360/${id}`).catch(() => null)]); setCustomer(result); setCrm360(crmResult); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } }, [params]);
   useEffect(() => { void load(); }, [load]);
   const initials = useMemo(() => { if (!customer) return "?"; return `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase(); }, [customer]);
+  const crmTimeline = useMemo(() => {
+    if (!crm360) return [];
+    const interactionItems = crm360.interactions.map((item) => ({
+      id: `interaction-${item.id}`,
+      date: item.startedAt,
+      title: item.type === "CALL" ? "Telefon görüşmesi" : item.type === "WHATSAPP" ? "WhatsApp görüşmesi" : item.type === "EMAIL" ? "E-posta görüşmesi" : item.type === "SMS" ? "SMS görüşmesi" : item.type === "IN_PERSON" ? "Yüz yüze görüşme" : item.type === "VIDEO_CALL" ? "Görüntülü görüşme" : "Müşteri görüşmesi",
+      detail: item.result || item.notes || "Görüşme kaydı",
+    }));
+    const followUpItems = crm360.followUps.map((item) => ({
+      id: `followup-${item.id}`,
+      date: item.dueAt,
+      title: "Takip görevi",
+      detail: item.note || "Takip görevi oluşturuldu",
+    }));
+    const eventLabels: Record<string, string> = {
+      OPPORTUNITY_CREATED: "Satış fırsatı oluşturuldu",
+      OPPORTUNITY_STAGE_CHANGED: "Satış aşaması değiştirildi",
+      OPPORTUNITY_SALE_CREATED: "Satış oluşturuldu",
+      OPPORTUNITY_SALE_LINKED: "Satış bağlantısı oluşturuldu",
+      INTERACTION_CREATED: "Görüşme kaydedildi",
+      FOLLOW_UP_CREATED: "Takip oluşturuldu",
+      FOLLOW_UP_COMPLETED: "Takip tamamlandı",
+      FOLLOW_UP_RESCHEDULED: "Takip yeniden planlandı",
+      FOLLOW_UP_CANCELLED: "Takip iptal edildi",
+    };
+    const eventItems = crm360.events.map((item) => ({
+      id: `event-${item.id}`,
+      date: item.createdAt,
+      title: eventLabels[item.eventType] ?? "CRM işlemi",
+      detail: "",
+    }));
+    return [...interactionItems, ...followUpItems, ...eventItems]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 16);
+  }, [crm360]);
+
 
   function openProfileModal() { if (!customer || !canUpdateCustomer) return; setProfileForm({ firstName: customer.firstName, lastName: customer.lastName, phone: customer.phone ?? "", email: customer.email ?? "", birthDate: customer.birthDate ? customer.birthDate.slice(0, 10) : "", customerSource: customer.customerSource ?? "", allergies: customer.healthProfile?.allergies ?? "", sensitivities: customer.healthProfile?.sensitivities ?? "", medications: customer.healthProfile?.medications ?? "", conditions: customer.healthProfile?.conditions ?? "", notes: customer.healthProfile?.notes ?? "" }); setProfileError(""); setProfileModalOpen(true); }
   function closeProfileModal() { if (profileSaving) return; setProfileModalOpen(false); setProfileError(""); }
@@ -144,6 +180,15 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
           {crm360.interactions.length ? <div className="divide-y divide-[var(--line)]">{crm360.interactions.slice(0,6).map((interaction) => <div key={interaction.id} className="px-4 py-3.5 sm:px-6"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-medium">{interaction.type === "CALL" ? "Telefon" : interaction.type === "WHATSAPP" ? "WhatsApp" : interaction.type === "EMAIL" ? "E-posta" : interaction.type === "SMS" ? "SMS" : interaction.type === "IN_PERSON" ? "Yüz yüze" : interaction.type === "VIDEO_CALL" ? "Görüntülü görüşme" : "Diğer"}</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{interaction.result || interaction.notes || "Görüşme sonucu girilmemiş"}</p>{interaction.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted-soft)]">Sonraki: {interaction.nextAction}</p> : null}</div><time className="shrink-0 text-[9px] text-[var(--muted-soft)]">{formatDateTime(interaction.startedAt)}</time></div></div>)}</div> : <EmptyInline>Bu müşteri için görüşme kaydı bulunmuyor.</EmptyInline>}
         </div>
       </div>
+      {crmTimeline.length ? <div className="border-t border-[var(--line)]">
+        <div className="px-4 py-3 sm:px-6"><h3 className="text-[12px] font-semibold">CRM zaman çizelgesi</h3><p className="mt-1 text-[10px] text-[var(--muted)]">Görüşme, takip ve satış hareketleri tek akışta</p></div>
+        <div className="divide-y divide-[var(--line)]">
+          {crmTimeline.map((item) => <div key={item.id} className="flex gap-3 px-4 py-3.5 sm:px-6">
+            <span className="mt-1.5 h-2.5 w-2.5 shrink-0 rounded-full bg-[var(--accent)]" />
+            <div className="min-w-0 flex-1"><div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between"><p className="text-[11px] font-semibold text-[var(--ink)]">{item.title}</p><time className="text-[9px] text-[var(--muted-soft)]">{formatDateTime(item.date)}</time></div>{item.detail ? <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">{item.detail}</p> : null}</div>
+          </div>)}
+        </div>
+      </div> : null}
     </GlassCard></section> : null}
     <section><GlassCard><SectionHeading eyebrow="Kayıt ve izinler" title="Belgeler & İzinler" /><div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-2"><ConsentRow label="KVKK Aydınlatma" consent={kvkk} /><ConsentRow label="Açık Rıza" consent={explicitConsent} /><ConsentRow label="Üyelik Sözleşmesi" consent={membership} /><ConsentRow label="Sağlık Verisi Rızası" consent={healthConsent} />{(["MARKETING_SMS", "MARKETING_EMAIL", "MARKETING_PHONE"] as const).map((type) => <ConsentRow key={type} label={CONSENT_LABELS[type]} consent={latestConsent(customer.consents, type)} />)}</div>{customer.documents.length > 0 ? <div className="mt-5 border-t border-[var(--line)] pt-5"><p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Belgeler</p><div className="mt-3 space-y-2">{customer.documents.map((document) => <div key={document.id} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3"><div><p className="text-[12px] font-medium text-[var(--ink)]">{document.title || CONSENT_LABELS[document.type] || userLabel(document.type)}</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">{document.version || document.documentVersion || "Sürüm bilgisi yok"}{" · "}{formatShortDate(document.createdAt)}</p></div><span className="text-[10px] font-medium text-[var(--muted)]">{userLabel(document.status)}</span></div>)}</div></div> : null}</GlassCard></section>
     <section><GlassCard className="p-0"><div className="flex flex-col gap-4 border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Takip</p><h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">Bakım & İşlem Geçmişi</h2></div>{canUpdateCustomer ? <Button onClick={openCareModal} className="w-full sm:w-auto">+ Yeni kayıt</Button> : null}</div>{customer.careEvents.length === 0 ? <EmptyInline>Bu müşteri için henüz bakım veya işlem sonrası kayıt bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.careEvents.map((event) => <CareEventRow key={event.id} event={event} onDelete={canDeleteCustomer ? () => setPendingCareDelete(event) : undefined} />)}</div>}</GlassCard></section>
