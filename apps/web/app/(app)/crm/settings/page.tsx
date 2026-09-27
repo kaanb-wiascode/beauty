@@ -6,6 +6,18 @@ import { Alert, Button, Field, GlassCard, PageHeader, Select, Spinner, TextInput
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 
+type CrmDataScope = "SELF" | "TEAM" | "BRANCH" | "COMPANY" | "ALL";
+type AccessPolicy = {
+  roleId: string;
+  roleName: string;
+  roleSlug: string;
+  roleScope: string;
+  dataScope: CrmDataScope | null;
+  hasCrmRead: boolean;
+  hasCrmManage: boolean;
+  membershipCount: number;
+};
+
 type AssignmentMode = "MANUAL" | "ROUND_ROBIN" | "LOAD_BALANCED" | "BRANCH_BASED" | "SKILL_BASED";
 type AssignmentRule = {
   id: string;
@@ -47,6 +59,14 @@ type CrmTeam = {
   members: Array<{ userId: string; firstName: string; lastName: string; email: string; skills: string[] }>;
 };
 
+const dataScopeLabels: Record<CrmDataScope, { label: string; description: string }> = {
+  SELF: { label: "Kendi kayıtları", description: "Kullanıcı yalnızca sorumlusu olduğu CRM kayıtlarını görür ve yönetir." },
+  TEAM: { label: "Ekibi", description: "Kullanıcı kendi kayıtlarıyla birlikte üyesi veya yöneticisi olduğu CRM ekibinin kayıtlarını görür." },
+  BRANCH: { label: "Şube", description: "Kullanıcı aktif şubedeki CRM kayıtlarını görür." },
+  COMPANY: { label: "Şirket", description: "Kullanıcı şirket kapsamındaki CRM kayıtlarını görür." },
+  ALL: { label: "Tüm yetkili veriler", description: "Kullanıcı rol ve organizasyon yetkilerinin izin verdiği tüm CRM kayıtlarını görür." },
+};
+
 const sourceLabels: Record<string, string> = {
   MANUAL: "Manuel",
   INSTAGRAM: "Instagram",
@@ -83,6 +103,8 @@ const slaLabels: Record<string, { title: string; description: string }> = {
 
 export default function CrmSettingsPage() {
   const [assignmentRules, setAssignmentRules] = useState<AssignmentRule[]>([]);
+  const [accessPolicies, setAccessPolicies] = useState<AccessPolicy[]>([]);
+  const [accessPolicyDrafts, setAccessPolicyDrafts] = useState<Record<string, CrmDataScope>>({});
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
   const [teams, setTeams] = useState<CrmTeam[]>([]);
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
@@ -107,18 +129,24 @@ export default function CrmSettingsPage() {
     setLoading(true);
     setError("");
     try {
-      const [assignmentRows, automationRows, teamRows, assigneeRows, surveyorRows] = await Promise.all([
+      const [assignmentRows, automationRows, teamRows, assigneeRows, surveyorRows, policyRows] = await Promise.all([
         api<AssignmentRule[]>("/crm/assignment-rules"),
         api<AutomationRule[]>("/crm/automation-rules"),
         api<CrmTeam[]>("/crm/teams"),
         api<CrmAssignee[]>("/crm/assignees"),
         api<SurveyorCandidate[]>("/crm/surveyor-candidates"),
+        api<AccessPolicy[]>("/crm/access-policies"),
       ]);
       setAssignmentRules(assignmentRows);
       setAutomationRules(automationRows);
       setTeams(teamRows);
       setAssignees(assigneeRows);
       setSurveyorCandidates(surveyorRows);
+      setAccessPolicies(policyRows);
+      setAccessPolicyDrafts(Object.fromEntries(policyRows.map((row) => {
+        const fallback: CrmDataScope = row.roleSlug === "owner" ? "ALL" : row.hasCrmManage ? (row.roleScope === "CENTRAL" ? "ALL" : row.roleScope === "COMPANY" ? "COMPANY" : "BRANCH") : "SELF";
+        return [row.roleId, row.dataScope ?? fallback];
+      })));
       setSurveyorDrafts(Object.fromEntries(surveyorRows.map((row) => [row.staffId, {
         active: row.active,
         dailyDeskQuota: row.dailyDeskQuota == null ? "" : String(row.dailyDeskQuota),
@@ -231,6 +259,24 @@ export default function CrmSettingsPage() {
     }
   }
 
+  async function saveAccessPolicy(roleId: string) {
+    const dataScope = accessPolicyDrafts[roleId];
+    if (!dataScope) return;
+    setSaving(`access-${roleId}`);
+    setError("");
+    try {
+      await api(`/crm/access-policies/${roleId}`, {
+        method: "PATCH",
+        body: { dataScope },
+      });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "CRM veri erişim kapsamı güncellenemedi.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function saveSurveyorProfile(staffId: string) {
     const draft = surveyorDrafts[staffId];
     if (!draft) return;
@@ -301,6 +347,49 @@ export default function CrmSettingsPage() {
               <Button variant="secondary" disabled={saving === `surveyor-${person.staffId}`} onClick={() => void saveSurveyorProfile(person.staffId)}>{saving === `surveyor-${person.staffId}` ? "Kaydediliyor..." : "Kaydet"}</Button>
             </div>;
           })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">Aktif şubede Anketör olarak tanımlanabilecek çalışan bulunmuyor.</div>}
+        </GlassCard>
+      </section>
+
+      <section>
+        <GlassCard className="p-0">
+          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+            <div className="flex items-start gap-2">
+              <CardInfo help={getCardHelp("CRM Veri Erişim Kapsamı", "Her rolün CRM içerisinde hangi müşterileri, potansiyel müşterileri, satış fırsatlarını, takipleri ve rapor verilerini görebileceğini belirler.")} />
+              <div>
+                <h2 className="text-[15px] font-semibold">CRM Veri Erişim Kapsamı</h2>
+                <p className="mt-1 text-[10px] text-[var(--muted)]">Rol bazında müşteri ve satış verisi görünürlüğü</p>
+              </div>
+            </div>
+          </div>
+          {accessPolicies.length ? <div className="divide-y divide-[var(--line)]">{accessPolicies.map((policy) => {
+            const value = accessPolicyDrafts[policy.roleId] ?? "SELF";
+            const disabled = policy.roleSlug === "owner" || !policy.hasCrmRead;
+            return <div key={policy.roleId} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(220px,1fr)_260px_auto] lg:items-end">
+              <div>
+                <p className="text-[12px] font-semibold">{policy.roleName}</p>
+                <p className="mt-1 text-[10px] text-[var(--muted)]">
+                  {policy.membershipCount} aktif kullanıcı · {policy.hasCrmRead ? (policy.hasCrmManage ? "CRM görüntüleme ve yönetme yetkisi" : "CRM görüntüleme yetkisi") : "CRM erişim yetkisi yok"}
+                </p>
+              </div>
+              <Field label="CRM veri kapsamı">
+                <Select
+                  value={value}
+                  disabled={disabled}
+                  onChange={(event) => setAccessPolicyDrafts((current) => ({ ...current, [policy.roleId]: event.target.value as CrmDataScope }))}
+                >
+                  {(Object.keys(dataScopeLabels) as CrmDataScope[]).map((scope) => <option key={scope} value={scope}>{dataScopeLabels[scope].label}</option>)}
+                </Select>
+              </Field>
+              <Button
+                variant="secondary"
+                disabled={disabled || saving === `access-${policy.roleId}`}
+                onClick={() => void saveAccessPolicy(policy.roleId)}
+              >
+                {saving === `access-${policy.roleId}` ? "Kaydediliyor..." : "Kapsamı Kaydet"}
+              </Button>
+              <p className="text-[10px] leading-5 text-[var(--muted)] lg:col-start-2 lg:col-span-2">{dataScopeLabels[value].description}</p>
+            </div>;
+          })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">CRM erişim kapsamı tanımlanabilecek rol bulunmuyor.</div>}
         </GlassCard>
       </section>
 
