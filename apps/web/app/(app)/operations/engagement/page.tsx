@@ -121,7 +121,7 @@ export default function OperationsEngagementPage() {
         method: "POST",
         body: { channel },
       });
-      setNotice("Checkout follow-up mesajı CRM üzerinden gönderildi.");
+      setNotice("Çıkış sonrası takip mesajı CRM üzerinden gönderildi.");
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Follow-up gönderilemedi.");
     } finally {
