@@ -3,11 +3,20 @@ import { CrmConversationService } from './crm-conversation.service';
 describe('CrmConversationService', () => {
   const context = { tenantId: 'tenant-1', companyId: 'company-1', branchId: 'branch-1' };
 
+  function dataScope() {
+    return {
+      resolve: jest.fn().mockResolvedValue({ scope: 'BRANCH', userId: 'user-1', ownerUserIds: [], restrictOwners: false, branchId: 'branch-1' }),
+      assertLeadAccess: jest.fn().mockResolvedValue(undefined),
+      assertOpportunityAccess: jest.fn().mockResolvedValue(undefined),
+    } as never;
+  }
+
   it('lists threads with tenant company branch user and operational filters', async () => {
     const query = jest.fn().mockResolvedValue([]);
     const service = new CrmConversationService(
       { $queryRawUnsafe: query } as never,
       { getContext: jest.fn().mockReturnValue(context) } as never,
+      dataScope(),
     );
 
     await service.list('user-1', 50, 'MINE', 'PENDING', 'HIGH', 'WHATSAPP');
@@ -21,8 +30,10 @@ describe('CrmConversationService', () => {
     expect(sql).toContain("COALESCE(s.priority,'NORMAL')=$8");
     expect(sql).toContain('channel_value::text=$9');
     expect(sql).toContain("WHEN 'URGENT' THEN 4");
-    expect([tenantId, companyId, branchId, userId, limit, mode, status, priority, channel]).toEqual([
-      'tenant-1','company-1','branch-1','user-1',50,'MINE','PENDING','HIGH','WHATSAPP',
+    const restrictOwners = query.mock.calls[0][10];
+    const ownerUserIds = query.mock.calls[0][11];
+    expect([tenantId, companyId, branchId, userId, limit, mode, status, priority, channel, restrictOwners, ownerUserIds]).toEqual([
+      'tenant-1','company-1','branch-1','user-1',50,'MINE','PENDING','HIGH','WHATSAPP',false,[],
     ]);
   });
 
@@ -31,10 +42,11 @@ describe('CrmConversationService', () => {
     const service = new CrmConversationService(
       { $queryRawUnsafe: query } as never,
       { getContext: jest.fn().mockReturnValue(context) } as never,
+      dataScope(),
     );
 
     await service.list('user-1', 50);
-    expect(query.mock.calls[0].slice(1)).toEqual(['tenant-1','company-1','branch-1','user-1',50,'ALL','ACTIVE','ALL','ALL']);
+    expect(query.mock.calls[0].slice(1)).toEqual(['tenant-1','company-1','branch-1','user-1',50,'ALL','ACTIVE','ALL','ALL',false,[]]);
   });
 
   it('marks a customer thread read only after asserting branch scope', async () => {
@@ -43,6 +55,7 @@ describe('CrmConversationService', () => {
     const service = new CrmConversationService(
       { $queryRawUnsafe: query, $executeRawUnsafe: execute } as never,
       { getContext: jest.fn().mockReturnValue(context) } as never,
+      dataScope(),
     );
 
     await service.markRead('CUSTOMER', 'customer-1', 'user-1');
