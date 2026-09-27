@@ -511,6 +511,14 @@ export class TeamService {
 
   async messages(currentUserId: string, conversationId: string, rawLimit: number) {
     await this.requireConversationMember(currentUserId, conversationId);
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE team_conversation_members
+       SET last_delivered_at=NOW()
+       WHERE conversation_id=$1::text
+         AND user_id=$2::text`,
+      conversationId,
+      currentUserId,
+    );
     const limit = Number.isFinite(rawLimit)
       ? Math.max(1, Math.min(200, Math.trunc(rawLimit)))
       : 100;
@@ -542,6 +550,14 @@ export class TeamService {
                GROUP BY r.emoji
              ) grouped
            ), '[]'::json) AS reactions,
+           (
+             SELECT COUNT(*)::int
+             FROM team_conversation_members receipts
+             WHERE receipts.conversation_id=m.conversation_id
+               AND receipts.user_id<>m.sender_user_id
+               AND receipts.last_delivered_at IS NOT NULL
+               AND receipts.last_delivered_at>=m.created_at
+           ) AS "deliveredByCount",
            (
              SELECT COUNT(*)::int
              FROM team_conversation_members receipts
