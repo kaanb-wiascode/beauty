@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 
 type DbClient = PrismaService | Prisma.TransactionClient;
 
@@ -18,6 +19,7 @@ export class CrmAssignmentService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private context() {
@@ -189,6 +191,46 @@ export class CrmAssignmentService {
       input.mode,
       input.reason ?? null,
       input.assignedByUserId ?? null,
+    );
+  }
+
+  async listHistory(leadId: string) {
+    await this.dataScope.assertLeadAccess(leadId);
+    const context = this.context();
+    return this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      ruleId: string | null;
+      ruleName: string | null;
+      previousOwnerUserId: string | null;
+      previousOwnerName: string | null;
+      assignedUserId: string;
+      assignedUserName: string;
+      assignmentMode: string;
+      reason: string | null;
+      assignedByUserId: string | null;
+      assignedByName: string | null;
+      createdAt: Date;
+    }>>(
+      `SELECT h.id,h.rule_id AS "ruleId",r.name AS "ruleName",
+              h.previous_owner_user_id AS "previousOwnerUserId",
+              NULLIF(TRIM(CONCAT(COALESCE(prev."firstName",''),' ',COALESCE(prev."lastName",''))),'') AS "previousOwnerName",
+              h.assigned_user_id AS "assignedUserId",
+              COALESCE(NULLIF(TRIM(CONCAT(COALESCE(next."firstName",''),' ',COALESCE(next."lastName",''))),''),next.email,'Kullanıcı') AS "assignedUserName",
+              h.assignment_mode AS "assignmentMode",h.reason,
+              h.assigned_by_user_id AS "assignedByUserId",
+              NULLIF(TRIM(CONCAT(COALESCE(actor."firstName",''),' ',COALESCE(actor."lastName",''))),'') AS "assignedByName",
+              h.created_at AS "createdAt"
+         FROM crm_assignment_history h
+         LEFT JOIN crm_assignment_rules r ON r.id=h.rule_id
+         LEFT JOIN users prev ON prev.id=h.previous_owner_user_id
+         LEFT JOIN users next ON next.id=h.assigned_user_id
+         LEFT JOIN users actor ON actor.id=h.assigned_by_user_id
+        WHERE h.lead_id=$1::text AND h.tenant_id=$2::text AND h.company_id=$3::text
+        ORDER BY h.created_at DESC,h.id DESC
+        LIMIT 100`,
+      leadId,
+      context.tenantId,
+      context.companyId,
     );
   }
 
