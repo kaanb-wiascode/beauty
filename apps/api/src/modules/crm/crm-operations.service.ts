@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 
 type MetricsRow = {
   newLeads: number;
@@ -71,6 +72,7 @@ export class CrmOperationsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private context() {
@@ -85,6 +87,7 @@ export class CrmOperationsService {
     limit?: number;
   }) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const limit = Math.min(Math.max(filters.limit ?? 100, 1), 200);
     return this.prisma.$queryRawUnsafe<ActionFollowUpRow[]>(
       `SELECT f.id,f.lead_id AS "leadId",f.opportunity_id AS "opportunityId",
@@ -104,8 +107,13 @@ export class CrmOperationsService {
             ($5::text='OVERDUE' AND f.due_at < NOW()) OR
             ($5::text='TODAY' AND f.due_at >= $6::timestamptz AND f.due_at < $7::timestamptz)
           )
+          AND ($8::boolean=FALSE OR (
+            f.assigned_user_id=ANY($9::text[])
+            OR l.owner_user_id=ANY($9::text[])
+            OR o.owner_user_id=ANY($9::text[])
+          ))
         ORDER BY f.due_at,f.id
-        LIMIT $8`,
+        LIMIT $10`,
       context.tenantId,
       context.companyId,
       context.branchId,
@@ -113,6 +121,8 @@ export class CrmOperationsService {
       filters.mode,
       filters.dayStart,
       filters.dayEnd,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
       limit,
     );
   }
@@ -123,6 +133,7 @@ export class CrmOperationsService {
     limit?: number;
   }) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const limit = Math.min(Math.max(filters.limit ?? 100, 1), 200);
     return this.prisma.$queryRawUnsafe<ActionOpportunityRow[]>(
       `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",o.owner_user_id AS "ownerUserId",
@@ -141,19 +152,23 @@ export class CrmOperationsService {
           AND ($4::text IS NULL OR o.owner_user_id=$4::text)
           AND o.stage NOT IN ('WON','LOST')
           AND o.updated_at < $5::timestamptz
+          AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))
         ORDER BY o.updated_at,o.id
-        LIMIT $6`,
+        LIMIT $8`,
       context.tenantId,
       context.companyId,
       context.branchId,
       filters.ownerUserId ?? null,
       filters.staleBefore,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
       limit,
     );
   }
 
   async getSummary(dayStart: Date, dayEnd: Date) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const scope = [context.tenantId, context.companyId, context.branchId] as const;
 
     const [metricRows, pipeline, agingRows, ownerWorkload] = await Promise.all([
@@ -162,51 +177,55 @@ export class CrmOperationsService {
            (SELECT COUNT(*)::int FROM crm_leads l
              WHERE l.tenant_id=$1::text AND l.company_id=$2::text
                AND ($3::text IS NULL OR l.branch_id=$3::text)
-               AND l.status='NEW') AS "newLeads",
+               AND l.status='NEW' AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))) AS "newLeads",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
-               AND o.stage NOT IN ('WON','LOST')) AS "openOpportunities",
+               AND o.stage NOT IN ('WON','LOST')
+              AND ($4::boolean=FALSE OR o.owner_user_id=ANY($5::text[])) AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "openOpportunities",
            (SELECT COALESCE(SUM(COALESCE(o.estimated_value,0) * o.probability / 100.0),0)::float8
               FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
-               AND o.stage NOT IN ('WON','LOST')) AS "weightedPipeline",
+               AND o.stage NOT IN ('WON','LOST') AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "weightedPipeline",
            (SELECT COUNT(*)::int FROM crm_follow_ups f
              WHERE f.tenant_id=$1::text AND f.company_id=$2::text
                AND ($3::text IS NULL OR f.branch_id=$3::text)
-               AND f.status='OPEN' AND f.due_at < NOW()) AS "overdueFollowUps",
+               AND f.status='OPEN'
+              AND ($4::boolean=FALSE OR f.assigned_user_id=ANY($5::text[])) AND f.due_at < NOW() AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))) AS "overdueFollowUps",
            (SELECT COUNT(*)::int FROM crm_follow_ups f
              WHERE f.tenant_id=$1::text AND f.company_id=$2::text
                AND ($3::text IS NULL OR f.branch_id=$3::text)
-               AND f.status='OPEN' AND f.due_at >= $4::timestamptz AND f.due_at < $5::timestamptz) AS "todayFollowUps",
+               AND f.status='OPEN' AND f.due_at >= $4::timestamptz AND f.due_at < $5::timestamptz AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))) AS "todayFollowUps",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
-               AND ($3::text IS NULL OR o.branch_id=$3::text) AND o.stage='WON') AS "wonOpportunities",
+               AND ($3::text IS NULL OR o.branch_id=$3::text) AND o.stage='WON' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "wonOpportunities",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
-               AND ($3::text IS NULL OR o.branch_id=$3::text) AND o.stage='LOST') AS "lostOpportunities",
+               AND ($3::text IS NULL OR o.branch_id=$3::text) AND o.stage='LOST' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "lostOpportunities",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
                AND o.stage NOT IN ('WON','LOST')
                AND o.expected_close_date >= NOW()
-               AND o.expected_close_date < NOW() + INTERVAL '30 days') AS "closing30Days",
+               AND o.expected_close_date < NOW() + INTERVAL '30 days' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "closing30Days",
            (SELECT COALESCE(SUM(COALESCE(o.estimated_value,0) * o.probability / 100.0),0)::float8
               FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
                AND o.stage NOT IN ('WON','LOST')
                AND o.expected_close_date >= NOW()
-               AND o.expected_close_date < NOW() + INTERVAL '30 days') AS "forecast30Days",
+               AND o.expected_close_date < NOW() + INTERVAL '30 days' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "forecast30Days",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
                AND o.stage NOT IN ('WON','LOST')
-               AND o.updated_at < NOW() - INTERVAL '14 days') AS "staleOpportunities"`,
+               AND o.updated_at < NOW() - INTERVAL '14 days' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "staleOpportunities"`,
         ...scope,
         dayStart,
         dayEnd,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
       ),
       this.prisma.$queryRawUnsafe<PipelineRow[]>(
         `SELECT o.stage,
@@ -216,9 +235,12 @@ export class CrmOperationsService {
            FROM crm_opportunities o
           WHERE o.tenant_id=$1::text AND o.company_id=$2::text
             AND ($3::text IS NULL OR o.branch_id=$3::text)
+            AND ($4::boolean=FALSE OR o.owner_user_id=ANY($5::text[]))
           GROUP BY o.stage
           ORDER BY o.stage`,
         ...scope,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
       ),
       this.prisma.$queryRawUnsafe<AgingRow[]>(
         `SELECT
@@ -229,8 +251,11 @@ export class CrmOperationsService {
            FROM crm_opportunities o
           WHERE o.tenant_id=$1::text AND o.company_id=$2::text
             AND ($3::text IS NULL OR o.branch_id=$3::text)
-            AND o.stage NOT IN ('WON','LOST')`,
+            AND o.stage NOT IN ('WON','LOST')
+            AND ($4::boolean=FALSE OR o.owner_user_id=ANY($5::text[]))`,
         ...scope,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
       ),
       this.prisma.$queryRawUnsafe<OwnerWorkloadRow[]>(
         `WITH opportunity_workload AS (
@@ -270,6 +295,8 @@ export class CrmOperationsService {
                    COALESCE(ow.open_opportunity_count,0) DESC,
                    owners.owner_key`,
         ...scope,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
       ),
     ]);
 
