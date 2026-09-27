@@ -4,6 +4,8 @@ import { PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { AccountingService } from '../accounting/accounting.service';
+import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { AppointmentsService } from './appointments.service';
 
 describe('AppointmentsService organization scope', () => {
@@ -24,8 +26,8 @@ describe('AppointmentsService organization scope', () => {
     getBranchScopedWhere,
   } as unknown as OrganizationScopeService;
 
-  const accountingService = {} as any;
-  const commerceFinanceSync = {} as any;
+  const accountingService = {} as unknown as AccountingService;
+  const commerceFinanceSync = {} as unknown as CommerceFinanceSyncService;
 
   const service = new AppointmentsService(
     prisma,
