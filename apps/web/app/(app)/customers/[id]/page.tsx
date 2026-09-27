@@ -124,6 +124,12 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       FOLLOW_UP_COMPLETED: "Takip tamamlandı",
       FOLLOW_UP_RESCHEDULED: "Takip yeniden planlandı",
       FOLLOW_UP_CANCELLED: "Takip iptal edildi",
+      APPOINTMENT_CREATED: "Randevu oluşturuldu",
+      APPOINTMENT_CONFIRMED: "Randevu onaylandı",
+      APPOINTMENT_RESCHEDULED: "Randevu yeniden planlandı",
+      APPOINTMENT_COMPLETED: "Randevu tamamlandı",
+      APPOINTMENT_NO_SHOW: "Müşteri randevuya gelmedi",
+      APPOINTMENT_CANCELLED: "Randevu iptal edildi",
     };
     const eventItems = crm360.events.map((item) => ({
       id: `event-${item.id}`,
