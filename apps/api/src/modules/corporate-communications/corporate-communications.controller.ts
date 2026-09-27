@@ -116,6 +116,22 @@ export class CorporateCommunicationsController {
     );
   }
 
+  @Post('provider-connections/:id/oauth/refresh')
+  @RequirePermission('communications', 'manage')
+  refreshProviderConnectionOAuth(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.providerOAuth.refresh(id);
+  }
+
+  @Post('provider-connections/:id/oauth/verify')
+  @RequirePermission('communications', 'manage')
+  verifyProviderConnectionOAuth(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.providerOAuth.verify(id);
+  }
+
   @Post('provider-connections/:id/disconnect')
   @RequirePermission('communications', 'manage')
   disconnectProviderConnection(@Param('id', new ParseUUIDPipe()) id: string) {
