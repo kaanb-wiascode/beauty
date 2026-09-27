@@ -97,6 +97,16 @@ export class SalesService {
   ) {
     const context = this.tenantContext.getContext();
     const actorUserId = await this.currentUserId(db);
+    const opportunities = await db.$queryRawUnsafe<Array<{ opportunityId: string }>>(
+      `SELECT id AS "opportunityId" FROM crm_opportunities
+        WHERE sale_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+          AND branch_id=$4::text
+        LIMIT 1`,
+      input.saleId,
+      context.tenantId,
+      context.companyId,
+      input.branchId,
+    );
     await db.$executeRawUnsafe(
       `INSERT INTO crm_events(
          tenant_id,company_id,branch_id,customer_id,sale_id,payment_id,event_type,actor_user_id,metadata
