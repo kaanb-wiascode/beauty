@@ -284,6 +284,8 @@ export class CrmReportingService {
       opportunityCount: number;
       wonCount: number;
       actualSalesValue: unknown;
+      dailyDeskQuota: number | null;
+      weeklyDeskQuota: number | null;
     }>>(
       `WITH surveyor_leads AS (
          SELECT l.id,l.surveyor_staff_id,l.owner_user_id
@@ -327,12 +329,15 @@ export class CrmReportingService {
          UNION SELECT staff_id FROM sales_metrics
        )
        SELECT ids.staff_id AS "staffId",st."firstName",st."lastName",
+              sp.daily_desk_quota AS "dailyDeskQuota",
+              sp.weekly_desk_quota AS "weeklyDeskQuota",
               COALESCE(lm.lead_count,0)::int AS "leadCount",
               COALESCE(om.opportunity_count,0)::int AS "opportunityCount",
               COALESCE(om.won_count,0)::int AS "wonCount",
               COALESCE(sm.actual_sales_value,0)::numeric AS "actualSalesValue"
          FROM staff_ids ids
          JOIN staff st ON st.id=ids.staff_id
+         LEFT JOIN crm_surveyor_profiles sp ON sp.staff_id=ids.staff_id
          LEFT JOIN lead_metrics lm ON lm.staff_id=ids.staff_id
          LEFT JOIN opportunity_metrics om ON om.staff_id=ids.staff_id
          LEFT JOIN sales_metrics sm ON sm.staff_id=ids.staff_id
@@ -354,6 +359,8 @@ export class CrmReportingService {
       opportunityCount: Number(row.opportunityCount),
       wonCount: Number(row.wonCount),
       actualSalesValue: Number(row.actualSalesValue ?? 0),
+      dailyDeskQuota: row.dailyDeskQuota == null ? null : Number(row.dailyDeskQuota),
+      weeklyDeskQuota: row.weeklyDeskQuota == null ? null : Number(row.weeklyDeskQuota),
       leadToOpportunityRate: Number(row.leadCount)
         ? Math.round((Number(row.opportunityCount) / Number(row.leadCount)) * 100)
         : 0,
