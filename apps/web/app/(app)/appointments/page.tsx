@@ -25,6 +25,7 @@ import {
 } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { PaymentModal } from "@/components/payment-modal";
+import { TeamShareAction } from "@/components/team-share-action";
 import { ValooSelect } from "@/components/valoo-controls";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -688,6 +689,17 @@ export default function AppointmentsPage() {
                   <Button className="col-span-2 w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Randevuyu Düzenle <Icon name="chevron" className="h-4 w-4" /></Button>
                   <Button variant="secondary" className="w-full" onClick={() => openEdit(selected)} disabled={!canUpdateAppointment}>Düzenle</Button>
                   <Button variant="secondary" className="w-full text-[#a34658]" onClick={() => { setPendingCancel(selected); setConfirmOpen(true); }} disabled={!canCancelAppointment}>İptal Et</Button>
+                  <TeamShareAction
+                    payload={{
+                      kind: "APPOINTMENT",
+                      id: selected.id,
+                      title: customerName,
+                      subtitle: selectedService,
+                      meta: [new Date(selected.startAt).toLocaleString("tr-TR"), appointmentStatusLabel(selected.status), selectedStaff],
+                      href: `/appointments?appointmentId=${selected.id}`,
+                    }}
+                    className="col-span-2 flex h-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--accent)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]"
+                  />
                 </div>
 
                 {canCreatePayment && !selected.payment ? (
