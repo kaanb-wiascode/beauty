@@ -12,8 +12,8 @@ export class OperationsWalkInCommercialService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
-    if (!tenantId || !companyId || !membershipId) throw new InternalServerErrorException('Organization context is incomplete.');
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!tenantId || !companyId || !membershipId) throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId, membershipId };
   }
 
@@ -61,9 +61,9 @@ export class OperationsWalkInCommercialService {
         visitId, tenantId, companyId, branchId,
       );
       const visit = visits[0];
-      if (!visit) throw new NotFoundException('Visit not found.');
-      if (visit.source !== 'WALK_IN') throw new BadRequestException('Commercial context can only be linked to walk-in visits.');
-      if (visit.status === 'CHECKED_OUT' || visit.status === 'CANCELLED') throw new ConflictException('Closed visits cannot change commercial context.');
+      if (!visit) throw new NotFoundException('Ziyaret kaydı bulunamadı.');
+      if (visit.source !== 'WALK_IN') throw new BadRequestException('Satış bağlantısı yalnızca randevusuz ziyaretler için kurulabilir.');
+      if (visit.status === 'CHECKED_OUT' || visit.status === 'CANCELLED') throw new ConflictException('Kapanmış ziyaretlerin satış bağlantısı değiştirilemez.');
 
       const sales = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT s.id FROM sales s
@@ -71,14 +71,14 @@ export class OperationsWalkInCommercialService {
            AND EXISTS (SELECT 1 FROM sale_items si WHERE si."saleId"=s.id AND si.type::text='SERVICE' AND si."serviceId" IS NOT NULL)
          LIMIT 1`, input.saleId, tenantId, branchId, visit.customerId,
       );
-      if (!sales[0]) throw new BadRequestException('Sale must be a confirmed service sale for the same walk-in customer and branch.');
+      if (!sales[0]) throw new BadRequestException('Seçilen satış aynı randevusuz müşteriye ve şubeye ait, onaylanmış bir hizmet satışı olmalıdır.');
 
       const existing = await tx.$queryRawUnsafe<Array<{ version: number }>>(
         `SELECT version FROM operations_walk_in_commercial_contexts WHERE visit_id=$1 AND tenant_id=$2 AND company_id=$3 AND branch_id=$4 LIMIT 1`,
         visitId, tenantId, companyId, branchId,
       );
-      if (existing[0] && existing[0].version !== input.expectedVersion) throw new ConflictException('Commercial context changed since it was read. Refresh and retry.');
-      if (!existing[0] && input.expectedVersion !== 0) throw new ConflictException('Commercial context does not exist at the expected version.');
+      if (existing[0] && existing[0].version !== input.expectedVersion) throw new ConflictException('Satış bağlantısı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
+      if (!existing[0] && input.expectedVersion !== 0) throw new ConflictException('Satış bağlantısı değişti veya artık mevcut değil. Lütfen ekranı yenileyin.');
 
       const rows = await tx.$queryRawUnsafe<any[]>(
         `INSERT INTO operations_walk_in_commercial_contexts(tenant_id,company_id,branch_id,visit_id,sale_id,linked_by_membership_id,note)
@@ -88,7 +88,7 @@ export class OperationsWalkInCommercialService {
          RETURNING id,visit_id AS "visitId",sale_id AS "saleId",note,version,linked_at AS "linkedAt"`,
         tenantId, companyId, branchId, visitId, input.saleId, membershipId, input.note ?? null, input.expectedVersion,
       );
-      if (!rows[0]) throw new ConflictException('Commercial context changed during update.');
+      if (!rows[0]) throw new ConflictException('Satış bağlantısı güncelleme sırasında değişti. Lütfen tekrar deneyin.');
       await tx.$executeRawUnsafe(
         `INSERT INTO visit_events("id","visitId","tenantId","branchId","actorMembershipId","eventType","fromStatus","toStatus","note","createdAt")
          VALUES(gen_random_uuid()::text,$1,$2,$3,$4,'WALK_IN_COMMERCIAL_LINKED',$5::"VisitStatus",$5::"VisitStatus",$6,CURRENT_TIMESTAMP)`,
