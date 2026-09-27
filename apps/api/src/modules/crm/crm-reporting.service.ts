@@ -106,4 +106,122 @@ export class CrmReportingService {
         : 0,
     }));
   }
+  async salespersonPerformance(input: CrmReportingInput) {
+    const context = this.tenantContext.getContext();
+    const visibility = await this.dataScope.resolve();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      userId: string;
+      firstName: string | null;
+      lastName: string | null;
+      email: string | null;
+      leadCount: number;
+      interactionCount: number;
+      opportunityCount: number;
+      wonCount: number;
+      lostCount: number;
+      wonValue: unknown;
+      actualSalesValue: unknown;
+      completedFollowUpCount: number;
+      overdueFollowUpCount: number;
+    }>>(
+      `WITH lead_metrics AS (
+         SELECT l.owner_user_id AS user_id,COUNT(*)::int AS lead_count
+           FROM crm_leads l
+          WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+            AND ($3::text IS NULL OR l.branch_id=$3::text)
+            AND l.created_at >= $4::timestamptz AND l.created_at <= $5::timestamptz
+            AND l.owner_user_id IS NOT NULL
+            AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))
+          GROUP BY l.owner_user_id
+       ), interaction_metrics AS (
+         SELECT i.owner_user_id AS user_id,COUNT(*)::int AS interaction_count
+           FROM crm_interactions i
+          WHERE i.tenant_id=$1::text AND i.company_id=$2::text
+            AND ($3::text IS NULL OR i.branch_id=$3::text)
+            AND i.started_at >= $4::timestamptz AND i.started_at <= $5::timestamptz
+            AND ($6::boolean=FALSE OR i.owner_user_id=ANY($7::text[]))
+          GROUP BY i.owner_user_id
+       ), opportunity_metrics AS (
+         SELECT o.owner_user_id AS user_id,
+                COUNT(*)::int AS opportunity_count,
+                COUNT(*) FILTER (WHERE o.stage='WON')::int AS won_count,
+                COUNT(*) FILTER (WHERE o.stage='LOST')::int AS lost_count,
+                COALESCE(SUM(CASE WHEN o.stage='WON' THEN COALESCE(o.estimated_value,0) ELSE 0 END),0)::numeric AS won_value,
+                COALESCE(SUM(CASE WHEN o.sale_id IS NOT NULL THEN COALESCE(s.total,0) ELSE 0 END),0)::numeric AS actual_sales_value
+           FROM crm_opportunities o
+           LEFT JOIN sales s ON s.id=o.sale_id AND s."tenantId"=o.tenant_id AND s."branchId"=o.branch_id
+          WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+            AND ($3::text IS NULL OR o.branch_id=$3::text)
+            AND o.created_at >= $4::timestamptz AND o.created_at <= $5::timestamptz
+            AND o.owner_user_id IS NOT NULL
+            AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))
+          GROUP BY o.owner_user_id
+       ), follow_up_metrics AS (
+         SELECT f.assigned_user_id AS user_id,
+                COUNT(*) FILTER (WHERE f.status='COMPLETED')::int AS completed_follow_up_count,
+                COUNT(*) FILTER (WHERE f.status='OPEN' AND f.due_at<NOW())::int AS overdue_follow_up_count
+           FROM crm_follow_ups f
+          WHERE f.tenant_id=$1::text AND f.company_id=$2::text
+            AND ($3::text IS NULL OR f.branch_id=$3::text)
+            AND f.created_at >= $4::timestamptz AND f.created_at <= $5::timestamptz
+            AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))
+          GROUP BY f.assigned_user_id
+       ), owners AS (
+         SELECT user_id FROM lead_metrics
+         UNION SELECT user_id FROM interaction_metrics
+         UNION SELECT user_id FROM opportunity_metrics
+         UNION SELECT user_id FROM follow_up_metrics
+       )
+       SELECT owners.user_id AS "userId",u."firstName",u."lastName",u.email,
+              COALESCE(l.lead_count,0)::int AS "leadCount",
+              COALESCE(i.interaction_count,0)::int AS "interactionCount",
+              COALESCE(o.opportunity_count,0)::int AS "opportunityCount",
+              COALESCE(o.won_count,0)::int AS "wonCount",
+              COALESCE(o.lost_count,0)::int AS "lostCount",
+              COALESCE(o.won_value,0)::numeric AS "wonValue",
+              COALESCE(o.actual_sales_value,0)::numeric AS "actualSalesValue",
+              COALESCE(f.completed_follow_up_count,0)::int AS "completedFollowUpCount",
+              COALESCE(f.overdue_follow_up_count,0)::int AS "overdueFollowUpCount"
+         FROM owners
+         LEFT JOIN users u ON u.id=owners.user_id
+         LEFT JOIN lead_metrics l ON l.user_id=owners.user_id
+         LEFT JOIN interaction_metrics i ON i.user_id=owners.user_id
+         LEFT JOIN opportunity_metrics o ON o.user_id=owners.user_id
+         LEFT JOIN follow_up_metrics f ON f.user_id=owners.user_id
+        ORDER BY COALESCE(o.actual_sales_value,0) DESC,COALESCE(o.won_count,0) DESC,owners.user_id`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      input.from,
+      input.to,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
+    );
+
+    return rows.map((row) => {
+      const decided = Number(row.wonCount) + Number(row.lostCount);
+      return {
+        userId: row.userId,
+        firstName: row.firstName,
+        lastName: row.lastName,
+        email: row.email,
+        leadCount: Number(row.leadCount),
+        interactionCount: Number(row.interactionCount),
+        opportunityCount: Number(row.opportunityCount),
+        wonCount: Number(row.wonCount),
+        lostCount: Number(row.lostCount),
+        wonValue: Number(row.wonValue ?? 0),
+        actualSalesValue: Number(row.actualSalesValue ?? 0),
+        completedFollowUpCount: Number(row.completedFollowUpCount),
+        overdueFollowUpCount: Number(row.overdueFollowUpCount),
+        leadToOpportunityRate: Number(row.leadCount)
+          ? Math.round((Number(row.opportunityCount) / Number(row.leadCount)) * 100)
+          : 0,
+        winRate: decided
+          ? Math.round((Number(row.wonCount) / decided) * 100)
+          : 0,
+      };
+    });
+  }
+
 }
