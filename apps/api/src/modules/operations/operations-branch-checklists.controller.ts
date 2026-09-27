@@ -30,7 +30,7 @@ export class OperationsBranchChecklistsController {
   constructor(private readonly checklists: OperationsBranchChecklistsService) {}
 
   @Get('templates')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   templates(@Query() query: unknown) {
     return this.checklists.listTemplates(
       listBranchChecklistTemplatesSchema.parse(query),
@@ -38,7 +38,7 @@ export class OperationsBranchChecklistsController {
   }
 
   @Post('templates')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   publishTemplate(@Body() body: unknown) {
     return this.checklists.publishTemplate(
       publishBranchChecklistTemplateSchema.parse(body),
@@ -46,25 +46,25 @@ export class OperationsBranchChecklistsController {
   }
 
   @Get('runs')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   runs(@Query() query: unknown) {
     return this.checklists.listRuns(listBranchChecklistRunsSchema.parse(query));
   }
 
   @Post('runs/start')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   startRun(@Body() body: unknown) {
     return this.checklists.startRun(startBranchChecklistRunSchema.parse(body));
   }
 
   @Get('runs/:runId')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   getRun(@Param('runId', new ParseUUIDPipe()) runId: string) {
     return this.checklists.getRun(runId);
   }
 
   @Patch('runs/:runId/items/:itemId')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   updateItem(
     @Param('runId', new ParseUUIDPipe()) runId: string,
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
@@ -78,7 +78,7 @@ export class OperationsBranchChecklistsController {
   }
 
   @Post('runs/:runId/complete')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   completeRun(
     @Param('runId', new ParseUUIDPipe()) runId: string,
     @Body() body: unknown,
