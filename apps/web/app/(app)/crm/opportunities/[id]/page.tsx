@@ -16,7 +16,8 @@ type OpportunityDetail = {
   id: string; leadId: string | null; customerId: string | null; ownerUserId: string | null;
   title: string; stage: OpportunityStage; estimatedValue: string | number | null; currency: string;
   probability: number; expectedCloseDate: string | null; lostReason: string | null; saleId: string | null;
-  commercialSnapshot: Record<string, unknown> | null; convertedAt: string | null; version: number;
+  commercialSnapshot: Record<string, unknown> | null; convertedAt: string | null;
+  saleStatus: string | null; saleTotal: string | number | null; paidTotal: string | number | null; version: number;
   createdAt: string; updatedAt: string; leadFirstName: string | null; leadLastName: string | null;
   customerFirstName: string | null; customerLastName: string | null; followUps: CrmFollowUp[]; interactions: CrmInteraction[]; events: CrmEvent[];
 };
@@ -380,7 +381,21 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
 
     <section className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,.6fr)]">
       <GlassCard><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Ticari Bağlantı</p><h2 className="mt-1 text-[18px] font-semibold">Fırsat Özeti</h2></div><div className="flex items-center gap-2"><CardInfo help={getCardHelp("Fırsat Özeti", "Satış fırsatının ticari bağlantı ve zaman bilgilerini özetler.")} /><span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-[10px] font-semibold text-[var(--accent)]">v{opportunity.version}</span></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Detail label="Kayıt Türü" value={subject?.kind || "Bağlantısız"} /><Detail label="Kayıt" value={subject?.label || "—"} /><Detail label="Oluşturulma" value={dateTime(opportunity.createdAt)} /><Detail label="Son Güncelleme" value={dateTime(opportunity.updatedAt)} />{opportunity.lostReason ? <div className="sm:col-span-2"><Detail label="Kaybetme Nedeni" value={opportunity.lostReason} /></div> : null}</div></GlassCard>
-      <GlassCard><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Satış Dönüşümü</p><h2 className="mt-1 text-[18px] font-semibold">Satış Bağlantısı</h2></div><CardInfo help={getCardHelp("Satış Bağlantısı", "Fırsatın satış kaydına dönüşüp dönüşmediğini ve dönüşüm bilgisini gösterir.")} /></div>{opportunity.saleId ? <div className="mt-5 space-y-3"><Detail label="Satış ID" value={opportunity.saleId} /><Detail label="Dönüşüm Tarihi" value={opportunity.convertedAt ? dateTime(opportunity.convertedAt) : "—"} /></div> : <p className="mt-5 text-[12px] leading-5 text-[var(--muted)]">Bu fırsat henüz satış taslağına dönüştürülmemiş.</p>}</GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Satış Dönüşümü</p><h2 className="mt-1 text-[18px] font-semibold">Satış Bağlantısı</h2></div><CardInfo help={getCardHelp("Satış Bağlantısı", "Fırsatın satış kaydına dönüşüp dönüşmediğini ve dönüşüm bilgisini gösterir.")} /></div>{opportunity.saleId ? (() => {
+        const saleTotal = Number(opportunity.saleTotal ?? 0);
+        const paidTotal = Number(opportunity.paidTotal ?? 0);
+        const balance = Math.max(0, Math.round((saleTotal - paidTotal + Number.EPSILON) * 100) / 100);
+        const paymentStatus = paidTotal <= 0 ? "Tahsilat bekliyor" : balance > 0 ? "Kısmi tahsilat" : "Tamamı tahsil edildi";
+        return <div className="mt-5 space-y-3">
+          <Detail label="Satış durumu" value={opportunity.saleStatus === "CONFIRMED" ? "Onaylandı" : opportunity.saleStatus === "CANCELLED" ? "İptal edildi" : opportunity.saleStatus === "DRAFT" ? "Taslak" : opportunity.saleStatus || "—"} />
+          <Detail label="Satış toplamı" value={money(saleTotal, opportunity.currency)} />
+          <Detail label="Tahsil edilen" value={money(paidTotal, opportunity.currency)} />
+          <Detail label="Kalan bakiye" value={money(balance, opportunity.currency)} />
+          <Detail label="Tahsilat durumu" value={paymentStatus} />
+          <Detail label="Dönüşüm tarihi" value={opportunity.convertedAt ? dateTime(opportunity.convertedAt) : "—"} />
+          <Link href="/sales" className="inline-flex text-[10px] font-semibold text-[var(--accent)]">Satış kaydını aç →</Link>
+        </div>;
+      })() : <p className="mt-5 text-[12px] leading-5 text-[var(--muted)]">Bu fırsat henüz satış taslağına dönüştürülmemiş.</p>}</GlassCard>
     </section>
 
     <GlassCard className="p-0">
