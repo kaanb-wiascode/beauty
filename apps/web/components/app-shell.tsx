@@ -162,6 +162,15 @@ type TeamConversationSummary = {
   lastMessage: { body: string; createdAt: string; senderName: string } | null;
 };
 
+type TeamMiniMessage = {
+  id: string;
+  body: string;
+  senderUserId: string;
+  senderName: string;
+  createdAt: string;
+  readByCount: number;
+};
+
 type TeamRealtimeEvent = {
   type: string;
   payload?: {
@@ -321,6 +330,10 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [messengerOpen, setMessengerOpen] = useState(false);
   const [messengerLoading, setMessengerLoading] = useState(false);
   const [messengerConversations, setMessengerConversations] = useState<TeamConversationSummary[]>([]);
+  const [messengerConversationId, setMessengerConversationId] = useState<string | null>(null);
+  const [messengerMessages, setMessengerMessages] = useState<TeamMiniMessage[]>([]);
+  const [messengerDraft, setMessengerDraft] = useState("");
+  const [messengerSending, setMessengerSending] = useState(false);
   const user = getStoredUser();
   const tenant = getStoredTenant();
 
@@ -431,6 +444,52 @@ export function AppShell({ children }: { children: ReactNode }) {
       active = false;
     };
   }, [messengerOpen]);
+
+  useEffect(() => {
+    if (!messengerOpen || !messengerConversationId) return;
+    let active = true;
+    setMessengerLoading(true);
+    void api<TeamMiniMessage[]>(`/team/conversations/${messengerConversationId}/messages?limit=40`)
+      .then(async (result) => {
+        if (!active) return;
+        setMessengerMessages(result);
+        await api(`/team/conversations/${messengerConversationId}/read`, { method: "POST" }).catch(() => undefined);
+        setTeamUnread((current) => Math.max(0, current - (messengerConversations.find((item) => item.id === messengerConversationId)?.unreadCount ?? 0)));
+        setMessengerConversations((current) => current.map((item) => item.id === messengerConversationId ? { ...item, unreadCount: 0 } : item));
+      })
+      .catch(() => {
+        if (active) setMessengerMessages([]);
+      })
+      .finally(() => {
+        if (active) setMessengerLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [messengerOpen, messengerConversationId, messengerConversations]);
+
+  async function sendMessengerMessage() {
+    if (!messengerConversationId || !messengerDraft.trim() || messengerSending) return;
+    const body = messengerDraft.trim();
+    setMessengerSending(true);
+    setMessengerDraft("");
+    try {
+      await api(`/team/conversations/${messengerConversationId}/messages`, {
+        method: "POST",
+        body: { body },
+      });
+      const [messagesResult, conversationsResult] = await Promise.all([
+        api<TeamMiniMessage[]>(`/team/conversations/${messengerConversationId}/messages?limit=40`),
+        api<TeamConversationSummary[]>("/team/conversations"),
+      ]);
+      setMessengerMessages(messagesResult);
+      setMessengerConversations(conversationsResult);
+    } catch {
+      setMessengerDraft(body);
+    } finally {
+      setMessengerSending(false);
+    }
+  }
 
   useEffect(() => {
     void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
@@ -637,43 +696,92 @@ export function AppShell({ children }: { children: ReactNode }) {
               </div>
               <button type="button" onClick={() => setMessengerOpen(false)} aria-label="Mesajları kapat" className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] text-[var(--muted)] hover:bg-[var(--surface-2)]">×</button>
             </div>
-            <div className="max-h-[420px] overflow-y-auto p-2">
-              {messengerLoading ? (
-                <p className="px-3 py-8 text-center text-[11px] text-[var(--muted)]">Konuşmalar yükleniyor…</p>
-              ) : messengerConversations.length ? (
-                messengerConversations.slice(0, 8).map((conversation) => (
-                  <Link
-                    key={conversation.id}
-                    href="/team"
-                    onClick={() => {
-                      window.localStorage.setItem("valoo-team-active-conversation", conversation.id);
-                      setMessengerOpen(false);
-                    }}
-                    className="flex items-center gap-3 rounded-[16px] px-3 py-3 transition hover:bg-[var(--surface-2)]"
-                  >
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--accent-soft)] text-[12px] font-semibold text-[var(--accent)]">
-                      {conversation.displayName.slice(0, 2).toUpperCase()}
+            {messengerConversationId ? (
+              <>
+                <div className="flex items-center gap-2 border-b border-[var(--line)] px-3 py-2">
+                  <button type="button" onClick={() => { setMessengerConversationId(null); setMessengerMessages([]); }} className="flex h-8 w-8 items-center justify-center rounded-full text-[15px] text-[var(--muted)] hover:bg-[var(--surface-2)]">←</button>
+                  <p className="min-w-0 flex-1 truncate text-[11px] font-semibold text-[var(--ink)]">{messengerConversations.find((item) => item.id === messengerConversationId)?.displayName ?? "Konuşma"}</p>
+                  <Link href="/team" onClick={() => { window.localStorage.setItem("valoo-team-active-conversation", messengerConversationId); setMessengerOpen(false); }} className="text-[9px] font-semibold text-[var(--accent)]">Tam ekran</Link>
+                </div>
+                <div className="max-h-[320px] min-h-[220px] overflow-y-auto bg-[var(--surface-2)]/45 p-3">
+                  {messengerLoading ? (
+                    <p className="py-8 text-center text-[10px] text-[var(--muted)]">Mesajlar yükleniyor…</p>
+                  ) : messengerMessages.length ? (
+                    <div className="space-y-2">
+                      {messengerMessages.map((message) => {
+                        const mine = message.senderUserId === user?.id;
+                        return (
+                          <div key={message.id} className={`flex ${mine ? "justify-end" : "justify-start"}`}>
+                            <div className={`max-w-[80%] rounded-[14px] px-3 py-2 ${mine ? "bg-[var(--accent)] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
+                              {!mine ? <p className="mb-0.5 text-[8px] font-semibold text-[var(--accent)]">{message.senderName}</p> : null}
+                              <p className="whitespace-pre-wrap break-words text-[10px] leading-4">{teamMessagePreview(message.body)}</p>
+                            </div>
+                          </div>
+                        );
+                      })}
                     </div>
-                    <div className="min-w-0 flex-1">
-                      <div className="flex items-center justify-between gap-2">
-                        <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{conversation.displayName}</p>
-                        {conversation.unreadCount > 0 ? <span className="min-w-5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-center text-[9px] font-semibold text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
-                      </div>
-                      <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
-                        {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${teamMessagePreview(conversation.lastMessage.body)}` : "Henüz mesaj yok"}
-                      </p>
-                    </div>
+                  ) : (
+                    <p className="py-8 text-center text-[10px] text-[var(--muted)]">Henüz mesaj yok.</p>
+                  )}
+                </div>
+                <div className="border-t border-[var(--line)] p-2.5">
+                  <div className="flex items-end gap-2 rounded-[13px] border border-[var(--line)] bg-[var(--surface-2)]/70 p-2 focus-within:border-[var(--line-strong)] focus-within:bg-white">
+                    <textarea
+                      value={messengerDraft}
+                      onChange={(event) => setMessengerDraft(event.target.value)}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" && !event.shiftKey) {
+                          event.preventDefault();
+                          void sendMessengerMessage();
+                        }
+                      }}
+                      placeholder="Mesaj yazın…"
+                      className="max-h-24 min-h-9 flex-1 resize-none bg-transparent px-1 py-1.5 text-[10px] text-[var(--ink)] outline-none placeholder:text-[var(--muted-soft)]"
+                    />
+                    <button type="button" disabled={!messengerDraft.trim() || messengerSending} onClick={() => void sendMessengerMessage()} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] bg-[var(--accent)] text-[12px] font-semibold text-white disabled:opacity-40">
+                      {messengerSending ? "…" : "➤"}
+                    </button>
+                  </div>
+                </div>
+              </>
+            ) : (
+              <>
+                <div className="max-h-[420px] overflow-y-auto p-2">
+                  {messengerLoading ? (
+                    <p className="px-3 py-8 text-center text-[11px] text-[var(--muted)]">Konuşmalar yükleniyor…</p>
+                  ) : messengerConversations.length ? (
+                    messengerConversations.slice(0, 8).map((conversation) => (
+                      <button
+                        key={conversation.id}
+                        type="button"
+                        onClick={() => setMessengerConversationId(conversation.id)}
+                        className="flex w-full items-center gap-3 rounded-[16px] px-3 py-3 text-left transition hover:bg-[var(--surface-2)]"
+                      >
+                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--accent-soft)] text-[12px] font-semibold text-[var(--accent)]">
+                          {conversation.displayName.slice(0, 2).toUpperCase()}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{conversation.displayName}</p>
+                            {conversation.unreadCount > 0 ? <span className="min-w-5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-center text-[9px] font-semibold text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
+                          </div>
+                          <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
+                            {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${teamMessagePreview(conversation.lastMessage.body)}` : "Henüz mesaj yok"}
+                          </p>
+                        </div>
+                      </button>
+                    ))
+                  ) : (
+                    <p className="px-3 py-8 text-center text-[11px] text-[var(--muted)]">Henüz konuşma bulunmuyor.</p>
+                  )}
+                </div>
+                <div className="border-t border-[var(--line)] p-3">
+                  <Link href="/team" onClick={() => setMessengerOpen(false)} className="flex h-10 items-center justify-center rounded-[12px] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)] hover:brightness-[.98]">
+                    Tüm mesajları aç
                   </Link>
-                ))
-              ) : (
-                <p className="px-3 py-8 text-center text-[11px] text-[var(--muted)]">Henüz konuşma bulunmuyor.</p>
-              )}
-            </div>
-            <div className="border-t border-[var(--line)] p-3">
-              <Link href="/team" onClick={() => setMessengerOpen(false)} className="flex h-10 items-center justify-center rounded-[12px] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)] hover:brightness-[.98]">
-                Tüm mesajları aç
-              </Link>
-            </div>
+                </div>
+              </>
+            )}
           </div>
         ) : null}
         <button
