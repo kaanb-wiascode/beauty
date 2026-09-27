@@ -80,6 +80,7 @@ export type CrmInteraction = {
   type: "CALL" | "WHATSAPP" | "SMS" | "EMAIL" | "IN_PERSON" | "VIDEO_CALL" | "OTHER";
   direction: "INBOUND" | "OUTBOUND";
   status: "PLANNED" | "COMPLETED" | "CANCELLED";
+  outcomeCode: "REACHED" | "NOT_REACHED" | "INTERESTED" | "UNDECIDED" | "AWAITING_QUOTE" | "APPOINTMENT_CREATED" | "CALLBACK" | "SALE" | "NOT_INTERESTED" | "OTHER" | null;
   result: string | null;
   notes: string | null;
   startedAt: string;
