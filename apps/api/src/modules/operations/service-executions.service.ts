@@ -9,6 +9,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import type {
   CompleteServiceExecutionInput,
   StartServiceExecutionInput,
@@ -45,6 +46,7 @@ export class ServiceExecutionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private context() {
@@ -122,7 +124,7 @@ export class ServiceExecutionsService {
   async start(visitId: string, input: StartServiceExecutionInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
           `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
@@ -274,8 +276,8 @@ export class ServiceExecutionsService {
         ) {
           throw new BadRequestException(
             requirement.requiredAssetId
-              ? 'Service requires its configured equipment allocation to be active and maintenance-free.'
-              : `Service requires an active ${requirement.requiredAssetType} equipment allocation.`,
+              ? 'Bu hizmet için tanımlanan cihazın aktif, kullanılabilir ve bakım engeli bulunmayan durumda ayrılması gerekir.'
+              : 'Bu hizmet için gerekli türde aktif ve kullanılabilir bir cihaz ayrılması gerekir.',
           );
         }
 
@@ -322,12 +324,23 @@ export class ServiceExecutionsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'service_execution.started',
+      aggregateType: 'service_execution',
+      aggregateId: result.id,
+      payload: {
+        visitId,
+        appointmentId: result.appointmentId,
+        serviceId: result.serviceId,
+      },
+    });
+    return result;
   }
 
   async complete(executionId: string, input: CompleteServiceExecutionInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
           `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
@@ -416,12 +429,24 @@ export class ServiceExecutionsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'service_execution.completed',
+      aggregateType: 'service_execution',
+      aggregateId: executionId,
+      payload: {
+        visitId: result.execution.visitId,
+        appointmentId: result.execution.appointmentId,
+        serviceId: result.execution.serviceId,
+        visitCanCompleteService: result.visitCanCompleteService,
+      },
+    });
+    return result;
   }
 
   async completeAppointmentHandoff(executionId: string) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
           `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
@@ -498,7 +523,67 @@ export class ServiceExecutionsService {
             tenantId,
             branchId,
             membershipId,
-            `Appointment ${appointment.id} completed; package session consumption remains a separate action.`,
+            `Randevu ${appointment.id} hizmet icrası üzerinden tamamlandı.`,
+          );
+        }
+
+        let consumedSessionId: string | null = null;
+        if (appointment.session?.id && appointment.session.status === 'RESERVED') {
+          const consumed = await tx.session.updateMany({
+            where: {
+              id: appointment.session.id,
+              tenantId,
+              branchId,
+              appointmentId: appointment.id,
+              status: 'RESERVED',
+            },
+            data: {
+              status: 'CONSUMED',
+              consumedAt: new Date(),
+            },
+          });
+
+          if (consumed.count !== 1) {
+            throw new ConflictException(
+              'Paket seansı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.',
+            );
+          }
+
+          consumedSessionId = appointment.session.id;
+          const consumedSession = await tx.session.findUnique({
+            where: { id: appointment.session.id },
+            select: { customerPackageId: true },
+          });
+          if (consumedSession) {
+            const remaining = await tx.session.count({
+              where: {
+                customerPackageId: consumedSession.customerPackageId,
+                status: { in: ['AVAILABLE', 'RESERVED'] },
+              },
+            });
+            if (remaining === 0) {
+              await tx.customerPackage.updateMany({
+                where: {
+                  id: consumedSession.customerPackageId,
+                  tenantId,
+                  branchId,
+                  status: 'ACTIVE',
+                },
+                data: { status: 'COMPLETED' },
+              });
+            }
+          }
+
+          await tx.$executeRawUnsafe(
+            `INSERT INTO operations_service_execution_events (
+               execution_id, tenant_id, branch_id, actor_membership_id,
+               event_type, from_status, to_status, note
+             ) VALUES ($1,$2,$3,$4,'PACKAGE_SESSION_CONSUMED','COMPLETED','COMPLETED',$5)`,
+            execution.id,
+            tenantId,
+            branchId,
+            membershipId,
+            'Bağlı paket seansı hizmet tamamlamasıyla otomatik tüketildi.',
           );
         }
 
@@ -519,11 +604,33 @@ export class ServiceExecutionsService {
         return {
           executionId: execution.id,
           appointment: refreshed,
-          packageSessionRequiresExplicitConsumption:
-            refreshed?.session?.status === 'RESERVED',
+          consumedSessionId,
+          packageSessionRequiresExplicitConsumption: false,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'appointment.completed_from_execution',
+      aggregateType: 'appointment',
+      aggregateId: result.appointment?.id ?? executionId,
+      payload: {
+        executionId,
+        consumedSessionId: result.consumedSessionId,
+      },
+    });
+    if (result.consumedSessionId) {
+      await this.domainEvents?.publish({
+        eventName: 'session.consumed',
+        aggregateType: 'session',
+        aggregateId: result.consumedSessionId,
+        payload: {
+          executionId,
+          appointmentId: result.appointment?.id ?? null,
+          automatic: true,
+        },
+      });
+    }
+    return result;
   }
 }
