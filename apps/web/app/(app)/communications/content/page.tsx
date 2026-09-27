@@ -2,9 +2,11 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type ContentItem = {
   id: string;
@@ -68,7 +70,7 @@ export default function ContentOperationsPage() {
       setItems(contentRows);
       setCampaigns(campaignRows);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "İçerik operasyonu yüklenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "İçerik merkezi yüklenemedi.") : "İçerik merkezi yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -101,7 +103,7 @@ export default function ContentOperationsPage() {
       setShowForm(false);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "İçerik kaydedilemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "İçerik kaydedilemedi.") : "İçerik kaydedilemedi.");
     } finally {
       setSaving(false);
     }
@@ -114,7 +116,7 @@ export default function ContentOperationsPage() {
       await api(`/corporate-communications/content/${id}/submit-review`, { method: "POST" });
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "İçerik incelemeye gönderilemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "İçerik incelemeye gönderilemedi.") : "İçerik incelemeye gönderilemedi.");
     } finally { setActingId(""); }
   }
 
@@ -125,7 +127,7 @@ export default function ContentOperationsPage() {
       await api(`/corporate-communications/content/${id}/publish`, { method: "POST", body: {} });
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "İçerik yayınlandı olarak işaretlenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "İçerik yayınlandı olarak işaretlenemedi.") : "İçerik yayınlandı olarak işaretlenemedi.");
     } finally { setActingId(""); }
   }
 
@@ -143,7 +145,7 @@ export default function ContentOperationsPage() {
       setScheduledAt("");
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "İçerik planlanamadı.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "İçerik planlanamadı.") : "İçerik planlanamadı.");
     } finally { setActingId(""); }
   }
 
@@ -154,8 +156,8 @@ export default function ContentOperationsPage() {
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p>
-          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">İçerik Operasyonu</h1>
-          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Fikirden yayına kadar sosyal medya ve dijital içerik sürecini kampanyalar ve onay adımlarıyla yönetin.</p>
+          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">İçerik & Marka</h1>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Fikirden yayına kadar içerik sürecini, kampanya ilişkilerini ve onay adımlarını tek merkezden yönetin.</p>
         </div>
         {canManage ? <Button onClick={() => setShowForm((value) => !value)}>{showForm ? "Formu Kapat" : "Yeni İçerik"}</Button> : null}
       </header>
@@ -186,7 +188,7 @@ export default function ContentOperationsPage() {
         <div className="grid min-w-[1700px] grid-cols-7 gap-4">
           {columns.map((status) => (
             <div key={status} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-3">
-              <div className="mb-3 flex items-center justify-between"><h2 className="text-[12px] font-semibold text-[var(--ink)]">{statusLabel[status]}</h2><span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[10px] text-[var(--muted)]">{grouped[status]?.length ?? 0}</span></div>
+              <div className="mb-3 flex items-center justify-between"><div className="flex items-center gap-2"><h2 className="text-[12px] font-semibold text-[var(--ink)]">{statusLabel[status]}</h2><CardInfo help={getCardHelp(statusLabel[status], `${statusLabel[status]} aşamasındaki içerikleri gösterir.`)} /></div><span className="rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[10px] text-[var(--muted)]">{grouped[status]?.length ?? 0}</span></div>
               <div className="space-y-3">
                 {(grouped[status] ?? []).map((item) => (
                   <article key={item.id} className="rounded-[15px] border border-[var(--line)] bg-white p-3">
