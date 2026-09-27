@@ -18,6 +18,15 @@ const HOP_BY_HOP_HEADERS = new Set([
   "content-encoding",
 ]);
 
+const TRANSIENT_UPSTREAM_STATUSES = new Set([502, 503, 504]);
+const WARMUP_DELAYS_MS = [1500, 3000, 5000, 8000, 12000];
+
+let warmupPromise: Promise<boolean> | null = null;
+
+function sleep(ms: number) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
 function upstreamUrl(request: NextRequest, path: string[]) {
   const url = new URL(API_ORIGIN + "/" + path.map(encodeURIComponent).join("/"));
   request.nextUrl.searchParams.forEach((value, key) => {
@@ -52,6 +61,63 @@ function responseHeaders(upstream: Response) {
   return headers;
 }
 
+async function waitForUpstream() {
+  if (warmupPromise) return warmupPromise;
+
+  warmupPromise = (async () => {
+    for (const delayMs of WARMUP_DELAYS_MS) {
+      await sleep(delayMs);
+
+      try {
+        const health = await fetch(API_ORIGIN + "/health/live", {
+          method: "GET",
+          cache: "no-store",
+          redirect: "manual",
+        });
+
+        if (health.ok) {
+          console.log(
+            JSON.stringify({
+              type: "backend_proxy_warmup",
+              status: "ready",
+              statusCode: health.status,
+            }),
+          );
+          return true;
+        }
+
+        console.warn(
+          JSON.stringify({
+            type: "backend_proxy_warmup",
+            status: "waiting",
+            statusCode: health.status,
+          }),
+        );
+      } catch (error) {
+        console.warn(
+          JSON.stringify({
+            type: "backend_proxy_warmup",
+            status: "waiting",
+            error: error instanceof Error ? error.message : String(error),
+          }),
+        );
+      }
+    }
+
+    console.error(
+      JSON.stringify({
+        type: "backend_proxy_warmup",
+        status: "timeout",
+      }),
+    );
+    return false;
+  })().finally(() => {
+    warmupPromise = null;
+  });
+
+  return warmupPromise;
+}
+
 async function proxy(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -66,15 +132,30 @@ async function proxy(
   }
 
   const startedAt = Date.now();
+  const headers = upstreamHeaders(request);
 
-  try {
-    const upstream = await fetch(url, {
+  const forward = () =>
+    fetch(url, {
       method: request.method,
-      headers: upstreamHeaders(request),
+      headers,
       body,
       cache: "no-store",
       redirect: "manual",
     });
+
+  try {
+    let upstream = await forward();
+    let recoveredFromColdStart = false;
+
+    if (TRANSIENT_UPSTREAM_STATUSES.has(upstream.status)) {
+      await upstream.arrayBuffer().catch(() => undefined);
+
+      const ready = await waitForUpstream();
+      if (ready) {
+        upstream = await forward();
+        recoveredFromColdStart = !TRANSIENT_UPSTREAM_STATUSES.has(upstream.status);
+      }
+    }
 
     console.log(
       JSON.stringify({
@@ -83,6 +164,7 @@ async function proxy(
         path: "/" + path.join("/"),
         statusCode: upstream.status,
         durationMs: Date.now() - startedAt,
+        recoveredFromColdStart,
       }),
     );
 
@@ -104,9 +186,9 @@ async function proxy(
 
     return Response.json(
       {
-        message: "Sunucuya bağlanılamadı. Lütfen birkaç dakika sonra tekrar deneyin.",
+        message: "Staging API şu anda başlatılıyor. Lütfen kısa süre sonra tekrar deneyin.",
       },
-      { status: 502 },
+      { status: 503 },
     );
   }
 }
