@@ -8,6 +8,7 @@ import { createCrmQuoteSchema, updateCrmQuoteStatusSchema } from './crm-quote.sc
 import { CrmQuoteService } from './crm-quote.service';
 
 const uuid = z.string().uuid();
+const sendQuoteSchema = z.object({ channel: z.enum(['EMAIL','SMS','WHATSAPP']) });
 
 @Controller('crm/quotes')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -36,6 +37,17 @@ export class CrmQuoteController {
   @RequirePermission('crm', 'manage')
   create(@Body() body: unknown, @Req() request: { user?: { sub?: string } }) {
     return this.quotes.create(createCrmQuoteSchema.parse(body), this.userId(request));
+  }
+
+  @Post(':id/send')
+  @RequirePermission('crm', 'manage')
+  send(
+    @Param('id') id: string,
+    @Body() body: unknown,
+    @Req() request: { user?: { sub?: string } },
+  ) {
+    const input = sendQuoteSchema.parse(body);
+    return this.quotes.sendQuote(uuid.parse(id), input.channel, this.userId(request));
   }
 
   @Post(':id/convert-sale')
