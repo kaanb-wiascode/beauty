@@ -110,6 +110,7 @@ export class CrmLeadService {
 
   private salesSelect() {
     return `l.team,l.lead_score AS "leadScore",l.lead_temperature AS "leadTemperature",
+            l.lead_score_breakdown AS "leadScoreBreakdown",l.lead_score_updated_at AS "leadScoreUpdatedAt",
             l.first_contacted_at AS "firstContactedAt",l.first_response_at AS "firstResponseAt"`;
   }
 
@@ -157,7 +158,7 @@ export class CrmLeadService {
          AND ($5::boolean=FALSE OR l.owner_user_id=ANY($6::text[])) LIMIT 1`,
       id, context.tenantId, context.companyId, context.branchId, visibility.restrictOwners, visibility.ownerUserIds,
     );
-    if (!rows.length) throw new NotFoundException('CRM lead not found.');
+    if (!rows.length) throw new NotFoundException('Potansiyel müşteri bulunamadı veya bu kaydı görüntüleme yetkiniz yok.');
 
     const [opportunities, followUps, interactions, events] = await Promise.all([
       this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
@@ -218,7 +219,7 @@ export class CrmLeadService {
           `SELECT id FROM customers WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text LIMIT 1`,
           input.customerId, context.tenantId, branchId,
         );
-        if (!customers.length) throw new BadRequestException('CRM customer is outside the active branch.');
+        if (!customers.length) throw new BadRequestException('Seçilen müşteri aktif şubenin dışında.');
       }
 
       const rows = await tx.$queryRawUnsafe<CrmLeadRow[]>(
