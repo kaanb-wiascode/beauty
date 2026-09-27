@@ -334,9 +334,25 @@ export class SupplierExpenseSyncService {
 
     await tx.$executeRawUnsafe(
       `UPDATE expenses
+       SET accounting_status='REVERSED'::"FinanceAccountingStatus",
+           version=version+1,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE id=$1::text`,
+      expense.id,
+    );
+
+    await tx.$executeRawUnsafe(
+      `UPDATE expenses
        SET approval_status='CANCELLED'::"FinanceApprovalStatus",
-           payment_status='CANCELLED'::"FinancePaymentStatus",
-           accounting_status='REVERSED'::"FinanceAccountingStatus",
+           version=version+1,
+           updated_at=CURRENT_TIMESTAMP
+       WHERE id=$1::text`,
+      expense.id,
+    );
+
+    await tx.$executeRawUnsafe(
+      `UPDATE expenses
+       SET payment_status='CANCELLED'::"FinancePaymentStatus",
            version=version+1,
            updated_at=CURRENT_TIMESTAMP
        WHERE id=$1::text`,
