@@ -20,7 +20,10 @@ type ReferenceClient = Pick<
 >;
 
 type AppointmentClient = Pick<Prisma.TransactionClient, 'appointment'>;
-type RawCrmClient = Pick<Prisma.TransactionClient, '$queryRawUnsafe' | '$executeRawUnsafe'>;
+type RawCrmClient = Pick<
+  Prisma.TransactionClient,
+  '$queryRawUnsafe' | '$executeRawUnsafe'
+>;
 
 @Injectable()
 export class AppointmentsService {
@@ -64,7 +67,9 @@ export class AppointmentsService {
       context.companyId,
     );
     if (!rows[0]?.userId) {
-      throw new InternalServerErrorException('Oturum açmış kullanıcı bilgisi bulunamadı.');
+      throw new InternalServerErrorException(
+        'Oturum açmış kullanıcı bilgisi bulunamadı.',
+      );
     }
     return rows[0].userId;
   }
@@ -711,8 +716,10 @@ export class AppointmentsService {
         const statusChanged =
           input.status !== undefined && input.status !== appointment.status;
         const scheduleChanged =
-          (input.startAt !== undefined && input.startAt.getTime() !== appointment.startAt.getTime()) ||
-          (input.endAt !== undefined && input.endAt.getTime() !== appointment.endAt.getTime());
+          (input.startAt !== undefined &&
+            input.startAt.getTime() !== appointment.startAt.getTime()) ||
+          (input.endAt !== undefined &&
+            input.endAt.getTime() !== appointment.endAt.getTime());
 
         if (statusChanged || scheduleChanged) {
           const eventType = statusChanged
