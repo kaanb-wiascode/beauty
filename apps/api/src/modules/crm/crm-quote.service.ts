@@ -247,7 +247,12 @@ export class CrmQuoteService {
   }
 
   async updateStatus(id: string, input: UpdateCrmQuoteStatusInput, actorUserId: string) {
-    const current = await this.get(id) as { opportunityId: string; status: string; version: number; customerId: string | null };
+    const current = (await this.get(id)) as unknown as {
+      opportunityId: string;
+      status: string;
+      version: number;
+      customerId: string | null;
+    };
     await this.dataScope.assertOpportunityAccess(current.opportunityId);
 
     const context = this.context();
