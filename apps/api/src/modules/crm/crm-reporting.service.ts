@@ -116,6 +116,9 @@ export class CrmReportingService {
       email: string | null;
       leadCount: number;
       interactionCount: number;
+      notReachedInteractionCount: number;
+      appointmentOutcomeCount: number;
+      saleOutcomeCount: number;
       opportunityCount: number;
       wonCount: number;
       lostCount: number;
@@ -135,7 +138,11 @@ export class CrmReportingService {
             AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))
           GROUP BY l.owner_user_id
        ), interaction_metrics AS (
-         SELECT i.owner_user_id AS user_id,COUNT(*)::int AS interaction_count
+         SELECT i.owner_user_id AS user_id,
+                COUNT(*)::int AS interaction_count,
+                COUNT(*) FILTER (WHERE i.outcome_code='NOT_REACHED')::int AS not_reached_interaction_count,
+                COUNT(*) FILTER (WHERE i.outcome_code='APPOINTMENT_CREATED')::int AS appointment_outcome_count,
+                COUNT(*) FILTER (WHERE i.outcome_code='SALE')::int AS sale_outcome_count
            FROM crm_interactions i
           WHERE i.tenant_id=$1::text AND i.company_id=$2::text
             AND ($3::text IS NULL OR i.branch_id=$3::text)
@@ -204,6 +211,9 @@ export class CrmReportingService {
        SELECT owners.user_id AS "userId",u."firstName",u."lastName",u.email,
               COALESCE(l.lead_count,0)::int AS "leadCount",
               COALESCE(i.interaction_count,0)::int AS "interactionCount",
+              COALESCE(i.not_reached_interaction_count,0)::int AS "notReachedInteractionCount",
+              COALESCE(i.appointment_outcome_count,0)::int AS "appointmentOutcomeCount",
+              COALESCE(i.sale_outcome_count,0)::int AS "saleOutcomeCount",
               COALESCE(o.opportunity_count,0)::int AS "opportunityCount",
               COALESCE(o.won_count,0)::int AS "wonCount",
               COALESCE(o.lost_count,0)::int AS "lostCount",
@@ -239,6 +249,12 @@ export class CrmReportingService {
         email: row.email,
         leadCount: Number(row.leadCount),
         interactionCount: Number(row.interactionCount),
+        notReachedInteractionCount: Number(row.notReachedInteractionCount),
+        appointmentOutcomeCount: Number(row.appointmentOutcomeCount),
+        saleOutcomeCount: Number(row.saleOutcomeCount),
+        interactionToAppointmentRate: Number(row.interactionCount)
+          ? Math.round((Number(row.appointmentOutcomeCount) / Number(row.interactionCount)) * 100)
+          : 0,
         opportunityCount: Number(row.opportunityCount),
         wonCount: Number(row.wonCount),
         lostCount: Number(row.lostCount),
