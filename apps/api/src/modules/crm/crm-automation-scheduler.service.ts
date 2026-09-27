@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
+import { CrmLeadScoringService } from './crm-lead-scoring.service';
 import { CrmSlaService } from './crm-sla.service';
 import {
   CrmAutomationScope,
@@ -40,6 +41,7 @@ export class CrmAutomationSchedulerService
     private readonly observability: CrmAutomationObservabilityService,
     private readonly messages: CrmAutomationMessageActionService,
     private readonly sla: CrmSlaService,
+    private readonly scoring: CrmLeadScoringService,
   ) {}
 
   onApplicationBootstrap() {
@@ -189,11 +191,16 @@ export class CrmAutomationSchedulerService
       { origin: 'SCHEDULER', operation: 'SLA_SWEEP' },
       () => this.sla.sweep(scope),
     );
+    const scoring = await this.observability.execute(
+      scope,
+      { origin: 'SCHEDULER', operation: 'LEAD_SCORE_SWEEP' },
+      () => this.scoring.sweep(scope),
+    );
     const messages = await this.messages.process(scope);
     return {
       created: events.created + stale.created + sla.created,
       sent: messages.sent,
-      scanned: events.scanned + stale.scanned + sla.scanned + messages.scanned,
+      scanned: events.scanned + stale.scanned + sla.scanned + scoring.scanned + messages.scanned,
     };
   }
 
