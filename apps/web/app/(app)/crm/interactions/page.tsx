@@ -1,9 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useState } from "react";
 import { CardInfo } from "@/components/card-info";
-import { Alert, EmptyState, PageHeader, Select, Spinner } from "@/components/ui";
+import { Modal } from "@/components/modal";
+import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
@@ -78,6 +79,11 @@ export default function CrmInteractionsPage() {
   const [status, setStatus] = useState<InteractionStatus | "ALL">("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [formError, setFormError] = useState("");
+  const [subject, setSubject] = useState<{ leadId?: string; opportunityId?: string; customerId?: string; label?: string }>({});
+  const [form, setForm] = useState({ type: "CALL" as InteractionType, direction: "OUTBOUND" as InteractionDirection, status: "COMPLETED" as InteractionStatus, result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -103,6 +109,54 @@ export default function CrmInteractionsPage() {
     void load();
   }, [load]);
 
+  useEffect(() => {
+    const query = new URLSearchParams(window.location.search);
+    const leadId = query.get("leadId") || undefined;
+    const opportunityId = query.get("opportunityId") || undefined;
+    const customerId = query.get("customerId") || undefined;
+    const label = query.get("label") || undefined;
+    setSubject({ leadId, opportunityId, customerId, label });
+    if (query.get("new") === "1" && (leadId || opportunityId || customerId)) {
+      setForm((current) => ({ ...current, startedAt: new Date().toISOString().slice(0, 16) }));
+      setCreateOpen(true);
+    }
+  }, []);
+
+  async function createInteraction(event: FormEvent) {
+    event.preventDefault();
+    if (!subject.leadId && !subject.opportunityId && !subject.customerId) {
+      setFormError("Görüşmenin bağlı olduğu müşteri kaydı bulunamadı.");
+      return;
+    }
+    setSaving(true);
+    setFormError("");
+    try {
+      await api("/crm/interactions", {
+        method: "POST",
+        body: {
+          ...subject,
+          label: undefined,
+          type: form.type,
+          direction: form.direction,
+          status: form.status,
+          ...(form.result.trim() ? { result: form.result.trim() } : {}),
+          ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
+          ...(form.startedAt ? { startedAt: new Date(form.startedAt).toISOString() } : {}),
+          ...(form.durationMinutes ? { durationSeconds: Math.round(Number(form.durationMinutes) * 60) } : {}),
+          ...(form.nextAction.trim() ? { nextAction: form.nextAction.trim() } : {}),
+          ...(form.nextActionAt ? { nextActionAt: new Date(form.nextActionAt).toISOString() } : {}),
+        },
+      });
+      setCreateOpen(false);
+      setForm({ type: "CALL", direction: "OUTBOUND", status: "COMPLETED", result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
+      await load();
+    } catch (requestError) {
+      setFormError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Görüşme kaydı oluşturulamadı.") : "Görüşme kaydı oluşturulamadı.");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   const completed = rows.filter((row) => row.status === "COMPLETED").length;
   const planned = rows.filter((row) => row.status === "PLANNED").length;
   const nextActions = rows.filter((row) => row.nextActionAt && new Date(row.nextActionAt) >= new Date()).length;
@@ -112,6 +166,7 @@ export default function CrmInteractionsPage() {
       <PageHeader
         title="Görüşmeler"
         description="Müşterilerle yapılan telefon, WhatsApp, e-posta, yüz yüze ve diğer temasları tek merkezden izleyin."
+        action={subject.leadId || subject.opportunityId || subject.customerId ? <Button onClick={() => { setFormError(""); setForm((current) => ({ ...current, startedAt: new Date().toISOString().slice(0, 16) })); setCreateOpen(true); }}>+ Görüşme Kaydet</Button> : undefined}
       />
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -194,6 +249,56 @@ export default function CrmInteractionsPage() {
           />
         )}
       </section>
+
+      <Modal open={createOpen} onClose={() => !saving && setCreateOpen(false)} title="Görüşme Kaydet" description={subject.label ? `${subject.label} için müşteri temasını kaydedin.` : "Müşteri temasını ve görüşme sonucunu kaydedin."}>
+        <form onSubmit={createInteraction} className="space-y-4">
+          {formError ? <Alert>{formError}</Alert> : null}
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Görüşme türü" required>
+              <Select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as InteractionType })}>
+                {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </Field>
+            <Field label="Görüşme yönü" required>
+              <Select value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value as InteractionDirection })}>
+                <option value="OUTBOUND">Giden</option>
+                <option value="INBOUND">Gelen</option>
+              </Select>
+            </Field>
+            <Field label="Durum" required>
+              <Select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as InteractionStatus })}>
+                <option value="COMPLETED">Tamamlandı</option>
+                <option value="PLANNED">Planlandı</option>
+                <option value="CANCELLED">İptal edildi</option>
+              </Select>
+            </Field>
+            <Field label="Görüşme zamanı">
+              <TextInput type="datetime-local" value={form.startedAt} onChange={(event) => setForm({ ...form, startedAt: event.target.value })} />
+            </Field>
+            <Field label="Süre (dakika)">
+              <TextInput type="number" min="0" step="0.5" value={form.durationMinutes} onChange={(event) => setForm({ ...form, durationMinutes: event.target.value })} />
+            </Field>
+            <Field label="Görüşme sonucu">
+              <TextInput value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })} placeholder="Örn. Teklif bekliyor, randevu istedi" />
+            </Field>
+          </div>
+          <Field label="Görüşme notu">
+            <TextArea rows={4} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Müşterinin ihtiyacı, itirazı ve önemli görüşme notları…" />
+          </Field>
+          <div className="grid gap-4 sm:grid-cols-2">
+            <Field label="Sonraki aksiyon">
+              <TextInput value={form.nextAction} onChange={(event) => setForm({ ...form, nextAction: event.target.value })} placeholder="Örn. Teklif gönder, tekrar ara" />
+            </Field>
+            <Field label="Sonraki aksiyon tarihi">
+              <TextInput type="datetime-local" value={form.nextActionAt} onChange={(event) => setForm({ ...form, nextActionAt: event.target.value })} />
+            </Field>
+          </div>
+          <div className="flex justify-end gap-3">
+            <Button type="button" variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : "Görüşmeyi Kaydet"}</Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   );
 }
