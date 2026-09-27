@@ -102,7 +102,7 @@ export default function BranchWorkingHoursPage() {
         crossesMidnight: saved.crossesMidnight,
         timeZone: saved.timeZone,
       });
-      setMessage(`${DAYS[draft.weekday]} çalışma saatları kaydedildi.`);
+      setMessage(`${DAYS[draft.weekday]} çalışma saatleri kaydedildi.`);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Çalışma saatları kaydedilemedi.");
     } finally {
@@ -110,13 +110,13 @@ export default function BranchWorkingHoursPage() {
     }
   };
 
-  if (loading) return <div className="mx-auto max-w-[1180px] py-10"><Spinner label="Şube çalışma saatları yükleniyor..." /></div>;
+  if (loading) return <div className="mx-auto max-w-[1180px] py-10"><Spinner label="Şube çalışma saatleri yükleniyor..." /></div>;
 
   return (
     <div className="mx-auto max-w-[1180px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Randevu Planlama Kuralları</p>
-        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Şube Çalışma Saatları</h1><CardInfo help={getCardHelp("Şube Çalışma Saatları")} /></div>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Şube Çalışma Saatleri</h1><CardInfo help={getCardHelp("Şube Çalışma Saatleri")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Bekleme listesi için uygun saat önerileri ve randevu kabulü bu haftalık kuralları dikkate alır. Henüz kural tanımlanmamış şubelerde mevcut randevu akışı kesintiye uğramaz.</p>
       </header>
 
