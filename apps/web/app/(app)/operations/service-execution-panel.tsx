@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
+import { getCardHelp } from "@/lib/card-help";
 import type { Visit } from "@/lib/types";
 import { ExecutionChecklistPanel } from "./service-executions/execution-checklist-panel";
 import { ExecutionConsumablesPanel } from "./service-executions/execution-consumables-panel";
@@ -181,31 +183,6 @@ export function ServiceExecutionPanel({
     }
   }
 
-  async function consumePackageSession(execution: ServiceExecution) {
-    if (
-      !canUpdate ||
-      execution.appointmentStatus !== "COMPLETED" ||
-      !execution.packageSessionId ||
-      execution.packageSessionStatus !== "RESERVED"
-    ) {
-      return;
-    }
-
-    setBusyId(`session:${execution.packageSessionId}`);
-    setError("");
-    try {
-      await api(`/sessions/${execution.packageSessionId}/consume`, {
-        method: "POST",
-      });
-      await load();
-    } catch (err) {
-      setError(
-        err instanceof ApiError ? err.message : "Paket seansı tüketilemedi.",
-      );
-    } finally {
-      setBusyId(null);
-    }
-  }
 
   async function completeVisitService() {
     if (!canUpdate || !serviceFlowCompleted) return;
@@ -235,11 +212,14 @@ export function ServiceExecutionPanel({
     <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">
-            Hizmet uygulama süreci
-          </p>
+          <div className="flex items-start gap-2">
+            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">
+              Hizmet uygulama süreci
+            </p>
+            <CardInfo help={getCardHelp("Hizmet uygulama süreci")} />
+          </div>
           <p className="mt-1 text-xs text-[var(--muted)]">
-            Hizmet uygulaması, personel sorumluluğu, standart işlem kontrolü, sarf tüketimi ve ticari kayıt tamamlama adımları ayrı ayrı izlenir.
+            Hizmet uygulaması, sorumlu personel, kontrol adımları, kullanılan ürünler ve paket hakkı tek akışta birlikte izlenir.
           </p>
         </div>
         {serviceFlowCompleted ? (
@@ -248,7 +228,7 @@ export function ServiceExecutionPanel({
           </span>
         ) : allCompleted && visit.source === "APPOINTMENT" ? (
           <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">
-            Ticari kayıtların tamamlanması bekleniyor
+            Randevu ve paket hakkı kaydı tamamlanıyor
           </span>
         ) : null}
       </div>
@@ -275,7 +255,7 @@ export function ServiceExecutionPanel({
                   <p className="text-xs font-semibold text-[var(--ink)]">
                     {execution.source === "WALK_IN"
                       ? `Randevusuz hizmet · ${execution.walkInServiceDescription ?? "Hizmet"}`
-                      : "Randevulu işlem"}
+                      : "Randevulu hizmet"}
                   </p>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
                     {execution.status === "IN_PROGRESS"
@@ -344,7 +324,7 @@ export function ServiceExecutionPanel({
                     <div className="text-[11px] text-[var(--muted)]">
                       {execution.source === "WALK_IN" ? (
                         <>
-                          <p>Ticari kayıt: Satış kaydı</p>
+                          <p>Satış bağlantısı: Mevcut</p>
                           <p className="mt-1">Satış durumu: {userLabel(execution.walkInSaleStatus)}</p>
                         </>
                       ) : (
@@ -354,10 +334,10 @@ export function ServiceExecutionPanel({
                           </p>
                           {execution.packageSessionId ? (
                             <p className="mt-1">
-                              Paket kullanım durumu: {userLabel(execution.packageSessionStatus)}
+                              Paket seansı: {userLabel(execution.packageSessionStatus)}
                             </p>
                           ) : (
-                            <p className="mt-1">Paket kullanımı: Yok</p>
+                            <p className="mt-1">Paket seansı: Yok</p>
                           )}
                         </>
                       )}
@@ -372,19 +352,7 @@ export function ServiceExecutionPanel({
                           >
                             {busyId === `appointment:${execution.id}`
                               ? "Randevu Tamamlanıyor..."
-                              : "Randevuyu Tamamla ve Stoğu İşle"}
-                          </Button>
-                        ) : null}
-                        {execution.appointmentStatus === "COMPLETED" &&
-                        execution.packageSessionId &&
-                        execution.packageSessionStatus === "RESERVED" ? (
-                          <Button
-                            disabled={Boolean(busyId)}
-                            onClick={() => void consumePackageSession(execution)}
-                          >
-                            {busyId === `session:${execution.packageSessionId}`
-                              ? "Seans Tüketiliyor..."
-                              : "Paket Seansını Tüket"}
+                              : "Randevuyu ve Paket Hakkını Tamamla"}
                           </Button>
                         ) : null}
                       </div>
@@ -419,9 +387,9 @@ export function ServiceExecutionPanel({
                   }
                   onChange={(event) => setSelectedAppointmentId(event.target.value)}
                 >
-                  {executableAppointmentIds.map((appointmentId) => (
+                  {executableAppointmentIds.map((appointmentId, index) => (
                     <option key={appointmentId} value={appointmentId}>
-                      Randevu {appointmentId.slice(0, 8)}
+                      {index + 1}. randevu
                     </option>
                   ))}
                 </Select>
@@ -437,7 +405,7 @@ export function ServiceExecutionPanel({
 
           {allCompleted && !handoffsCompleted && visit.source === "APPOINTMENT" ? (
             <p className="rounded-[14px] border border-dashed border-[var(--line)] p-3 text-xs text-[var(--muted)]">
-              Ziyaret hizmetini tamamlamadan önce her hizmet için SOP/checklist kanıtını, sarf kontrolünü ve randevu handoff’unu tamamlayın; bağlı paket seansı varsa ayrıca tüketin.
+              Ziyaret hizmetini tamamlamadan önce her hizmetin kontrol adımlarını, kullanılan ürün kayıtlarını ve randevu tamamlama işlemini bitirin. Bağlı paket seansı randevu tamamlandığında otomatik işlenir.
             </p>
           ) : null}
 
