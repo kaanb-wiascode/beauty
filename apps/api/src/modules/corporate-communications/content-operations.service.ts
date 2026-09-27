@@ -38,7 +38,7 @@ export class ContentOperationsService {
       where: { id: branchId, companyId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!branch) throw new BadRequestException('Content branch is outside the active company.');
+    if (!branch) throw new BadRequestException('İçerik için seçilen şube aktif şirket kapsamında değil.');
   }
 
   private async assertCampaign(campaignId: string, branchId: string | null) {
@@ -53,7 +53,7 @@ export class ContentOperationsService {
       companyId,
       branchId,
     );
-    if (!rows.length) throw new BadRequestException('Content campaign is outside the allowed scope.');
+    if (!rows.length) throw new BadRequestException('İçerikle ilişkilendirilen kampanya yetkili kapsam dışında.');
   }
 
   private async assertOwner(userId: string, branchId: string | null) {
@@ -75,7 +75,7 @@ export class ContentOperationsService {
       companyId,
       branchId,
     );
-    if (!rows.length) throw new BadRequestException('Content owner is not eligible in this scope.');
+    if (!rows.length) throw new BadRequestException('İçerik sorumlusu bu kapsamda görevlendirilemez.');
   }
 
   async list(filters: {
@@ -122,7 +122,7 @@ export class ContentOperationsService {
     const branchId = input.branchId === undefined ? context.branchId : input.branchId;
     if (branchId) await this.assertBranch(branchId);
     if (context.branchId && branchId && branchId !== context.branchId) {
-      throw new BadRequestException('Content cannot be created outside the active branch.');
+      throw new BadRequestException('İçerik aktif şube dışında oluşturulamaz.');
     }
     if (input.campaignId) await this.assertCampaign(input.campaignId, branchId ?? null);
     if (input.ownerUserId) await this.assertOwner(input.ownerUserId, branchId ?? null);
@@ -164,7 +164,7 @@ export class ContentOperationsService {
     return this.prisma.$transaction(async (tx) => {
       const current = await this.lockContent(tx, id);
       if (!['IDEA', 'BRIEF', 'PRODUCTION'].includes(current.status)) {
-        throw new ConflictException('Only draft/production content can be edited.');
+        throw new ConflictException('Yalnızca taslak veya hazırlanmakta olan içerikler düzenlenebilir.');
       }
       const rows = await tx.$queryRawUnsafe<ContentRow[]>(
         `UPDATE corporate_content_items SET
@@ -219,7 +219,7 @@ export class ContentOperationsService {
       if (pending.length) return { approvalId: pending[0].id, idempotent: true };
 
       if (!['IDEA', 'BRIEF', 'PRODUCTION'].includes(content.status)) {
-        throw new ConflictException('Content is not in a reviewable state.');
+        throw new ConflictException('İçerik şu anda incelemeye gönderilebilir durumda değil.');
       }
 
       await tx.$executeRawUnsafe(
@@ -287,9 +287,9 @@ export class ContentOperationsService {
         context.branchId,
       );
       const approval = rows[0];
-      if (!approval) throw new NotFoundException('Content approval not found.');
+      if (!approval) throw new NotFoundException('İçerik onay kaydı bulunamadı.');
       if (approval.status !== 'PENDING') {
-        throw new ConflictException('Content approval is already decided.');
+        throw new ConflictException('Bu içerik için onay kararı daha önce verilmiş.');
       }
 
       const nextContentStatus = decision === 'APPROVED' ? 'APPROVED' : 'PRODUCTION';
@@ -328,7 +328,7 @@ export class ContentOperationsService {
     return this.prisma.$transaction(async (tx) => {
       const content = await this.lockContent(tx, id);
       if (content.status !== 'APPROVED') {
-        throw new ConflictException('Only approved content can be scheduled.');
+        throw new ConflictException('Yalnızca onaylanmış içerikler yayın için planlanabilir.');
       }
       await tx.$executeRawUnsafe(
         `UPDATE corporate_content_items SET status='SCHEDULED',scheduled_at=$2::timestamptz,updated_at=NOW()
@@ -347,7 +347,7 @@ export class ContentOperationsService {
     return this.prisma.$transaction(async (tx) => {
       const content = await this.lockContent(tx, id);
       if (!['APPROVED', 'SCHEDULED'].includes(content.status)) {
-        throw new ConflictException('Only approved or scheduled content can be published.');
+        throw new ConflictException('Yalnızca onaylanmış veya planlanmış içerikler yayınlanabilir.');
       }
       const publishedAt = input.publishedAt ?? new Date();
       await tx.$executeRawUnsafe(
@@ -376,7 +376,7 @@ export class ContentOperationsService {
       context.companyId,
       context.branchId,
     );
-    if (!rows.length) throw new NotFoundException('Content item not found.');
+    if (!rows.length) throw new NotFoundException('İçerik kaydı bulunamadı.');
     return rows[0];
   }
 
