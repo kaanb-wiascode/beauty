@@ -37,6 +37,7 @@ type SalespersonReport = {
   actualSalesValue: number;
   completedFollowUpCount: number;
   overdueFollowUpCount: number;
+  averageFirstResponseMinutes: number;
   leadToOpportunityRate: number;
   winRate: number;
 };
@@ -90,7 +91,9 @@ export default function CrmReportsPage() {
     actualSalesValue: acc.actualSalesValue + row.actualSalesValue,
     completedFollowUps: acc.completedFollowUps + row.completedFollowUpCount,
     overdueFollowUps: acc.overdueFollowUps + row.overdueFollowUpCount,
-  }), { interactions: 0, actualSalesValue: 0, completedFollowUps: 0, overdueFollowUps: 0 }), [salespeople]);
+    responseMinutesTotal: acc.responseMinutesTotal + row.averageFirstResponseMinutes,
+    responseUsers: acc.responseUsers + (row.averageFirstResponseMinutes > 0 ? 1 : 0),
+  }), { interactions: 0, actualSalesValue: 0, completedFollowUps: 0, overdueFollowUps: 0, responseMinutesTotal: 0, responseUsers: 0 }), [salespeople]);
 
   if (loading && !daily.length && !salespeople.length) return <Spinner label="CRM raporları hazırlanıyor..." />;
 
@@ -101,6 +104,7 @@ export default function CrmReportsPage() {
     ["Kazanılan Fırsat", totals.won, "Kazanıldı durumuna geçen satış fırsatlarının toplamı."],
     ["Gerçekleşen Satış", money(salespersonTotals.actualSalesValue), "CRM fırsatlarından gerçek satış kaydına dönüşen toplam satış tutarı."],
     ["Geciken Takip", salespersonTotals.overdueFollowUps, "Halen açık ve son zamanı geçmiş müşteri takiplerinin toplamı."],
+    ["Ort. İlk Dönüş", salespersonTotals.responseUsers ? `${Math.round(salespersonTotals.responseMinutesTotal / salespersonTotals.responseUsers)} dk` : "—", "Potansiyel müşterilere verilen ilk dönüşün satışçı ortalamaları üzerinden yaklaşık süresidir."],
   ] as const;
 
   return (
@@ -118,7 +122,7 @@ export default function CrmReportsPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-7">
         {cards.map(([label, value, detail]) => (
           <GlassCard key={label} className="p-4">
             <div className="flex items-start gap-2">
@@ -152,6 +156,7 @@ export default function CrmReportsPage() {
                   <th className="px-3 py-3">Gerçek Satış</th>
                   <th className="px-3 py-3">Tamamlanan Takip</th>
                   <th className="px-3 py-3">Geciken Takip</th>
+                  <th className="px-3 py-3">Ort. İlk Dönüş</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
@@ -167,6 +172,7 @@ export default function CrmReportsPage() {
                     <td className="px-3 py-4 font-semibold">{money(row.actualSalesValue)}</td>
                     <td className="px-3 py-4">{row.completedFollowUpCount}</td>
                     <td className="px-3 py-4">{row.overdueFollowUpCount}</td>
+                    <td className="px-3 py-4">{row.averageFirstResponseMinutes > 0 ? `${row.averageFirstResponseMinutes} dk` : "—"}</td>
                   </tr>
                 ))}
               </tbody>
