@@ -271,6 +271,7 @@ export class AppointmentsService {
     );
 
     try {
+      let eventId: string | null = null;
       const result = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           `SELECT 1::int AS locked
@@ -376,22 +377,25 @@ export class AppointmentsService {
           },
         });
 
+        if (createdAppointment) {
+          eventId =
+            (await this.domainEvents?.record(tx, {
+              eventName: 'appointment.created',
+              aggregateType: 'appointment',
+              aggregateId: createdAppointment.id,
+              payload: {
+                customerId: createdAppointment.customerId,
+                serviceId: createdAppointment.serviceId,
+                staffId: createdAppointment.staffId,
+                startAt: createdAppointment.startAt.toISOString(),
+                sessionId: createdAppointment.session?.id ?? null,
+              },
+            })) ?? null;
+        }
+
         return createdAppointment;
       });
-      if (result) {
-        await this.domainEvents?.publish({
-          eventName: 'appointment.created',
-          aggregateType: 'appointment',
-          aggregateId: result.id,
-          payload: {
-            customerId: result.customerId,
-            serviceId: result.serviceId,
-            staffId: result.staffId,
-            startAt: result.startAt.toISOString(),
-            sessionId: result.session?.id ?? null,
-          },
-        });
-      }
+      if (eventId) await this.domainEvents?.dispatchStored(eventId);
       return result;
     } catch (error) {
       if (
@@ -517,6 +521,7 @@ export class AppointmentsService {
       await this.organizationScope.getBranchScopedWhere();
 
     try {
+      let eventId: string | null = null;
       const result = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           `SELECT 1::int AS locked
@@ -813,32 +818,35 @@ export class AppointmentsService {
           });
         }
 
+        if (updatedAppointment) {
+          eventId =
+            (await this.domainEvents?.record(tx, {
+              eventName:
+                input.status === 'COMPLETED'
+                  ? 'appointment.completed'
+                  : input.status === 'CANCELLED'
+                    ? 'appointment.cancelled'
+                    : input.status === 'NO_SHOW'
+                      ? 'appointment.no_show'
+                      : input.status === 'CONFIRMED'
+                        ? 'appointment.confirmed'
+                        : 'appointment.updated',
+              aggregateType: 'appointment',
+              aggregateId: updatedAppointment.id,
+              payload: {
+                customerId: updatedAppointment.customerId,
+                serviceId: updatedAppointment.serviceId,
+                staffId: updatedAppointment.staffId,
+                status: updatedAppointment.status,
+                startAt: updatedAppointment.startAt.toISOString(),
+                sessionId: updatedAppointment.session?.id ?? null,
+              },
+            })) ?? null;
+        }
+
         return updatedAppointment;
       });
-      if (result) {
-        await this.domainEvents?.publish({
-          eventName:
-            input.status === 'COMPLETED'
-              ? 'appointment.completed'
-              : input.status === 'CANCELLED'
-                ? 'appointment.cancelled'
-                : input.status === 'NO_SHOW'
-                  ? 'appointment.no_show'
-                  : input.status === 'CONFIRMED'
-                    ? 'appointment.confirmed'
-                    : 'appointment.updated',
-          aggregateType: 'appointment',
-          aggregateId: result.id,
-          payload: {
-            customerId: result.customerId,
-            serviceId: result.serviceId,
-            staffId: result.staffId,
-            status: result.status,
-            startAt: result.startAt.toISOString(),
-            sessionId: result.session?.id ?? null,
-          },
-        });
-      }
+      if (eventId) await this.domainEvents?.dispatchStored(eventId);
       return result;
     } catch (error) {
       if (
@@ -860,7 +868,8 @@ export class AppointmentsService {
       await this.organizationScope.getBranchScopedWhere();
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      let eventId: string | null = null;
+      const result = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           `SELECT 1::int AS locked
            FROM (
@@ -884,12 +893,12 @@ export class AppointmentsService {
         }
 
         if (appointment.status === 'CANCELLED') {
-          throw new BadRequestException('Appointment is already cancelled');
+          throw new BadRequestException('Randevu zaten iptal edilmiş.');
         }
 
         if (appointment.status === 'COMPLETED') {
           throw new ConflictException(
-            'Completed appointment cannot be cancelled.',
+            'Tamamlanmış randevu iptal edilemez.',
           );
         }
 
@@ -915,7 +924,7 @@ export class AppointmentsService {
 
           if (released.count !== 1) {
             throw new ConflictException(
-              'Reserved package session changed during cancellation.',
+              'Ayrılmış paket seansı iptal sırasında değişti. Lütfen ekranı yenileyin.',
             );
           }
         }
@@ -935,11 +944,28 @@ export class AppointmentsService {
           },
         });
 
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'appointment.cancelled',
+            aggregateType: 'appointment',
+            aggregateId: updated.id,
+            payload: {
+              customerId: updated.customerId,
+              serviceId: updated.serviceId,
+              staffId: updated.staffId,
+              status: updated.status,
+              startAt: updated.startAt.toISOString(),
+              releasedSessionId: appointment.session?.id ?? null,
+            },
+          })) ?? null;
+
         return {
           cancelled: true,
           appointment: updated,
         };
       });
+      if (eventId) await this.domainEvents?.dispatchStored(eventId);
+      return result;
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -951,7 +977,7 @@ export class AppointmentsService {
 
       console.error('[AppointmentsService.remove] Prisma error:', error);
 
-      throw new InternalServerErrorException('Failed to cancel appointment');
+      throw new InternalServerErrorException('Randevu iptal edilemedi.');
     }
   }
 }
