@@ -9,6 +9,8 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { AccountingService } from '../accounting/accounting.service';
+import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { CreateAppointmentInput } from './dto/create-appointment.dto';
 import { ListAppointmentsInput } from './dto/list-appointments.dto';
@@ -31,6 +33,8 @@ export class AppointmentsService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly organizationScope: OrganizationScopeService,
+    private readonly accountingService: AccountingService,
+    private readonly commerceFinanceSync: CommerceFinanceSyncService,
   ) {}
 
   private getTenantId(): string {
@@ -702,6 +706,12 @@ export class AppointmentsService {
         const updatedAppointment = await tx.appointment.findUnique({
           where: { id: updated.id },
           include: {
+            customer: {
+              select: { firstName: true, lastName: true },
+            },
+            service: {
+              select: { name: true, price: true },
+            },
             payment: true,
             session: {
               include: {
@@ -720,6 +730,42 @@ export class AppointmentsService {
             input.startAt.getTime() !== appointment.startAt.getTime()) ||
           (input.endAt !== undefined &&
             input.endAt.getTime() !== appointment.endAt.getTime());
+
+        if (
+          statusChanged &&
+          input.status === 'COMPLETED' &&
+          updatedAppointment &&
+          !updatedAppointment.session
+        ) {
+          const amount = Number(updatedAppointment.service.price);
+          const actorId = await this.currentUserId(tx);
+          const customerName =
+            `${updatedAppointment.customer.firstName} ${updatedAppointment.customer.lastName}`.trim();
+          const completedAt = new Date();
+
+          await this.accountingService.recordAppointmentReceivable(
+            tx,
+            updatedAppointment.id,
+            {
+              tenantId,
+              branchId: updatedAppointment.branchId,
+              entryDate: completedAt,
+              amount,
+            },
+          );
+          await this.commerceFinanceSync.syncAppointmentReceivable(tx, {
+            tenantId,
+            companyId: this.tenantContext.getCompanyId(),
+            branchId: updatedAppointment.branchId,
+            appointmentId: updatedAppointment.id,
+            actorId,
+            customerName,
+            serviceName: updatedAppointment.service.name,
+            amount,
+            occurredAt: completedAt,
+            dueAt: updatedAppointment.startAt,
+          });
+        }
 
         if (statusChanged || scheduleChanged) {
           const eventType = statusChanged
