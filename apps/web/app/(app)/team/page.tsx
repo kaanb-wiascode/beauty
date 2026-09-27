@@ -81,6 +81,7 @@ type TypingUser = { id: string; firstName: string; lastName: string };
 type PinnedMessage = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string; pinnedAt: string };
 type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
 type AnnouncementReader = { id: string; firstName: string; lastName: string; email: string; acknowledgedAt: string };
+type MessageReader = { id: string; firstName: string; lastName: string; email: string; readAt: string };
 type AttachmentPreview = { url: string; mimeType: string; name: string };
 type PreparedAttachment = {
   objectKey: string;
@@ -183,6 +184,9 @@ export default function TeamPage() {
   const [preview, setPreview] = useState<AttachmentPreview | null>(null);
   const [readerList, setReaderList] = useState<AnnouncementReader[]>([]);
   const [readerModalTitle, setReaderModalTitle] = useState("");
+  const [messageReaders, setMessageReaders] = useState<MessageReader[]>([]);
+  const [messageInfo, setMessageInfo] = useState<Message | null>(null);
+  const [attachmentTab, setAttachmentTab] = useState<"MEDIA" | "FILES">("MEDIA");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -665,6 +669,17 @@ export default function TeamPage() {
     }
   }
 
+  async function showMessageInfo(message: Message) {
+    setMessageInfo(message);
+    try {
+      const readers = await api<MessageReader[]>(`/team/messages/${message.id}/readers`);
+      setMessageReaders(readers);
+    } catch (err) {
+      setMessageReaders([]);
+      setError(err instanceof ApiError ? err.message : "Mesaj bilgisi yüklenemedi.");
+    }
+  }
+
   async function showAnnouncementReaders(message: Message) {
     try {
       const readers = await api<AnnouncementReader[]>(`/team/messages/${message.id}/acknowledgements`);
@@ -1015,6 +1030,7 @@ export default function TeamPage() {
                             </div>
                             <div className={`mt-2 flex flex-wrap gap-1 border-t pt-2 ${mine ? "border-white/10" : "border-[var(--line)]"}`}>
                               <button type="button" onClick={() => setReplyTo(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>Yanıtla</button>
+                              <button type="button" onClick={() => void showMessageInfo(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>Bilgi</button>
                               <button type="button" onClick={() => void togglePin(message.id)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>{message.isPinned ? "Sabiti kaldır" : "Sabitle"}</button>
                               {["👍","❤️","👏"].map((emoji) => <button key={emoji} type="button" onClick={() => void toggleReaction(message.id, emoji)} className="text-[11px]">{emoji}</button>)}
                               {mine ? <button type="button" onClick={() => startEditing(message)} className="ml-1 text-[9px] font-semibold text-white/65">Düzenle</button> : null}
@@ -1236,6 +1252,44 @@ export default function TeamPage() {
               </div>
             </div>
           ) : null}
+          {active ? (
+            <div className="border-b border-[var(--line)]">
+              <div className="px-4 pt-4">
+                <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Konuşma Arşivi</p>
+                <div className="mt-3 grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--surface-2)] p-1">
+                  <button type="button" onClick={() => setAttachmentTab("MEDIA")} className={`rounded-[8px] px-2 py-1.5 text-[9px] font-semibold ${attachmentTab === "MEDIA" ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>Medya</button>
+                  <button type="button" onClick={() => setAttachmentTab("FILES")} className={`rounded-[8px] px-2 py-1.5 text-[9px] font-semibold ${attachmentTab === "FILES" ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>Dosyalar</button>
+                </div>
+              </div>
+              <div className="max-h-[240px] overflow-y-auto p-3">
+                {attachmentTab === "MEDIA" ? (
+                  <div className="grid grid-cols-3 gap-1.5">
+                    {messages.flatMap((message) => message.attachments).filter((attachment) => attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("video/")).slice(-12).reverse().map((attachment) => (
+                      <button key={attachment.id} type="button" onClick={() => void openAttachment(attachment)} className="flex aspect-square items-center justify-center overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-2 text-center text-[8px] font-semibold text-[var(--muted)]">
+                        {attachment.mimeType.startsWith("image/") ? "Fotoğraf" : "Video"}
+                      </button>
+                    ))}
+                    {!messages.some((message) => message.attachments.some((attachment) => attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("video/"))) ? (
+                      <p className="col-span-3 py-6 text-center text-[9px] text-[var(--muted)]">Henüz medya yok.</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {messages.flatMap((message) => message.attachments).filter((attachment) => !attachment.mimeType.startsWith("image/") && !attachment.mimeType.startsWith("video/") && !attachment.mimeType.startsWith("audio/")).slice(-12).reverse().map((attachment) => (
+                      <button key={attachment.id} type="button" onClick={() => void openAttachment(attachment)} className="flex w-full items-center gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-2 text-left">
+                        <span className="rounded-[7px] bg-white px-1.5 py-1 text-[8px] font-bold text-[var(--accent)]">{attachment.mimeType === "application/pdf" ? "PDF" : "DOC"}</span>
+                        <span className="min-w-0 flex-1 truncate text-[9px] font-semibold text-[var(--ink)]">{attachment.originalName}</span>
+                      </button>
+                    ))}
+                    {!messages.some((message) => message.attachments.some((attachment) => !attachment.mimeType.startsWith("image/") && !attachment.mimeType.startsWith("video/") && !attachment.mimeType.startsWith("audio/"))) ? (
+                      <p className="py-6 text-center text-[9px] text-[var(--muted)]">Henüz dosya yok.</p>
+                    ) : null}
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : null}
+
           <div className="border-b border-[var(--line)] px-4 py-4">
             <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Ekip Durumu</p>
             <p className="mt-1 text-[11px] text-[var(--muted-soft)]">{people.filter((person) => person.isOnline).length} kişi çevrim içi</p>
@@ -1302,6 +1356,41 @@ export default function TeamPage() {
             {preview.mimeType.startsWith("video/") ? <video src={preview.url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-[14px] bg-black" /> : null}
             {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
             {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[65vh] w-full rounded-[14px] bg-white" /> : null}
+          </div>
+        ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(messageInfo)}
+        onClose={() => { setMessageInfo(null); setMessageReaders([]); }}
+        title="Mesaj bilgisi"
+        description={messageInfo ? `${messageInfo.senderName} · ${new Date(messageInfo.createdAt).toLocaleString("tr-TR")}` : ""}
+        size="sm"
+      >
+        {messageInfo ? (
+          <div>
+            <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/55 p-4">
+              <p className="whitespace-pre-wrap text-[11px] leading-5 text-[var(--ink)]">{messageInfo.body}</p>
+              <div className="mt-3 flex flex-wrap gap-2 text-[9px] text-[var(--muted)]">
+                <span>Gönderildi · {new Date(messageInfo.createdAt).toLocaleString("tr-TR")}</span>
+                {messageInfo.editedAt ? <span>Düzenlendi · {new Date(messageInfo.editedAt).toLocaleString("tr-TR")}</span> : null}
+              </div>
+            </div>
+            <div className="mt-4">
+              <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">Okuyanlar · {messageReaders.length}</p>
+              <div className="mt-2 max-h-[300px] overflow-y-auto">
+                {messageReaders.length ? messageReaders.map((reader) => (
+                  <div key={reader.id} className="flex items-center gap-3 rounded-[11px] px-2 py-2.5 hover:bg-[var(--surface-2)]">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[9px] font-semibold text-[var(--accent)]">{initials(reader.firstName, reader.lastName)}</div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{reader.firstName} {reader.lastName}</p>
+                      <p className="truncate text-[8px] text-[var(--muted)]">{reader.email}</p>
+                    </div>
+                    <span className="text-[8px] text-[var(--muted-soft)]">{new Date(reader.readAt).toLocaleString("tr-TR")}</span>
+                  </div>
+                )) : <p className="py-6 text-center text-[10px] text-[var(--muted)]">Henüz okundu bilgisi yok.</p>}
+              </div>
+            </div>
           </div>
         ) : null}
       </Modal>
