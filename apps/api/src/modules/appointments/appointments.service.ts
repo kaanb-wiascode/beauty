@@ -20,6 +20,7 @@ type ReferenceClient = Pick<
 >;
 
 type AppointmentClient = Pick<Prisma.TransactionClient, 'appointment'>;
+type RawCrmClient = Pick<Prisma.TransactionClient, '$queryRawUnsafe' | '$executeRawUnsafe'>;
 
 @Injectable()
 export class AppointmentsService {
@@ -49,6 +50,50 @@ export class AppointmentsService {
     }
 
     return branchId;
+  }
+
+  private async currentUserId(db: RawCrmClient): Promise<string> {
+    const context = this.tenantContext.getContext();
+    const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" AS "userId"
+         FROM memberships
+        WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
+        LIMIT 1`,
+      context.membershipId,
+      context.tenantId,
+      context.companyId,
+    );
+    if (!rows[0]?.userId) {
+      throw new InternalServerErrorException('Oturum açmış kullanıcı bilgisi bulunamadı.');
+    }
+    return rows[0].userId;
+  }
+
+  private async recordCrmAppointmentEvent(
+    db: RawCrmClient,
+    input: {
+      customerId: string;
+      appointmentId: string;
+      branchId: string;
+      eventType: string;
+      metadata?: Record<string, unknown>;
+    },
+  ): Promise<void> {
+    const context = this.tenantContext.getContext();
+    const actorUserId = await this.currentUserId(db);
+    await db.$executeRawUnsafe(
+      `INSERT INTO crm_events(
+         tenant_id,company_id,branch_id,customer_id,appointment_id,event_type,actor_user_id,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7::text,$8::jsonb)`,
+      context.tenantId,
+      context.companyId,
+      input.branchId,
+      input.customerId,
+      input.appointmentId,
+      input.eventType,
+      actorUserId,
+      JSON.stringify(input.metadata ?? {}),
+    );
   }
 
   private validateDateRange(startAt: Date, endAt: Date): void {
@@ -294,7 +339,7 @@ export class AppointmentsService {
           }
         }
 
-        return tx.appointment.findUnique({
+        const createdAppointment = await tx.appointment.findUnique({
           where: { id: appointment.id },
           include: {
             session: {
@@ -306,6 +351,21 @@ export class AppointmentsService {
             },
           },
         });
+
+        await this.recordCrmAppointmentEvent(tx, {
+          customerId: appointment.customerId,
+          appointmentId: appointment.id,
+          branchId: appointment.branchId,
+          eventType: 'APPOINTMENT_CREATED',
+          metadata: {
+            startAt: appointment.startAt.toISOString(),
+            endAt: appointment.endAt.toISOString(),
+            staffId: appointment.staffId,
+            serviceId: appointment.serviceId,
+          },
+        });
+
+        return createdAppointment;
       });
     } catch (error) {
       if (
@@ -634,7 +694,7 @@ export class AppointmentsService {
           }
         }
 
-        return tx.appointment.findUnique({
+        const updatedAppointment = await tx.appointment.findUnique({
           where: { id: updated.id },
           include: {
             payment: true,
@@ -647,6 +707,43 @@ export class AppointmentsService {
             },
           },
         });
+
+        const statusChanged =
+          input.status !== undefined && input.status !== appointment.status;
+        const scheduleChanged =
+          (input.startAt !== undefined && input.startAt.getTime() !== appointment.startAt.getTime()) ||
+          (input.endAt !== undefined && input.endAt.getTime() !== appointment.endAt.getTime());
+
+        if (statusChanged || scheduleChanged) {
+          const eventType = statusChanged
+            ? input.status === 'COMPLETED'
+              ? 'APPOINTMENT_COMPLETED'
+              : input.status === 'CANCELLED'
+                ? 'APPOINTMENT_CANCELLED'
+                : input.status === 'NO_SHOW'
+                  ? 'APPOINTMENT_NO_SHOW'
+                  : input.status === 'CONFIRMED'
+                    ? 'APPOINTMENT_CONFIRMED'
+                    : 'APPOINTMENT_UPDATED'
+            : 'APPOINTMENT_RESCHEDULED';
+
+          await this.recordCrmAppointmentEvent(tx, {
+            customerId: updated.customerId,
+            appointmentId: updated.id,
+            branchId: updated.branchId,
+            eventType,
+            metadata: {
+              previousStatus: appointment.status,
+              status: updated.status,
+              startAt: updated.startAt.toISOString(),
+              endAt: updated.endAt.toISOString(),
+              staffId: updated.staffId,
+              serviceId: updated.serviceId,
+            },
+          });
+        }
+
+        return updatedAppointment;
       });
     } catch (error) {
       if (
@@ -727,6 +824,21 @@ export class AppointmentsService {
             );
           }
         }
+
+        await this.recordCrmAppointmentEvent(tx, {
+          customerId: updated.customerId,
+          appointmentId: updated.id,
+          branchId: updated.branchId,
+          eventType: 'APPOINTMENT_CANCELLED',
+          metadata: {
+            previousStatus: appointment.status,
+            status: updated.status,
+            startAt: updated.startAt.toISOString(),
+            endAt: updated.endAt.toISOString(),
+            staffId: updated.staffId,
+            serviceId: updated.serviceId,
+          },
+        });
 
         return {
           cancelled: true,
