@@ -13,7 +13,7 @@ export class OperationsUtilizationController {
   constructor(private readonly utilization: OperationsUtilizationService) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   summary(@Query() query: unknown) {
     return this.utilization.summary(operationsCapacityQuerySchema.parse(query));
   }
