@@ -6,6 +6,7 @@ import { Alert, Button, EmptyState, PageHeader, Select, Spinner } from "@/compon
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import type { Appointment, Paginated } from "@/lib/types";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 
 type Session={id:string;status:"AVAILABLE"|"RESERVED"|"CONSUMED"|"CANCELLED";appointmentId:string|null;service:{id:string;name:string};customerPackage:{id:string;customer:{id:string;firstName:string;lastName:string};package:{id:string;name:string}};consumedAt?:string|null};
 const labels:Record<string,string>={AVAILABLE:"Kullanılabilir",RESERVED:"Rezerve",CONSUMED:"Kullanıldı",CANCELLED:"İptal"};
@@ -13,6 +14,9 @@ export default function SessionsPage(){
  const[rows,setRows]=useState<Session[]>([]),[appointments,setAppointments]=useState<Appointment[]>([]),[status,setStatus]=useState(""),[loading,setLoading]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[appointmentId,setAppointmentId]=useState<Record<string,string>>({});
  const load=useCallback(async()=>{setLoading(true);setError("");try{const q=status?`?status=${status}`:"";const[r,a]=await Promise.all([api<Session[]>(`/sessions${q}`),api<Paginated<Appointment>>("/appointments?page=1&limit=200")]);setRows(Array.isArray(r)?r:[]);setAppointments(Array.isArray(a.data)?a.data:[])}catch(e){setError(e instanceof ApiError?e.message:"Seanslar yüklenemedi.")}finally{setLoading(false)}},[status]);
  useEffect(()=>{void load()},[load]);
+ useOperationRealtime((event)=>{
+   if(event.aggregateType==="session"||event.aggregateType==="appointment"||event.aggregateType==="service_execution") void load();
+ });
  async function action(id:string,kind:"reserve"|"release"|"consume"|"cancel"){setWorking(true);setError("");try{await api(`/sessions/${id}/${kind}`,{method:"POST",body:kind==="reserve"?{appointmentId:appointmentId[id]}:undefined});setNotice(kind==="reserve"?"Seans randevuya rezerve edildi.":kind==="release"?"Seans rezervasyonu kaldırıldı.":kind==="consume"?"Seans kullanıldı olarak işlendi.":"Seans iptal edildi.");await load()}catch(e){setError(e instanceof ApiError?e.message:"Seans işlemi tamamlanamadı.")}finally{setWorking(false)}}
  const stats=useMemo(()=>({total:rows.length,available:rows.filter(x=>x.status==="AVAILABLE").length,reserved:rows.filter(x=>x.status==="RESERVED").length,consumed:rows.filter(x=>x.status==="CONSUMED").length}),[rows]);
  return <div className="mx-auto max-w-[1450px] space-y-6 pb-12"><PageHeader title="Seans Yönetimi" description="Satılmış paketlerdeki hizmet kullanım haklarını randevularla eşleştirin ve tüketim durumlarını yönetin."/>
