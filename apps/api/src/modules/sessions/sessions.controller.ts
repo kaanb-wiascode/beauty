@@ -25,7 +25,7 @@ const reserveSchema = z.object({
 
 @Controller('sessions')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
-@RequirePermission('appointments', 'read')
+@RequirePermission('sessions', 'read')
 export class SessionsController {
   constructor(private readonly sessionsService: SessionsService) {}
 
@@ -40,26 +40,26 @@ export class SessionsController {
   }
 
   @Post(':id/reserve')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('sessions', 'reserve')
   reserve(@Param('id') id: string, @Body() body: unknown) {
     const input = reserveSchema.parse(body);
     return this.sessionsService.reserve(id, input.appointmentId);
   }
 
   @Post(':id/release')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('sessions', 'release')
   release(@Param('id') id: string) {
     return this.sessionsService.release(id);
   }
 
   @Post(':id/consume')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('sessions', 'consume')
   consume(@Param('id') id: string) {
     return this.sessionsService.consume(id);
   }
 
   @Post(':id/cancel')
-  @RequirePermission('appointments', 'cancel')
+  @RequirePermission('sessions', 'cancel')
   cancel(@Param('id') id: string) {
     return this.sessionsService.cancel(id);
   }
