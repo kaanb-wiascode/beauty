@@ -301,7 +301,7 @@ export class CrmLeadService {
     const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
     await this.dataScope.assertOwnerAllowed(input.ownerUserId);
-    if (input.status === 'LOST' && !input.lostReason) throw new BadRequestException('Lost lead requires a reason.');
+    if (input.status === 'LOST' && !input.lostReason) throw new BadRequestException('Kaybedilen potansiyel müşteri için neden gereklidir.');
 
     return this.prisma.$transaction(async (tx) => {
       await this.assertCommercialScope(input, tx);
@@ -366,7 +366,7 @@ export class CrmLeadService {
         input.interestNote !== undefined, input.interestNote ?? null, input.ownerUserId !== undefined, input.ownerUserId ?? null,
         input.status ?? null, input.lostReason ?? null, input.version,
       );
-      if (!rows.length) throw new ConflictException('Lead changed or is outside the active scope.');
+      if (!rows.length) throw new ConflictException('Potansiyel müşteri başka bir kullanıcı tarafından değiştirildi veya aktif çalışma kapsamının dışında.');
 
       if (input.ownerUserId !== undefined && input.ownerUserId !== previousOwnerUserId && input.ownerUserId) {
         await this.assignmentService.recordAssignment({
