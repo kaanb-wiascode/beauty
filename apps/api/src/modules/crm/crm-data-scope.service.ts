@@ -61,6 +61,9 @@ export class CrmDataScopeService {
       : 'SELF';
 
     const scope = row.configuredScope ?? fallback;
+    if (scope === 'BRANCH' && !context.branchId) {
+      throw new BadRequestException('Şube kapsamındaki CRM verilerini görüntülemek için aktif bir şube seçilmelidir.');
+    }
     if (scope === 'SELF') {
       return { scope, userId: row.userId, ownerUserIds: [row.userId], restrictOwners: true, branchId: context.branchId };
     }
