@@ -27,6 +27,15 @@ type AutomationRule = {
   overridden: boolean;
 };
 type CrmAssignee = { id: string; firstName: string; lastName: string; email: string };
+type SurveyorCandidate = {
+  staffId: string;
+  firstName: string;
+  lastName: string;
+  active: boolean;
+  dailyDeskQuota: number | null;
+  weeklyDeskQuota: number | null;
+};
+
 type CrmTeam = {
   id: string;
   name: string;
@@ -66,6 +75,8 @@ export default function CrmSettingsPage() {
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
   const [teams, setTeams] = useState<CrmTeam[]>([]);
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
+  const [surveyorCandidates, setSurveyorCandidates] = useState<SurveyorCandidate[]>([]);
+  const [surveyorDrafts, setSurveyorDrafts] = useState<Record<string, { active: boolean; dailyDeskQuota: string; weeklyDeskQuota: string }>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
@@ -85,16 +96,23 @@ export default function CrmSettingsPage() {
     setLoading(true);
     setError("");
     try {
-      const [assignmentRows, automationRows, teamRows, assigneeRows] = await Promise.all([
+      const [assignmentRows, automationRows, teamRows, assigneeRows, surveyorRows] = await Promise.all([
         api<AssignmentRule[]>("/crm/assignment-rules"),
         api<AutomationRule[]>("/crm/automation-rules"),
         api<CrmTeam[]>("/crm/teams"),
         api<CrmAssignee[]>("/crm/assignees"),
+        api<SurveyorCandidate[]>("/crm/surveyor-candidates"),
       ]);
       setAssignmentRules(assignmentRows);
       setAutomationRules(automationRows);
       setTeams(teamRows);
       setAssignees(assigneeRows);
+      setSurveyorCandidates(surveyorRows);
+      setSurveyorDrafts(Object.fromEntries(surveyorRows.map((row) => [row.staffId, {
+        active: row.active,
+        dailyDeskQuota: row.dailyDeskQuota == null ? "" : String(row.dailyDeskQuota),
+        weeklyDeskQuota: row.weeklyDeskQuota == null ? "" : String(row.weeklyDeskQuota),
+      }])));
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "CRM ayarları yüklenemedi.");
     } finally {
@@ -202,6 +220,30 @@ export default function CrmSettingsPage() {
     }
   }
 
+  async function saveSurveyorProfile(staffId: string) {
+    const draft = surveyorDrafts[staffId];
+    if (!draft) return;
+    const daily = draft.dailyDeskQuota.trim() === "" ? null : Number(draft.dailyDeskQuota);
+    const weekly = draft.weeklyDeskQuota.trim() === "" ? null : Number(draft.weeklyDeskQuota);
+    if ((daily !== null && (!Number.isInteger(daily) || daily < 0)) || (weekly !== null && (!Number.isInteger(weekly) || weekly < 0))) {
+      setError("Anketör kotaları sıfır veya pozitif tam sayı olmalıdır.");
+      return;
+    }
+    setSaving(`surveyor-${staffId}`);
+    setError("");
+    try {
+      await api(`/crm/surveyors/${staffId}`, {
+        method: "PATCH",
+        body: { active: draft.active, dailyDeskQuota: daily, weeklyDeskQuota: weekly },
+      });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Anketör ayarları güncellenemedi.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function updateSla(rule: AutomationRule, config: Record<string, unknown>, enabled = rule.enabled) {
     setSaving(rule.ruleKey);
     setError("");
@@ -229,6 +271,27 @@ export default function CrmSettingsPage() {
         description="Potansiyel müşteri dağıtımı, satış ekibi iş yükü ve müşteri dönüş sürelerini yönetin."
       />
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+
+      <section>
+        <GlassCard className="p-0">
+          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+            <div className="flex items-start gap-2">
+              <CardInfo help={getCardHelp("Anketör Yönetimi", "Aktif şube çalışanlarını Anketör olarak tanımlar ve CRM kaynak takibinde kullanılacak günlük/haftalık masa kotalarını yönetir.")} />
+              <div><h2 className="text-[15px] font-semibold">Anketör Yönetimi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Şube çalışanları, aktiflik ve masa kotaları</p></div>
+            </div>
+          </div>
+          {surveyorCandidates.length ? <div className="divide-y divide-[var(--line)]">{surveyorCandidates.map((person) => {
+            const draft = surveyorDrafts[person.staffId] ?? { active: person.active, dailyDeskQuota: person.dailyDeskQuota == null ? "" : String(person.dailyDeskQuota), weeklyDeskQuota: person.weeklyDeskQuota == null ? "" : String(person.weeklyDeskQuota) };
+            return <div key={person.staffId} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(180px,1fr)_140px_160px_160px_auto] lg:items-end">
+              <div><p className="text-[12px] font-semibold">{person.firstName} {person.lastName}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{draft.active ? "CRM kaynak seçiminde aktif" : "Anketör olarak kullanılmıyor"}</p></div>
+              <label className="flex h-10 items-center gap-2 rounded-[12px] border border-[var(--line)] px-3 text-[11px]"><input type="checkbox" checked={draft.active} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, active: event.target.checked } }))} /> Anketör aktif</label>
+              <Field label="Günlük masa kotası"><TextInput type="number" min="0" step="1" value={draft.dailyDeskQuota} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, dailyDeskQuota: event.target.value } }))} /></Field>
+              <Field label="Haftalık masa kotası"><TextInput type="number" min="0" step="1" value={draft.weeklyDeskQuota} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, weeklyDeskQuota: event.target.value } }))} /></Field>
+              <Button variant="secondary" disabled={saving === `surveyor-${person.staffId}`} onClick={() => void saveSurveyorProfile(person.staffId)}>{saving === `surveyor-${person.staffId}` ? "Kaydediliyor..." : "Kaydet"}</Button>
+            </div>;
+          })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">Aktif şubede Anketör olarak tanımlanabilecek çalışan bulunmuyor.</div>}
+        </GlassCard>
+      </section>
 
       <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <GlassCard className="p-0">
