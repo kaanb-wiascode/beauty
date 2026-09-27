@@ -34,7 +34,7 @@ export class MarketingVendorsService {
       select: { id: true },
     });
     if (!branch) {
-      throw new BadRequestException('Vendor branch is outside the active company.');
+      throw new BadRequestException('İş ortağı için seçilen şube aktif şirket kapsamında değil.');
     }
   }
 
@@ -99,7 +99,7 @@ export class MarketingVendorsService {
 
     if (branchId) await this.assertBranch(branchId);
     if (context.branchId && branchId && branchId !== context.branchId) {
-      throw new BadRequestException('Vendor cannot be created outside the active branch.');
+      throw new BadRequestException('İş ortağı aktif şube dışında oluşturulamaz.');
     }
 
     const rows = await this.prisma.$queryRawUnsafe<VendorRow[]>(
@@ -149,7 +149,7 @@ export class MarketingVendorsService {
 
     if (nextBranchId) await this.assertBranch(nextBranchId);
     if (context.branchId && nextBranchId && nextBranchId !== context.branchId) {
-      throw new BadRequestException('Vendor cannot be moved outside the active branch.');
+      throw new BadRequestException('İş ortağı aktif şube dışına taşınamaz.');
     }
 
     const rows = await this.prisma.$queryRawUnsafe<VendorRow[]>(
@@ -207,7 +207,7 @@ export class MarketingVendorsService {
       JSON.stringify(input.metadata ?? {}),
     );
 
-    if (!rows.length) throw new NotFoundException('Marketing vendor not found.');
+    if (!rows.length) throw new NotFoundException('Pazarlama iş ortağı bulunamadı.');
     await this.syncFinanceHandoff(rows[0].id);
     return rows[0];
   }
@@ -224,7 +224,7 @@ export class MarketingVendorsService {
       companyId,
       branchId,
     );
-    if (!rows.length) throw new NotFoundException('Marketing vendor not found.');
+    if (!rows.length) throw new NotFoundException('Pazarlama iş ortağı bulunamadı.');
     return rows[0];
   }
 }
