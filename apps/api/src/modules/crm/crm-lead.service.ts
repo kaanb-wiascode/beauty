@@ -150,9 +150,13 @@ export class CrmLeadService {
               ${this.acquisitionSelect()},${this.commercialSelect()},${this.salesSelect()},l.status,l.interest_note AS "interestNote",l.lost_reason AS "lostReason",
               l.customer_id AS "customerId",l.owner_user_id AS "ownerUserId",l.surveyor_staff_id AS "surveyorStaffId",
               l.surveyor_branch_id AS "surveyorBranchId",l.survey_campaign AS "surveyCampaign",l.survey_location AS "surveyLocation",
-              l.survey_desk AS "surveyDesk",l.survey_date AS "surveyDate",l.version,
-              l.created_at AS "createdAt",l.updated_at AS "updatedAt"
+              l.survey_desk AS "surveyDesk",l.survey_date AS "surveyDate",
+              sv."firstName" AS "surveyorFirstName",sv."lastName" AS "surveyorLastName",
+              sp.daily_desk_quota AS "surveyorDailyDeskQuota",sp.weekly_desk_quota AS "surveyorWeeklyDeskQuota",
+              l.version,l.created_at AS "createdAt",l.updated_at AS "updatedAt"
        FROM crm_leads l
+       LEFT JOIN staff sv ON sv.id=l.surveyor_staff_id
+       LEFT JOIN crm_surveyor_profiles sp ON sp.staff_id=l.surveyor_staff_id
        WHERE l.id=$1::text AND l.tenant_id=$2::text AND l.company_id=$3::text
          AND ($4::text IS NULL OR l.branch_id=$4::text)
          AND ($5::boolean=FALSE OR l.owner_user_id=ANY($6::text[])) LIMIT 1`,
