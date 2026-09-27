@@ -44,12 +44,12 @@ const severityLabel: Record<AlertSeverity, string> = {
 const typeLabel: Record<string, string> = {
   WAITING_TOO_LONG: "Bekleme",
   SERVICE_OVERRUN: "Süre Aşımı",
-  CHECKOUT_STALE: "Checkout",
+  CHECKOUT_STALE: "Çıkış Gecikmesi",
   ROOM_ATTENTION: "Oda",
   DEVICE_UNAVAILABLE: "Cihaz",
   RESOURCE_APPOINTMENT_IMPACT: "Kaynak Çakışması",
   UPCOMING_STOCK_SHORTAGE: "Stok Riski",
-  ACTIVE_INCIDENT: "Incident",
+  ACTIVE_INCIDENT: "Aktif Operasyon Olayı",
 };
 
 function ageLabel(minutes: number) {
