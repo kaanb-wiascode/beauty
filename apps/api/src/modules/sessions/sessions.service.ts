@@ -19,7 +19,7 @@ export class SessionsService {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
     return branchId;
@@ -31,7 +31,7 @@ export class SessionsService {
   ) {
     if (!canTransitionSession(from, to)) {
       throw new ConflictException(
-        `Session cannot transition from ${from} to ${to}.`,
+        `Bu seans mevcut durumundan istenen duruma geçirilemez.`,
       );
     }
   }
@@ -75,7 +75,7 @@ export class SessionsService {
         },
       },
     });
-    if (!session) throw new NotFoundException('Session not found');
+    if (!session) throw new NotFoundException('Seans bulunamadı.');
     return session;
   }
 
@@ -100,7 +100,7 @@ export class SessionsService {
 
       if (!appointment) {
         throw new BadRequestException(
-          'Appointment does not match this customer, service, or branch.',
+          'Randevu; müşteri, hizmet veya şube bilgileriyle eşleşmiyor.',
         );
       }
 
@@ -120,7 +120,7 @@ export class SessionsService {
 
       if (claimed.count !== 1) {
         throw new ConflictException(
-          'Session is no longer available for reservation.',
+          'Seans artık randevuya ayrılabilir durumda değil.',
         );
       }
 
@@ -150,7 +150,7 @@ export class SessionsService {
 
     if (claimed.count !== 1) {
       throw new ConflictException(
-        'Session state changed before it could be released.',
+        'Seans durumu değiştiği için rezervasyon kaldırılamadı. Lütfen ekranı yenileyin.',
       );
     }
 
@@ -165,7 +165,7 @@ export class SessionsService {
 
     if (!session.appointmentId) {
       throw new BadRequestException(
-        'A reserved appointment is required before consuming a session.',
+        'Seansın kullanılabilmesi için önce bir randevuya ayrılmış olması gerekir.',
       );
     }
 
@@ -182,7 +182,7 @@ export class SessionsService {
 
       if (!appointment) {
         throw new BadRequestException(
-          'The linked appointment must be completed first.',
+          'Seansı kullanılmış olarak işaretlemeden önce bağlı randevu tamamlanmalıdır.',
         );
       }
 
@@ -202,7 +202,7 @@ export class SessionsService {
 
       if (claimed.count !== 1) {
         throw new ConflictException(
-          'Session state changed before it could be consumed.',
+          'Seans durumu değiştiği için kullanım kaydı tamamlanamadı. Lütfen ekranı yenileyin.',
         );
       }
 
@@ -251,7 +251,7 @@ export class SessionsService {
 
     if (claimed.count !== 1) {
       throw new ConflictException(
-        'Session state changed before it could be cancelled.',
+        'Seans durumu değiştiği için iptal işlemi tamamlanamadı. Lütfen ekranı yenileyin.',
       );
     }
 
