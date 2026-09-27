@@ -13,7 +13,10 @@ const createRuleSchema = z.object({
   sourceFilter: z.string().trim().min(1).max(60).nullable().optional(),
   skillKey: z.string().trim().min(1).max(120).nullable().optional(),
   priority: z.coerce.number().int().min(1).max(10000).default(100),
-});
+}).refine(
+  (value) => value.mode !== 'SKILL_BASED' || Boolean(value.skillKey),
+  { message: 'Yetkinliğe göre dağıtım için yetkinlik anahtarı gereklidir.', path: ['skillKey'] },
+);
 
 @Controller('crm/assignment-rules')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
