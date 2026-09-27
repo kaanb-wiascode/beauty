@@ -435,6 +435,8 @@ export class CorporateCommunicationsService {
               EXISTS(
                 SELECT 1 FROM corporate_marketing_provider_secrets s
                 WHERE s.connection_id=c.id
+                  AND s.tenant_id=c.tenant_id
+                  AND s.company_id=c.company_id
               ) AS "credentialsConfigured",
               c.last_sync_at AS "lastSyncAt",c.last_error AS "lastError"
          FROM corporate_marketing_provider_connections c
@@ -506,8 +508,11 @@ export class CorporateCommunicationsService {
 
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
-        `DELETE FROM corporate_marketing_provider_secrets WHERE connection_id=$1::text`,
+        `DELETE FROM corporate_marketing_provider_secrets
+          WHERE connection_id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         id,
+        tenantId,
+        companyId,
       );
       await tx.$executeRawUnsafe(
         `UPDATE corporate_marketing_provider_connections
