@@ -15,6 +15,7 @@ import {
 import { cx, fullName } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
 import { ValooSelect } from "./valoo-controls";
+import { parseValooRichCard } from "./team-rich-card";
 
 const NAV_SECTIONS = [
   { label: "Genel", items: [
@@ -145,6 +146,13 @@ type ContextOptions = {
 type SwitchContextResponse = {
   accessToken: string;
 };
+
+function teamMessagePreview(value: string) {
+  const card = parseValooRichCard(value);
+  if (!card) return value;
+  const label = card.kind === "APPOINTMENT" ? "Randevu" : card.kind === "CUSTOMER" ? "Müşteri" : "Ödeme";
+  return `${label}: ${card.title}`;
+}
 
 type TeamConversationSummary = {
   id: string;
@@ -652,7 +660,7 @@ export function AppShell({ children }: { children: ReactNode }) {
                         {conversation.unreadCount > 0 ? <span className="min-w-5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-center text-[9px] font-semibold text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
                       </div>
                       <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
-                        {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${conversation.lastMessage.body}` : "Henüz mesaj yok"}
+                        {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${teamMessagePreview(conversation.lastMessage.body)}` : "Henüz mesaj yok"}
                       </p>
                     </div>
                   </Link>
