@@ -113,10 +113,49 @@ export class VisitCheckoutReadinessService {
     const blockers: VisitCheckoutIssue[] = [];
     const warnings: VisitCheckoutIssue[] = [];
 
+    const appointmentReceivables = appointmentIds.length
+      ? await this.prisma.$queryRawUnsafe<
+          Array<{
+            appointmentId: string;
+            grossAmount: string;
+            collectedAmount: string;
+          }>
+        >(
+          `SELECT i.source_id AS "appointmentId",
+                  i.gross_amount::text AS "grossAmount",
+                  COALESCE(
+                    SUM(
+                      CASE
+                        WHEN r.id IS NULL THEN c.amount
+                        ELSE 0
+                      END
+                    ),
+                    0
+                  )::text AS "collectedAmount"
+           FROM income_records i
+           LEFT JOIN income_collections c ON c.income_record_id=i.id
+           LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
+           WHERE i.tenant_id=$1
+             AND i.company_id=$2
+             AND i.branch_id=$3
+             AND i.source_type='APPOINTMENT'
+             AND i.source_id = ANY($4::text[])
+             AND i.approval_status::text <> 'CANCELLED'
+           GROUP BY i.source_id,i.gross_amount`,
+          tenantId,
+          visit.companyId,
+          branchId,
+          appointmentIds,
+        )
+      : [];
+    const receivableByAppointment = new Map(
+      appointmentReceivables.map((item) => [item.appointmentId, item]),
+    );
+
     if (visit.status !== 'CHECKOUT_PENDING') {
       blockers.push({
         code: 'VISIT_NOT_CHECKOUT_PENDING',
-        message: 'Visit must be checkout pending before checkout.',
+        message: 'Ziyaretin çıkış işlemi yapılmadan önce çıkış bekliyor aşamasına alınması gerekir.',
       });
     }
 
@@ -126,18 +165,34 @@ export class VisitCheckoutReadinessService {
           blockers.push({
             code: 'PACKAGE_SESSION_NOT_CONSUMED',
             appointmentId: appointment.id,
-            message: 'The package session linked to this appointment has not been consumed.',
+            message: 'Bu randevuya bağlı paket seansı henüz kullanılmış olarak işaretlenmedi.',
           });
         }
         continue;
       }
 
       if (!appointment.payment || appointment.payment.status !== 'COMPLETED') {
-        blockers.push({
-          code: 'PAYMENT_PENDING',
-          appointmentId: appointment.id,
-          message: 'Payment or collection is still pending for this appointment.',
-        });
+        const receivable = receivableByAppointment.get(appointment.id);
+        if (!receivable) {
+          blockers.push({
+            code: 'PAYMENT_PENDING',
+            appointmentId: appointment.id,
+            message:
+              'Bu randevu için tamamlanmış ödeme veya Finans tarafında takip edilen bir alacak kaydı bulunmuyor.',
+          });
+          continue;
+        }
+
+        const gross = Number(receivable.grossAmount);
+        const collected = Number(receivable.collectedAmount);
+        if (collected + 0.01 < gross) {
+          warnings.push({
+            code: 'COMMERCIAL_BALANCE_OUTSTANDING',
+            appointmentId: appointment.id,
+            message:
+              'Bu randevunun ödenmemiş bakiyesi Finans > Gelirler alanında alacak olarak takip ediliyor.',
+          });
+        }
       }
     }
 
@@ -165,12 +220,12 @@ export class VisitCheckoutReadinessService {
       if (!context || context.saleStatus !== 'CONFIRMED' || Number(context.serviceItemCount) < 1) {
         blockers.push({
           code: 'COMMERCIAL_CONTEXT_UNVERIFIED',
-          message: 'Walk-in visit must be linked to a confirmed service sale for the same customer and branch before checkout.',
+          message: 'Randevusuz ziyaretin çıkışından önce aynı müşteri ve şubeye ait onaylanmış bir hizmet satışı bulunmalıdır.',
         });
       } else if (Number(context.paidTotal) < Number(context.saleTotal)) {
         warnings.push({
           code: 'COMMERCIAL_BALANCE_OUTSTANDING',
-          message: 'Walk-in sale is commercially verified but still has an outstanding balance.',
+          message: 'Randevusuz müşterinin satışı doğrulandı ancak ödenmemiş bakiyesi bulunuyor.',
         });
       }
     }
@@ -189,7 +244,7 @@ export class VisitCheckoutReadinessService {
     const readiness = await this.getReadiness(id);
     if (!readiness.canCheckout) {
       throw new BadRequestException({
-        message: 'Visit is not ready for checkout.',
+        message: 'Ziyaret çıkış işlemi için henüz hazır değil.',
         blockers: readiness.blockers,
       });
     }
