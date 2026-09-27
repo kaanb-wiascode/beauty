@@ -37,7 +37,7 @@ export class DigitalAssetsService {
       where: { id: branchId, companyId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!branch) throw new BadRequestException('Digital asset branch is outside the active company.');
+    if (!branch) throw new BadRequestException('Dijital varlık için seçilen şube aktif şirket kapsamında değil.');
   }
 
   async list(filters: ListDigitalAssetsInput) {
@@ -86,7 +86,7 @@ export class DigitalAssetsService {
     const branchId = context.branchId ?? input.branchId ?? null;
 
     if (context.branchId && input.branchId && input.branchId !== context.branchId) {
-      throw new BadRequestException('Digital asset cannot be created outside the active branch.');
+      throw new BadRequestException('Dijital varlık aktif şube dışında oluşturulamaz.');
     }
     if (branchId) await this.assertBranch(branchId);
 
@@ -104,7 +104,7 @@ export class DigitalAssetsService {
         if (duplicates.length) {
           const duplicate = duplicates[0];
           if (context.branchId && duplicate.branchId !== null && duplicate.branchId !== context.branchId) {
-            throw new ConflictException('An identical digital asset already exists outside the active branch.');
+            throw new ConflictException('Aynı dijital varlık aktif şube dışında zaten kayıtlı.');
           }
           return { asset: duplicate, idempotent: true };
         }
@@ -164,7 +164,7 @@ export class DigitalAssetsService {
         context.branchId,
       );
       const asset = rows[0];
-      if (!asset) throw new NotFoundException('Digital asset not found.');
+      if (!asset) throw new NotFoundException('Dijital varlık bulunamadı.');
       if (!asset.active) return { id, archived: true, idempotent: true };
 
       await tx.$executeRawUnsafe(
