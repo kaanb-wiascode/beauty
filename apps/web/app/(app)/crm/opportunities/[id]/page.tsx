@@ -187,27 +187,66 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     if (!opportunity || !canManage || !branchReady("Teklif oluşturmak için aktif bir şube seçin.")) return;
     setQuoteError("");
     setQuoteForm({
-      description: opportunity.title,
-      quantity: "1",
-      unitPrice: opportunity.estimatedValue == null ? "" : String(opportunity.estimatedValue),
       discountTotal: "0",
       validUntil: opportunity.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toISOString().slice(0, 10) : "",
       notes: "",
     });
+    setQuoteItems([{ itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
     setQuoteOpen(true);
+  }
+
+  function updateQuoteItem(index: number, patch: Partial<QuoteItemForm>) {
+    setQuoteItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function selectQuoteReference(index: number, referenceId: string) {
+    const item = quoteItems[index];
+    if (!item) return;
+    if (item.itemType === "SERVICE") {
+      const selected = serviceOptions.find((service) => service.id === referenceId);
+      updateQuoteItem(index, {
+        referenceId,
+        description: selected?.name ?? "",
+        unitPrice: selected == null ? "" : String(selected.price),
+      });
+      return;
+    }
+    if (item.itemType === "PACKAGE") {
+      const selected = packageOptions.find((pack) => pack.id === referenceId);
+      updateQuoteItem(index, {
+        referenceId,
+        description: selected?.name ?? "",
+        unitPrice: selected == null ? "" : String(selected.price),
+      });
+    }
+  }
+
+  function addQuoteItem() {
+    setQuoteItems((current) => [...current, { itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
+  }
+
+  function removeQuoteItem(index: number) {
+    setQuoteItems((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index));
   }
 
   async function createQuote(event: FormEvent) {
     event.preventDefault();
     if (!opportunity) return;
-    const quantity = Number(quoteForm.quantity);
-    const unitPrice = Number(quoteForm.unitPrice);
+    const normalizedItems = quoteItems.map((item) => ({
+      ...item,
+      quantityNumber: Number(item.quantity),
+      unitPriceNumber: Number(item.unitPrice),
+    }));
+    if (!normalizedItems.length) return setQuoteError("En az bir teklif kalemi gereklidir.");
+    if (normalizedItems.some((item) => !item.description.trim())) return setQuoteError("Tüm teklif kalemlerinde açıklama gereklidir.");
+    if (normalizedItems.some((item) => (item.itemType === "SERVICE" || item.itemType === "PACKAGE") && !item.referenceId)) return setQuoteError("Hizmet ve paket kalemlerinde katalog seçimi gereklidir.");
+    if (normalizedItems.some((item) => !Number.isFinite(item.quantityNumber) || item.quantityNumber < 1)) return setQuoteError("Tüm kalemlerin miktarı en az 1 olmalıdır.");
+    if (normalizedItems.some((item) => !Number.isFinite(item.unitPriceNumber) || item.unitPriceNumber < 0)) return setQuoteError("Tüm kalemlerin birim fiyatı sıfır veya pozitif olmalıdır.");
+    const subtotal = normalizedItems.reduce((sum, item) => sum + item.quantityNumber * item.unitPriceNumber, 0);
     const discountTotal = Number(quoteForm.discountTotal || 0);
-    if (!quoteForm.description.trim()) return setQuoteError("Teklif kalemi açıklaması gereklidir.");
-    if (!Number.isFinite(quantity) || quantity < 1) return setQuoteError("Miktar en az 1 olmalıdır.");
-    if (!Number.isFinite(unitPrice) || unitPrice < 0) return setQuoteError("Birim fiyat sıfır veya pozitif olmalıdır.");
     if (!Number.isFinite(discountTotal) || discountTotal < 0) return setQuoteError("İndirim sıfır veya pozitif olmalıdır.");
-    if (discountTotal > quantity * unitPrice) return setQuoteError("İndirim teklif toplamını aşamaz.");
+    if (discountTotal > subtotal) return setQuoteError("İndirim teklif ara toplamını aşamaz.");
+
     setQuoteSaving(true);
     setQuoteError("");
     try {
@@ -220,12 +259,13 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
           discountTotal,
           ...(quoteForm.validUntil ? { validUntil: new Date(`${quoteForm.validUntil}T23:59:59`).toISOString() } : {}),
           ...(quoteForm.notes.trim() ? { notes: quoteForm.notes.trim() } : {}),
-          items: [{
-            itemType: "CUSTOM",
-            description: quoteForm.description.trim(),
-            quantity,
-            unitPrice,
-          }],
+          items: normalizedItems.map((item) => ({
+            itemType: item.itemType,
+            ...(item.referenceId ? { referenceId: item.referenceId } : {}),
+            description: item.description.trim(),
+            quantity: item.quantityNumber,
+            unitPrice: item.unitPriceNumber,
+          })),
         },
       });
       await refresh(opportunity.id);
