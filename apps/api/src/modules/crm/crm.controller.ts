@@ -28,6 +28,7 @@ import {
   transitionOpportunitySchema,
   updateLeadSchema,
 } from './crm.schemas';
+import { CrmDataScopeService } from './crm-data-scope.service';
 import { CrmLeadService } from './crm-lead.service';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmOpportunityService } from './crm-opportunity.service';
@@ -59,7 +60,7 @@ const operationsSummarySchema = z
     dayEnd: z.coerce.date(),
   })
   .refine((value) => value.dayEnd > value.dayStart, {
-    message: 'dayEnd must be after dayStart.',
+    message: 'Bitiş zamanı başlangıç zamanından sonra olmalıdır.',
     path: ['dayEnd'],
   });
 
@@ -68,6 +69,7 @@ const operationsSummarySchema = z
 export class CrmController {
   constructor(
     private readonly crm: CrmService,
+    private readonly dataScope: CrmDataScopeService,
     private readonly leads: CrmLeadService,
     private readonly opportunities: CrmOpportunityService,
     private readonly operations: CrmOperationsService,
@@ -75,7 +77,7 @@ export class CrmController {
 
   private userId(request: { user?: { sub?: string } }) {
     const id = request.user?.sub;
-    if (!id) throw new UnauthorizedException('Authenticated user id is missing.');
+    if (!id) throw new UnauthorizedException('Oturum açmış kullanıcı bilgisi bulunamadı.');
     return id;
   }
 
@@ -84,6 +86,18 @@ export class CrmController {
   getOperationsSummary(@Query() query: unknown) {
     const filters = operationsSummarySchema.parse(query);
     return this.operations.getSummary(filters.dayStart, filters.dayEnd);
+  }
+
+  @Get('data-scope')
+  @RequirePermission('crm', 'read')
+  getDataScope() {
+    return this.dataScope.resolve();
+  }
+
+  @Get('surveyors')
+  @RequirePermission('crm', 'read')
+  listSurveyors() {
+    return this.dataScope.listSurveyors();
   }
 
   @Get('assignees')
