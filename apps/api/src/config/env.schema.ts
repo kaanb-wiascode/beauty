@@ -54,6 +54,8 @@ export const envSchema = z.object({
   TIKTOK_BUSINESS_AUTHORIZATION_URL: z.string().url().optional(),
   TIKTOK_BUSINESS_TOKEN_URL: z.string().url().optional(),
   TIKTOK_BUSINESS_VERIFY_URL: z.string().trim().min(1).optional(),
+  TIKTOK_BUSINESS_CAMPAIGN_LIST_URL: z.string().url().optional(),
+  TIKTOK_BUSINESS_REPORT_URL: z.string().url().optional(),
 
   QUALITY_NOTIFICATION_WEBHOOK_URL: z.string().url().optional(),
   QUALITY_NOTIFICATION_WEBHOOK_SECRET: z.string().min(32).optional(),
