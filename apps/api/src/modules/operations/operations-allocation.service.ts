@@ -27,10 +27,10 @@ export class OperationsAllocationService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -81,10 +81,10 @@ export class OperationsAllocationService {
           branchId,
         );
         const appointment = appointments[0];
-        if (!appointment) throw new NotFoundException('Appointment not found');
+        if (!appointment) throw new NotFoundException('Randevu bulunamadı.');
         if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
           throw new BadRequestException(
-            'Resources can only be reserved for scheduled or confirmed appointments.',
+            'Kaynaklar yalnızca planlanmış veya onaylanmış randevular için ayrılabilir.',
           );
         }
 
@@ -139,7 +139,7 @@ export class OperationsAllocationService {
           );
         } else if (requirement.roomType) {
           throw new BadRequestException(
-            `Service requires a room of type ${requirement.roomType}.`,
+            `Hizmet için uygun türde bir oda ayrılması gerekir.`,
           );
         }
 
@@ -159,7 +159,7 @@ export class OperationsAllocationService {
             }),
           );
         } else if (requirement.requiredAssetId || requirement.requiredAssetType) {
-          throw new BadRequestException('Service requires an equipment resource.');
+          throw new BadRequestException('Hizmet için uygun bir cihaz ayrılması gerekir.');
         }
 
         return { blockedFrom, blockedTo, allocations };
@@ -186,7 +186,7 @@ export class OperationsAllocationService {
     );
     if (!rows[0]) {
       throw new ConflictException(
-        'Allocation changed or is no longer reserved. Refresh and retry.',
+        'Kaynak ataması değişti veya artık ayrılmış değil. Lütfen ekranı yenileyin.',
       );
     }
     return rows[0];
@@ -220,7 +220,7 @@ export class OperationsAllocationService {
       args.branchId,
     );
     const room = roomRows[0];
-    if (!room) throw new NotFoundException('Room not found');
+    if (!room) throw new NotFoundException('Oda bulunamadı.');
     if (room.status !== 'AVAILABLE') {
       throw new ConflictException({
         code: 'ROOM_UNAVAILABLE',
@@ -230,7 +230,7 @@ export class OperationsAllocationService {
     }
     if (args.requiredRoomType && room.roomType !== args.requiredRoomType) {
       throw new BadRequestException(
-        `Service requires room type ${args.requiredRoomType}.`,
+        `Hizmet için uygun oda türü seçilmelidir.`,
       );
     }
 
@@ -285,13 +285,13 @@ export class OperationsAllocationService {
       args.branchId,
     );
     const asset = assets[0];
-    if (!asset) throw new NotFoundException('Equipment asset not found');
+    if (!asset) throw new NotFoundException('Cihaz bulunamadı.');
     if (args.requiredAssetId && asset.id !== args.requiredAssetId) {
-      throw new BadRequestException('Service requires a different equipment asset.');
+      throw new BadRequestException('Hizmet için farklı bir cihaz seçilmelidir.');
     }
     if (args.requiredAssetType && asset.assetType !== args.requiredAssetType) {
       throw new BadRequestException(
-        `Service requires equipment type ${args.requiredAssetType}.`,
+        `Hizmet için uygun cihaz türü seçilmelidir.`,
       );
     }
 
