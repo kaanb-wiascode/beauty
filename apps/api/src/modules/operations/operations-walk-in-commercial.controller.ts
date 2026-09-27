@@ -12,13 +12,13 @@ export class OperationsWalkInCommercialController {
   constructor(private readonly commercial: OperationsWalkInCommercialService) {}
 
   @Get(':visitId')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   get(@Param('visitId', new ParseUUIDPipe()) visitId: string) {
     return this.commercial.get(visitId);
   }
 
   @Put(':visitId')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   link(@Param('visitId', new ParseUUIDPipe()) visitId: string, @Body() body: unknown) {
     return this.commercial.link(visitId, linkWalkInCommercialContextSchema.parse(body));
   }
