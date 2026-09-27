@@ -53,6 +53,7 @@ export default function AdvertisingConnectionsPage() {
   const [saving, setSaving] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState("");
   const [connectingId, setConnectingId] = useState("");
+  const [verifyingId, setVerifyingId] = useState("");
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
   const [displayName, setDisplayName] = useState("");
@@ -95,6 +96,19 @@ export default function AdvertisingConnectionsPage() {
     } catch (e) {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "Platform yetkilendirmesi başlatılamadı.") : "Platform yetkilendirmesi başlatılamadı.");
       setConnectingId("");
+    }
+  }
+
+  async function verifyConnection(id: string) {
+    setVerifyingId(id);
+    setError("");
+    try {
+      await api(`/corporate-communications/provider-connections/${id}/oauth/verify`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Platform bağlantısı doğrulanamadı.") : "Platform bağlantısı doğrulanamadı.");
+    } finally {
+      setVerifyingId("");
     }
   }
 
@@ -161,6 +175,16 @@ export default function AdvertisingConnectionsPage() {
                     ? "Yeniden Yetkilendir"
                     : "Platforma Bağlan"}
               </button>
+              {connectionHealth?.credentialsConfigured ? (
+                <button
+                  type="button"
+                  disabled={verifyingId === row.id}
+                  onClick={() => void verifyConnection(row.id)}
+                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  {verifyingId === row.id ? "Bağlantı Test Ediliyor..." : "Bağlantıyı Test Et"}
+                </button>
+              ) : null}
               {connectionHealth?.health !== "DISCONNECTED" ? (
                 <button
                   type="button"
