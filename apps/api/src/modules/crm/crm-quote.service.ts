@@ -247,15 +247,7 @@ export class CrmQuoteService {
       actorUserId,
     );
 
-    const saleId =
-      'sale' in conversion && conversion.sale
-        ? conversion.sale.id
-        : 'saleId' in conversion
-          ? conversion.saleId
-          : null;
-    if (!saleId) {
-      throw new ConflictException('Satış bağlantısı oluşturulamadı.');
-    }
+    const saleId = conversion.sale.id;
 
     const convertedAt = new Date();
     await this.prisma.$transaction(async (tx) => {
