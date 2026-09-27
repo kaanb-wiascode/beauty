@@ -189,7 +189,7 @@ export default function TeamPage() {
   const [messageInfo, setMessageInfo] = useState<Message | null>(null);
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState(false);
-  const [attachmentTab, setAttachmentTab] = useState<"MEDIA" | "FILES">("MEDIA");
+  const [attachmentTab, setAttachmentTab] = useState<"MEDIA" | "FILES" | "LINKS">("MEDIA");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -1299,9 +1299,10 @@ export default function TeamPage() {
             <div className="border-b border-[var(--line)]">
               <div className="px-4 pt-4">
                 <p className="text-[11px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">Konuşma Arşivi</p>
-                <div className="mt-3 grid grid-cols-2 gap-1 rounded-[10px] bg-[var(--surface-2)] p-1">
+                <div className="mt-3 grid grid-cols-3 gap-1 rounded-[10px] bg-[var(--surface-2)] p-1">
                   <button type="button" onClick={() => setAttachmentTab("MEDIA")} className={`rounded-[8px] px-2 py-1.5 text-[9px] font-semibold ${attachmentTab === "MEDIA" ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>Medya</button>
                   <button type="button" onClick={() => setAttachmentTab("FILES")} className={`rounded-[8px] px-2 py-1.5 text-[9px] font-semibold ${attachmentTab === "FILES" ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>Dosyalar</button>
+                  <button type="button" onClick={() => setAttachmentTab("LINKS")} className={`rounded-[8px] px-2 py-1.5 text-[9px] font-semibold ${attachmentTab === "LINKS" ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>Bağlantılar</button>
                 </div>
               </div>
               <div className="max-h-[240px] overflow-y-auto p-3">
@@ -1316,7 +1317,7 @@ export default function TeamPage() {
                       <p className="col-span-3 py-6 text-center text-[9px] text-[var(--muted)]">Henüz medya yok.</p>
                     ) : null}
                   </div>
-                ) : (
+                ) : attachmentTab === "FILES" ? (
                   <div className="space-y-1.5">
                     {messages.flatMap((message) => message.attachments).filter((attachment) => !attachment.mimeType.startsWith("image/") && !attachment.mimeType.startsWith("video/") && !attachment.mimeType.startsWith("audio/")).slice(-12).reverse().map((attachment) => (
                       <button key={attachment.id} type="button" onClick={() => void openAttachment(attachment)} className="flex w-full items-center gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-2 text-left">
@@ -1326,6 +1327,21 @@ export default function TeamPage() {
                     ))}
                     {!messages.some((message) => message.attachments.some((attachment) => !attachment.mimeType.startsWith("image/") && !attachment.mimeType.startsWith("video/") && !attachment.mimeType.startsWith("audio/"))) ? (
                       <p className="py-6 text-center text-[9px] text-[var(--muted)]">Henüz dosya yok.</p>
+                    ) : null}
+                  </div>
+                ) : (
+                  <div className="space-y-1.5">
+                    {messages.flatMap((message) => {
+                      const urls = message.body.match(/https?:\/\/[^\s]+/g) ?? [];
+                      return urls.map((url) => ({ url, messageId: message.id, senderName: message.senderName }));
+                    }).slice(-20).reverse().map((item, index) => (
+                      <a key={`${item.messageId}-${index}-${item.url}`} href={item.url} target="_blank" rel="noreferrer" className="block rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 hover:border-[var(--line-strong)]">
+                        <p className="truncate text-[9px] font-semibold text-[var(--accent)]">{item.url}</p>
+                        <p className="mt-1 text-[8px] text-[var(--muted)]">{item.senderName}</p>
+                      </a>
+                    ))}
+                    {!messages.some((message) => /https?:\/\/[^\s]+/.test(message.body)) ? (
+                      <p className="py-6 text-center text-[9px] text-[var(--muted)]">Henüz bağlantı yok.</p>
                     ) : null}
                   </div>
                 )}
