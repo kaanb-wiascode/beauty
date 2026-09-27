@@ -46,6 +46,7 @@ export const envSchema = z.object({
   GOOGLE_OAUTH_SCOPES: z.string().trim().min(1).optional(),
   GOOGLE_ADS_DEVELOPER_TOKEN: z.string().trim().min(1).optional(),
   GOOGLE_ADS_API_VERSION: z.string().trim().regex(/^v\d+$/).default('v25'),
+  GOOGLE_ADS_LOGIN_CUSTOMER_ID: z.string().trim().min(1).optional(),
 
   TIKTOK_BUSINESS_APP_ID: z.string().trim().min(1).optional(),
   TIKTOK_BUSINESS_SECRET: z.string().trim().min(1).optional(),
