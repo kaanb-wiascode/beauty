@@ -60,7 +60,9 @@ export class CrmDataScopeService {
           : 'BRANCH'
       : 'SELF';
 
-    const scope = row.configuredScope ?? fallback;
+    let scope = row.configuredScope ?? fallback;
+    if (row.roleScope === 'BRANCH' && ['COMPANY','ALL'].includes(scope)) scope = 'BRANCH';
+    if (row.roleScope === 'COMPANY' && scope === 'ALL') scope = 'COMPANY';
     if (scope === 'BRANCH' && !context.branchId) {
       throw new BadRequestException('Şube kapsamındaki CRM verilerini görüntülemek için aktif bir şube seçilmelidir.');
     }
@@ -142,8 +144,8 @@ export class CrmDataScopeService {
 
   async setAccessPolicy(roleId: string, scope: CrmDataScope) {
     const context = this.tenantContext.getContext();
-    const roles = await this.prisma.$queryRawUnsafe<Array<{ id: string; slug: string }>>(
-      `SELECT id,slug FROM roles
+    const roles = await this.prisma.$queryRawUnsafe<Array<{ id: string; slug: string; scope: string }>>(
+      `SELECT id,slug,scope::text AS scope FROM roles
         WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
         LIMIT 1`,
       roleId,
@@ -154,6 +156,12 @@ export class CrmDataScopeService {
     if (!role) throw new BadRequestException('Seçilen rol aktif şirkette bulunamadı.');
     if (role.slug === 'owner' && scope !== 'ALL') {
       throw new BadRequestException('Platform sahibi rolünün CRM veri kapsamı Tüm Yetkili Veriler olarak kalmalıdır.');
+    }
+    if (role.scope === 'BRANCH' && ['COMPANY','ALL'].includes(scope)) {
+      throw new BadRequestException('Şube kapsamındaki bir role şirket veya tüm veriler kapsamı verilemez.');
+    }
+    if (role.scope === 'COMPANY' && scope === 'ALL') {
+      throw new BadRequestException('Şirket kapsamındaki bir role organizasyon sınırını aşan veri erişimi verilemez.');
     }
 
     await this.prisma.$executeRawUnsafe(
