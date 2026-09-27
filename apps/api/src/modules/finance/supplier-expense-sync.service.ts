@@ -50,7 +50,7 @@ export class SupplierExpenseSyncService {
        ) VALUES($1::text,$2::text,$3::text,'AUTO_SUPPLIER_EXPENSE','Tedarikçi Giderleri',true,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
        ON CONFLICT (tenant_id,company_id,code)
        DO UPDATE SET name='Tedarikçi Giderleri',system=true,active=true,updated_at=CURRENT_TIMESTAMP
-       RETURNING id`,
+       RETURNING id,payment_status::text AS "paymentStatus"`,
       randomUUID(),
       tenantId,
       companyId,
@@ -110,7 +110,7 @@ export class SupplierExpenseSyncService {
     );
 
     const expenseId = randomUUID();
-    const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+    const rows = await tx.$queryRawUnsafe<Array<{ id: string; paymentStatus: string }>>(
       `INSERT INTO expenses(
          id,tenant_id,company_id,branch_id,category_id,counterparty_name,
          document_type,document_number,document_date,transaction_date,due_date,
