@@ -480,6 +480,54 @@ export class CorporateCommunicationsService {
     };
   }
 
+  async ensureAutomaticProviderConnection(
+    provider: 'META' | 'GOOGLE_ADS' | 'TIKTOK',
+    actorUserId: string,
+  ) {
+    const { tenantId, companyId } = this.context();
+    const existing = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id
+         FROM corporate_marketing_provider_connections
+        WHERE tenant_id=$1::text
+          AND company_id=$2::text
+          AND provider=$3
+        ORDER BY
+          CASE WHEN status IN ('CONNECTED','AUTHORIZED') THEN 0 ELSE 1 END,
+          updated_at DESC,
+          created_at DESC
+        LIMIT 1`,
+      tenantId,
+      companyId,
+      provider,
+    );
+    if (existing[0]?.id) {
+      return existing[0];
+    }
+
+    const displayName =
+      provider === 'META'
+        ? 'Meta Ads'
+        : provider === 'GOOGLE_ADS'
+          ? 'Google Ads'
+          : 'TikTok Ads';
+
+    const [created] = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO corporate_marketing_provider_connections(
+         tenant_id,company_id,provider,external_account_id,display_name,status,created_by_user_id
+       ) VALUES($1::text,$2::text,$3,NULL,$4,'DISCONNECTED',$5::text)
+       RETURNING id`,
+      tenantId,
+      companyId,
+      provider,
+      displayName,
+      actorUserId,
+    );
+    if (!created?.id) {
+      throw new BadRequestException('Platform bağlantısı başlatılamadı.');
+    }
+    return created;
+  }
+
   async createProviderConnection(input: CreateProviderConnectionInput, actorUserId: string) {
     const { tenantId, companyId } = this.context();
     const [row] = await this.prisma.$queryRawUnsafe<Row[]>(
