@@ -505,7 +505,7 @@ export class CrmService {
        ORDER BY CASE WHEN f.status='OPEN' THEN 0 ELSE 1 END,f.due_at,f.id LIMIT $9`,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       filters.status ?? null,
       filters.assignedUserId ?? null,
       filters.dueBefore ?? null,
