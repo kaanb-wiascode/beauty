@@ -10,7 +10,7 @@ import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
-import { followUpChannelLabels, opportunityStageLabels, type CrmAssignee, type CrmEvent, type CrmFollowUp, type OpportunityStage } from "@/lib/crm-types";
+import { followUpChannelLabels, opportunityStageLabels, type CrmAssignee, type CrmEvent, type CrmFollowUp, type CrmInteraction, type OpportunityStage } from "@/lib/crm-types";
 
 type OpportunityDetail = {
   id: string; leadId: string | null; customerId: string | null; ownerUserId: string | null;
@@ -18,7 +18,7 @@ type OpportunityDetail = {
   probability: number; expectedCloseDate: string | null; lostReason: string | null; saleId: string | null;
   commercialSnapshot: Record<string, unknown> | null; convertedAt: string | null; version: number;
   createdAt: string; updatedAt: string; leadFirstName: string | null; leadLastName: string | null;
-  customerFirstName: string | null; customerLastName: string | null; followUps: CrmFollowUp[]; events: CrmEvent[];
+  customerFirstName: string | null; customerLastName: string | null; followUps: CrmFollowUp[]; interactions: CrmInteraction[]; events: CrmEvent[];
 };
 type FollowUpAction = "complete" | "reschedule" | "cancel";
 type FollowUpForm = { assignedUserId: string; channel: CrmFollowUp["channel"]; dueAt: string; note: string };
@@ -27,6 +27,16 @@ const nextStages: Record<OpportunityStage, OpportunityStage[]> = {
   QUALIFIED: ["NEEDS_ANALYSIS", "LOST"], NEEDS_ANALYSIS: ["PROPOSAL", "LOST"],
   PROPOSAL: ["NEGOTIATION", "WON", "LOST"], NEGOTIATION: ["PROPOSAL", "WON", "LOST"], WON: [], LOST: [],
 };
+const interactionTypeLabels: Record<CrmInteraction["type"], string> = {
+  CALL: "Telefon",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  IN_PERSON: "Yüz yüze",
+  VIDEO_CALL: "Görüntülü görüşme",
+  OTHER: "Diğer",
+};
+
 const followUpStatusLabels: Record<CrmFollowUp["status"], string> = { OPEN: "Açık", COMPLETED: "Tamamlandı", CANCELLED: "İptal Edildi" };
 const emptyFollowUp: FollowUpForm = { assignedUserId: "", channel: "CALL", dueAt: "", note: "" };
 
@@ -178,7 +188,9 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     </section>
 
     <section className="grid gap-5 xl:grid-cols-2">
-      <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Takipler</h2><CardInfo help={getCardHelp("Takipler", "Bu fırsata bağlı müşteri temaslarını ve takip görevlerini gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Bu fırsata bağlı müşteri temasları</p></div>{canManage ? <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openFollowUp}>+ Yeni Takip</Button> : null}</div>{opportunity.followUps.length ? <div className="divide-y divide-[var(--line)]">{opportunity.followUps.map((f) => <div key={f.id} className="px-5 py-4"><div className="flex justify-between gap-3"><p className="text-[12px] font-semibold">{followUpChannelLabels[f.channel]}</p><span className="text-[10px] text-[var(--muted)]">{followUpStatusLabels[f.status]}</span></div><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(f.dueAt)}</p>{f.note ? <p className="mt-2 text-[11px]">{f.note}</p> : null}{f.outcome ? <p className="mt-2 text-[10px] text-[var(--muted)]">Sonuç: {f.outcome}</p> : null}{f.cancellationReason ? <p className="mt-2 text-[10px] text-[var(--muted)]">İptal nedeni: {f.cancellationReason}</p> : null}{canManage && f.status === "OPEN" ? <div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "complete")}>Tamamla</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "reschedule")}>Ertele</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "cancel")}>İptal Et</Button></div> : null}</div>)}</div> : <EmptyState title="Takip Bulunmuyor" description="Bu fırsata bağlı takip kaydı henüz yok." action={canManage ? <Button onClick={openFollowUp}>İlk Takibi Oluştur</Button> : undefined} />}</GlassCard>
+      <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Görüşmeler</h2><CardInfo help={getCardHelp("Görüşmeler", "Bu satış fırsatına bağlı müşteri temaslarını gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Satış sürecindeki görüşme geçmişi</p></div><Link href={`/crm/interactions?opportunityId=${opportunity.id}`} className="text-[10px] font-semibold text-[#1674BD]">Tüm Görüşmeler →</Link></div>{opportunity.interactions?.length ? <div className="divide-y divide-[var(--line)]">{opportunity.interactions.slice(0,6).map((row) => <div key={row.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[120px_1fr_150px] sm:items-center"><div><p className="text-[11px] font-semibold">{interactionTypeLabels[row.type]}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{row.direction === "INBOUND" ? "Gelen" : "Giden"}</p></div><div className="min-w-0"><p className="truncate text-[11px]">{row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>{row.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">Sonraki: {row.nextAction}</p> : null}</div><time className="text-[10px] text-[var(--muted)] sm:text-right">{dateTime(row.startedAt)}</time></div>)}</div> : <EmptyState title="Görüşme Bulunmuyor" description="Bu satış fırsatına bağlı görüşme kaydı henüz yok." action={canManage ? <Link href={`/crm/interactions?new=1&opportunityId=${opportunity.id}&label=${encodeURIComponent(opportunity.title)}`}><Button>İlk Görüşmeyi Kaydet</Button></Link> : undefined} />}</GlassCard>
+
+    <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Takipler</h2><CardInfo help={getCardHelp("Takipler", "Bu fırsata bağlı müşteri temaslarını ve takip görevlerini gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Bu fırsata bağlı müşteri temasları</p></div>{canManage ? <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openFollowUp}>+ Yeni Takip</Button> : null}</div>{opportunity.followUps.length ? <div className="divide-y divide-[var(--line)]">{opportunity.followUps.map((f) => <div key={f.id} className="px-5 py-4"><div className="flex justify-between gap-3"><p className="text-[12px] font-semibold">{followUpChannelLabels[f.channel]}</p><span className="text-[10px] text-[var(--muted)]">{followUpStatusLabels[f.status]}</span></div><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(f.dueAt)}</p>{f.note ? <p className="mt-2 text-[11px]">{f.note}</p> : null}{f.outcome ? <p className="mt-2 text-[10px] text-[var(--muted)]">Sonuç: {f.outcome}</p> : null}{f.cancellationReason ? <p className="mt-2 text-[10px] text-[var(--muted)]">İptal nedeni: {f.cancellationReason}</p> : null}{canManage && f.status === "OPEN" ? <div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "complete")}>Tamamla</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "reschedule")}>Ertele</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "cancel")}>İptal Et</Button></div> : null}</div>)}</div> : <EmptyState title="Takip Bulunmuyor" description="Bu fırsata bağlı takip kaydı henüz yok." action={canManage ? <Button onClick={openFollowUp}>İlk Takibi Oluştur</Button> : undefined} />}</GlassCard>
       <GlassCard className="p-0"><div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[15px] font-semibold">CRM Zaman Çizelgesi</h2></div>{opportunity.events.length ? <div className="divide-y divide-[var(--line)]">{opportunity.events.map((e) => { const summary = eventSummary(e.metadata); return <div key={e.id} className="px-5 py-4"><p className="text-[12px] font-semibold">{eventLabel(e.eventType)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(e.createdAt)}</p>{summary ? <p className="mt-2 text-[10px] text-[var(--muted)]">{summary}</p> : null}</div>; })}</div> : <EmptyState title="CRM Olayı Bulunmuyor" description="Bu fırsat için henüz olay geçmişi oluşmamış." />}</GlassCard>
     </section>
 
