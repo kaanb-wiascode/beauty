@@ -102,7 +102,7 @@ export class CrmDataScopeService {
       userId: row.userId,
       ownerUserIds: [],
       restrictOwners: false,
-      branchId: scope === 'BRANCH' ? context.branchId : null,
+      branchId: context.branchId,
     };
   }
 
