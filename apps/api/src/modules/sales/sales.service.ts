@@ -109,12 +109,13 @@ export class SalesService {
     );
     await db.$executeRawUnsafe(
       `INSERT INTO crm_events(
-         tenant_id,company_id,branch_id,customer_id,sale_id,payment_id,event_type,actor_user_id,metadata
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8::text,$9::jsonb)`,
+         tenant_id,company_id,branch_id,customer_id,opportunity_id,sale_id,payment_id,event_type,actor_user_id,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8,$9::text,$10::jsonb)`,
       context.tenantId,
       context.companyId,
       input.branchId,
       input.customerId,
+      opportunities[0]?.opportunityId ?? null,
       input.saleId,
       input.paymentId ?? null,
       input.eventType,
