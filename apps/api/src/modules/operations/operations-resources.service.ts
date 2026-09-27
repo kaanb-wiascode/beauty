@@ -28,12 +28,12 @@ export class OperationsResourcesService {
 
     if (!tenantId || !companyId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -76,7 +76,7 @@ export class OperationsResourcesService {
       input.code,
     );
     if (existing.length) {
-      throw new BadRequestException('Room code already exists in this branch.');
+      throw new BadRequestException('Bu oda kodu şubede zaten kullanılıyor.');
     }
 
     const rows = await this.prisma.$queryRawUnsafe<
@@ -121,7 +121,7 @@ export class OperationsResourcesService {
       branchId,
       input.status,
     );
-    if (!rows[0]) throw new NotFoundException('Room not found');
+    if (!rows[0]) throw new NotFoundException('Oda bulunamadı.');
     return rows[0];
   }
 
@@ -221,7 +221,7 @@ export class OperationsResourcesService {
       );
       if (!assets[0]) {
         throw new BadRequestException(
-          'Required asset is outside the active branch or is not active.',
+          'Gerekli cihaz aktif şubede değil veya kullanıma açık değil.',
         );
       }
     }
@@ -273,7 +273,7 @@ export class OperationsResourcesService {
       where: { id: serviceId, tenantId, branchId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!service) throw new NotFoundException('Service not found');
+    if (!service) throw new NotFoundException('Hizmet bulunamadı.');
     return service;
   }
 }
