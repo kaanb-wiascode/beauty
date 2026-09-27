@@ -165,6 +165,7 @@ export class PaymentsService {
     }
 
     try {
+      let eventId: string | null = null;
       const payment = await this.prisma.$transaction(
         async (tx) => {
           const existing = await tx.payment.findUnique({
@@ -238,20 +239,23 @@ export class PaymentsService {
             method: payment.method,
           });
 
+          eventId =
+            (await this.domainEvents?.record(tx, {
+              eventName: 'appointment.payment_received',
+              aggregateType: 'appointment',
+              aggregateId: appointment.id,
+              payload: {
+                paymentId: payment.id,
+                amount: Number(payment.amount),
+                method: payment.method,
+              },
+            })) ?? null;
+
           return payment;
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
-      await this.domainEvents?.publish({
-        eventName: 'appointment.payment_received',
-        aggregateType: 'appointment',
-        aggregateId: appointment.id,
-        payload: {
-          paymentId: payment.id,
-          amount: Number(payment.amount),
-          method: payment.method,
-        },
-      });
+      if (eventId) await this.domainEvents?.dispatchStored(eventId);
       return payment;
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
@@ -346,6 +350,7 @@ export class PaymentsService {
     }
 
     const reason = input.reason?.trim() || 'Ödeme iadesi';
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         const refundedAt = new Date();
@@ -395,22 +400,25 @@ export class PaymentsService {
           reason,
         });
 
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'appointment.payment_refunded',
+            aggregateType: 'appointment',
+            aggregateId: payment.appointmentId,
+            payload: {
+              paymentId: payment.id,
+              amount: Number(payment.amount),
+              reason,
+            },
+          })) ?? null;
+
         return tx.payment.findUniqueOrThrow({
           where: { id: payment.id },
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'appointment.payment_refunded',
-      aggregateType: 'appointment',
-      aggregateId: payment.appointmentId,
-      payload: {
-        paymentId: payment.id,
-        amount: Number(payment.amount),
-        reason,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
