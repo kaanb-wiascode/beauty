@@ -205,7 +205,7 @@ export class CrmOpportunityService {
       throw new NotFoundException('Satış fırsatı bulunamadı veya bu kaydı görüntüleme yetkiniz yok.');
     }
 
-    const [followUps, events] = await Promise.all([
+    const [followUps, interactions, events] = await Promise.all([
       this.prisma.$queryRawUnsafe<FollowUpRow[]>(
         `SELECT id,lead_id AS "leadId",opportunity_id AS "opportunityId",
                 assigned_user_id AS "assignedUserId",channel,status,due_at AS "dueAt",
@@ -215,6 +215,18 @@ export class CrmOpportunityService {
          FROM crm_follow_ups
          WHERE opportunity_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          ORDER BY due_at,id`,
+        id,
+        context.tenantId,
+        context.companyId,
+      ),
+      this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `SELECT i.id,i.owner_user_id AS "ownerUserId",i.type,i.direction,i.status,i.result,i.notes,
+                i.started_at AS "startedAt",i.ended_at AS "endedAt",i.duration_seconds AS "durationSeconds",
+                i.next_action AS "nextAction",i.next_action_at AS "nextActionAt"
+           FROM crm_interactions i
+          WHERE i.opportunity_id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
+          ORDER BY i.started_at DESC,i.id DESC
+          LIMIT 50`,
         id,
         context.tenantId,
         context.companyId,
@@ -231,7 +243,7 @@ export class CrmOpportunityService {
       ),
     ]);
 
-    return { ...opportunity, followUps, events };
+    return { ...opportunity, followUps, interactions, events };
   }
 
   async createFromCustomer(input: CreateOpportunityInput, actorUserId: string) {
