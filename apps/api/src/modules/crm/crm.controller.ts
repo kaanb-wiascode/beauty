@@ -35,6 +35,7 @@ import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmService } from './crm.service';
 
 const uuid = z.string().uuid();
+const crmDataScopeSchema = z.object({ dataScope: z.enum(['SELF','TEAM','BRANCH','COMPANY','ALL']) });
 const surveyorProfileSchema = z.object({ active: z.boolean(), dailyDeskQuota: z.coerce.number().int().min(0).nullable().optional(), weeklyDeskQuota: z.coerce.number().int().min(0).nullable().optional() });
 const listLeadsSchema = z.object({
   status: leadStatusSchema.optional(),
@@ -93,6 +94,19 @@ export class CrmController {
   @RequirePermission('crm', 'read')
   getDataScope() {
     return this.dataScope.resolve();
+  }
+
+  @Get('access-policies')
+  @RequirePermission('crm', 'manage')
+  listAccessPolicies() {
+    return this.dataScope.listAccessPolicies();
+  }
+
+  @Patch('access-policies/:roleId')
+  @RequirePermission('crm', 'manage')
+  updateAccessPolicy(@Param('roleId') roleId: string, @Body() body: unknown) {
+    const input = crmDataScopeSchema.parse(body);
+    return this.dataScope.setAccessPolicy(uuid.parse(roleId), input.dataScope);
   }
 
   @Get('surveyors')
