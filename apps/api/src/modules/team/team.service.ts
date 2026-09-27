@@ -1111,6 +1111,9 @@ export class TeamService {
       'audio/ogg',
       'audio/mpeg',
       'audio/mp4',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
       'application/pdf',
       'text/plain',
       'text/csv',
@@ -1119,7 +1122,7 @@ export class TeamService {
     ]);
     const mimeType = input.mimeType.trim().toLowerCase();
     if (!allowed.has(mimeType)) throw new BadRequestException('Bu dosya türü desteklenmiyor.');
-    const maxBytes = Math.min(15 * 1024 * 1024, this.objectStorage.maxBytes());
+    const maxBytes = Math.min(50 * 1024 * 1024, this.objectStorage.maxBytes());
     if (!Number.isSafeInteger(input.byteSize) || input.byteSize <= 0 || input.byteSize > maxBytes) {
       throw new BadRequestException('Dosya boyutu izin verilen sınırı aşıyor.');
     }
@@ -1187,7 +1190,7 @@ export class TeamService {
     }
 
     const head = await this.objectStorage.head(input.objectKey);
-    const maxBytes = Math.min(15 * 1024 * 1024, this.objectStorage.maxBytes());
+    const maxBytes = Math.min(50 * 1024 * 1024, this.objectStorage.maxBytes());
     if (head.byteSize == null || head.byteSize <= 0 || head.byteSize > maxBytes) {
       await this.objectStorage.remove(input.objectKey).catch(() => undefined);
       throw new BadRequestException('Yüklenen dosyanın boyutu geçersiz.');
@@ -1266,6 +1269,9 @@ export class TeamService {
       'audio/ogg',
       'audio/mpeg',
       'audio/mp4',
+      'video/mp4',
+      'video/webm',
+      'video/quicktime',
       'application/pdf',
       'text/plain',
       'text/csv',
@@ -1275,8 +1281,8 @@ export class TeamService {
     if (!allowed.has(file.mimetype)) {
       throw new BadRequestException('Bu dosya türü desteklenmiyor.');
     }
-    if (file.size <= 0 || file.size > 15 * 1024 * 1024) {
-      throw new BadRequestException('Dosya boyutu 15 MB sınırını aşamaz.');
+    if (file.size <= 0 || file.size > 50 * 1024 * 1024) {
+      throw new BadRequestException('Dosya boyutu 50 MB sınırını aşamaz.');
     }
 
     const messages = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
