@@ -7,6 +7,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { AccountingService } from '../accounting/accounting.service';
+import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
 import { InstallmentsService } from '../installments/installments.service';
 
@@ -56,6 +57,7 @@ export class SalesService {
     private readonly tenantContext: TenantContext,
     private readonly installmentsService: InstallmentsService,
     private readonly accountingService: AccountingService,
+    private readonly commerceFinanceSync: CommerceFinanceSyncService,
   ) {}
 
   private requireBranchId(): string {
@@ -540,6 +542,31 @@ export class SalesService {
           },
         );
 
+        const actorId = await this.currentUserId(tx);
+        const companyId = this.tenantContext.getCompanyId();
+        const saleFinanceRow = await tx.sale.findUnique({
+          where: { id: sale.id },
+          select: {
+            customer: { select: { firstName: true, lastName: true } },
+          },
+        });
+        await this.commerceFinanceSync.syncSalePayment(tx, {
+          tenantId,
+          companyId,
+          branchId,
+          saleId: sale.id,
+          actorId,
+          customerName: saleFinanceRow
+            ? `${saleFinanceRow.customer.firstName} ${saleFinanceRow.customer.lastName}`.trim()
+            : null,
+          amount,
+          occurredAt: createdPayment.paidAt,
+          paymentId: createdPayment.id,
+          method: createdPayment.method,
+          reference: createdPayment.reference,
+          note: createdPayment.note,
+        });
+
         const saleRow = await tx.sale.findUnique({
           where: { id: sale.id },
           select: { customerId: true },
@@ -634,6 +661,34 @@ export class SalesService {
             amount: Number(existing.amount),
           },
         );
+
+        const actorId = await this.currentUserId(tx);
+        const companyId = this.tenantContext.getCompanyId();
+        const saleFinanceRow = await tx.sale.findUnique({
+          where: { id: saleId },
+          select: {
+            total: true,
+            confirmedAt: true,
+            customer: { select: { firstName: true, lastName: true } },
+          },
+        });
+        if (saleFinanceRow) {
+          await this.commerceFinanceSync.syncSalePaymentRefund(tx, {
+            tenantId,
+            companyId,
+            branchId,
+            saleId,
+            actorId,
+            customerName: `${saleFinanceRow.customer.firstName} ${saleFinanceRow.customer.lastName}`.trim(),
+            amount: Number(existing.amount),
+            occurredAt: refundedAt,
+            paymentId: existing.id,
+            method: existing.method,
+            reference: existing.reference,
+            note: existing.note,
+            reason,
+          });
+        }
 
         const saleRow = await tx.sale.findUnique({
           where: { id: saleId },
@@ -755,6 +810,18 @@ export class SalesService {
           branchId: sale.branchId,
           entryDate: confirmedAt,
           amount: Number(sale.total),
+        });
+
+        const actorId = await this.currentUserId(tx);
+        await this.commerceFinanceSync.syncSaleConfirmed(tx, {
+          tenantId: sale.tenantId,
+          companyId: this.tenantContext.getCompanyId(),
+          branchId: sale.branchId,
+          saleId: sale.id,
+          actorId,
+          customerName: `${sale.customer.firstName} ${sale.customer.lastName}`.trim(),
+          amount: Number(sale.total),
+          occurredAt: confirmedAt,
         });
 
         await this.recordCrmSaleEvent(tx, {
