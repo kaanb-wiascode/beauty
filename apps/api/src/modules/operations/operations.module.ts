@@ -29,6 +29,7 @@ import { OperationsRebookingController } from './operations-rebooking.controller
 import { OperationsRebookingService } from './operations-rebooking.service';
 import { OperationsReliabilityController } from './operations-reliability.controller';
 import { OperationsReliabilityService } from './operations-reliability.service';
+import { OperationsRealtimeController } from './operations-realtime.controller';
 import { OperationsResourceBlocksController } from './operations-resource-blocks.controller';
 import { OperationsResourceBlocksService } from './operations-resource-blocks.service';
 import { OperationsResourceCalendarController } from './operations-resource-calendar.controller';
@@ -64,6 +65,7 @@ import { WalkInServiceExecutionsService } from './walk-in-service-executions.ser
 @Module({
   imports: [VisitsModule, CrmModule, HrModule],
   controllers: [
+    OperationsRealtimeController,
     OperationsResourcesController,
     OperationsResourceBlocksController,
     OperationsResourceCalendarController,
