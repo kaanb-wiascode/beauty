@@ -251,7 +251,7 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
       );
 
       for (const row of rows) {
-        await this.tryPublish({
+        await this.dispatch({
           ...row,
           occurredAt: row.occurredAt.toISOString(),
           originInstanceId: this.instanceId,
