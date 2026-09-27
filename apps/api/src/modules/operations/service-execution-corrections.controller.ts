@@ -16,7 +16,7 @@ export class ServiceExecutionCorrectionsController {
   constructor(private readonly corrections: ServiceExecutionCorrectionsService) {}
 
   @Post(':executionId/cancel')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   cancel(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Body() body: unknown,
@@ -25,7 +25,7 @@ export class ServiceExecutionCorrectionsController {
   }
 
   @Post(':executionId/reverse-completion')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   reverseCompletion(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Body() body: unknown,
