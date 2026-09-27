@@ -33,7 +33,8 @@ describe('VisitCheckoutReadinessService', () => {
   it('blocks checkout when a direct appointment payment is pending', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'visit-1', companyId: 'company-1', customerId: 'customer-1', status: 'CHECKOUT_PENDING', source: 'APPOINTMENT' }])
-      .mockResolvedValueOnce([{ appointmentId: 'appointment-1' }]);
+      .mockResolvedValueOnce([{ appointmentId: 'appointment-1' }])
+      .mockResolvedValueOnce([]);
     appointmentFindMany.mockResolvedValueOnce([{ id: 'appointment-1', payment: null, session: null }]);
     const readiness = await service.getReadiness('visit-1');
     expect(readiness.canCheckout).toBe(false);
@@ -43,7 +44,8 @@ describe('VisitCheckoutReadinessService', () => {
   it('blocks checkout when a package session has not been consumed', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'visit-1', companyId: 'company-1', customerId: 'customer-1', status: 'CHECKOUT_PENDING', source: 'APPOINTMENT' }])
-      .mockResolvedValueOnce([{ appointmentId: 'appointment-1' }]);
+      .mockResolvedValueOnce([{ appointmentId: 'appointment-1' }])
+      .mockResolvedValueOnce([]);
     appointmentFindMany.mockResolvedValueOnce([{ id: 'appointment-1', payment: null, session: { status: 'RESERVED' } }]);
     const readiness = await service.getReadiness('visit-1');
     expect(readiness.canCheckout).toBe(false);
@@ -53,7 +55,8 @@ describe('VisitCheckoutReadinessService', () => {
   it('allows checkout for a consumed package session', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([{ id: 'visit-1', companyId: 'company-1', customerId: 'customer-1', status: 'CHECKOUT_PENDING', source: 'APPOINTMENT' }])
-      .mockResolvedValueOnce([{ appointmentId: 'appointment-1' }]);
+      .mockResolvedValueOnce([{ appointmentId: 'appointment-1' }])
+      .mockResolvedValueOnce([]);
     appointmentFindMany.mockResolvedValueOnce([{ id: 'appointment-1', payment: null, session: { status: 'CONSUMED' } }]);
     const readiness = await service.getReadiness('visit-1');
     expect(readiness.canCheckout).toBe(true);
