@@ -44,12 +44,12 @@ export class VisitCheckoutReadinessService {
     const branchId = this.tenantContext.getBranchId();
 
     if (!tenantId) {
-      throw new InternalServerErrorException('Tenant context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
 
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -76,7 +76,7 @@ export class VisitCheckoutReadinessService {
 
     const visit = visits[0];
     if (!visit) {
-      throw new NotFoundException('Visit not found');
+      throw new NotFoundException('Ziyaret kaydı bulunamadı.');
     }
 
     const links = await this.prisma.$queryRawUnsafe<
