@@ -21,6 +21,12 @@ export type CrmLead = {
   opportunityId: string | null;
   opportunityStage: OpportunityStage | null;
   estimatedValue: string | number | null;
+  surveyorStaffId?: string | null;
+  surveyorBranchId?: string | null;
+  surveyCampaign?: string | null;
+  surveyLocation?: string | null;
+  surveyDesk?: string | null;
+  surveyDate?: string | null;
 };
 
 export type CrmOpportunity = {
@@ -68,6 +74,15 @@ export type CrmEvent = {
   createdAt: string;
 };
 
+export type CrmSurveyor = {
+  staffId: string;
+  branchId: string;
+  firstName: string;
+  lastName: string;
+  dailyDeskQuota: number | null;
+  weeklyDeskQuota: number | null;
+};
+
 export type CrmAssignee = {
   id: string;
   firstName: string;
@@ -101,6 +116,7 @@ export const leadSourceLabels: Record<string, string> = {
   REFERRAL: "Tavsiye",
   WALK_IN: "Doğrudan",
   WEBSITE: "Web Sitesi",
+  SURVEYOR: "Anketör",
   OTHER: "Diğer",
 };
 
