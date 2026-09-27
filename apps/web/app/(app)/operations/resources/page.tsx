@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Paginated, Service } from "@/lib/types";
 import { userLabel } from "@/lib/user-language";
@@ -159,8 +162,8 @@ export default function OperationsResourcesPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Resource Engine</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Oda, Kabin ve Ekipman Kaynakları</h1>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Kaynak Yönetimi</p>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Oda, Kabin ve Ekipman Kaynakları</h1><CardInfo help={getCardHelp("Oda, Kabin ve Ekipman Kaynakları")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Oda/kabin kapasitesini yönetin; cihaz ve ekipmanlar Inventory kaynağından okunur, burada kopyalanmaz.</p>
       </header>
 
@@ -176,7 +179,7 @@ export default function OperationsResourcesPage() {
       <section className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <div className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
           <div className="border-b border-[var(--line)] px-6 py-4">
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Oda ve Kabinler</h2>
+            <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Oda ve Kabinler</h2><CardInfo help={getCardHelp("Oda ve Kabinler")} /></div>
             <p className="mt-1 text-xs text-[var(--muted)]">{rooms.length} fiziksel hizmet alanı</p>
           </div>
           {rooms.length ? (
@@ -205,12 +208,12 @@ export default function OperationsResourcesPage() {
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
-        <div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Ekipman Uygunluğu</h2><p className="mt-1 text-xs text-[var(--muted)]">{assets.length} aktif cihaz/ekipman · bakım blokları operasyon tarafından okunur</p></div>
+        <div className="border-b border-[var(--line)] px-6 py-4"><div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Ekipman Uygunluğu</h2><CardInfo help={getCardHelp("Ekipman Uygunluğu")} /></div><p className="mt-1 text-xs text-[var(--muted)]">{assets.length} aktif cihaz/ekipman · bakım blokları operasyon tarafından okunur</p></div>
         {assets.length ? <div className="divide-y divide-[var(--line)]">{assets.map((asset) => <div key={asset.id} className="grid gap-3 px-6 py-4 md:grid-cols-[minmax(0,1fr)_180px_160px] md:items-center"><div><p className="text-sm font-semibold text-[var(--ink)]">{asset.name}</p><p className="mt-1 text-xs text-[var(--muted)]">{asset.assetCode} · {asset.brand ?? "Marka yok"} {asset.model ?? ""}</p></div><span className="text-xs text-[var(--muted)]">{userLabel(asset.assetType)}</span><span className={asset.maintenanceBlocked ? "text-xs font-semibold text-[#8f3d3d]" : "text-xs font-semibold text-[#2d6a49]"}>{asset.maintenanceBlocked ? "Bakım nedeniyle bloklu" : "Planlanabilir"}</span></div>)}</div> : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Aktif ekipman bulunmuyor.</div>}
       </section>
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">Hizmet Kaynak Gereksinimleri</h2>
+        <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Hizmet Kaynak Gereksinimleri</h2><CardInfo help={getCardHelp("Hizmet Kaynak Gereksinimleri")} /></div>
         <p className="mt-1 text-xs text-[var(--muted)]">Hizmetin oda tipi, cihaz ve hazırlık/temizlik sürelerini tanımlayın.</p>
         <div className="mt-5 grid gap-4 lg:grid-cols-3">
           <Field label="Hizmet"><Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedServiceId} onChange={(event) => void selectService(event.target.value)}><option value="">Hizmet seçin</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select></Field>
