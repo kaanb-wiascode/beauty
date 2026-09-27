@@ -47,6 +47,18 @@ type DiscoveredAccounts = {
   }>;
 };
 
+type ConfigurationReadiness = {
+  ready: boolean;
+  providers: Array<{
+    provider: "META" | "GOOGLE_ADS" | "TIKTOK";
+    label: string;
+    ready: boolean;
+    configuredCount: number;
+    requiredCount: number;
+    missing: string[];
+  }>;
+};
+
 type ConnectionHealth = {
   total: number;
   connected: number;
@@ -80,6 +92,7 @@ export default function AdvertisingConnectionsPage() {
   const canManage = hasPermission("communications", "manage");
   const [rows, setRows] = useState<Connection[]>([]);
   const [health, setHealth] = useState<ConnectionHealth | null>(null);
+  const [configurationReadiness, setConfigurationReadiness] = useState<ConfigurationReadiness | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState("");
@@ -268,6 +281,34 @@ export default function AdvertisingConnectionsPage() {
   return <div className="space-y-6 pb-12">
     <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Entegrasyon Merkezi</h1><p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Meta, Google Ads ve TikTok bağlantılarını, hesap durumlarını ve son veri eşitleme bilgilerini tek merkezden yönetin.</p></header>
     {error ? <Alert>{error}</Alert> : null}
+    {configurationReadiness ? (
+      <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-[13px] font-semibold text-[var(--ink)]">Platform Hazırlık Durumu</h2>
+          <CardInfo help={getCardHelp("Platform Hazırlık Durumu", "Gerçek Meta, Google Ads ve TikTok bağlantılarının başlayabilmesi için sunucu tarafında gerekli ayarların tanımlı olup olmadığını gösterir. Güvenlik nedeniyle gizli değerler gösterilmez.")} />
+        </div>
+        <div className="mt-3 grid gap-3 md:grid-cols-3">
+          {configurationReadiness.providers.map((provider) => (
+            <div key={provider.provider} className="rounded-[14px] border border-[var(--line)] bg-white p-3">
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] font-semibold text-[var(--ink)]">{provider.label}</p>
+                <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${provider.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                  {provider.ready ? "Hazır" : "Eksik Ayar"}
+                </span>
+              </div>
+              <p className="mt-2 text-[10px] text-[var(--muted)]">
+                {provider.configuredCount}/{provider.requiredCount} gerekli ayar tanımlı
+              </p>
+              {!provider.ready ? (
+                <p className="mt-2 break-words text-[9px] leading-4 text-[var(--muted)]">
+                  Eksik: {provider.missing.join(", ")}
+                </p>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </section>
+    ) : null}
     {webhookSetup ? (
       <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
         <div className="flex items-center gap-2">
