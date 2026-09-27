@@ -454,7 +454,8 @@ export function AppShell({ children }: { children: ReactNode }) {
         if (!active) return;
         setMessengerMessages(result);
         await api(`/team/conversations/${messengerConversationId}/read`, { method: "POST" }).catch(() => undefined);
-        setTeamUnread((current) => Math.max(0, current - (messengerConversations.find((item) => item.id === messengerConversationId)?.unreadCount ?? 0)));
+        const unread = await api<{ unreadCount: number }>("/team/unread-summary").catch(() => null);
+        if (active && unread) setTeamUnread(unread.unreadCount);
         setMessengerConversations((current) => current.map((item) => item.id === messengerConversationId ? { ...item, unreadCount: 0 } : item));
       })
       .catch(() => {
@@ -466,7 +467,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     return () => {
       active = false;
     };
-  }, [messengerOpen, messengerConversationId, messengerConversations]);
+  }, [messengerOpen, messengerConversationId]);
 
   async function sendMessengerMessage() {
     if (!messengerConversationId || !messengerDraft.trim() || messengerSending) return;
