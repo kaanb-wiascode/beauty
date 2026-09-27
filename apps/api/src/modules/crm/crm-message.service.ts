@@ -56,7 +56,7 @@ export class CrmMessageService {
 
   private scope() {
     const context = this.tenantContext.getContext();
-    if (!context.branchId) throw new BadRequestException('Active branch is required.');
+    if (!context.branchId) throw new BadRequestException('Bu işlem için aktif bir şube seçilmelidir.');
     return { tenantId: context.tenantId, companyId: context.companyId, branchId: context.branchId };
   }
 
@@ -128,19 +128,19 @@ export class CrmMessageService {
   async send(id: string, expectedVersion: number) {
     const scope = this.scope();
     const existing = await this.get(id);
-    if (existing.direction !== 'OUTBOUND') throw new BadRequestException('Inbound messages cannot be sent.');
-    if (!['DRAFT', 'FAILED'].includes(existing.status)) throw new ConflictException('Message is not sendable in its current status.');
+    if (existing.direction !== 'OUTBOUND') throw new BadRequestException('Gelen mesajlar yeniden gönderilemez.');
+    if (!['DRAFT', 'FAILED'].includes(existing.status)) throw new ConflictException('Mesaj mevcut durumunda gönderilemez.');
     const consent = await this.compliance.canSendManual(scope, { customerId: existing.customerId, leadId: existing.leadId, opportunityId: existing.opportunityId }, existing.channel);
-    if (!consent.allowed) throw new ForbiddenException(`Contact opted out of ${existing.channel} communications.`);
+    if (!consent.allowed) throw new ForbiddenException('Müşteri bu iletişim kanalı için iletişim izni vermemiş veya iletişimden çıkmış.');
     const provider = this.providers.resolve(existing.channel, existing.providerKey);
-    if (!provider) throw new ServiceUnavailableException(`No configured provider is available for ${existing.channel}.`);
+    if (!provider) throw new ServiceUnavailableException('Seçilen iletişim kanalı için aktif bir mesaj sağlayıcısı yapılandırılmamış.');
     const claimed = await this.prisma.$queryRawUnsafe<MessageRow[]>(
       `UPDATE crm_messages SET status='QUEUED',provider_key=$6,version=version+1,error_message=NULL,updated_at=NOW()
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text AND version=$5::int AND status IN ('DRAFT','FAILED')
        RETURNING id,customer_id AS "customerId",lead_id AS "leadId",opportunity_id AS "opportunityId",direction,channel,status,provider_key AS "providerKey",recipient,subject,body,idempotency_key AS "idempotencyKey",external_message_id AS "externalMessageId",error_message AS "errorMessage",version,created_by_user_id AS "createdByUserId",sent_at AS "sentAt",delivered_at AS "deliveredAt",created_at AS "createdAt",updated_at AS "updatedAt"`,
       id, scope.tenantId, scope.companyId, scope.branchId, expectedVersion, provider.key,
     );
-    if (!claimed[0]) throw new ConflictException('Message version/status changed.');
+    if (!claimed[0]) throw new ConflictException('Mesaj başka bir işlem tarafından güncellendi. Sayfayı yenileyip tekrar deneyin.');
     try {
       const result = await provider.send({ messageId: id, channel: existing.channel, recipient: existing.recipient, subject: existing.subject, body: existing.body, idempotencyKey: existing.idempotencyKey });
       const rows = await this.prisma.$queryRawUnsafe<MessageRow[]>(
@@ -163,7 +163,7 @@ export class CrmMessageService {
       `SELECT id,customer_id AS "customerId",lead_id AS "leadId",opportunity_id AS "opportunityId",direction,channel,status,provider_key AS "providerKey",recipient,subject,body,idempotency_key AS "idempotencyKey",external_message_id AS "externalMessageId",error_message AS "errorMessage",version,created_by_user_id AS "createdByUserId",sent_at AS "sentAt",delivered_at AS "deliveredAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM crm_messages WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text LIMIT 1`,
       id, scope.tenantId, scope.companyId, scope.branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Message not found.');
+    if (!rows[0]) throw new NotFoundException('Mesaj bulunamadı.');
     return rows[0];
   }
 
@@ -177,7 +177,7 @@ export class CrmMessageService {
 
   private async resolveRecipient(subject: MessageSubject, channel: CrmMessageChannel) {
     const scope = this.scope();
-    if (!subject.customerId && !subject.leadId && !subject.opportunityId) throw new BadRequestException('A customer, lead, or opportunity subject is required.');
+    if (!subject.customerId && !subject.leadId && !subject.opportunityId) throw new BadRequestException('Mesaj bir müşteri, potansiyel müşteri veya satış fırsatına bağlanmalıdır.');
     const rows = await this.prisma.$queryRawUnsafe<Array<{ phone: string | null; email: string | null }>>(
       `SELECT COALESCE(c.phone,l.phone,oc.phone,ol.phone) AS phone, COALESCE(c.email,l.email,oc.email,ol.email) AS email
        FROM (SELECT 1) seed
@@ -189,7 +189,7 @@ export class CrmMessageService {
       scope.tenantId, scope.companyId, scope.branchId, subject.customerId ?? null, subject.leadId ?? null, subject.opportunityId ?? null,
     );
     const value = channel === 'EMAIL' ? rows[0]?.email : rows[0]?.phone;
-    if (!value) throw new BadRequestException(channel === 'EMAIL' ? 'No e-mail address is available for this CRM subject.' : 'No phone number is available for this CRM subject.');
+    if (!value) throw new BadRequestException(channel === 'EMAIL' ? 'Bu müşteri kaydında kullanılabilir e-posta adresi bulunmuyor.' : 'Bu müşteri kaydında kullanılabilir telefon numarası bulunmuyor.');
     return value;
   }
 }
