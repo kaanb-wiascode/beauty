@@ -68,7 +68,7 @@ export default function OperationsIncidentsPage() {
 
   async function load() {
     if (!hasActiveBranch()) {
-      setError("Incident yönetimi için önce aktif bir şube seçin.");
+      setError("Operasyon olaylarını yönetmek için önce aktif bir şube seçin.");
       setLoading(false);
       return;
     }
@@ -84,7 +84,7 @@ export default function OperationsIncidentsPage() {
       setRooms(roomResult);
       setAssets(assetResult);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Operasyon incident kayıtları yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Operasyon olay kayıtları yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -120,7 +120,7 @@ export default function OperationsIncidentsPage() {
       setForm((current) => ({ ...current, title: "", description: "", resourceKind: "NONE", resourceId: "" }));
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Incident oluşturulamadı.");
+      setError(err instanceof ApiError ? err.message : "Operasyon olayı oluşturulamadı.");
     } finally {
       setBusy("");
     }
@@ -154,13 +154,13 @@ export default function OperationsIncidentsPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Incident çözülemedi.");
+      setError(err instanceof ApiError ? err.message : "Operasyon olayı çözülemedi.");
     } finally {
       setBusy("");
     }
   }
 
-  if (loading) return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Incident görünümü hazırlanıyor..." /></div>;
+  if (loading) return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Operasyon olayları hazırlanıyor..." /></div>;
 
   const resourceOptions = form.resourceKind === "ROOM" ? rooms : form.resourceKind === "ASSET" ? assets : [];
 
@@ -184,7 +184,7 @@ export default function OperationsIncidentsPage() {
           {form.resourceKind !== "NONE" ? <Field label="Etkilenen kaynak"><Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.resourceId} onChange={(event) => setForm((current) => ({ ...current, resourceId: event.target.value }))}><option value="">Seçin</option>{resourceOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</Select></Field> : null}
           {form.resourceKind !== "NONE" ? <Field label="Tahmini kesinti bitişi"><TextInput type="datetime-local" value={form.outageTo} onChange={(event) => setForm((current) => ({ ...current, outageTo: event.target.value }))} /></Field> : null}
         </div>
-        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"><Field label="Açıklama"><TextInput value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field><Button disabled={!canUpdate || busy === "create"} onClick={() => void createIncident()}>{busy === "create" ? "Kaydediliyor..." : "Incident Aç"}</Button></div>
+        <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"><Field label="Açıklama"><TextInput value={form.description} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} /></Field><Button disabled={!canUpdate || busy === "create"} onClick={() => void createIncident()}>{busy === "create" ? "Kaydediliyor..." : "Operasyon Olayı Aç"}</Button></div>
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
@@ -192,7 +192,7 @@ export default function OperationsIncidentsPage() {
         {incidents.length ? <div className="divide-y divide-[var(--line)]">{incidents.map((incident) => (
           <div key={incident.id} className="px-6 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{incident.title}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)]">{severityLabel[incident.severity]}</span><span className="text-xs text-[var(--muted)]">{incident.status === "OPEN" ? "Açık" : "Çözüldü"}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{incident.roomName ?? incident.assetName ?? "Genel şube incident'i"} · {new Date(incident.openedAt).toLocaleString("tr-TR")}</p></div>
+              <div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{incident.title}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)]">{severityLabel[incident.severity]}</span><span className="text-xs text-[var(--muted)]">{incident.status === "OPEN" ? "Açık" : "Çözüldü"}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{incident.roomName ?? incident.assetName ?? "Genel şube olayı'i"} · {new Date(incident.openedAt).toLocaleString("tr-TR")}</p></div>
               <div className="flex flex-wrap gap-2">{incident.resourceBlockId ? <Button variant="secondary" disabled={busy === `affected:${incident.id}`} onClick={() => void loadAffected(incident)}>Etkilenen Randevular</Button> : null}{incident.status === "OPEN" && canUpdate ? <Button disabled={busy === `resolve:${incident.id}`} onClick={() => void resolve(incident)}>Çözüldü Olarak İşaretle</Button> : null}</div>
             </div>
             {affected[incident.id] ? <div className="mt-3 rounded-[14px] bg-[var(--surface-2)] p-3"><p className="text-xs font-semibold text-[var(--ink)]">Etkilenen {affected[incident.id].length} randevu</p>{affected[incident.id].map((appointment) => <p key={appointment.id} className="mt-2 text-xs text-[var(--muted)]">{appointment.customerName} · {appointment.serviceName} · {new Date(appointment.startAt).toLocaleString("tr-TR")}</p>)}</div> : null}
