@@ -9,6 +9,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import type {
   CancelWaitlistEntryInput,
   CreateWaitlistEntryInput,
@@ -53,6 +54,7 @@ export class OperationsWaitlistService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private context() {
@@ -63,12 +65,12 @@ export class OperationsWaitlistService {
 
     if (!tenantId || !companyId || !membershipId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -129,10 +131,10 @@ export class OperationsWaitlistService {
   async create(input: CreateWaitlistEntryInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
     if (input.desiredTo <= new Date()) {
-      throw new BadRequestException('Waitlist desired window must end in the future.');
+      throw new BadRequestException('Bekleme talebinin bitiş zamanı gelecekte olmalıdır.');
     }
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
           `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
@@ -235,12 +237,25 @@ export class OperationsWaitlistService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    if (!result.duplicate) {
+      await this.domainEvents?.publish({
+        eventName: 'waitlist.created',
+        aggregateType: 'waitlist_entry',
+        aggregateId: result.entry.id,
+        payload: {
+          customerId: result.entry.customerId,
+          serviceId: result.entry.serviceId,
+          preferredStaffId: result.entry.preferredStaffId,
+        },
+      });
+    }
+    return result;
   }
 
   async cancel(entryId: string, input: CancelWaitlistEntryInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
           `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
@@ -267,15 +282,15 @@ export class OperationsWaitlistService {
           companyId,
           branchId,
         );
-        if (!current[0]) throw new NotFoundException('Waitlist entry not found');
+        if (!current[0]) throw new NotFoundException('Bekleme listesi kaydı bulunamadı.');
         if (current[0].version !== input.expectedVersion) {
           throw new ConflictException(
-            'Waitlist entry changed since it was read. Refresh and retry.',
+            'Bekleme listesi kaydı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.',
           );
         }
         if (['BOOKED', 'EXPIRED', 'CANCELLED'].includes(current[0].status)) {
           throw new ConflictException(
-            `Waitlist entry in ${current[0].status} state cannot be cancelled.`,
+            'Bu bekleme listesi kaydı mevcut durumunda iptal edilemez.',
           );
         }
 
@@ -304,7 +319,7 @@ export class OperationsWaitlistService {
         );
         if (!updated[0]) {
           throw new ConflictException(
-            'Waitlist entry changed during cancellation. Refresh and retry.',
+            'Bekleme listesi kaydı iptal sırasında değişti. Lütfen ekranı yenileyin.',
           );
         }
 
@@ -325,6 +340,16 @@ export class OperationsWaitlistService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'waitlist.cancelled',
+      aggregateType: 'waitlist_entry',
+      aggregateId: result.id,
+      payload: {
+        customerId: result.customerId,
+        serviceId: result.serviceId,
+      },
+    });
+    return result;
   }
 
   private async validateReferences(
@@ -357,10 +382,10 @@ export class OperationsWaitlistService {
         : Promise.resolve({ id: null }),
     ]);
 
-    if (!customer) throw new NotFoundException('Customer not found');
-    if (!service) throw new NotFoundException('Service not found');
+    if (!customer) throw new NotFoundException('Müşteri bulunamadı.');
+    if (!service) throw new NotFoundException('Hizmet bulunamadı.');
     if (preferredStaffId && !staff) {
-      throw new NotFoundException('Preferred staff not found');
+      throw new NotFoundException('Tercih edilen personel bulunamadı.');
     }
   }
 }
