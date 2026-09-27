@@ -167,6 +167,7 @@ export default function TeamPage() {
   const [announcementOnly, setAnnouncementOnly] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [conversationMembers, setConversationMembers] = useState<ConversationMember[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -457,6 +458,10 @@ export default function TeamPage() {
     }
   }
 
+  function fileKey(file: File) {
+    return `${file.name}:${file.size}:${file.lastModified}`;
+  }
+
   async function uploadMessageAttachment(messageId: string, file: File) {
     try {
       const prepared = await api<PreparedAttachment>(`/team/messages/${messageId}/attachments/prepare`, {
@@ -468,14 +473,22 @@ export default function TeamPage() {
         },
       });
 
-      const uploadResponse = await fetch(prepared.uploadUrl, {
-        method: "PUT",
-        headers: prepared.requiredHeaders,
-        body: file,
+      const uploadStatus = await new Promise<number>((resolve, reject) => {
+        const request = new XMLHttpRequest();
+        request.open("PUT", prepared.uploadUrl);
+        Object.entries(prepared.requiredHeaders).forEach(([key, value]) => request.setRequestHeader(key, value));
+        request.upload.onprogress = (event) => {
+          if (!event.lengthComputable) return;
+          setUploadProgress((current) => ({ ...current, [fileKey(file)]: Math.round((event.loaded / event.total) * 100) }));
+        };
+        request.onload = () => resolve(request.status);
+        request.onerror = () => reject(new ApiError("Dosya güvenli saklama alanına yüklenemedi.", request.status || 0));
+        request.send(file);
       });
-      if (!uploadResponse.ok) {
-        throw new ApiError("Dosya güvenli saklama alanına yüklenemedi.", uploadResponse.status);
+      if (uploadStatus < 200 || uploadStatus >= 300) {
+        throw new ApiError("Dosya güvenli saklama alanına yüklenemedi.", uploadStatus);
       }
+      setUploadProgress((current) => ({ ...current, [fileKey(file)]: 100 }));
 
       await api(`/team/messages/${messageId}/attachments/complete`, {
         method: "POST",
@@ -527,6 +540,7 @@ export default function TeamPage() {
     }
     const body = messageText.trim() || attachmentPlaceholder(selectedFiles);
     const filesToSend = [...selectedFiles];
+    setUploadProgress(Object.fromEntries(filesToSend.map((file) => [fileKey(file), 0])));
     setSending(true);
     setMessageText("");
     try {
@@ -539,6 +553,7 @@ export default function TeamPage() {
       }
       setReplyTo(null);
       setSelectedFiles([]);
+      setUploadProgress({});
       await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
     } catch (err) {
       setMessageText(messageText || (filesToSend.length ? "" : body));
@@ -1155,8 +1170,16 @@ export default function TeamPage() {
                   <div className="mt-2 grid gap-1.5 rounded-[12px] bg-[var(--accent-soft)]/35 p-2">
                     {selectedFiles.map((file, index) => (
                       <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-[9px] bg-white/70 px-3 py-2 text-[9px] text-[var(--muted)]">
-                        <span className="min-w-0 truncate">{file.name} · {Math.max(1, Math.round(file.size / 1024))} KB</span>
-                        <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="shrink-0 font-semibold text-rose-600">Kaldır</button>
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate">{file.name} · {Math.max(1, Math.round(file.size / 1024))} KB</span>
+                          {sending ? (
+                            <span className="mt-1 block h-1.5 overflow-hidden rounded-full bg-[var(--line)]">
+                              <span className="block h-full rounded-full bg-[var(--accent)] transition-[width]" style={{ width: `${uploadProgress[fileKey(file)] ?? 0}%` }} />
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="shrink-0 text-[8px] font-semibold text-[var(--muted)]">{sending ? `${uploadProgress[fileKey(file)] ?? 0}%` : ""}</span>
+                        <button type="button" disabled={sending} onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="shrink-0 font-semibold text-rose-600 disabled:opacity-40">Kaldır</button>
                       </div>
                     ))}
                   </div>
