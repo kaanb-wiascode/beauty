@@ -16,19 +16,19 @@ export class OperationsStaffEligibilityController {
   constructor(private readonly eligibility: OperationsStaffEligibilityService) {}
 
   @Get('policy')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   policy() {
     return this.eligibility.policy();
   }
 
   @Put('policy')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   updatePolicy(@Body() body: unknown) {
     return this.eligibility.updatePolicy(updateStaffEligibilityPolicySchema.parse(body));
   }
 
   @Get('check')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   check(@Query() query: unknown) {
     return this.eligibility.check(staffEligibilityCheckSchema.parse(query));
   }
