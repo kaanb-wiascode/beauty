@@ -204,6 +204,151 @@ export class MarketingProviderSyncService {
     });
   }
 
+  private async tiktokCampaigns(connection: ConnectionRow): Promise<SyncedCampaign[]> {
+    const accessToken = await this.accessToken(connection);
+    const advertiserId = connection.externalAccountId!;
+    const campaignEndpoint =
+      this.config.get<string>('TIKTOK_BUSINESS_CAMPAIGN_LIST_URL')?.trim() ||
+      'https://business-api.tiktok.com/open_api/v1.3/campaign/get/';
+    const reportEndpoint =
+      this.config.get<string>('TIKTOK_BUSINESS_REPORT_URL')?.trim() ||
+      'https://business-api.tiktok.com/open_api/v1.3/report/integrated/get/';
+
+    const campaignUrl = new URL(campaignEndpoint);
+    campaignUrl.searchParams.set('advertiser_id', advertiserId);
+    campaignUrl.searchParams.set('page_size', '1000');
+    const campaignBody = await this.fetchJson(campaignUrl.toString(), {
+      headers: { 'Access-Token': accessToken },
+    });
+    const campaignEnvelope =
+      campaignBody && typeof campaignBody === 'object'
+        ? campaignBody as Record<string, unknown>
+        : {};
+    if (
+      typeof campaignEnvelope.code === 'number' &&
+      campaignEnvelope.code !== 0
+    ) {
+      throw new BadRequestException(
+        'TikTok kampanya listesi platform tarafından reddedildi.',
+      );
+    }
+    const campaignData =
+      campaignEnvelope.data && typeof campaignEnvelope.data === 'object'
+        ? campaignEnvelope.data as Record<string, unknown>
+        : {};
+    const campaignList = Array.isArray(campaignData.list)
+      ? campaignData.list
+      : [];
+
+    const until = new Date();
+    const since = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+    const date = (value: Date) => value.toISOString().slice(0, 10);
+
+    const reportUrl = new URL(reportEndpoint);
+    reportUrl.searchParams.set('advertiser_id', advertiserId);
+    reportUrl.searchParams.set('report_type', 'BASIC');
+    reportUrl.searchParams.set('data_level', 'AUCTION_CAMPAIGN');
+    reportUrl.searchParams.set('dimensions', JSON.stringify(['campaign_id']));
+    reportUrl.searchParams.set(
+      'metrics',
+      JSON.stringify([
+        'campaign_name',
+        'spend',
+        'impressions',
+        'clicks',
+        'conversion',
+      ]),
+    );
+    reportUrl.searchParams.set('start_date', date(since));
+    reportUrl.searchParams.set('end_date', date(until));
+    reportUrl.searchParams.set('page_size', '1000');
+
+    const reportBody = await this.fetchJson(reportUrl.toString(), {
+      headers: { 'Access-Token': accessToken },
+    });
+    const reportEnvelope =
+      reportBody && typeof reportBody === 'object'
+        ? reportBody as Record<string, unknown>
+        : {};
+    if (
+      typeof reportEnvelope.code === 'number' &&
+      reportEnvelope.code !== 0
+    ) {
+      throw new BadRequestException(
+        'TikTok performans raporu platform tarafından reddedildi.',
+      );
+    }
+    const reportData =
+      reportEnvelope.data && typeof reportEnvelope.data === 'object'
+        ? reportEnvelope.data as Record<string, unknown>
+        : {};
+    const reportList = Array.isArray(reportData.list) ? reportData.list : [];
+
+    const metricsByCampaign = new Map<string, Record<string, unknown>>();
+    for (const entry of reportList) {
+      if (!entry || typeof entry !== 'object') continue;
+      const row = entry as Record<string, unknown>;
+      const dimensions =
+        row.dimensions && typeof row.dimensions === 'object'
+          ? row.dimensions as Record<string, unknown>
+          : {};
+      const metrics =
+        row.metrics && typeof row.metrics === 'object'
+          ? row.metrics as Record<string, unknown>
+          : {};
+      const campaignId =
+        typeof dimensions.campaign_id === 'string'
+          ? dimensions.campaign_id
+          : typeof row.campaign_id === 'string'
+            ? row.campaign_id
+            : '';
+      if (campaignId) metricsByCampaign.set(campaignId, metrics);
+    }
+
+    return campaignList.flatMap((entry): SyncedCampaign[] => {
+      if (!entry || typeof entry !== 'object') return [];
+      const campaign = entry as Record<string, unknown>;
+      const id =
+        typeof campaign.campaign_id === 'string'
+          ? campaign.campaign_id
+          : campaign.campaign_id == null
+            ? ''
+            : String(campaign.campaign_id);
+      if (!id) return [];
+      const metrics = metricsByCampaign.get(id) ?? {};
+
+      return [{
+        externalCampaignId: id,
+        name:
+          typeof campaign.campaign_name === 'string'
+            ? campaign.campaign_name
+            : typeof metrics.campaign_name === 'string'
+              ? metrics.campaign_name
+              : `TikTok kampanyası · ${id}`,
+        status:
+          typeof campaign.operation_status === 'string'
+            ? campaign.operation_status
+            : typeof campaign.secondary_status === 'string'
+              ? campaign.secondary_status
+              : null,
+        objective:
+          typeof campaign.objective_type === 'string'
+            ? campaign.objective_type
+            : null,
+        currency: null,
+        spend: Number(metrics.spend ?? 0),
+        impressions: Number(metrics.impressions ?? 0),
+        clicks: Number(metrics.clicks ?? 0),
+        conversions: Number(metrics.conversion ?? 0),
+        conversionValue: 0,
+        raw: {
+          campaign,
+          metrics,
+        },
+      }];
+    });
+  }
+
   private async googleCampaigns(connection: ConnectionRow): Promise<SyncedCampaign[]> {
     const accessToken = await this.accessToken(connection);
     const version =
@@ -297,9 +442,22 @@ export class MarketingProviderSyncService {
   }
 
   private internalStatus(providerStatus: string | null) {
-    if (providerStatus === 'ENABLED' || providerStatus === 'ACTIVE') return 'ACTIVE';
-    if (providerStatus === 'PAUSED') return 'PAUSED';
-    if (providerStatus === 'REMOVED' || providerStatus === 'DELETED') return 'CANCELLED';
+    if (
+      providerStatus === 'ENABLED' ||
+      providerStatus === 'ACTIVE' ||
+      providerStatus === 'ENABLE' ||
+      providerStatus === 'CAMPAIGN_STATUS_ENABLE'
+    ) return 'ACTIVE';
+    if (
+      providerStatus === 'PAUSED' ||
+      providerStatus === 'DISABLE' ||
+      providerStatus === 'CAMPAIGN_STATUS_DISABLE'
+    ) return 'PAUSED';
+    if (
+      providerStatus === 'REMOVED' ||
+      providerStatus === 'DELETED' ||
+      providerStatus === 'CAMPAIGN_STATUS_DELETE'
+    ) return 'CANCELLED';
     return 'PLANNED';
   }
 
@@ -413,11 +571,7 @@ export class MarketingProviderSyncService {
           ? await this.googleCampaigns(connection)
           : connection.provider === 'META'
             ? await this.metaCampaigns(connection)
-            : (() => {
-                throw new BadRequestException(
-                  'Bu platformun kampanya senkronizasyonu henüz etkinleştirilmedi.',
-                );
-              })();
+            : await this.tiktokCampaigns(connection);
 
       const linkedCampaignIds: string[] = [];
       for (const campaign of campaigns) {
