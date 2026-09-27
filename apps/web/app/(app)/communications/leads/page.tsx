@@ -3,6 +3,8 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
@@ -254,8 +256,8 @@ export default function MarketingLeadsPage() {
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 md:flex-row md:items-end md:justify-between">
         <div>
           <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p>
-          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Potansiyel Müşteriler ve Dönüşüm</h1>
-          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Reklam ve iletişim taleplerini müşteri kaydına ve randevu planlamasına dönüştürün. Şube, yetki ve randevu çakışma kuralları otomatik olarak korunur.</p>
+          <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Potansiyel Müşteriler</h1>
+          <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Reklam ve iletişim kaynaklarından gelen talepleri tek merkezde izleyin; müşteri ilişkileri kaydına, müşteriye ve randevuya dönüştürün.</p>
         </div>
         {canManage ? <Button onClick={() => setShowForm((v) => !v)}>{showForm ? "Formu Kapat" : "Potansiyel Müşteri Ekle"}</Button> : null}
       </header>
@@ -265,7 +267,7 @@ export default function MarketingLeadsPage() {
         <form onSubmit={(e) => void createLead(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
           <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak<Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option value="MANUAL">Elle Eklendi</option><option value="META">Meta Reklamları</option><option value="GOOGLE_ADS">Google Reklamları</option><option value="TIKTOK">TikTok</option><option value="WEBSITE">Web Sitesi</option><option value="WHATSAPP">WhatsApp</option><option value="OTHER">Diğer</option></Select></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Kampanya<Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}><option value="">Kampanyasız</option>{campaigns.map((campaign) => <option key={campaign.id} value={campaign.id}>{campaign.name}</option>)}</Select></label>
-          <label className="text-[11px] font-semibold text-[var(--muted)]">Reklam kaynağı kayıt numarası<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="İsteğe bağlı" /></label>
+          <label className="text-[11px] font-semibold text-[var(--muted)]">Kaynak Kayıt Numarası<input className={fieldClass} value={externalLeadId} onChange={(e) => setExternalLeadId(e.target.value)} placeholder="İsteğe bağlı" /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Ad<input required className={fieldClass} value={firstName} onChange={(e) => setFirstName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Soyad<input required className={fieldClass} value={lastName} onChange={(e) => setLastName(e.target.value)} /></label>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Telefon<input className={fieldClass} value={phone} onChange={(e) => setPhone(e.target.value)} /></label>
@@ -278,7 +280,7 @@ export default function MarketingLeadsPage() {
       {appointmentLeadId ? (
         <form onSubmit={(e) => void createAppointment(e)} className="grid gap-4 rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 md:grid-cols-2 xl:grid-cols-3">
           <div className="md:col-span-2 xl:col-span-3">
-            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Potansiyel Müşteri Randevusu</h2>
+            <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Potansiyel Müşteri Randevusu</h2><CardInfo help={getCardHelp("Potansiyel Müşteri Randevusu", "Potansiyel müşteriyi seçilen hizmet ve personel için gerçek randevu kaydına dönüştürür.")} /></div>
             <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif müşteri, hizmet ve personel aynı şubede doğrulanır; personel çakışması varsa işlem reddedilir.</p>
           </div>
           <label className="text-[11px] font-semibold text-[var(--muted)]">Hizmet<Select required className={fieldClass} value={appointmentServiceId} onChange={(e) => setAppointmentServiceId(e.target.value)}><option value="">Hizmet seçin</option>{services.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.durationMinutes} dk</option>)}</Select></label>
