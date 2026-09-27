@@ -69,6 +69,7 @@ export default function AdvertisingConnectionsPage() {
   const [verifyingId, setVerifyingId] = useState("");
   const [discoveringId, setDiscoveringId] = useState("");
   const [selectingId, setSelectingId] = useState("");
+  const [syncingId, setSyncingId] = useState("");
   const [accountOptions, setAccountOptions] = useState<Record<string, DiscoveredAccounts["accounts"]>>({});
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
@@ -160,6 +161,19 @@ export default function AdvertisingConnectionsPage() {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "Reklam hesabı seçilemedi.") : "Reklam hesabı seçilemedi.");
     } finally {
       setSelectingId("");
+    }
+  }
+
+  async function syncConnection(id: string) {
+    setSyncingId(id);
+    setError("");
+    try {
+      await api(`/corporate-communications/provider-connections/${id}/sync`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Reklam verileri eşitlenemedi.") : "Reklam verileri eşitlenemedi.");
+    } finally {
+      setSyncingId("");
     }
   }
 
@@ -262,6 +276,16 @@ export default function AdvertisingConnectionsPage() {
                   className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
                 >
                   {discoveringId === row.id ? "Hesaplar Getiriliyor..." : "Hesapları Getir"}
+                </button>
+              ) : null}
+              {connectionHealth?.credentialsConfigured && row.externalAccountId ? (
+                <button
+                  type="button"
+                  disabled={syncingId === row.id}
+                  onClick={() => void syncConnection(row.id)}
+                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  {syncingId === row.id ? "Veriler Eşitleniyor..." : "Verileri Eşitle"}
                 </button>
               ) : null}
               {connectionHealth?.health !== "DISCONNECTED" ? (
