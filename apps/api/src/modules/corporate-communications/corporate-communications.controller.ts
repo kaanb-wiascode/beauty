@@ -7,11 +7,13 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CorporateCommunicationsService } from './corporate-communications.service';
 import { MarketingExpenseSyncService } from './marketing-expense-sync.service';
+import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
 import {
   createBrandAssetSchema,
   createCampaignSchema,
   createMarketingLeadSchema,
   createProviderConnectionSchema,
+  completeProviderOAuthSchema,
   createRoutingRuleSchema,
   listCampaignsSchema,
   listMarketingLeadsSchema,
@@ -24,6 +26,7 @@ export class CorporateCommunicationsController {
   constructor(
     private readonly service: CorporateCommunicationsService,
     private readonly expenseSync: MarketingExpenseSyncService,
+    private readonly providerOAuth: MarketingProviderOAuthService,
   ) {}
 
   @Get('dashboard')
@@ -86,6 +89,29 @@ export class CorporateCommunicationsController {
   createProviderConnection(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.service.createProviderConnection(
       createProviderConnectionSchema.parse(body),
+      user.sub,
+    );
+  }
+
+  @Post('provider-connections/:id/oauth/authorize')
+  @RequirePermission('communications', 'manage')
+  authorizeProviderConnection(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.providerOAuth.authorization(id, user.sub);
+  }
+
+  @Post('provider-connections/:id/oauth/complete')
+  @RequirePermission('communications', 'manage')
+  completeProviderConnectionOAuth(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.providerOAuth.complete(
+      id,
+      completeProviderOAuthSchema.parse(body),
       user.sub,
     );
   }
