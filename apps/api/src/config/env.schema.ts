@@ -32,6 +32,23 @@ export const envSchema = z.object({
   MARKETING_INTEGRATION_MASTER_KEY_VERSION: z.string().trim().min(1).max(64).default('v1'),
   MARKETING_INTEGRATION_PREVIOUS_MASTER_KEYS: z.string().optional(),
 
+  META_OAUTH_CLIENT_ID: z.string().trim().min(1).optional(),
+  META_OAUTH_CLIENT_SECRET: z.string().trim().min(1).optional(),
+  META_OAUTH_AUTHORIZATION_URL: z.string().url().optional(),
+  META_OAUTH_TOKEN_URL: z.string().url().optional(),
+  META_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  META_OAUTH_SCOPES: z.string().trim().min(1).optional(),
+
+  GOOGLE_OAUTH_CLIENT_ID: z.string().trim().min(1).optional(),
+  GOOGLE_OAUTH_CLIENT_SECRET: z.string().trim().min(1).optional(),
+  GOOGLE_OAUTH_REDIRECT_URI: z.string().url().optional(),
+  GOOGLE_OAUTH_SCOPES: z.string().trim().min(1).optional(),
+
+  TIKTOK_BUSINESS_APP_ID: z.string().trim().min(1).optional(),
+  TIKTOK_BUSINESS_SECRET: z.string().trim().min(1).optional(),
+  TIKTOK_BUSINESS_AUTHORIZATION_URL: z.string().url().optional(),
+  TIKTOK_BUSINESS_TOKEN_URL: z.string().url().optional(),
+
   QUALITY_NOTIFICATION_WEBHOOK_URL: z.string().url().optional(),
   QUALITY_NOTIFICATION_WEBHOOK_SECRET: z.string().min(32).optional(),
   QUALITY_NOTIFICATION_WEBHOOK_TIMEOUT_MS: z.coerce.number().int().min(500).max(30000).default(5000),
