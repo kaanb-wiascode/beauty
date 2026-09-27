@@ -6,6 +6,7 @@ import { Alert, Button, PageHeader, Spinner } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { SearchField } from "@/components/data-view";
 import { ValooSelect } from "@/components/valoo-controls";
+import { TeamMessageAttachment } from "@/components/team-message-attachment";
 import { getStoredUser } from "@/lib/auth";
 
 type PresenceStatus =
@@ -164,7 +165,7 @@ export default function TeamPage() {
   const [groupName, setGroupName] = useState("");
   const [announcementOnly, setAnnouncementOnly] = useState(false);
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [conversationMembers, setConversationMembers] = useState<ConversationMember[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -234,7 +235,12 @@ export default function TeamPage() {
       setPeople(peopleResult);
       setConversations(conversationsResult);
       setError("");
-      if (!activeId && conversationsResult[0]) setActiveId(conversationsResult[0].id);
+      if (!activeId && conversationsResult[0]) {
+        const requestedId = typeof window !== "undefined" ? window.localStorage.getItem("valoo-team-active-conversation") : null;
+        const requestedConversation = requestedId ? conversationsResult.find((conversation) => conversation.id === requestedId) : null;
+        setActiveId(requestedConversation?.id ?? conversationsResult[0].id);
+        if (requestedConversation && typeof window !== "undefined") window.localStorage.removeItem("valoo-team-active-conversation");
+      }
       const current = peopleResult.find((person) => person.id === currentUser?.id);
       if (current) setStatus(current.status);
     } catch (err) {
@@ -481,14 +487,42 @@ export default function TeamPage() {
     await apiFormData(`/team/messages/${messageId}/attachments`, formData);
   }
 
+  function appendSelectedFiles(files: File[]) {
+    if (!files.length) return;
+    const allowed = new Set([
+      "image/jpeg", "image/png", "image/webp",
+      "audio/webm", "audio/ogg", "audio/mpeg", "audio/mp4",
+      "video/mp4", "video/webm", "video/quicktime",
+      "application/pdf", "text/plain", "text/csv",
+      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+      "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+    ]);
+    const accepted = files.filter((file) => allowed.has(file.type) && file.size > 0 && file.size <= 50 * 1024 * 1024);
+    if (accepted.length !== files.length) {
+      setError("Bazı dosyalar desteklenmiyor veya 50 MB sınırını aşıyor.");
+    }
+    setSelectedFiles((current) => [...current, ...accepted].slice(0, 10));
+  }
+
+  function attachmentPlaceholder(files: File[]) {
+    if (files.length > 1) return `${files.length} ek`;
+    const file = files[0];
+    if (!file) return "Mesaj";
+    if (file.type.startsWith("image/")) return "Fotoğraf";
+    if (file.type.startsWith("video/")) return "Video";
+    if (file.type.startsWith("audio/")) return "Sesli mesaj";
+    return file.name || "Dosya";
+  }
+
   async function sendMessage(event: FormEvent) {
     event.preventDefault();
-    if (!activeId || !canPost || (!messageText.trim() && !selectedFile) || sending) return;
+    if (!activeId || !canPost || (!messageText.trim() && !selectedFiles.length) || sending) return;
     if (editingMessage) {
       await saveEditedMessage();
       return;
     }
-    const body = messageText.trim() || selectedFile?.name || "Dosya";
+    const body = messageText.trim() || attachmentPlaceholder(selectedFiles);
+    const filesToSend = [...selectedFiles];
     setSending(true);
     setMessageText("");
     try {
@@ -496,14 +530,15 @@ export default function TeamPage() {
         method: "POST",
         body: { body, ...(replyTo ? { replyToMessageId: replyTo.id } : {}) },
       });
-      if (selectedFile) {
-        await uploadMessageAttachment(created.id, selectedFile);
+      for (const file of filesToSend) {
+        await uploadMessageAttachment(created.id, file);
       }
       setReplyTo(null);
-      setSelectedFile(null);
+      setSelectedFiles([]);
       await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
     } catch (err) {
-      setMessageText(messageText || body);
+      setMessageText(messageText || (filesToSend.length ? "" : body));
+      setSelectedFiles(filesToSend);
       setError(err instanceof ApiError ? err.message : "Mesaj gönderilemedi.");
     } finally {
       setSending(false);
@@ -554,7 +589,7 @@ export default function TeamPage() {
         const extension = type === "audio/mp4" ? "m4a" : type === "audio/ogg" ? "ogg" : type === "audio/mpeg" ? "mp3" : "webm";
         const blob = new Blob(recordedChunksRef.current, { type });
         if (blob.size > 0) {
-          setSelectedFile(new File([blob], `sesli-mesaj-${Date.now()}.${extension}`, { type }));
+          appendSelectedFiles([new File([blob], `sesli-mesaj-${Date.now()}.${extension}`, { type })]);
         }
         mediaStreamRef.current?.getTracks().forEach((track) => track.stop());
         mediaStreamRef.current = null;
@@ -599,7 +634,7 @@ export default function TeamPage() {
     try {
       const access = await api<AttachmentAccess>(`/team/attachments/${attachment.id}/access`);
       if (access.mode === "object") {
-        if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType === "application/pdf") {
+        if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType.startsWith("video/") || attachment.mimeType === "application/pdf") {
           setPreview((current) => {
             if (current?.url.startsWith("blob:")) URL.revokeObjectURL(current.url);
             return { url: access.url, mimeType: attachment.mimeType, name: attachment.originalName };
@@ -615,7 +650,7 @@ export default function TeamPage() {
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
 
-      if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType === "application/pdf") {
+      if (attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("audio/") || attachment.mimeType.startsWith("video/") || attachment.mimeType === "application/pdf") {
         setPreview((current) => {
           if (current?.url.startsWith("blob:")) URL.revokeObjectURL(current.url);
           return { url, mimeType: attachment.mimeType, name: attachment.originalName };
@@ -931,20 +966,18 @@ export default function TeamPage() {
                           <div className={`group/message max-w-[76%] rounded-[18px] px-4 py-3 shadow-[0_3px_12px_rgba(17,70,104,.04)] ${mine ? "bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
                             {!mine ? <p className="mb-1 text-[9px] font-semibold text-[var(--accent)]">{message.senderName}</p> : null}
                             {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[var(--accent)] bg-[var(--accent-soft)]/45 text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
-                            <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
+                            {!(message.attachments?.length && ["Fotoğraf", "Video", "Sesli mesaj"].includes(message.body)) ? (
+                              <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
+                            ) : null}
                             {message.attachments?.length ? (
-                              <div className="mt-2 space-y-1.5">
+                              <div className="mt-2 grid gap-1.5">
                                 {message.attachments.map((attachment) => (
-                                  <button
+                                  <TeamMessageAttachment
                                     key={attachment.id}
-                                    type="button"
-                                    onClick={() => void openAttachment(attachment)}
-                                    className={`flex w-full items-center gap-2 rounded-[10px] border px-2.5 py-2 text-left ${mine ? "border-white/15 bg-white/5" : "border-[var(--line)] bg-[var(--surface-2)]"}`}
-                                  >
-                                    <span className="text-[13px]">{attachment.mimeType.startsWith("image/") ? "🖼" : attachment.mimeType.startsWith("audio/") ? "SES" : attachment.mimeType === "application/pdf" ? "PDF" : "DOC"}</span>
-                                    <span className="min-w-0 flex-1 truncate text-[9px] font-semibold">{attachment.originalName}</span>
-                                    <span className={`text-[8px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>{Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB</span>
-                                  </button>
+                                    attachment={attachment}
+                                    mine={mine}
+                                    onOpen={(item) => void openAttachment(item)}
+                                  />
                                 ))}
                               </div>
                             ) : null}
@@ -1003,7 +1036,19 @@ export default function TeamPage() {
                 )}
               </div>
 
-              <form onSubmit={sendMessage} className="border-t border-[var(--line)] bg-white/95 p-4 backdrop-blur-xl">
+              <form
+                onSubmit={sendMessage}
+                onDragOver={(event) => {
+                  if (!canPost) return;
+                  event.preventDefault();
+                }}
+                onDrop={(event) => {
+                  if (!canPost) return;
+                  event.preventDefault();
+                  appendSelectedFiles(Array.from(event.dataTransfer.files));
+                }}
+                className="border-t border-[var(--line)] bg-white/95 p-4 backdrop-blur-xl"
+              >
                 {!canPost ? (
                   <div className="mb-3 rounded-[12px] border border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-medium text-amber-800">
                     Bu duyuru kanalında yalnızca yöneticiler mesaj paylaşabilir.
@@ -1028,6 +1073,13 @@ export default function TeamPage() {
                     value={messageText}
                     disabled={!canPost}
                     onChange={(event) => signalTyping(event.target.value)}
+                    onPaste={(event) => {
+                      const files = Array.from(event.clipboardData.files);
+                      if (files.length) {
+                        event.preventDefault();
+                        appendSelectedFiles(files);
+                      }
+                    }}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" && !event.shiftKey) {
                         event.preventDefault();
@@ -1062,30 +1114,38 @@ export default function TeamPage() {
                     {recording ? `Kaydı bitir · ${recordingSeconds}s` : "Ses kaydet"}
                   </button>
                   <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] transition ${canPost ? "cursor-pointer hover:border-[var(--line-strong)] hover:text-[var(--accent)]" : "cursor-not-allowed opacity-50"}`}>
-                    {selectedFile ? (selectedFile.type.startsWith("audio/") ? "Ses kaydı hazır" : "Dosya seçildi") : "Dosya ekle"}
+                    {selectedFiles.length ? `${selectedFiles.length} ek hazır` : "＋ Ekle"}
                     <input
                       type="file"
+                      multiple
                       disabled={!canPost}
-                      accept="image/jpeg,image/png,image/webp,audio/webm,audio/ogg,audio/mpeg,audio/mp4,application/pdf,text/plain,text/csv,.docx,.xlsx"
+                      accept="image/jpeg,image/png,image/webp,audio/webm,audio/ogg,audio/mpeg,audio/mp4,video/mp4,video/webm,video/quicktime,application/pdf,text/plain,text/csv,.docx,.xlsx"
                       className="hidden"
-                      onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
+                      onChange={(event) => {
+                        appendSelectedFiles(Array.from(event.target.files ?? []));
+                        event.currentTarget.value = "";
+                      }}
                     />
                   </label>
                   <button
                     type="submit"
-                    disabled={!canPost || sending || (!messageText.trim() && !selectedFile)}
+                    disabled={!canPost || sending || (!messageText.trim() && !selectedFiles.length)}
                     className="h-10 rounded-[12px] border border-[var(--accent)] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] px-4 text-[11px] font-semibold text-white shadow-[0_7px_18px_rgba(22,116,189,.17)] transition hover:shadow-[0_9px_24px_rgba(22,116,189,.22)] disabled:cursor-not-allowed disabled:opacity-40"
                   >
                     {sending ? "Gönderiliyor..." : "Gönder"}
                   </button>
                 </div>
-                {selectedFile ? (
-                  <div className="mt-2 flex items-center justify-between rounded-[10px] bg-[var(--accent-soft)]/45 px-3 py-2 text-[9px] text-[var(--muted)]">
-                    <span className="truncate">{selectedFile.name} · {Math.max(1, Math.round(selectedFile.size / 1024))} KB</span>
-                    <button type="button" onClick={() => setSelectedFile(null)} className="font-semibold text-rose-600">Kaldır</button>
+                {selectedFiles.length ? (
+                  <div className="mt-2 grid gap-1.5 rounded-[12px] bg-[var(--accent-soft)]/35 p-2">
+                    {selectedFiles.map((file, index) => (
+                      <div key={`${file.name}-${file.size}-${index}`} className="flex items-center justify-between gap-3 rounded-[9px] bg-white/70 px-3 py-2 text-[9px] text-[var(--muted)]">
+                        <span className="min-w-0 truncate">{file.name} · {Math.max(1, Math.round(file.size / 1024))} KB</span>
+                        <button type="button" onClick={() => setSelectedFiles((current) => current.filter((_, itemIndex) => itemIndex !== index))} className="shrink-0 font-semibold text-rose-600">Kaldır</button>
+                      </div>
+                    ))}
                   </div>
                 ) : null}
-                <p className="mt-2 px-1 text-[9px] text-[var(--muted-soft)]">Enter gönderir · Shift + Enter yeni satır açar · Dosya sınırı 15 MB</p>
+                <p className="mt-2 px-1 text-[9px] text-[var(--muted-soft)]">Enter gönderir · Shift + Enter yeni satır · Sürükle-bırak / yapıştır desteklenir · En fazla 10 ek, dosya başına 50 MB</p>
               </form>
             </>
           ) : (
@@ -1239,6 +1299,7 @@ export default function TeamPage() {
                 style={{ backgroundImage: `url("${preview.url}")` }}
               />
             ) : null}
+            {preview.mimeType.startsWith("video/") ? <video src={preview.url} controls autoPlay playsInline className="max-h-[65vh] w-full rounded-[14px] bg-black" /> : null}
             {preview.mimeType.startsWith("audio/") ? <audio src={preview.url} controls autoPlay className="w-full max-w-[520px]" /> : null}
             {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[65vh] w-full rounded-[14px] bg-white" /> : null}
           </div>
