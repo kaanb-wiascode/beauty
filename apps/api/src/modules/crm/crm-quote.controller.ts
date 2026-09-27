@@ -38,6 +38,12 @@ export class CrmQuoteController {
     return this.quotes.create(createCrmQuoteSchema.parse(body), this.userId(request));
   }
 
+  @Post(':id/convert-sale')
+  @RequirePermission('payments', 'create')
+  convertToSale(@Param('id') id: string, @Req() request: { user?: { sub?: string } }) {
+    return this.quotes.convertToSale(uuid.parse(id), this.userId(request));
+  }
+
   @Patch(':id/status')
   @RequirePermission('crm', 'manage')
   updateStatus(@Param('id') id: string, @Body() body: unknown, @Req() request: { user?: { sub?: string } }) {
