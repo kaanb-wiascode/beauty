@@ -66,6 +66,21 @@ export type CrmFollowUp = {
   updatedAt: string;
 };
 
+export type CrmInteraction = {
+  id: string;
+  ownerUserId: string;
+  type: "CALL" | "WHATSAPP" | "SMS" | "EMAIL" | "IN_PERSON" | "VIDEO_CALL" | "OTHER";
+  direction: "INBOUND" | "OUTBOUND";
+  status: "PLANNED" | "COMPLETED" | "CANCELLED";
+  result: string | null;
+  notes: string | null;
+  startedAt: string;
+  endedAt: string | null;
+  durationSeconds: number | null;
+  nextAction: string | null;
+  nextActionAt: string | null;
+};
+
 export type CrmEvent = {
   id: string;
   eventType: string;
@@ -106,6 +121,7 @@ export type CrmLeadDetail = CrmLead & {
     > & { lostReason?: string | null; createdAt?: string }
   >;
   followUps: CrmFollowUp[];
+  interactions: CrmInteraction[];
   events: CrmEvent[];
 };
 
