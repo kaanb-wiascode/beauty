@@ -5,10 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { AccountingService } from '../accounting/accounting.service';
+import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { CreatePaymentInput } from './dto/create-payment.dto';
 import { ListPaymentsInput } from './dto/list-payments.dto';
 import { RefundPaymentInput } from './dto/refund-payment.dto';
@@ -21,10 +23,31 @@ export class PaymentsService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly organizationScope: OrganizationScopeService,
+    private readonly accountingService: AccountingService,
+    private readonly commerceFinanceSync: CommerceFinanceSyncService,
   ) {}
 
   private getTenantId(): string {
     return this.tenantContext.getTenantId();
+  }
+
+  private async currentUserId(
+    db: Prisma.TransactionClient | PrismaService,
+  ): Promise<string> {
+    const context = this.tenantContext.getContext();
+    const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" AS "userId"
+         FROM memberships
+        WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
+        LIMIT 1`,
+      context.membershipId,
+      context.tenantId,
+      context.companyId,
+    );
+    if (!rows[0]?.userId) {
+      throw new BadRequestException('Oturum açmış kullanıcı bilgisi bulunamadı.');
+    }
+    return rows[0].userId;
   }
 
   private isUniqueConstraintError(error: unknown): boolean {
@@ -91,27 +114,29 @@ export class PaymentsService {
 
   async create(input: CreatePaymentInput) {
     const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
     const appointmentScope = await this.organizationScope.getBranchScopedWhere();
 
-    const appointment =
-      await this.prisma.appointment.findFirst({
-        where: {
-          id: input.appointmentId,
-          ...appointmentScope,
+    const appointment = await this.prisma.appointment.findFirst({
+      where: {
+        id: input.appointmentId,
+        ...appointmentScope,
+      },
+      include: {
+        customer: {
+          select: { firstName: true, lastName: true },
         },
-        include: {
-          service: {
-            select: {
-              price: true,
-            },
-          },
+        service: {
+          select: { name: true, price: true },
         },
-      });
+        session: {
+          select: { id: true },
+        },
+      },
+    });
 
     if (!appointment) {
-      throw new NotFoundException(
-        'Appointment not found',
-      );
+      throw new NotFoundException('Randevu bulunamadı.');
     }
 
     if (
@@ -119,42 +144,105 @@ export class PaymentsService {
       appointment.status === 'NO_SHOW'
     ) {
       throw new BadRequestException(
-        'Cancelled or no-show appointment cannot be paid',
+        'İptal edilmiş veya gelmedi olarak işaretlenmiş randevu için ödeme alınamaz.',
       );
     }
 
-    const existing = await this.prisma.payment.findUnique({
-      where: {
-        appointmentId: appointment.id,
-      },
-      select: {
-        id: true,
-      },
-    });
+    if (appointment.session) {
+      throw new BadRequestException(
+        'Bu randevu paket seansından karşılanıyor. Ayrıca ödeme alınamaz.',
+      );
+    }
 
-    if (existing) {
-      throw new ConflictException(
-        'Appointment already has a payment',
+    const serviceAmount = Number(appointment.service.price);
+    const paymentAmount = Math.round((Number(input.amount) + Number.EPSILON) * 100) / 100;
+    if (Math.abs(paymentAmount - serviceAmount) > 0.01) {
+      throw new BadRequestException(
+        'Randevu ödeme tutarı hizmet bedeliyle aynı olmalıdır. Kısmi veya taksitli ödeme için Satış ve Tahsilat ekranını kullanın.',
       );
     }
 
     try {
-      return await this.prisma.payment.create({
-        data: {
-          tenantId,
-          appointmentId: appointment.id,
-          amount: input.amount,
-          method: input.method,
-          ...(input.paidAt
-            ? { paidAt: input.paidAt }
-            : {}),
+      return await this.prisma.$transaction(
+        async (tx) => {
+          const existing = await tx.payment.findUnique({
+            where: { appointmentId: appointment.id },
+            select: { id: true },
+          });
+          if (existing) {
+            throw new ConflictException('Bu randevu için ödeme zaten kaydedilmiş.');
+          }
+
+          const payment = await tx.payment.create({
+            data: {
+              tenantId,
+              appointmentId: appointment.id,
+              amount: paymentAmount,
+              method: input.method,
+              ...(input.paidAt ? { paidAt: input.paidAt } : {}),
+            },
+          });
+
+          const actorId = await this.currentUserId(tx);
+          const customerName =
+            `${appointment.customer.firstName} ${appointment.customer.lastName}`.trim();
+
+          await this.accountingService.recordAppointmentReceivable(
+            tx,
+            appointment.id,
+            {
+              tenantId,
+              branchId: appointment.branchId,
+              entryDate: payment.paidAt,
+              amount: serviceAmount,
+            },
+          );
+          await this.commerceFinanceSync.syncAppointmentReceivable(tx, {
+            tenantId,
+            companyId,
+            branchId: appointment.branchId,
+            appointmentId: appointment.id,
+            actorId,
+            customerName,
+            serviceName: appointment.service.name,
+            amount: serviceAmount,
+            occurredAt: payment.paidAt,
+            dueAt: appointment.startAt,
+          });
+
+          await this.accountingService.recordAppointmentPayment(
+            tx,
+            payment.id,
+            payment.method,
+            {
+              tenantId,
+              branchId: appointment.branchId,
+              entryDate: payment.paidAt,
+              amount: paymentAmount,
+            },
+          );
+          await this.commerceFinanceSync.syncAppointmentPayment(tx, {
+            tenantId,
+            companyId,
+            branchId: appointment.branchId,
+            appointmentId: appointment.id,
+            actorId,
+            customerName,
+            serviceName: appointment.service.name,
+            amount: paymentAmount,
+            occurredAt: payment.paidAt,
+            dueAt: appointment.startAt,
+            paymentId: payment.id,
+            method: payment.method,
+          });
+
+          return payment;
         },
-      });
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
-        throw new ConflictException(
-          'Appointment already has a payment',
-        );
+        throw new ConflictException('Bu randevu için ödeme zaten kaydedilmiş.');
       }
       throw error;
     }
@@ -213,6 +301,8 @@ export class PaymentsService {
   }
 
   async refund(id: string, input: RefundPaymentInput) {
+    const tenantId = this.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
     const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const payment = await this.prisma.payment.findFirst({
@@ -220,45 +310,84 @@ export class PaymentsService {
         id,
         ...paymentScope,
       },
-      select: {
-        id: true,
-        status: true,
+      include: {
+        appointment: {
+          include: {
+            customer: {
+              select: { firstName: true, lastName: true },
+            },
+            service: {
+              select: { name: true, price: true },
+            },
+          },
+        },
       },
     });
 
     if (!payment) {
-      throw new NotFoundException('Payment not found');
+      throw new NotFoundException('Ödeme bulunamadı.');
     }
 
     if (payment.status === 'REFUNDED') {
-      throw new ConflictException(
-        'Payment is already refunded',
-      );
+      throw new ConflictException('Ödeme zaten iade edilmiş.');
     }
 
-    const result = await this.prisma.payment.updateMany({
-      where: {
-        id: payment.id,
-        status: {
-          not: 'REFUNDED',
-        },
-      },
-      data: {
-        status: 'REFUNDED',
-        refundedAt: new Date(),
-        refundReason: input.reason?.trim() || null,
-      },
-    });
+    const reason = input.reason?.trim() || 'Ödeme iadesi';
+    return this.prisma.$transaction(
+      async (tx) => {
+        const refundedAt = new Date();
+        const result = await tx.payment.updateMany({
+          where: {
+            id: payment.id,
+            status: { not: 'REFUNDED' },
+          },
+          data: {
+            status: 'REFUNDED',
+            refundedAt,
+            refundReason: reason,
+          },
+        });
 
-    if (result.count !== 1) {
-      throw new ConflictException(
-        'Payment is already refunded',
-      );
-    }
+        if (result.count !== 1) {
+          throw new ConflictException('Ödeme zaten iade edilmiş.');
+        }
 
-    return this.prisma.payment.findUniqueOrThrow({
-      where: { id: payment.id },
-    });
+        await this.accountingService.recordAppointmentPaymentRefund(
+          tx,
+          payment.id,
+          payment.method,
+          {
+            tenantId,
+            branchId: payment.appointment.branchId,
+            entryDate: refundedAt,
+            amount: Number(payment.amount),
+          },
+        );
+
+        const actorId = await this.currentUserId(tx);
+        await this.commerceFinanceSync.syncAppointmentPaymentRefund(tx, {
+          tenantId,
+          companyId,
+          branchId: payment.appointment.branchId,
+          appointmentId: payment.appointmentId,
+          actorId,
+          customerName:
+            `${payment.appointment.customer.firstName} ${payment.appointment.customer.lastName}`.trim(),
+          serviceName: payment.appointment.service.name,
+          amount: Number(payment.amount),
+          occurredAt: refundedAt,
+          dueAt: payment.appointment.startAt,
+          paymentId: payment.id,
+          method: payment.method,
+          reason,
+        });
+
+        return tx.payment.findUniqueOrThrow({
+          where: { id: payment.id },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async summary(input: PaymentSummaryInput) {
