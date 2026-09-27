@@ -36,7 +36,7 @@ export class MarketingLeadAppointmentService {
     const activeBranchId = context.branchId;
     if (!activeBranchId) {
       throw new BadRequestException(
-        'Marketing appointment requires an active branch.',
+        'Pazarlama kaynaklı randevu oluşturmak için aktif bir şube seçilmelidir.',
       );
     }
 
@@ -55,7 +55,7 @@ export class MarketingLeadAppointmentService {
           activeBranchId,
         );
 
-        if (!lead) throw new NotFoundException('Marketing lead not found.');
+        if (!lead) throw new NotFoundException('Potansiyel müşteri kaydı bulunamadı.');
         if (lead.appointmentId) {
           return {
             appointmentId: lead.appointmentId,
@@ -65,7 +65,7 @@ export class MarketingLeadAppointmentService {
         }
         if (!lead.customerId) {
           throw new BadRequestException(
-            'Marketing lead must be linked to a customer before appointment creation.',
+            'Randevu oluşturmadan önce potansiyel müşteri gerçek müşteri kaydına dönüştürülmelidir.',
           );
         }
 
@@ -96,14 +96,14 @@ export class MarketingLeadAppointmentService {
           }),
         ]);
 
-        if (!customer) throw new NotFoundException('Customer not found.');
-        if (!staff) throw new NotFoundException('Staff not found.');
-        if (!service) throw new NotFoundException('Service not found.');
+        if (!customer) throw new NotFoundException('Müşteri bulunamadı.');
+        if (!staff) throw new NotFoundException('Personel bulunamadı.');
+        if (!service) throw new NotFoundException('Hizmet bulunamadı.');
         if (staff.status !== 'ACTIVE') {
-          throw new BadRequestException('Staff is not active.');
+          throw new BadRequestException('Seçilen personel aktif değil.');
         }
         if (service.status !== 'ACTIVE') {
-          throw new BadRequestException('Service is not active.');
+          throw new BadRequestException('Seçilen hizmet aktif değil.');
         }
 
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
@@ -128,7 +128,7 @@ export class MarketingLeadAppointmentService {
         });
         if (overlapping) {
           throw new ConflictException(
-            'Staff already has an overlapping appointment.',
+            'Seçilen personelin bu saat aralığında başka bir randevusu var.',
           );
         }
 
@@ -151,7 +151,7 @@ export class MarketingLeadAppointmentService {
           });
           if (!session) {
             throw new BadRequestException(
-              'Selected session is not available for this customer, service, or branch.',
+              'Seçilen seans bu müşteri, hizmet veya şube için uygun değil.',
             );
           }
         }
@@ -193,7 +193,7 @@ export class MarketingLeadAppointmentService {
           });
           if (reserved.count !== 1) {
             throw new ConflictException(
-              'Selected session was reserved by another operation. Please choose another session.',
+              'Seçilen seans başka bir işlem tarafından rezerve edildi. Lütfen başka bir seans seçin.',
             );
           }
         }
