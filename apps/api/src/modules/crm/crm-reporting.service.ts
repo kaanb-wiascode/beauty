@@ -257,4 +257,94 @@ export class CrmReportingService {
     });
   }
 
+  async surveyorPerformance(input: CrmReportingInput) {
+    const context = this.tenantContext.getContext();
+    const visibility = await this.dataScope.resolve();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      staffId: string;
+      firstName: string;
+      lastName: string;
+      leadCount: number;
+      opportunityCount: number;
+      wonCount: number;
+      actualSalesValue: unknown;
+    }>>(
+      `WITH surveyor_leads AS (
+         SELECT l.id,l.surveyor_staff_id,l.owner_user_id
+           FROM crm_leads l
+          WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+            AND ($3::text IS NULL OR l.branch_id=$3::text)
+            AND l.source='SURVEYOR'
+            AND l.surveyor_staff_id IS NOT NULL
+            AND l.created_at >= $4::timestamptz AND l.created_at <= $5::timestamptz
+            AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))
+       ), lead_metrics AS (
+         SELECT surveyor_staff_id AS staff_id,COUNT(*)::int AS lead_count
+           FROM surveyor_leads
+          GROUP BY surveyor_staff_id
+       ), opportunity_metrics AS (
+         SELECT sl.surveyor_staff_id AS staff_id,
+                COUNT(o.id)::int AS opportunity_count,
+                COUNT(o.id) FILTER (WHERE o.stage='WON')::int AS won_count
+           FROM surveyor_leads sl
+           JOIN crm_opportunities o ON o.lead_id=sl.id
+          GROUP BY sl.surveyor_staff_id
+       ), sales_metrics AS (
+         SELECT l.surveyor_staff_id AS staff_id,
+                COALESCE(SUM(s.total),0)::numeric AS actual_sales_value
+           FROM crm_leads l
+           JOIN crm_opportunities o ON o.lead_id=l.id
+           JOIN sales s ON s.id=o.sale_id
+             AND s."tenantId"=o.tenant_id
+             AND s."branchId"=o.branch_id
+          WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+            AND ($3::text IS NULL OR l.branch_id=$3::text)
+            AND l.source='SURVEYOR'
+            AND l.surveyor_staff_id IS NOT NULL
+            AND s.status='CONFIRMED'
+            AND s."confirmedAt" >= $4::timestamptz AND s."confirmedAt" <= $5::timestamptz
+            AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))
+          GROUP BY l.surveyor_staff_id
+       ), staff_ids AS (
+         SELECT staff_id FROM lead_metrics
+         UNION SELECT staff_id FROM opportunity_metrics
+         UNION SELECT staff_id FROM sales_metrics
+       )
+       SELECT ids.staff_id AS "staffId",st."firstName",st."lastName",
+              COALESCE(lm.lead_count,0)::int AS "leadCount",
+              COALESCE(om.opportunity_count,0)::int AS "opportunityCount",
+              COALESCE(om.won_count,0)::int AS "wonCount",
+              COALESCE(sm.actual_sales_value,0)::numeric AS "actualSalesValue"
+         FROM staff_ids ids
+         JOIN staff st ON st.id=ids.staff_id
+         LEFT JOIN lead_metrics lm ON lm.staff_id=ids.staff_id
+         LEFT JOIN opportunity_metrics om ON om.staff_id=ids.staff_id
+         LEFT JOIN sales_metrics sm ON sm.staff_id=ids.staff_id
+        ORDER BY COALESCE(sm.actual_sales_value,0) DESC,COALESCE(om.won_count,0) DESC,st."firstName",st."lastName"`,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      input.from,
+      input.to,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
+    );
+
+    return rows.map((row) => ({
+      staffId: row.staffId,
+      firstName: row.firstName,
+      lastName: row.lastName,
+      leadCount: Number(row.leadCount),
+      opportunityCount: Number(row.opportunityCount),
+      wonCount: Number(row.wonCount),
+      actualSalesValue: Number(row.actualSalesValue ?? 0),
+      leadToOpportunityRate: Number(row.leadCount)
+        ? Math.round((Number(row.opportunityCount) / Number(row.leadCount)) * 100)
+        : 0,
+      leadToSaleRate: Number(row.leadCount)
+        ? Math.round((Number(row.wonCount) / Number(row.leadCount)) * 100)
+        : 0,
+    }));
+  }
+
 }
