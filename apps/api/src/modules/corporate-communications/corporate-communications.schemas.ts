@@ -143,6 +143,11 @@ export const createProviderConnectionSchema = z.object({
   displayName: z.string().trim().min(2).max(180),
 });
 
+export const completeProviderOAuthSchema = z.object({
+  code: z.string().trim().min(1).max(4000),
+  state: z.string().trim().min(20).max(8000),
+});
+
 export const routingConditionsSchema = z
   .object({
     autoFollowUp: z.boolean().default(true),
