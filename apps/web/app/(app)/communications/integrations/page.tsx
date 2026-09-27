@@ -51,6 +51,7 @@ export default function AdvertisingConnectionsPage() {
   const [health, setHealth] = useState<ConnectionHealth | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [disconnectingId, setDisconnectingId] = useState("");
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
   const [displayName, setDisplayName] = useState("");
@@ -81,7 +82,20 @@ export default function AdvertisingConnectionsPage() {
     finally { setSaving(false); }
   }
 
-  if (loading && !rows.length) return <div className="py-20"><Spinner label="Reklam hesapları yükleniyor..." /></div>;
+  async function disconnect(id: string) {
+    setDisconnectingId(id);
+    setError("");
+    try {
+      await api(`/corporate-communications/provider-connections/${id}/disconnect`, { method: "POST" });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Bağlantı kesilemedi.") : "Bağlantı kesilemedi.");
+    } finally {
+      setDisconnectingId("");
+    }
+  }
+
+  if (loading && !rows.length) return <div className="py-20"><Spinner label="Entegrasyonlar yükleniyor..." /></div>;
 
   return <div className="space-y-6 pb-12">
     <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Entegrasyon Merkezi</h1><p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Meta, Google Ads ve TikTok bağlantılarını, hesap durumlarını ve son veri eşitleme bilgilerini tek merkezden yönetin.</p></header>
@@ -117,6 +131,16 @@ export default function AdvertisingConnectionsPage() {
             <p className="text-[10px] text-[var(--muted)]">Son eşitleme: {row.lastSyncAt ? new Date(row.lastSyncAt).toLocaleString("tr-TR") : "Henüz yapılmadı"}</p>
           </div>
           {row.lastError ? <p className="mt-2 text-[10px] text-red-600">Bağlantı sırasında bir sorun oluştu. Hesap yetkilerini ve bağlantı ayarlarını kontrol edin.</p> : null}
+          {canManage && connectionHealth?.health !== "DISCONNECTED" ? (
+            <button
+              type="button"
+              disabled={disconnectingId === row.id}
+              onClick={() => void disconnect(row.id)}
+              className="mt-3 rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)] transition hover:text-red-600 disabled:opacity-50"
+            >
+              {disconnectingId === row.id ? "Bağlantı Kesiliyor..." : "Bağlantıyı Kes"}
+            </button>
+          ) : null}
         </div>;
       })}</div> : <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz reklam hesabı kaydı yok.</p>}</section>
     </div>
