@@ -106,6 +106,7 @@ export class CrmCustomer360Service {
            FROM crm_opportunities
           WHERE customer_id=$4::text AND tenant_id=$1::text AND company_id=$2::text
             AND ($3::text IS NULL OR branch_id=$3::text)
+            AND ($5::boolean=FALSE OR owner_user_id=ANY($6::text[]))
           ORDER BY updated_at DESC,id DESC
           LIMIT 8`,
         ...scope,
@@ -120,7 +121,7 @@ export class CrmCustomer360Service {
            JOIN crm_opportunities o ON o.id=f.opportunity_id
           WHERE o.customer_id=$4::text AND f.tenant_id=$1::text AND f.company_id=$2::text
             AND ($3::text IS NULL OR f.branch_id=$3::text) AND f.status='OPEN'
-              AND ($5::boolean=FALSE OR fo.owner_user_id=ANY($6::text[]))
+            AND ($5::boolean=FALSE OR o.owner_user_id=ANY($6::text[]))
           ORDER BY f.due_at,f.id
           LIMIT 8`,
         ...scope,
@@ -134,6 +135,7 @@ export class CrmCustomer360Service {
            JOIN crm_opportunities o ON o.id=e.opportunity_id
           WHERE o.customer_id=$4::text AND e.tenant_id=$1::text AND e.company_id=$2::text
             AND ($3::text IS NULL OR e.branch_id=$3::text)
+            AND ($5::boolean=FALSE OR o.owner_user_id=ANY($6::text[]))
           ORDER BY e.created_at DESC,e.id DESC
           LIMIT 10`,
         ...scope,
