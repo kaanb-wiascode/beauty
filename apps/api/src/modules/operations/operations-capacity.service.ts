@@ -51,12 +51,12 @@ export class OperationsCapacityService {
 
     if (!tenantId || !companyId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -113,13 +113,13 @@ export class OperationsCapacityService {
       Number.isNaN(to.getTime()) ||
       from >= to
     ) {
-      throw new BadRequestException('Capacity window is invalid.');
+      throw new BadRequestException('Kapasite hesaplama aralığı geçersiz.');
     }
 
     const windowMinutes = Math.ceil((to.getTime() - from.getTime()) / 60_000);
     if (windowMinutes > 7 * 24 * 60) {
       throw new BadRequestException(
-        'Capacity window cannot be longer than seven days.',
+        'Kapasite hesaplama aralığı yedi günden uzun olamaz.',
       );
     }
 
