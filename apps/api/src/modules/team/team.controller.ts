@@ -210,6 +210,14 @@ export class TeamController {
     return this.team.completeAttachmentUpload(user.sub, id, completeAttachmentSchema.parse(body));
   }
 
+  @Post('attachments/:id/transcribe')
+  transcribeAttachment(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.transcribeAttachment(user.sub, id);
+  }
+
   @Get('attachments/:id/access')
   attachmentAccess(
     @CurrentUser() user: JwtPayload,
