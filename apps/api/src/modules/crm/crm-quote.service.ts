@@ -132,9 +132,13 @@ export class CrmQuoteService {
       throw new BadRequestException('İndirim toplamı teklif ara toplamını aşamaz.');
     }
     const total = Math.round((subtotal - input.discountTotal + Number.EPSILON) * 100) / 100;
-    const quoteNumber = await this.nextQuoteNumber();
 
-    const quoteId = await this.prisma.$transaction(async (tx) => {
+    let quoteId: string | null = null;
+    let lastNumberConflict: unknown = null;
+    for (let attempt = 0; attempt < 3 && !quoteId; attempt += 1) {
+      const quoteNumber = await this.nextQuoteNumber();
+      try {
+        quoteId = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO crm_quotes(
            tenant_id,company_id,branch_id,opportunity_id,customer_id,owner_user_id,quote_number,
@@ -185,8 +189,23 @@ export class CrmQuoteService {
         JSON.stringify({ quoteId: createdQuoteId, quoteNumber, subtotal, discountTotal: input.discountTotal, total }),
       );
 
-      return createdQuoteId;
-    });
+          return createdQuoteId;
+        });
+      } catch (error) {
+        const message = String(error);
+        if (!message.includes('crm_quotes_scope_number_uq') && !message.includes('23505')) {
+          throw error;
+        }
+        lastNumberConflict = error;
+      }
+    }
+
+    if (!quoteId) {
+      throw new ConflictException(
+        'Teklif numarası eşzamanlı bir işlem nedeniyle oluşturulamadı. Lütfen tekrar deneyin.',
+        { cause: lastNumberConflict instanceof Error ? lastNumberConflict : undefined },
+      );
+    }
 
     return this.get(quoteId);
   }
