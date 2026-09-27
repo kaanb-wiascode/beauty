@@ -15,7 +15,7 @@ export class OperationsStaffAvailabilityController {
   ) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   board(@Query() query: unknown) {
     return this.availability.board(staffAvailabilityQuerySchema.parse(query));
   }
