@@ -233,6 +233,91 @@ export class SupplierExpenseSyncService {
     return { id: expensePaymentId };
   }
 
+  async syncBillPaymentReversal(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string;
+      companyId: string;
+      branchId: string | null;
+      billId: string;
+      actorId: string;
+      supplierPaymentId: string;
+      reversalJournalId: string;
+      reason: string;
+    },
+  ) {
+    const expense = await this.findExpense(tx, input);
+    if (!expense) return null;
+
+    const paymentRows = await tx.$queryRawUnsafe<
+      Array<{ id: string }>
+    >(
+      `SELECT id FROM expense_payments
+       WHERE tenant_id=$1::text AND company_id=$2::text
+         AND source_type='SUPPLIER_BILL_PAYMENT' AND source_id=$3
+       LIMIT 1`,
+      input.tenantId,
+      input.companyId,
+      input.supplierPaymentId,
+    );
+    const expensePayment = paymentRows[0];
+    if (!expensePayment) return null;
+
+    const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM expense_payment_reversals
+       WHERE expense_payment_id=$1::text
+       LIMIT 1`,
+      expensePayment.id,
+    );
+    if (existing[0]) return existing[0];
+
+    const reversalId = randomUUID();
+    await tx.$executeRawUnsafe(
+      `INSERT INTO expense_payment_reversals(
+         id,tenant_id,company_id,branch_id,expense_payment_id,journal_entry_id,
+         reason,source_type,source_id,created_by,created_at
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,
+                'SUPPLIER_BILL_PAYMENT_REVERSAL',$8,$9::text,CURRENT_TIMESTAMP)`,
+      reversalId,
+      input.tenantId,
+      input.companyId,
+      input.branchId,
+      expensePayment.id,
+      input.reversalJournalId,
+      input.reason,
+      input.supplierPaymentId,
+      input.actorId,
+    );
+
+    await this.refreshPaymentStatus(tx, {
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      expenseId: expense.id,
+    });
+
+    await tx.$executeRawUnsafe(
+      `INSERT INTO expense_audit_events(
+         id,tenant_id,company_id,branch_id,expense_id,actor_id,event_type,reason,
+         after_state,created_at
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,
+                'EXPENSE_AUTO_PAYMENT_REVERSED_FROM_SUPPLIER_BILL',$7,$8::jsonb,CURRENT_TIMESTAMP)`,
+      randomUUID(),
+      input.tenantId,
+      input.companyId,
+      input.branchId,
+      expense.id,
+      input.actorId,
+      input.reason,
+      JSON.stringify({
+        billId: input.billId,
+        supplierPaymentId: input.supplierPaymentId,
+        reversed: true,
+      }),
+    );
+
+    return { id: reversalId };
+  }
+
   async syncBillCancelled(
     tx: Prisma.TransactionClient,
     input: {
