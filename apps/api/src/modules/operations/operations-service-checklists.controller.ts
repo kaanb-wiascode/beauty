@@ -25,13 +25,13 @@ export class OperationsServiceChecklistsController {
   constructor(private readonly checklists: OperationsServiceChecklistsService) {}
 
   @Get('services/:serviceId/active')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   activeTemplate(@Param('serviceId', new ParseUUIDPipe()) serviceId: string) {
     return this.checklists.getActiveTemplate(serviceId);
   }
 
   @Post('services/:serviceId/versions')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   createVersion(
     @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
     @Body() body: unknown,
@@ -43,7 +43,7 @@ export class OperationsServiceChecklistsController {
   }
 
   @Get('executions/:executionId')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   executionChecklist(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
   ) {
@@ -51,7 +51,7 @@ export class OperationsServiceChecklistsController {
   }
 
   @Patch('executions/:executionId/items/:itemId')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   updateExecutionItem(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Param('itemId', new ParseUUIDPipe()) itemId: string,
