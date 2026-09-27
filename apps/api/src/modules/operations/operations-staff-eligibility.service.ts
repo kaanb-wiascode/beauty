@@ -37,10 +37,10 @@ export class OperationsStaffEligibilityService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
     if (!tenantId || !companyId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId };
   }
@@ -75,7 +75,7 @@ export class OperationsStaffEligibilityService {
     const { tenantId, companyId, branchId } = this.context();
     const current = await this.policy();
     if (current.version > 0 && input.expectedVersion !== current.version) {
-      throw new ConflictException('Eligibility policy changed since it was read. Refresh and retry.');
+      throw new ConflictException('Personel uygunluk kuralı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
     }
     if (current.version === 0) {
       const rows = await this.prisma.$queryRawUnsafe<PolicyRow[]>(
@@ -116,7 +116,7 @@ export class OperationsStaffEligibilityService {
       input.requireCompetency,
       input.expectedVersion,
     );
-    if (!rows[0]) throw new ConflictException('Eligibility policy changed during update.');
+    if (!rows[0]) throw new ConflictException('Personel uygunluk kuralı güncelleme sırasında değişti. Lütfen tekrar deneyin.');
     return rows[0];
   }
 
@@ -185,7 +185,7 @@ export class OperationsStaffEligibilityService {
       companyId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Waitlist entry not found.');
+    if (!rows[0]) throw new NotFoundException('Bekleme listesi kaydı bulunamadı.');
     const result = await this.check({ ...input, serviceId: rows[0].serviceId });
     if (!result.allowed) {
       throw new ConflictException({
@@ -203,7 +203,7 @@ export class OperationsStaffEligibilityService {
       where: { id: appointmentId, tenantId, branchId },
       select: { id: true, staffId: true, serviceId: true, startAt: true, endAt: true },
     });
-    if (!appointment) throw new NotFoundException('Appointment not found.');
+    if (!appointment) throw new NotFoundException('Randevu bulunamadı.');
     const result = await this.check(
       {
         staffId: appointment.staffId,
