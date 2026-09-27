@@ -116,7 +116,7 @@ export class MarketingProviderVaultService {
       );
       await tx.$executeRawUnsafe(
         `UPDATE corporate_marketing_provider_connections
-            SET credential_reference=$4,status='CONNECTED',last_error=NULL,updated_at=NOW()
+            SET credential_reference=$4,status='AUTHORIZED',last_error=NULL,updated_at=NOW()
           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         connectionId,
         tenantId,
