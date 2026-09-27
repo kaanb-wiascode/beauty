@@ -204,6 +204,8 @@ export class CrmLeadService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.assertCommercialScope(input, tx);
+      const assignment = await this.assignmentService.resolveOwner({ branchId, source: input.source, requestedOwnerUserId: input.ownerUserId ?? null, actorUserId }, tx);
+      await this.assertAssignableUser(assignment.ownerUserId, tx);
       if (input.source === 'SURVEYOR') {
         const surveyors = await tx.$queryRawUnsafe<Array<{ staffId: string; branchId: string }>>(
           `SELECT p.staff_id AS "staffId",p.branch_id AS "branchId" FROM crm_surveyor_profiles p JOIN staff s ON s.id=p.staff_id WHERE p.staff_id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text AND p.branch_id=$4::text AND p.active=TRUE AND s.status='ACTIVE' LIMIT 1`,
