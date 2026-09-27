@@ -99,6 +99,42 @@ export class CrmInteractionService {
     if (input.leadId) await this.dataScope.assertLeadAccess(input.leadId);
     if (input.opportunityId) await this.dataScope.assertOpportunityAccess(input.opportunityId);
 
+    if (input.leadId) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM crm_leads
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+          LIMIT 1`,
+        input.leadId,
+        context.tenantId,
+        context.companyId,
+        branchId,
+      );
+      if (!rows.length) throw new BadRequestException('Görüşme kaydı yalnızca aktif şubedeki potansiyel müşteriye eklenebilir.');
+    }
+    if (input.opportunityId) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM crm_opportunities
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+          LIMIT 1`,
+        input.opportunityId,
+        context.tenantId,
+        context.companyId,
+        branchId,
+      );
+      if (!rows.length) throw new BadRequestException('Görüşme kaydı yalnızca aktif şubedeki satış fırsatına eklenebilir.');
+    }
+    if (input.customerId) {
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM customers
+          WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text
+          LIMIT 1`,
+        input.customerId,
+        context.tenantId,
+        branchId,
+      );
+      if (!rows.length) throw new BadRequestException('Görüşme kaydı yalnızca aktif şubedeki müşteriye eklenebilir.');
+    }
+
     let customerId = input.customerId ?? null;
     if (!customerId && input.opportunityId) {
       const linked = await this.prisma.$queryRawUnsafe<Array<{ customerId: string | null }>>(
