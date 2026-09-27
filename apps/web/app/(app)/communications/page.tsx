@@ -6,7 +6,7 @@ import { CardInfo } from "@/components/card-info";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Dashboard = {
   activeCampaigns: number;
@@ -19,6 +19,23 @@ type Dashboard = {
   cpl: number | null;
   cac: number | null;
   roas: number | null;
+  funnel: {
+    leads: number;
+    crmLeads: number;
+    customers: number;
+    appointments: number;
+    sales: number;
+    revenue: number;
+  };
+  channels: Array<{
+    provider: string;
+    leads: number;
+    appointments: number;
+    sales: number;
+    revenue: number;
+    appointmentRate: number;
+    saleRate: number;
+  }>;
 };
 
 type Campaign = {
@@ -65,7 +82,7 @@ export default function CommunicationsOverviewPage() {
       setCampaigns(c);
       setLeads(l);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Kurumsal İletişim verileri yüklenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Kurumsal İletişim verileri yüklenemedi.") : "Kurumsal İletişim verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -105,6 +122,15 @@ export default function CommunicationsOverviewPage() {
         <Metric label="Reklam getirisi" value={dashboard?.roas == null ? "—" : `${dashboard.roas.toFixed(2)}x`} detail={dashboard?.cac == null ? "Müşteri kazanım maliyeti henüz hesaplanamadı" : `Müşteri kazanım maliyeti ${money.format(dashboard.cac)}`} />
       </section>
 
+      <section className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
+        <Panel title="Müşteri Kazanım Hunisi">
+          <Funnel dashboard={dashboard} />
+        </Panel>
+        <Panel title="Kanal Performansı">
+          <ChannelPerformance channels={dashboard?.channels ?? []} />
+        </Panel>
+      </section>
+
       <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
         <Panel title="Kampanyalar" action={<Link className="text-[12px] font-semibold text-[var(--accent)]" href="/communications/campaigns">Tümünü Gör</Link>}>
           {campaigns.length ? (
@@ -128,7 +154,7 @@ export default function CommunicationsOverviewPage() {
           ) : <Empty text="Henüz kampanya oluşturulmadı." href="/communications/campaigns" label="İlk Kampanyayı Oluştur" />}
         </Panel>
 
-        <Panel title="Son Talepler" action={<Link className="text-[12px] font-semibold text-[var(--accent)]" href="/communications/leads">Lead Inbox</Link>}>
+        <Panel title="Son Talepler" action={<Link className="text-[12px] font-semibold text-[var(--accent)]" href="/communications/leads">Tüm Talepler</Link>}>
           {leads.length ? (
             <div className="space-y-3">
               {leads.map((lead) => (
@@ -142,13 +168,13 @@ export default function CommunicationsOverviewPage() {
                 </div>
               ))}
             </div>
-          ) : <Empty text="Henüz marketing lead yok." href="/communications/leads" label="Lead Inbox'a Git" />}
+          ) : <Empty text="Henüz pazarlama kaynaklı potansiyel müşteri yok." href="/communications/leads" label="Potansiyel Müşterilere Git" />}
         </Panel>
       </section>
 
       <section className="grid gap-4 md:grid-cols-3">
-        <QuickLink href="/communications/integrations" title="Reklam Hesapları" text="Meta, Google Ads ve TikTok bağlantı altyapısını yönetin." />
-        <QuickLink href="/communications/brand" title="Marka Merkezi" text="Logo, guideline, font, şablon ve marka kurallarını tek yerde yönetin." />
+        <QuickLink href="/communications/integrations" title="Entegrasyon Merkezi" text="Meta, Google Ads ve TikTok bağlantılarının sağlık ve yetkilendirme durumunu yönetin." />
+        <QuickLink href="/communications/brand" title="İçerik & Marka" text="Logo, marka kılavuzu, yazı tipleri, şablonlar, içerikler ve onay süreçlerini tek yerde yönetin." />
         <QuickLink href="/communications/routing" title="Talep Dağıtımı" text="Kampanya taleplerini şube ve ekiplere otomatik dağıtacak kuralları hazırlayın." />
       </section>
     </div>
@@ -183,4 +209,59 @@ function Empty({ text, href, label }: { text: string; href: string; label: strin
 
 function QuickLink({ href, title, text }: { href: string; title: string; text: string }) {
   return <Link href={href} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 transition hover:-translate-y-0.5 hover:shadow-[0_12px_30px_rgba(17,70,104,.06)]"><p className="text-[14px] font-semibold text-[var(--ink)]">{title}</p><p className="mt-2 text-[11px] leading-5 text-[var(--muted)]">{text}</p></Link>;
+}
+
+
+function Funnel({ dashboard }: { dashboard: Dashboard | null }) {
+  const funnel = dashboard?.funnel ?? { leads: 0, crmLeads: 0, customers: 0, appointments: 0, sales: 0, revenue: 0 };
+  const steps = [
+    { label: "Potansiyel Müşteri", value: funnel.leads },
+    { label: "Müşteri İlişkilerine Aktarılan", value: funnel.crmLeads },
+    { label: "Müşteriye Dönüşen", value: funnel.customers },
+    { label: "Randevu Oluşan", value: funnel.appointments },
+    { label: "Satışa Dönüşen", value: funnel.sales },
+  ];
+  const base = Math.max(1, funnel.leads);
+  return (
+    <div className="space-y-3">
+      {steps.map((step) => {
+        const rate = step.value / base;
+        return (
+          <div key={step.label}>
+            <div className="mb-1.5 flex items-center justify-between gap-3 text-[11px]">
+              <span className="font-medium text-[var(--ink)]">{step.label}</span>
+              <span className="font-semibold text-[var(--muted)]">{step.value} · %{Math.round(rate * 100)}</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-[var(--surface-2)]">
+              <div className="h-full rounded-full bg-[var(--accent)]" style={{ width: `${Math.max(step.value ? 4 : 0, Math.min(100, rate * 100))}%` }} />
+            </div>
+          </div>
+        );
+      })}
+      <div className="mt-4 rounded-[14px] bg-[var(--surface-2)] p-3">
+        <p className="text-[10px] text-[var(--muted)]">Bu huniden ilişkilendirilen tahsil edilmiş gelir</p>
+        <p className="mt-1 text-[16px] font-semibold text-[var(--ink)]">{money.format(funnel.revenue)}</p>
+      </div>
+    </div>
+  );
+}
+
+function ChannelPerformance({ channels }: { channels: Dashboard["channels"] }) {
+  if (!channels.length) return <p className="py-8 text-center text-[11px] text-[var(--muted)]">Henüz kanal performansı oluşturacak veri yok.</p>;
+  return (
+    <div className="space-y-3">
+      {channels.slice(0, 8).map((channel) => (
+        <div key={channel.provider} className="rounded-[15px] border border-[var(--line)] bg-[var(--surface-2)] p-3.5">
+          <div className="flex items-start justify-between gap-4">
+            <div>
+              <p className="text-[12px] font-semibold text-[var(--ink)]">{userLabel(channel.provider)}</p>
+              <p className="mt-1 text-[10px] text-[var(--muted)]">{channel.leads} potansiyel müşteri · {channel.appointments} randevu · {channel.sales} satış</p>
+            </div>
+            <p className="text-[12px] font-semibold text-[var(--ink)]">{money.format(channel.revenue)}</p>
+          </div>
+          <p className="mt-2 text-[10px] text-[var(--muted)]">Randevu dönüşümü %{Math.round(channel.appointmentRate * 100)} · Satış dönüşümü %{Math.round(channel.saleRate * 100)}</p>
+        </div>
+      ))}
+    </div>
+  );
 }
