@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 
@@ -26,6 +27,7 @@ export class PaymentsService {
     private readonly organizationScope: OrganizationScopeService,
     private readonly accountingService: AccountingService,
     private readonly commerceFinanceSync: CommerceFinanceSyncService,
+    @Optional()
     private readonly domainEvents?: DomainEventsService,
   ) {}
 
