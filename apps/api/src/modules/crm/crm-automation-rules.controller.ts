@@ -23,6 +23,9 @@ const ruleKeySchema = z.enum([
   'LEAD_FIRST_TOUCH',
   'OPPORTUNITY_STAGE_FOLLOW_UP',
   'STALE_OPPORTUNITY_FOLLOW_UP',
+  'LEAD_FIRST_RESPONSE_SLA',
+  'FOLLOW_UP_OVERDUE_ESCALATION',
+  'OPPORTUNITY_STALE_ESCALATION',
 ]);
 const channel = z.enum(['CALL', 'SMS', 'EMAIL', 'WHATSAPP', 'IN_PERSON', 'OTHER']);
 const messageChannel = z.enum(['SMS', 'EMAIL', 'WHATSAPP']);
@@ -49,6 +52,27 @@ const stageRuleSchema = common.extend({
 const staleRuleSchema = common.extend({
   config: z.object({ staleDays: z.coerce.number().int().min(1).max(90), delayHours: z.coerce.number().int().min(1).max(720), channel }).strict(),
 });
+const leadSlaRuleSchema = common.extend({
+  config: z.object({
+    thresholdMinutes: z.coerce.number().int().min(5).max(10080),
+    escalationDelayMinutes: z.coerce.number().int().min(1).max(1440),
+    channel,
+  }).strict(),
+});
+const followUpSlaRuleSchema = common.extend({
+  config: z.object({
+    graceMinutes: z.coerce.number().int().min(1).max(10080),
+    escalationDelayMinutes: z.coerce.number().int().min(1).max(1440),
+    channel,
+  }).strict(),
+});
+const opportunitySlaRuleSchema = common.extend({
+  config: z.object({
+    staleDays: z.coerce.number().int().min(1).max(90),
+    escalationDelayMinutes: z.coerce.number().int().min(1).max(1440),
+    channel,
+  }).strict(),
+});
 
 @Controller('crm/automation-rules')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
@@ -68,13 +92,19 @@ export class CrmAutomationRulesController {
   @RequirePermission('crm', 'manage')
   update(@Param('ruleKey') rawRuleKey: string, @Body() body: unknown, @Req() request: { user?: { sub?: string } }) {
     const actorUserId = request.user?.sub;
-    if (!actorUserId) throw new UnauthorizedException('Authenticated user id is missing.');
+    if (!actorUserId) throw new UnauthorizedException('Oturum açmış kullanıcı bilgisi bulunamadı.');
     const ruleKey = ruleKeySchema.parse(rawRuleKey) as CrmAutomationRuleKey;
     const input = ruleKey === 'LEAD_FIRST_TOUCH'
       ? leadRuleSchema.parse(body)
       : ruleKey === 'OPPORTUNITY_STAGE_FOLLOW_UP'
         ? stageRuleSchema.parse(body)
-        : staleRuleSchema.parse(body);
+        : ruleKey === 'STALE_OPPORTUNITY_FOLLOW_UP'
+          ? staleRuleSchema.parse(body)
+          : ruleKey === 'LEAD_FIRST_RESPONSE_SLA'
+            ? leadSlaRuleSchema.parse(body)
+            : ruleKey === 'FOLLOW_UP_OVERDUE_ESCALATION'
+              ? followUpSlaRuleSchema.parse(body)
+              : opportunitySlaRuleSchema.parse(body);
     return this.rules.upsert(this.scope(), ruleKey, input, actorUserId);
   }
 }
