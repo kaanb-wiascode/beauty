@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
@@ -14,6 +15,7 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    @Optional()
     private readonly domainEvents?: DomainEventsService,
   ) {}
 
