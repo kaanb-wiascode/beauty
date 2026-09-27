@@ -388,17 +388,53 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       <GlassCard className="p-0"><div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[15px] font-semibold">CRM Zaman Çizelgesi</h2></div>{opportunity.events.length ? <div className="divide-y divide-[var(--line)]">{opportunity.events.map((e) => { const summary = eventSummary(e.metadata); return <div key={e.id} className="px-5 py-4"><p className="text-[12px] font-semibold">{eventLabel(e.eventType)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(e.createdAt)}</p>{summary ? <p className="mt-2 text-[10px] text-[var(--muted)]">{summary}</p> : null}</div>; })}</div> : <EmptyState title="CRM Olayı Bulunmuyor" description="Bu fırsat için henüz olay geçmişi oluşmamış." />}</GlassCard>
     </section>
 
-    <Modal open={quoteOpen} onClose={() => !quoteSaving && setQuoteOpen(false)} title="Yeni Teklif Oluştur" description="Satış fırsatı için fiyat, indirim ve geçerlilik bilgilerini belirleyin.">
+    <Modal open={quoteOpen} onClose={() => !quoteSaving && setQuoteOpen(false)} title="Yeni Teklif Oluştur" description="Satış fırsatı için hizmet, paket, fiyat, indirim ve geçerlilik bilgilerini belirleyin.">
       <form onSubmit={createQuote} className="space-y-4">
         {quoteError ? <Alert>{quoteError}</Alert> : null}
-        <Field label="Teklif kalemi" required><TextInput value={quoteForm.description} onChange={(e) => setQuoteForm({ ...quoteForm, description: e.target.value })} placeholder="Hizmet, paket veya özel teklif açıklaması" /></Field>
+        <div className="space-y-3">
+          {quoteItems.map((item, index) => (
+            <div key={index} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/30 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold">Teklif Kalemi {index + 1}</p>
+                {quoteItems.length > 1 ? <Button type="button" variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => removeQuoteItem(index)}>Kalemi Kaldır</Button> : null}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Kalem türü" required>
+                  <Select value={item.itemType} onChange={(e) => updateQuoteItem(index, { itemType: e.target.value as QuoteItemForm["itemType"], referenceId: "", description: "", unitPrice: "" })}>
+                    <option value="SERVICE">Hizmet</option>
+                    <option value="PACKAGE">Paket</option>
+                    <option value="CUSTOM">Özel kalem</option>
+                  </Select>
+                </Field>
+                {item.itemType === "SERVICE" ? <Field label="Hizmet" required>
+                  <Select value={item.referenceId} onChange={(e) => selectQuoteReference(index, e.target.value)}>
+                    <option value="">Hizmet seçin</option>
+                    {serviceOptions.map((service) => <option key={service.id} value={service.id}>{service.name} · {money(service.price, service.currency)}</option>)}
+                  </Select>
+                </Field> : item.itemType === "PACKAGE" ? <Field label="Paket" required>
+                  <Select value={item.referenceId} onChange={(e) => selectQuoteReference(index, e.target.value)}>
+                    <option value="">Paket seçin</option>
+                    {packageOptions.map((pack) => <option key={pack.id} value={pack.id}>{pack.name} · {money(pack.price, opportunity.currency)}</option>)}
+                  </Select>
+                </Field> : <Field label="Özel kalem açıklaması" required>
+                  <TextInput value={item.description} onChange={(e) => updateQuoteItem(index, { description: e.target.value })} placeholder="Örn. Kuruma özel hizmet paketi" />
+                </Field>}
+                <Field label="Miktar" required><TextInput type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateQuoteItem(index, { quantity: e.target.value })} /></Field>
+                <Field label={`Birim fiyat (${opportunity.currency})`} required><TextInput type="number" min="0" step="0.01" value={item.unitPrice} onChange={(e) => updateQuoteItem(index, { unitPrice: e.target.value })} /></Field>
+              </div>
+              {item.itemType !== "CUSTOM" && item.description ? <p className="mt-3 text-[10px] text-[var(--muted)]">Seçilen kalem: {item.description}</p> : null}
+            </div>
+          ))}
+          <Button type="button" variant="secondary" className="w-full" onClick={addQuoteItem}>+ Teklif Kalemi Ekle</Button>
+        </div>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Miktar" required><TextInput type="number" min="1" step="1" value={quoteForm.quantity} onChange={(e) => setQuoteForm({ ...quoteForm, quantity: e.target.value })} /></Field>
-          <Field label={`Birim fiyat (${opportunity.currency})`} required><TextInput type="number" min="0" step="0.01" value={quoteForm.unitPrice} onChange={(e) => setQuoteForm({ ...quoteForm, unitPrice: e.target.value })} /></Field>
-          <Field label={`İndirim (${opportunity.currency})`}><TextInput type="number" min="0" step="0.01" value={quoteForm.discountTotal} onChange={(e) => setQuoteForm({ ...quoteForm, discountTotal: e.target.value })} /></Field>
+          <Field label={`Toplam indirim (${opportunity.currency})`}><TextInput type="number" min="0" step="0.01" value={quoteForm.discountTotal} onChange={(e) => setQuoteForm({ ...quoteForm, discountTotal: e.target.value })} /></Field>
           <Field label="Teklif geçerlilik tarihi"><TextInput type="date" value={quoteForm.validUntil} onChange={(e) => setQuoteForm({ ...quoteForm, validUntil: e.target.value })} /></Field>
         </div>
         <Field label="Teklif notu"><TextArea rows={4} value={quoteForm.notes} onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })} placeholder="Ödeme koşulları, açıklama veya müşteriye özel not…" /></Field>
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3">
+          <p className="text-[10px] text-[var(--muted)]">Hizmet veya paket kataloglarına bağlı kabul edilmiş teklifler satışa doğrudan dönüştürülebilir. Özel kalemler satış öncesinde hizmet veya paketle eşleştirilmelidir.</p>
+        </div>
         <div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setQuoteOpen(false)} disabled={quoteSaving}>Vazgeç</Button><Button type="submit" disabled={quoteSaving}>{quoteSaving ? "Oluşturuluyor..." : "Teklifi Oluştur"}</Button></div>
       </form>
     </Modal>
