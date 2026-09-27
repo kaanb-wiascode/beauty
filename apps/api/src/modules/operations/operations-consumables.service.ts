@@ -58,12 +58,12 @@ export class OperationsConsumablesService {
 
     if (!tenantId || !companyId || !membershipId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -185,10 +185,10 @@ export class OperationsConsumablesService {
     input: RecordActualConsumableInput,
   ) {
     if (!Number.isFinite(input.actualQuantity) || input.actualQuantity < 0) {
-      throw new BadRequestException('Actual quantity must be zero or greater.');
+      throw new BadRequestException('Gerçek kullanım miktarı sıfır veya daha büyük olmalıdır.');
     }
     if (!Number.isInteger(input.expectedVersion) || input.expectedVersion < 0) {
-      throw new BadRequestException('Expected version must be zero or greater.');
+      throw new BadRequestException('Kayıt sürümü geçersiz.');
     }
 
     const { tenantId, companyId, branchId, membershipId } = this.context();
@@ -210,7 +210,7 @@ export class OperationsConsumablesService {
         );
         if (execution.status === 'CANCELLED') {
           throw new ConflictException(
-            'Consumables cannot be changed for a cancelled service execution.',
+            'İptal edilmiş hizmet için sarf malzeme kaydı değiştirilemez.',
           );
         }
 
@@ -234,7 +234,7 @@ export class OperationsConsumablesService {
         );
         if (posted[0]) {
           throw new ConflictException(
-            'Consumables are locked because inventory posting already exists.',
+            'Stok işlemi tamamlandığı için sarf malzeme kaydı artık değiştirilemez.',
           );
         }
 
@@ -260,7 +260,7 @@ export class OperationsConsumablesService {
         if (!existing[0]) {
           if (input.expectedVersion !== 0) {
             throw new ConflictException(
-              'Consumable line does not exist at the expected version.',
+              'Sarf malzeme kaydı değişti veya artık mevcut değil. Lütfen ekranı yenileyin.',
             );
           }
 
@@ -274,7 +274,7 @@ export class OperationsConsumablesService {
             companyId,
           );
           if (!products[0]) {
-            throw new NotFoundException('Inventory product not found');
+            throw new NotFoundException('Stok ürünü bulunamadı.');
           }
 
           const inserted = await tx.$queryRawUnsafe<
@@ -313,7 +313,7 @@ export class OperationsConsumablesService {
 
         if (existing[0].version !== input.expectedVersion) {
           throw new ConflictException(
-            'Consumable line changed since it was read. Refresh and retry.',
+            'Sarf malzeme kaydı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.',
           );
         }
 
@@ -342,7 +342,7 @@ export class OperationsConsumablesService {
         );
         if (!updated[0]) {
           throw new ConflictException(
-            'Consumable line changed during update. Refresh and retry.',
+            'Sarf malzeme kaydı güncelleme sırasında değişti. Lütfen ekranı yenileyin.',
           );
         }
 
@@ -379,7 +379,7 @@ export class OperationsConsumablesService {
       companyId,
       branchId,
     );
-    if (!executions[0]) throw new NotFoundException('Service execution not found');
+    if (!executions[0]) throw new NotFoundException('Hizmet uygulama kaydı bulunamadı.');
     return executions[0];
   }
 
