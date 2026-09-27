@@ -293,9 +293,7 @@ function NavLinks({ pathname, collapsed, teamUnread }: { pathname: string; colla
                       {!collapsed ? (
                         <>
                           <span className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em]">{item.label}</span>
-                          {item.href === "/team" && teamUnread > 0 ? (
-                            <span className="rounded-full bg-[#eee8ff] px-2 py-0.5 text-[11px] font-semibold text-[#7657e8]">{teamUnread > 99 ? "99+" : teamUnread}</span>
-                          ) : "badge" in item && item.badge ? (
+                          {"badge" in item && item.badge ? (
                             <span className="rounded-full bg-[#dff3fb] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{item.badge}</span>
                           ) : null}
                         </>
