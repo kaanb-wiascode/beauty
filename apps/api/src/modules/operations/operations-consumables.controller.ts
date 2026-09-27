@@ -26,7 +26,7 @@ export class OperationsConsumablesController {
   constructor(private readonly consumables: OperationsConsumablesService) {}
 
   @Get('executions/:executionId')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   executionSummary(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
   ) {
@@ -34,7 +34,7 @@ export class OperationsConsumablesController {
   }
 
   @Patch('executions/:executionId/products/:productId')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   recordActual(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Param('productId', new ParseUUIDPipe()) productId: string,
