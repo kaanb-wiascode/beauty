@@ -28,7 +28,7 @@ export class OperationsCustomerEngagementController {
 
   @Get('upcoming')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   upcoming(@Query('days') days?: string) {
     const parsed = Number(days ?? 7);
     return this.engagement.listUpcoming(Number.isFinite(parsed) ? parsed : 7);
@@ -36,7 +36,7 @@ export class OperationsCustomerEngagementController {
 
   @Post('appointments/:appointmentId/reminder')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   reminder(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: unknown,
@@ -49,7 +49,7 @@ export class OperationsCustomerEngagementController {
 
   @Put('appointments/:appointmentId/confirmation')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   confirmation(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: unknown,
@@ -62,7 +62,7 @@ export class OperationsCustomerEngagementController {
 
   @Post('visits/:visitId/follow-up')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   followup(
     @Param('visitId', new ParseUUIDPipe()) visitId: string,
     @Body() body: unknown,
