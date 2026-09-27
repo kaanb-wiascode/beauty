@@ -13,7 +13,7 @@ export class OperationsAlertsController {
   constructor(private readonly alerts: OperationsAlertsService) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list(@Query() query: unknown) {
     return this.alerts.list(operationsAlertQuerySchema.parse(query));
   }
