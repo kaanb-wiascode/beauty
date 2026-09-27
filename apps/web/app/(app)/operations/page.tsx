@@ -205,7 +205,7 @@ export default function OperationsPage() {
     const next: SmartAction[] = [];
     if (alertsResult.status === "fulfilled") {
       next.push(
-        ...alertsResult.value.alerts.slice(0, 4).map((item) => ({
+        ...alertsResult.value.alerts.slice(0, 4).map((item): SmartAction => ({
           id: `alert:${item.id}`,
           severity: item.severity,
           title: item.title,
@@ -217,7 +217,7 @@ export default function OperationsPage() {
 
     if (intelligenceResult.status === "fulfilled") {
       next.push(
-        ...intelligenceResult.value.managerInsights.slice(0, 4).map((item) => ({
+        ...intelligenceResult.value.managerInsights.slice(0, 4).map((item): SmartAction => ({
           id: `insight:${item.code}`,
           severity: item.severity,
           title: item.title,
@@ -233,7 +233,7 @@ export default function OperationsPage() {
         ...optimizationResult.value.staffRecommendations,
       ];
       next.push(
-        ...recommendations.slice(0, 4).map((item) => ({
+        ...recommendations.slice(0, 4).map((item): SmartAction => ({
           id: `recommendation:${item.code}`,
           severity:
             item.priority === "HIGH"
