@@ -28,7 +28,7 @@ export class CorporateCommunicationsService {
       where: { id: branchId, companyId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!branch) throw new BadRequestException('Branch is outside the active company.');
+    if (!branch) throw new BadRequestException('Seçilen şube aktif şirket kapsamında değil.');
   }
 
   private async assertAssignableUser(userId: string, branchId?: string | null) {
@@ -50,7 +50,7 @@ export class CorporateCommunicationsService {
       companyId,
       branchId ?? null,
     );
-    if (!rows.length) throw new BadRequestException('Assignee is not active in this company/branch.');
+    if (!rows.length) throw new BadRequestException('Seçilen sorumlu bu şirket veya şubede aktif değil.');
   }
 
   private async assertCampaign(campaignId: string) {
@@ -62,7 +62,7 @@ export class CorporateCommunicationsService {
       tenantId,
       companyId,
     );
-    if (!rows.length) throw new BadRequestException('Campaign is outside the active company.');
+    if (!rows.length) throw new BadRequestException('Seçilen kampanya aktif şirket kapsamında değil.');
   }
 
   async dashboard() {
@@ -227,7 +227,7 @@ export class CorporateCommunicationsService {
         },
         select: { id: true },
       });
-      if (!service) throw new BadRequestException('Service is outside the campaign scope.');
+      if (!service) throw new BadRequestException('Seçilen hizmet kampanya kapsamında değil.');
     }
 
     const [row] = await this.prisma.$queryRawUnsafe<Row[]>(
@@ -341,12 +341,12 @@ export class CorporateCommunicationsService {
           input.provider,
           input.externalLeadId,
         );
-        if (!existing) throw new BadRequestException('Marketing lead could not be created.');
+        if (!existing) throw new BadRequestException('Potansiyel müşteri kaydı oluşturulamadı.');
         return { ...existing, idempotent: true };
       }
 
       const lead = inserted[0];
-      if (!lead) throw new BadRequestException('Marketing lead could not be created.');
+      if (!lead) throw new BadRequestException('Potansiyel müşteri kaydı oluşturulamadı.');
       if (input.attribution) {
         await tx.$executeRawUnsafe(
           `INSERT INTO corporate_marketing_touchpoints(
@@ -508,7 +508,7 @@ export class CorporateCommunicationsService {
     if (input.targetBranchId) await this.assertBranch(input.targetBranchId);
     if (input.targetUserId) await this.assertAssignableUser(input.targetUserId, input.targetBranchId);
     if (input.strategy === 'FIXED' && !input.targetBranchId && !input.targetUserId) {
-      throw new BadRequestException('Fixed routing requires a target branch or user.');
+      throw new BadRequestException('Sabit yönlendirme için hedef şube veya sorumlu seçilmelidir.');
     }
 
     const [row] = await this.prisma.$queryRawUnsafe<Row[]>(
@@ -548,7 +548,7 @@ export class CorporateCommunicationsService {
       companyId,
       branchId,
     );
-    if (!rows.length) throw new NotFoundException('Campaign not found.');
+    if (!rows.length) throw new NotFoundException('Kampanya bulunamadı.');
     return rows[0];
   }
 }
