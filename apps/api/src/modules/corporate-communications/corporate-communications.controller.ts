@@ -86,6 +86,12 @@ export class CorporateCommunicationsController {
     return this.service.listProviderConnections();
   }
 
+  @Get('provider-connections/configuration-readiness')
+  @RequirePermission('communications', 'read')
+  providerConfigurationReadiness() {
+    return this.providerOAuth.configurationReadiness();
+  }
+
   @Get('provider-connections/health')
   providerConnectionHealth() {
     return this.service.providerConnectionHealth();
