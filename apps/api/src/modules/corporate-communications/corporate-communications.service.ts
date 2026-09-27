@@ -492,6 +492,36 @@ export class CorporateCommunicationsService {
     return row;
   }
 
+  async disconnectProviderConnection(id: string) {
+    const { tenantId, companyId } = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM corporate_marketing_provider_connections
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+        LIMIT 1`,
+      id,
+      tenantId,
+      companyId,
+    );
+    if (!rows[0]) throw new NotFoundException('Entegrasyon bağlantısı bulunamadı.');
+
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `DELETE FROM corporate_marketing_provider_secrets WHERE connection_id=$1::text`,
+        id,
+      );
+      await tx.$executeRawUnsafe(
+        `UPDATE corporate_marketing_provider_connections
+            SET credential_reference=NULL,status='DISCONNECTED',last_sync_at=NULL,last_error=NULL,updated_at=NOW()
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+        id,
+        tenantId,
+        companyId,
+      );
+    });
+
+    return { id, status: 'DISCONNECTED' };
+  }
+
   async listRoutingRules() {
     const { tenantId, companyId } = this.context();
     return this.prisma.$queryRawUnsafe<Row[]>(
