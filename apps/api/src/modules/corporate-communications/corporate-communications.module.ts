@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { AccountsPayableModule } from '../accounts-payable/accounts-payable.module';
+import { CrmModule } from '../crm/crm.module';
 import { BrandGovernanceController } from './brand-governance.controller';
 import { BrandGovernanceService } from './brand-governance.service';
 import { ContentOperationsController } from './content-operations.controller';
@@ -18,7 +19,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
 import { MarketingProviderVaultService } from './marketing-provider-vault.service';
 
 @Module({
-  imports: [AccountsPayableModule],
+  imports: [AccountsPayableModule, CrmModule],
   controllers: [
     CorporateCommunicationsController,
     BrandGovernanceController,
