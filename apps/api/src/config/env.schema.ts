@@ -40,6 +40,7 @@ export const envSchema = z.object({
   META_OAUTH_SCOPES: z.string().trim().min(1).optional(),
   META_GRAPH_API_BASE_URL: z.string().url().optional(),
   META_GRAPH_API_VERSION: z.string().trim().regex(/^v\d+\.\d+$/).optional(),
+  META_WEBHOOK_VERIFY_TOKEN: z.string().trim().min(16).optional(),
 
   GOOGLE_OAUTH_CLIENT_ID: z.string().trim().min(1).optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().trim().min(1).optional(),
