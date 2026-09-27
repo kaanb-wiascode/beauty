@@ -39,6 +39,7 @@ export const envSchema = z.object({
   META_OAUTH_REDIRECT_URI: z.string().url().optional(),
   META_OAUTH_SCOPES: z.string().trim().min(1).optional(),
   META_GRAPH_API_BASE_URL: z.string().url().optional(),
+  META_GRAPH_API_VERSION: z.string().trim().regex(/^v\d+\.\d+$/).optional(),
 
   GOOGLE_OAUTH_CLIENT_ID: z.string().trim().min(1).optional(),
   GOOGLE_OAUTH_CLIENT_SECRET: z.string().trim().min(1).optional(),
