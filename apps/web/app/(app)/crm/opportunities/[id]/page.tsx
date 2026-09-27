@@ -46,7 +46,7 @@ function localInput(value: string | Date) {
 }
 function nextHour() { const date = new Date(); date.setMinutes(0, 0, 0); date.setHours(date.getHours() + 1); return localInput(date); }
 function eventLabel(type: string) {
-  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
+  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
 }
 function eventSummary(metadata: Record<string, unknown> | null) {
   return metadata ? Object.entries(metadata).filter(([, v]) => v !== null && v !== undefined && v !== "").slice(0, 4).map(([k, v]) => `${k}: ${String(v)}`).join(" · ") : null;
