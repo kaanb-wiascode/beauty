@@ -35,6 +35,7 @@ import { CrmOpportunityService } from './crm-opportunity.service';
 import { CrmService } from './crm.service';
 
 const uuid = z.string().uuid();
+const surveyorProfileSchema = z.object({ active: z.boolean(), dailyDeskQuota: z.coerce.number().int().min(0).nullable().optional(), weeklyDeskQuota: z.coerce.number().int().min(0).nullable().optional() });
 const listLeadsSchema = z.object({
   status: leadStatusSchema.optional(),
   ownerUserId: uuid.optional(),
@@ -98,6 +99,21 @@ export class CrmController {
   @RequirePermission('crm', 'read')
   listSurveyors() {
     return this.dataScope.listSurveyors();
+  }
+
+  @Get('surveyor-candidates')
+  @RequirePermission('crm', 'manage')
+  listSurveyorCandidates() {
+    return this.dataScope.listSurveyorCandidates();
+  }
+
+  @Patch('surveyors/:staffId')
+  @RequirePermission('crm', 'manage')
+  updateSurveyorProfile(@Param('staffId') staffId: string, @Body() body: unknown) {
+    return this.dataScope.upsertSurveyorProfile(
+      uuid.parse(staffId),
+      surveyorProfileSchema.parse(body),
+    );
   }
 
   @Get('assignees')
