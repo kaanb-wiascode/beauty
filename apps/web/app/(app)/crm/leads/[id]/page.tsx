@@ -309,7 +309,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
             </div>
           </section>
           <section className="rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)]">
-            <h2 className="text-[13px] font-semibold">İletişim Ve İhtiyaç</h2>
+            <div className="flex items-start gap-2"><CardInfo help={getCardHelp("İletişim ve İhtiyaç", "Potansiyel müşterinin iletişim bilgilerini, kaynağını, sorumlusunu ve ihtiyaç notunu gösterir.")} /><h2 className="text-[13px] font-semibold">İletişim ve İhtiyaç</h2></div>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
               {[
                 ["Telefon", lead.phone || "—"],
@@ -331,7 +331,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
           </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <h2 className="text-[13px] font-semibold">Satış Fırsatı</h2>
+              <div className="flex items-start gap-2"><CardInfo help={getCardHelp("Satış Fırsatı", "Bu potansiyel müşteriden oluşturulan aktif satış fırsatının aşamasını, değerini ve kazanma olasılığını gösterir.")} /><h2 className="text-[13px] font-semibold">Satış Fırsatı</h2></div>
               <Link href="/crm/pipeline" className="text-[10px] font-semibold text-[#1674BD]">Satış Süreci →</Link>
             </header>
             {activeOpportunity ? (
@@ -346,9 +346,10 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
           </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <div>
-                <h2 className="text-[13px] font-semibold">Görüşmeler</h2>
-                <p className="mt-1 text-[10px] text-[var(--muted)]">Müşteriyle yapılan temas ve görüşme geçmişi</p>
+              <div className="flex items-start gap-2">
+                <CardInfo help={getCardHelp("Görüşmeler", "Potansiyel müşteriyle yapılan telefon, WhatsApp, e-posta ve yüz yüze temasları gösterir.")} />
+                <div><h2 className="text-[13px] font-semibold">Görüşmeler</h2>
+                <p className="mt-1 text-[10px] text-[var(--muted)]">Müşteriyle yapılan temas ve görüşme geçmişi</p></div>
               </div>
               <Link href={`/crm/interactions?leadId=${lead.id}`} className="text-[10px] font-semibold text-[#1674BD]">Tüm Görüşmeler →</Link>
             </header>
@@ -366,7 +367,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
           </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
-              <h2 className="text-[13px] font-semibold">Takipler</h2>
+              <div className="flex items-start gap-2"><CardInfo help={getCardHelp("Takipler", "Bu potansiyel müşteri için planlanan, tamamlanan veya geciken takip görevlerini gösterir.")} /><h2 className="text-[13px] font-semibold">Takipler</h2></div>
               <Link href="/crm/follow-ups" className="text-[10px] font-semibold text-[#1674BD]">Takip Merkezi →</Link>
             </header>
             {lead.followUps.length ? (
@@ -383,7 +384,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
           </section>
         </div>
         <section className="h-fit overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
-          <header className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[13px] font-semibold">İşlem Geçmişi</h2></header>
+          <header className="border-b border-[var(--line)] px-5 py-4"><div className="flex items-start gap-2"><CardInfo help={getCardHelp("İşlem Geçmişi", "Potansiyel müşteri üzerinde yapılan CRM işlemlerini kronolojik olarak gösterir.")} /><h2 className="text-[13px] font-semibold">İşlem Geçmişi</h2></div></header>
           {lead.events.length ? (
             <ol className="p-5">
               {[...lead.events].reverse().map((row, index) => (
