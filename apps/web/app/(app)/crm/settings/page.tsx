@@ -214,7 +214,7 @@ export default function CrmSettingsPage() {
         <GlassCard className="p-0">
           <div className="border-b border-[var(--line)] px-5 py-4">
             <div className="flex items-start gap-2">
-              <CardInfo help={getCardHelp("Lead Atama Kuralları", "Yeni potansiyel müşterilerin satış ekibine hangi yöntemle dağıtılacağını belirler.")} />
+              <CardInfo help={getCardHelp("Potansiyel Müşteri Atama Kuralları", "Yeni potansiyel müşterilerin satış ekibine hangi yöntemle dağıtılacağını belirler.")} />
               <div>
                 <h2 className="text-[15px] font-semibold">Potansiyel Müşteri Atama Kuralları</h2>
                 <p className="mt-1 text-[10px] text-[var(--muted)]">Otomatik satış ekibi dağıtım politikaları</p>
@@ -256,6 +256,12 @@ export default function CrmSettingsPage() {
             <Field label="Dağıtım yöntemi" required>
               <Select value={assignmentForm.mode} onChange={(event) => setAssignmentForm({ ...assignmentForm, mode: event.target.value as AssignmentMode })}>
                 {Object.entries(assignmentModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </Field>
+            <Field label="Satış ekibi">
+              <Select value={assignmentForm.teamId} onChange={(event) => setAssignmentForm({ ...assignmentForm, teamId: event.target.value })}>
+                <option value="">Aktif şubedeki tüm CRM ekipleri</option>
+                {teams.filter((team) => team.active).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
               </Select>
             </Field>
             <Field label="Müşteri kaynağı filtresi">
