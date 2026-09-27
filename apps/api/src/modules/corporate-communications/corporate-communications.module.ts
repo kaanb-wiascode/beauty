@@ -18,6 +18,7 @@ import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.servi
 import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-bridge.service';
 import { MarketingProviderAccountsService } from './marketing-provider-accounts.service';
 import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
+import { MarketingProviderSyncService } from './marketing-provider-sync.service';
 import { MarketingProviderVaultService } from './marketing-provider-vault.service';
 
 @Module({
@@ -43,6 +44,7 @@ import { MarketingProviderVaultService } from './marketing-provider-vault.servic
     MarketingProviderVaultService,
     MarketingProviderOAuthService,
     MarketingProviderAccountsService,
+    MarketingProviderSyncService,
   ],
   exports: [
     CorporateCommunicationsService,
@@ -57,6 +59,7 @@ import { MarketingProviderVaultService } from './marketing-provider-vault.servic
     MarketingProviderVaultService,
     MarketingProviderOAuthService,
     MarketingProviderAccountsService,
+    MarketingProviderSyncService,
   ],
 })
 export class CorporateCommunicationsModule {}
