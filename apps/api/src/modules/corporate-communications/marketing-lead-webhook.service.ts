@@ -1,8 +1,30 @@
-import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
+import { createHash, createHmac, randomBytes, timingSafeEqual } from 'node:crypto';
 import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { MarketingProviderVaultService } from './marketing-provider-vault.service';
+
+type MetaWebhookPayload = {
+  object?: string;
+  entry?: Array<{
+    id?: string;
+    time?: number;
+    changes?: Array<{
+      field?: string;
+      value?: {
+        leadgen_id?: string;
+        page_id?: string;
+        form_id?: string;
+        ad_id?: string;
+        adgroup_id?: string;
+        created_time?: number;
+        [key: string]: unknown;
+      };
+    }>;
+  }>;
+  [key: string]: unknown;
+};
 
 type GoogleWebhookPayload = {
   lead_id?: string;
@@ -25,6 +47,7 @@ export class MarketingLeadWebhookService {
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
     private readonly tenantContext: TenantContext,
+    private readonly vault: MarketingProviderVaultService,
   ) {}
 
   private context() {
@@ -39,6 +62,243 @@ export class MarketingLeadWebhookService {
     const a = Buffer.from(left, 'hex');
     const b = Buffer.from(right, 'hex');
     return a.length === b.length && timingSafeEqual(a, b);
+  }
+
+  verifyMetaChallenge(input: {
+    mode?: string;
+    verifyToken?: string;
+    challenge?: string;
+  }) {
+    const expected = this.config.get<string>('META_WEBHOOK_VERIFY_TOKEN')?.trim();
+    if (
+      !expected ||
+      input.mode !== 'subscribe' ||
+      !input.verifyToken ||
+      input.verifyToken !== expected ||
+      !input.challenge
+    ) {
+      throw new ForbiddenException('Meta webhook doğrulaması başarısız.');
+    }
+    return input.challenge;
+  }
+
+  private verifyMetaSignature(rawBody: Buffer | undefined, signature: string | undefined) {
+    const appSecret = this.config.get<string>('META_OAUTH_CLIENT_SECRET')?.trim();
+    if (!appSecret || !rawBody || !signature?.startsWith('sha256=')) {
+      throw new ForbiddenException('Meta webhook imzası doğrulanamadı.');
+    }
+    const expected = createHmac('sha256', appSecret).update(rawBody).digest('hex');
+    const received = signature.slice('sha256='.length).trim().toLowerCase();
+    if (!/^[0-9a-f]{64}$/.test(received) || !this.equalHash(expected, received)) {
+      throw new ForbiddenException('Meta webhook imzası geçersiz.');
+    }
+  }
+
+  private normalizeMetaFields(value: unknown) {
+    const fields: Record<string, string> = {};
+    if (!Array.isArray(value)) return fields;
+    for (const entry of value) {
+      if (!entry || typeof entry !== 'object') continue;
+      const row = entry as Record<string, unknown>;
+      const name = typeof row.name === 'string' ? row.name.trim().toUpperCase() : '';
+      const values = Array.isArray(row.values)
+        ? row.values.filter((item): item is string => typeof item === 'string')
+        : [];
+      if (name && values.length) fields[name] = values.join(', ');
+    }
+    return fields;
+  }
+
+  private async fetchMetaLead(
+    connectionId: string,
+    tenantId: string,
+    companyId: string,
+    pageId: string,
+    leadgenId: string,
+  ) {
+    const secrets = await this.vault.loadScoped(connectionId, tenantId, companyId);
+    let pageTokens: Record<string, string> = {};
+    try {
+      const parsed = JSON.parse(secrets?.metaPageTokens || '{}') as unknown;
+      if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
+        pageTokens = parsed as Record<string, string>;
+      }
+    } catch {
+      pageTokens = {};
+    }
+    const pageToken = pageTokens[pageId];
+    if (!pageToken) {
+      throw new BadRequestException(
+        'Meta Page erişim anahtarı bulunamadı. Page aboneliğini yeniden yapılandırın.',
+      );
+    }
+
+    const base =
+      this.config.get<string>('META_GRAPH_API_BASE_URL')?.trim() ||
+      'https://graph.facebook.com';
+    const version = this.config.get<string>('META_GRAPH_API_VERSION')?.trim();
+    if (!version) {
+      throw new BadRequestException(
+        'META_GRAPH_API_VERSION yapılandırılmadan Meta lead verisi alınamaz.',
+      );
+    }
+    const root = base.endsWith('/') ? base.slice(0, -1) : base;
+    const url = new URL(`${root}/${version}/${encodeURIComponent(leadgenId)}`);
+    url.searchParams.set('fields', 'id,created_time,ad_id,form_id,field_data');
+    url.searchParams.set('access_token', pageToken);
+
+    const response = await fetch(url);
+    const text = await response.text();
+    let body: unknown = null;
+    try {
+      body = text ? JSON.parse(text) : null;
+    } catch {
+      body = null;
+    }
+    if (!response.ok || !body || typeof body !== 'object') {
+      throw new BadRequestException(
+        `Meta lead verisi alınamadı (HTTP ${response.status}).`,
+      );
+    }
+    return body as Record<string, unknown>;
+  }
+
+  async ingestMeta(
+    rawBody: Buffer | undefined,
+    signature: string | undefined,
+    payload: MetaWebhookPayload,
+  ) {
+    this.verifyMetaSignature(rawBody, signature);
+    if (payload.object !== 'page') {
+      return { accepted: true, inserted: 0, duplicates: 0, skipped: 0 };
+    }
+
+    let inserted = 0;
+    let duplicates = 0;
+    let skipped = 0;
+
+    for (const entry of payload.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        if (change.field !== 'leadgen') continue;
+        const value = change.value ?? {};
+        const pageId = value.page_id?.trim();
+        const leadgenId = value.leadgen_id?.trim();
+        if (!pageId || !leadgenId) {
+          skipped += 1;
+          continue;
+        }
+
+        const mappings = await this.prisma.$queryRawUnsafe<Array<{
+          connectionId: string;
+          tenantId: string;
+          companyId: string;
+        }>>(
+          `SELECT a.connection_id AS "connectionId",
+                  a.tenant_id AS "tenantId",
+                  a.company_id AS "companyId"
+             FROM corporate_marketing_provider_assets a
+             JOIN corporate_marketing_provider_connections c
+               ON c.id=a.connection_id
+              AND c.tenant_id=a.tenant_id
+              AND c.company_id=a.company_id
+            WHERE a.provider='META'
+              AND a.asset_type='PAGE'
+              AND a.external_asset_id=$1
+              AND a.active=TRUE
+              AND c.status IN ('AUTHORIZED','CONNECTED','ERROR')
+            LIMIT 1`,
+          pageId,
+        );
+        const mapping = mappings[0];
+        if (!mapping) {
+          skipped += 1;
+          continue;
+        }
+
+        const lead = await this.fetchMetaLead(
+          mapping.connectionId,
+          mapping.tenantId,
+          mapping.companyId,
+          pageId,
+          leadgenId,
+        );
+        const fields = this.normalizeMetaFields(lead.field_data);
+        const fullName =
+          fields.FULL_NAME ||
+          [fields.FIRST_NAME, fields.LAST_NAME].filter(Boolean).join(' ').trim();
+        const [firstName, ...lastNameParts] = (fullName || 'Meta').split(/\s+/);
+        const lastName = lastNameParts.join(' ') || 'Lead';
+        const phone = fields.PHONE_NUMBER || fields.PHONE || null;
+        const email = fields.EMAIL || null;
+        if (!phone && !email) {
+          skipped += 1;
+          continue;
+        }
+
+        const created = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `INSERT INTO corporate_marketing_leads(
+             tenant_id,company_id,provider,external_lead_id,
+             first_name,last_name,phone,email,status,source_payload,first_touch,last_touch
+           ) VALUES(
+             $1::text,$2::text,'META',$3,$4,$5,$6,$7,
+             'NEW',$8::jsonb,$9::jsonb,$9::jsonb
+           )
+           ON CONFLICT DO NOTHING
+           RETURNING id`,
+          mapping.tenantId,
+          mapping.companyId,
+          leadgenId,
+          firstName,
+          lastName,
+          phone,
+          email,
+          JSON.stringify({
+            connectionId: mapping.connectionId,
+            webhook: true,
+            pageId,
+            formId: value.form_id ?? lead.form_id ?? null,
+            adId: value.ad_id ?? lead.ad_id ?? null,
+            createdTime: value.created_time ?? lead.created_time ?? null,
+            fields,
+            raw: lead,
+          }),
+          JSON.stringify({
+            externalAdId: value.ad_id ?? lead.ad_id ?? null,
+            utmSource: 'meta',
+            utmMedium: 'paid',
+          }),
+        );
+
+        if (!created.length) {
+          duplicates += 1;
+          continue;
+        }
+
+        inserted += 1;
+        await this.prisma.$executeRawUnsafe(
+          `INSERT INTO corporate_marketing_touchpoints(
+             tenant_id,company_id,marketing_lead_id,provider,touch_type,
+             external_ad_id,utm_source,utm_medium,metadata
+           ) VALUES(
+             $1::text,$2::text,$3::text,'META','LEAD_CAPTURE',
+             $4,'meta','paid',$5::jsonb
+           )`,
+          mapping.tenantId,
+          mapping.companyId,
+          created[0]!.id,
+          value.ad_id ?? (typeof lead.ad_id === 'string' ? lead.ad_id : null),
+          JSON.stringify({
+            source: 'META_LEADGEN_WEBHOOK',
+            connectionId: mapping.connectionId,
+            pageId,
+            formId: value.form_id ?? lead.form_id ?? null,
+            externalLeadId: leadgenId,
+          }),
+        );
+      }
+    }
+
+    return { accepted: true, inserted, duplicates, skipped };
   }
 
   async configureGoogleWebhook(connectionId: string) {
