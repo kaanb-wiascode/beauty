@@ -124,7 +124,7 @@ export class CrmQuoteService {
     const total = Math.round((subtotal - input.discountTotal + Number.EPSILON) * 100) / 100;
     const quoteNumber = await this.nextQuoteNumber();
 
-    return this.prisma.$transaction(async (tx) => {
+    const quoteId = await this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO crm_quotes(
            tenant_id,company_id,branch_id,opportunity_id,customer_id,owner_user_id,quote_number,
@@ -146,14 +146,14 @@ export class CrmQuoteService {
         input.notes ?? null,
         actorUserId,
       );
-      const quoteId = rows[0].id;
+      const createdQuoteId = rows[0].id;
 
       for (const item of input.items) {
         const lineTotal = Math.round((item.quantity * item.unitPrice + Number.EPSILON) * 100) / 100;
         await tx.$executeRawUnsafe(
           `INSERT INTO crm_quote_items(quote_id,item_type,reference_id,description,quantity,unit_price,line_total)
            VALUES($1::text,$2,$3::text,$4,$5,$6,$7)`,
-          quoteId,
+          createdQuoteId,
           item.itemType,
           item.referenceId ?? null,
           item.description,
@@ -172,11 +172,13 @@ export class CrmQuoteService {
         input.customerId ?? opportunity.customerId ?? null,
         input.opportunityId,
         actorUserId,
-        JSON.stringify({ quoteId, quoteNumber, subtotal, discountTotal: input.discountTotal, total }),
+        JSON.stringify({ quoteId: createdQuoteId, quoteNumber, subtotal, discountTotal: input.discountTotal, total }),
       );
 
-      return this.get(quoteId);
+      return createdQuoteId;
     });
+
+    return this.get(quoteId);
   }
 
   async updateStatus(id: string, input: UpdateCrmQuoteStatusInput, actorUserId: string) {
