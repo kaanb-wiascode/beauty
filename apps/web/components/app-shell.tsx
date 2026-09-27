@@ -28,6 +28,7 @@ const NAV_SECTIONS = [
     { href: "/crm/pipeline", permission: "crm.read", label: "Satış Süreci", icon: "chart" },
     { href: "/crm/follow-ups", permission: "crm.read", label: "Takipler", icon: "calendar" },
     { href: "/crm/interactions", permission: "crm.read", label: "Görüşmeler", icon: "activity" },
+    { href: "/crm/settings", permission: "crm.manage", label: "CRM Ayarları", icon: "settings" },
     { href: "/customers", permission: "customers.read", label: "Müşteriler", icon: "users" },
   ]},
   { label: "Kurumsal İletişim", items: [
