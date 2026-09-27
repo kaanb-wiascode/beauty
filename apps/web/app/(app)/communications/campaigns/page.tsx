@@ -5,7 +5,7 @@ import { CardInfo } from "@/components/card-info";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 import { hasPermission } from "@/lib/auth";
 
 type Campaign = {
@@ -17,7 +17,7 @@ type Campaign = {
   plannedBudget: string | number;
   spentAmount: string | number;
   currency: string;
-  leadCount: number;
+  potansiyel müşteriCount: number;
   revenue: string | number;
   startsAt?: string | null;
   endsAt?: string | null;
@@ -45,7 +45,7 @@ export default function CampaignsPage() {
     try {
       setCampaigns(await api<Campaign[]>("/corporate-communications/campaigns?limit=200"));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Kampanyalar yüklenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Kampanyalar yüklenemedi.") : "Kampanyalar yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -56,9 +56,9 @@ export default function CampaignsPage() {
   const totals = useMemo(() => campaigns.reduce((acc, row) => ({
     spend: acc.spend + Number(row.spentAmount || 0),
     budget: acc.budget + Number(row.plannedBudget || 0),
-    leads: acc.leads + Number(row.leadCount || 0),
+    potansiyel müşteris: acc.leads + Number(row.leadCount || 0),
     revenue: acc.revenue + Number(row.revenue || 0),
-  }), { spend: 0, budget: 0, leads: 0, revenue: 0 }), [campaigns]);
+  }), { spend: 0, budget: 0, potansiyel müşteris: 0, revenue: 0 }), [campaigns]);
 
   async function createCampaign(event: FormEvent) {
     event.preventDefault();
@@ -79,7 +79,7 @@ export default function CampaignsPage() {
       setName(""); setBudget("0"); setStartsAt(""); setEndsAt(""); setShowForm(false);
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Kampanya oluşturulamadı.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Kampanya oluşturulamadı.") : "Kampanya oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -90,7 +90,7 @@ export default function CampaignsPage() {
   return (
     <div className="space-y-6 pb-12">
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 md:flex-row md:items-end md:justify-between">
-        <div><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Kampanyalar</h1><p className="mt-2 text-[12px] text-[var(--muted)]">Bütçe, kanal, lead ve atfedilen geliri kampanya bazında yönetin.</p></div>
+        <div><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Kampanyalar</h1><p className="mt-2 text-[12px] text-[var(--muted)]">Bütçe, kanal, potansiyel müşteri ve ilişkilendirilen geliri kampanya bazında yönetin.</p></div>
         {canManage ? <Button onClick={() => setShowForm((value) => !value)}>{showForm ? "Formu Kapat" : "Yeni Kampanya"}</Button> : null}
       </header>
 
