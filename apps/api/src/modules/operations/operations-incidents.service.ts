@@ -9,6 +9,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import type {
   CreateOperationsIncidentInput,
   ListOperationsIncidentsInput,
@@ -37,6 +38,7 @@ export class OperationsIncidentsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private context() {
@@ -45,10 +47,10 @@ export class OperationsIncidentsService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -84,10 +86,10 @@ export class OperationsIncidentsService {
     const { tenantId, companyId, branchId, membershipId } = this.context();
     const outageFrom = input.outageFrom ?? new Date();
     if (input.outageTo && input.outageTo <= outageFrom) {
-      throw new BadRequestException('Expected outage end must be after outage start.');
+      throw new BadRequestException('Kesinti bitiş zamanı başlangıç zamanından sonra olmalıdır.');
     }
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         if (input.roomId) {
           const rooms = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -99,7 +101,7 @@ export class OperationsIncidentsService {
             companyId,
             branchId,
           );
-          if (!rooms[0]) throw new NotFoundException('Room not found');
+          if (!rooms[0]) throw new NotFoundException('Oda bulunamadı.');
           await this.lockResource(tx, branchId, `room:${input.roomId}`);
         }
         if (input.assetId) {
@@ -112,7 +114,7 @@ export class OperationsIncidentsService {
             companyId,
             branchId,
           );
-          if (!assets[0]) throw new NotFoundException('Equipment asset not found');
+          if (!assets[0]) throw new NotFoundException('Cihaz bulunamadı.');
           await this.lockResource(tx, branchId, `asset:${input.assetId}`);
         }
         if (input.qualityCaseId) {
@@ -125,7 +127,7 @@ export class OperationsIncidentsService {
             companyId,
             branchId,
           );
-          if (!cases[0]) throw new NotFoundException('Quality case not found');
+          if (!cases[0]) throw new NotFoundException('Kalite kaydı bulunamadı.');
         }
 
         let resourceBlockId: string | null = null;
@@ -147,7 +149,7 @@ export class OperationsIncidentsService {
             input.outageTo,
           );
           if (conflicts[0]) {
-            throw new ConflictException('Resource already has an overlapping unavailability block.');
+            throw new ConflictException('Kaynak için bu zaman aralığıyla çakışan başka bir kullanılamama kaydı bulunuyor.');
           }
           const blocks = await tx.$queryRawUnsafe<Array<{ id: string }>>(
             `INSERT INTO operations_resource_blocks (
@@ -208,6 +210,18 @@ export class OperationsIncidentsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'incident.opened',
+      aggregateType: 'incident',
+      aggregateId: result.id,
+      payload: {
+        severity: result.severity,
+        roomId: result.roomId,
+        assetId: result.assetId,
+        resourceBlockId: result.resourceBlockId,
+      },
+    });
+    return result;
   }
 
   async affectedAppointments(incidentId: string) {
@@ -231,7 +245,7 @@ export class OperationsIncidentsService {
       branchId,
     );
     const incident = incidents[0];
-    if (!incident) throw new NotFoundException('Incident not found');
+    if (!incident) throw new NotFoundException('Operasyon olayı bulunamadı.');
     if (!incident.blockedFrom || !incident.blockedTo || (!incident.roomId && !incident.assetId)) {
       return [];
     }
@@ -263,7 +277,7 @@ export class OperationsIncidentsService {
 
   async resolve(incidentId: string, input: ResolveOperationsIncidentInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
           `WITH _advisory_lock AS (SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))) SELECT 1 FROM _advisory_lock`,
@@ -285,10 +299,10 @@ export class OperationsIncidentsService {
           branchId,
         );
         const current = rows[0];
-        if (!current) throw new NotFoundException('Incident not found');
-        if (current.status !== 'OPEN') throw new ConflictException('Incident is already resolved.');
+        if (!current) throw new NotFoundException('Operasyon olayı bulunamadı.');
+        if (current.status !== 'OPEN') throw new ConflictException('Operasyon olayı zaten çözümlenmiş.');
         if (current.version !== input.expectedVersion) {
-          throw new ConflictException('Incident changed since it was read. Refresh and retry.');
+          throw new ConflictException('Operasyon olayı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
         }
 
         if (current.resourceBlockId) {
@@ -327,7 +341,7 @@ export class OperationsIncidentsService {
           input.resolutionNote,
           input.expectedVersion,
         );
-        if (!resolved[0]) throw new ConflictException('Incident changed during resolution.');
+        if (!resolved[0]) throw new ConflictException('Operasyon olayı çözüm sırasında değişti. Lütfen ekranı yenileyin.');
         await tx.$executeRawUnsafe(
           `INSERT INTO operations_incident_events (
              incident_id, tenant_id, branch_id, actor_membership_id, event_type, note
@@ -342,6 +356,16 @@ export class OperationsIncidentsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'incident.resolved',
+      aggregateType: 'incident',
+      aggregateId: result.id,
+      payload: {
+        severity: result.severity,
+        resourceBlockId: result.resourceBlockId,
+      },
+    });
+    return result;
   }
 
   private async lockResource(
