@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -92,6 +92,58 @@ export class CrmDataScopeService {
     }
 
     return { scope, userId: row.userId, ownerUserIds: [], restrictOwners: false };
+  }
+
+  async assertLeadAccess(leadId: string) {
+    const visibility = await this.resolve();
+    if (!visibility.restrictOwners) return;
+    const context = this.tenantContext.getContext();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM crm_leads
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+          AND ($4::text IS NULL OR branch_id=$4::text)
+          AND owner_user_id=ANY($5::text[])
+        LIMIT 1`,
+      leadId, context.tenantId, context.companyId, context.branchId, visibility.ownerUserIds,
+    );
+    if (!rows.length) throw new ForbiddenException('Bu potansiyel müşteri kaydına erişim yetkiniz yok.');
+  }
+
+  async assertOpportunityAccess(opportunityId: string) {
+    const visibility = await this.resolve();
+    if (!visibility.restrictOwners) return;
+    const context = this.tenantContext.getContext();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM crm_opportunities
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+          AND ($4::text IS NULL OR branch_id=$4::text)
+          AND owner_user_id=ANY($5::text[])
+        LIMIT 1`,
+      opportunityId, context.tenantId, context.companyId, context.branchId, visibility.ownerUserIds,
+    );
+    if (!rows.length) throw new ForbiddenException('Bu satış fırsatına erişim yetkiniz yok.');
+  }
+
+  async assertFollowUpAccess(followUpId: string) {
+    const visibility = await this.resolve();
+    if (!visibility.restrictOwners) return;
+    const context = this.tenantContext.getContext();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT f.id
+         FROM crm_follow_ups f
+         LEFT JOIN crm_leads l ON l.id=f.lead_id
+         LEFT JOIN crm_opportunities o ON o.id=f.opportunity_id
+        WHERE f.id=$1::text AND f.tenant_id=$2::text AND f.company_id=$3::text
+          AND ($4::text IS NULL OR f.branch_id=$4::text)
+          AND (
+            f.assigned_user_id=ANY($5::text[])
+            OR l.owner_user_id=ANY($5::text[])
+            OR o.owner_user_id=ANY($5::text[])
+          )
+        LIMIT 1`,
+      followUpId, context.tenantId, context.companyId, context.branchId, visibility.ownerUserIds,
+    );
+    if (!rows.length) throw new ForbiddenException('Bu takip kaydına erişim yetkiniz yok.');
   }
 
   async assertOwnerAllowed(ownerUserId: string | null | undefined) {
