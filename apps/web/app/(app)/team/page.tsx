@@ -88,6 +88,9 @@ type ShareCustomer = { id: string; firstName: string; lastName: string; phone: s
 type ShareAppointment = { id: string; customerId: string; serviceId: string; startAt: string; status: string };
 type SharePayment = { id: string; amount: string | number; method: string; paidAt: string; status: string; appointment: { customerId: string; serviceId: string } };
 type ShareService = { id: string; name: string };
+type ShareStaff = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null; status: string; profile?: { position?: string | null } | null };
+type ShareLead = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null; source: string; status: string; interestNote: string | null };
+type ShareOpportunity = { id: string; title: string; stage: string; estimatedValue: string | number | null; currency: string; probability: number; expectedCloseDate: string | null };
 type PaginatedResult<T> = { data: T[] };
 type AttachmentPreview = { url: string; mimeType: string; name: string };
 type PreparedAttachment = {
@@ -206,12 +209,15 @@ export default function TeamPage() {
   const [forwarding, setForwarding] = useState(false);
   const [attachmentTab, setAttachmentTab] = useState<"MEDIA" | "FILES" | "LINKS">("MEDIA");
   const [shareOpen, setShareOpen] = useState(false);
-  const [shareTab, setShareTab] = useState<"APPOINTMENT" | "CUSTOMER" | "PAYMENT">("APPOINTMENT");
+  const [shareTab, setShareTab] = useState<"APPOINTMENT" | "CUSTOMER" | "PAYMENT" | "STAFF" | "LEAD" | "OPPORTUNITY">("APPOINTMENT");
   const [shareLoading, setShareLoading] = useState(false);
   const [shareCustomers, setShareCustomers] = useState<ShareCustomer[]>([]);
   const [shareAppointments, setShareAppointments] = useState<ShareAppointment[]>([]);
   const [sharePayments, setSharePayments] = useState<SharePayment[]>([]);
   const [shareServices, setShareServices] = useState<ShareService[]>([]);
+  const [shareStaff, setShareStaff] = useState<ShareStaff[]>([]);
+  const [shareLeads, setShareLeads] = useState<ShareLead[]>([]);
+  const [shareOpportunities, setShareOpportunities] = useState<ShareOpportunity[]>([]);
   const [externalShareCard, setExternalShareCard] = useState<ValooRichCardPayload | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -744,19 +750,25 @@ export default function TeamPage() {
 
   async function openValooShare() {
     setShareOpen(true);
-    if (shareCustomers.length || shareAppointments.length || sharePayments.length) return;
+    if (shareCustomers.length || shareAppointments.length || sharePayments.length || shareStaff.length || shareLeads.length || shareOpportunities.length) return;
     setShareLoading(true);
     try {
-      const [customersResult, appointmentsResult, paymentsResult, servicesResult] = await Promise.all([
+      const [customersResult, appointmentsResult, paymentsResult, servicesResult, staffResult, leadsResult, opportunitiesResult] = await Promise.all([
         api<PaginatedResult<ShareCustomer>>("/customers?page=1&limit=50"),
         api<PaginatedResult<ShareAppointment>>("/appointments?page=1&limit=50"),
         api<PaginatedResult<SharePayment>>("/payments?page=1&limit=50"),
         api<PaginatedResult<ShareService>>("/services?page=1&limit=100"),
+        api<PaginatedResult<ShareStaff>>("/staff?page=1&limit=50"),
+        api<ShareLead[]>("/crm/leads?limit=50"),
+        api<ShareOpportunity[]>("/crm/opportunities?limit=50"),
       ]);
       setShareCustomers(customersResult.data);
       setShareAppointments(appointmentsResult.data);
       setSharePayments(paymentsResult.data);
       setShareServices(servicesResult.data);
+      setShareStaff(staffResult.data);
+      setShareLeads(leadsResult);
+      setShareOpportunities(opportunitiesResult);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "VALOO kayıtları yüklenemedi.");
     } finally {
@@ -1580,15 +1592,15 @@ export default function TeamPage() {
         description="Bir kaydı konuşmaya etkileşimli kart olarak gönderin."
         size="lg"
       >
-        <div className="grid grid-cols-3 gap-1 rounded-[12px] bg-[var(--surface-2)] p-1">
-          {(["APPOINTMENT", "CUSTOMER", "PAYMENT"] as const).map((tab) => (
+        <div className="grid grid-cols-2 gap-1 rounded-[12px] bg-[var(--surface-2)] p-1 sm:grid-cols-3">
+          {(["APPOINTMENT", "CUSTOMER", "PAYMENT", "STAFF", "LEAD", "OPPORTUNITY"] as const).map((tab) => (
             <button
               key={tab}
               type="button"
               onClick={() => setShareTab(tab)}
               className={`rounded-[9px] px-3 py-2 text-[10px] font-semibold ${shareTab === tab ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}
             >
-              {tab === "APPOINTMENT" ? "Randevular" : tab === "CUSTOMER" ? "Müşteriler" : "Ödemeler"}
+              {tab === "APPOINTMENT" ? "Randevular" : tab === "CUSTOMER" ? "Müşteriler" : tab === "PAYMENT" ? "Ödemeler" : tab === "STAFF" ? "Personel" : tab === "LEAD" ? "Potansiyel" : "Fırsatlar"}
             </button>
           ))}
         </div>
@@ -1646,7 +1658,7 @@ export default function TeamPage() {
                 </button>
               ))}
             </div>
-          ) : (
+          ) : shareTab === "PAYMENT" ? (
             <div className="space-y-2">
               {sharePayments.map((payment) => {
                 const customer = shareCustomers.find((item) => item.id === payment.appointment.customerId);
@@ -1672,6 +1684,54 @@ export default function TeamPage() {
                   </button>
                 );
               })}
+            </div>
+          ) : shareTab === "STAFF" ? (
+            <div className="space-y-2">
+              {shareStaff.map((member) => (
+                <button key={member.id} type="button" disabled={sending} onClick={() => void sendRichCard({
+                  kind: "STAFF",
+                  id: member.id,
+                  title: `${member.firstName} ${member.lastName}`,
+                  subtitle: member.profile?.position ?? "Personel",
+                  meta: [member.phone ?? "", member.email ?? "", member.status].filter(Boolean),
+                  href: "/staff",
+                })} className="w-full rounded-[14px] border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50">
+                  <p className="text-[11px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</p>
+                  <p className="mt-1 text-[9px] text-[var(--muted)]">{member.profile?.position ?? member.phone ?? "Personel"}</p>
+                </button>
+              ))}
+            </div>
+          ) : shareTab === "LEAD" ? (
+            <div className="space-y-2">
+              {shareLeads.map((lead) => (
+                <button key={lead.id} type="button" disabled={sending} onClick={() => void sendRichCard({
+                  kind: "LEAD",
+                  id: lead.id,
+                  title: `${lead.firstName} ${lead.lastName}`,
+                  subtitle: lead.phone ?? lead.email ?? "İletişim bilgisi yok",
+                  meta: [lead.source, lead.status, lead.interestNote ?? ""].filter(Boolean),
+                  href: `/crm/leads/${lead.id}`,
+                })} className="w-full rounded-[14px] border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50">
+                  <p className="text-[11px] font-semibold text-[var(--ink)]">{lead.firstName} {lead.lastName}</p>
+                  <p className="mt-1 text-[9px] text-[var(--muted)]">{lead.phone ?? lead.email ?? "İletişim bilgisi yok"} · {lead.status}</p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {shareOpportunities.map((opportunity) => (
+                <button key={opportunity.id} type="button" disabled={sending} onClick={() => void sendRichCard({
+                  kind: "OPPORTUNITY",
+                  id: opportunity.id,
+                  title: opportunity.title,
+                  subtitle: opportunity.stage,
+                  meta: [new Intl.NumberFormat("tr-TR", { style: "currency", currency: opportunity.currency, maximumFractionDigits: 2 }).format(Number(opportunity.estimatedValue ?? 0)), `Kazanma olasılığı: %${opportunity.probability}`, opportunity.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toLocaleDateString("tr-TR") : ""].filter(Boolean),
+                  href: `/crm/opportunities/${opportunity.id}`,
+                })} className="w-full rounded-[14px] border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50">
+                  <p className="text-[11px] font-semibold text-[var(--ink)]">{opportunity.title}</p>
+                  <p className="mt-1 text-[9px] text-[var(--muted)]">{opportunity.stage} · %{opportunity.probability}</p>
+                </button>
+              ))}
             </div>
           )}
         </div>
