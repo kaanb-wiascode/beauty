@@ -34,6 +34,12 @@ type RoutingRuleRow = {
   conditions: unknown;
 };
 
+type AssigneeRow = {
+  id: string;
+  openLeadCount: bigint;
+  routedLeadCount: bigint;
+};
+
 @Injectable()
 export class MarketingLeadCrmBridgeService {
   constructor(
@@ -105,6 +111,92 @@ export class MarketingLeadCrmBridgeService {
       throw new BadRequestException('Belirlenen hedef şube bu şirkette aktif değil.');
     }
     return branchId;
+  }
+
+  private async eligibleAssignees(
+    tx: Prisma.TransactionClient,
+    branchId: string,
+  ) {
+    const context = this.context();
+    return tx.$queryRawUnsafe<AssigneeRow[]>(
+      `SELECT u.id,
+              count(DISTINCT cl.id) FILTER (
+                WHERE cl.status IN ('NEW','CONTACTED','QUALIFIED')
+              ) AS "openLeadCount",
+              count(DISTINCT ml.id) FILTER (
+                WHERE ml.assigned_user_id=u.id AND ml.status IN ('ROUTED','IN_CRM')
+              ) AS "routedLeadCount"
+       FROM users u
+       JOIN memberships m ON m."userId"=u.id
+       JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
+       LEFT JOIN crm_leads cl ON cl.owner_user_id=u.id
+         AND cl.tenant_id=m."tenantId"
+         AND cl.company_id=m."companyId"
+         AND cl.branch_id=$3::text
+       LEFT JOIN corporate_marketing_leads ml ON ml.assigned_user_id=u.id
+         AND ml.tenant_id=m."tenantId"
+         AND ml.company_id=m."companyId"
+         AND ml.branch_id=$3::text
+       WHERE m."tenantId"=$1::text AND m."companyId"=$2::text
+         AND m.status='ACTIVE'
+         AND (r.scope<>'BRANCH' OR EXISTS(
+           SELECT 1 FROM membership_branch_access mba
+           WHERE mba."membershipId"=m.id AND mba."branchId"=$3::text
+         ))
+       GROUP BY u.id
+       ORDER BY u.id`,
+      context.tenantId,
+      context.companyId,
+      branchId,
+    );
+  }
+
+  private async assertAssignee(
+    tx: Prisma.TransactionClient,
+    userId: string,
+    branchId: string,
+  ) {
+    const candidates = await this.eligibleAssignees(tx, branchId);
+    if (!candidates.some((item) => item.id === userId)) {
+      throw new BadRequestException(
+        'Belirlenen müşteri ilişkileri sorumlusu hedef şubede aktif değil.',
+      );
+    }
+  }
+
+  private async resolveCorporateOwner(
+    tx: Prisma.TransactionClient,
+    lead: MarketingLeadRow,
+    rule: RoutingRuleRow | null,
+    branchId: string,
+  ) {
+    let ownerUserId = rule?.targetUserId ?? lead.assignedUserId ?? null;
+
+    if (!ownerUserId && rule && rule.strategy !== 'FIXED') {
+      const candidates = await this.eligibleAssignees(tx, branchId);
+      if (candidates.length) {
+        candidates.sort((a, b) => {
+          const diff =
+            rule.strategy === 'LEAST_LOADED'
+              ? Number(a.openLeadCount) - Number(b.openLeadCount)
+              : Number(a.routedLeadCount) - Number(b.routedLeadCount);
+          return diff || a.id.localeCompare(b.id);
+        });
+        ownerUserId = candidates[0]?.id ?? null;
+      }
+    }
+
+    if (rule?.strategy === 'FIXED' && !ownerUserId && !rule.targetBranchId) {
+      throw new BadRequestException(
+        'Sabit yönlendirme için hedef şube veya sorumlu seçilmelidir.',
+      );
+    }
+
+    if (ownerUserId) {
+      await this.assertAssignee(tx, ownerUserId, branchId);
+    }
+
+    return ownerUserId;
   }
 
   private followUpPolicy(rule: RoutingRuleRow | null): RoutingConditionsInput {
@@ -203,11 +295,17 @@ export class MarketingLeadCrmBridgeService {
 
         const rule = await this.resolveRule(tx, lead);
         const branchId = await this.resolveBranch(tx, lead, rule);
+        const corporateOwnerUserId = await this.resolveCorporateOwner(
+          tx,
+          lead,
+          rule,
+          branchId,
+        );
         const assignment = await this.crmAssignment.resolveOwner(
           {
             branchId,
             source: `MARKETING_${lead.provider}`,
-            requestedOwnerUserId: rule?.targetUserId ?? lead.assignedUserId,
+            requestedOwnerUserId: corporateOwnerUserId,
             actorUserId,
           },
           tx,
@@ -255,8 +353,10 @@ export class MarketingLeadCrmBridgeService {
             previousOwnerUserId: null,
             assignedUserId: ownerUserId,
             ruleId: assignment.ruleId,
-            mode: assignment.mode,
-            reason: assignment.reason,
+            mode: rule?.strategy ?? assignment.mode,
+            reason: rule
+              ? `Kurumsal İletişim yönlendirme kuralı uygulandı: ${rule.strategy}`
+              : assignment.reason,
             assignedByUserId: actorUserId,
           },
           tx,
