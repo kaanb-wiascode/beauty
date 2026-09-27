@@ -177,3 +177,69 @@ export function TeamMessageAttachment({
     </button>
   );
 }
+
+
+export function TeamMediaThumbnail({
+  attachment,
+  onOpen,
+}: {
+  attachment: Attachment;
+  onOpen: (attachment: Attachment) => void;
+}) {
+  const [url, setUrl] = useState<string | null>(null);
+  const [failed, setFailed] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    let blobUrl: string | null = null;
+
+    async function load() {
+      try {
+        const access = await api<AttachmentAccess>(`/team/attachments/${attachment.id}/access`);
+        if (!active) return;
+        if (access.mode === "object") {
+          setUrl(access.url);
+          return;
+        }
+        const response = await apiResponse(`/team/attachments/${attachment.id}`);
+        if (!response.ok) throw new ApiError("Medya yüklenemedi.", response.status);
+        const blob = await response.blob();
+        blobUrl = URL.createObjectURL(blob);
+        if (active) setUrl(blobUrl);
+      } catch {
+        if (active) setFailed(true);
+      }
+    }
+
+    void load();
+    return () => {
+      active = false;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [attachment.id]);
+
+  return (
+    <button
+      type="button"
+      onClick={() => onOpen(attachment)}
+      className="group relative aspect-square overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)]"
+      title={attachment.originalName}
+    >
+      {url && !failed ? (
+        attachment.mimeType.startsWith("image/") ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={url} alt={attachment.originalName} className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]" loading="lazy" />
+        ) : (
+          <video src={url} muted preload="metadata" playsInline className="h-full w-full object-cover" />
+        )
+      ) : (
+        <span className="flex h-full items-center justify-center px-2 text-center text-[8px] text-[var(--muted)]">{failed ? "Medya yok" : "Yükleniyor…"}</span>
+      )}
+      {attachment.mimeType.startsWith("video/") ? (
+        <span className="absolute inset-0 flex items-center justify-center bg-black/10">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-black/55 text-[12px] text-white">▶</span>
+        </span>
+      ) : null}
+    </button>
+  );
+}
