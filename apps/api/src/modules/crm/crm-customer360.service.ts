@@ -69,7 +69,7 @@ export class CrmCustomer360Service {
   async getSummary(customerId: string) {
     const context = this.tenantContext.getContext();
     const visibility = await this.dataScope.resolve();
-    const scope = [context.tenantId, context.companyId, context.branchId] as const;
+    const scope = [context.tenantId, context.companyId, visibility.branchId] as const;
 
     const customer = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
       `SELECT id FROM customers
@@ -78,7 +78,7 @@ export class CrmCustomer360Service {
        LIMIT 1`,
       customerId,
       context.tenantId,
-      context.branchId,
+      visibility.branchId,
     );
     if (!customer.length) throw new NotFoundException('Müşteri bulunamadı.');
 
