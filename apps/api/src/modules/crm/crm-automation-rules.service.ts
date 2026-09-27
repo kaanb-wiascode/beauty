@@ -5,7 +5,10 @@ import type { CrmAutomationScope } from './crm-automation.service';
 export type CrmAutomationRuleKey =
   | 'LEAD_FIRST_TOUCH'
   | 'OPPORTUNITY_STAGE_FOLLOW_UP'
-  | 'STALE_OPPORTUNITY_FOLLOW_UP';
+  | 'STALE_OPPORTUNITY_FOLLOW_UP'
+  | 'LEAD_FIRST_RESPONSE_SLA'
+  | 'FOLLOW_UP_OVERDUE_ESCALATION'
+  | 'OPPORTUNITY_STALE_ESCALATION';
 
 export type CrmAutomationRule = {
   ruleKey: CrmAutomationRuleKey;
@@ -32,6 +35,9 @@ const DEFAULTS: Record<CrmAutomationRuleKey, Record<string, unknown>> = {
     messageTemplate: 'Merhaba, sürecinizle ilgili kısa bir bilgilendirme için sizinle iletişime geçiyoruz.',
   },
   STALE_OPPORTUNITY_FOLLOW_UP: { staleDays: 14, delayHours: 24, channel: 'CALL' },
+  LEAD_FIRST_RESPONSE_SLA: { thresholdMinutes: 60, escalationDelayMinutes: 15, channel: 'CALL' },
+  FOLLOW_UP_OVERDUE_ESCALATION: { graceMinutes: 30, escalationDelayMinutes: 15, channel: 'CALL' },
+  OPPORTUNITY_STALE_ESCALATION: { staleDays: 7, escalationDelayMinutes: 60, channel: 'CALL' },
 };
 
 const RULE_KEYS = Object.keys(DEFAULTS) as CrmAutomationRuleKey[];
@@ -84,7 +90,7 @@ export class CrmAutomationRulesService {
     actorUserId: string,
   ) {
     if (!scope.branchId) {
-      throw new BadRequestException('Active branch is required.');
+      throw new BadRequestException('Bu ayar için aktif bir şube seçilmelidir.');
     }
     const config = { ...DEFAULTS[ruleKey], ...input.config };
     const rows = await this.prisma.$queryRawUnsafe<
@@ -116,7 +122,7 @@ export class CrmAutomationRulesService {
       input.version ?? null,
     );
     if (!rows[0]) {
-      throw new ConflictException('Automation rule version conflict.');
+      throw new ConflictException('Otomasyon kuralı başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.');
     }
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO crm_events(
