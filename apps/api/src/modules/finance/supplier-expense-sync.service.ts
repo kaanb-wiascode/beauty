@@ -50,7 +50,7 @@ export class SupplierExpenseSyncService {
        ) VALUES($1::text,$2::text,$3::text,'AUTO_SUPPLIER_EXPENSE','Tedarikçi Giderleri',true,true,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)
        ON CONFLICT (tenant_id,company_id,code)
        DO UPDATE SET name='Tedarikçi Giderleri',system=true,active=true,updated_at=CURRENT_TIMESTAMP
-       RETURNING id,payment_status::text AS "paymentStatus"`,
+       RETURNING id`,
       randomUUID(),
       tenantId,
       companyId,
@@ -128,7 +128,7 @@ export class SupplierExpenseSyncService {
          WHERE tenant_id=$2::text AND company_id=$3::text
            AND source_type='SUPPLIER_BILL' AND source_id=$12
        )
-       RETURNING id`,
+       RETURNING id,payment_status::text AS "paymentStatus"`,
       expenseId,
       input.tenantId,
       input.companyId,
