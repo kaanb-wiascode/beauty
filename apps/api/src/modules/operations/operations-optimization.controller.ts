@@ -13,7 +13,7 @@ export class OperationsOptimizationController {
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   overview(@Query('hours') hours?: string) {
     const parsed = Number(hours ?? 24);
     return this.optimization.overview(Number.isFinite(parsed) ? parsed : 24);
