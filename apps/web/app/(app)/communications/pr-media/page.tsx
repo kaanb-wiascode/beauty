@@ -5,7 +5,7 @@ import { getCardHelp } from "@/lib/card-help";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 import { hasPermission } from "@/lib/auth";
 
 type Activity={id:string;activityType:string;status:string;title:string;outletName?:string|null;contactName?:string|null;startsAt?:string|null;endsAt?:string|null;location?:string|null;costAmount:string|number;currency:string;estimatedReach:string|number;actualReach:string|number;estimatedMediaValue:string|number;attributedRevenue:string|number;campaignName?:string|null};
