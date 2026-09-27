@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
 import { hasPermission } from "@/lib/auth";
+import { api } from "@/lib/api";
 import { cx } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
 
@@ -191,7 +192,7 @@ const PRIMARY_ITEMS: readonly MobileNavItem[] = [
   { href: "/dashboard", label: "Bugün", icon: "home" },
   { href: "/appointments", permission: "appointments.read", label: "Randevu", icon: "calendar" },
   { href: "/crm", permission: "crm.read", label: "CRM", icon: "trend" },
-  { href: "/inventory", label: "Stok", icon: "package" },
+  { href: "/team", label: "Mesajlar", icon: "users" },
 ];
 
 function hasPermissionKey(permission: string) {
@@ -215,6 +216,7 @@ function isActive(pathname: string, href: string) {
 export function MobileNav() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const [teamUnread, setTeamUnread] = useState(0);
 
   const sections = useMemo(
     () =>
@@ -228,6 +230,24 @@ export function MobileNav() {
 
   useEffect(() => {
     setOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    let active = true;
+    async function loadUnread() {
+      try {
+        const result = await api<{ unreadCount: number }>("/team/unread-summary");
+        if (active) setTeamUnread(result.unreadCount);
+      } catch {
+        if (active) setTeamUnread(0);
+      }
+    }
+    void loadUnread();
+    const timer = window.setInterval(() => void loadUnread(), 30000);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+    };
   }, [pathname]);
 
   useEffect(() => {
@@ -322,8 +342,13 @@ export function MobileNav() {
                 active ? "text-[var(--accent)]" : "text-[var(--muted)]",
               )}
             >
-              <span className={cx("flex h-8 w-8 items-center justify-center rounded-[10px]", active ? "bg-[var(--accent-soft)]" : "bg-transparent")}>
+              <span className={cx("relative flex h-8 w-8 items-center justify-center rounded-[10px]", active ? "bg-[var(--accent-soft)]" : "bg-transparent")}>
                 <NavIcon name={item.icon} />
+                {item.href === "/team" && teamUnread > 0 ? (
+                  <span className="absolute -right-1.5 -top-1 min-w-4 rounded-full border-2 border-white bg-rose-500 px-1 text-center text-[8px] font-bold leading-4 text-white">
+                    {teamUnread > 99 ? "99+" : teamUnread}
+                  </span>
+                ) : null}
               </span>
               <span>{item.label}</span>
             </Link>
