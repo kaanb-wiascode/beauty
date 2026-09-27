@@ -143,6 +143,10 @@ export const createProviderConnectionSchema = z.object({
   displayName: z.string().trim().min(2).max(180),
 });
 
+export const startProviderOAuthSchema = z.object({
+  provider: z.enum(['META', 'GOOGLE_ADS', 'TIKTOK']),
+});
+
 export const completeProviderOAuthSchema = z.object({
   code: z.string().trim().min(1).max(4000),
   state: z.string().trim().min(20).max(8000),
