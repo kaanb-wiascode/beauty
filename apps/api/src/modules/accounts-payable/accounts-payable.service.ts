@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { SupplierExpenseSyncService } from '../finance/supplier-expense-sync.service';
 
 interface CreateBillInput {
   supplierId: string;
@@ -36,6 +37,7 @@ export class AccountsPayableService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly supplierExpenseSync: SupplierExpenseSyncService,
   ) {}
 
   private context() {
@@ -48,6 +50,25 @@ export class AccountsPayableService {
 
   private round(value: number) {
     return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
+  private async currentUserId(
+    db: Prisma.TransactionClient | PrismaService,
+  ): Promise<string> {
+    const context = this.tenantContext.getContext();
+    const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" AS "userId"
+       FROM memberships
+       WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
+       LIMIT 1`,
+      context.membershipId,
+      context.tenantId,
+      context.companyId,
+    );
+    if (!rows[0]?.userId) {
+      throw new BadRequestException('Oturum açmış kullanıcı bilgisi bulunamadı.');
+    }
+    return rows[0].userId;
   }
 
   private async acquireTransactionLock(
@@ -163,8 +184,10 @@ export class AccountsPayableService {
 
     return this.prisma.$transaction(
       async (tx) => {
-        const suppliers = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-          `SELECT id FROM inventory_suppliers WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='ACTIVE' LIMIT 1`,
+        const suppliers = await tx.$queryRawUnsafe<
+          Array<{ id: string; name: string }>
+        >(
+          `SELECT id,name FROM inventory_suppliers WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='ACTIVE' LIMIT 1`,
           input.supplierId,
           tenantId,
           companyId,
@@ -225,6 +248,7 @@ export class AccountsPayableService {
           'Satıcılar',
           'LIABILITY',
         );
+        const occurredAt = new Date();
         await this.postJournal(tx, {
           tenantId,
           companyId,
@@ -232,10 +256,27 @@ export class AccountsPayableService {
           referenceType: 'SUPPLIER_BILL',
           referenceId: billId,
           description: `Tedarikçi faturası ${input.invoiceNumber?.trim() || billId}`,
-          entryDate: new Date(),
+          entryDate: occurredAt,
           debitAccountId: expense.id,
           creditAccountId: payable.id,
           amount,
+        });
+
+        const actorId = await this.currentUserId(tx);
+        await this.supplierExpenseSync.syncBillCreated(tx, {
+          tenantId,
+          companyId,
+          branchId,
+          billId,
+          actorId,
+          supplierName: suppliers[0].name,
+          invoiceNumber: input.invoiceNumber?.trim() || null,
+          description: input.description.trim(),
+          amount,
+          occurredAt,
+          dueAt: input.dueAt ?? null,
+          expenseAccountId: expense.id,
+          payableAccountId: payable.id,
         });
 
         return { ...rows[0], idempotent: false };
@@ -302,9 +343,11 @@ export class AccountsPayableService {
     await this.prisma.$transaction(
       async (tx) => {
         const bills = await tx.$queryRawUnsafe<any[]>(
-          `SELECT b.id,b.amount,b.status,
+          `SELECT b.id,b.amount,b.status,b.description,b.invoice_number AS "invoiceNumber",
+                  b.due_at AS "dueAt",s.name AS "supplierName",
                   COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid
            FROM supplier_bills b
+           JOIN inventory_suppliers s ON s.id=b.supplier_id
            WHERE b.id=$1::text AND b.company_id=$2::text AND ($3::text IS NULL OR b.branch_id=$3::text)
            FOR UPDATE`,
           id,
@@ -353,17 +396,64 @@ export class AccountsPayableService {
             ? await this.ensureAccount(tx, tenantId, companyId, '100', 'Kasa', 'ASSET')
             : await this.ensureAccount(tx, tenantId, companyId, '102', 'Bankalar', 'ASSET');
 
-        await this.postJournal(tx, {
+        const paidAt = new Date();
+        const paymentJournal = await this.postJournal(tx, {
           tenantId,
           companyId,
           branchId,
           referenceType: 'SUPPLIER_BILL_PAYMENT',
           referenceId: paymentId,
           description: `Tedarikçi ödemesi ${id}`,
-          entryDate: new Date(),
+          entryDate: paidAt,
           debitAccountId: payable.id,
           creditAccountId: paymentAccount.id,
           amount,
+        });
+
+        const originalJournal = await tx.journalEntry.findFirst({
+          where: {
+            companyId,
+            referenceType: 'SUPPLIER_BILL',
+            referenceId: id,
+          },
+          include: { lines: { include: { account: true } } },
+        });
+        const expenseAccountId =
+          originalJournal?.lines.find(
+            (line) => Number(line.debit) > 0 && line.account.type === 'EXPENSE',
+          )?.accountId ??
+          (
+            await this.ensureAccount(
+              tx,
+              tenantId,
+              companyId,
+              '770',
+              'Genel Yönetim Giderleri',
+              'EXPENSE',
+            )
+          ).id;
+        const actorId = await this.currentUserId(tx);
+        await this.supplierExpenseSync.syncBillPayment(tx, {
+          tenantId,
+          companyId,
+          branchId,
+          billId: id,
+          actorId,
+          supplierName: bill.supplierName,
+          invoiceNumber: bill.invoiceNumber,
+          description: bill.description,
+          amount,
+          occurredAt: paidAt,
+          dueAt: bill.dueAt,
+          expenseAccountId,
+          payableAccountId: payable.id,
+          paymentId,
+          paymentJournalId: paymentJournal.id,
+          paymentAccountId: paymentAccount.id,
+          method: input.method,
+          reference: input.reference?.trim() || null,
+          note: input.note?.trim() || null,
+          paidAt,
         });
 
         const after = this.round(remaining - amount);
@@ -454,6 +544,16 @@ export class AccountsPayableService {
           debitAccountId: payable.id,
           creditAccountId: expense.id,
           amount: Number(bill.amount),
+        });
+
+        const actorId = await this.currentUserId(tx);
+        await this.supplierExpenseSync.syncBillCancelled(tx, {
+          tenantId,
+          companyId,
+          branchId,
+          billId: id,
+          actorId,
+          reason,
         });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
