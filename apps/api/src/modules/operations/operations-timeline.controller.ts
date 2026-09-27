@@ -19,7 +19,7 @@ export class OperationsTimelineController {
 
   @Get('appointments/:appointmentId')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   appointment(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
   ) {
