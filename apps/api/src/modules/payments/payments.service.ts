@@ -9,6 +9,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import { AccountingService } from '../accounting/accounting.service';
 import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { CreatePaymentInput } from './dto/create-payment.dto';
@@ -25,6 +26,7 @@ export class PaymentsService {
     private readonly organizationScope: OrganizationScopeService,
     private readonly accountingService: AccountingService,
     private readonly commerceFinanceSync: CommerceFinanceSyncService,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private getTenantId(): string {
@@ -163,7 +165,7 @@ export class PaymentsService {
     }
 
     try {
-      return await this.prisma.$transaction(
+      const payment = await this.prisma.$transaction(
         async (tx) => {
           const existing = await tx.payment.findUnique({
             where: { appointmentId: appointment.id },
@@ -240,6 +242,17 @@ export class PaymentsService {
         },
         { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
       );
+      await this.domainEvents?.publish({
+        eventName: 'appointment.payment_received',
+        aggregateType: 'appointment',
+        aggregateId: appointment.id,
+        payload: {
+          paymentId: payment.id,
+          amount: Number(payment.amount),
+          method: payment.method,
+        },
+      });
+      return payment;
     } catch (error) {
       if (this.isUniqueConstraintError(error)) {
         throw new ConflictException('Bu randevu için ödeme zaten kaydedilmiş.');
@@ -333,7 +346,7 @@ export class PaymentsService {
     }
 
     const reason = input.reason?.trim() || 'Ödeme iadesi';
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         const refundedAt = new Date();
         const result = await tx.payment.updateMany({
@@ -388,6 +401,17 @@ export class PaymentsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'appointment.payment_refunded',
+      aggregateType: 'appointment',
+      aggregateId: payment.appointmentId,
+      payload: {
+        paymentId: payment.id,
+        amount: Number(payment.amount),
+        reason,
+      },
+    });
+    return result;
   }
 
   async summary(input: PaymentSummaryInput) {
