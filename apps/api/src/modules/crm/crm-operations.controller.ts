@@ -19,6 +19,7 @@ import { CrmAutomationService } from './crm-automation.service';
 import { CrmCustomer360Service } from './crm-customer360.service';
 import { CrmOperationsService } from './crm-operations.service';
 import { CrmReminderService } from './crm-reminder.service';
+import { CrmReportingService } from './crm-reporting.service';
 
 const uuid = z.string().uuid();
 
@@ -64,6 +65,14 @@ const staleSweepSchema = z.object({
   staleDays: z.coerce.number().int().min(1).max(90).optional(),
 });
 
+const reportRangeSchema = z.object({
+  from: z.coerce.date(),
+  to: z.coerce.date(),
+}).refine((value) => value.to >= value.from, {
+  message: 'Rapor bitiş tarihi başlangıç tarihinden önce olamaz.',
+  path: ['to'],
+});
+
 const automationHistorySchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(30),
 });
@@ -75,6 +84,7 @@ export class CrmOperationsController {
     private readonly operations: CrmOperationsService,
     private readonly customer360: CrmCustomer360Service,
     private readonly reminders: CrmReminderService,
+    private readonly reporting: CrmReportingService,
     private readonly automations: CrmAutomationService,
     private readonly automationObservability: CrmAutomationObservabilityService,
     private readonly tenantContext: TenantContext,
@@ -155,6 +165,18 @@ export class CrmOperationsController {
       { origin: 'MANUAL', operation: 'STALE_SWEEP', initiatedByUserId: actorUserId },
       () => this.automations.runStaleOpportunitySweep(scope, staleDays, actorUserId),
     );
+  }
+
+  @Get('reports/daily')
+  @RequirePermission('crm', 'read')
+  getDailyReport(@Query() query: unknown) {
+    return this.reporting.performance(reportRangeSchema.parse(query));
+  }
+
+  @Get('reports/salespeople')
+  @RequirePermission('crm', 'read')
+  getSalespeopleReport(@Query() query: unknown) {
+    return this.reporting.salespersonPerformance(reportRangeSchema.parse(query));
   }
 
   @Get('customer-360/:customerId')
