@@ -7,6 +7,7 @@ import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 import type { Appointment, Customer, Paginated, Visit, VisitDetail, VisitStatus } from "@/lib/types";
 
 type CheckoutIssue = {
@@ -107,7 +108,7 @@ function checkoutIssueLabel(issue: CheckoutIssue) {
 }
 
 export default function OperationsPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [visits, setVisits] = useState<Visit[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -180,6 +181,11 @@ export default function OperationsPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  useOperationRealtime(() => {
+    setVisitDetails({});
+    void load();
+  }, hasActiveBranch());
 
   const customerMap = useMemo(
     () => new Map(customers.map((customer) => [customer.id, `${customer.firstName} ${customer.lastName}`.trim()])),
