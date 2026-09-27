@@ -8,6 +8,8 @@ type Attachment = {
   originalName: string;
   mimeType: string;
   sizeBytes: number;
+  transcriptionStatus?: "NONE" | "PROCESSING" | "COMPLETED" | "FAILED";
+  transcriptionText?: string | null;
 };
 
 type AttachmentAccess =
@@ -99,6 +101,9 @@ export function TeamMessageAttachment({
 }) {
   const [url, setUrl] = useState<string | null>(null);
   const [failed, setFailed] = useState(false);
+  const [transcript, setTranscript] = useState(attachment.transcriptionText ?? "");
+  const [transcribing, setTranscribing] = useState(attachment.transcriptionStatus === "PROCESSING");
+  const [transcriptionError, setTranscriptionError] = useState("");
 
   useEffect(() => {
     let active = true;
@@ -154,11 +159,44 @@ export function TeamMessageAttachment({
   }
 
   if (attachment.mimeType.startsWith("audio/")) {
-    return url && !failed ? (
-      <VoiceMessagePlayer url={url} mine={mine} sizeBytes={attachment.sizeBytes} />
-    ) : (
-      <div className={`rounded-[14px] px-3 py-4 text-[9px] ${mine ? "bg-white/10 text-white/70" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
-        {failed ? "Ses kaydı yüklenemedi" : "Ses kaydı hazırlanıyor…"}
+    return (
+      <div className="space-y-1.5">
+        {url && !failed ? (
+          <VoiceMessagePlayer url={url} mine={mine} sizeBytes={attachment.sizeBytes} />
+        ) : (
+          <div className={`rounded-[14px] px-3 py-4 text-[9px] ${mine ? "bg-white/10 text-white/70" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
+            {failed ? "Ses kaydı yüklenemedi" : "Ses kaydı hazırlanıyor…"}
+          </div>
+        )}
+        {transcript ? (
+          <div className={`rounded-[12px] px-3 py-2.5 text-[9px] leading-4 ${mine ? "bg-white/10 text-white/80" : "border border-[var(--line)] bg-white text-[var(--muted)]"}`}>
+            <p className={`mb-1 text-[8px] font-semibold uppercase tracking-[.08em] ${mine ? "text-white/55" : "text-[var(--accent)]"}`}>Transkripsiyon</p>
+            <p className="whitespace-pre-wrap">{transcript}</p>
+          </div>
+        ) : (
+          <div className="flex items-center justify-between gap-2">
+            <button
+              type="button"
+              disabled={transcribing}
+              onClick={async () => {
+                setTranscribing(true);
+                setTranscriptionError("");
+                try {
+                  const result = await api<{ status: string; text: string }>(`/team/attachments/${attachment.id}/transcribe`, { method: "POST" });
+                  setTranscript(result.text);
+                } catch (error) {
+                  setTranscriptionError(error instanceof ApiError ? error.message : "Sesli mesaj metne dönüştürülemedi.");
+                } finally {
+                  setTranscribing(false);
+                }
+              }}
+              className={`rounded-full px-2.5 py-1 text-[8px] font-semibold transition disabled:opacity-50 ${mine ? "bg-white/10 text-white/75 hover:bg-white/15" : "bg-[var(--accent-soft)] text-[var(--accent)] hover:brightness-[.98]"}`}
+            >
+              {transcribing ? "Metne dönüştürülüyor…" : "Metne dök"}
+            </button>
+            {transcriptionError ? <span className={`text-[8px] ${mine ? "text-rose-100" : "text-rose-600"}`}>{transcriptionError}</span> : null}
+          </div>
+        )}
       </div>
     );
   }
