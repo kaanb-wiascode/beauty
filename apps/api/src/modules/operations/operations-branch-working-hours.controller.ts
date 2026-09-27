@@ -12,19 +12,19 @@ export class OperationsBranchWorkingHoursController {
   constructor(private readonly workingHours: OperationsBranchWorkingHoursService) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list() {
     return this.workingHours.list();
   }
 
   @Get('check')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   check(@Query() query: unknown) {
     return this.workingHours.check(branchWorkingHoursCheckSchema.parse(query));
   }
 
   @Put()
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   upsert(@Body() body: unknown) {
     return this.workingHours.upsert(updateBranchWorkingHoursSchema.parse(body));
   }
