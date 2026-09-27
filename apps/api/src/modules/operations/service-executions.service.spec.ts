@@ -103,7 +103,7 @@ describe('ServiceExecutionsService', () => {
         appointmentId: '00000000-0000-4000-8000-000000000001',
       }),
     ).rejects.toThrow(
-      'Service requires an available room allocation of type LASER_ROOM.',
+      'Bu hizmet için uygun türde kullanılabilir bir oda ayrılması gerekiyor.',
     );
   });
 
