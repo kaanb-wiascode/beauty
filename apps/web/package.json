@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "typecheck": "tsc --noEmit",
-    "start": "next start",
+    "start": "mkdir -p .next/standalone/apps/web/.next && cp -R .next/static .next/standalone/apps/web/.next/static && cp -R public .next/standalone/apps/web/public && node .next/standalone/apps/web/server.js",
     "lint": "eslint"
   },
   "dependencies": {
