@@ -9,7 +9,7 @@ import {
 } from '@nestjs/common';
 import { Observable, Subject, filter, interval, map, merge } from 'rxjs';
 
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { RedisService } from '../redis/redis.service';
@@ -79,9 +79,9 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
     this.streamSubject.complete();
   }
 
-  async publish(input: PublishDomainEventInput): Promise<DomainEventRecord> {
+  private buildEvent(input: PublishDomainEventInput): DomainEventRecord {
     const context = this.tenantContext.getContext();
-    const event: DomainEventRecord = {
+    return {
       id: randomUUID(),
       tenantId: context.tenantId,
       companyId: context.companyId,
@@ -94,8 +94,13 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
       occurredAt: (input.occurredAt ?? new Date()).toISOString(),
       originInstanceId: this.instanceId,
     };
+  }
 
-    await this.prisma.$executeRawUnsafe(
+  private async insert(
+    db: Prisma.TransactionClient | PrismaService,
+    event: DomainEventRecord,
+  ) {
+    await db.$executeRawUnsafe(
       'INSERT INTO domain_event_log(' +
         'id,tenant_id,company_id,branch_id,actor_membership_id,event_name,' +
         'aggregate_type,aggregate_id,payload,occurred_at' +
@@ -111,10 +116,53 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
       JSON.stringify(event.payload),
       new Date(event.occurredAt),
     );
+  }
 
-    this.streamSubject.next(event);
-    await this.tryPublish(event);
+  async record(
+    tx: Prisma.TransactionClient,
+    input: PublishDomainEventInput,
+  ): Promise<string> {
+    const event = this.buildEvent(input);
+    await this.insert(tx, event);
+    return event.id;
+  }
+
+  async publish(input: PublishDomainEventInput): Promise<DomainEventRecord> {
+    const event = this.buildEvent(input);
+    await this.insert(this.prisma, event);
+    await this.dispatch(event);
     return event;
+  }
+
+  async dispatchStored(id: string): Promise<void> {
+    const rows = await this.prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        tenantId: string;
+        companyId: string;
+        branchId: string | null;
+        actorMembershipId: string | null;
+        eventName: string;
+        aggregateType: string;
+        aggregateId: string;
+        payload: Record<string, unknown>;
+        occurredAt: Date;
+      }>
+    >(
+      'SELECT id,tenant_id AS "tenantId",company_id AS "companyId",' +
+        'branch_id AS "branchId",actor_membership_id AS "actorMembershipId",' +
+        'event_name AS "eventName",aggregate_type AS "aggregateType",' +
+        'aggregate_id AS "aggregateId",payload,occurred_at AS "occurredAt" ' +
+        'FROM domain_event_log WHERE id=$1 LIMIT 1',
+      id,
+    );
+    const row = rows[0];
+    if (!row) return;
+    await this.dispatch({
+      ...row,
+      occurredAt: row.occurredAt.toISOString(),
+      originInstanceId: this.instanceId,
+    });
   }
 
   stream(input: {
@@ -152,6 +200,11 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
     );
 
     return merge(events$, heartbeat$);
+  }
+
+  private async dispatch(event: DomainEventRecord) {
+    this.streamSubject.next(event);
+    await this.tryPublish(event);
   }
 
   private async tryPublish(event: DomainEventRecord) {
