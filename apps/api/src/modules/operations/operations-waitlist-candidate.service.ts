@@ -52,8 +52,8 @@ export class OperationsWaitlistCandidateService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
-    if (!tenantId || !companyId || !membershipId) throw new InternalServerErrorException('Organization context is incomplete.');
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!tenantId || !companyId || !membershipId) throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId, membershipId };
   }
 
@@ -157,13 +157,13 @@ export class OperationsWaitlistCandidateService {
        WHERE w.id=$1 AND w.tenant_id=$2 AND w.company_id=$3 AND w.branch_id=$4 LIMIT 1`,
       entryId, tenantId, companyId, branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Waitlist entry not found');
+    if (!rows[0]) throw new NotFoundException('Bekleme listesi kaydı bulunamadı.');
     return rows[0];
   }
 
   private assertMatchable(target: Target) {
-    if (!['WAITING','MATCH_FOUND','CONTACTED'].includes(target.status)) throw new ConflictException(`Waitlist entry in ${target.status} state cannot be matched.`);
-    if (target.expiresAt && target.expiresAt <= new Date()) throw new ConflictException('Waitlist entry has expired.');
+    if (!['WAITING','MATCH_FOUND','CONTACTED'].includes(target.status)) throw new ConflictException(`Bu bekleme listesi kaydı mevcut durumunda uygun saat eşleştirmesine alınamaz.`);
+    if (target.expiresAt && target.expiresAt <= new Date()) throw new ConflictException('Bekleme listesi kaydının süresi dolmuş.');
   }
 
   private ceilToQuarterHour(value: Date) {
