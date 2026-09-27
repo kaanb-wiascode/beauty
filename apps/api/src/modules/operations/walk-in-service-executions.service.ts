@@ -39,10 +39,10 @@ export class WalkInServiceExecutionsService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -77,23 +77,23 @@ export class WalkInServiceExecutionsService {
     );
     const commercial = contextRows[0];
     if (!commercial) {
-      throw new NotFoundException('Walk-in commercial service context was not found in the active branch.');
+      throw new NotFoundException('Aktif şubede randevusuz hizmet için satış bağlantısı bulunamadı.');
     }
     if (commercial.visitStatus !== 'IN_SERVICE') {
-      throw new BadRequestException('Walk-in visit must be IN_SERVICE before starting service execution.');
+      throw new BadRequestException('Randevusuz hizmet başlatılmadan önce ziyaret hizmet aşamasına alınmalıdır.');
     }
     if (commercial.saleStatus !== 'CONFIRMED') {
-      throw new BadRequestException('Walk-in sale must be CONFIRMED before starting service execution.');
+      throw new BadRequestException('Randevusuz hizmete bağlı satış önce onaylanmalıdır.');
     }
     if (commercial.quantity !== 1) {
-      throw new BadRequestException('Walk-in service sale items must use quantity 1 per execution. Split repeated services into separate sale items.');
+      throw new BadRequestException('Randevusuz hizmette her satış kalemi bir hizmet uygulamasını temsil etmelidir. Tekrarlanan hizmetleri ayrı satış kalemleri olarak ekleyin.');
     }
 
     const staff = await this.prisma.staff.findFirst({
       where: { id: input.staffId, tenantId, branchId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!staff) throw new NotFoundException('Active staff member not found in the selected branch.');
+    if (!staff) throw new NotFoundException('Seçilen şubede aktif personel bulunamadı.');
 
     const startAt = new Date();
     const endAt = new Date(startAt.getTime() + commercial.durationMinutes * 60_000);
@@ -242,7 +242,7 @@ export class WalkInServiceExecutionsService {
     const requirement = req[0];
 
     if (requirement?.roomType) {
-      if (!roomId) throw new BadRequestException(`Service requires a ${requirement.roomType} room.`);
+      if (!roomId) throw new BadRequestException(`Hizmet için uygun türde bir oda gereklidir.`);
       const rooms = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT r.id FROM operations_rooms r
          WHERE r.id=$1 AND r.tenant_id=$2 AND r.company_id=$3 AND r.branch_id=$4
@@ -265,11 +265,11 @@ export class WalkInServiceExecutionsService {
         startAt,
         endAt,
       );
-      if (!rooms[0]) throw new ConflictException('Selected room is unavailable or does not satisfy the service requirement.');
+      if (!rooms[0]) throw new ConflictException('Seçilen oda uygun değil veya hizmet gereksinimini karşılamıyor.');
     }
 
     if (requirement?.requiredAssetId || requirement?.requiredAssetType) {
-      if (!assetId) throw new BadRequestException('Service requires an equipment selection.');
+      if (!assetId) throw new BadRequestException('Hizmet için uygun bir cihaz seçilmelidir.');
       const assets = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT a.id FROM inventory_assets a
          WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 AND a.branch_id=$4
@@ -301,7 +301,7 @@ export class WalkInServiceExecutionsService {
         startAt,
         endAt,
       );
-      if (!assets[0]) throw new ConflictException('Selected equipment is unavailable or does not satisfy the service requirement.');
+      if (!assets[0]) throw new ConflictException('Seçilen cihaz uygun değil veya hizmet gereksinimini karşılamıyor.');
     }
   }
 }
