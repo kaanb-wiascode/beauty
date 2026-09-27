@@ -177,50 +177,60 @@ export class CrmOperationsService {
            (SELECT COUNT(*)::int FROM crm_leads l
              WHERE l.tenant_id=$1::text AND l.company_id=$2::text
                AND ($3::text IS NULL OR l.branch_id=$3::text)
-               AND l.status='NEW' AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))) AS "newLeads",
+               AND l.status='NEW'
+               AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))) AS "newLeads",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
                AND o.stage NOT IN ('WON','LOST')
-              AND ($4::boolean=FALSE OR o.owner_user_id=ANY($5::text[])) AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "openOpportunities",
-           (SELECT COALESCE(SUM(COALESCE(o.estimated_value,0) * o.probability / 100.0),0)::float8
-              FROM crm_opportunities o
-             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
-               AND ($3::text IS NULL OR o.branch_id=$3::text)
-               AND o.stage NOT IN ('WON','LOST') AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "weightedPipeline",
-           (SELECT COUNT(*)::int FROM crm_follow_ups f
-             WHERE f.tenant_id=$1::text AND f.company_id=$2::text
-               AND ($3::text IS NULL OR f.branch_id=$3::text)
-               AND f.status='OPEN'
-              AND ($4::boolean=FALSE OR f.assigned_user_id=ANY($5::text[])) AND f.due_at < NOW() AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))) AS "overdueFollowUps",
-           (SELECT COUNT(*)::int FROM crm_follow_ups f
-             WHERE f.tenant_id=$1::text AND f.company_id=$2::text
-               AND ($3::text IS NULL OR f.branch_id=$3::text)
-               AND f.status='OPEN' AND f.due_at >= $4::timestamptz AND f.due_at < $5::timestamptz AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))) AS "todayFollowUps",
-           (SELECT COUNT(*)::int FROM crm_opportunities o
-             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
-               AND ($3::text IS NULL OR o.branch_id=$3::text) AND o.stage='WON' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "wonOpportunities",
-           (SELECT COUNT(*)::int FROM crm_opportunities o
-             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
-               AND ($3::text IS NULL OR o.branch_id=$3::text) AND o.stage='LOST' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "lostOpportunities",
-           (SELECT COUNT(*)::int FROM crm_opportunities o
-             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
-               AND ($3::text IS NULL OR o.branch_id=$3::text)
-               AND o.stage NOT IN ('WON','LOST')
-               AND o.expected_close_date >= NOW()
-               AND o.expected_close_date < NOW() + INTERVAL '30 days' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "closing30Days",
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "openOpportunities",
            (SELECT COALESCE(SUM(COALESCE(o.estimated_value,0) * o.probability / 100.0),0)::float8
               FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
                AND o.stage NOT IN ('WON','LOST')
-               AND o.expected_close_date >= NOW()
-               AND o.expected_close_date < NOW() + INTERVAL '30 days' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "forecast30Days",
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "weightedPipeline",
+           (SELECT COUNT(*)::int FROM crm_follow_ups f
+             WHERE f.tenant_id=$1::text AND f.company_id=$2::text
+               AND ($3::text IS NULL OR f.branch_id=$3::text)
+               AND f.status='OPEN' AND f.due_at < NOW()
+               AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))) AS "overdueFollowUps",
+           (SELECT COUNT(*)::int FROM crm_follow_ups f
+             WHERE f.tenant_id=$1::text AND f.company_id=$2::text
+               AND ($3::text IS NULL OR f.branch_id=$3::text)
+               AND f.status='OPEN' AND f.due_at >= $4::timestamptz AND f.due_at < $5::timestamptz
+               AND ($6::boolean=FALSE OR f.assigned_user_id=ANY($7::text[]))) AS "todayFollowUps",
+           (SELECT COUNT(*)::int FROM crm_opportunities o
+             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+               AND ($3::text IS NULL OR o.branch_id=$3::text)
+               AND o.stage='WON'
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "wonOpportunities",
+           (SELECT COUNT(*)::int FROM crm_opportunities o
+             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+               AND ($3::text IS NULL OR o.branch_id=$3::text)
+               AND o.stage='LOST'
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "lostOpportunities",
            (SELECT COUNT(*)::int FROM crm_opportunities o
              WHERE o.tenant_id=$1::text AND o.company_id=$2::text
                AND ($3::text IS NULL OR o.branch_id=$3::text)
                AND o.stage NOT IN ('WON','LOST')
-               AND o.updated_at < NOW() - INTERVAL '14 days' AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "staleOpportunities"`,
+               AND o.expected_close_date >= NOW()
+               AND o.expected_close_date < NOW() + INTERVAL '30 days'
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "closing30Days",
+           (SELECT COALESCE(SUM(COALESCE(o.estimated_value,0) * o.probability / 100.0),0)::float8
+              FROM crm_opportunities o
+             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+               AND ($3::text IS NULL OR o.branch_id=$3::text)
+               AND o.stage NOT IN ('WON','LOST')
+               AND o.expected_close_date >= NOW()
+               AND o.expected_close_date < NOW() + INTERVAL '30 days'
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "forecast30Days",
+           (SELECT COUNT(*)::int FROM crm_opportunities o
+             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
+               AND ($3::text IS NULL OR o.branch_id=$3::text)
+               AND o.stage NOT IN ('WON','LOST')
+               AND o.updated_at < NOW() - INTERVAL '14 days'
+               AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))) AS "staleOpportunities"`,
         ...scope,
         dayStart,
         dayEnd,
@@ -266,6 +276,7 @@ export class CrmOperationsService {
             WHERE o.tenant_id=$1::text AND o.company_id=$2::text
               AND ($3::text IS NULL OR o.branch_id=$3::text)
               AND o.stage NOT IN ('WON','LOST')
+              AND ($4::boolean=FALSE OR o.owner_user_id=ANY($5::text[]))
             GROUP BY COALESCE(o.owner_user_id,'__unassigned__')
          ), follow_up_workload AS (
            SELECT f.assigned_user_id AS owner_key,
@@ -275,6 +286,7 @@ export class CrmOperationsService {
             WHERE f.tenant_id=$1::text AND f.company_id=$2::text
               AND ($3::text IS NULL OR f.branch_id=$3::text)
               AND f.status='OPEN'
+              AND ($4::boolean=FALSE OR f.assigned_user_id=ANY($5::text[]))
             GROUP BY f.assigned_user_id
          ), owners AS (
            SELECT owner_key FROM opportunity_workload
