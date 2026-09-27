@@ -328,6 +328,31 @@ export default function AdvertisingConnectionsPage() {
               </Select>
             </label>
           ) : null}
+          {row.provider === "META" && metaPagesByConnection[row.id]?.length ? (
+            <div className="mt-3 space-y-2 rounded-[12px] border border-[var(--line)] bg-white p-3">
+              <p className="text-[10px] font-semibold text-[var(--ink)]">Facebook Sayfaları</p>
+              {metaPagesByConnection[row.id].map((page) => (
+                <div key={page.id} className="flex flex-wrap items-center justify-between gap-2">
+                  <div>
+                    <p className="text-[10px] font-semibold text-[var(--ink)]">{page.name}</p>
+                    <p className="text-[9px] text-[var(--muted)]">{page.id}</p>
+                  </div>
+                  <button
+                    type="button"
+                    disabled={page.subscribed || subscribingMetaPageId === page.id}
+                    onClick={() => void subscribeMetaPage(row.id, page.id)}
+                    className="rounded-[9px] border border-[var(--line)] px-2.5 py-1.5 text-[9px] font-semibold text-[var(--ink)] disabled:opacity-50"
+                  >
+                    {page.subscribed
+                      ? "Lead Aboneliği Aktif"
+                      : subscribingMetaPageId === page.id
+                        ? "Abone Olunuyor..."
+                        : "Lead Aboneliğini Aç"}
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : null}
           {canManage && ["META", "GOOGLE_ADS", "TIKTOK"].includes(row.provider) ? (
             <div className="mt-3 flex flex-wrap gap-2">
               <button
