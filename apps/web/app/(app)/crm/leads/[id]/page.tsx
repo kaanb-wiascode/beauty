@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, use, useCallback, useEffect, useState } from "react";
 import { Modal } from "@/components/modal";
+import { TeamShareAction } from "@/components/team-share-action";
 import {
   Alert,
   Button,
@@ -222,10 +223,20 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
       <PageHeader
         title={`${lead.firstName} ${lead.lastName}`}
         description={`${leadSourceLabels[lead.source] ?? lead.source} Kaynağından · ${leadStatusLabels[lead.status as LeadStatus]}`}
-        action={canManage ? (
-          <div className="flex gap-2">
-            <Button variant="secondary" onClick={openEdit}>Bilgileri Düzenle</Button>
-            {["NEW", "CONTACTED"].includes(lead.status) ? (
+        action={
+          <div className="flex flex-wrap gap-2">
+            <TeamShareAction
+              payload={{
+                kind: "LEAD",
+                id: lead.id,
+                title: `${lead.firstName} ${lead.lastName}`,
+                subtitle: lead.phone ?? lead.email ?? "İletişim bilgisi yok",
+                meta: [leadSourceLabels[lead.source] ?? lead.source, leadStatusLabels[lead.status as LeadStatus], lead.interestNote ?? ""].filter(Boolean),
+                href: `/crm/leads/${lead.id}`,
+              }}
+            />
+            {canManage ? <Button variant="secondary" onClick={openEdit}>Bilgileri Düzenle</Button> : null}
+            {canManage && ["NEW", "CONTACTED"].includes(lead.status) ? (
               <Button variant="secondary" onClick={() => {
                 if (
                   !requireActiveBranch(
@@ -240,7 +251,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
               }}>Durumu Güncelle</Button>
             ) : null}
           </div>
-        ) : undefined}
+        }
       />
       {error && !statusOpen && !editOpen ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,.7fr)]">
