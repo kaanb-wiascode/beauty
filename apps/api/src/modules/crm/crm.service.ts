@@ -252,7 +252,7 @@ export class CrmService {
     const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
     if (input.status === 'LOST' && !input.lostReason) {
-      throw new BadRequestException('Lost lead requires a reason.');
+      throw new BadRequestException('Kaybedilen potansiyel müşteri için neden gereklidir.');
     }
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<CrmRow[]>(
@@ -332,9 +332,9 @@ export class CrmService {
         );
         if (existing.length) return { ...existing[0], idempotent: true };
         if (lead.version !== input.version)
-          throw new ConflictException('Lead version is stale.');
+          throw new ConflictException('Potansiyel müşteri başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyip tekrar deneyin.');
         if (lead.status === 'LOST')
-          throw new BadRequestException('Lost lead cannot be qualified.');
+          throw new BadRequestException('Kaybedilmiş bir potansiyel müşteri satış fırsatına dönüştürülemez.');
 
         const opportunities = await tx.$queryRawUnsafe<CrmRow[]>(
           `INSERT INTO crm_opportunities(
@@ -413,7 +413,7 @@ export class CrmService {
     const context = this.context();
     const branchId = this.requireBranchId();
     if (input.stage === 'LOST' && !input.lostReason) {
-      throw new BadRequestException('Lost opportunity requires a reason.');
+      throw new BadRequestException('Kaybedilen satış fırsatı için neden gereklidir.');
     }
     const probability =
       input.stage === 'WON'
