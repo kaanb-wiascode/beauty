@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 
 type Mode = "OFF" | "WARN" | "BLOCK";
@@ -66,23 +69,23 @@ export default function StaffEligibilityPolicyPage() {
   return (
     <div className="mx-auto max-w-[1100px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Scheduling Safety</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Personel Uygunluk Politikası</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">HR vardiya, izin, sertifika ve yetkinlik verilerini Operations booking ve hizmet başlatma kararlarına bağlar. Varsayılan WARN mevcut akışları kırmadan eksikleri görünür kılar.</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Randevu ve Hizmet Güvenliği</p>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Personel Uygunluk Politikası</h1><CardInfo help={getCardHelp("Personel Uygunluk Politikası")} /></div>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">İnsan Kaynakları vardiya, izin, sertifika ve yetkinlik bilgilerini randevu ve hizmet başlatma kararlarına bağlar. Varsayılan uyarı modu eksikleri görünür kılar ancak işlemi durdurmaz.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       {policy ? (
         <section className="space-y-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-          {policy.inheritedDefault ? <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4 text-sm text-[var(--muted)]">Bu şubede henüz özel kayıt yok; güvenli varsayılan <strong>WARN</strong> uygulanıyor.</div> : null}
+          {policy.inheritedDefault ? <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4 text-sm text-[var(--muted)]">Bu şubede henüz özel kayıt yok; güvenli varsayılan <strong>Uyar</strong> modu uygulanıyor.</div> : null}
 
           <div>
             <label className="text-xs font-semibold text-[var(--ink)]">Uygulama modu</label>
             <Select className="mt-2 w-full rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 py-2 text-sm" value={policy.mode} onChange={(e) => setPolicy({ ...policy, mode: e.target.value as Mode })}>
-              <option value="OFF">OFF — yalnız Operations’ın mevcut conflict kuralları</option>
-              <option value="WARN">WARN — HR eksiklerini göster, işleme izin ver</option>
-              <option value="BLOCK">BLOCK — HR uygunluğu yoksa booking/execution engelle</option>
+              <option value="OFF">Kapalı — yalnız temel çakışma kontrolleri uygulanır</option>
+              <option value="WARN">Uyar — eksikleri göster, işleme izin ver</option>
+              <option value="BLOCK">Engelle — personel uygun değilse randevu veya hizmet başlatılamaz</option>
             </Select>
           </div>
 
@@ -93,7 +96,7 @@ export default function StaffEligibilityPolicyPage() {
           </div>
 
           <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4 text-xs text-[var(--muted)]">
-            BLOCK modu ServiceExecution başlangıcını ve waitlist slot kabulünü durdurabilir. İzin her modda HR eligibility sinyalinin parçasıdır; booking güvenliği için ayrıca mevcut Operations conflict kontrolleri çalışmaya devam eder.
+            Engelle modu, personel uygun değilse hizmet başlatmayı ve bekleme listesindeki uygun saati randevuya dönüştürmeyi durdurur. İzin bilgisi her modda değerlendirilir; ayrıca mevcut randevu çakışma kontrolleri çalışmaya devam eder.
           </div>
 
           <div className="flex justify-end"><Button onClick={save} disabled={saving}>{saving ? "Kaydediliyor..." : "Politikayı Kaydet"}</Button></div>
