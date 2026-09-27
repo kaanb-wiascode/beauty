@@ -157,7 +157,7 @@ export class CrmLeadService {
     );
     if (!rows.length) throw new NotFoundException('CRM lead not found.');
 
-    const [opportunities, followUps, events] = await Promise.all([
+    const [opportunities, followUps, interactions, events] = await Promise.all([
       this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
         `SELECT id,title,stage,estimated_value AS "estimatedValue",currency,probability,
                 expected_close_date AS "expectedCloseDate",lost_reason AS "lostReason",version,
@@ -174,12 +174,22 @@ export class CrmLeadService {
         id, context.tenantId, context.companyId,
       ),
       this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
+        `SELECT i.id,i.owner_user_id AS "ownerUserId",i.type,i.direction,i.status,i.result,i.notes,
+                i.started_at AS "startedAt",i.ended_at AS "endedAt",i.duration_seconds AS "durationSeconds",
+                i.next_action AS "nextAction",i.next_action_at AS "nextActionAt"
+           FROM crm_interactions i
+          WHERE i.lead_id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
+          ORDER BY i.started_at DESC,i.id DESC
+          LIMIT 50`,
+        id, context.tenantId, context.companyId,
+      ),
+      this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
         `SELECT id,event_type AS "eventType",actor_user_id AS "actorUserId",metadata,created_at AS "createdAt"
          FROM crm_events WHERE lead_id=$1::text AND tenant_id=$2::text AND company_id=$3::text ORDER BY created_at,id`,
         id, context.tenantId, context.companyId,
       ),
     ]);
-    return { ...rows[0], opportunities, followUps, events };
+    return { ...rows[0], opportunities, followUps, interactions, events };
   }
 
   async create(input: CreateLeadInput, actorUserId: string) {
