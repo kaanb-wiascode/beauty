@@ -62,15 +62,15 @@ export class MarketingLeadCustomerBridgeService {
           context.branchId,
         );
 
-        if (!lead) throw new NotFoundException('Marketing lead not found.');
+        if (!lead) throw new NotFoundException('Potansiyel müşteri kaydı bulunamadı.');
         if (!lead.branchId) {
           throw new BadRequestException(
-            'Marketing lead must be routed to a branch before customer conversion.',
+            'Müşteriye dönüştürmeden önce potansiyel müşteri bir şubeye yönlendirilmelidir.',
           );
         }
         if (!lead.crmLeadId) {
           throw new BadRequestException(
-            'Marketing lead must be converted to CRM before customer conversion.',
+            'Müşteriye dönüştürmeden önce kayıt müşteri ilişkilerine aktarılmalıdır.',
           );
         }
         if (lead.customerId) {
@@ -155,7 +155,7 @@ export class MarketingLeadCustomerBridgeService {
         );
         if (linkedCrmRows[0]?.customerId !== customerId) {
           throw new BadRequestException(
-            'CRM lead is already linked to a different customer.',
+            'Müşteri ilişkileri kaydı başka bir müşteriyle zaten ilişkilendirilmiş.',
           );
         }
 
