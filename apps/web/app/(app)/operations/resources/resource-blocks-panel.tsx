@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 
 type RoomOption = { id: string; name: string; code: string };
 type AssetOption = { id: string; name: string; assetCode: string };
@@ -45,7 +47,7 @@ export function ResourceBlocksPanel({
   assets: AssetOption[];
   onChanged?: () => Promise<void>;
 }) {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [blocks, setBlocks] = useState<ResourceBlock[]>([]);
   const [resourceKind, setResourceKind] = useState<"ROOM" | "ASSET">("ROOM");
   const [resourceId, setResourceId] = useState("");
@@ -87,7 +89,7 @@ export function ResourceBlocksPanel({
       );
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Kaynak blokları yüklenemedi.",
+        err instanceof ApiError ? err.message : "Kaynak kullanılamama kayıtları yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -130,7 +132,7 @@ export function ResourceBlocksPanel({
       await onChanged?.();
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Kaynak bloğu oluşturulamadı.",
+        err instanceof ApiError ? err.message : "Kaynak kullanılamama kaydı oluşturulamadı.",
       );
     } finally {
       setBusy(null);
@@ -150,7 +152,7 @@ export function ResourceBlocksPanel({
       await onChanged?.();
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Kaynak bloğu iptal edilemedi.",
+        err instanceof ApiError ? err.message : "Kaynak kullanılamama kaydı iptal edilemedi.",
       );
     } finally {
       setBusy(null);
@@ -161,13 +163,11 @@ export function ResourceBlocksPanel({
     <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
       <div>
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
-          Resource Availability
+          Kaynak Uygunluğu
         </p>
-        <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
-          Planlı Kaynak Blokları
-        </h2>
+        <div className="mt-2 flex items-start gap-2"><h2 className="text-lg font-semibold text-[var(--ink)]">Planlı Kaynak Kullanılamama Kayıtları</h2><CardInfo help={getCardHelp("Planlı Kaynak Kullanılamama Kayıtları")} /></div>
         <p className="mt-1 max-w-3xl text-xs text-[var(--muted)]">
-          Temizlik, kalibrasyon, özel kullanım veya operasyonel kapanış gibi zaman aralıklarını oda ya da cihaz üzerinde bloke edin. Çakışan randevu rezervasyonları backend ve veritabanı seviyesinde engellenir.
+          Temizlik, kalibrasyon, özel kullanım veya operasyonel kapanış gibi zaman aralıklarında oda ya da cihazı kullanıma kapatın. Çakışan randevu ve kaynak atamaları sistem tarafından otomatik engellenir.
         </p>
       </div>
 
@@ -244,7 +244,7 @@ export function ResourceBlocksPanel({
               }
               onClick={() => void createBlock()}
             >
-              {busy === "create" ? "Bloklanıyor..." : "Kaynağı Blokla"}
+              {busy === "create" ? "Bloklanıyor..." : "Kaynağı Kullanıma Kapat"}
             </Button>
           </div>
         </div>
@@ -257,7 +257,7 @@ export function ResourceBlocksPanel({
           </div>
           {loading ? (
             <div className="py-8">
-              <Spinner label="Kaynak blokları yükleniyor..." />
+              <Spinner label="Kaynak kayıtları yükleniyor..." />
             </div>
           ) : blocks.length ? (
             <div className="divide-y divide-[var(--line)]">
