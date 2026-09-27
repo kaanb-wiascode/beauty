@@ -51,7 +51,7 @@ export const createMarketingVendorSchema = z.object(vendorFields).refine(
     !value.contractStartsAt ||
     !value.contractEndsAt ||
     value.contractEndsAt >= value.contractStartsAt,
-  { message: 'Contract end date must be after the start date.' },
+  { message: 'Sözleşme bitiş tarihi başlangıç tarihinden sonra olmalıdır.' },
 );
 
 export const updateMarketingVendorSchema = z
@@ -78,7 +78,7 @@ export const updateMarketingVendorSchema = z
       !value.contractStartsAt ||
       !value.contractEndsAt ||
       value.contractEndsAt >= value.contractStartsAt,
-    { message: 'Contract end date must be after the start date.' },
+    { message: 'Sözleşme bitiş tarihi başlangıç tarihinden sonra olmalıdır.' },
   );
 
 export const listMarketingVendorsSchema = z.object({
