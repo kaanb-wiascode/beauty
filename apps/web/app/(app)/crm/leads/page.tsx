@@ -28,6 +28,7 @@ import {
   leadStatusLabels,
   type CrmAssignee,
   type CrmLead,
+  type CrmSurveyor,
   type LeadStatus,
 } from "@/lib/crm-types";
 import type { Paginated, Service } from "@/lib/types";
@@ -47,6 +48,11 @@ const emptyLead = {
   language: "tr",
   source: "MANUAL",
   sourceDetail: "",
+  surveyorStaffId: "",
+  surveyCampaign: "",
+  surveyLocation: "",
+  surveyDesk: "",
+  surveyDate: "",
   interestedServiceIds: [] as string[],
   estimatedBudget: "",
   purchaseUrgency: "UNKNOWN" as LeadUrgency,
@@ -91,6 +97,7 @@ export default function CrmLeadsPage() {
   const { showToast } = useToast();
   const [leads, setLeads] = useState<CrmLead[]>([]);
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
+  const [surveyors, setSurveyors] = useState<CrmSurveyor[]>([]);
   const [services, setServices] = useState<Service[]>([]);
   const [leadStep, setLeadStep] = useState(0);
   const [search, setSearch] = useState("");
@@ -133,10 +140,12 @@ export default function CrmLeadsPage() {
   useEffect(() => {
     void Promise.all([
       api<CrmAssignee[]>("/crm/assignees"),
+      api<CrmSurveyor[]>("/crm/surveyors"),
       api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
     ])
-      .then(([people, serviceResult]) => {
+      .then(([people, surveyorRows, serviceResult]) => {
         setAssignees(people);
+        setSurveyors(surveyorRows);
         setServices(serviceResult.data.filter((service) => service.status === "ACTIVE"));
       })
       .catch((requestError) =>
@@ -220,6 +229,10 @@ export default function CrmLeadsPage() {
       setFormError("Ad, soyad ve en az bir iletişim bilgisi gereklidir.");
       return;
     }
+    if (leadForm.source === "SURVEYOR" && !leadForm.surveyorStaffId) {
+      setFormError("Kaynak olarak Anketör seçildiğinde anketör seçimi zorunludur.");
+      return;
+    }
     setSaving(true);
     try {
       await api("/crm/leads", {
@@ -234,6 +247,11 @@ export default function CrmLeadsPage() {
           ...(leadForm.preferredContactChannel ? { preferredContactChannel: leadForm.preferredContactChannel } : {}),
           ...(leadForm.language.trim() ? { language: leadForm.language.trim() } : {}),
           ...(leadForm.sourceDetail.trim() ? { sourceDetail: leadForm.sourceDetail.trim() } : {}),
+          ...(leadForm.source === "SURVEYOR" && leadForm.surveyorStaffId ? { surveyorStaffId: leadForm.surveyorStaffId } : {}),
+          ...(leadForm.source === "SURVEYOR" && leadForm.surveyCampaign.trim() ? { surveyCampaign: leadForm.surveyCampaign.trim() } : {}),
+          ...(leadForm.source === "SURVEYOR" && leadForm.surveyLocation.trim() ? { surveyLocation: leadForm.surveyLocation.trim() } : {}),
+          ...(leadForm.source === "SURVEYOR" && leadForm.surveyDesk.trim() ? { surveyDesk: leadForm.surveyDesk.trim() } : {}),
+          ...(leadForm.source === "SURVEYOR" && leadForm.surveyDate ? { surveyDate: leadForm.surveyDate } : {}),
           ...(leadForm.interestedServiceIds.length ? { interestedServiceIds: leadForm.interestedServiceIds } : {}),
           ...(leadForm.estimatedBudget ? { estimatedBudget: Number(leadForm.estimatedBudget), budgetCurrency: "TRY" } : {}),
           purchaseUrgency: leadForm.purchaseUrgency,
@@ -315,7 +333,7 @@ export default function CrmLeadsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Potansiyel Müşteri Havuzu"
-        description="Yeni Müşteri Adaylarını Kaydedin, Temas Durumunu İzleyin Ve Uygun Adayları Satış Fırsatına Dönüştürün."
+        description="Yeni müşteri adaylarını kaydedin, temas durumunu izleyin ve uygun adayları satış fırsatına dönüştürün."
         action={
           canManage ? (
             <Button
@@ -364,7 +382,7 @@ export default function CrmLeadsPage() {
           <TextInput
             value={search}
             onChange={(event) => setSearch(event.target.value)}
-            placeholder="Ad, Telefon Veya E-Posta Ara"
+            placeholder="Ad, telefon veya e-posta ara"
             aria-label="Potansiyel Müşteri Ara"
             className="sm:max-w-sm"
           />
@@ -476,7 +494,7 @@ export default function CrmLeadsPage() {
         ) : (
           <EmptyState
             title="Potansiyel Müşteri Bulunamadı"
-            description="Arama Ve Filtreleri Değiştirin Veya Yeni Bir Potansiyel Müşteri Oluşturun."
+            description="Arama ve filtreleri değiştirin veya yeni bir potansiyel müşteri oluşturun."
           />
         )}
       </section>
@@ -608,7 +626,7 @@ export default function CrmLeadsPage() {
                 <Field label="Kaynak">
                   <ValooSelect
                     value={leadForm.source}
-                    onChange={(source) => setLeadForm({ ...leadForm, source })}
+                    onChange={(source) => setLeadForm({ ...leadForm, source, ...(source === "SURVEYOR" ? {} : { surveyorStaffId: "", surveyCampaign: "", surveyLocation: "", surveyDesk: "", surveyDate: "" }) })}
                     searchable={false}
                     options={Object.entries(leadSourceLabels).map(([value, label]) => ({ value, label }))}
                   />
@@ -616,11 +634,34 @@ export default function CrmLeadsPage() {
                 <Field label="Kaynak detayı">
                   <TextInput value={leadForm.sourceDetail} onChange={(e) => setLeadForm({ ...leadForm, sourceDetail: e.target.value })} placeholder="Kampanya, yönlendiren kişi veya kanal detayı" />
                 </Field>
-                <Field label="Lead sıcaklığı">
+                {leadForm.source === "SURVEYOR" ? <>
+                  <Field label="Anketör" required>
+                    <ValooSelect
+                      value={leadForm.surveyorStaffId}
+                      onChange={(surveyorStaffId) => setLeadForm({ ...leadForm, surveyorStaffId })}
+                      placeholder="Anketör seçin"
+                      searchPlaceholder="Anketör ara…"
+                      options={surveyors.map((person) => ({ value: person.staffId, label: `${person.firstName} ${person.lastName}`, description: person.weeklyDeskQuota == null ? undefined : `Haftalık masa kotası: ${person.weeklyDeskQuota}` }))}
+                    />
+                  </Field>
+                  <Field label="Anket tarihi">
+                    <DatePicker value={leadForm.surveyDate} max={new Date().toISOString().slice(0, 10)} ariaLabel="Anket tarihi" onChange={(surveyDate) => setLeadForm({ ...leadForm, surveyDate })} />
+                  </Field>
+                  <Field label="Çalışma noktası">
+                    <TextInput value={leadForm.surveyLocation} onChange={(e) => setLeadForm({ ...leadForm, surveyLocation: e.target.value })} placeholder="Örn. AVM, etkinlik alanı veya saha noktası" />
+                  </Field>
+                  <Field label="Masa / nokta">
+                    <TextInput value={leadForm.surveyDesk} onChange={(e) => setLeadForm({ ...leadForm, surveyDesk: e.target.value })} placeholder="Örn. Masa 4" />
+                  </Field>
+                  <Field label="Anket kampanyası">
+                    <TextInput value={leadForm.surveyCampaign} onChange={(e) => setLeadForm({ ...leadForm, surveyCampaign: e.target.value })} placeholder="Varsa kampanya veya saha çalışması" />
+                  </Field>
+                </> : null>
+                <Field label="Potansiyel müşteri önceliği">
                   <ValooSegmentedControl
                     value={leadForm.leadTemperature}
                     onChange={(leadTemperature) => setLeadForm({ ...leadForm, leadTemperature })}
-                    ariaLabel="Lead sıcaklığı"
+                    ariaLabel="Potansiyel müşteri önceliği"
                     options={[
                       { value: "COLD", label: "Soğuk" },
                       { value: "WARM", label: "Ilık" },
@@ -628,7 +669,7 @@ export default function CrmLeadsPage() {
                     ]}
                   />
                 </Field>
-                <Field label="Lead skoru (0–100)">
+                <Field label="Potansiyel müşteri puanı (0–100)">
                   <TextInput type="number" min="0" max="100" value={leadForm.leadScore} onChange={(e) => setLeadForm({ ...leadForm, leadScore: e.target.value })} />
                 </Field>
                 <Field label="Ekip">
