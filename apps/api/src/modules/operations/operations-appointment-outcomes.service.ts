@@ -27,9 +27,9 @@ export class OperationsAppointmentOutcomesService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId, membershipId };
   }
 
@@ -101,7 +101,7 @@ export class OperationsAppointmentOutcomesService {
         );
         if (existing[0]) {
           if (existing[0].outcome !== input.outcome || existing[0].reasonCode === '') {
-            throw new ConflictException('Appointment already has a terminal operational outcome.');
+            throw new ConflictException('Randevu için nihai operasyon sonucu zaten kaydedilmiş.');
           }
           return existing[0];
         }
@@ -110,12 +110,12 @@ export class OperationsAppointmentOutcomesService {
           where: { id: appointmentId, tenantId, branchId },
           include: { session: true },
         });
-        if (!appointment) throw new NotFoundException('Appointment not found');
+        if (!appointment) throw new NotFoundException('Randevu bulunamadı.');
         if (appointment.status === 'COMPLETED') {
-          throw new ConflictException('Completed appointment cannot be cancelled or marked no-show.');
+          throw new ConflictException('Tamamlanmış randevu iptal edilemez veya gelmedi olarak işaretlenemez.');
         }
         if (['CANCELLED', 'NO_SHOW'].includes(appointment.status)) {
-          throw new ConflictException('Appointment is already in a terminal cancellation state.');
+          throw new ConflictException('Randevu zaten nihai iptal/gelmeme durumunda.');
         }
 
         const reasons = await tx.$queryRawUnsafe<
@@ -132,9 +132,9 @@ export class OperationsAppointmentOutcomesService {
           branchId,
         );
         const reason = reasons[0];
-        if (!reason) throw new BadRequestException('Cancellation/no-show reason is not valid for the active branch.');
+        if (!reason) throw new BadRequestException('Seçilen iptal veya gelmeme nedeni aktif şube için geçerli değil.');
         if (reason.appliesTo !== 'BOTH' && reason.appliesTo !== input.outcome) {
-          throw new BadRequestException('Selected reason does not apply to this outcome.');
+          throw new BadRequestException('Seçilen neden bu sonuç türü için kullanılamaz.');
         }
 
         if (appointment.session?.status === 'RESERVED') {
@@ -149,7 +149,7 @@ export class OperationsAppointmentOutcomesService {
             data: { status: 'AVAILABLE', appointmentId: null },
           });
           if (released.count !== 1) {
-            throw new ConflictException('Reserved package session changed during outcome processing.');
+            throw new ConflictException('Ayrılmış paket seansı işlem sırasında değişti. Lütfen ekranı yenileyin.');
           }
         }
 
