@@ -2,8 +2,10 @@
 
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { api, ApiError } from "@/lib/api";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Rule = {
   id: string;
@@ -56,7 +58,7 @@ export default function RoutingPage() {
       setRules(ruleRows);
       setCampaigns(campaignRows);
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Talep dağıtım kuralları yüklenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Talep dağıtım kuralları yüklenemedi.") : "Talep dağıtım kuralları yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -93,7 +95,7 @@ export default function RoutingPage() {
       setTargetUserId("");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Talep dağıtım kuralı oluşturulamadı.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message, "Talep dağıtım kuralı oluşturulamadı.") : "Talep dağıtım kuralı oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -129,7 +131,7 @@ export default function RoutingPage() {
           onSubmit={(e) => void create(e)}
           className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"
         >
-          <h2 className="text-[15px] font-semibold text-[var(--ink)]">Yeni Kural</h2>
+          <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Yeni Kural</h2><CardInfo help={getCardHelp("Yeni Kural", "Gelen taleplerin kaynak, kampanya, şube ve sorumluya göre otomatik dağıtım kuralını tanımlar.")} /></div>
           <label className="mt-5 block text-[11px] font-semibold text-[var(--muted)]">
             Kural Adı
             <input required className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} />
@@ -185,7 +187,7 @@ export default function RoutingPage() {
             </label>
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
               <label className="text-[11px] font-semibold text-[var(--muted)]">
-                İlk Temas Süresi (dk)
+                İlk Temas Hedefi (dakika)
                 <input type="number" min="1" max="10080" disabled={!autoFollowUp} className={fieldClass} value={followUpSlaMinutes} onChange={(e) => setFollowUpSlaMinutes(e.target.value)} />
               </label>
               <label className="text-[11px] font-semibold text-[var(--muted)]">
@@ -208,7 +210,7 @@ export default function RoutingPage() {
         </form>
 
         <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h2 className="text-[15px] font-semibold text-[var(--ink)]">Kurallar</h2>
+          <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Kurallar</h2><CardInfo help={getCardHelp("Kurallar", "Aktif talep dağıtım kurallarını öncelik ve ilk temas hedefleriyle birlikte gösterir.")} /></div>
           {rules.length ? (
             <div className="mt-4 space-y-3">
               {rules.map((rule) => (
