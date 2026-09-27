@@ -473,6 +473,7 @@ export class SalesService {
       throw new BadRequestException('Ödeme tutarı sıfırdan büyük olmalıdır.');
     }
 
+    let eventId: string | null = null;
     const payment = await this.prisma.$transaction(
       async (tx) => {
         const sales = await tx.$queryRawUnsafe<
@@ -591,23 +592,24 @@ export class SalesService {
             },
           });
         }
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'sale.payment_received',
+            aggregateType: 'sale',
+            aggregateId: sale.id,
+            payload: {
+              paymentId: createdPayment.id,
+              amount,
+              method: createdPayment.method,
+            },
+          })) ?? null;
         return createdPayment;
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     const summary = await this.paymentSummary(id, tenantId, branchId);
-    await this.domainEvents?.publish({
-      eventName: 'sale.payment_received',
-      aggregateType: 'sale',
-      aggregateId: id,
-      payload: {
-        paymentId: payment.id,
-        amount: Number(payment.amount),
-        method: payment.method,
-        balance: summary.balance,
-      },
-    });
     return { payment, summary };
   }
 
@@ -621,6 +623,7 @@ export class SalesService {
     const reason = input.reason.trim();
     if (!reason) throw new BadRequestException('İade nedeni gereklidir.');
 
+    let eventId: string | null = null;
     const payment = await this.prisma.$transaction(
       async (tx) => {
         const sales = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -728,22 +731,25 @@ export class SalesService {
           });
         }
 
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'sale.payment_refunded',
+            aggregateType: 'sale',
+            aggregateId: saleId,
+            payload: {
+              paymentId: existing.id,
+              amount: Number(existing.amount),
+              reason,
+            },
+          })) ?? null;
+
         return tx.salePayment.findUniqueOrThrow({ where: { id: existing.id } });
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     const summary = await this.paymentSummary(saleId, tenantId, branchId);
-    await this.domainEvents?.publish({
-      eventName: 'sale.payment_refunded',
-      aggregateType: 'sale',
-      aggregateId: saleId,
-      payload: {
-        paymentId: payment.id,
-        amount: Number(payment.amount),
-        balance: summary.balance,
-      },
-    });
     return { payment, summary };
   }
 
@@ -757,6 +763,7 @@ export class SalesService {
       (item) => item.type === 'PACKAGE' && item.packageId,
     );
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         const confirmedAt = new Date();
@@ -861,6 +868,17 @@ export class SalesService {
             confirmedAt: confirmedAt.toISOString(),
           },
         });
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'sale.confirmed',
+            aggregateType: 'sale',
+            aggregateId: sale.id,
+            payload: {
+              customerId: sale.customerId,
+              total: Number(sale.total),
+              packageCount: packageItems.length,
+            },
+          })) ?? null;
 
         return tx.sale.findUnique({
           where: { id: sale.id },
@@ -876,16 +894,7 @@ export class SalesService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'sale.confirmed',
-      aggregateType: 'sale',
-      aggregateId: sale.id,
-      payload: {
-        customerId: sale.customerId,
-        total: Number(sale.total),
-        packageCount: packageItems.length,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
@@ -898,6 +907,7 @@ export class SalesService {
     }
 
     const cancelledAt = new Date();
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.sale.updateMany({
         where: {
@@ -928,15 +938,17 @@ export class SalesService {
           cancelledAt: cancelledAt.toISOString(),
         },
       });
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'sale.cancelled',
+          aggregateType: 'sale',
+          aggregateId: sale.id,
+          payload: { customerId: sale.customerId },
+        })) ?? null;
 
       return cancelledSale;
     });
-    await this.domainEvents?.publish({
-      eventName: 'sale.cancelled',
-      aggregateType: 'sale',
-      aggregateId: sale.id,
-      payload: { customerId: sale.customerId },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 }
