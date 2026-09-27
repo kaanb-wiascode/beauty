@@ -50,7 +50,14 @@ type Conversation = {
 };
 
 type Reaction = { emoji: string; count: number; reactedByMe: boolean };
-type Attachment = { id: string; originalName: string; mimeType: string; sizeBytes: number };
+type Attachment = {
+  id: string;
+  originalName: string;
+  mimeType: string;
+  sizeBytes: number;
+  transcriptionStatus?: "NONE" | "PROCESSING" | "COMPLETED" | "FAILED";
+  transcriptionText?: string | null;
+};
 type Message = {
   id: string;
   body: string;
