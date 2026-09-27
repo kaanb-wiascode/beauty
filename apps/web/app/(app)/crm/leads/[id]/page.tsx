@@ -31,6 +31,29 @@ import {
   type LeadStatus,
 } from "@/lib/crm-types";
 
+type AssignmentHistoryRow = {
+  id: string;
+  ruleId: string | null;
+  ruleName: string | null;
+  previousOwnerUserId: string | null;
+  previousOwnerName: string | null;
+  assignedUserId: string;
+  assignedUserName: string;
+  assignmentMode: string;
+  reason: string | null;
+  assignedByUserId: string | null;
+  assignedByName: string | null;
+  createdAt: string;
+};
+
+const assignmentModeLabels: Record<string, string> = {
+  MANUAL: "Manuel",
+  ROUND_ROBIN: "Sırayla dağıtım",
+  LOAD_BALANCED: "İş yüküne göre",
+  BRANCH_BASED: "Şubeye göre",
+  SKILL_BASED: "Yetkinliğe göre",
+};
+
 const eventLabels: Record<string, string> = {
   LEAD_CREATED: "Potansiyel Müşteri Oluşturuldu",
   LEAD_UPDATED: "Potansiyel Müşteri Güncellendi",
@@ -103,6 +126,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
   const { showToast } = useToast();
   const [lead, setLead] = useState<CrmLeadDetail | null>(null);
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
+  const [assignmentHistory, setAssignmentHistory] = useState<AssignmentHistoryRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -116,12 +140,14 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
     setLoading(true);
     setError("");
     try {
-      const [leadRow, assigneeRows] = await Promise.all([
+      const [leadRow, assigneeRows, assignmentRows] = await Promise.all([
         api<CrmLeadDetail>(`/crm/leads/${id}`),
         api<CrmAssignee[]>("/crm/assignees"),
+        api<AssignmentHistoryRow[]>(`/crm/assignment-rules/history/${id}`),
       ]);
       setLead(leadRow);
       setAssignees(assigneeRows);
+      setAssignmentHistory(assignmentRows);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Potansiyel Müşteri Detayı Yüklenemedi.");
     } finally {
@@ -348,6 +374,23 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
               </div>)}
             </dl>
           </section> : null}
+          <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
+            <header className="flex items-start gap-2 border-b border-[var(--line)] px-5 py-4">
+              <CardInfo help={getCardHelp("Sorumlu Atama Geçmişi", "Potansiyel müşterinin hangi kullanıcıya, hangi dağıtım yöntemiyle ve hangi nedenle atandığını kronolojik olarak gösterir.")} />
+              <div><h2 className="text-[13px] font-semibold">Sorumlu Atama Geçmişi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Satış sorumlusu değişiklikleri ve otomatik dağıtım izi</p></div>
+            </header>
+            {assignmentHistory.length ? <div className="divide-y divide-[var(--line)]">{assignmentHistory.slice(0,8).map((row) => <div key={row.id} className="px-5 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="min-w-0">
+                  <p className="text-[11px] font-semibold">{row.previousOwnerName ? `${row.previousOwnerName} → ${row.assignedUserName}` : row.assignedUserName}</p>
+                  <p className="mt-1 text-[10px] text-[var(--muted)]">{assignmentModeLabels[row.assignmentMode] ?? "Atama"}{row.ruleName ? ` · Kural: ${row.ruleName}` : ""}</p>
+                  {row.reason ? <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">{row.reason}</p> : null}
+                  {row.assignedByName ? <p className="mt-1 text-[9px] text-[var(--muted-soft)]">İşlemi yapan: {row.assignedByName}</p> : null}
+                </div>
+                <time className="shrink-0 text-[9px] text-[var(--muted-soft)]">{formatDateTime(row.createdAt)}</time>
+              </div>
+            </div>)}</div> : <EmptyState title="Atama geçmişi bulunmuyor" description="Bu potansiyel müşteri için henüz sorumlu atama geçmişi oluşmamış." />}
+          </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
               <div className="flex items-start gap-2"><CardInfo help={getCardHelp("Satış Fırsatı", "Bu potansiyel müşteriden oluşturulan aktif satış fırsatının aşamasını, değerini ve kazanma olasılığını gösterir.")} /><h2 className="text-[13px] font-semibold">Satış Fırsatı</h2></div>
