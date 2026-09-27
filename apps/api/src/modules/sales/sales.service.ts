@@ -67,7 +67,9 @@ export class SalesService {
     return branchId;
   }
 
-  private async currentUserId(db: Prisma.TransactionClient | PrismaService): Promise<string> {
+  private async currentUserId(
+    db: Prisma.TransactionClient | PrismaService,
+  ): Promise<string> {
     const context = this.tenantContext.getContext();
     const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
       `SELECT "userId" AS "userId"
@@ -79,7 +81,9 @@ export class SalesService {
       context.companyId,
     );
     if (!rows[0]?.userId) {
-      throw new BadRequestException('Oturum açmış kullanıcı bilgisi bulunamadı.');
+      throw new BadRequestException(
+        'Oturum açmış kullanıcı bilgisi bulunamadı.',
+      );
     }
     return rows[0].userId;
   }
@@ -97,7 +101,9 @@ export class SalesService {
   ) {
     const context = this.tenantContext.getContext();
     const actorUserId = await this.currentUserId(db);
-    const opportunities = await db.$queryRawUnsafe<Array<{ opportunityId: string }>>(
+    const opportunities = await db.$queryRawUnsafe<
+      Array<{ opportunityId: string }>
+    >(
       `SELECT id AS "opportunityId" FROM crm_opportunities
         WHERE sale_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
           AND branch_id=$4::text
@@ -475,10 +481,13 @@ export class SalesService {
           tenantId,
           branchId,
         );
-        if (!sales.length) throw new NotFoundException('Satış kaydı bulunamadı.');
+        if (!sales.length)
+          throw new NotFoundException('Satış kaydı bulunamadı.');
         const sale = sales[0];
         if (sale.status !== 'CONFIRMED') {
-          throw new BadRequestException('Yalnızca onaylanmış satışlara ödeme kaydedilebilir.');
+          throw new BadRequestException(
+            'Yalnızca onaylanmış satışlara ödeme kaydedilebilir.',
+          );
         }
 
         const aggregate = await tx.salePayment.aggregate({
@@ -496,7 +505,9 @@ export class SalesService {
           throw new BadRequestException('Satışın tamamı zaten tahsil edilmiş.');
         }
         if (amount > remaining) {
-          throw new BadRequestException(`Ödeme kalan bakiyeyi aşıyor: ${remaining.toFixed(2)}.`);
+          throw new BadRequestException(
+            `Ödeme kalan bakiyeyi aşıyor: ${remaining.toFixed(2)}.`,
+          );
         }
 
         const createdPayment = await tx.salePayment.create({
@@ -585,7 +596,9 @@ export class SalesService {
         });
         if (!existing) throw new NotFoundException('Satış ödemesi bulunamadı.');
         if (existing.status !== 'COMPLETED') {
-          throw new ConflictException('Yalnızca tamamlanmış ödemeler iade edilebilir.');
+          throw new ConflictException(
+            'Yalnızca tamamlanmış ödemeler iade edilebilir.',
+          );
         }
 
         const refundedAt = new Date();
@@ -605,7 +618,9 @@ export class SalesService {
         });
 
         if (claimed.count !== 1) {
-          throw new ConflictException('Satış ödemesi artık iade edilebilir durumda değil.');
+          throw new ConflictException(
+            'Satış ödemesi artık iade edilebilir durumda değil.',
+          );
         }
 
         await this.accountingService.recordSalePaymentRefund(
@@ -674,7 +689,9 @@ export class SalesService {
           data: { status: 'CONFIRMED', confirmedAt },
         });
         if (claimed.count !== 1) {
-          throw new ConflictException('Satış artık onaylanabilir durumda değil.');
+          throw new ConflictException(
+            'Satış artık onaylanabilir durumda değil.',
+          );
         }
 
         for (const line of packageItems) {
@@ -770,7 +787,9 @@ export class SalesService {
   async cancel(id: string) {
     const sale = await this.findOne(id);
     if (sale.status !== 'DRAFT') {
-      throw new BadRequestException('Yalnızca taslak satışlar iptal edilebilir.');
+      throw new BadRequestException(
+        'Yalnızca taslak satışlar iptal edilebilir.',
+      );
     }
 
     const cancelledAt = new Date();
@@ -785,7 +804,9 @@ export class SalesService {
     });
 
     if (claimed.count !== 1) {
-      throw new ConflictException('Satış artık iptal edilebilir durumda değil.');
+      throw new ConflictException(
+        'Satış artık iptal edilebilir durumda değil.',
+      );
     }
 
     const cancelledSale = await this.prisma.sale.findUniqueOrThrow({
