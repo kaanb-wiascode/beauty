@@ -21,9 +21,6 @@ const NAV_SECTIONS = [
     { href: "/dashboard", label: "Bugün", icon: "home" },
     { href: "/dashboard/management", label: "Yönetim Özeti", icon: "trend" },
   ]},
-  { label: "Ekip", items: [
-    { href: "/team", label: "Mesajlar ve Ekip Durumu", icon: "users" },
-  ]},
   { label: "Müşteri İlişkileri", items: [
     { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
     { href: "/crm/leads", permission: "crm.read", label: "Potansiyel Müşteriler", icon: "users" },
@@ -147,6 +144,14 @@ type ContextOptions = {
 
 type SwitchContextResponse = {
   accessToken: string;
+};
+
+type TeamConversationSummary = {
+  id: string;
+  displayName: string;
+  unreadCount: number;
+  updatedAt: string;
+  lastMessage: { body: string; createdAt: string; senderName: string } | null;
 };
 
 type TeamRealtimeEvent = {
@@ -305,6 +310,9 @@ export function AppShell({ children }: { children: ReactNode }) {
   const [switchingBranch, setSwitchingBranch] = useState(false);
   const [branchError, setBranchError] = useState("");
   const [teamUnread, setTeamUnread] = useState(0);
+  const [messengerOpen, setMessengerOpen] = useState(false);
+  const [messengerLoading, setMessengerLoading] = useState(false);
+  const [messengerConversations, setMessengerConversations] = useState<TeamConversationSummary[]>([]);
   const user = getStoredUser();
   const tenant = getStoredTenant();
 
@@ -396,6 +404,27 @@ export function AppShell({ children }: { children: ReactNode }) {
       if (reconnectTimer) window.clearTimeout(reconnectTimer);
     };
   }, []);
+
+  useEffect(() => {
+    if (!messengerOpen) return;
+    let active = true;
+    setMessengerLoading(true);
+    void api<TeamConversationSummary[]>("/team/conversations")
+      .then((result) => {
+        if (active) messengerConversations.length
+          ? setMessengerConversations(result)
+          : setMessengerConversations(result);
+      })
+      .catch(() => {
+        if (active) setMessengerConversations([]);
+      })
+      .finally(() => {
+        if (active) setMessengerLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [messengerOpen]);
 
   useEffect(() => {
     void api("/team/heartbeat", { method: "POST" }).catch(() => undefined);
@@ -591,6 +620,76 @@ export function AppShell({ children }: { children: ReactNode }) {
       </aside>
 
       <main className="app-content min-w-0 pb-24 lg:pb-0" style={{ minWidth: 0 }}>{children}</main>
+
+      <div className="fixed bottom-5 right-5 z-[80] hidden sm:block">
+        {messengerOpen ? (
+          <div className="mb-3 w-[380px] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_80px_rgba(17,70,104,.22)] backdrop-blur-2xl">
+            <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3.5">
+              <div>
+                <p className="text-[13px] font-semibold text-[var(--ink)]">Mesajlar</p>
+                <p className="mt-0.5 text-[10px] text-[var(--muted)]">{teamUnread ? `${teamUnread} okunmamış mesaj` : "Tüm mesajlar okundu"}</p>
+              </div>
+              <button type="button" onClick={() => setMessengerOpen(false)} aria-label="Mesajları kapat" className="flex h-8 w-8 items-center justify-center rounded-full text-[18px] text-[var(--muted)] hover:bg-[var(--surface-2)]">×</button>
+            </div>
+            <div className="max-h-[420px] overflow-y-auto p-2">
+              {messengerLoading ? (
+                <p className="px-3 py-8 text-center text-[11px] text-[var(--muted)]">Konuşmalar yükleniyor…</p>
+              ) : messengerConversations.length ? (
+                messengerConversations.slice(0, 8).map((conversation) => (
+                  <Link
+                    key={conversation.id}
+                    href="/team"
+                    onClick={() => {
+                      window.localStorage.setItem("valoo-team-active-conversation", conversation.id);
+                      setMessengerOpen(false);
+                    }}
+                    className="flex items-center gap-3 rounded-[16px] px-3 py-3 transition hover:bg-[var(--surface-2)]"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[14px] bg-[var(--accent-soft)] text-[12px] font-semibold text-[var(--accent)]">
+                      {conversation.displayName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center justify-between gap-2">
+                        <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{conversation.displayName}</p>
+                        {conversation.unreadCount > 0 ? <span className="min-w-5 rounded-full bg-[var(--accent)] px-1.5 py-0.5 text-center text-[9px] font-semibold text-white">{conversation.unreadCount > 99 ? "99+" : conversation.unreadCount}</span> : null}
+                      </div>
+                      <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
+                        {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${conversation.lastMessage.body}` : "Henüz mesaj yok"}
+                      </p>
+                    </div>
+                  </Link>
+                ))
+              ) : (
+                <p className="px-3 py-8 text-center text-[11px] text-[var(--muted)]">Henüz konuşma bulunmuyor.</p>
+              )}
+            </div>
+            <div className="border-t border-[var(--line)] p-3">
+              <Link href="/team" onClick={() => setMessengerOpen(false)} className="flex h-10 items-center justify-center rounded-[12px] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)] hover:brightness-[.98]">
+                Tüm mesajları aç
+              </Link>
+            </div>
+          </div>
+        ) : null}
+        <button
+          type="button"
+          onClick={() => setMessengerOpen((current) => !current)}
+          aria-label="Mesajları aç"
+          aria-expanded={messengerOpen}
+          className="relative ml-auto flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-[22px] text-white shadow-[0_14px_34px_rgba(22,116,189,.32)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(22,116,189,.38)]"
+        >
+          <span aria-hidden="true">✦</span>
+          {teamUnread > 0 ? <span className="absolute -right-1 -top-1 min-w-5 rounded-full border-2 border-white bg-rose-500 px-1 py-0.5 text-center text-[9px] font-bold text-white">{teamUnread > 99 ? "99+" : teamUnread}</span> : null}
+        </button>
+      </div>
+
+      <Link
+        href="/team"
+        aria-label="Mesajlar"
+        className="fixed bottom-20 right-4 z-[80] flex h-13 w-13 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-[20px] text-white shadow-[0_12px_30px_rgba(22,116,189,.3)] sm:hidden"
+      >
+        ✦
+        {teamUnread > 0 ? <span className="absolute -right-1 -top-1 min-w-5 rounded-full border-2 border-white bg-rose-500 px-1 py-0.5 text-center text-[9px] font-bold text-white">{teamUnread > 99 ? "99+" : teamUnread}</span> : null}
+      </Link>
     </div>
   );
 }
