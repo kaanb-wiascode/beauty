@@ -39,9 +39,9 @@ export class OperationsCustomerEngagementService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId, membershipId };
   }
 
@@ -83,7 +83,7 @@ export class OperationsCustomerEngagementService {
     const { tenantId, companyId, branchId, membershipId } = this.context();
     const target = await this.requireAppointment(appointmentId, tenantId, branchId);
     if (!['SCHEDULED', 'CONFIRMED'].includes(target.status)) {
-      throw new BadRequestException('Only active upcoming appointments can receive reminders.');
+      throw new BadRequestException('Yalnızca aktif ve yaklaşan randevulara hatırlatma gönderilebilir.');
     }
     const actorUserId = await this.actorUserId(membershipId, tenantId);
     const body = input.body?.trim() ||
@@ -147,7 +147,7 @@ export class OperationsCustomerEngagementService {
       membershipId,
       input.expectedVersion ?? null,
     );
-    if (!rows[0]) throw new ConflictException('Confirmation state changed. Refresh and retry.');
+    if (!rows[0]) throw new ConflictException('Randevu onay durumu değişti. Lütfen ekranı yenileyin.');
     return { appointmentId, status: input.status, version: rows[0].version };
   }
 
@@ -168,9 +168,9 @@ export class OperationsCustomerEngagementService {
       branchId,
     );
     const visit = rows[0];
-    if (!visit) throw new NotFoundException('Visit not found.');
+    if (!visit) throw new NotFoundException('Ziyaret kaydı bulunamadı.');
     if (visit.status !== 'CHECKED_OUT') {
-      throw new BadRequestException('Checkout follow-up can only be sent after checkout.');
+      throw new BadRequestException('Çıkış sonrası takip mesajı yalnızca müşteri çıkışı tamamlandıktan sonra gönderilebilir.');
     }
     const actorUserId = await this.actorUserId(membershipId, tenantId);
     const body = input.body?.trim() ||
@@ -205,7 +205,7 @@ export class OperationsCustomerEngagementService {
       where: { id: membershipId, tenantId },
       select: { userId: true },
     });
-    if (!membership) throw new InternalServerErrorException('Membership actor could not be resolved.');
+    if (!membership) throw new InternalServerErrorException('İşlemi yapan kullanıcı bilgisi belirlenemedi.');
     return membership.userId;
   }
 
@@ -223,7 +223,7 @@ export class OperationsCustomerEngagementService {
       tenantId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Appointment not found.');
+    if (!rows[0]) throw new NotFoundException('Randevu bulunamadı.');
     return rows[0];
   }
 }
