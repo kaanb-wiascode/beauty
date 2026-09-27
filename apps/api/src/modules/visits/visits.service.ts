@@ -11,6 +11,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import { CheckInVisitInput } from './dto/check-in-visit.dto';
 import { ListVisitsInput } from './dto/list-visits.dto';
 import {
@@ -66,6 +67,7 @@ export class VisitsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private context() {
@@ -76,13 +78,13 @@ export class VisitsService {
 
     if (!tenantId || !companyId || !membershipId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
 
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -92,7 +94,7 @@ export class VisitsService {
   async checkIn(input: CheckInVisitInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       if (input.idempotencyKey) {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           `SELECT 1::int AS locked
@@ -164,12 +166,12 @@ export class VisitsService {
         });
 
         if (!appointment) {
-          throw new NotFoundException('Appointment not found');
+          throw new NotFoundException('Randevu bulunamadı.');
         }
 
         if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
           throw new BadRequestException(
-            'Only scheduled or confirmed appointments can be checked in.',
+            'Yalnızca planlanmış veya onaylanmış randevular için müşteri girişi yapılabilir.',
           );
         }
 
@@ -179,7 +181,7 @@ export class VisitsService {
       } else {
         if (!input.customerId) {
           throw new BadRequestException(
-            'customerId is required for walk-in check-in.',
+            'Randevusuz müşteri girişi için müşteri seçilmelidir.',
           );
         }
 
@@ -193,7 +195,7 @@ export class VisitsService {
         });
 
         if (!customer) {
-          throw new NotFoundException('Customer not found');
+          throw new NotFoundException('Müşteri bulunamadı.');
         }
 
         customerId = customer.id;
@@ -265,7 +267,7 @@ export class VisitsService {
       );
 
       if (checkedIn.length !== 1) {
-        throw new ConflictException('Visit check-in conflicted.');
+        throw new ConflictException('Müşteri girişi sırasında kayıt değişti. Lütfen tekrar deneyin.');
       }
 
       await tx.$executeRawUnsafe(
@@ -288,6 +290,17 @@ export class VisitsService {
 
       return checkedIn[0];
     });
+    await this.domainEvents?.publish({
+      eventName: 'visit.checked_in',
+      aggregateType: 'visit',
+      aggregateId: result.id,
+      payload: {
+        customerId: result.customerId,
+        source: result.source,
+        status: result.status,
+      },
+    });
+    return result;
   }
 
   async findAll(input: ListVisitsInput) {
@@ -341,7 +354,7 @@ export class VisitsService {
 
     const visit = visits[0];
     if (!visit) {
-      throw new NotFoundException('Visit not found');
+      throw new NotFoundException('Ziyaret kaydı bulunamadı.');
     }
 
     const [appointments, timeline] = await Promise.all([
@@ -380,7 +393,7 @@ export class VisitsService {
   ) {
     const { tenantId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRawUnsafe<VisitRow[]>(
         `SELECT * FROM "visits"
          WHERE "id" = $1
@@ -394,18 +407,18 @@ export class VisitsService {
 
       const current = currentRows[0];
       if (!current) {
-        throw new NotFoundException('Visit not found');
+        throw new NotFoundException('Ziyaret kaydı bulunamadı.');
       }
 
       if (current.version !== input.expectedVersion) {
         throw new ConflictException(
-          'Visit changed since it was last read. Refresh and retry.',
+          'Ziyaret kaydı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.',
         );
       }
 
       if (!canTransitionVisit(current.status, input.toStatus)) {
         throw new BadRequestException(
-          `Invalid visit transition: ${current.status} -> ${input.toStatus}`,
+          'Ziyaret mevcut durumundan istenen aşamaya geçirilemez.',
         );
       }
 
@@ -436,7 +449,7 @@ export class VisitsService {
 
       if (updated.length !== 1) {
         throw new ConflictException(
-          'Visit changed during this transition. Refresh and retry.',
+          'Ziyaret durumu işlem sırasında değişti. Lütfen ekranı yenileyip tekrar deneyin.',
         );
       }
 
@@ -462,6 +475,19 @@ export class VisitsService {
 
       return updated[0];
     });
+    await this.domainEvents?.publish({
+      eventName:
+        input.toStatus === 'CHECKED_OUT'
+          ? 'visit.checked_out'
+          : 'visit.status_changed',
+      aggregateType: 'visit',
+      aggregateId: result.id,
+      payload: {
+        status: result.status,
+        eventType,
+      },
+    });
+    return result;
   }
 
   async checkOut(id: string, input: CheckOutVisitInput) {
