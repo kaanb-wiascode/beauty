@@ -144,6 +144,13 @@ function timeLabel(value: string) {
   return new Date(value).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" });
 }
 
+function messagePreview(value: string) {
+  const card = parseValooRichCard(value);
+  if (!card) return value;
+  const label = card.kind === "APPOINTMENT" ? "Randevu" : card.kind === "CUSTOMER" ? "Müşteri" : "Ödeme";
+  return `${label}: ${card.title}`;
+}
+
 function PersonAvatar({ person, size = "md" }: { person: Person; size?: "sm" | "md" }) {
   const box = size === "sm" ? "h-8 w-8 text-[10px]" : "h-10 w-10 text-[11px]";
   return (
@@ -1002,7 +1009,7 @@ export default function TeamPage() {
                     ) : null}
                   </div>
                   <p className="mt-1 truncate text-[10px] text-[var(--muted)]">
-                    {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${conversation.lastMessage.body}` : "Henüz mesaj yok"}
+                    {conversation.lastMessage ? `${conversation.lastMessage.senderName}: ${messagePreview(conversation.lastMessage.body)}` : "Henüz mesaj yok"}
                   </p>
                 </div>
               </button>
@@ -1046,7 +1053,7 @@ export default function TeamPage() {
                               className="w-full rounded-[11px] px-3 py-2 text-left hover:bg-[var(--surface-2)]"
                             >
                               <p className="text-[9px] font-semibold text-[var(--accent)]">{result.senderName} · {timeLabel(result.createdAt)}</p>
-                              <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--ink)]">{result.body}</p>
+                              <p className="mt-1 line-clamp-2 text-[10px] leading-4 text-[var(--ink)]">{messagePreview(result.body)}</p>
                             </button>
                           ))}
                           {!searching && !searchResults.length ? <p className="px-3 py-6 text-center text-[10px] text-[var(--muted)]">Eşleşen mesaj yok.</p> : null}
@@ -1312,7 +1319,7 @@ export default function TeamPage() {
                 {pinnedMessages.map((pinned) => (
                   <div key={pinned.id} className="rounded-[12px] border border-transparent px-2.5 py-2.5 transition hover:border-[var(--line)] hover:bg-[var(--surface-2)]">
                     <p className="text-[8px] font-semibold text-[var(--accent)]">{pinned.senderName}</p>
-                    <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-[var(--ink)]">{pinned.body}</p>
+                    <p className="mt-1 line-clamp-2 text-[9px] leading-4 text-[var(--ink)]">{messagePreview(pinned.body)}</p>
                   </div>
                 ))}
               </div>
