@@ -27,7 +27,7 @@ export class CrmInteractionService {
     const visibility = await this.dataScope.resolve();
     return this.prisma.$queryRawUnsafe(
       `SELECT i.id,i.customer_id AS "customerId",i.lead_id AS "leadId",i.opportunity_id AS "opportunityId",
-              i.owner_user_id AS "ownerUserId",i.type,i.direction,i.status,i.result,i.notes,
+              i.owner_user_id AS "ownerUserId",i.type,i.direction,i.status,i.outcome_code AS "outcomeCode",i.result,i.notes,
               i.started_at AS "startedAt",i.ended_at AS "endedAt",i.duration_seconds AS "durationSeconds",
               i.next_action AS "nextAction",i.next_action_at AS "nextActionAt",
               u."firstName" AS "ownerFirstName",u."lastName" AS "ownerLastName",
@@ -48,11 +48,12 @@ export class CrmInteractionService {
           AND ($8::text IS NULL OR i.type=$8::text)
           AND ($9::text IS NULL OR i.direction=$9::text)
           AND ($10::text IS NULL OR i.status=$10::text)
-          AND ($11::timestamptz IS NULL OR i.started_at >= $11::timestamptz)
-          AND ($12::timestamptz IS NULL OR i.started_at <= $12::timestamptz)
-          AND ($13::boolean=FALSE OR i.owner_user_id=ANY($14::text[]))
+          AND ($11::text IS NULL OR i.outcome_code=$11::text)
+          AND ($12::timestamptz IS NULL OR i.started_at >= $12::timestamptz)
+          AND ($13::timestamptz IS NULL OR i.started_at <= $13::timestamptz)
+          AND ($14::boolean=FALSE OR i.owner_user_id=ANY($15::text[]))
         ORDER BY i.started_at DESC,i.id DESC
-        LIMIT $15`,
+        LIMIT $16`,
       context.tenantId,
       context.companyId,
       visibility.branchId,
@@ -63,6 +64,7 @@ export class CrmInteractionService {
       filters.type ?? null,
       filters.direction ?? null,
       filters.status ?? null,
+      filters.outcomeCode ?? null,
       filters.from ?? null,
       filters.to ?? null,
       visibility.restrictOwners,
@@ -168,13 +170,13 @@ export class CrmInteractionService {
     const rows = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `INSERT INTO crm_interactions(
          tenant_id,company_id,branch_id,customer_id,lead_id,opportunity_id,owner_user_id,
-         type,direction,status,result,notes,started_at,ended_at,duration_seconds,next_action,next_action_at,created_by_user_id
+         type,direction,status,outcome_code,result,notes,started_at,ended_at,duration_seconds,next_action,next_action_at,created_by_user_id
        ) VALUES(
          $1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,
-         $8,$9,$10,$11,$12,$13::timestamptz,$14::timestamptz,$15,$16,$17::timestamptz,$18::text
+         $8,$9,$10,$11,$12,$13,$14::timestamptz,$15::timestamptz,$16,$17,$18::timestamptz,$19::text
        )
        RETURNING id,customer_id AS "customerId",lead_id AS "leadId",opportunity_id AS "opportunityId",
-                 owner_user_id AS "ownerUserId",type,direction,status,result,notes,
+                 owner_user_id AS "ownerUserId",type,direction,status,outcome_code AS "outcomeCode",result,notes,
                  started_at AS "startedAt",ended_at AS "endedAt",duration_seconds AS "durationSeconds",
                  next_action AS "nextAction",next_action_at AS "nextActionAt"`,
       context.tenantId,
@@ -187,6 +189,7 @@ export class CrmInteractionService {
       input.type,
       input.direction,
       input.status,
+      input.outcomeCode ?? null,
       input.result ?? null,
       input.notes ?? null,
       input.startedAt ?? new Date(),
@@ -229,6 +232,7 @@ export class CrmInteractionService {
         interactionId: interaction.id,
         type: input.type,
         direction: input.direction,
+        outcomeCode: input.outcomeCode,
         result: input.result,
         nextAction: input.nextAction,
         nextActionAt: input.nextActionAt?.toISOString(),
