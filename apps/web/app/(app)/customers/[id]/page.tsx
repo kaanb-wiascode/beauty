@@ -130,6 +130,10 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       APPOINTMENT_COMPLETED: "Randevu tamamlandı",
       APPOINTMENT_NO_SHOW: "Müşteri randevuya gelmedi",
       APPOINTMENT_CANCELLED: "Randevu iptal edildi",
+      SALE_CONFIRMED: "Satış onaylandı",
+      SALE_CANCELLED: "Satış iptal edildi",
+      SALE_PAYMENT_RECEIVED: "Ödeme alındı",
+      SALE_PAYMENT_REFUNDED: "Ödeme iade edildi",
     };
     const eventItems = crm360.events.map((item) => ({
       id: `event-${item.id}`,
