@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type Room = { id: string; name: string; code: string; status: string };
@@ -167,15 +170,15 @@ export default function OperationsIncidentsPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Branch Exceptions</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Operasyon Incident & Kesinti Yönetimi</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Oda/cihaz kesintileri incident ile birlikte kapasiteyi bloklar. Kalite ve güvenlik vakalarının detay sahibi Quality alanıdır; Operations yalnız gerekli referansı taşır.</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Şube Operasyon Olayları</p>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Operasyon Olayları ve Kesinti Yönetimi</h1><CardInfo help={getCardHelp("Operasyon Olayları ve Kesinti Yönetimi")} /></div>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Oda veya cihaz kesintileri ilgili kaynağın kapasitesini geçici olarak kullanıma kapatır. Kalite ve güvenlik vakalarının ayrıntıları Kalite alanında yönetilir; Operasyon Merkezi gerekli bağlantıyı korur.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">Yeni Incident</h2>
+        <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Yeni Operasyon Olayı</h2><CardInfo help={getCardHelp("Yeni Operasyon Olayı")} /></div>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           <Field label="Başlık"><TextInput value={form.title} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} /></Field>
           <Field label="Tip"><Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.type} onChange={(event) => setForm((current) => ({ ...current, type: event.target.value }))}><option value="DEVICE_FAILURE">Cihaz Arızası</option><option value="ROOM_UNAVAILABLE">Oda Kullanılamıyor</option><option value="POWER">Elektrik</option><option value="NETWORK">Ağ</option><option value="STAFFING">Personel</option><option value="OTHER">Diğer</option></Select></Field>
@@ -188,11 +191,11 @@ export default function OperationsIncidentsPage() {
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
-        <div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Incident Kayıtları</h2></div>
+        <div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Operasyon Olayı Kayıtları</h2></div>
         {incidents.length ? <div className="divide-y divide-[var(--line)]">{incidents.map((incident) => (
           <div key={incident.id} className="px-6 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{incident.title}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)]">{severityLabel[incident.severity]}</span><span className="text-xs text-[var(--muted)]">{incident.status === "OPEN" ? "Açık" : "Çözüldü"}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{incident.roomName ?? incident.assetName ?? "Genel şube olayı'i"} · {new Date(incident.openedAt).toLocaleString("tr-TR")}</p></div>
+              <div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{incident.title}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)]">{severityLabel[incident.severity]}</span><span className="text-xs text-[var(--muted)]">{incident.status === "OPEN" ? "Açık" : "Çözüldü"}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{incident.roomName ?? incident.assetName ?? "Genel şube olayı"} · {new Date(incident.openedAt).toLocaleString("tr-TR")}</p></div>
               <div className="flex flex-wrap gap-2">{incident.resourceBlockId ? <Button variant="secondary" disabled={busy === `affected:${incident.id}`} onClick={() => void loadAffected(incident)}>Etkilenen Randevular</Button> : null}{incident.status === "OPEN" && canUpdate ? <Button disabled={busy === `resolve:${incident.id}`} onClick={() => void resolve(incident)}>Çözüldü Olarak İşaretle</Button> : null}</div>
             </div>
             {affected[incident.id] ? <div className="mt-3 rounded-[14px] bg-[var(--surface-2)] p-3"><p className="text-xs font-semibold text-[var(--ink)]">Etkilenen {affected[incident.id].length} randevu</p>{affected[incident.id].map((appointment) => <p key={appointment.id} className="mt-2 text-xs text-[var(--muted)]">{appointment.customerName} · {appointment.serviceName} · {new Date(appointment.startAt).toLocaleString("tr-TR")}</p>)}</div> : null}
