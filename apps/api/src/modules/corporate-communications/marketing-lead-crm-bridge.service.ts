@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmAssignmentService } from '../crm/crm-assignment.service';
 import {
   routingConditionsSchema,
   type RoutingConditionsInput,
@@ -33,17 +34,12 @@ type RoutingRuleRow = {
   conditions: unknown;
 };
 
-type AssigneeRow = {
-  id: string;
-  openLeadCount: bigint;
-  routedLeadCount: bigint;
-};
-
 @Injectable()
 export class MarketingLeadCrmBridgeService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly crmAssignment: CrmAssignmentService,
   ) {}
 
   private context() {
@@ -109,113 +105,6 @@ export class MarketingLeadCrmBridgeService {
       throw new BadRequestException('Belirlenen hedef şube bu şirkette aktif değil.');
     }
     return branchId;
-  }
-
-  private async eligibleAssignees(
-    tx: Prisma.TransactionClient,
-    branchId: string,
-  ) {
-    const context = this.context();
-    return tx.$queryRawUnsafe<AssigneeRow[]>(
-      `SELECT u.id,
-              count(DISTINCT cl.id) FILTER (
-                WHERE cl.status IN ('NEW','CONTACTED','QUALIFIED')
-              ) AS "openLeadCount",
-              count(DISTINCT ml.id) FILTER (
-                WHERE ml.assigned_user_id=u.id AND ml.status IN ('ROUTED','IN_CRM')
-              ) AS "routedLeadCount"
-       FROM users u
-       JOIN memberships m ON m."userId"=u.id
-       JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
-       LEFT JOIN crm_leads cl ON cl.owner_user_id=u.id
-         AND cl.tenant_id=m."tenantId"
-         AND cl.company_id=m."companyId"
-         AND cl.branch_id=$3::text
-       LEFT JOIN corporate_marketing_leads ml ON ml.assigned_user_id=u.id
-         AND ml.tenant_id=m."tenantId"
-         AND ml.company_id=m."companyId"
-         AND ml.branch_id=$3::text
-       WHERE m."tenantId"=$1::text AND m."companyId"=$2::text
-         AND m.status='ACTIVE'
-         AND (r.scope<>'BRANCH' OR EXISTS(
-           SELECT 1 FROM membership_branch_access mba
-           WHERE mba."membershipId"=m.id AND mba."branchId"=$3::text
-         ))
-       GROUP BY u.id
-       ORDER BY u.id`,
-      context.tenantId,
-      context.companyId,
-      branchId,
-    );
-  }
-
-  private async assertAssignee(
-    tx: Prisma.TransactionClient,
-    userId: string,
-    branchId: string,
-  ) {
-    const context = this.context();
-    const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT u.id
-       FROM users u
-       JOIN memberships m ON m."userId"=u.id
-       JOIN roles r ON r.id=m."roleId" AND r."tenantId"=m."tenantId"
-       WHERE u.id=$1::text AND m."tenantId"=$2::text AND m."companyId"=$3::text
-         AND m.status='ACTIVE'
-         AND (r.scope<>'BRANCH' OR EXISTS(
-           SELECT 1 FROM membership_branch_access mba
-           WHERE mba."membershipId"=m.id AND mba."branchId"=$4::text
-         ))
-       LIMIT 1`,
-      userId,
-      context.tenantId,
-      context.companyId,
-      branchId,
-    );
-    if (!rows.length) {
-      throw new BadRequestException(
-        'Belirlenen müşteri ilişkileri sorumlusu hedef şubede aktif değil.',
-      );
-    }
-  }
-
-  private async resolveOwner(
-    tx: Prisma.TransactionClient,
-    lead: MarketingLeadRow,
-    rule: RoutingRuleRow | null,
-    branchId: string,
-  ) {
-    let ownerUserId = rule?.targetUserId ?? lead.assignedUserId ?? null;
-
-    if (!ownerUserId && rule && rule.strategy !== 'FIXED') {
-      const candidates = await this.eligibleAssignees(tx, branchId);
-      if (candidates.length) {
-        if (rule.strategy === 'LEAST_LOADED') {
-          candidates.sort((a, b) => {
-            const openDiff = Number(a.openLeadCount) - Number(b.openLeadCount);
-            return openDiff || a.id.localeCompare(b.id);
-          });
-        } else {
-          candidates.sort((a, b) => {
-            const routedDiff =
-              Number(a.routedLeadCount) - Number(b.routedLeadCount);
-            return routedDiff || a.id.localeCompare(b.id);
-          });
-        }
-        ownerUserId = candidates[0]?.id ?? null;
-      }
-    }
-
-    if (rule?.strategy === 'FIXED' && !ownerUserId && !rule.targetBranchId) {
-      throw new BadRequestException(
-        'Sabit yönlendirme için hedef şube veya sorumlu seçilmelidir.',
-      );
-    }
-
-    if (ownerUserId) {
-      await this.assertAssignee(tx, ownerUserId, branchId);
-    }
-    return ownerUserId;
   }
 
   private followUpPolicy(rule: RoutingRuleRow | null): RoutingConditionsInput {
@@ -314,7 +203,16 @@ export class MarketingLeadCrmBridgeService {
 
         const rule = await this.resolveRule(tx, lead);
         const branchId = await this.resolveBranch(tx, lead, rule);
-        const ownerUserId = await this.resolveOwner(tx, lead, rule, branchId);
+        const assignment = await this.crmAssignment.resolveOwner(
+          {
+            branchId,
+            source: `MARKETING_${lead.provider}`,
+            requestedOwnerUserId: rule?.targetUserId ?? lead.assignedUserId,
+            actorUserId,
+          },
+          tx,
+        );
+        const ownerUserId = assignment.ownerUserId;
 
         const [crmLead] = await tx.$queryRawUnsafe<Array<{ id: string }>>(
           `INSERT INTO crm_leads(
@@ -350,6 +248,20 @@ export class MarketingLeadCrmBridgeService {
           lead.id,
         );
 
+        await this.crmAssignment.recordAssignment(
+          {
+            leadId: crmLead.id,
+            branchId,
+            previousOwnerUserId: null,
+            assignedUserId: ownerUserId,
+            ruleId: assignment.ruleId,
+            mode: assignment.mode,
+            reason: assignment.reason,
+            assignedByUserId: actorUserId,
+          },
+          tx,
+        );
+
         await tx.$executeRawUnsafe(
           `INSERT INTO crm_events(
              tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata
@@ -365,6 +277,9 @@ export class MarketingLeadCrmBridgeService {
             provider: lead.provider,
             routingRuleId: rule?.id ?? null,
             routingStrategy: rule?.strategy ?? null,
+            crmAssignmentRuleId: assignment.ruleId,
+            crmAssignmentMode: assignment.mode,
+            crmAssignmentReason: assignment.reason,
           }),
         );
 
@@ -385,6 +300,9 @@ export class MarketingLeadCrmBridgeService {
           ownerUserId,
           routingRuleId: rule?.id ?? null,
           routingStrategy: rule?.strategy ?? null,
+          crmAssignmentRuleId: assignment.ruleId,
+          crmAssignmentMode: assignment.mode,
+          crmAssignmentReason: assignment.reason,
           followUpId: followUp?.id ?? null,
           followUpDueAt: followUp?.dueAt ?? null,
           followUpChannel: followUp?.channel ?? null,
