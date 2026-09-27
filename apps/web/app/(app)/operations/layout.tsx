@@ -11,7 +11,14 @@ const OPERATION_GROUPS = [
       { href: "/operations", label: "Canlı Akış" },
       { href: "/operations/alerts", label: "Uyarılar" },
       { href: "/operations/waitlist", label: "Bekleme Listesi" },
+    ],
+  },
+  {
+    label: "Hizmet ve Tahsilat",
+    items: [
       { href: "/operations/service-executions", label: "Hizmet İcraları" },
+      { href: "/operations/sessions", label: "Seans Yönetimi" },
+      { href: "/operations/sales", label: "Satış ve Tahsilat" },
     ],
   },
   {
@@ -60,7 +67,7 @@ export default function OperationsLayout({ children }: { children: ReactNode }) 
         aria-label="Operasyon Merkezi çalışma alanları"
         className="mx-auto max-w-[1420px] rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-sm"
       >
-        <div className="grid gap-3 xl:grid-cols-4">
+        <div className="grid gap-3 xl:grid-cols-5">
           {OPERATION_GROUPS.map((group) => (
             <section key={group.label} className="rounded-[16px] bg-[var(--surface-2)]/55 p-2.5">
               <p className="px-2 pb-2 text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">
