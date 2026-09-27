@@ -80,11 +80,26 @@ export class CrmAssignmentService {
           AND (t.branch_id IS NULL OR t.branch_id=$4::text)
           AND m."tenantId"=$1::text AND m."companyId"=$2::text
           AND m.status='ACTIVE'
+          AND (
+            $5::text<>'SKILL_BASED'
+            OR (
+              $6::text IS NOT NULL
+              AND EXISTS(
+                SELECT 1
+                  FROM crm_team_member_skills s
+                 WHERE s.team_id=tm.team_id
+                   AND s.user_id=tm.user_id
+                   AND lower(s.skill_key)=lower($6::text)
+              )
+            )
+          )
         ORDER BY tm.user_id`,
       context.tenantId,
       context.companyId,
       rule.teamId,
       input.branchId,
+      rule.mode,
+      rule.skillKey,
     );
 
     if (!candidates.length) {
@@ -92,7 +107,9 @@ export class CrmAssignmentService {
         ownerUserId: input.actorUserId,
         ruleId: rule.id,
         mode: rule.mode,
-        reason: 'Atama kuralında uygun aktif ekip üyesi bulunamadı.',
+        reason: rule.mode === 'SKILL_BASED'
+          ? 'Atama kuralındaki yetkinliğe sahip aktif ekip üyesi bulunamadı.'
+          : 'Atama kuralında uygun aktif ekip üyesi bulunamadı.',
       };
     }
 
@@ -137,7 +154,9 @@ export class CrmAssignmentService {
       reason:
         rule.mode === 'LOAD_BALANCED'
           ? 'Açık potansiyel müşteri yükü en düşük ekip üyesine atandı.'
-          : 'Sıradaki uygun ekip üyesine otomatik atandı.',
+          : rule.mode === 'SKILL_BASED'
+            ? `“${rule.skillKey ?? 'tanımlı'}” yetkinliğine sahip sıradaki ekip üyesine atandı.`
+            : 'Sıradaki uygun ekip üyesine otomatik atandı.',
     };
   }
 
