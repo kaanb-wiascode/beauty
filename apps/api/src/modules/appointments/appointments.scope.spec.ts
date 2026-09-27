@@ -24,10 +24,15 @@ describe('AppointmentsService organization scope', () => {
     getBranchScopedWhere,
   } as unknown as OrganizationScopeService;
 
+  const accountingService = {} as any;
+  const commerceFinanceSync = {} as any;
+
   const service = new AppointmentsService(
     prisma,
     tenantContext,
     organizationScope,
+    accountingService,
+    commerceFinanceSync,
   );
 
   beforeEach(() => {
