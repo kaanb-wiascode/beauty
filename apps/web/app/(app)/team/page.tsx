@@ -147,7 +147,7 @@ function timeLabel(value: string) {
 function messagePreview(value: string) {
   const card = parseValooRichCard(value);
   if (!card) return value;
-  const label = card.kind === "APPOINTMENT" ? "Randevu" : card.kind === "CUSTOMER" ? "Müşteri" : card.kind === "PAYMENT" ? "Ödeme" : "Personel";
+  const label = card.kind === "APPOINTMENT" ? "Randevu" : card.kind === "CUSTOMER" ? "Müşteri" : card.kind === "PAYMENT" ? "Ödeme" : card.kind === "STAFF" ? "Personel" : card.kind === "LEAD" ? "Potansiyel Müşteri" : "Satış Fırsatı";
   return `${label}: ${card.title}`;
 }
 
