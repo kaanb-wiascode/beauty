@@ -358,6 +358,56 @@ export class CorporateCommunicationsService {
     );
   }
 
+  async providerConnectionHealth() {
+    const { tenantId, companyId } = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      provider: string;
+      status: string;
+      credentialReference: string | null;
+      lastSyncAt: Date | null;
+      lastError: string | null;
+    }>>(
+      `SELECT id,provider,status,credential_reference AS "credentialReference",
+              last_sync_at AS "lastSyncAt",last_error AS "lastError"
+         FROM corporate_marketing_provider_connections
+        WHERE tenant_id=$1::text AND company_id=$2::text
+        ORDER BY provider,id`,
+      tenantId,
+      companyId,
+    );
+
+    const connections = rows.map((row) => {
+      const credentialsConfigured = Boolean(row.credentialReference);
+      const health =
+        row.lastError
+          ? 'ATTENTION'
+          : row.status === 'CONNECTED' && credentialsConfigured
+            ? 'HEALTHY'
+            : row.status === 'CONNECTED'
+              ? 'AUTH_REQUIRED'
+              : 'DISCONNECTED';
+      return {
+        ...row,
+        credentialsConfigured,
+        health,
+      };
+    });
+
+    return {
+      total: connections.length,
+      connected: connections.filter((item) => item.health === 'HEALTHY').length,
+      attention: connections.filter((item) => item.health === 'ATTENTION').length,
+      authorizationRequired: connections.filter((item) => item.health === 'AUTH_REQUIRED').length,
+      disconnected: connections.filter((item) => item.health === 'DISCONNECTED').length,
+      lastSyncAt: connections
+        .map((item) => item.lastSyncAt)
+        .filter((value): value is Date => Boolean(value))
+        .sort((a, b) => b.getTime() - a.getTime())[0] ?? null,
+      connections,
+    };
+  }
+
   async createProviderConnection(input: CreateProviderConnectionInput, actorUserId: string) {
     const { tenantId, companyId } = this.context();
     const [row] = await this.prisma.$queryRawUnsafe<Row[]>(
