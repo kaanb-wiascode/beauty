@@ -797,14 +797,6 @@ export function AppShell({ children }: { children: ReactNode }) {
         </button>
       </div>
 
-      <Link
-        href="/team"
-        aria-label="Mesajlar"
-        className="fixed bottom-20 right-4 z-[80] flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-[20px] text-white shadow-[0_12px_30px_rgba(22,116,189,.3)] sm:hidden"
-      >
-        ✦
-        {teamUnread > 0 ? <span className="absolute -right-1 -top-1 min-w-5 rounded-full border-2 border-white bg-rose-500 px-1 py-0.5 text-center text-[9px] font-bold text-white">{teamUnread > 99 ? "99+" : teamUnread}</span> : null}
-      </Link>
     </div>
   );
 }
