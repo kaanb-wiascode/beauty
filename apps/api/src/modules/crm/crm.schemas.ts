@@ -29,6 +29,12 @@ export const createLeadSchema = z.object({
   language: z.string().trim().min(2).max(35).optional(),
   timezone: z.string().trim().min(1).max(100).optional(),
   source: z.string().trim().min(1).max(60).default('MANUAL'),
+  surveyorStaffId: z.string().uuid().optional(),
+  surveyorBranchId: z.string().uuid().optional(),
+  surveyCampaign: z.string().trim().min(1).max(255).optional(),
+  surveyLocation: z.string().trim().min(1).max(255).optional(),
+  surveyDesk: z.string().trim().min(1).max(120).optional(),
+  surveyDate: z.coerce.date().optional(),
   sourceDetail: acquisitionText.optional(), campaignId: acquisitionText.optional(), campaignName: acquisitionText.optional(),
   adSetId: acquisitionText.optional(), adSetName: acquisitionText.optional(), adId: acquisitionText.optional(), adName: acquisitionText.optional(),
   landingPage: acquisitionUrl.optional(), referrer: acquisitionUrl.optional(), utmSource: acquisitionText.optional(), utmMedium: acquisitionText.optional(),
@@ -43,7 +49,10 @@ export const createLeadSchema = z.object({
   firstResponseAt: lifecycleTimestampSchema.optional(),
   interestNote: z.string().trim().max(2000).optional(), ownerUserId: z.string().uuid().optional(), customerId: z.string().uuid().optional(),
 }).refine((value) => value.phone || value.alternativePhone || value.email, {
-  message: 'Lead için telefon, alternatif telefon veya e-posta gereklidir.',
+  message: 'Potansiyel müşteri için telefon, alternatif telefon veya e-posta gereklidir.',
+}).refine((value) => value.source !== 'SURVEYOR' || Boolean(value.surveyorStaffId), {
+  message: 'Kaynak Anketör seçildiğinde bir anketör seçilmelidir.',
+  path: ['surveyorStaffId'],
 });
 
 export const updateLeadSchema = z.object({
@@ -51,6 +60,9 @@ export const updateLeadSchema = z.object({
   phone: z.string().trim().min(3).max(40).nullable().optional(), alternativePhone: z.string().trim().min(3).max(40).nullable().optional(),
   email: z.string().trim().email().max(254).nullable().optional(), preferredContactChannel: leadContactChannelSchema.nullable().optional(),
   language: z.string().trim().min(2).max(35).nullable().optional(), timezone: z.string().trim().min(1).max(100).nullable().optional(), source: z.string().trim().min(1).max(60).optional(),
+  surveyorStaffId: z.string().uuid().nullable().optional(), surveyorBranchId: z.string().uuid().nullable().optional(),
+  surveyCampaign: z.string().trim().min(1).max(255).nullable().optional(), surveyLocation: z.string().trim().min(1).max(255).nullable().optional(),
+  surveyDesk: z.string().trim().min(1).max(120).nullable().optional(), surveyDate: z.coerce.date().nullable().optional(),
   sourceDetail: acquisitionText.nullable().optional(), campaignId: acquisitionText.nullable().optional(), campaignName: acquisitionText.nullable().optional(),
   adSetId: acquisitionText.nullable().optional(), adSetName: acquisitionText.nullable().optional(), adId: acquisitionText.nullable().optional(), adName: acquisitionText.nullable().optional(),
   landingPage: acquisitionUrl.nullable().optional(), referrer: acquisitionUrl.nullable().optional(), utmSource: acquisitionText.nullable().optional(), utmMedium: acquisitionText.nullable().optional(),
