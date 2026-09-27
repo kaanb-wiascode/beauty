@@ -154,6 +154,73 @@ export class CrmDataScopeService {
     }
   }
 
+  async listSurveyorCandidates() {
+    const context = this.tenantContext.getContext();
+    if (!context.branchId) throw new BadRequestException('Anketör yönetimi için aktif bir şube seçilmelidir.');
+    return this.prisma.$queryRawUnsafe<Array<{
+      staffId: string;
+      firstName: string;
+      lastName: string;
+      active: boolean;
+      dailyDeskQuota: number | null;
+      weeklyDeskQuota: number | null;
+    }>>(
+      `SELECT s.id AS "staffId",s."firstName" AS "firstName",s."lastName" AS "lastName",
+              COALESCE(p.active,FALSE) AS active,
+              p.daily_desk_quota AS "dailyDeskQuota",
+              p.weekly_desk_quota AS "weeklyDeskQuota"
+         FROM staff s
+         LEFT JOIN crm_surveyor_profiles p ON p.staff_id=s.id
+        WHERE s."tenantId"=$1::text
+          AND s."branchId"=$2::text
+          AND s.status='ACTIVE'
+        ORDER BY COALESCE(p.active,FALSE) DESC,s."firstName",s."lastName"`,
+      context.tenantId,
+      context.branchId,
+    );
+  }
+
+  async upsertSurveyorProfile(
+    staffId: string,
+    input: { active: boolean; dailyDeskQuota?: number | null; weeklyDeskQuota?: number | null },
+  ) {
+    const context = this.tenantContext.getContext();
+    if (!context.branchId) throw new BadRequestException('Anketör yönetimi için aktif bir şube seçilmelidir.');
+
+    const staffRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM staff
+        WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text AND status='ACTIVE'
+        LIMIT 1`,
+      staffId,
+      context.tenantId,
+      context.branchId,
+    );
+    if (!staffRows.length) throw new BadRequestException('Seçilen çalışan aktif şubede bulunamadı.');
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO crm_surveyor_profiles(
+         staff_id,tenant_id,company_id,branch_id,active,daily_desk_quota,weekly_desk_quota
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,$7)
+       ON CONFLICT(staff_id) DO UPDATE SET
+         tenant_id=EXCLUDED.tenant_id,
+         company_id=EXCLUDED.company_id,
+         branch_id=EXCLUDED.branch_id,
+         active=EXCLUDED.active,
+         daily_desk_quota=EXCLUDED.daily_desk_quota,
+         weekly_desk_quota=EXCLUDED.weekly_desk_quota,
+         updated_at=NOW()`,
+      staffId,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      input.active,
+      input.dailyDeskQuota ?? null,
+      input.weeklyDeskQuota ?? null,
+    );
+
+    return { success: true };
+  }
+
   async listSurveyors() {
     const context = this.tenantContext.getContext();
     return this.prisma.$queryRawUnsafe<Array<{
