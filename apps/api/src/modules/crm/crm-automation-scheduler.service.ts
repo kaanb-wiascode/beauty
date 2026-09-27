@@ -8,6 +8,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
+import { CrmSlaService } from './crm-sla.service';
 import {
   CrmAutomationScope,
   CrmAutomationService,
@@ -38,6 +39,7 @@ export class CrmAutomationSchedulerService
     private readonly automations: CrmAutomationService,
     private readonly observability: CrmAutomationObservabilityService,
     private readonly messages: CrmAutomationMessageActionService,
+    private readonly sla: CrmSlaService,
   ) {}
 
   onApplicationBootstrap() {
@@ -142,12 +144,26 @@ export class CrmAutomationSchedulerService
                ELSE 14
              END * INTERVAL '1 day'
            )
+       ), sla_candidates AS (
+         SELECT l.tenant_id,l.company_id,l.branch_id
+         FROM crm_leads l
+         WHERE l.branch_id IS NOT NULL AND l.status NOT IN ('LOST','CONVERTED')
+         UNION
+         SELECT f.tenant_id,f.company_id,f.branch_id
+         FROM crm_follow_ups f
+         WHERE f.branch_id IS NOT NULL AND f.status='OPEN'
+         UNION
+         SELECT o.tenant_id,o.company_id,o.branch_id
+         FROM crm_opportunities o
+         WHERE o.branch_id IS NOT NULL AND o.stage NOT IN ('WON','LOST')
        ), candidates AS (
          SELECT * FROM event_candidates
          UNION
          SELECT * FROM message_candidates
          UNION
          SELECT * FROM stale_candidates
+         UNION
+         SELECT * FROM sla_candidates
        )
        SELECT tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId"
        FROM candidates
@@ -168,11 +184,16 @@ export class CrmAutomationSchedulerService
       { origin: 'SCHEDULER', operation: 'STALE_SWEEP' },
       () => this.automations.runStaleOpportunitySweep(scope),
     );
+    const sla = await this.observability.execute(
+      scope,
+      { origin: 'SCHEDULER', operation: 'SLA_SWEEP' },
+      () => this.sla.sweep(scope),
+    );
     const messages = await this.messages.process(scope);
     return {
-      created: events.created + stale.created,
+      created: events.created + stale.created + sla.created,
       sent: messages.sent,
-      scanned: events.scanned + stale.scanned + messages.scanned,
+      scanned: events.scanned + stale.scanned + sla.scanned + messages.scanned,
     };
   }
 
