@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 import type { CreateOpportunityInput } from './crm.schemas';
 
 export interface OpportunityRow {
@@ -75,6 +76,7 @@ export class CrmOpportunityService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private context() {
@@ -125,6 +127,7 @@ export class CrmOpportunityService {
     const context = this.context();
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
     const search = filters.search?.trim() ? `%${filters.search.trim()}%` : null;
+    const visibility = await this.dataScope.resolve();
     return this.prisma.$queryRawUnsafe<OpportunityListRow[]>(
       `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",o.title,o.stage,
               o.estimated_value AS "estimatedValue",o.currency,o.probability,
@@ -154,8 +157,9 @@ export class CrmOpportunityService {
            COALESCE(c."lastName",'') ILIKE $6::text
          ))
          AND ($7::timestamptz IS NULL OR o.updated_at < $7::timestamptz)
+         AND ($8::boolean=FALSE OR o.owner_user_id=ANY($9::text[]))
        ORDER BY o.updated_at DESC,o.id
-       LIMIT $8`,
+       LIMIT $10`,
       context.tenantId,
       context.companyId,
       context.branchId,
@@ -163,12 +167,15 @@ export class CrmOpportunityService {
       filters.ownerUserId ?? null,
       search,
       filters.updatedBefore ?? null,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
       limit,
     );
   }
 
   async getDetail(id: string) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const rows = await this.prisma.$queryRawUnsafe<OpportunityDetailRow[]>(
       `SELECT o.id,o.lead_id AS "leadId",o.customer_id AS "customerId",
               o.owner_user_id AS "ownerUserId",o.title,o.stage,
@@ -184,15 +191,18 @@ export class CrmOpportunityService {
        LEFT JOIN customers c ON c.id=o.customer_id AND c."tenantId"=o.tenant_id
        WHERE o.id=$1::text AND o.tenant_id=$2::text AND o.company_id=$3::text
          AND ($4::text IS NULL OR o.branch_id=$4::text)
+         AND ($5::boolean=FALSE OR o.owner_user_id=ANY($6::text[]))
        LIMIT 1`,
       id,
       context.tenantId,
       context.companyId,
       context.branchId,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
     );
     const opportunity = rows[0];
     if (!opportunity) {
-      throw new NotFoundException('CRM opportunity not found.');
+      throw new NotFoundException('Satış fırsatı bulunamadı veya bu kaydı görüntüleme yetkiniz yok.');
     }
 
     const [followUps, events] = await Promise.all([
@@ -231,6 +241,7 @@ export class CrmOpportunityService {
     if (input.ownerUserId) {
       await this.assertAssignableUser(input.ownerUserId);
     }
+    await this.dataScope.assertOwnerAllowed(input.ownerUserId ?? actorUserId);
 
     return this.prisma.$transaction(async (tx) => {
       const customers = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -244,7 +255,7 @@ export class CrmOpportunityService {
       );
       if (!customers.length) {
         throw new BadRequestException(
-          'CRM customer is outside the active branch.',
+          'Seçilen müşteri aktif şubenin dışında.',
         );
       }
 
