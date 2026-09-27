@@ -64,7 +64,7 @@ export class SalesService {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId)
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     return branchId;
   }
@@ -151,7 +151,7 @@ export class SalesService {
           });
           if (!service)
             throw new BadRequestException(
-              'One or more sale services are invalid.',
+              'Satıştaki bir veya daha fazla hizmet geçersiz ya da kullanılamıyor.',
             );
           return {
             type: 'SERVICE' as const,
@@ -168,7 +168,7 @@ export class SalesService {
         });
         if (!servicePackage)
           throw new BadRequestException(
-            'One or more sale packages are invalid.',
+            'Satıştaki bir veya daha fazla paket geçersiz ya da kullanılamıyor.',
           );
         return {
           type: 'PACKAGE' as const,
@@ -192,7 +192,7 @@ export class SalesService {
       where: { id: input.customerId, tenantId, branchId },
       select: { id: true },
     });
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw new NotFoundException('Müşteri bulunamadı.');
 
     const lines = await this.resolveSaleLines(
       tx,
@@ -245,7 +245,7 @@ export class SalesService {
       where: { id: saleId, tenantId, branchId },
       select: { id: true, total: true, status: true },
     });
-    if (!sale) throw new NotFoundException('Sale not found');
+    if (!sale) throw new NotFoundException('Satış kaydı bulunamadı.');
 
     const aggregate = await this.prisma.salePayment.aggregate({
       where: { saleId, tenantId, branchId, status: 'COMPLETED' },
@@ -324,30 +324,30 @@ export class SalesService {
 
         const opportunity = rows[0];
         if (!opportunity)
-          throw new NotFoundException('CRM opportunity not found.');
+          throw new NotFoundException('Satış fırsatı bulunamadı.');
 
         if (opportunity.saleId) {
           const sale = await tx.sale.findFirst({
             where: { id: opportunity.saleId, tenantId, branchId },
             include: { items: true },
           });
-          if (!sale) throw new ConflictException('Linked sale is missing.');
+          if (!sale) throw new ConflictException('Bağlı satış kaydı bulunamadı.');
           return { sale, idempotent: true };
         }
 
         if (opportunity.stage !== 'WON') {
           throw new BadRequestException(
-            'Only won opportunities can be converted to a sale.',
+            'Yalnızca kazanılmış satış fırsatları satışa dönüştürülebilir.',
           );
         }
         if (opportunity.version !== input.version) {
-          throw new ConflictException('Opportunity version is stale.');
+          throw new ConflictException('Satış fırsatı başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
         }
 
         const customerId = input.customerId ?? opportunity.customerId;
         if (!customerId) {
           throw new BadRequestException(
-            'A customer must be linked before creating the sale.',
+            'Satış oluşturulmadan önce bir müşteri seçilmelidir.',
           );
         }
 
@@ -449,7 +449,7 @@ export class SalesService {
         customerPackages: { include: { sessions: true, package: true } },
       },
     });
-    if (!sale) throw new NotFoundException('Sale not found');
+    if (!sale) throw new NotFoundException('Satış kaydı bulunamadı.');
     return sale;
   }
 
@@ -616,7 +616,7 @@ export class SalesService {
           tenantId,
           branchId,
         );
-        if (!sales.length) throw new NotFoundException('Sale not found');
+        if (!sales.length) throw new NotFoundException('Satış kaydı bulunamadı.');
 
         const existing = await tx.salePayment.findFirst({
           where: { id: paymentId, saleId, tenantId, branchId },
@@ -761,7 +761,7 @@ export class SalesService {
           });
           if (!definition) {
             throw new BadRequestException(
-              'A package in this sale is no longer available.',
+              'Satıştaki paketlerden biri artık kullanılamıyor.',
             );
           }
 
