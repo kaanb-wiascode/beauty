@@ -2,6 +2,7 @@ import { BadRequestException, ConflictException, Injectable, NotFoundException }
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CrmDataScopeService } from './crm-data-scope.service';
+import { SalesService } from '../sales/sales.service';
 import type { CreateCrmQuoteInput, UpdateCrmQuoteStatusInput } from './crm-quote.schemas';
 
 @Injectable()
@@ -10,6 +11,7 @@ export class CrmQuoteService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly dataScope: CrmDataScopeService,
+    private readonly salesService: SalesService,
   ) {}
 
   private context() {
@@ -179,6 +181,69 @@ export class CrmQuoteService {
     });
 
     return this.get(quoteId);
+  }
+
+  async convertToSale(id: string, actorUserId: string) {
+    const quote = await this.get(id) as {
+      opportunityId: string;
+      customerId: string | null;
+      status: string;
+      discountTotal: number | string;
+      items: Array<{
+        itemType: 'SERVICE' | 'PACKAGE' | 'CUSTOM';
+        referenceId: string | null;
+        quantity: number;
+      }>;
+    };
+
+    if (quote.status !== 'ACCEPTED') {
+      throw new BadRequestException('Yalnızca kabul edilmiş teklifler satışa dönüştürülebilir.');
+    }
+
+    const unsupported = quote.items.find((item) => item.itemType === 'CUSTOM' || !item.referenceId);
+    if (unsupported) {
+      throw new BadRequestException('Satışa dönüştürmeden önce tüm teklif kalemlerini hizmet veya paket ile eşleştirin.');
+    }
+
+    const context = this.context();
+    const opportunityRows = await this.prisma.$queryRawUnsafe<Array<{
+      version: number;
+      stage: string;
+      saleId: string | null;
+    }>>(
+      `SELECT version,stage,sale_id AS "saleId"
+         FROM crm_opportunities
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+          AND ($4::text IS NULL OR branch_id=$4::text)
+        LIMIT 1`,
+      quote.opportunityId,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+    );
+    const opportunity = opportunityRows[0];
+    if (!opportunity) throw new NotFoundException('Satış fırsatı bulunamadı.');
+    if (opportunity.saleId) {
+      return { saleId: opportunity.saleId, idempotent: true };
+    }
+    if (opportunity.stage !== 'WON') {
+      throw new BadRequestException('Teklifi satışa dönüştürmeden önce satış fırsatını Kazanıldı aşamasına taşıyın.');
+    }
+
+    return this.salesService.createFromOpportunity(
+      quote.opportunityId,
+      {
+        version: opportunity.version,
+        ...(quote.customerId ? { customerId: quote.customerId } : {}),
+        discountTotal: Number(quote.discountTotal ?? 0),
+        items: quote.items.map((item) => ({
+          type: item.itemType as 'SERVICE' | 'PACKAGE',
+          referenceId: item.referenceId!,
+          quantity: Number(item.quantity),
+        })),
+      },
+      actorUserId,
+    );
   }
 
   async updateStatus(id: string, input: UpdateCrmQuoteStatusInput, actorUserId: string) {
