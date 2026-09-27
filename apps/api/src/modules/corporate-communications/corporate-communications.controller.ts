@@ -7,6 +7,7 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CorporateCommunicationsService } from './corporate-communications.service';
 import { MarketingExpenseSyncService } from './marketing-expense-sync.service';
+import { MarketingLeadWebhookService } from './marketing-lead-webhook.service';
 import { MarketingProviderAccountsService } from './marketing-provider-accounts.service';
 import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
 import { MarketingProviderSyncService } from './marketing-provider-sync.service';
