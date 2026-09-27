@@ -7,14 +7,19 @@ const baseMessage = { id: '11111111-1111-1111-1111-111111111111', customerId: '2
 
 function makeService(consent: { allowed: boolean; status: string } = { allowed: true, status: 'UNKNOWN' }) {
   const query = jest.fn(); const execute = jest.fn().mockResolvedValue(1); const providers = new CrmMessageProviderRegistryService(); const canSendManual = jest.fn().mockResolvedValue(consent);
-  const service = new CrmMessageService({ $queryRawUnsafe: query, $executeRawUnsafe: execute } as never, { getContext: () => scope } as never, providers, { canSendManual } as never);
+  const dataScope = {
+    resolve: jest.fn().mockResolvedValue({ scope: 'BRANCH', userId: 'actor-1', ownerUserIds: [], restrictOwners: false, branchId: 'branch-1' }),
+    assertLeadAccess: jest.fn().mockResolvedValue(undefined),
+    assertOpportunityAccess: jest.fn().mockResolvedValue(undefined),
+  };
+  const service = new CrmMessageService({ $queryRawUnsafe: query, $executeRawUnsafe: execute } as never, { getContext: () => scope } as never, providers, { canSendManual } as never, dataScope as never);
   return { service, query, execute, providers, canSendManual };
 }
 
 describe('CrmMessageService', () => {
   it('lists messages inside tenant/company/branch scope', async () => {
     const { service, query } = makeService(); query.mockResolvedValueOnce([]); await service.list({ customerId: baseMessage.customerId, limit: 20 });
-    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM crm_messages'), 'tenant-1', 'company-1', 'branch-1', baseMessage.customerId, null, null, 20);
+    expect(query).toHaveBeenCalledWith(expect.stringContaining('FROM crm_messages m'), 'tenant-1', 'company-1', 'branch-1', baseMessage.customerId, null, null, false, [], 20);
   });
 
   it('reports only channels backed by registered provider adapters as registered', () => {
