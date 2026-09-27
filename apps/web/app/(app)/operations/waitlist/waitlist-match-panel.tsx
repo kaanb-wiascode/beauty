@@ -52,7 +52,7 @@ export function WaitlistMatchPanel({
       setMatchedVersion(result.entryVersion);
       setSearched(true);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Uygun slotlar bulunamadı.");
+      setError(err instanceof ApiError ? err.message : "Uygun saat bulunamadı.");
     } finally {
       setLoading(false);
     }
@@ -81,7 +81,7 @@ export function WaitlistMatchPanel({
       setError(
         err instanceof ApiError
           ? err.message
-          : "Slot artık uygun değil. Yeniden eşleştirme yapın.",
+          : "Seçilen saat artık uygun değil. Yeniden eşleştirme yapın.",
       );
     } finally {
       setBusyKey(null);
@@ -98,7 +98,7 @@ export function WaitlistMatchPanel({
           </p>
         </div>
         <Button variant="secondary" disabled={loading || Boolean(busyKey)} onClick={() => void findMatches()}>
-          {loading ? "Taranıyor..." : searched ? "Slotları Yenile" : "Uygun Slot Bul"}
+          {loading ? "Taranıyor..." : searched ? "Uygun Saatleri Yenile" : "Uygun Saat Bul"}
         </Button>
       </div>
 
@@ -133,7 +133,7 @@ export function WaitlistMatchPanel({
                 {canUpdate ? (
                   <div className="mt-3 flex justify-end">
                     <Button disabled={Boolean(busyKey)} onClick={() => void accept(match)}>
-                      {busyKey === key ? "Randevulaştırılıyor..." : "Bu Slotu Randevulaştır"}
+                      {busyKey === key ? "Randevulaştırılıyor..." : "Bu Saati Randevuya Dönüştür"}
                     </Button>
                   </div>
                 ) : null}
