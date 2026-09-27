@@ -38,7 +38,7 @@ export class OperationsResourcesController {
 
   @Get('capacity')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   getCapacity(@Query() query: Record<string, unknown>) {
     const input = operationsCapacityQuerySchema.parse(query);
     return this.capacity.summary(input);
@@ -46,21 +46,21 @@ export class OperationsResourcesController {
 
   @Get('rooms')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   listRooms() {
     return this.resources.listRooms();
   }
 
   @Post('rooms')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   createRoom(@Body() body: unknown) {
     return this.resources.createRoom(createRoomSchema.parse(body));
   }
 
   @Patch('rooms/:id/status')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   updateRoomStatus(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -73,14 +73,14 @@ export class OperationsResourcesController {
 
   @Get('assets')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   listAvailableAssets() {
     return this.resources.listAvailableAssets();
   }
 
   @Get('services/:serviceId/requirements')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   getServiceRequirement(
     @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
   ) {
@@ -89,7 +89,7 @@ export class OperationsResourcesController {
 
   @Put('services/:serviceId/requirements')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   upsertServiceRequirement(
     @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
     @Body() body: unknown,
@@ -102,7 +102,7 @@ export class OperationsResourcesController {
 
   @Get('appointments/:appointmentId/allocations')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   listAppointmentAllocations(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
   ) {
@@ -111,7 +111,7 @@ export class OperationsResourcesController {
 
   @Post('appointments/:appointmentId/allocations')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   allocateAppointmentResources(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: unknown,
@@ -124,7 +124,7 @@ export class OperationsResourcesController {
 
   @Post('allocations/:allocationId/release')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   releaseAllocation(
     @Param('allocationId', new ParseUUIDPipe()) allocationId: string,
     @Body() body: unknown,
