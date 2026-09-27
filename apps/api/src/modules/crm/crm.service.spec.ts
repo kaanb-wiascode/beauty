@@ -14,11 +14,28 @@ describe('CrmService', () => {
     } as never;
   }
 
+  function dataScope(branchId: string | null = 'branch-a') {
+    return {
+      resolve: jest.fn().mockResolvedValue({
+        scope: branchId ? 'BRANCH' : 'COMPANY',
+        userId: 'user-1',
+        ownerUserIds: [],
+        restrictOwners: false,
+        branchId,
+      }),
+      assertLeadAccess: jest.fn().mockResolvedValue(undefined),
+      assertOpportunityAccess: jest.fn().mockResolvedValue(undefined),
+      assertFollowUpAccess: jest.fn().mockResolvedValue(undefined),
+      assertOwnerAllowed: jest.fn().mockResolvedValue(undefined),
+    } as never;
+  }
+
   it('scopes lead reads by tenant, company and the active branch', async () => {
     const query = jest.fn().mockResolvedValue([]);
     const service = new CrmService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await service.listLeads({ status: 'NEW', limit: 20 });
@@ -40,6 +57,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await service.listAssignees();
@@ -55,7 +73,7 @@ describe('CrmService', () => {
   });
 
   it('requires an active branch for lead creation', async () => {
-    const service = new CrmService({} as never, tenant(null));
+    const service = new CrmService({} as never, tenant(null), dataScope(null));
 
     await expect(
       service.createLead(
@@ -78,6 +96,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(
@@ -139,6 +158,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $transaction: transaction } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(
@@ -189,6 +209,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $transaction: transaction } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(
@@ -217,6 +238,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $transaction: transaction } as never,
       tenant(),
+      dataScope(),
     );
 
     await service.transitionOpportunity(
@@ -239,7 +261,7 @@ describe('CrmService', () => {
   });
 
   it('rejects LOST transitions without a reason', async () => {
-    const service = new CrmService({} as never, tenant());
+    const service = new CrmService({} as never, tenant(), dataScope());
 
     await expect(
       service.transitionOpportunity(
@@ -257,6 +279,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $transaction: transaction } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(
@@ -289,6 +312,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $transaction: transaction } as never,
       tenant(),
+      dataScope(),
     );
 
     await service.rescheduleFollowUp(
@@ -323,6 +347,7 @@ describe('CrmService', () => {
     const service = new CrmService(
       { $transaction: transaction } as never,
       tenant(),
+      dataScope(),
     );
 
     await service.cancelFollowUp(
