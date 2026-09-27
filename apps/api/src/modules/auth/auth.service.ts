@@ -23,6 +23,8 @@ const DEFAULT_OWNER_PERMISSIONS = [
   ['appointments', 'create'],
   ['appointments', 'update'],
   ['appointments', 'cancel'],
+  ['operations', 'read'],
+  ['operations', 'manage'],
   ['payments', 'read'],
   ['payments', 'create'],
   ['payments', 'refund'],
