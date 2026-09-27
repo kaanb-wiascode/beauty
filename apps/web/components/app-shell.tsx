@@ -211,7 +211,7 @@ function isActivePath(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-function NavLinks({ pathname, collapsed, teamUnread }: { pathname: string; collapsed: boolean; teamUnread: number }) {
+function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolean }) {
   const visibleSections = useMemo(
     () => NAV_SECTIONS.map((section) => ({ ...section, items: section.items.filter(isAllowed) })).filter((section) => section.items.length),
     [],
@@ -663,7 +663,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           <div className="mx-auto mt-4 flex h-9 w-9 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">{user ? getInitials(user.firstName, user.lastName) : "V"}</div>
         )}
 
-        <NavLinks pathname={pathname} collapsed={collapsed} teamUnread={teamUnread} />
+        <NavLinks pathname={pathname} collapsed={collapsed} />
 
         <div className={cx("mt-auto border-t border-[var(--line)]", collapsed ? "flex justify-center p-3" : "p-4")}>
           <button
