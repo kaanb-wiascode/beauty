@@ -13,7 +13,7 @@ export class OperationsReliabilityController {
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   summary(@Query('days') days?: string) {
     return this.reliability.summary(days ? Number(days) : 180);
   }
