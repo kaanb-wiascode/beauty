@@ -156,7 +156,7 @@ export class MarketingProviderOAuthService {
         'scope',
         this.scopes(
           'META_OAUTH_SCOPES',
-          'ads_read leads_retrieval business_management',
+          'ads_read leads_retrieval business_management pages_show_list pages_manage_metadata pages_read_engagement',
         ).replace(/ /g, ','),
       );
       url.searchParams.set('state', state);
