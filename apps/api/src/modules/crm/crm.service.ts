@@ -490,18 +490,27 @@ export class CrmService {
               f.cancellation_reason AS "cancellationReason",f.version,
               f.created_at AS "createdAt",f.updated_at AS "updatedAt"
        FROM crm_follow_ups f
+       LEFT JOIN crm_leads l ON l.id=f.lead_id
+       LEFT JOIN crm_opportunities o ON o.id=f.opportunity_id
        WHERE f.tenant_id=$1::text AND f.company_id=$2::text
          AND ($3::text IS NULL OR f.branch_id=$3::text)
          AND ($4::text IS NULL OR f.status=$4::text)
          AND ($5::text IS NULL OR f.assigned_user_id=$5::text)
          AND ($6::timestamptz IS NULL OR f.due_at<=$6::timestamptz)
-       ORDER BY CASE WHEN f.status='OPEN' THEN 0 ELSE 1 END,f.due_at,f.id LIMIT $7`,
+         AND ($7::boolean=FALSE OR (
+           f.assigned_user_id=ANY($8::text[])
+           OR l.owner_user_id=ANY($8::text[])
+           OR o.owner_user_id=ANY($8::text[])
+         ))
+       ORDER BY CASE WHEN f.status='OPEN' THEN 0 ELSE 1 END,f.due_at,f.id LIMIT $9`,
       context.tenantId,
       context.companyId,
       context.branchId,
       filters.status ?? null,
       filters.assignedUserId ?? null,
       filters.dueBefore ?? null,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
       limit,
     );
   }
