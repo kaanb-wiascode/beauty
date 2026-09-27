@@ -12,19 +12,19 @@ export class ServiceExecutionStaffController {
   constructor(private readonly staff: ServiceExecutionStaffService) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list(@Param('executionId', new ParseUUIDPipe()) executionId: string) {
     return this.staff.list(executionId);
   }
 
   @Post()
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   add(@Param('executionId', new ParseUUIDPipe()) executionId: string, @Body() body: unknown) {
     return this.staff.add(executionId, addExecutionStaffSchema.parse(body));
   }
 
   @Post(':assignmentId/end')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   end(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Param('assignmentId', new ParseUUIDPipe()) assignmentId: string,
@@ -34,7 +34,7 @@ export class ServiceExecutionStaffController {
   }
 
   @Post('handoff')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   handoff(@Param('executionId', new ParseUUIDPipe()) executionId: string, @Body() body: unknown) {
     return this.staff.handoff(executionId, handoffExecutionStaffSchema.parse(body));
   }
