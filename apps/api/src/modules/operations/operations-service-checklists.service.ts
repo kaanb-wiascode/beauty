@@ -64,12 +64,12 @@ export class OperationsServiceChecklistsService {
 
     if (!tenantId || !companyId || !membershipId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -290,7 +290,7 @@ export class OperationsServiceChecklistsService {
         );
         if (execution.status !== 'IN_PROGRESS') {
           throw new ConflictException(
-            'Checklist items can only be changed while service execution is in progress.',
+            'Kontrol listesi maddeleri yalnızca hizmet devam ederken değiştirilebilir.',
           );
         }
 
@@ -309,15 +309,15 @@ export class OperationsServiceChecklistsService {
           tenantId,
           branchId,
         );
-        if (!current[0]) throw new NotFoundException('Checklist item not found');
+        if (!current[0]) throw new NotFoundException('Kontrol listesi maddesi bulunamadı.');
         if (current[0].version !== input.expectedVersion) {
           throw new ConflictException(
-            'Checklist item changed since it was read. Refresh and retry.',
+            'Kontrol listesi maddesi başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.',
           );
         }
         if (current[0].isRequired && input.status === 'NA') {
           throw new BadRequestException(
-            'Required checklist items cannot be marked as not applicable.',
+            'Zorunlu kontrol maddeleri uygulanamaz olarak işaretlenemez.',
           );
         }
 
@@ -347,7 +347,7 @@ export class OperationsServiceChecklistsService {
         );
         if (!rows[0]) {
           throw new ConflictException(
-            'Checklist item changed during update. Refresh and retry.',
+            'Kontrol listesi maddesi güncelleme sırasında değişti. Lütfen ekranı yenileyin.',
           );
         }
 
@@ -397,7 +397,7 @@ export class OperationsServiceChecklistsService {
       where: { id: serviceId, tenantId, branchId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!service) throw new NotFoundException('Service not found');
+    if (!service) throw new NotFoundException('Hizmet bulunamadı.');
     return service;
   }
 
@@ -420,7 +420,7 @@ export class OperationsServiceChecklistsService {
       companyId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Service execution not found');
+    if (!rows[0]) throw new NotFoundException('Hizmet uygulama kaydı bulunamadı.');
     return rows[0];
   }
 }
