@@ -4,6 +4,7 @@ import { DatabaseModule } from '@beauty-erp/database';
 import { envSchema } from './config/env.schema';
 import { HealthModule } from './modules/health/health.module';
 import { RedisModule } from './infrastructure/redis/redis.module';
+import { DomainEventsModule } from './infrastructure/domain-events/domain-events.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { TenantModule } from './common/tenant/tenant.module';
 import { CustomersModule } from './modules/customers/customers.module';
@@ -67,6 +68,7 @@ import { TeamModule } from './modules/team/team.module';
     }),
     DatabaseModule,
     RedisModule,
+    DomainEventsModule,
     AuthModule,
     TenantModule,
     HealthModule,
