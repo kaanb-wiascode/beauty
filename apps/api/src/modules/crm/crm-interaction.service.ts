@@ -55,7 +55,7 @@ export class CrmInteractionService {
         LIMIT $15`,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       filters.ownerUserId ?? null,
       filters.leadId ?? null,
       filters.opportunityId ?? null,
@@ -83,7 +83,7 @@ export class CrmInteractionService {
       id,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       visibility.restrictOwners,
       visibility.ownerUserIds,
     );
