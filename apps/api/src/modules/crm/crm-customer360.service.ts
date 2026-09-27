@@ -36,6 +36,21 @@ type FollowUpRow = {
   version: number;
 };
 
+type InteractionRow = {
+  id: string;
+  opportunityId: string | null;
+  ownerUserId: string;
+  type: string;
+  direction: string;
+  status: string;
+  result: string | null;
+  notes: string | null;
+  startedAt: Date;
+  durationSeconds: number | null;
+  nextAction: string | null;
+  nextActionAt: Date | null;
+};
+
 type EventRow = {
   id: string;
   opportunityId: string | null;
@@ -67,7 +82,7 @@ export class CrmCustomer360Service {
     );
     if (!customer.length) throw new NotFoundException('Müşteri bulunamadı.');
 
-    const [summaryRows, opportunities, followUps, events] = await Promise.all([
+    const [summaryRows, opportunities, followUps, interactions, events] = await Promise.all([
       this.prisma.$queryRawUnsafe<SummaryRow[]>(
         `SELECT
            COUNT(o.id)::int AS "opportunityCount",
@@ -129,6 +144,22 @@ export class CrmCustomer360Service {
         visibility.restrictOwners,
         visibility.ownerUserIds,
       ),
+      this.prisma.$queryRawUnsafe<InteractionRow[]>(
+        `SELECT i.id,i.opportunity_id AS "opportunityId",i.owner_user_id AS "ownerUserId",
+                i.type,i.direction,i.status,i.result,i.notes,i.started_at AS "startedAt",
+                i.duration_seconds AS "durationSeconds",i.next_action AS "nextAction",i.next_action_at AS "nextActionAt"
+           FROM crm_interactions i
+           LEFT JOIN crm_opportunities o ON o.id=i.opportunity_id
+          WHERE i.customer_id=$4::text AND i.tenant_id=$1::text AND i.company_id=$2::text
+            AND ($3::text IS NULL OR i.branch_id=$3::text)
+            AND ($5::boolean=FALSE OR i.owner_user_id=ANY($6::text[]))
+          ORDER BY i.started_at DESC,i.id DESC
+          LIMIT 12`,
+        ...scope,
+        customerId,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
+      ),
       this.prisma.$queryRawUnsafe<EventRow[]>(
         `SELECT e.id,e.opportunity_id AS "opportunityId",e.event_type AS "eventType",e.created_at AS "createdAt"
            FROM crm_events e
@@ -158,6 +189,7 @@ export class CrmCustomer360Service {
       },
       opportunities,
       followUps,
+      interactions,
       events,
     };
   }
