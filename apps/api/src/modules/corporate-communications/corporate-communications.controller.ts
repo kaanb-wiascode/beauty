@@ -141,6 +141,23 @@ export class CorporateCommunicationsController {
     return this.providerAccounts.select(id, input.externalAccountId);
   }
 
+  @Get('provider-connections/:id/meta/pages')
+  @RequirePermission('communications', 'manage')
+  listMetaPages(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.providerAccounts.metaPages(id);
+  }
+
+  @Post('provider-connections/:id/meta/pages/:pageId/subscribe')
+  @RequirePermission('communications', 'manage')
+  subscribeMetaPage(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Param('pageId') pageId: string,
+  ) {
+    return this.providerAccounts.subscribeMetaPage(id, pageId);
+  }
+
   @Post('provider-connections/:id/webhook/google-ads/configure')
   @RequirePermission('communications', 'manage')
   configureGoogleAdsWebhook(
