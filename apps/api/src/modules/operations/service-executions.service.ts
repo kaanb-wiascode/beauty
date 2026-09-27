@@ -55,12 +55,12 @@ export class ServiceExecutionsService {
 
     if (!tenantId || !companyId || !membershipId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -178,17 +178,17 @@ export class ServiceExecutionsService {
         const context = rows[0];
         if (!context) {
           throw new NotFoundException(
-            'Visit or linked appointment was not found in the active branch.',
+            'Aktif şubede ziyaret veya bağlı randevu bulunamadı.',
           );
         }
         if (context.visitStatus !== 'IN_SERVICE') {
           throw new BadRequestException(
-            'Visit must be IN_SERVICE before starting service execution.',
+            'Hizmeti başlatmadan önce ziyaretin hizmet aşamasına alınması gerekir.',
           );
         }
         if (!['SCHEDULED', 'CONFIRMED'].includes(context.appointmentStatus)) {
           throw new BadRequestException(
-            'Linked appointment is not in an executable state.',
+            'Bağlı randevu hizmet başlatmaya uygun durumda değil.',
           );
         }
 
@@ -247,7 +247,7 @@ export class ServiceExecutionsService {
 
         if (requirement?.roomType && !roomAllocation) {
           throw new BadRequestException(
-            `Service requires an available room allocation of type ${requirement.roomType}.`,
+            `Bu hizmet için uygun türde kullanılabilir bir oda ayrılması gerekiyor.`,
           );
         }
 
@@ -350,15 +350,15 @@ export class ServiceExecutionsService {
           branchId,
         );
         const current = rows[0];
-        if (!current) throw new NotFoundException('Service execution not found');
+        if (!current) throw new NotFoundException('Hizmet icra kaydı bulunamadı.');
         if (current.version !== input.expectedVersion) {
           throw new ConflictException(
-            'Service execution changed since it was read. Refresh and retry.',
+            'Hizmet kaydı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyip tekrar deneyin.',
           );
         }
         if (current.status !== 'IN_PROGRESS') {
           throw new BadRequestException(
-            'Only an in-progress service execution can be completed.',
+            'Yalnızca devam eden bir hizmet tamamlanabilir.',
           );
         }
 
@@ -383,7 +383,7 @@ export class ServiceExecutionsService {
         );
         if (!completed[0]) {
           throw new ConflictException(
-            'Service execution changed during completion. Refresh and retry.',
+            'Hizmet tamamlanırken kayıt değişti. Lütfen ekranı yenileyip tekrar deneyin.',
           );
         }
 
@@ -444,10 +444,10 @@ export class ServiceExecutionsService {
           branchId,
         );
         const execution = executions[0];
-        if (!execution) throw new NotFoundException('Service execution not found');
+        if (!execution) throw new NotFoundException('Hizmet icra kaydı bulunamadı.');
         if (execution.status !== 'COMPLETED') {
           throw new BadRequestException(
-            'Service execution must be completed before completing its appointment.',
+            'Randevuyu tamamlamadan önce hizmet icrası tamamlanmalıdır.',
           );
         }
 
@@ -471,17 +471,17 @@ export class ServiceExecutionsService {
             },
           },
         });
-        if (!appointment) throw new NotFoundException('Appointment not found');
+        if (!appointment) throw new NotFoundException('Randevu bulunamadı.');
         if (appointment.status === 'CANCELLED' || appointment.status === 'NO_SHOW') {
           throw new ConflictException(
-            'Cancelled or no-show appointment cannot be completed from execution handoff.',
+            'İptal edilmiş veya gelmedi olarak işaretlenmiş randevu bu ekrandan tamamlanamaz.',
           );
         }
 
         if (appointment.status !== 'COMPLETED') {
           if (!['SCHEDULED', 'CONFIRMED'].includes(appointment.status)) {
             throw new ConflictException(
-              `Appointment cannot be completed from ${appointment.status}.`,
+              `Randevu mevcut durumundan doğrudan tamamlanamaz.`,
             );
           }
           await tx.appointment.update({
