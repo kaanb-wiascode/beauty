@@ -35,7 +35,7 @@ type CrmTeam = {
   managerFirstName: string | null;
   managerLastName: string | null;
   active: boolean;
-  members: Array<{ userId: string; firstName: string; lastName: string; email: string }>;
+  members: Array<{ userId: string; firstName: string; lastName: string; email: string; skills: string[] }>;
 };
 
 const assignmentModeLabels: Record<AssignmentMode, string> = {
@@ -79,6 +79,7 @@ export default function CrmSettingsPage() {
   });
   const [teamForm, setTeamForm] = useState({ name: "Satış Ekibi", managerUserId: "" });
   const [memberSelections, setMemberSelections] = useState<Record<string, string>>({});
+  const [memberSkillInputs, setMemberSkillInputs] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -169,6 +170,25 @@ export default function CrmSettingsPage() {
     }
   }
 
+  async function saveMemberSkills(teamId: string, userId: string) {
+    const key = `${teamId}:${userId}`;
+    const value = memberSkillInputs[key] ?? "";
+    const skills = value.split(",").map((item) => item.trim()).filter(Boolean);
+    setSaving(`skills-${key}`);
+    setError("");
+    try {
+      await api(`/crm/teams/${teamId}/members/${userId}/skills`, {
+        method: "PUT",
+        body: { skills },
+      });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Üye yetkinlikleri güncellenemedi.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function removeTeamMember(teamId: string, userId: string) {
     setSaving(`member-${teamId}`);
     setError("");
@@ -225,10 +245,26 @@ export default function CrmSettingsPage() {
                 <div><p className="text-[12px] font-semibold">{team.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Ekip yöneticisi: {[team.managerFirstName, team.managerLastName].filter(Boolean).join(" ") || "Belirtilmedi"} · {team.members.length} üye</p></div>
                 <span className="text-[10px] font-medium text-[var(--muted)]">{team.active ? "Aktif" : "Pasif"}</span>
               </div>
-              <div className="mt-3 flex flex-wrap gap-2">{team.members.map((member) => <span key={member.userId} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1 text-[10px]">
-                {member.firstName} {member.lastName}
-                {member.userId !== team.managerUserId ? <button type="button" onClick={() => void removeTeamMember(team.id, member.userId)} disabled={saving === `member-${team.id}`} className="text-[var(--muted)] hover:text-[var(--danger)]" aria-label="Ekipten çıkar">×</button> : null}
-              </span>)}</div>
+              <div className="mt-3 flex flex-wrap gap-2">{team.members.map((member) => {
+                const skillKey = `${team.id}:${member.userId}`;
+                const skillValue = memberSkillInputs[skillKey] ?? member.skills.join(", ");
+                return <div key={member.userId} className="rounded-[13px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-3 py-2.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <span className="text-[10px] font-medium">{member.firstName} {member.lastName}</span>
+                    {member.userId !== team.managerUserId ? <button type="button" onClick={() => void removeTeamMember(team.id, member.userId)} disabled={saving === `member-${team.id}`} className="text-[10px] text-[var(--muted)] hover:text-[var(--danger)]">Ekipten çıkar</button> : null}
+                  </div>
+                  <div className="mt-2 flex gap-2">
+                    <TextInput
+                      value={skillValue}
+                      onChange={(event) => setMemberSkillInputs((current) => ({ ...current, [skillKey]: event.target.value }))}
+                      placeholder="Yetkinlikler: lazer, vip, satış-kıdemli"
+                    />
+                    <Button type="button" variant="secondary" className="shrink-0" disabled={saving === `skills-${skillKey}`} onClick={() => void saveMemberSkills(team.id, member.userId)}>
+                      {saving === `skills-${skillKey}` ? "Kaydediliyor..." : "Yetkinlikleri Kaydet"}
+                    </Button>
+                  </div>
+                </div>;
+              })}</div>
               <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
                 <Select value={memberSelections[team.id] ?? ""} onChange={(event) => setMemberSelections((current) => ({ ...current, [team.id]: event.target.value }))}>
                   <option value="">Ekip üyesi ekleyin</option>
