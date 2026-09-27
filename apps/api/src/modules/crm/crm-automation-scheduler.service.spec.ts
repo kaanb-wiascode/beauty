@@ -30,6 +30,16 @@ describe('CrmAutomationSchedulerService', () => {
       failed: 0,
       skipped: 0,
     });
+    const runSlaSweep = jest.fn().mockResolvedValue({
+      scanned: 1,
+      created: 1,
+      skipped: 0,
+    });
+    const runScoreSweep = jest.fn().mockResolvedValue({
+      scanned: 1,
+      updated: 1,
+      skipped: 0,
+    });
     const observe = jest.fn(
       async (_scope: unknown, _input: unknown, work: () => Promise<unknown>) => work(),
     );
@@ -39,6 +49,8 @@ describe('CrmAutomationSchedulerService', () => {
       { processPendingEvents, runStaleOpportunitySweep } as never,
       { execute: observe } as never,
       { process: processMessages } as never,
+      { sweep: runSlaSweep } as never,
+      { sweep: runScoreSweep } as never,
     );
     return {
       service,
@@ -48,11 +60,13 @@ describe('CrmAutomationSchedulerService', () => {
       processPendingEvents,
       runStaleOpportunitySweep,
       processMessages,
+      runSlaSweep,
+      runScoreSweep,
     };
   }
 
   it('does not process scopes when another instance owns the lease', async () => {
-    const { service, processPendingEvents, runStaleOpportunitySweep, processMessages, observe } =
+    const { service, processPendingEvents, runStaleOpportunitySweep, processMessages, runSlaSweep, runScoreSweep, observe } =
       createService(false);
 
     await (service as any).run();
@@ -61,10 +75,12 @@ describe('CrmAutomationSchedulerService', () => {
     expect(processPendingEvents).not.toHaveBeenCalled();
     expect(runStaleOpportunitySweep).not.toHaveBeenCalled();
     expect(processMessages).not.toHaveBeenCalled();
+    expect(runSlaSweep).not.toHaveBeenCalled();
+    expect(runScoreSweep).not.toHaveBeenCalled();
   });
 
   it('records scheduled operations, processes messages and releases its lease', async () => {
-    const { service, query, execute, observe, processPendingEvents, runStaleOpportunitySweep, processMessages } =
+    const { service, query, execute, observe, processPendingEvents, runStaleOpportunitySweep, processMessages, runSlaSweep, runScoreSweep } =
       createService(true);
 
     await (service as any).run();
@@ -94,6 +110,8 @@ describe('CrmAutomationSchedulerService', () => {
     );
     expect(processPendingEvents).toHaveBeenCalledWith(scope);
     expect(runStaleOpportunitySweep).toHaveBeenCalledWith(scope);
+    expect(runSlaSweep).toHaveBeenCalledWith(scope);
+    expect(runScoreSweep).toHaveBeenCalledWith(scope);
     expect(processMessages).toHaveBeenCalledWith(scope);
 
     const releaseCall = execute.mock.calls.find((call) =>
