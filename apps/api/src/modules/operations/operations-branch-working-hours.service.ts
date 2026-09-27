@@ -22,8 +22,8 @@ export class OperationsBranchWorkingHoursService {
     const tenantId = this.tenantContext.getTenantId();
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
-    if (!tenantId || !companyId) throw new InternalServerErrorException('Organization context is incomplete.');
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!tenantId || !companyId) throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId };
   }
 
@@ -43,8 +43,8 @@ export class OperationsBranchWorkingHoursService {
       `SELECT version FROM operations_branch_working_hours WHERE tenant_id=$1 AND company_id=$2 AND branch_id=$3 AND weekday=$4 LIMIT 1`,
       tenantId, companyId, branchId, input.weekday,
     );
-    if (current[0] && current[0].version !== input.expectedVersion) throw new ConflictException('Working-hours rule changed since it was read. Refresh and retry.');
-    if (!current[0] && input.expectedVersion !== 0) throw new ConflictException('Working-hours rule no longer matches the expected version.');
+    if (current[0] && current[0].version !== input.expectedVersion) throw new ConflictException('Çalışma saati kuralı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
+    if (!current[0] && input.expectedVersion !== 0) throw new ConflictException('Çalışma saati kuralı güncellendi. Lütfen ekranı yenileyin.');
     const rows = await this.prisma.$queryRawUnsafe<HoursRow[]>(
       `INSERT INTO operations_branch_working_hours(tenant_id,company_id,branch_id,weekday,is_closed,opens_at,closes_at,crosses_midnight,time_zone)
        VALUES($1,$2,$3,$4,$5,$6::time,$7::time,$8,$9)
@@ -58,12 +58,12 @@ export class OperationsBranchWorkingHoursService {
       input.isClosed ? null : input.opensAt, input.isClosed ? null : input.closesAt,
       input.isClosed ? false : input.crossesMidnight, input.timeZone, input.expectedVersion,
     );
-    if (!rows[0]) throw new ConflictException('Working-hours rule changed during update.');
+    if (!rows[0]) throw new ConflictException('Çalışma saati kuralı güncelleme sırasında değişti. Lütfen tekrar deneyin.');
     return rows[0];
   }
 
   async check(input: BranchWorkingHoursCheckInput) {
-    if (input.endAt <= input.startAt) throw new BadRequestException('Working-hours check requires a valid interval.');
+    if (input.endAt <= input.startAt) throw new BadRequestException('Çalışma saati kontrolü için geçerli bir zaman aralığı gereklidir.');
     const { tenantId, companyId, branchId } = this.context();
     const configured = await this.prisma.$queryRawUnsafe<Array<{ count: number }>>(
       `SELECT COUNT(*)::int AS count FROM operations_branch_working_hours WHERE tenant_id=$1 AND company_id=$2 AND branch_id=$3`,
