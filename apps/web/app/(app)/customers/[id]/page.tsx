@@ -15,6 +15,7 @@ import { PaymentModal } from "@/components/payment-modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import { ValooSelect } from "@/components/valoo-controls";
 import { userLabel } from "@/lib/user-language";
+import { opportunityStageLabels, type CrmInteraction } from "@/lib/crm-types";
 
 type CustomerSource = "INSTAGRAM" | "GOOGLE" | "REFERRAL" | "WALK_IN" | "OTHER";
 type CustomerHealthProfile = { id: string; formVersion: string; allergies: string | null; sensitivities: string | null; medications: string | null; conditions: string | null; notes: string | null; confirmedAt: string | null; createdAt: string; updatedAt: string };
@@ -24,6 +25,41 @@ type CustomerCareEvent = { id: string; type: "REACTION" | "AFTERCARE" | "COMPLAI
 type CustomerDetail = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null; birthDate: string | null; customerSource: CustomerSource | null; createdAt: string; updatedAt: string; healthProfile: CustomerHealthProfile | null; documents: CustomerDocument[]; consents: CustomerConsent[]; careEvents: CustomerCareEvent[]; stats: { totalAppointments: number; completedAppointments: number; upcomingAppointments: number; totalPaid: number; totalRefunded: number; netSpent: number; lastPaymentAt: string | null }; payments: Payment[]; appointments: Appointment[] };
 type Payment = { id: string; appointmentId: string; amount: number; method: "CASH" | "CARD" | "TRANSFER"; status: "COMPLETED" | "REFUNDED"; paidAt: string; refundedAt: string | null; refundReason: string | null; service: { id: string; name: string } };
 type Appointment = { id: string; startAt: string; endAt: string; status: "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW"; notes: string | null; service: { id: string; name: string; price: string | number; durationMinutes: number }; staff: { id: string; firstName: string; lastName: string }; payment: { id: string; amount: string | number; method: "CASH" | "CARD" | "TRANSFER"; paidAt: string } | null };
+type Customer360 = {
+  summary: {
+    opportunityCount: number;
+    openOpportunityCount: number;
+    wonOpportunityCount: number;
+    totalPipeline: number;
+    weightedPipeline: number;
+    openFollowUpCount: number;
+    overdueFollowUpCount: number;
+    lastCrmActivityAt: string | null;
+  };
+  opportunities: Array<{
+    id: string;
+    title: string;
+    stage: keyof typeof opportunityStageLabels;
+    estimatedValue: number | null;
+    currency: string;
+    probability: number;
+    expectedCloseDate: string | null;
+    updatedAt: string;
+  }>;
+  followUps: Array<{
+    id: string;
+    opportunityId: string | null;
+    assignedUserId: string;
+    channel: string;
+    status: string;
+    dueAt: string;
+    note: string | null;
+    version: number;
+  }>;
+  interactions: CrmInteraction[];
+  events: Array<{ id: string; opportunityId: string | null; eventType: string; createdAt: string }>;
+};
+
 type CareEventForm = { appointmentId: string; type: CustomerCareEvent["type"]; status: CustomerCareEvent["status"]; severity: NonNullable<CustomerCareEvent["severity"]>; title: string; description: string; onsetAt: string; occurredAt: string; actionTaken: string; followUpAt: string };
 
 const emptyCareEvent: CareEventForm = { appointmentId: "", type: "NOTE", status: "OPEN", severity: "LOW", title: "", description: "", onsetAt: "", occurredAt: "", actionTaken: "", followUpAt: "" };
@@ -47,6 +83,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const canDeleteCustomer = hasPermission("customers", "delete");
   const canManageCrm = hasPermission("crm", "manage");
   const [customer, setCustomer] = useState<CustomerDetail | null>(null);
+  const [crm360, setCrm360] = useState<Customer360 | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [paymentAppointment, setPaymentAppointment] = useState<Appointment | null>(null);
@@ -60,7 +97,7 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const [profileError, setProfileError] = useState("");
   const [profileForm, setProfileForm] = useState({ firstName: "", lastName: "", phone: "", email: "", birthDate: "", customerSource: "" as CustomerSource | "", allergies: "", sensitivities: "", medications: "", conditions: "", notes: "" });
 
-  const load = useCallback(async () => { setLoading(true); setError(""); try { const { id } = await params; const result = await api<CustomerDetail>(`/customers/${id}`); setCustomer(result); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } }, [params]);
+  const load = useCallback(async () => { setLoading(true); setError(""); try { const { id } = await params; const [result, crmResult] = await Promise.all([api<CustomerDetail>(`/customers/${id}`), api<Customer360>(`/crm/operations/customer-360/${id}`).catch(() => null)]); setCustomer(result); setCrm360(crmResult); } catch (err) { setError(err instanceof ApiError ? err.message : "Müşteri bilgileri yüklenemedi."); } finally { setLoading(false); } }, [params]);
   useEffect(() => { void load(); }, [load]);
   const initials = useMemo(() => { if (!customer) return "?"; return `${customer.firstName.charAt(0)}${customer.lastName.charAt(0)}`.toUpperCase(); }, [customer]);
 
@@ -81,11 +118,33 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
   const healthConsent = latestConsent(customer.consents, "HEALTH_DATA_CONSENT");
 
   return <div className="mx-auto max-w-6xl space-y-5 sm:space-y-7">
-    <PageHeader title={fullName(customer.firstName, customer.lastName)} description="Müşteri dosyası ve geçmiş işlemler." action={<div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center"><TeamShareAction payload={{ kind: "CUSTOMER", id: customer.id, title: fullName(customer.firstName, customer.lastName), subtitle: customer.phone ?? customer.email ?? "İletişim bilgisi yok", meta: [customer.email ?? "", `${customer.stats.totalAppointments} randevu`, `Net harcama: ${formatMoney(customer.stats.netSpent)}`].filter(Boolean), href: `/customers/${customer.id}` }} className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--accent)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] sm:flex-none" />{canManageCrm ? <Link href={`/crm/opportunities/new?customerId=${customer.id}`} className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Satış fırsatı</Button></Link> : null}<Link href={`/customers/${customer.id}/ledger`} className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Cari Ekstre</Button></Link><Link href={`/appointments?customerId=${customer.id}`} className="min-w-0 flex-1 sm:flex-none"><Button className="w-full whitespace-nowrap sm:w-auto">Yeni randevu</Button></Link><Link href="/customers" className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Müşteriler</Button></Link></div>} />
+    <PageHeader title={fullName(customer.firstName, customer.lastName)} description="Müşteri dosyası ve geçmiş işlemler." action={<div className="flex w-full flex-wrap gap-2 sm:w-auto sm:items-center"><TeamShareAction payload={{ kind: "CUSTOMER", id: customer.id, title: fullName(customer.firstName, customer.lastName), subtitle: customer.phone ?? customer.email ?? "İletişim bilgisi yok", meta: [customer.email ?? "", `${customer.stats.totalAppointments} randevu`, `Net harcama: ${formatMoney(customer.stats.netSpent)}`].filter(Boolean), href: `/customers/${customer.id}` }} className="inline-flex h-10 min-w-0 flex-1 items-center justify-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--accent)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] sm:flex-none" />{canManageCrm ? <Link href={`/crm/interactions?new=1&customerId=${customer.id}&label=${encodeURIComponent(fullName(customer.firstName, customer.lastName))}`} className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">+ Görüşme Kaydet</Button></Link> : null}{canManageCrm ? <Link href={`/crm/opportunities/new?customerId=${customer.id}`} className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Satış fırsatı</Button></Link> : null}<Link href={`/customers/${customer.id}/ledger`} className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Cari Ekstre</Button></Link><Link href={`/appointments?customerId=${customer.id}`} className="min-w-0 flex-1 sm:flex-none"><Button className="w-full whitespace-nowrap sm:w-auto">Yeni randevu</Button></Link><Link href="/customers" className="min-w-0 flex-1 sm:flex-none"><Button variant="secondary" className="w-full whitespace-nowrap sm:w-auto">Müşteriler</Button></Link></div>} />
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     <section className="grid grid-cols-2 gap-2.5 sm:gap-3 lg:grid-cols-4"><StatCard label="Toplam randevu" value={customer.stats.totalAppointments} /><StatCard label="Tamamlanan" value={customer.stats.completedAppointments} /><StatCard label="Yaklaşan" value={customer.stats.upcomingAppointments} /><StatCard label="Net harcama" value={formatMoney(customer.stats.netSpent)} /></section>
     <section className="grid gap-3 sm:gap-5 lg:grid-cols-[340px_minmax(0,1fr)]"><GlassCard><div className="flex items-center gap-4"><div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-[18px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">{initials}</div><div className="min-w-0"><h2 className="truncate text-[18px] font-semibold text-[var(--ink)]">{fullName(customer.firstName, customer.lastName)}</h2><p className="mt-1 text-[12px] text-[var(--muted)]">Müşteri</p></div></div><div className="mt-5 space-y-3 border-t border-[var(--line)] pt-4 sm:mt-7 sm:space-y-4 sm:pt-5"><InfoRow label="Telefon" value={customer.phone || "—"} /><InfoRow label="E-posta" value={customer.email || "—"} /><InfoRow label="Doğum tarihi" value={customer.birthDate ? formatDate(customer.birthDate) : "—"} /><InfoRow label="Müşteri kaynağı" value={customer.customerSource ? CUSTOMER_SOURCE_LABELS[customer.customerSource] : "—"} /><InfoRow label="Kayıt tarihi" value={formatDate(customer.createdAt)} /></div></GlassCard>
       <GlassCard><SectionHeading eyebrow="Müşteri dosyası" title="Sağlık & Profil" action={canUpdateCustomer ? <Button variant="secondary" className="h-9 px-3 text-[11px]" onClick={openProfileModal}>Düzenle</Button> : null} />{customer.healthProfile ? <div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-x-6 sm:gap-y-5 sm:grid-cols-2"><DetailBlock label="Alerjiler" value={customer.healthProfile.allergies || "Belirtilmedi"} /><DetailBlock label="Hassasiyetler" value={customer.healthProfile.sensitivities || "Belirtilmedi"} /><DetailBlock label="Kullanılan ilaçlar" value={customer.healthProfile.medications || "Belirtilmedi"} /><DetailBlock label="Bilinen sağlık bilgileri" value={customer.healthProfile.conditions || "Belirtilmedi"} /><div className="sm:col-span-2"><DetailBlock label="Ek not" value={customer.healthProfile.notes || "Not bulunmuyor."} /></div></div> : <EmptyInline>Henüz sağlık profili oluşturulmamış.</EmptyInline>}</GlassCard></section>
+    {crm360 ? <section><GlassCard className="p-0">
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between">
+        <div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Müşteri ilişkileri</p><h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">CRM & Satış</h2></div>
+        <Link href={`/crm/interactions?customerId=${customer.id}`} className="text-[11px] font-semibold text-[var(--accent)]">Tüm görüşmeler →</Link>
+      </div>
+      <div className="grid gap-3 border-b border-[var(--line)] p-4 sm:grid-cols-2 lg:grid-cols-4 sm:p-6">
+        <StatCard label="Açık satış fırsatı" value={crm360.summary.openOpportunityCount} />
+        <StatCard label="Beklenen satış" value={formatMoney(crm360.summary.weightedPipeline)} />
+        <StatCard label="Açık takip" value={crm360.summary.openFollowUpCount} />
+        <StatCard label="Geciken takip" value={crm360.summary.overdueFollowUpCount} />
+      </div>
+      <div className="grid gap-0 lg:grid-cols-2">
+        <div className="border-b border-[var(--line)] lg:border-b-0 lg:border-r">
+          <div className="px-4 py-3 sm:px-6"><h3 className="text-[12px] font-semibold">Satış fırsatları</h3></div>
+          {crm360.opportunities.length ? <div className="divide-y divide-[var(--line)]">{crm360.opportunities.map((opportunity) => <Link key={opportunity.id} href={`/crm/opportunities/${opportunity.id}`} className="block px-4 py-3.5 transition hover:bg-[var(--surface-2)] sm:px-6"><div className="flex items-center justify-between gap-3"><div className="min-w-0"><p className="truncate text-[12px] font-medium">{opportunity.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{opportunityStageLabels[opportunity.stage]} · %{opportunity.probability}</p></div><span className="shrink-0 text-[11px] font-semibold">{formatMoney(opportunity.estimatedValue ?? 0)}</span></div></Link>)}</div> : <EmptyInline>Bu müşteri için satış fırsatı bulunmuyor.</EmptyInline>}
+        </div>
+        <div>
+          <div className="px-4 py-3 sm:px-6"><h3 className="text-[12px] font-semibold">Son görüşmeler</h3></div>
+          {crm360.interactions.length ? <div className="divide-y divide-[var(--line)]">{crm360.interactions.slice(0,6).map((interaction) => <div key={interaction.id} className="px-4 py-3.5 sm:px-6"><div className="flex items-start justify-between gap-3"><div className="min-w-0"><p className="text-[11px] font-medium">{interaction.type === "CALL" ? "Telefon" : interaction.type === "WHATSAPP" ? "WhatsApp" : interaction.type === "EMAIL" ? "E-posta" : interaction.type === "SMS" ? "SMS" : interaction.type === "IN_PERSON" ? "Yüz yüze" : interaction.type === "VIDEO_CALL" ? "Görüntülü görüşme" : "Diğer"}</p><p className="mt-1 truncate text-[10px] text-[var(--muted)]">{interaction.result || interaction.notes || "Görüşme sonucu girilmemiş"}</p>{interaction.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted-soft)]">Sonraki: {interaction.nextAction}</p> : null}</div><time className="shrink-0 text-[9px] text-[var(--muted-soft)]">{formatDateTime(interaction.startedAt)}</time></div></div>)}</div> : <EmptyInline>Bu müşteri için görüşme kaydı bulunmuyor.</EmptyInline>}
+        </div>
+      </div>
+    </GlassCard></section> : null}
     <section><GlassCard><SectionHeading eyebrow="Kayıt ve izinler" title="Belgeler & İzinler" /><div className="mt-4 grid gap-2.5 sm:mt-5 sm:gap-3 lg:grid-cols-2"><ConsentRow label="KVKK Aydınlatma" consent={kvkk} /><ConsentRow label="Açık Rıza" consent={explicitConsent} /><ConsentRow label="Üyelik Sözleşmesi" consent={membership} /><ConsentRow label="Sağlık Verisi Rızası" consent={healthConsent} />{(["MARKETING_SMS", "MARKETING_EMAIL", "MARKETING_PHONE"] as const).map((type) => <ConsentRow key={type} label={CONSENT_LABELS[type]} consent={latestConsent(customer.consents, type)} />)}</div>{customer.documents.length > 0 ? <div className="mt-5 border-t border-[var(--line)] pt-5"><p className="text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Belgeler</p><div className="mt-3 space-y-2">{customer.documents.map((document) => <div key={document.id} className="flex items-center justify-between rounded-[14px] border border-[var(--line)] px-4 py-3"><div><p className="text-[12px] font-medium text-[var(--ink)]">{document.title || CONSENT_LABELS[document.type] || userLabel(document.type)}</p><p className="mt-0.5 text-[10px] text-[var(--muted)]">{document.version || document.documentVersion || "Sürüm bilgisi yok"}{" · "}{formatShortDate(document.createdAt)}</p></div><span className="text-[10px] font-medium text-[var(--muted)]">{userLabel(document.status)}</span></div>)}</div></div> : null}</GlassCard></section>
     <section><GlassCard className="p-0"><div className="flex flex-col gap-4 border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="text-[10px] font-semibold uppercase tracking-[0.12em] text-[var(--accent)]">Takip</p><h2 className="mt-1 text-[16px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[18px]">Bakım & İşlem Geçmişi</h2></div>{canUpdateCustomer ? <Button onClick={openCareModal} className="w-full sm:w-auto">+ Yeni kayıt</Button> : null}</div>{customer.careEvents.length === 0 ? <EmptyInline>Bu müşteri için henüz bakım veya işlem sonrası kayıt bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.careEvents.map((event) => <CareEventRow key={event.id} event={event} onDelete={canDeleteCustomer ? () => setPendingCareDelete(event) : undefined} />)}</div>}</GlassCard></section>
     <section className="grid gap-3 sm:gap-5 lg:grid-cols-[minmax(0,1fr)_340px]"><GlassCard className="p-0"><div className="border-b border-[var(--line)] px-4 py-4 sm:px-6 sm:py-5"><h2 className="text-[18px] font-semibold text-[var(--ink)]">Ödeme geçmişi</h2></div>{customer.payments.length === 0 ? <EmptyInline>Henüz ödeme kaydı bulunmuyor.</EmptyInline> : <div className="divide-y divide-[var(--line)]">{customer.payments.map((payment) => <div key={payment.id} className="flex flex-col gap-2.5 px-4 py-3.5 sm:gap-3 sm:px-6 sm:py-4 sm:flex-row sm:items-center sm:justify-between"><div className="min-w-0"><p className="text-[14px] font-medium text-[var(--ink)]">{payment.service.name}</p><p className="mt-1 text-[12px] text-[var(--muted)]">{formatDateTime(payment.paidAt)}{" · "}{PAYMENT_METHOD_LABELS[payment.method]}</p>{payment.status === "REFUNDED" && payment.refundReason ? <p className="mt-1 text-[12px] text-[var(--muted-soft)]">İade nedeni: {payment.refundReason}</p> : null}</div><div className="flex shrink-0 items-center gap-3"><span className="text-[13px] font-semibold text-[var(--ink)]">{formatMoney(payment.amount)}</span><StatusBadge status={payment.status} label={payment.status === "REFUNDED" ? "İade edildi" : "Tamamlandı"} /></div></div>)}</div>}</GlassCard><GlassCard><SectionHeading eyebrow="Finans" title="Finansal özet" /><div className="mt-5 grid grid-cols-2 gap-x-6 gap-y-5"><InfoRow label="Toplam tahsilat" value={formatMoney(customer.stats.totalPaid)} /><InfoRow label="Toplam iade" value={formatMoney(customer.stats.totalRefunded)} /><InfoRow label="Net harcama" value={formatMoney(customer.stats.netSpent)} /><InfoRow label="Son ödeme" value={customer.stats.lastPaymentAt ? formatDateTime(customer.stats.lastPaymentAt) : "—"} /></div></GlassCard></section>
