@@ -7,6 +7,7 @@ import { Modal } from "@/components/modal";
 import { SearchField } from "@/components/data-view";
 import { ValooSelect } from "@/components/valoo-controls";
 import { TeamMessageAttachment } from "@/components/team-message-attachment";
+import { encodeValooRichCard, parseValooRichCard, TeamRichCard, type ValooRichCardPayload } from "@/components/team-rich-card";
 import { getStoredUser } from "@/lib/auth";
 
 type PresenceStatus =
@@ -83,6 +84,11 @@ type SearchResult = { id: string; body: string; createdAt: string; senderUserId:
 type AnnouncementReader = { id: string; firstName: string; lastName: string; email: string; acknowledgedAt: string };
 type MessageReader = { id: string; firstName: string; lastName: string; email: string; readAt: string };
 type PendingMessage = { id: string; body: string; attachmentNames: string[] };
+type ShareCustomer = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null };
+type ShareAppointment = { id: string; customerId: string; serviceId: string; startAt: string; status: string };
+type SharePayment = { id: string; amount: string | number; method: string; paidAt: string; status: string; appointment: { customerId: string; serviceId: string } };
+type ShareService = { id: string; name: string };
+type PaginatedResult<T> = { data: T[] };
 type AttachmentPreview = { url: string; mimeType: string; name: string };
 type PreparedAttachment = {
   objectKey: string;
@@ -192,6 +198,13 @@ export default function TeamPage() {
   const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
   const [forwarding, setForwarding] = useState(false);
   const [attachmentTab, setAttachmentTab] = useState<"MEDIA" | "FILES" | "LINKS">("MEDIA");
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareTab, setShareTab] = useState<"APPOINTMENT" | "CUSTOMER" | "PAYMENT">("APPOINTMENT");
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareCustomers, setShareCustomers] = useState<ShareCustomer[]>([]);
+  const [shareAppointments, setShareAppointments] = useState<ShareAppointment[]>([]);
+  const [sharePayments, setSharePayments] = useState<SharePayment[]>([]);
+  const [shareServices, setShareServices] = useState<ShareService[]>([]);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -691,6 +704,45 @@ export default function TeamPage() {
     }
   }
 
+  async function openValooShare() {
+    setShareOpen(true);
+    if (shareCustomers.length || shareAppointments.length || sharePayments.length) return;
+    setShareLoading(true);
+    try {
+      const [customersResult, appointmentsResult, paymentsResult, servicesResult] = await Promise.all([
+        api<PaginatedResult<ShareCustomer>>("/customers?page=1&limit=50"),
+        api<PaginatedResult<ShareAppointment>>("/appointments?page=1&limit=50"),
+        api<PaginatedResult<SharePayment>>("/payments?page=1&limit=50"),
+        api<PaginatedResult<ShareService>>("/services?page=1&limit=100"),
+      ]);
+      setShareCustomers(customersResult.data);
+      setShareAppointments(appointmentsResult.data);
+      setSharePayments(paymentsResult.data);
+      setShareServices(servicesResult.data);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "VALOO kayıtları yüklenemedi.");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  async function sendRichCard(payload: ValooRichCardPayload) {
+    if (!activeId || !canPost || sending) return;
+    setSending(true);
+    try {
+      await api(`/team/conversations/${activeId}/messages`, {
+        method: "POST",
+        body: { body: encodeValooRichCard(payload) },
+      });
+      setShareOpen(false);
+      await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "VALOO kaydı paylaşılamadı.");
+    } finally {
+      setSending(false);
+    }
+  }
+
   async function forwardMessageTo(destinationConversationId: string) {
     if (!forwardingMessage || forwarding) return;
     setForwarding(true);
@@ -1020,7 +1072,9 @@ export default function TeamPage() {
                           <div className={`group/message max-w-[76%] rounded-[18px] px-4 py-3 shadow-[0_3px_12px_rgba(17,70,104,.04)] ${mine ? "bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white" : "border border-[var(--line)] bg-white text-[var(--ink)]"}`}>
                             {!mine ? <p className="mb-1 text-[9px] font-semibold text-[var(--accent)]">{message.senderName}</p> : null}
                             {message.replyToMessageId ? <p className={`mb-2 rounded-[9px] border-l-2 px-2 py-1 text-[9px] ${mine ? "border-white/40 bg-white/5 text-white/65" : "border-[var(--accent)] bg-[var(--accent-soft)]/45 text-[var(--muted)]"}`}>Bir mesaja yanıt</p> : null}
-                            {!(message.attachments?.length && ["Fotoğraf", "Video", "Sesli mesaj"].includes(message.body)) ? (
+                            {parseValooRichCard(message.body) ? (
+                              <TeamRichCard payload={parseValooRichCard(message.body)!} mine={mine} />
+                            ) : !(message.attachments?.length && ["Fotoğraf", "Video", "Sesli mesaj"].includes(message.body)) ? (
                               <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{message.body}</p>
                             ) : null}
                             {message.attachments?.length ? (
@@ -1184,6 +1238,14 @@ export default function TeamPage() {
                     className={`h-10 rounded-[12px] border px-3 text-[10px] font-semibold transition ${recording ? "border-[rgba(196,81,103,.18)] bg-[var(--danger-soft)] text-[var(--danger)]" : "border-[var(--line)] bg-white text-[var(--muted)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]"} disabled:cursor-not-allowed disabled:opacity-50`}
                   >
                     {recording ? `Kaydı bitir · ${recordingSeconds}s` : "Ses kaydet"}
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!canPost}
+                    onClick={() => void openValooShare()}
+                    className="flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--accent)] transition hover:border-[var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    VALOO
                   </button>
                   <label className={`flex h-10 items-center rounded-[12px] border border-[var(--line)] bg-white px-3 text-[10px] font-semibold text-[var(--muted)] transition ${canPost ? "cursor-pointer hover:border-[var(--line-strong)] hover:text-[var(--accent)]" : "cursor-not-allowed opacity-50"}`}>
                     {selectedFiles.length ? `${selectedFiles.length} ek hazır` : "＋ Ekle"}
@@ -1438,6 +1500,110 @@ export default function TeamPage() {
             {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[65vh] w-full rounded-[14px] bg-white" /> : null}
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={shareOpen}
+        onClose={() => !sending && setShareOpen(false)}
+        title="VALOO’dan paylaş"
+        description="Bir kaydı konuşmaya etkileşimli kart olarak gönderin."
+        size="lg"
+      >
+        <div className="grid grid-cols-3 gap-1 rounded-[12px] bg-[var(--surface-2)] p-1">
+          {(["APPOINTMENT", "CUSTOMER", "PAYMENT"] as const).map((tab) => (
+            <button
+              key={tab}
+              type="button"
+              onClick={() => setShareTab(tab)}
+              className={`rounded-[9px] px-3 py-2 text-[10px] font-semibold ${shareTab === tab ? "bg-white text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}
+            >
+              {tab === "APPOINTMENT" ? "Randevular" : tab === "CUSTOMER" ? "Müşteriler" : "Ödemeler"}
+            </button>
+          ))}
+        </div>
+
+        <div className="mt-3 max-h-[480px] overflow-y-auto">
+          {shareLoading ? (
+            <p className="py-10 text-center text-[11px] text-[var(--muted)]">Kayıtlar yükleniyor…</p>
+          ) : shareTab === "APPOINTMENT" ? (
+            <div className="space-y-2">
+              {shareAppointments.map((appointment) => {
+                const customer = shareCustomers.find((item) => item.id === appointment.customerId);
+                const service = shareServices.find((item) => item.id === appointment.serviceId);
+                const title = customer ? `${customer.firstName} ${customer.lastName}` : "Randevu";
+                const date = new Date(appointment.startAt).toLocaleString("tr-TR");
+                return (
+                  <button
+                    key={appointment.id}
+                    type="button"
+                    disabled={sending}
+                    onClick={() => void sendRichCard({
+                      kind: "APPOINTMENT",
+                      id: appointment.id,
+                      title,
+                      subtitle: service?.name ?? "Randevu",
+                      meta: [date, appointment.status],
+                      href: `/appointments?appointmentId=${appointment.id}`,
+                    })}
+                    className="w-full rounded-[14px] border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+                  >
+                    <p className="text-[11px] font-semibold text-[var(--ink)]">{title}</p>
+                    <p className="mt-1 text-[9px] text-[var(--muted)]">{service?.name ?? "Hizmet"} · {date}</p>
+                  </button>
+                );
+              })}
+            </div>
+          ) : shareTab === "CUSTOMER" ? (
+            <div className="space-y-2">
+              {shareCustomers.map((customer) => (
+                <button
+                  key={customer.id}
+                  type="button"
+                  disabled={sending}
+                  onClick={() => void sendRichCard({
+                    kind: "CUSTOMER",
+                    id: customer.id,
+                    title: `${customer.firstName} ${customer.lastName}`,
+                    subtitle: customer.phone ?? customer.email ?? "İletişim bilgisi yok",
+                    meta: customer.email && customer.phone ? [customer.email] : [],
+                    href: `/customers/${customer.id}`,
+                  })}
+                  className="w-full rounded-[14px] border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+                >
+                  <p className="text-[11px] font-semibold text-[var(--ink)]">{customer.firstName} {customer.lastName}</p>
+                  <p className="mt-1 text-[9px] text-[var(--muted)]">{customer.phone ?? customer.email ?? "İletişim bilgisi yok"}</p>
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {sharePayments.map((payment) => {
+                const customer = shareCustomers.find((item) => item.id === payment.appointment.customerId);
+                const service = shareServices.find((item) => item.id === payment.appointment.serviceId);
+                const title = `₺${Number(payment.amount).toLocaleString("tr-TR")}`;
+                return (
+                  <button
+                    key={payment.id}
+                    type="button"
+                    disabled={sending}
+                    onClick={() => void sendRichCard({
+                      kind: "PAYMENT",
+                      id: payment.id,
+                      title,
+                      subtitle: customer ? `${customer.firstName} ${customer.lastName}` : "Ödeme",
+                      meta: [service?.name ?? "Hizmet", new Date(payment.paidAt).toLocaleString("tr-TR"), payment.method, payment.status],
+                      href: "/payments",
+                    })}
+                    className="w-full rounded-[14px] border border-[var(--line)] bg-white p-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] disabled:opacity-50"
+                  >
+                    <p className="text-[11px] font-semibold text-[var(--ink)]">{title}</p>
+                    <p className="mt-1 text-[9px] text-[var(--muted)]">{customer ? `${customer.firstName} ${customer.lastName}` : "Müşteri"} · {service?.name ?? "Hizmet"}</p>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
       </Modal>
 
       <Modal
