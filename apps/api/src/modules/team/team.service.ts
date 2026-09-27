@@ -1428,7 +1428,7 @@ export class TeamService {
       form.set('model', model);
       form.set(
         'file',
-        new Blob([bytes], { type: attachment.mimeType }),
+        new Blob([new Uint8Array(bytes)], { type: attachment.mimeType }),
         attachment.originalName,
       );
       form.set('language', 'tr');
