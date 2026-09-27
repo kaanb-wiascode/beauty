@@ -31,6 +31,8 @@ type SurveyorReport = {
   opportunityCount: number;
   wonCount: number;
   actualSalesValue: number;
+  dailyDeskQuota: number | null;
+  weeklyDeskQuota: number | null;
   leadToOpportunityRate: number;
   leadToSaleRate: number;
 };
@@ -213,13 +215,15 @@ export default function CrmReportsPage() {
         </div>
         {surveyors.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left">
+            <table className="w-full min-w-[920px] text-left">
               <thead className="border-b border-[var(--line)] bg-[var(--surface-2)]/45 text-[9px] uppercase tracking-[.06em] text-[var(--muted)]">
-                <tr><th className="px-5 py-3">Anketör</th><th className="px-3 py-3">Pot. Müşteri</th><th className="px-3 py-3">Fırsat</th><th className="px-3 py-3">Kazanılan</th><th className="px-3 py-3">Müşteri → Fırsat</th><th className="px-3 py-3">Müşteri → Satış</th><th className="px-3 py-3">Gerçek Satış</th></tr>
+                <tr><th className="px-5 py-3">Anketör</th><th className="px-3 py-3">Günlük Masa Kotası</th><th className="px-3 py-3">Haftalık Masa Kotası</th><th className="px-3 py-3">Pot. Müşteri</th><th className="px-3 py-3">Fırsat</th><th className="px-3 py-3">Kazanılan</th><th className="px-3 py-3">Müşteri → Fırsat</th><th className="px-3 py-3">Müşteri → Satış</th><th className="px-3 py-3">Gerçek Satış</th></tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
                 {surveyors.map((row) => <tr key={row.staffId} className="text-[11px]">
                   <td className="px-5 py-4 font-semibold">{row.firstName} {row.lastName}</td>
+                  <td className="px-3 py-4">{row.dailyDeskQuota ?? "—"}</td>
+                  <td className="px-3 py-4">{row.weeklyDeskQuota ?? "—"}</td>
                   <td className="px-3 py-4">{row.leadCount}</td>
                   <td className="px-3 py-4">{row.opportunityCount}</td>
                   <td className="px-3 py-4">{row.wonCount}</td>
