@@ -656,6 +656,230 @@ export class MarketingProviderSyncService {
     };
   }
 
+  private normalizeTikTokLeadFields(value: unknown) {
+    const fields: Record<string, string> = {};
+    if (Array.isArray(value)) {
+      for (const entry of value) {
+        if (!entry || typeof entry !== 'object') continue;
+        const row = entry as Record<string, unknown>;
+        const key =
+          typeof row.field_name === 'string'
+            ? row.field_name
+            : typeof row.name === 'string'
+              ? row.name
+              : typeof row.key === 'string'
+                ? row.key
+                : '';
+        const raw =
+          typeof row.value === 'string'
+            ? row.value
+            : typeof row.field_value === 'string'
+              ? row.field_value
+              : Array.isArray(row.values)
+                ? row.values.filter((item): item is string => typeof item === 'string').join(', ')
+                : '';
+        if (key && raw) fields[key.trim().toUpperCase()] = raw.trim();
+      }
+    } else if (value && typeof value === 'object') {
+      for (const [key, raw] of Object.entries(value as Record<string, unknown>)) {
+        if (typeof raw === 'string' && raw.trim()) {
+          fields[key.trim().toUpperCase()] = raw.trim();
+        }
+      }
+    }
+    return fields;
+  }
+
+  private async tiktokLeadSubmissions(
+    connection: ConnectionRow,
+    actorUserId: string,
+  ) {
+    const accessToken = await this.accessToken(connection);
+    const advertiserId = connection.externalAccountId!;
+    const endpoint =
+      this.config.get<string>('TIKTOK_BUSINESS_LEAD_GET_URL')?.trim() ||
+      'https://business-api.tiktok.com/open_api/v1.3/lead/get/';
+
+    const end = new Date();
+    const start = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+    const format = (value: Date) =>
+      value.toISOString().replace('T', ' ').slice(0, 19);
+
+    const url = new URL(endpoint);
+    url.searchParams.set('advertiser_id', advertiserId);
+    url.searchParams.set('lead_source', 'INSTANT_FORM');
+    url.searchParams.set('start_time', format(start));
+    url.searchParams.set('end_time', format(end));
+    url.searchParams.set('page_size', '100');
+
+    const body = await this.fetchJson(url.toString(), {
+      headers: { 'Access-Token': accessToken },
+    });
+    const envelope =
+      body && typeof body === 'object'
+        ? body as Record<string, unknown>
+        : {};
+    if (typeof envelope.code === 'number' && envelope.code !== 0) {
+      throw new BadRequestException(
+        'TikTok potansiyel müşteri verileri platform tarafından reddedildi.',
+      );
+    }
+    const data =
+      envelope.data && typeof envelope.data === 'object'
+        ? envelope.data as Record<string, unknown>
+        : {};
+    const list = Array.isArray(data.list)
+      ? data.list
+      : Array.isArray(data.leads)
+        ? data.leads
+        : [];
+
+    const { tenantId, companyId, branchId } = this.context();
+    let inserted = 0;
+    let existing = 0;
+
+    for (const entry of list) {
+      if (!entry || typeof entry !== 'object') continue;
+      const lead = entry as Record<string, unknown>;
+      const externalLeadId =
+        typeof lead.lead_id === 'string'
+          ? lead.lead_id
+          : lead.id == null
+            ? ''
+            : String(lead.id);
+      if (!externalLeadId) continue;
+
+      const fields = {
+        ...this.normalizeTikTokLeadFields(lead.lead_data),
+        ...this.normalizeTikTokLeadFields(lead.lead_info),
+        ...this.normalizeTikTokLeadFields(lead.fields),
+      };
+      const fullName =
+        fields.FULL_NAME ||
+        fields.NAME ||
+        [fields.FIRST_NAME, fields.LAST_NAME].filter(Boolean).join(' ').trim();
+      const [firstName, ...lastNameParts] = (fullName || 'TikTok').split(/\s+/);
+      const lastName = lastNameParts.join(' ') || 'Lead';
+      const phone =
+        fields.PHONE_NUMBER ||
+        fields.PHONE ||
+        fields.MOBILE ||
+        null;
+      const email = fields.EMAIL || null;
+      if (!phone && !email) continue;
+
+      const externalCampaignId =
+        typeof lead.campaign_id === 'string'
+          ? lead.campaign_id
+          : lead.campaign_id == null
+            ? null
+            : String(lead.campaign_id);
+
+      const mapped = externalCampaignId
+        ? await this.prisma.$queryRawUnsafe<Array<{ campaignId: string | null }>>(
+            `SELECT campaign_id AS "campaignId"
+               FROM corporate_marketing_provider_campaigns
+              WHERE connection_id=$1::text AND external_campaign_id=$2
+                AND tenant_id=$3::text AND company_id=$4::text
+              LIMIT 1`,
+            connection.id,
+            externalCampaignId,
+            tenantId,
+            companyId,
+          )
+        : [];
+
+      const created = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `INSERT INTO corporate_marketing_leads(
+           tenant_id,company_id,branch_id,campaign_id,provider,external_lead_id,
+           first_name,last_name,phone,email,status,source_payload,first_touch,last_touch
+         ) VALUES(
+           $1::text,$2::text,$3::text,$4::text,'TIKTOK',$5,$6,$7,$8,$9,
+           'NEW',$10::jsonb,$11::jsonb,$11::jsonb
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        tenantId,
+        companyId,
+        branchId ?? null,
+        mapped[0]?.campaignId ?? null,
+        externalLeadId,
+        firstName,
+        lastName,
+        phone,
+        email,
+        JSON.stringify({
+          connectionId: connection.id,
+          advertiserId,
+          formId:
+            typeof lead.form_id === 'string'
+              ? lead.form_id
+              : typeof lead.page_id === 'string'
+                ? lead.page_id
+                : null,
+          adId:
+            typeof lead.ad_id === 'string' ? lead.ad_id : null,
+          createTime:
+            lead.create_time ?? lead.created_time ?? null,
+          fields,
+          raw: lead,
+        }),
+        JSON.stringify({
+          externalCampaignId,
+          externalAdId:
+            typeof lead.ad_id === 'string' ? lead.ad_id : null,
+          clickId:
+            typeof lead.ttclid === 'string'
+              ? lead.ttclid
+              : typeof lead.click_id === 'string'
+                ? lead.click_id
+                : null,
+          utmSource: 'tiktok',
+          utmMedium: 'paid',
+        }),
+      );
+
+      if (!created.length) {
+        existing += 1;
+        continue;
+      }
+
+      inserted += 1;
+      await this.prisma.$executeRawUnsafe(
+        `INSERT INTO corporate_marketing_touchpoints(
+           tenant_id,company_id,marketing_lead_id,campaign_id,provider,touch_type,
+           external_campaign_id,external_ad_id,click_id,utm_source,utm_medium,metadata
+         ) VALUES(
+           $1::text,$2::text,$3::text,$4::text,'TIKTOK','LEAD_CAPTURE',
+           $5,$6,$7,'tiktok','paid',$8::jsonb
+         )`,
+        tenantId,
+        companyId,
+        created[0]!.id,
+        mapped[0]?.campaignId ?? null,
+        externalCampaignId,
+        typeof lead.ad_id === 'string' ? lead.ad_id : null,
+        typeof lead.ttclid === 'string'
+          ? lead.ttclid
+          : typeof lead.click_id === 'string'
+            ? lead.click_id
+            : null,
+        JSON.stringify({
+          source: 'TIKTOK_LEAD_API',
+          connectionId: connection.id,
+          externalLeadId,
+          actorUserId,
+        }),
+      );
+    }
+
+    return {
+      received: list.length,
+      inserted,
+      existing,
+    };
+  }
+
   private internalStatus(providerStatus: string | null) {
     if (
       providerStatus === 'ENABLED' ||
@@ -807,7 +1031,9 @@ export class MarketingProviderSyncService {
       const leads =
         connection.provider === 'GOOGLE_ADS'
           ? await this.googleLeadSubmissions(connection, actorUserId)
-          : { received: 0, inserted: 0, existing: 0 };
+          : connection.provider === 'TIKTOK'
+            ? await this.tiktokLeadSubmissions(connection, actorUserId)
+            : { received: 0, inserted: 0, existing: 0 };
 
       return {
         connectionId: connection.id,
