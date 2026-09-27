@@ -3,7 +3,7 @@ import { PrismaService } from '@beauty-erp/database';
 import type { CrmAutomationScope } from './crm-automation.service';
 
 export type AutomationRunOrigin = 'MANUAL' | 'SCHEDULER';
-export type AutomationRunOperation = 'EVENT_PROCESSOR' | 'STALE_SWEEP';
+export type AutomationRunOperation = 'EVENT_PROCESSOR' | 'STALE_SWEEP' | 'SLA_SWEEP' | 'LEAD_SCORE_SWEEP';
 
 type AutomationResult = {
   scanned: number;
