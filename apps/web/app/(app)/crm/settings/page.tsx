@@ -169,6 +169,19 @@ export default function CrmSettingsPage() {
     }
   }
 
+  async function removeTeamMember(teamId: string, userId: string) {
+    setSaving(`member-${teamId}`);
+    setError("");
+    try {
+      await api(`/crm/teams/${teamId}/members/${userId}`, { method: "DELETE" });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Ekip üyesi çıkarılamadı.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function updateSla(rule: AutomationRule, config: Record<string, unknown>, enabled = rule.enabled) {
     setSaving(rule.ruleKey);
     setError("");
