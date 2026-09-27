@@ -131,6 +131,25 @@ export default function CrmSettingsPage() {
     }
   }
 
+  async function createTeam(event: FormEvent) {
+    event.preventDefault();
+    if (!teamForm.name.trim() || !teamForm.managerUserId) {
+      setError("Ekip adı ve ekip yöneticisi gereklidir.");
+      return;
+    }
+    setSaving("team");
+    setError("");
+    try {
+      await api("/crm/teams", { method: "POST", body: { name: teamForm.name.trim(), managerUserId: teamForm.managerUserId } });
+      setTeamForm({ name: "Satış Ekibi", managerUserId: "" });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "CRM ekibi oluşturulamadı.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function updateSla(rule: AutomationRule, config: Record<string, unknown>, enabled = rule.enabled) {
     setSaving(rule.ruleKey);
     setError("");
