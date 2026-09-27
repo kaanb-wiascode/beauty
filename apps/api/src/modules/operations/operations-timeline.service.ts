@@ -32,10 +32,10 @@ export class OperationsTimelineService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
     if (!tenantId || !companyId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId };
   }
@@ -54,7 +54,7 @@ export class OperationsTimelineService {
         session: { select: { id: true, status: true } },
       },
     });
-    if (!appointment) throw new NotFoundException('Appointment not found');
+    if (!appointment) throw new NotFoundException('Randevu bulunamadı.');
 
     const rows = await this.prisma.$queryRawUnsafe<TimelineEvent[]>(
       `WITH linked_visits AS (
