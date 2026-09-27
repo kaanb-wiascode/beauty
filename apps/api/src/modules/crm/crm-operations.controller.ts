@@ -31,7 +31,7 @@ const actionFollowUpsSchema = z
     limit: z.coerce.number().int().min(1).max(200).optional(),
   })
   .refine((value) => value.dayEnd > value.dayStart, {
-    message: 'dayEnd must be after dayStart.',
+    message: 'Bitiş zamanı başlangıç zamanından sonra olmalıdır.',
     path: ['dayEnd'],
   });
 
@@ -52,11 +52,11 @@ const reminderFeedSchema = z
     limit: z.coerce.number().int().min(1).max(200).optional(),
   })
   .refine((value) => value.dayEnd > value.dayStart, {
-    message: 'dayEnd must be after dayStart.',
+    message: 'Bitiş zamanı başlangıç zamanından sonra olmalıdır.',
     path: ['dayEnd'],
   })
   .refine((value) => value.closeThrough >= value.today, {
-    message: 'closeThrough must be on or after today.',
+    message: 'Kapanış tarihi bugünden önce olamaz.',
     path: ['closeThrough'],
   });
 
@@ -83,7 +83,7 @@ export class CrmOperationsController {
   private userId(request: { user?: { sub?: string } }) {
     const id = request.user?.sub;
     if (!id) {
-      throw new UnauthorizedException('Authenticated user id is missing.');
+      throw new UnauthorizedException('Oturum açmış kullanıcı bilgisi bulunamadı.');
     }
     return id;
   }
