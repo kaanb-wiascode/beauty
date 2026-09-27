@@ -224,6 +224,37 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
   }
 
+  async function updateQuoteStatus(quote: CrmQuote, status: Exclude<CrmQuote["status"], "DRAFT">) {
+    if (!opportunity || !canManage || !branchReady("Teklif durumunu güncellemek için aktif bir şube seçin.")) return;
+    setQuoteError("");
+    try {
+      await api(`/crm/quotes/${quote.id}/status`, {
+        method: "PATCH",
+        body: { version: quote.version, status },
+      });
+      await refresh(opportunity.id);
+      showToast(`Teklif durumu “${quoteStatusLabels[status]}” olarak güncellendi.`, "success");
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Teklif durumu güncellenemedi.";
+      setQuoteError(message);
+      showToast(message, "error");
+    }
+  }
+
+  async function convertQuoteToSale(quote: CrmQuote) {
+    if (!opportunity || !canManage || !branchReady("Teklifi satışa dönüştürmek için aktif bir şube seçin.")) return;
+    setQuoteError("");
+    try {
+      await api(`/crm/quotes/${quote.id}/convert-sale`, { method: "POST" });
+      await refresh(opportunity.id);
+      showToast("Kabul edilen teklif satış kaydına dönüştürüldü.", "success");
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Teklif satışa dönüştürülemedi.";
+      setQuoteError(message);
+      showToast(message, "error");
+    }
+  }
+
   function openFollowUp() {
     if (!opportunity || !canManage || !branchReady("Takip oluşturmak için aktif bir şube seçin.")) return;
     setFollowUpForm({ assignedUserId: opportunity.ownerUserId ?? assignees[0]?.id ?? "", channel: "CALL", dueAt: nextHour(), note: "" }); setFollowUpError(""); setFollowUpOpen(true);
@@ -282,7 +313,17 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         <div><p className="text-[11px] font-semibold">{quote.quoteNumber}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{dateOnly(quote.createdAt)}</p></div>
         <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{quoteStatusLabels[quote.status]}</span>
         <div className="text-[10px] text-[var(--muted)]">Ara toplam: {money(quote.subtotal, quote.currency)} · İndirim: {money(quote.discountTotal, quote.currency)}{quote.validUntil ? ` · Son geçerlilik: ${dateOnly(quote.validUntil)}` : ""}</div>
-        <strong className="text-[12px] sm:text-right">{money(quote.total, quote.currency)}</strong>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <strong className="text-[12px]">{money(quote.total, quote.currency)}</strong>
+          {canManage ? <div className="flex flex-wrap gap-1.5 sm:justify-end">
+            {quote.status === "DRAFT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "SENT")}>Gönderildi Olarak İşaretle</Button> : null}
+            {quote.status === "SENT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "VIEWED")}>Görüntülendi</Button> : null}
+            {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "ACCEPTED")}>Kabul Edildi</Button> : null}
+            {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "REJECTED")}>Reddedildi</Button> : null}
+            {quote.status === "ACCEPTED" && !opportunity.saleId ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void convertQuoteToSale(quote)}>Satışa Dönüştür</Button> : null}
+            {!["ACCEPTED","REJECTED","CANCELLED","EXPIRED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "CANCELLED")}>İptal Et</Button> : null}
+          </div> : null}
+        </div>
       </div>)}</div> : <EmptyState title="Teklif Bulunmuyor" description="Bu satış fırsatı için henüz teklif oluşturulmamış." action={canManage ? <Button onClick={openQuote}>İlk Teklifi Oluştur</Button> : undefined} />}
     </GlassCard>
 
