@@ -44,7 +44,7 @@ export class CrmQuoteService {
     const context = this.context();
     const visibility = await this.dataScope.resolve();
     return this.prisma.$queryRawUnsafe(
-      `SELECT q.id,q.opportunity_id AS "opportunityId",q.customer_id AS "customerId",
+      `SELECT q.id,q.branch_id AS "branchId",q.opportunity_id AS "opportunityId",q.customer_id AS "customerId",
               q.owner_user_id AS "ownerUserId",q.quote_number AS "quoteNumber",q.status,q.currency,
               q.subtotal,q.discount_total AS "discountTotal",q.total,q.valid_until AS "validUntil",
               q.sent_at AS "sentAt",q.viewed_at AS "viewedAt",q.accepted_at AS "acceptedAt",
@@ -69,7 +69,7 @@ export class CrmQuoteService {
     const context = this.context();
     const visibility = await this.dataScope.resolve();
     const rows = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `SELECT q.id,q.opportunity_id AS "opportunityId",q.customer_id AS "customerId",
+      `SELECT q.id,q.branch_id AS "branchId",q.opportunity_id AS "opportunityId",q.customer_id AS "customerId",
               q.owner_user_id AS "ownerUserId",q.quote_number AS "quoteNumber",q.status,q.currency,
               q.subtotal,q.discount_total AS "discountTotal",q.total,q.valid_until AS "validUntil",
               q.sent_at AS "sentAt",q.viewed_at AS "viewedAt",q.accepted_at AS "acceptedAt",
@@ -192,6 +192,7 @@ export class CrmQuoteService {
     const quote = (await this.get(id)) as unknown as {
       id: string;
       opportunityId: string;
+      branchId: string;
       customerId: string | null;
       quoteNumber: string;
       status: string;
@@ -210,6 +211,10 @@ export class CrmQuoteService {
       }>;
     };
     await this.dataScope.assertOpportunityAccess(quote.opportunityId);
+    const activeBranchId = this.requireBranchId();
+    if (quote.branchId !== activeBranchId) {
+      throw new BadRequestException('Teklifi göndermek için teklifin bağlı olduğu şubeyi aktif çalışma kapsamı olarak seçin.');
+    }
 
     if (['ACCEPTED','REJECTED','EXPIRED','CANCELLED'].includes(quote.status)) {
       throw new BadRequestException('Sonuçlanmış veya süresi dolmuş teklif müşteriye gönderilemez.');
@@ -258,7 +263,7 @@ export class CrmQuoteService {
     }
 
     const context = this.context();
-    const branchId = this.requireBranchId();
+    const branchId = activeBranchId;
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO crm_events(
          tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata
