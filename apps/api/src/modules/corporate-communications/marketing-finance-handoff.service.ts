@@ -63,17 +63,17 @@ export class MarketingFinanceHandoffService {
       context.companyId,
       context.branchId,
     );
-    if (!expenses.length) throw new NotFoundException('Marketing expense not found.');
+    if (!expenses.length) throw new NotFoundException('Pazarlama gideri bulunamadı.');
     const expense = expenses[0];
     if (expense.supplierBillId && expense.status === 'POSTED') {
       return { expenseId, supplierBillId: expense.supplierBillId, idempotent: true };
     }
     if (!['PENDING_FINANCE', 'APPROVED'].includes(expense.status)) {
-      throw new BadRequestException('Marketing expense is not eligible for finance posting.');
+      throw new BadRequestException('Pazarlama gideri henüz finans kaydına aktarılabilir durumda değil.');
     }
     if (expense.currency !== 'TRY') {
       throw new BadRequestException(
-        'Foreign-currency marketing expenses must be converted before accounting posting.',
+        'Yabancı para birimindeki pazarlama giderleri muhasebe kaydından önce dönüştürülmelidir.',
       );
     }
 
@@ -84,7 +84,7 @@ export class MarketingFinanceHandoffService {
       context.tenantId,
       context.companyId,
     );
-    if (!supplier.length) throw new BadRequestException('Finance supplier is outside the active company.');
+    if (!supplier.length) throw new BadRequestException('Seçilen finans tedarikçisi aktif şirket kapsamında değil.');
 
     const bill = await this.accountsPayable.createBill({
       supplierId: input.supplierId,
