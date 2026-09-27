@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Paginated, Service } from "@/lib/types";
 
@@ -165,9 +168,7 @@ export default function OperationsChecklistsPage() {
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
           Standart hizmet akışları
         </p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">
-          Hizmet Kontrol Listeleri
-        </h1>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Hizmet Kontrol Listeleri</h1><CardInfo help={getCardHelp("Hizmet Kontrol Listeleri")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
           Her hizmet için uygulanacak kontrol adımlarını sürümler halinde tanımlayın. Hizmet başladığında geçerli sürüm kayda alınır; sonraki değişiklikler geçmiş hizmet kayıtlarını etkilemez.
         </p>
