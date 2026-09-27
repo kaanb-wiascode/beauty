@@ -146,6 +146,13 @@ export class CrmAutomationSchedulerService
                ELSE 14
              END * INTERVAL '1 day'
            )
+       ), quote_candidates AS (
+         SELECT q.tenant_id,q.company_id,q.branch_id
+           FROM crm_quotes q
+          WHERE q.branch_id IS NOT NULL
+            AND q.status IN ('SENT','VIEWED')
+            AND q.valid_until IS NOT NULL
+            AND q.valid_until < NOW()
        ), sla_candidates AS (
          SELECT l.tenant_id,l.company_id,l.branch_id
          FROM crm_leads l
@@ -165,6 +172,8 @@ export class CrmAutomationSchedulerService
          UNION
          SELECT * FROM stale_candidates
          UNION
+         SELECT * FROM quote_candidates
+         UNION
          SELECT * FROM sla_candidates
        )
        SELECT tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId"
@@ -173,6 +182,70 @@ export class CrmAutomationSchedulerService
        LIMIT 500`,
     );
     return rows;
+  }
+
+  private async expireQuotes(scope: CrmAutomationScope) {
+    if (!scope.branchId) return { scanned: 0, updated: 0 };
+
+    const quotes = await this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      customerId: string | null;
+      opportunityId: string;
+      ownerUserId: string;
+      validUntil: Date;
+    }>>(
+      `SELECT id,customer_id AS "customerId",opportunity_id AS "opportunityId",
+              owner_user_id AS "ownerUserId",valid_until AS "validUntil"
+         FROM crm_quotes
+        WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+          AND status IN ('SENT','VIEWED')
+          AND valid_until IS NOT NULL
+          AND valid_until < NOW()
+        ORDER BY valid_until,id
+        LIMIT 200`,
+      scope.tenantId,
+      scope.companyId,
+      scope.branchId,
+    );
+
+    let updated = 0;
+    for (const quote of quotes) {
+      const changed = await this.prisma.$transaction(async (tx) => {
+        const result = await tx.$executeRawUnsafe(
+          `UPDATE crm_quotes
+              SET status='EXPIRED',version=version+1,updated_at=NOW()
+            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+              AND status IN ('SENT','VIEWED') AND valid_until<NOW()`,
+          quote.id,
+          scope.tenantId,
+          scope.companyId,
+          scope.branchId,
+        );
+        if (!result) return false;
+
+        await tx.$executeRawUnsafe(
+          `INSERT INTO crm_events(
+             tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata
+           ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'QUOTE_STATUS_CHANGED',$6::text,$7::jsonb)`,
+          scope.tenantId,
+          scope.companyId,
+          scope.branchId,
+          quote.customerId,
+          quote.opportunityId,
+          quote.ownerUserId,
+          JSON.stringify({
+            quoteId: quote.id,
+            status: 'EXPIRED',
+            automated: true,
+            validUntil: quote.validUntil.toISOString(),
+          }),
+        );
+        return true;
+      });
+      if (changed) updated += 1;
+    }
+
+    return { scanned: quotes.length, updated };
   }
 
   private async processScope(scope: CrmAutomationScope) {
@@ -196,11 +269,12 @@ export class CrmAutomationSchedulerService
       { origin: 'SCHEDULER', operation: 'LEAD_SCORE_SWEEP' },
       () => this.scoring.sweep(scope),
     );
+    const expiredQuotes = await this.expireQuotes(scope);
     const messages = await this.messages.process(scope);
     return {
-      created: events.created + stale.created + sla.created,
+      created: events.created + stale.created + sla.created + expiredQuotes.updated,
       sent: messages.sent,
-      scanned: events.scanned + stale.scanned + sla.scanned + scoring.scanned + messages.scanned,
+      scanned: events.scanned + stale.scanned + sla.scanned + scoring.scanned + expiredQuotes.scanned + messages.scanned,
     };
   }
 
