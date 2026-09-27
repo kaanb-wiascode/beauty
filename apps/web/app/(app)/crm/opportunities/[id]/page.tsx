@@ -95,7 +95,7 @@ function localInput(value: string | Date) {
 }
 function nextHour() { const date = new Date(); date.setMinutes(0, 0, 0); date.setHours(date.getHours() + 1); return localInput(date); }
 function eventLabel(type: string) {
-  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı", SALE_CONFIRMED: "Satış Onaylandı", SALE_CANCELLED: "Satış İptal Edildi", SALE_PAYMENT_RECEIVED: "Ödeme Alındı", SALE_PAYMENT_REFUNDED: "Ödeme İade Edildi", QUOTE_CREATED: "Teklif Oluşturuldu", QUOTE_STATUS_CHANGED: "Teklif Durumu Güncellendi", QUOTE_CONVERTED_TO_SALE: "Teklif Satışa Dönüştürüldü" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
+  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı", SALE_CONFIRMED: "Satış Onaylandı", SALE_CANCELLED: "Satış İptal Edildi", SALE_PAYMENT_RECEIVED: "Ödeme Alındı", SALE_PAYMENT_REFUNDED: "Ödeme İade Edildi", QUOTE_CREATED: "Teklif Oluşturuldu", QUOTE_STATUS_CHANGED: "Teklif Durumu Güncellendi", QUOTE_CONVERTED_TO_SALE: "Teklif Satışa Dönüştürüldü", QUOTE_SENT: "Teklif Müşteriye Gönderildi" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
 }
 function eventSummary(metadata: Record<string, unknown> | null) {
   return metadata ? Object.entries(metadata).filter(([, v]) => v !== null && v !== undefined && v !== "").slice(0, 4).map(([k, v]) => `${k}: ${String(v)}`).join(" · ") : null;
@@ -112,6 +112,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteSaving, setQuoteSaving] = useState(false);
   const [quoteError, setQuoteError] = useState("");
+  const [quoteActionId, setQuoteActionId] = useState("");
   const [quoteForm, setQuoteForm] = useState({ discountTotal: "0", validUntil: "", notes: "" });
   const [quoteItems, setQuoteItems] = useState<QuoteItemForm[]>([{ itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
   const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
@@ -297,6 +298,28 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     }
   }
 
+  async function sendQuote(quote: CrmQuote, channel: "WHATSAPP" | "SMS" | "EMAIL") {
+    if (!opportunity || !canManage || !branchReady("Teklifi göndermek için aktif bir şube seçin.")) return;
+    const actionKey = `${quote.id}:${channel}`;
+    setQuoteActionId(actionKey);
+    setQuoteError("");
+    try {
+      await api(`/crm/quotes/${quote.id}/send`, {
+        method: "POST",
+        body: { channel },
+      });
+      await refresh(opportunity.id);
+      const channelLabel = channel === "EMAIL" ? "e-posta" : channel === "WHATSAPP" ? "WhatsApp" : "SMS";
+      showToast(`Teklif ${channelLabel} üzerinden gönderildi.`, "success");
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Teklif gönderilemedi.";
+      setQuoteError(message);
+      showToast(message, "error");
+    } finally {
+      setQuoteActionId("");
+    }
+  }
+
   async function convertQuoteToSale(quote: CrmQuote) {
     if (!opportunity || !canManage || !branchReady("Teklifi satışa dönüştürmek için aktif bir şube seçin.")) return;
     setQuoteError("");
@@ -372,6 +395,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <strong className="text-[12px]">{money(quote.total, quote.currency)}</strong>
           {canManage ? <div className="flex flex-wrap gap-1.5 sm:justify-end">
+            {["DRAFT","SENT","VIEWED"].includes(quote.status) ? <>
+              <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" disabled={Boolean(quoteActionId)} onClick={() => void sendQuote(quote, "WHATSAPP")}>{quoteActionId === `${quote.id}:WHATSAPP` ? "Gönderiliyor..." : "WhatsApp"}</Button>
+              <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" disabled={Boolean(quoteActionId)} onClick={() => void sendQuote(quote, "SMS")}>{quoteActionId === `${quote.id}:SMS` ? "Gönderiliyor..." : "SMS"}</Button>
+              <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" disabled={Boolean(quoteActionId)} onClick={() => void sendQuote(quote, "EMAIL")}>{quoteActionId === `${quote.id}:EMAIL` ? "Gönderiliyor..." : "E-posta"}</Button>
+            </> : null}
             {quote.status === "DRAFT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "SENT")}>Gönderildi Olarak İşaretle</Button> : null}
             {quote.status === "SENT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "VIEWED")}>Görüntülendi</Button> : null}
             {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "ACCEPTED")}>Kabul Edildi</Button> : null}
