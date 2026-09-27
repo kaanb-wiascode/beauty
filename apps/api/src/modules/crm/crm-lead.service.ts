@@ -265,6 +265,16 @@ export class CrmLeadService {
         input.source === 'SURVEYOR' ? input.surveyDate ?? null : null,
         actorUserId,
       );
+      await this.assignmentService.recordAssignment({
+        leadId: String(rows[0].id),
+        branchId,
+        assignedUserId: assignment.ownerUserId,
+        ruleId: assignment.ruleId,
+        mode: assignment.mode,
+        reason: assignment.reason,
+        assignedByUserId: actorUserId,
+      }, tx);
+
       await tx.$executeRawUnsafe(
         `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
          VALUES($1::text,$2::text,$3::text,$4::text,'LEAD_CREATED',$5::text,$6::jsonb)`,
