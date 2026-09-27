@@ -21,6 +21,10 @@ export type CrmLead = {
   opportunityId: string | null;
   opportunityStage: OpportunityStage | null;
   estimatedValue: string | number | null;
+  leadScore?: number;
+  leadTemperature?: "COLD" | "WARM" | "HOT";
+  leadScoreBreakdown?: Record<string, number>;
+  leadScoreUpdatedAt?: string | null;
   surveyorStaffId?: string | null;
   surveyorBranchId?: string | null;
   surveyCampaign?: string | null;
