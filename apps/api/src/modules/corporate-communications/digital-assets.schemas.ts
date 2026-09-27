@@ -33,7 +33,7 @@ const digitalAssetBaseSchema = z.object({
 
 export const createDigitalAssetSchema = digitalAssetBaseSchema.refine(
   (value) => value.storageKey || value.externalUrl,
-  { message: 'Digital asset requires storageKey or externalUrl.' },
+  { message: 'Dijital varlık için dosya konumu veya dış bağlantı gereklidir.' },
 );
 
 export const updateDigitalAssetSchema = digitalAssetBaseSchema.partial();
