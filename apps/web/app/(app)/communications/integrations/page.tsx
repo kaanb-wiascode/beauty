@@ -18,6 +18,13 @@ type Connection = {
   lastError?: string | null;
 };
 
+type WebhookSetup = {
+  connectionId: string;
+  webhookUrl: string;
+  webhookSecret: string;
+  secretVisibleOnce: boolean;
+};
+
 type DiscoveredAccounts = {
   connectionId: string;
   provider: string;
@@ -72,6 +79,8 @@ export default function AdvertisingConnectionsPage() {
   const [discoveringId, setDiscoveringId] = useState("");
   const [selectingId, setSelectingId] = useState("");
   const [syncingId, setSyncingId] = useState("");
+  const [webhookConfiguringId, setWebhookConfiguringId] = useState("");
+  const [webhookSetup, setWebhookSetup] = useState<WebhookSetup | null>(null);
   const [accountOptions, setAccountOptions] = useState<Record<string, DiscoveredAccounts["accounts"]>>({});
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
@@ -179,6 +188,22 @@ export default function AdvertisingConnectionsPage() {
     }
   }
 
+  async function configureWebhook(id: string) {
+    setWebhookConfiguringId(id);
+    setError("");
+    try {
+      const result = await api<WebhookSetup>(
+        `/corporate-communications/provider-connections/${id}/webhook/google-ads/configure`,
+        { method: "POST" },
+      );
+      setWebhookSetup(result);
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Webhook kurulumu oluşturulamadı.") : "Webhook kurulumu oluşturulamadı.");
+    } finally {
+      setWebhookConfiguringId("");
+    }
+  }
+
   async function disconnect(id: string) {
     setDisconnectingId(id);
     setError("");
@@ -197,6 +222,17 @@ export default function AdvertisingConnectionsPage() {
   return <div className="space-y-6 pb-12">
     <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Entegrasyon Merkezi</h1><p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Meta, Google Ads ve TikTok bağlantılarını, hesap durumlarını ve son veri eşitleme bilgilerini tek merkezden yönetin.</p></header>
     {error ? <Alert>{error}</Alert> : null}
+    {webhookSetup ? (
+      <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
+        <div className="flex items-center gap-2">
+          <h2 className="text-[13px] font-semibold text-[var(--ink)]">Google Ads Webhook Kurulumu</h2>
+          <CardInfo help={getCardHelp("Google Ads Webhook Kurulumu", "Bu adresi ve doğrulama anahtarını Google Ads potansiyel müşteri formunun webhook teslimat ayarına girin. Güvenlik nedeniyle anahtar daha sonra tekrar gösterilmez.")} />
+        </div>
+        <p className="mt-3 break-all text-[10px] text-[var(--muted)]"><strong>Webhook adresi:</strong> {webhookSetup.webhookUrl}</p>
+        <p className="mt-2 break-all text-[10px] text-[var(--muted)]"><strong>Doğrulama anahtarı:</strong> {webhookSetup.webhookSecret}</p>
+        <p className="mt-2 text-[10px] font-semibold text-amber-700">Bu anahtarı şimdi güvenli bir yere kaydedin; tekrar görüntülenmeyecek.</p>
+      </section>
+    ) : null}
 
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Metric title="Tanımlı Bağlantı" value={String(health?.total ?? rows.length)} detail="VALOO içinde kayıtlı reklam ve pazarlama hesapları" />
