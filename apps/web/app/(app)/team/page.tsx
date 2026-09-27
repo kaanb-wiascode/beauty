@@ -6,7 +6,7 @@ import { Alert, Button, PageHeader, Spinner } from "@/components/ui";
 import { Modal } from "@/components/modal";
 import { SearchField } from "@/components/data-view";
 import { ValooSelect } from "@/components/valoo-controls";
-import { TeamMessageAttachment } from "@/components/team-message-attachment";
+import { TeamMediaThumbnail, TeamMessageAttachment } from "@/components/team-message-attachment";
 import { encodeValooRichCard, parseValooRichCard, TeamRichCard, type ValooRichCardPayload } from "@/components/team-rich-card";
 import { getStoredUser } from "@/lib/auth";
 
@@ -1443,9 +1443,7 @@ export default function TeamPage() {
                 {attachmentTab === "MEDIA" ? (
                   <div className="grid grid-cols-3 gap-1.5">
                     {messages.flatMap((message) => message.attachments).filter((attachment) => attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("video/")).slice(-12).reverse().map((attachment) => (
-                      <button key={attachment.id} type="button" onClick={() => void openAttachment(attachment)} className="flex aspect-square items-center justify-center overflow-hidden rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-2 text-center text-[8px] font-semibold text-[var(--muted)]">
-                        {attachment.mimeType.startsWith("image/") ? "Fotoğraf" : "Video"}
-                      </button>
+                      <TeamMediaThumbnail key={attachment.id} attachment={attachment} onOpen={(item) => void openAttachment(item)} />
                     ))}
                     {!messages.some((message) => message.attachments.some((attachment) => attachment.mimeType.startsWith("image/") || attachment.mimeType.startsWith("video/"))) ? (
                       <p className="col-span-3 py-6 text-center text-[9px] text-[var(--muted)]">Henüz medya yok.</p>
