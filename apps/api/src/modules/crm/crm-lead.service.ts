@@ -247,7 +247,7 @@ export class CrmLeadService {
                    status,interest_note AS "interestNote",owner_user_id AS "ownerUserId",customer_id AS "customerId",
                    surveyor_staff_id AS "surveyorStaffId",surveyor_branch_id AS "surveyorBranchId",survey_campaign AS "surveyCampaign",
                    survey_location AS "surveyLocation",survey_desk AS "surveyDesk",survey_date AS "surveyDate",version`,
-        context.tenantId, context.companyId, branchId, input.customerId ?? null, input.ownerUserId ?? actorUserId,
+        context.tenantId, context.companyId, branchId, input.customerId ?? null, assignment.ownerUserId,
         input.firstName, input.lastName, input.phone ?? null, input.alternativePhone ?? null, input.email?.toLowerCase() ?? null,
         input.preferredContactChannel ?? null, input.language ?? null, input.timezone ?? null, input.source,
         input.sourceDetail ?? null, input.campaignId ?? null, input.campaignName ?? null, input.adSetId ?? null, input.adSetName ?? null,
