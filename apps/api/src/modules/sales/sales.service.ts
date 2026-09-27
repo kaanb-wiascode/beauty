@@ -2,6 +2,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   NotFoundException,
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
@@ -59,6 +60,7 @@ export class SalesService {
     private readonly installmentsService: InstallmentsService,
     private readonly accountingService: AccountingService,
     private readonly commerceFinanceSync: CommerceFinanceSyncService,
+    @Optional()
     private readonly domainEvents?: DomainEventsService,
   ) {}
 
