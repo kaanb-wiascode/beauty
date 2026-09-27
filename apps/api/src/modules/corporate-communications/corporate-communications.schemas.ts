@@ -52,7 +52,7 @@ export const createCampaignSchema = z
   .refine(
     (value) =>
       !value.startsAt || !value.endsAt || value.endsAt >= value.startsAt,
-    { message: 'Campaign end date must be after the start date.' },
+    { message: 'Kampanya bitiş tarihi başlangıç tarihinden sonra olmalıdır.' },
   );
 
 export const listCampaignsSchema = z.object({
@@ -89,7 +89,7 @@ export const createMarketingLeadSchema = z
       .optional(),
   })
   .refine((value) => value.phone || value.email, {
-    message: 'Marketing lead requires phone or email.',
+    message: 'Potansiyel müşteri için telefon veya e-posta bilgilerinden en az biri gereklidir.',
   });
 
 export const createMarketingAppointmentSchema = z
@@ -102,7 +102,7 @@ export const createMarketingAppointmentSchema = z
     notes: z.string().trim().max(2000).optional(),
   })
   .refine((value) => value.endAt > value.startAt, {
-    message: 'Appointment end date must be after the start date.',
+    message: 'Randevu bitiş zamanı başlangıç zamanından sonra olmalıdır.',
   });
 
 export const listMarketingLeadsSchema = z.object({
@@ -134,7 +134,7 @@ export const createBrandAssetSchema = z
     usageRules: z.string().trim().max(5000).optional(),
   })
   .refine((value) => value.storageKey || value.externalUrl, {
-    message: 'Brand asset requires storageKey or externalUrl.',
+    message: 'Marka varlığı için dosya konumu veya dış bağlantı gereklidir.',
   });
 
 export const createProviderConnectionSchema = z.object({
