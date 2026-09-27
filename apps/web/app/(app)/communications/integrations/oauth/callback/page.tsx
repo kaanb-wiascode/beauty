@@ -6,6 +6,10 @@ import { Alert, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { userErrorMessage } from "@/lib/user-language";
 
+type DiscoveredAccounts = {
+  accounts: Array<{ id: string; name: string }>;
+};
+
 function connectionIdFromState(state: string) {
   try {
     const [body] = state.split(".");
@@ -43,17 +47,52 @@ export default function ProviderOAuthCallbackPage() {
       return;
     }
 
-    void api(
-      `/corporate-communications/provider-connections/${connectionId}/oauth/complete`,
-      {
-        method: "POST",
-        body: { code, state },
-      },
-    )
-      .then(() => {
-        router.replace("/communications/integrations?oauth=success");
-      })
-      .catch((cause) => {
+    void (async () => {
+      try {
+        await api(
+          `/corporate-communications/provider-connections/${connectionId}/oauth/complete`,
+          {
+            method: "POST",
+            body: { code, state },
+          },
+        );
+
+        let accountCount = 0;
+        try {
+          const discovered = await api<DiscoveredAccounts>(
+            `/corporate-communications/provider-connections/${connectionId}/accounts`,
+          );
+          accountCount = discovered.accounts.length;
+
+          if (discovered.accounts.length === 1) {
+            await api(
+              `/corporate-communications/provider-connections/${connectionId}/accounts/select`,
+              {
+                method: "POST",
+                body: { externalAccountId: discovered.accounts[0]!.id },
+              },
+            );
+
+            try {
+              await api(
+                `/corporate-communications/provider-connections/${connectionId}/oauth/verify`,
+                { method: "POST" },
+              );
+            } catch {
+              // Yetkilendirme tamamlandı; doğrulama daha sonra entegrasyon ekranından tekrar denenebilir.
+            }
+          }
+        } catch {
+          // Yetkilendirme tamamlandı; hesap keşfi sağlayıcı ek yapılandırması gerektiriyorsa ekran üzerinden sürdürülebilir.
+        }
+
+        const params = new URLSearchParams({
+          oauth: "success",
+          connectionId,
+          accounts: String(accountCount),
+        });
+        router.replace(`/communications/integrations?${params.toString()}`);
+      } catch (cause) {
         setError(
           cause instanceof ApiError
             ? userErrorMessage(
@@ -62,7 +101,8 @@ export default function ProviderOAuthCallbackPage() {
               )
             : "Platform bağlantısı tamamlanamadı.",
         );
-      });
+      }
+    })();
   }, [router, searchParams]);
 
   return (
