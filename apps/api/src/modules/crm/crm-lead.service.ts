@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmAssignmentService } from './crm-assignment.service';
 import { CrmDataScopeService } from './crm-data-scope.service';
 import type { CreateLeadInput, UpdateLeadInput } from './crm.schemas';
 
@@ -22,6 +23,7 @@ export class CrmLeadService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly dataScope: CrmDataScopeService,
+    private readonly assignmentService: CrmAssignmentService,
   ) {}
 
   private context() {
@@ -30,7 +32,7 @@ export class CrmLeadService {
 
   private requireBranchId() {
     const branchId = this.context().branchId;
-    if (!branchId) throw new BadRequestException('CRM mutation requires an active branch.');
+    if (!branchId) throw new BadRequestException('Bu CRM işlemi için aktif bir şube seçilmelidir.');
     return branchId;
   }
 
@@ -47,7 +49,7 @@ export class CrmLeadService {
          )) LIMIT 1`,
       userId, context.tenantId, context.companyId, context.branchId,
     );
-    if (!rows.length) throw new BadRequestException('CRM assignee is not an active company member.');
+    if (!rows.length) throw new BadRequestException('Seçilen sorumlu kullanıcı aktif şirket üyesi değil.');
   }
 
   private async assertCommercialScope(
@@ -63,7 +65,7 @@ export class CrmLeadService {
          WHERE b.id=$1::text AND b."companyId"=$2::text AND c."tenantId"=$3::text AND b.status='ACTIVE' LIMIT 1`,
         input.preferredBranchId, context.companyId, context.tenantId,
       );
-      if (!branches.length) throw new BadRequestException('Preferred branch is outside the active company.');
+      if (!branches.length) throw new BadRequestException('Tercih edilen şube aktif şirketin dışında.');
     }
 
     if (input.interestedServiceIds?.length) {
@@ -74,7 +76,7 @@ export class CrmLeadService {
         input.interestedServiceIds, context.tenantId, context.companyId,
       );
       if (Number(rows[0]?.count ?? 0) !== input.interestedServiceIds.length) {
-        throw new BadRequestException('One or more interested services are outside the active company.');
+        throw new BadRequestException('Seçilen hizmetlerden biri veya birkaçı aktif şirketin dışında.');
       }
     }
 
@@ -86,7 +88,7 @@ export class CrmLeadService {
         input.interestedPackageIds, context.tenantId, context.companyId,
       );
       if (Number(rows[0]?.count ?? 0) !== input.interestedPackageIds.length) {
-        throw new BadRequestException('One or more interested packages are outside the active company.');
+        throw new BadRequestException('Seçilen paketlerden biri veya birkaçı aktif şirketin dışında.');
       }
     }
   }
