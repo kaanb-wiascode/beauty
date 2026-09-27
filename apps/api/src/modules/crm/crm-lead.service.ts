@@ -301,6 +301,18 @@ export class CrmLeadService {
 
     return this.prisma.$transaction(async (tx) => {
       await this.assertCommercialScope(input, tx);
+      const currentRows = await tx.$queryRawUnsafe<Array<{ ownerUserId: string | null }>>(
+        `SELECT owner_user_id AS "ownerUserId"
+           FROM crm_leads
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+            AND ($4::text IS NULL OR branch_id=$4::text)
+          LIMIT 1`,
+        id,
+        context.tenantId,
+        context.companyId,
+        branchId,
+      );
+      const previousOwnerUserId = currentRows[0]?.ownerUserId ?? null;
       const rows = await tx.$queryRawUnsafe<CrmLeadRow[]>(
         `UPDATE crm_leads SET
            first_name=COALESCE($5,first_name),last_name=COALESCE($6,last_name),
@@ -351,6 +363,18 @@ export class CrmLeadService {
         input.status ?? null, input.lostReason ?? null, input.version,
       );
       if (!rows.length) throw new ConflictException('Lead changed or is outside the active scope.');
+
+      if (input.ownerUserId !== undefined && input.ownerUserId !== previousOwnerUserId && input.ownerUserId) {
+        await this.assignmentService.recordAssignment({
+          leadId: id,
+          branchId,
+          previousOwnerUserId,
+          assignedUserId: input.ownerUserId,
+          mode: 'MANUAL',
+          reason: 'Potansiyel müşteri sorumlusu kullanıcı tarafından değiştirildi.',
+          assignedByUserId: actorUserId,
+        }, tx);
+      }
 
       await tx.$executeRawUnsafe(
         `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
