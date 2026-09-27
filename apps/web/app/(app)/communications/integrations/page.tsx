@@ -52,6 +52,7 @@ export default function AdvertisingConnectionsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState("");
+  const [connectingId, setConnectingId] = useState("");
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
   const [displayName, setDisplayName] = useState("");
@@ -80,6 +81,21 @@ export default function AdvertisingConnectionsPage() {
       setDisplayName(""); setExternalAccountId(""); await load();
     } catch (e) { setError(e instanceof ApiError ? userErrorMessage(e.message, "Bağlantı kaydı oluşturulamadı.") : "Bağlantı kaydı oluşturulamadı."); }
     finally { setSaving(false); }
+  }
+
+  async function connect(id: string) {
+    setConnectingId(id);
+    setError("");
+    try {
+      const result = await api<{ authorizationUrl: string }>(
+        `/corporate-communications/provider-connections/${id}/oauth/authorize`,
+        { method: "POST" },
+      );
+      window.location.assign(result.authorizationUrl);
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Platform yetkilendirmesi başlatılamadı.") : "Platform yetkilendirmesi başlatılamadı.");
+      setConnectingId("");
+    }
   }
 
   async function disconnect(id: string) {
@@ -131,15 +147,31 @@ export default function AdvertisingConnectionsPage() {
             <p className="text-[10px] text-[var(--muted)]">Son eşitleme: {row.lastSyncAt ? new Date(row.lastSyncAt).toLocaleString("tr-TR") : "Henüz yapılmadı"}</p>
           </div>
           {row.lastError ? <p className="mt-2 text-[10px] text-red-600">Bağlantı sırasında bir sorun oluştu. Hesap yetkilerini ve bağlantı ayarlarını kontrol edin.</p> : null}
-          {canManage && connectionHealth?.health !== "DISCONNECTED" ? (
-            <button
-              type="button"
-              disabled={disconnectingId === row.id}
-              onClick={() => void disconnect(row.id)}
-              className="mt-3 rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)] transition hover:text-red-600 disabled:opacity-50"
-            >
-              {disconnectingId === row.id ? "Bağlantı Kesiliyor..." : "Bağlantıyı Kes"}
-            </button>
+          {canManage && ["META", "GOOGLE_ADS", "TIKTOK"].includes(row.provider) ? (
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                type="button"
+                disabled={connectingId === row.id}
+                onClick={() => void connect(row.id)}
+                className="rounded-[10px] bg-[var(--accent)] px-3 py-2 text-[10px] font-semibold text-white transition disabled:opacity-50"
+              >
+                {connectingId === row.id
+                  ? "Platforma Yönlendiriliyor..."
+                  : connectionHealth?.credentialsConfigured
+                    ? "Yeniden Yetkilendir"
+                    : "Platforma Bağlan"}
+              </button>
+              {connectionHealth?.health !== "DISCONNECTED" ? (
+                <button
+                  type="button"
+                  disabled={disconnectingId === row.id}
+                  onClick={() => void disconnect(row.id)}
+                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)] transition hover:text-red-600 disabled:opacity-50"
+                >
+                  {disconnectingId === row.id ? "Bağlantı Kesiliyor..." : "Bağlantıyı Kes"}
+                </button>
+              ) : null}
+            </div>
           ) : null}
         </div>;
       })}</div> : <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz reklam hesabı kaydı yok.</p>}</section>
