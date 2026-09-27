@@ -8,11 +8,10 @@ import { cx } from "@/lib/format";
 
 const LINKS = [
   { href: "/communications", label: "Genel Bakış", permission: ["communications", "read"] as const },
-  { href: "/communications/campaigns", label: "Kampanyalar", permission: ["communications", "read"] as const },
-  { href: "/communications/leads", label: "Lead & Dönüşüm", permission: ["communications", "read"] as const },
-  { href: "/communications/brand", label: "Marka Merkezi", permission: ["communications", "read"] as const },
-  { href: "/communications/integrations", label: "Reklam Hesapları", permission: ["communications", "read"] as const },
-  { href: "/communications/routing", label: "Routing", permission: ["communications", "manage"] as const },
+  { href: "/communications/campaigns", label: "Pazarlama", permission: ["communications", "read"] as const },
+  { href: "/communications/leads", label: "Potansiyel Müşteriler", permission: ["communications", "read"] as const },
+  { href: "/communications/content", label: "İçerik & Marka", permission: ["communications", "read"] as const },
+  { href: "/communications/integrations", label: "Entegrasyonlar", permission: ["communications", "read"] as const },
 ] as const;
 
 export default function CommunicationsLayout({ children }: { children: ReactNode }) {
@@ -24,7 +23,13 @@ export default function CommunicationsLayout({ children }: { children: ReactNode
       <div className="overflow-x-auto rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_8px_28px_rgba(17,70,104,0.03)]">
         <nav className="flex min-w-max gap-1" aria-label="Kurumsal İletişim">
           {links.map((item) => {
-            const active = item.href === "/communications" ? pathname === item.href : pathname.startsWith(item.href);
+            const groupedPaths: Record<string, string[]> = {
+              "/communications/content": ["/communications/content", "/communications/approvals", "/communications/brand", "/communications/assets", "/communications/vendors", "/communications/creators", "/communications/pr-media"],
+              "/communications/integrations": ["/communications/integrations", "/communications/routing"],
+            };
+            const active = item.href === "/communications"
+              ? pathname === item.href
+              : (groupedPaths[item.href] ?? [item.href]).some((path) => pathname.startsWith(path));
             return (
               <Link
                 key={item.href}
