@@ -1,12 +1,13 @@
 "use client";
 
 import { CardInfo } from "@/components/card-info";
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 
 type AlertSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 type OperationsAlert = {
@@ -65,7 +66,7 @@ export default function OperationsAlertsPage() {
   const [error, setError] = useState("");
   const [severity, setSeverity] = useState<AlertSeverity | "ALL">("ALL");
 
-  async function load() {
+  const load = useCallback(async () => {
     if (!hasActiveBranch()) {
       setData(null);
       setError("Canlı uyarılar için önce aktif bir şube seçin.");
@@ -81,13 +82,15 @@ export default function OperationsAlertsPage() {
     } finally {
       setLoading(false);
     }
-  }
+  }, []);
 
   useEffect(() => {
     void load();
-    const timer = window.setInterval(() => void load(), 60_000);
-    return () => window.clearInterval(timer);
-  }, []);
+  }, [load]);
+
+  useOperationRealtime(() => {
+    void load();
+  }, hasActiveBranch());
 
   const visibleAlerts = useMemo(
     () => data?.alerts.filter((item) => severity === "ALL" || item.severity === severity) ?? [],
@@ -103,9 +106,9 @@ export default function OperationsAlertsPage() {
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Live Exceptions</p>
-            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Canlı Uyarılar & İstisnalar</h1>
-            <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Visit, randevu, oda/cihaz, incident ve Inventory verilerinden türetilen anlık operasyon sinyalleri. Uyarılar ayrı bir doğruluk kaynağı değildir; her kart ilgili business kaydının mevcut durumunu açıklar.</p>
+            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Canlı Operasyon</p>
+            <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Canlı Uyarılar ve Müdahale Gerektiren Durumlar</h1>
+            <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Ziyaret, randevu, oda, cihaz, stok ve operasyon olaylarından üretilen anlık uyarıları takip edin. Her uyarı ilgili kaydın güncel durumuna göre oluşturulur.</p>
           </div>
           <Button variant="secondary" disabled={loading} onClick={() => void load()}>{loading ? "Yenileniyor..." : "Şimdi Yenile"}</Button>
         </div>
@@ -135,7 +138,7 @@ export default function OperationsAlertsPage() {
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="flex flex-col gap-2 border-b border-[var(--line)] px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
-          <div><h2 className="text-sm font-semibold text-[var(--ink)]">Aktif İstisnalar</h2><p className="mt-1 text-xs text-[var(--muted)]">{severity === "ALL" ? "Tüm önem seviyeleri" : `${severityLabel[severity]} filtresi`} · 60 saniyede otomatik yenilenir</p></div>
+          <div><div className="flex items-start gap-2"><h2 className="text-sm font-semibold text-[var(--ink)]">Aktif Uyarılar</h2><CardInfo help={getCardHelp("Aktif Uyarılar")} /></div><p className="mt-1 text-xs text-[var(--muted)]">{severity === "ALL" ? "Tüm önem seviyeleri" : `${severityLabel[severity]} filtresi`} · değişiklik olduğunda otomatik yenilenir</p></div>
           {severity !== "ALL" ? <button type="button" className="text-xs font-semibold text-[var(--accent)]" onClick={() => setSeverity("ALL")}>Filtreyi temizle</button> : null}
         </div>
         {visibleAlerts.length ? (
@@ -154,8 +157,8 @@ export default function OperationsAlertsPage() {
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted-soft)]">
                       {item.customerName ? <span>Müşteri: {item.customerName}</span> : null}
                       {item.staffName ? <span>Personel: {item.staffName}</span> : null}
-                      {item.resourceName ? <span>Kaynak: {item.resourceName}</span> : null}
-                      <span>Kaynak: {item.sourceType} · {item.sourceId.slice(0, 8)}</span>
+                      {item.resourceName ? <span>İlgili kaynak: {item.resourceName}</span> : null}
+                      
                     </div>
                     <p className="mt-3 rounded-[12px] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--ink)]"><span className="font-semibold">Önerilen aksiyon:</span> {item.suggestedAction}</p>
                   </div>
