@@ -82,6 +82,7 @@ type PinnedMessage = { id: string; body: string; createdAt: string; senderUserId
 type SearchResult = { id: string; body: string; createdAt: string; senderUserId: string; senderName: string };
 type AnnouncementReader = { id: string; firstName: string; lastName: string; email: string; acknowledgedAt: string };
 type MessageReader = { id: string; firstName: string; lastName: string; email: string; readAt: string };
+type PendingMessage = { id: string; body: string; attachmentNames: string[] };
 type AttachmentPreview = { url: string; mimeType: string; name: string };
 type PreparedAttachment = {
   objectKey: string;
@@ -168,6 +169,7 @@ export default function TeamPage() {
   const [selectedUsers, setSelectedUsers] = useState<string[]>([]);
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
   const [uploadProgress, setUploadProgress] = useState<Record<string, number>>({});
+  const [pendingMessage, setPendingMessage] = useState<PendingMessage | null>(null);
   const [pinnedMessages, setPinnedMessages] = useState<PinnedMessage[]>([]);
   const [conversationMembers, setConversationMembers] = useState<ConversationMember[]>([]);
   const [typingUsers, setTypingUsers] = useState<TypingUser[]>([]);
@@ -543,6 +545,7 @@ export default function TeamPage() {
     const body = messageText.trim() || attachmentPlaceholder(selectedFiles);
     const filesToSend = [...selectedFiles];
     setUploadProgress(Object.fromEntries(filesToSend.map((file) => [fileKey(file), 0])));
+    setPendingMessage({ id: `pending-${Date.now()}`, body, attachmentNames: filesToSend.map((file) => file.name) });
     setSending(true);
     setMessageText("");
     try {
@@ -556,10 +559,12 @@ export default function TeamPage() {
       setReplyTo(null);
       setSelectedFiles([]);
       setUploadProgress({});
+      setPendingMessage(null);
       await Promise.all([loadMessages(activeId, true), loadOverview(true)]);
     } catch (err) {
       setMessageText(messageText || (filesToSend.length ? "" : body));
       setSelectedFiles(filesToSend);
+      setPendingMessage(null);
       setError(err instanceof ApiError ? err.message : "Mesaj gönderilemedi.");
     } finally {
       setSending(false);
@@ -1058,7 +1063,7 @@ export default function TeamPage() {
                               </div>
                             ) : null}
                             <div className="mt-1.5 flex items-center justify-end gap-2">
-                              {mine && message.readByCount > 0 ? <span className="text-[9px] text-white/55">Okundu · {message.readByCount}</span> : null}
+                              {mine ? <span className="text-[9px] text-white/55">{message.readByCount > 0 ? `Okundu · ${message.readByCount}` : "Gönderildi"}</span> : null}
                               {message.editedAt ? <span className={`text-[9px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>düzenlendi</span> : null}
                               <span className={`text-[9px] ${mine ? "text-white/60" : "text-[var(--muted-soft)]"}`}>{timeLabel(message.createdAt)}</span>
                             </div>
@@ -1075,6 +1080,22 @@ export default function TeamPage() {
                         </div>
                       );
                     })}
+                    {pendingMessage ? (
+                      <div className="flex justify-end">
+                        <div className="max-w-[76%] rounded-[18px] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] px-4 py-3 text-white opacity-80 shadow-[0_3px_12px_rgba(17,70,104,.04)]">
+                          <p className="whitespace-pre-wrap break-words text-[12px] leading-5">{pendingMessage.body}</p>
+                          {pendingMessage.attachmentNames.length ? (
+                            <div className="mt-2 space-y-1">
+                              {pendingMessage.attachmentNames.map((name) => <p key={name} className="truncate rounded-[9px] bg-white/10 px-2 py-1 text-[8px] text-white/70">{name}</p>)}
+                            </div>
+                          ) : null}
+                          <div className="mt-2 flex items-center justify-end gap-2 text-[9px] text-white/60">
+                            <span className="inline-block h-2 w-2 animate-pulse rounded-full bg-white/70" />
+                            Gönderiliyor…
+                          </div>
+                        </div>
+                      </div>
+                    ) : null}
                     <div ref={endRef} />
                   </div>
                 ) : (
