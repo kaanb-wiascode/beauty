@@ -39,6 +39,10 @@ const editMessageSchema = z.object({
   body: z.string().trim().min(1).max(10000),
 });
 
+const forwardMessageSchema = z.object({
+  destinationConversationId: z.string().uuid(),
+});
+
 const reactionSchema = z.object({
   emoji: z.string().trim().min(1).max(16),
 });
@@ -63,7 +67,7 @@ const typingSchema = z.object({
 const prepareAttachmentSchema = z.object({
   filename: z.string().trim().min(1).max(255),
   mimeType: z.string().trim().min(1).max(160),
-  byteSize: z.number().int().positive().max(15 * 1024 * 1024),
+  byteSize: z.number().int().positive().max(50 * 1024 * 1024),
 });
 
 const completeAttachmentSchema = z.object({
@@ -160,6 +164,16 @@ export class TeamController {
   ) {
     const parsed = editMessageSchema.parse(body);
     return this.team.editMessage(user.sub, id, parsed.body);
+  }
+
+  @Post('messages/:id/forward')
+  forwardMessage(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = forwardMessageSchema.parse(body);
+    return this.team.forwardMessage(user.sub, id, parsed.destinationConversationId);
   }
 
   @Delete('messages/:id')
