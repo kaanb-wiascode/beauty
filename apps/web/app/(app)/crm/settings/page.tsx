@@ -26,6 +26,17 @@ type AutomationRule = {
   version: number;
   overridden: boolean;
 };
+type CrmAssignee = { id: string; firstName: string; lastName: string; email: string };
+type CrmTeam = {
+  id: string;
+  name: string;
+  branchId: string | null;
+  managerUserId: string;
+  managerFirstName: string | null;
+  managerLastName: string | null;
+  active: boolean;
+  members: Array<{ userId: string; firstName: string; lastName: string; email: string }>;
+};
 
 const assignmentModeLabels: Record<AssignmentMode, string> = {
   MANUAL: "Manuel atama",
@@ -53,6 +64,8 @@ const slaLabels: Record<string, { title: string; description: string }> = {
 export default function CrmSettingsPage() {
   const [assignmentRules, setAssignmentRules] = useState<AssignmentRule[]>([]);
   const [automationRules, setAutomationRules] = useState<AutomationRule[]>([]);
+  const [teams, setTeams] = useState<CrmTeam[]>([]);
+  const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState("");
   const [error, setError] = useState("");
@@ -61,19 +74,26 @@ export default function CrmSettingsPage() {
     mode: "ROUND_ROBIN" as AssignmentMode,
     sourceFilter: "",
     skillKey: "",
+    teamId: "",
     priority: "100",
   });
+  const [teamForm, setTeamForm] = useState({ name: "Satış Ekibi", managerUserId: "" });
+  const [memberSelections, setMemberSelections] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
     try {
-      const [assignmentRows, automationRows] = await Promise.all([
+      const [assignmentRows, automationRows, teamRows, assigneeRows] = await Promise.all([
         api<AssignmentRule[]>("/crm/assignment-rules"),
         api<AutomationRule[]>("/crm/automation-rules"),
+        api<CrmTeam[]>("/crm/teams"),
+        api<CrmAssignee[]>("/crm/assignees"),
       ]);
       setAssignmentRules(assignmentRows);
       setAutomationRules(automationRows);
+      setTeams(teamRows);
+      setAssignees(assigneeRows);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "CRM ayarları yüklenemedi.");
     } finally {
@@ -97,6 +117,7 @@ export default function CrmSettingsPage() {
         body: {
           name: assignmentForm.name.trim(),
           mode: assignmentForm.mode,
+          ...(assignmentForm.teamId ? { teamId: assignmentForm.teamId } : {}),
           ...(assignmentForm.sourceFilter.trim() ? { sourceFilter: assignmentForm.sourceFilter.trim() } : {}),
           ...(assignmentForm.skillKey.trim() ? { skillKey: assignmentForm.skillKey.trim() } : {}),
           priority: Number(assignmentForm.priority || 100),
