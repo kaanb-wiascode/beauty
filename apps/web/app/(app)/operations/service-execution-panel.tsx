@@ -274,7 +274,7 @@ export function ServiceExecutionPanel({
                 <div>
                   <p className="text-xs font-semibold text-[var(--ink)]">
                     {execution.source === "WALK_IN"
-                      ? `Randevusuz işlem · ${execution.walkInServiceDescription ?? "Hizmet"}`
+                      ? `Randevusuz hizmet · ${execution.walkInServiceDescription ?? "Hizmet"}`
                       : "Randevulu işlem"}
                   </p>
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
