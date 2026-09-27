@@ -61,10 +61,10 @@ export class OperationsWaitlistMatchingService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -256,7 +256,7 @@ export class OperationsWaitlistMatchingService {
         this.assertMatchable(target);
         if (target.version !== input.expectedVersion) {
           throw new ConflictException(
-            'Waitlist entry changed since the slot was matched. Refresh and retry.',
+            'Bekleme listesi kaydı uygun saat bulunduğundan beri değişti. Lütfen yeniden eşleştirin.',
           );
         }
         this.assertRequestedSlot(target, input);
@@ -270,9 +270,9 @@ export class OperationsWaitlistMatchingService {
           },
           select: { id: true },
         });
-        if (!staff) throw new NotFoundException('Staff not found');
+        if (!staff) throw new NotFoundException('Personel bulunamadı.');
         if (target.preferredStaffId && target.preferredStaffId !== input.staffId) {
-          throw new BadRequestException('Selected staff does not match the waitlist preference.');
+          throw new BadRequestException('Seçilen personel bekleme listesi tercihine uymuyor.');
         }
 
         const approvedLeave = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -309,7 +309,7 @@ export class OperationsWaitlistMatchingService {
           select: { id: true },
         });
         if (overlap) {
-          throw new ConflictException('Matched slot is no longer available for the selected staff.');
+          throw new ConflictException('Bulunan saat seçilen personel için artık uygun değil.');
         }
 
         const blockedFrom = new Date(
@@ -388,7 +388,7 @@ export class OperationsWaitlistMatchingService {
           input.expectedVersion,
         );
         if (!booked[0]) {
-          throw new ConflictException('Waitlist entry changed during slot acceptance.');
+          throw new ConflictException('Bekleme listesi kaydı randevulaştırma sırasında değişti. Lütfen yeniden eşleştirin.');
         }
 
         await tx.$executeRawUnsafe(
@@ -449,29 +449,29 @@ export class OperationsWaitlistMatchingService {
       companyId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Waitlist entry not found');
+    if (!rows[0]) throw new NotFoundException('Bekleme listesi kaydı bulunamadı.');
     return rows[0];
   }
 
   private assertMatchable(target: WaitlistTarget) {
     if (!['WAITING', 'MATCH_FOUND', 'CONTACTED'].includes(target.status)) {
-      throw new ConflictException(`Waitlist entry in ${target.status} state cannot be matched.`);
+      throw new ConflictException(`Bu bekleme listesi kaydı mevcut durumunda eşleştirilemez.`);
     }
     if (target.expiresAt && target.expiresAt <= new Date()) {
-      throw new ConflictException('Waitlist entry has expired.');
+      throw new ConflictException('Bekleme listesi kaydının süresi dolmuş.');
     }
   }
 
   private assertRequestedSlot(target: WaitlistTarget, input: AcceptWaitlistMatchInput) {
     if (input.startAt >= input.endAt) {
-      throw new BadRequestException('Slot start must be before end.');
+      throw new BadRequestException('Uygun saatin başlangıcı bitişinden önce olmalıdır.');
     }
     const expectedEnd = input.startAt.getTime() + target.durationMinutes * 60_000;
     if (input.endAt.getTime() !== expectedEnd) {
-      throw new BadRequestException('Slot duration does not match the service duration.');
+      throw new BadRequestException('Bulunan zaman aralığı hizmet süresiyle eşleşmiyor.');
     }
     if (input.startAt < target.desiredFrom || input.endAt > target.desiredTo) {
-      throw new BadRequestException('Slot is outside the waitlist desired date range.');
+      throw new BadRequestException('Bulunan saat bekleme talebindeki tarih aralığının dışında.');
     }
   }
 
@@ -488,10 +488,10 @@ export class OperationsWaitlistMatchingService {
     },
   ) {
     if (target.roomType && !input.roomId) {
-      throw new BadRequestException(`Service requires room type ${target.roomType}.`);
+      throw new BadRequestException(`Hizmet için uygun türde bir oda gereklidir.`);
     }
     if ((target.requiredAssetId || target.requiredAssetType) && !input.assetId) {
-      throw new BadRequestException('Service requires an equipment resource.');
+      throw new BadRequestException('Hizmet için uygun bir cihaz gereklidir.');
     }
 
     if (input.roomId) {
@@ -523,7 +523,7 @@ export class OperationsWaitlistMatchingService {
         scope.blockedFrom,
         scope.blockedTo,
       );
-      if (!rooms[0]) throw new ConflictException('Selected room is no longer available.');
+      if (!rooms[0]) throw new ConflictException('Seçilen oda artık uygun değil.');
     }
 
     if (input.assetId) {
@@ -563,7 +563,7 @@ export class OperationsWaitlistMatchingService {
         scope.blockedFrom,
         scope.blockedTo,
       );
-      if (!assets[0]) throw new ConflictException('Selected equipment is no longer available.');
+      if (!assets[0]) throw new ConflictException('Seçilen cihaz artık uygun değil.');
     }
   }
 
