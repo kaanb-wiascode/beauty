@@ -56,6 +56,27 @@ describe('CrmAutomationRulesService', () => {
         version: 0,
         overridden: false,
       },
+      {
+        ruleKey: 'LEAD_FIRST_RESPONSE_SLA',
+        enabled: true,
+        config: { thresholdMinutes: 60, escalationDelayMinutes: 15, channel: 'CALL' },
+        version: 0,
+        overridden: false,
+      },
+      {
+        ruleKey: 'FOLLOW_UP_OVERDUE_ESCALATION',
+        enabled: true,
+        config: { graceMinutes: 30, escalationDelayMinutes: 15, channel: 'CALL' },
+        version: 0,
+        overridden: false,
+      },
+      {
+        ruleKey: 'OPPORTUNITY_STALE_ESCALATION',
+        enabled: true,
+        config: { staleDays: 7, escalationDelayMinutes: 60, channel: 'CALL' },
+        version: 0,
+        overridden: false,
+      },
     ]);
   });
 
