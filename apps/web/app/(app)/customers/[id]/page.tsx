@@ -137,12 +137,21 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       QUOTE_CREATED: "Teklif oluşturuldu",
       QUOTE_STATUS_CHANGED: "Teklif durumu güncellendi",
     };
-    const eventItems = crm360.events.map((item) => ({
-      id: `event-${item.id}`,
-      date: item.createdAt,
-      title: eventLabels[item.eventType] ?? "CRM işlemi",
-      detail: "",
-    }));
+    const dedicatedEventTypes = new Set([
+      "INTERACTION_CREATED",
+      "FOLLOW_UP_CREATED",
+      "FOLLOW_UP_COMPLETED",
+      "FOLLOW_UP_RESCHEDULED",
+      "FOLLOW_UP_CANCELLED",
+    ]);
+    const eventItems = crm360.events
+      .filter((item) => !dedicatedEventTypes.has(item.eventType))
+      .map((item) => ({
+        id: `event-${item.id}`,
+        date: item.createdAt,
+        title: eventLabels[item.eventType] ?? "CRM işlemi",
+        detail: "",
+      }));
     return [...interactionItems, ...followUpItems, ...eventItems]
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 16);
