@@ -144,6 +144,14 @@ export class TeamController {
     return this.team.markRead(user.sub, id);
   }
 
+  @Get('messages/:id/readers')
+  messageReaders(
+    @CurrentUser() user: JwtPayload,
+    @Param('id', ParseUUIDPipe) id: string,
+  ) {
+    return this.team.messageReaders(user.sub, id);
+  }
+
   @Patch('messages/:id')
   editMessage(
     @CurrentUser() user: JwtPayload,
