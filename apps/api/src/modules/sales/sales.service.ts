@@ -331,7 +331,9 @@ export class SalesService {
             where: { id: opportunity.saleId, tenantId, branchId },
             include: { items: true },
           });
-          if (!sale) throw new ConflictException('Bağlı satış kaydı bulunamadı.');
+          if (!sale) {
+            throw new ConflictException('Bağlı satış kaydı bulunamadı.');
+          }
           return { sale, idempotent: true };
         }
 
@@ -341,7 +343,9 @@ export class SalesService {
           );
         }
         if (opportunity.version !== input.version) {
-          throw new ConflictException('Satış fırsatı başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
+          throw new ConflictException(
+            'Satış fırsatı başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.',
+          );
         }
 
         const customerId = input.customerId ?? opportunity.customerId;
@@ -616,7 +620,9 @@ export class SalesService {
           tenantId,
           branchId,
         );
-        if (!sales.length) throw new NotFoundException('Satış kaydı bulunamadı.');
+        if (!sales.length) {
+          throw new NotFoundException('Satış kaydı bulunamadı.');
+        }
 
         const existing = await tx.salePayment.findFirst({
           where: { id: paymentId, saleId, tenantId, branchId },
@@ -679,7 +685,8 @@ export class SalesService {
             branchId,
             saleId,
             actorId,
-            customerName: `${saleFinanceRow.customer.firstName} ${saleFinanceRow.customer.lastName}`.trim(),
+            customerName:
+              `${saleFinanceRow.customer.firstName} ${saleFinanceRow.customer.lastName}`.trim(),
             amount: Number(existing.amount),
             occurredAt: refundedAt,
             paymentId: existing.id,
@@ -819,7 +826,8 @@ export class SalesService {
           branchId: sale.branchId,
           saleId: sale.id,
           actorId,
-          customerName: `${sale.customer.firstName} ${sale.customer.lastName}`.trim(),
+          customerName:
+            `${sale.customer.firstName} ${sale.customer.lastName}`.trim(),
           amount: Number(sale.total),
           occurredAt: confirmedAt,
         });
