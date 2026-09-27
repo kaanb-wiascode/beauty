@@ -176,10 +176,10 @@ export class AccountsPayableService {
     const { tenantId, companyId, branchId } = this.context();
     const amount = this.round(input.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException('Bill amount must be greater than zero.');
+      throw new BadRequestException('Tedarikçi faturası tutarı sıfırdan büyük olmalıdır.');
     }
     if ((input.sourceType && !input.sourceId) || (!input.sourceType && input.sourceId)) {
-      throw new BadRequestException('Bill source type and source id must be provided together.');
+      throw new BadRequestException('Tedarikçi faturası kaynak türü ve kaynak kaydı birlikte gönderilmelidir.');
     }
 
     return this.prisma.$transaction(
@@ -192,7 +192,7 @@ export class AccountsPayableService {
           tenantId,
           companyId,
         );
-        if (!suppliers.length) throw new NotFoundException('Supplier not found');
+        if (!suppliers.length) throw new NotFoundException('Tedarikçi bulunamadı.');
 
         if (input.sourceType && input.sourceId) {
           await this.acquireTransactionLock(
@@ -323,7 +323,7 @@ export class AccountsPayableService {
       companyId,
       branchId,
     );
-    if (!rows.length) throw new NotFoundException('Supplier bill not found');
+    if (!rows.length) throw new NotFoundException('Tedarikçi faturası bulunamadı.');
 
     const payments = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,amount,method,reference,note,paid_at AS "paidAt" FROM supplier_bill_payments
@@ -337,7 +337,7 @@ export class AccountsPayableService {
     const { tenantId, companyId, branchId } = this.context();
     const amount = this.round(input.amount);
     if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException('Payment amount must be greater than zero.');
+      throw new BadRequestException('Ödeme tutarı sıfırdan büyük olmalıdır.');
     }
 
     await this.prisma.$transaction(
@@ -354,17 +354,17 @@ export class AccountsPayableService {
           companyId,
           branchId,
         );
-        if (!bills.length) throw new NotFoundException('Supplier bill not found');
+        if (!bills.length) throw new NotFoundException('Tedarikçi faturası bulunamadı.');
         const bill = bills[0];
         if (bill.status === 'CANCELLED') {
-          throw new BadRequestException('Cancelled bills cannot be paid.');
+          throw new BadRequestException('İptal edilmiş tedarikçi faturalarına ödeme yapılamaz.');
         }
 
         const remaining = this.round(Number(bill.amount) - Number(bill.paid));
-        if (remaining <= 0) throw new BadRequestException('Supplier bill is already paid.');
+        if (remaining <= 0) throw new BadRequestException('Tedarikçi faturası zaten tamamen ödenmiş.');
         if (amount > remaining) {
           throw new BadRequestException(
-            `Payment exceeds remaining balance of ${remaining.toFixed(2)}.`,
+            `Ödeme kalan bakiyeyi aşıyor: ${remaining.toFixed(2)}.`,
           );
         }
 
@@ -472,7 +472,7 @@ export class AccountsPayableService {
   async cancelBill(id: string, input: CancelBillInput) {
     const { tenantId, companyId, branchId } = this.context();
     const reason = input.reason.trim();
-    if (!reason) throw new BadRequestException('Cancellation reason is required.');
+    if (!reason) throw new BadRequestException('İptal nedeni zorunludur.');
 
     await this.prisma.$transaction(
       async (tx) => {
@@ -486,14 +486,14 @@ export class AccountsPayableService {
           companyId,
           branchId,
         );
-        if (!bills.length) throw new NotFoundException('Supplier bill not found');
+        if (!bills.length) throw new NotFoundException('Tedarikçi faturası bulunamadı.');
         const bill = bills[0];
         if (bill.status === 'CANCELLED') {
-          throw new BadRequestException('Supplier bill is already cancelled.');
+          throw new BadRequestException('Tedarikçi faturası zaten iptal edilmiş.');
         }
         if (Number(bill.paid) > 0) {
           throw new BadRequestException(
-            'A supplier bill with payments cannot be cancelled until its payments are reversed.',
+            'Ödeme kaydı bulunan tedarikçi faturası, ödemeler ters kayıtla geri alınmadan iptal edilemez.',
           );
         }
 
@@ -505,7 +505,7 @@ export class AccountsPayableService {
           reason,
         );
         if (updated !== 1) {
-          throw new BadRequestException('Supplier bill is no longer cancellable.');
+          throw new BadRequestException('Tedarikçi faturası artık iptal edilebilir durumda değil.');
         }
 
         const originalJournal = await tx.journalEntry.findFirst({
@@ -603,7 +603,7 @@ export class AccountsPayableService {
       supplierId,
       companyId,
     );
-    if (!supplier.length) throw new NotFoundException('Supplier not found');
+    if (!supplier.length) throw new NotFoundException('Tedarikçi bulunamadı.');
 
     const entries = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT * FROM (
