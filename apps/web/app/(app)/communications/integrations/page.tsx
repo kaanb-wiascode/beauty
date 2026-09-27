@@ -18,6 +18,19 @@ type Connection = {
   lastError?: string | null;
 };
 
+type DiscoveredAccounts = {
+  connectionId: string;
+  provider: string;
+  selectedAccountId?: string | null;
+  accounts: Array<{
+    id: string;
+    name: string;
+    status?: string | null;
+    currency?: string | null;
+    timezone?: string | null;
+  }>;
+};
+
 type ConnectionHealth = {
   total: number;
   connected: number;
@@ -54,6 +67,9 @@ export default function AdvertisingConnectionsPage() {
   const [disconnectingId, setDisconnectingId] = useState("");
   const [connectingId, setConnectingId] = useState("");
   const [verifyingId, setVerifyingId] = useState("");
+  const [discoveringId, setDiscoveringId] = useState("");
+  const [selectingId, setSelectingId] = useState("");
+  const [accountOptions, setAccountOptions] = useState<Record<string, DiscoveredAccounts["accounts"]>>({});
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
   const [displayName, setDisplayName] = useState("");
@@ -112,6 +128,41 @@ export default function AdvertisingConnectionsPage() {
     }
   }
 
+  async function discoverAccounts(id: string) {
+    setDiscoveringId(id);
+    setError("");
+    try {
+      const result = await api<DiscoveredAccounts>(
+        `/corporate-communications/provider-connections/${id}/accounts`,
+      );
+      setAccountOptions((current) => ({ ...current, [id]: result.accounts }));
+      if (!result.accounts.length) {
+        setError("Bu yetkilendirme kapsamında erişilebilir reklam hesabı bulunamadı.");
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Reklam hesapları alınamadı.") : "Reklam hesapları alınamadı.");
+    } finally {
+      setDiscoveringId("");
+    }
+  }
+
+  async function selectAccount(id: string, externalAccountId: string) {
+    if (!externalAccountId) return;
+    setSelectingId(id);
+    setError("");
+    try {
+      await api(`/corporate-communications/provider-connections/${id}/accounts/select`, {
+        method: "POST",
+        body: { externalAccountId },
+      });
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Reklam hesabı seçilemedi.") : "Reklam hesabı seçilemedi.");
+    } finally {
+      setSelectingId("");
+    }
+  }
+
   async function disconnect(id: string) {
     setDisconnectingId(id);
     setError("");
@@ -161,6 +212,24 @@ export default function AdvertisingConnectionsPage() {
             <p className="text-[10px] text-[var(--muted)]">Son eşitleme: {row.lastSyncAt ? new Date(row.lastSyncAt).toLocaleString("tr-TR") : "Henüz yapılmadı"}</p>
           </div>
           {row.lastError ? <p className="mt-2 text-[10px] text-red-600">Bağlantı sırasında bir sorun oluştu. Hesap yetkilerini ve bağlantı ayarlarını kontrol edin.</p> : null}
+          {accountOptions[row.id]?.length ? (
+            <label className="mt-3 block text-[10px] font-semibold text-[var(--muted)]">
+              Erişilebilir Reklam Hesabı
+              <Select
+                className={fieldClass}
+                value={row.externalAccountId ?? ""}
+                disabled={selectingId === row.id}
+                onChange={(event) => void selectAccount(row.id, event.target.value)}
+              >
+                <option value="">Hesap seçin</option>
+                {accountOptions[row.id].map((account) => (
+                  <option key={account.id} value={account.id}>
+                    {account.name} · {account.id}
+                  </option>
+                ))}
+              </Select>
+            </label>
+          ) : null}
           {canManage && ["META", "GOOGLE_ADS", "TIKTOK"].includes(row.provider) ? (
             <div className="mt-3 flex flex-wrap gap-2">
               <button
@@ -183,6 +252,16 @@ export default function AdvertisingConnectionsPage() {
                   className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
                 >
                   {verifyingId === row.id ? "Bağlantı Test Ediliyor..." : "Bağlantıyı Test Et"}
+                </button>
+              ) : null}
+              {connectionHealth?.credentialsConfigured ? (
+                <button
+                  type="button"
+                  disabled={discoveringId === row.id}
+                  onClick={() => void discoverAccounts(row.id)}
+                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  {discoveringId === row.id ? "Hesaplar Getiriliyor..." : "Hesapları Getir"}
                 </button>
               ) : null}
               {connectionHealth?.health !== "DISCONNECTED" ? (
