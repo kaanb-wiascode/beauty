@@ -90,6 +90,12 @@ export class CorporateCommunicationsController {
     );
   }
 
+  @Post('provider-connections/:id/disconnect')
+  @RequirePermission('communications', 'manage')
+  disconnectProviderConnection(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.disconnectProviderConnection(id);
+  }
+
   @Get('routing-rules')
   routingRules() {
     return this.service.listRoutingRules();
