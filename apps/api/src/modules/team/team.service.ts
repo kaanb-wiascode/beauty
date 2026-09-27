@@ -773,6 +773,77 @@ export class TeamService {
     return { ok: true };
   }
 
+  async forwardMessage(currentUserId: string, messageId: string, destinationConversationId: string) {
+    const sourceRows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      conversationId: string;
+      body: string;
+    }>>(
+      `SELECT id, conversation_id AS "conversationId", body
+       FROM team_messages
+       WHERE id=$1::text
+         AND tenant_id=$2::text
+         AND company_id=$3::text
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      messageId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const source = sourceRows[0];
+    if (!source) throw new NotFoundException('İletilecek mesaj bulunamadı.');
+
+    await this.requireConversationMember(currentUserId, source.conversationId);
+    await this.requireCanPost(currentUserId, destinationConversationId);
+
+    const createdRows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `INSERT INTO team_messages(
+         tenant_id,company_id,conversation_id,sender_user_id,body
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5)
+       RETURNING id`,
+      this.tenantId(),
+      this.companyId(),
+      destinationConversationId,
+      currentUserId,
+      `İletildi\n${source.body}`,
+    );
+    const created = createdRows[0];
+    if (!created) throw new BadRequestException('Mesaj iletilemedi.');
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO team_message_attachments(
+         tenant_id,company_id,message_id,uploaded_by_user_id,
+         original_name,storage_name,mime_type,size_bytes
+       )
+       SELECT
+         tenant_id,company_id,$1::text,$2::text,
+         original_name,storage_name,mime_type,size_bytes
+       FROM team_message_attachments
+       WHERE message_id=$3::text`,
+      created.id,
+      currentUserId,
+      messageId,
+    );
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE team_conversations
+       SET updated_at=NOW()
+       WHERE id=$1::text
+         AND tenant_id=$2::text
+         AND company_id=$3::text`,
+      destinationConversationId,
+      this.tenantId(),
+      this.companyId(),
+    );
+
+    await this.publishConversationEvent(destinationConversationId, 'message.created', {
+      messageId: created.id,
+      senderUserId: currentUserId,
+      body: `İletildi · ${source.body}`.slice(0, 240),
+    });
+    return { id: created.id };
+  }
+
   async deleteMessage(currentUserId: string, messageId: string) {
     const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
       `UPDATE team_messages m
