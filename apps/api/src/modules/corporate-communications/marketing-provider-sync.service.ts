@@ -441,6 +441,221 @@ export class MarketingProviderSyncService {
     });
   }
 
+  private extractGoogleLeadFields(value: unknown) {
+    const result: Record<string, string> = {};
+    if (!Array.isArray(value)) return result;
+    for (const entry of value) {
+      if (!entry || typeof entry !== 'object') continue;
+      const row = entry as Record<string, unknown>;
+      const fieldType =
+        typeof row.fieldType === 'string'
+          ? row.fieldType
+          : typeof row.field_type === 'string'
+            ? row.field_type
+            : '';
+      const fieldValue =
+        typeof row.fieldValue === 'string'
+          ? row.fieldValue
+          : typeof row.field_value === 'string'
+            ? row.field_value
+            : '';
+      if (fieldType && fieldValue) result[fieldType] = fieldValue;
+    }
+    return result;
+  }
+
+  private async googleLeadSubmissions(
+    connection: ConnectionRow,
+    actorUserId: string,
+  ) {
+    const accessToken = await this.accessToken(connection);
+    const version =
+      this.config.get<string>('GOOGLE_ADS_API_VERSION')?.trim() || 'v25';
+    const customerId = connection.externalAccountId!.replace(/-/g, '');
+    const url =
+      `https://googleads.googleapis.com/${version}/customers/${customerId}/googleAds:searchStream`;
+    const headers: Record<string, string> = {
+      authorization: `Bearer ${accessToken}`,
+      'developer-token': this.required('GOOGLE_ADS_DEVELOPER_TOKEN'),
+      'content-type': 'application/json',
+    };
+    const loginCustomerId = this.config
+      .get<string>('GOOGLE_ADS_LOGIN_CUSTOMER_ID')
+      ?.replace(/-/g, '')
+      .trim();
+    if (loginCustomerId) headers['login-customer-id'] = loginCustomerId;
+
+    const body = await this.fetchJson(url, {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        query: `
+          SELECT
+            lead_form_submission_data.id,
+            lead_form_submission_data.submission_date_time,
+            lead_form_submission_data.gclid,
+            lead_form_submission_data.lead_form_submission_fields,
+            lead_form_submission_data.custom_lead_form_submission_fields,
+            campaign.id,
+            campaign.name
+          FROM lead_form_submission_data
+          WHERE lead_form_submission_data.submission_date_time DURING LAST_30_DAYS
+        `,
+      }),
+    });
+
+    const chunks = Array.isArray(body) ? body : [];
+    const results = chunks.flatMap((chunk) => {
+      if (!chunk || typeof chunk !== 'object') return [];
+      const value = (chunk as Record<string, unknown>).results;
+      return Array.isArray(value) ? value : [];
+    });
+
+    const { tenantId, companyId, branchId } = this.context();
+    let inserted = 0;
+    let existing = 0;
+
+    for (const entry of results) {
+      if (!entry || typeof entry !== 'object') continue;
+      const row = entry as Record<string, unknown>;
+      const submission =
+        row.leadFormSubmissionData &&
+        typeof row.leadFormSubmissionData === 'object'
+          ? row.leadFormSubmissionData as Record<string, unknown>
+          : {};
+      const campaign =
+        row.campaign && typeof row.campaign === 'object'
+          ? row.campaign as Record<string, unknown>
+          : {};
+      const externalLeadId =
+        submission.id == null ? '' : String(submission.id);
+      if (!externalLeadId) continue;
+
+      const fields = {
+        ...this.extractGoogleLeadFields(
+          submission.leadFormSubmissionFields,
+        ),
+        ...this.extractGoogleLeadFields(
+          submission.customLeadFormSubmissionFields,
+        ),
+      };
+      const normalized = Object.fromEntries(
+        Object.entries(fields).map(([key, value]) => [
+          key.toUpperCase(),
+          value,
+        ]),
+      );
+      const fullName =
+        normalized.FULL_NAME ||
+        [normalized.FIRST_NAME, normalized.LAST_NAME]
+          .filter(Boolean)
+          .join(' ')
+          .trim();
+      const [firstName, ...lastNameParts] = (fullName || 'Google Ads').split(/\s+/);
+      const lastName = lastNameParts.join(' ') || 'Lead';
+      const phone =
+        normalized.PHONE_NUMBER ||
+        normalized.PHONE ||
+        normalized.WORK_PHONE ||
+        null;
+      const email =
+        normalized.EMAIL ||
+        normalized.WORK_EMAIL ||
+        null;
+      if (!phone && !email) continue;
+
+      const externalCampaignId =
+        campaign.id == null ? null : String(campaign.id);
+      const mapped = externalCampaignId
+        ? await this.prisma.$queryRawUnsafe<Array<{ campaignId: string | null }>>(
+            `SELECT campaign_id AS "campaignId"
+               FROM corporate_marketing_provider_campaigns
+              WHERE connection_id=$1::text AND external_campaign_id=$2
+                AND tenant_id=$3::text AND company_id=$4::text
+              LIMIT 1`,
+            connection.id,
+            externalCampaignId,
+            tenantId,
+            companyId,
+          )
+        : [];
+
+      const created = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+        `INSERT INTO corporate_marketing_leads(
+           tenant_id,company_id,branch_id,campaign_id,provider,external_lead_id,
+           first_name,last_name,phone,email,status,source_payload,first_touch,last_touch
+         ) VALUES(
+           $1::text,$2::text,$3::text,$4::text,'GOOGLE_ADS',$5,$6,$7,$8,$9,
+           'NEW',$10::jsonb,$11::jsonb,$11::jsonb
+         )
+         ON CONFLICT DO NOTHING
+         RETURNING id`,
+        tenantId,
+        companyId,
+        branchId ?? null,
+        mapped[0]?.campaignId ?? null,
+        externalLeadId,
+        firstName,
+        lastName,
+        phone,
+        email,
+        JSON.stringify({
+          connectionId: connection.id,
+          submissionDateTime: submission.submissionDateTime ?? null,
+          campaignName:
+            typeof campaign.name === 'string' ? campaign.name : null,
+          fields,
+        }),
+        JSON.stringify({
+          externalCampaignId,
+          clickId:
+            typeof submission.gclid === 'string'
+              ? submission.gclid
+              : null,
+          utmSource: 'google',
+          utmMedium: 'paid',
+        }),
+      );
+
+      if (created.length) {
+        inserted += 1;
+        const leadId = created[0]?.id;
+        if (leadId) {
+          await this.prisma.$executeRawUnsafe(
+            `INSERT INTO corporate_marketing_touchpoints(
+               tenant_id,company_id,marketing_lead_id,campaign_id,provider,touch_type,
+               external_campaign_id,click_id,utm_source,utm_medium,metadata
+             ) VALUES(
+               $1::text,$2::text,$3::text,$4::text,'GOOGLE_ADS','LEAD_CAPTURE',
+               $5,$6,'google','paid',$7::jsonb
+             )`,
+            tenantId,
+            companyId,
+            leadId,
+            mapped[0]?.campaignId ?? null,
+            externalCampaignId,
+            typeof submission.gclid === 'string'
+              ? submission.gclid
+              : null,
+            JSON.stringify({
+              externalLeadId,
+              actorUserId,
+              connectionId: connection.id,
+            }),
+          );
+        }
+      } else {
+        existing += 1;
+      }
+    }
+
+    return {
+      received: results.length,
+      inserted,
+      existing,
+    };
+  }
+
   private internalStatus(providerStatus: string | null) {
     if (
       providerStatus === 'ENABLED' ||
@@ -589,12 +804,20 @@ export class MarketingProviderSyncService {
         companyId,
       );
 
+      const leads =
+        connection.provider === 'GOOGLE_ADS'
+          ? await this.googleLeadSubmissions(connection, actorUserId)
+          : { received: 0, inserted: 0, existing: 0 };
+
       return {
         connectionId: connection.id,
         provider: connection.provider,
         externalAccountId: connection.externalAccountId,
         campaignsReceived: campaigns.length,
         campaignsLinked: linkedCampaignIds.length,
+        leadsReceived: leads.received,
+        leadsInserted: leads.inserted,
+        leadsExisting: leads.existing,
         syncedAt: new Date().toISOString(),
       };
     } catch (error) {
