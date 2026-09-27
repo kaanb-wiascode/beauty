@@ -55,7 +55,7 @@ export class CrmQuoteService {
         ORDER BY q.created_at DESC,q.id DESC`,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       opportunityId ?? null,
       visibility.restrictOwners,
       visibility.ownerUserIds,
@@ -80,7 +80,7 @@ export class CrmQuoteService {
       id,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       visibility.restrictOwners,
       visibility.ownerUserIds,
     );
