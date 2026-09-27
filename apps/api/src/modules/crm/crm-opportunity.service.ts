@@ -43,6 +43,9 @@ type OpportunityDetailRow = OpportunityRow & {
   leadLastName: string | null;
   customerFirstName: string | null;
   customerLastName: string | null;
+  saleStatus: string | null;
+  saleTotal: unknown;
+  paidTotal: unknown;
 };
 
 type FollowUpRow = {
@@ -182,13 +185,24 @@ export class CrmOpportunityService {
               o.estimated_value AS "estimatedValue",o.currency,o.probability,
               o.expected_close_date AS "expectedCloseDate",o.lost_reason AS "lostReason",
               o.sale_id AS "saleId",o.commercial_snapshot AS "commercialSnapshot",
-              o.converted_at AS "convertedAt",o.version,
+              o.converted_at AS "convertedAt",
+              s.status::text AS "saleStatus",s.total AS "saleTotal",
+              COALESCE((
+                SELECT SUM(sp.amount)
+                  FROM sale_payments sp
+                 WHERE sp."saleId"=s.id
+                   AND sp."tenantId"=s."tenantId"
+                   AND sp."branchId"=s."branchId"
+                   AND sp.status='COMPLETED'
+              ),0) AS "paidTotal",
+              o.version,
               o.created_at AS "createdAt",o.updated_at AS "updatedAt",
               l.first_name AS "leadFirstName",l.last_name AS "leadLastName",
               c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName"
        FROM crm_opportunities o
        LEFT JOIN crm_leads l ON l.id=o.lead_id
        LEFT JOIN customers c ON c.id=o.customer_id AND c."tenantId"=o.tenant_id
+       LEFT JOIN sales s ON s.id=o.sale_id AND s."tenantId"=o.tenant_id AND s."branchId"=o.branch_id
        WHERE o.id=$1::text AND o.tenant_id=$2::text AND o.company_id=$3::text
          AND ($4::text IS NULL OR o.branch_id=$4::text)
          AND ($5::boolean=FALSE OR o.owner_user_id=ANY($6::text[]))
