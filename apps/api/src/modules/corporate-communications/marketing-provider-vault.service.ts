@@ -126,8 +126,7 @@ export class MarketingProviderVaultService {
     });
   }
 
-  async load(connectionId: string) {
-    const { tenantId, companyId } = this.tenantContext.getContext();
+  async loadScoped(connectionId: string, tenantId: string, companyId: string) {
     const rows = await this.prisma.$queryRawUnsafe<Array<{ encryptedPayload: string; keyVersion: string }>>(
       `SELECT encrypted_payload AS "encryptedPayload",key_version AS "keyVersion"
          FROM corporate_marketing_provider_secrets
@@ -138,6 +137,35 @@ export class MarketingProviderVaultService {
       companyId,
     );
     return rows[0] ? this.decrypt(rows[0].encryptedPayload, rows[0].keyVersion) : null;
+  }
+
+  async load(connectionId: string) {
+    const { tenantId, companyId } = this.tenantContext.getContext();
+    return this.loadScoped(connectionId, tenantId, companyId);
+  }
+
+  async merge(connectionId: string, patch: Record<string, string>) {
+    this.assertReady();
+    const { tenantId, companyId } = this.tenantContext.getContext();
+    const current = (await this.loadScoped(connectionId, tenantId, companyId)) ?? {};
+    const version = this.activeVersion();
+    const encrypted = this.encrypt({ ...current, ...patch }, version);
+
+    const updated = await this.prisma.$executeRawUnsafe(
+      `UPDATE corporate_marketing_provider_secrets
+          SET encrypted_payload=$4,key_version=$5,updated_at=NOW()
+        WHERE connection_id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+      connectionId,
+      tenantId,
+      companyId,
+      encrypted,
+      version,
+    );
+    if (!updated) {
+      throw new BadRequestException(
+        'Entegrasyon güvenli erişim bilgileri bulunamadı. Önce hesabı yetkilendirin.',
+      );
+    }
   }
 
   async clear(connectionId: string) {
