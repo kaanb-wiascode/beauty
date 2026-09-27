@@ -23,6 +23,18 @@ type DailyReport = {
   winRate: number;
 };
 
+type SurveyorReport = {
+  staffId: string;
+  firstName: string;
+  lastName: string;
+  leadCount: number;
+  opportunityCount: number;
+  wonCount: number;
+  actualSalesValue: number;
+  leadToOpportunityRate: number;
+  leadToSaleRate: number;
+};
+
 type SalespersonReport = {
   userId: string;
   firstName: string | null;
@@ -54,6 +66,7 @@ export default function CrmReportsPage() {
   const [to, setTo] = useState(() => dateInput(new Date()));
   const [daily, setDaily] = useState<DailyReport[]>([]);
   const [salespeople, setSalespeople] = useState<SalespersonReport[]>([]);
+  const [surveyors, setSurveyors] = useState<SurveyorReport[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -64,12 +77,14 @@ export default function CrmReportsPage() {
       const fromDate = new Date(`${from}T00:00:00`).toISOString();
       const toDate = new Date(`${to}T23:59:59`).toISOString();
       const query = new URLSearchParams({ from: fromDate, to: toDate });
-      const [dailyRows, salespersonRows] = await Promise.all([
+      const [dailyRows, salespersonRows, surveyorRows] = await Promise.all([
         api<DailyReport[]>(`/crm/operations/reports/daily?${query}`),
         api<SalespersonReport[]>(`/crm/operations/reports/salespeople?${query}`),
+        api<SurveyorReport[]>(`/crm/operations/reports/surveyors?${query}`),
       ]);
       setDaily(dailyRows);
       setSalespeople(salespersonRows);
+      setSurveyors(surveyorRows);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "CRM raporları yüklenemedi.");
     } finally {
@@ -179,6 +194,35 @@ export default function CrmReportsPage() {
             </table>
           </div>
         ) : <div className="px-5 py-10 text-center text-[12px] text-[var(--muted)]">Seçilen tarih aralığında satışçı performans verisi bulunmuyor.</div>}
+      </GlassCard>
+
+      <GlassCard className="p-0">
+        <div className="border-b border-[var(--line)] px-5 py-4">
+          <div className="flex items-start gap-2">
+            <CardInfo help={getCardHelp("Anketör Performansı", "Anketör kaynaklı potansiyel müşterilerin fırsat ve satışa dönüşümünü anketör bazında gösterir.")} />
+            <div><h2 className="text-[15px] font-semibold">Anketör Performansı</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Potansiyel müşteri, dönüşüm ve gerçekleşen satış sonuçları</p></div>
+          </div>
+        </div>
+        {surveyors.length ? (
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-left">
+              <thead className="border-b border-[var(--line)] bg-[var(--surface-2)]/45 text-[9px] uppercase tracking-[.06em] text-[var(--muted)]">
+                <tr><th className="px-5 py-3">Anketör</th><th className="px-3 py-3">Pot. Müşteri</th><th className="px-3 py-3">Fırsat</th><th className="px-3 py-3">Kazanılan</th><th className="px-3 py-3">Müşteri → Fırsat</th><th className="px-3 py-3">Müşteri → Satış</th><th className="px-3 py-3">Gerçek Satış</th></tr>
+              </thead>
+              <tbody className="divide-y divide-[var(--line)]">
+                {surveyors.map((row) => <tr key={row.staffId} className="text-[11px]">
+                  <td className="px-5 py-4 font-semibold">{row.firstName} {row.lastName}</td>
+                  <td className="px-3 py-4">{row.leadCount}</td>
+                  <td className="px-3 py-4">{row.opportunityCount}</td>
+                  <td className="px-3 py-4">{row.wonCount}</td>
+                  <td className="px-3 py-4">%{row.leadToOpportunityRate}</td>
+                  <td className="px-3 py-4">%{row.leadToSaleRate}</td>
+                  <td className="px-3 py-4 font-semibold">{money(row.actualSalesValue)}</td>
+                </tr>)}
+              </tbody>
+            </table>
+          </div>
+        ) : <div className="px-5 py-10 text-center text-[12px] text-[var(--muted)]">Seçilen tarih aralığında Anketör kaynaklı performans verisi bulunmuyor.</div>}
       </GlassCard>
 
       <GlassCard className="p-0">
