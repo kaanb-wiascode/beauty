@@ -112,9 +112,9 @@ export default function BranchWorkingHoursPage() {
   return (
     <div className="mx-auto max-w-[1180px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Scheduling Guard</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Randevu Planlama Kuralları</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Şube Çalışma Saatları</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Waitlist slot önerileri ve rezervasyon kabulü bu haftalık kuralları dikkate alır. Hiç kural tanımlanmamış şubelerde geriye uyumluluk için mevcut booking akışı engellenmez.</p>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Bekleme listesi için uygun saat önerileri ve randevu kabulü bu haftalık kuralları dikkate alır. Henüz kural tanımlanmamış şubelerde mevcut randevu akışı kesintiye uğramaz.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
