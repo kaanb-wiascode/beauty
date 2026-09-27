@@ -7,8 +7,12 @@ describe('PaymentsService concurrency guards', () => {
       appointment: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'appointment-a',
+          branchId: 'branch-a',
           status: 'COMPLETED',
-          service: { price: 100 },
+          startAt: new Date('2026-09-01T10:00:00.000Z'),
+          session: null,
+          customer: { firstName: 'Test', lastName: 'Müşteri' },
+          service: { name: 'Test Hizmet', price: 100 },
         }),
       },
       payment: {
@@ -19,7 +23,16 @@ describe('PaymentsService concurrency guards', () => {
         }),
         findFirst: jest.fn().mockResolvedValue({
           id: 'payment-a',
+          appointmentId: 'appointment-a',
+          amount: 100,
+          method: 'CARD',
           status: 'COMPLETED',
+          appointment: {
+            branchId: 'branch-a',
+            startAt: new Date('2026-09-01T10:00:00.000Z'),
+            customer: { firstName: 'Test', lastName: 'Müşteri' },
+            service: { name: 'Test Hizmet', price: 100 },
+          },
         }),
         findMany: jest.fn().mockResolvedValue([]),
         count: jest.fn().mockResolvedValue(0),
@@ -28,6 +41,8 @@ describe('PaymentsService concurrency guards', () => {
         aggregate: jest.fn(),
         groupBy: jest.fn(),
       },
+      $queryRawUnsafe: jest.fn().mockResolvedValue([{ userId: 'user-a' }]),
+      $transaction: jest.fn(async (callback: any) => callback(prisma)),
       ...overrides,
     } as any;
 
@@ -36,6 +51,11 @@ describe('PaymentsService concurrency guards', () => {
       getCompanyId: jest.fn().mockReturnValue('company-a'),
       getBranchId: jest.fn().mockReturnValue('branch-a'),
       getRoleScope: jest.fn().mockReturnValue('BRANCH'),
+      getContext: jest.fn().mockReturnValue({
+        membershipId: 'membership-a',
+        tenantId: 'tenant-a',
+        companyId: 'company-a',
+      }),
     } as any;
 
     const organizationScope = {
@@ -49,11 +69,30 @@ describe('PaymentsService concurrency guards', () => {
       }),
     } as any;
 
+    const accountingService = {
+      recordAppointmentReceivable: jest.fn(),
+      recordAppointmentPayment: jest.fn(),
+      recordAppointmentPaymentRefund: jest.fn(),
+    } as any;
+    const commerceFinanceSync = {
+      syncAppointmentReceivable: jest.fn(),
+      syncAppointmentPayment: jest.fn(),
+      syncAppointmentPaymentRefund: jest.fn(),
+    } as any;
+
     return {
-      service: new PaymentsService(prisma, tenant, organizationScope),
+      service: new PaymentsService(
+        prisma,
+        tenant,
+        organizationScope,
+        accountingService,
+        commerceFinanceSync,
+      ),
       prisma,
       tenant,
       organizationScope,
+      accountingService,
+      commerceFinanceSync,
     };
   }
 
@@ -235,9 +274,17 @@ describe('PaymentsService concurrency guards', () => {
           branchId: { in: ['branch-a'] },
         },
       },
-      select: {
-        id: true,
-        status: true,
+      include: {
+        appointment: {
+          include: {
+            customer: {
+              select: { firstName: true, lastName: true },
+            },
+            service: {
+              select: { name: true, price: true },
+            },
+          },
+        },
       },
     });
     expect(prisma.payment.updateMany).not.toHaveBeenCalled();
