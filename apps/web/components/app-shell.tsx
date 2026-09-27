@@ -150,7 +150,7 @@ type SwitchContextResponse = {
 function teamMessagePreview(value: string) {
   const card = parseValooRichCard(value);
   if (!card) return value;
-  const label = card.kind === "APPOINTMENT" ? "Randevu" : card.kind === "CUSTOMER" ? "Müşteri" : card.kind === "PAYMENT" ? "Ödeme" : card.kind === "STAFF" ? "Personel" : card.kind === "LEAD" ? "Potansiyel Müşteri" : "Satış Fırsatı";
+  const label = card.kind === "APPOINTMENT" ? "Randevu" : card.kind === "CUSTOMER" ? "Müşteri" : card.kind === "PAYMENT" ? "Ödeme" : card.kind === "STAFF" ? "Personel" : card.kind === "LEAD" ? "Potansiyel Müşteri" : card.kind === "OPPORTUNITY" ? "Satış Fırsatı" : card.kind === "SALE" ? "Satış" : card.kind === "INVENTORY" ? "Stok Ürünü" : "Takip Görevi";
   return `${label}: ${card.title}`;
 }
 
