@@ -108,6 +108,51 @@ export class CorporateCommunicationsService {
       branchId,
     );
 
+    const [funnelRow] = await this.prisma.$queryRawUnsafe<Array<{
+      totalLeads: bigint;
+      crmLeads: bigint;
+      customers: bigint;
+      appointments: bigint;
+      sales: bigint;
+      revenue: unknown;
+    }>>(
+      `SELECT
+         count(*) AS "totalLeads",
+         count(*) FILTER (WHERE crm_lead_id IS NOT NULL) AS "crmLeads",
+         count(*) FILTER (WHERE customer_id IS NOT NULL) AS customers,
+         count(*) FILTER (WHERE appointment_id IS NOT NULL) AS appointments,
+         count(*) FILTER (WHERE sale_id IS NOT NULL) AS sales,
+         COALESCE(sum(revenue_amount),0) AS revenue
+       FROM corporate_marketing_leads
+       WHERE tenant_id=$1::text AND company_id=$2::text
+         AND ($3::text IS NULL OR branch_id IS NULL OR branch_id=$3::text)`,
+      tenantId,
+      companyId,
+      branchId,
+    );
+
+    const channels = await this.prisma.$queryRawUnsafe<Array<{
+      provider: string;
+      leads: bigint;
+      appointments: bigint;
+      sales: bigint;
+      revenue: unknown;
+    }>>(
+      `SELECT provider,
+              count(*) AS leads,
+              count(*) FILTER (WHERE appointment_id IS NOT NULL) AS appointments,
+              count(*) FILTER (WHERE sale_id IS NOT NULL) AS sales,
+              COALESCE(sum(revenue_amount),0) AS revenue
+         FROM corporate_marketing_leads
+        WHERE tenant_id=$1::text AND company_id=$2::text
+          AND ($3::text IS NULL OR branch_id IS NULL OR branch_id=$3::text)
+        GROUP BY provider
+        ORDER BY COALESCE(sum(revenue_amount),0) DESC,count(*) DESC,provider`,
+      tenantId,
+      companyId,
+      branchId,
+    );
+
     const spend = Number(row.totalSpend ?? 0);
     const leads = Number(row.leads);
     const wonLeads = Number(row.wonLeads);
@@ -123,6 +168,23 @@ export class CorporateCommunicationsService {
       cpl: leads > 0 ? spend / leads : null,
       cac: wonLeads > 0 ? spend / wonLeads : null,
       roas: spend > 0 ? revenue / spend : null,
+      funnel: {
+        leads: Number(funnelRow?.totalLeads ?? 0),
+        crmLeads: Number(funnelRow?.crmLeads ?? 0),
+        customers: Number(funnelRow?.customers ?? 0),
+        appointments: Number(funnelRow?.appointments ?? 0),
+        sales: Number(funnelRow?.sales ?? 0),
+        revenue: Number(funnelRow?.revenue ?? 0),
+      },
+      channels: channels.map((item) => ({
+        provider: item.provider,
+        leads: Number(item.leads),
+        appointments: Number(item.appointments),
+        sales: Number(item.sales),
+        revenue: Number(item.revenue ?? 0),
+        appointmentRate: Number(item.leads) > 0 ? Number(item.appointments) / Number(item.leads) : 0,
+        saleRate: Number(item.leads) > 0 ? Number(item.sales) / Number(item.leads) : 0,
+      })),
     };
   }
 
