@@ -162,6 +162,24 @@ export class CrmInteractionService {
     );
 
     const interaction = rows[0];
+
+    if (input.leadId && input.status === 'COMPLETED') {
+      const touchedAt = input.startedAt ?? new Date();
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE crm_leads
+            SET first_contacted_at=COALESCE(first_contacted_at,$5::timestamptz),
+                first_response_at=COALESCE(first_response_at,$5::timestamptz),
+                status=CASE WHEN status='NEW' THEN 'CONTACTED' ELSE status END,
+                updated_at=NOW()
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+            AND branch_id=$4::text`,
+        input.leadId,
+        context.tenantId,
+        context.companyId,
+        branchId,
+        touchedAt,
+      );
+    }
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,opportunity_id,event_type,actor_user_id,metadata)
        VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'INTERACTION_CREATED',$6::text,$7::jsonb)`,
