@@ -427,20 +427,25 @@ export class CorporateCommunicationsService {
       provider: string;
       status: string;
       credentialReference: string | null;
+      credentialsConfigured: boolean;
       lastSyncAt: Date | null;
       lastError: string | null;
     }>>(
-      `SELECT id,provider,status,credential_reference AS "credentialReference",
-              last_sync_at AS "lastSyncAt",last_error AS "lastError"
-         FROM corporate_marketing_provider_connections
-        WHERE tenant_id=$1::text AND company_id=$2::text
-        ORDER BY provider,id`,
+      `SELECT c.id,c.provider,c.status,c.credential_reference AS "credentialReference",
+              EXISTS(
+                SELECT 1 FROM corporate_marketing_provider_secrets s
+                WHERE s.connection_id=c.id
+              ) AS "credentialsConfigured",
+              c.last_sync_at AS "lastSyncAt",c.last_error AS "lastError"
+         FROM corporate_marketing_provider_connections c
+        WHERE c.tenant_id=$1::text AND c.company_id=$2::text
+        ORDER BY c.provider,c.id`,
       tenantId,
       companyId,
     );
 
     const connections = rows.map((row) => {
-      const credentialsConfigured = Boolean(row.credentialReference);
+      const credentialsConfigured = row.credentialsConfigured && Boolean(row.credentialReference);
       const health =
         row.lastError
           ? 'ATTENTION'
