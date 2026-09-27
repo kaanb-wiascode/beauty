@@ -35,9 +35,9 @@ export class ServiceExecutionCorrectionsService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId, membershipId };
   }
 
@@ -78,16 +78,16 @@ export class ServiceExecutionCorrectionsService {
           branchId,
         );
         const execution = rows[0];
-        if (!execution) throw new NotFoundException('Service execution not found.');
+        if (!execution) throw new NotFoundException('Hizmet uygulama kaydı bulunamadı.');
         if (execution.version !== input.expectedVersion) {
-          throw new ConflictException('Service execution changed since it was read. Refresh and retry.');
+          throw new ConflictException('Hizmet uygulama kaydı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
         }
 
         if (action === 'CANCEL' && execution.status !== 'IN_PROGRESS') {
-          throw new BadRequestException('Only an in-progress service execution can be cancelled.');
+          throw new BadRequestException('Yalnızca devam eden bir hizmet uygulaması iptal edilebilir.');
         }
         if (action === 'REVERSE_COMPLETION' && execution.status !== 'COMPLETED') {
-          throw new BadRequestException('Only a completed service execution can have completion reversed.');
+          throw new BadRequestException('Yalnızca tamamlanmış bir hizmet uygulamasının tamamlanma işlemi geri alınabilir.');
         }
 
         if (action === 'REVERSE_COMPLETION') {
@@ -96,7 +96,7 @@ export class ServiceExecutionCorrectionsService {
               where: { id: execution.appointmentId, tenantId, branchId },
               select: { status: true },
             });
-            if (!appointment) throw new NotFoundException('Linked appointment not found.');
+            if (!appointment) throw new NotFoundException('Bağlı randevu bulunamadı.');
             if (appointment.status === 'COMPLETED') {
               throw new ConflictException({
                 code: 'APPOINTMENT_ALREADY_COMPLETED',
@@ -143,7 +143,7 @@ export class ServiceExecutionCorrectionsService {
           input.expectedVersion,
         );
         if (!updated[0]) {
-          throw new ConflictException('Service execution changed during correction. Refresh and retry.');
+          throw new ConflictException('Hizmet uygulama kaydı düzeltme sırasında değişti. Lütfen ekranı yenileyin.');
         }
 
         await tx.$executeRawUnsafe(
