@@ -99,6 +99,36 @@ export class CrmInteractionService {
     if (input.leadId) await this.dataScope.assertLeadAccess(input.leadId);
     if (input.opportunityId) await this.dataScope.assertOpportunityAccess(input.opportunityId);
 
+    let customerId = input.customerId ?? null;
+    if (!customerId && input.opportunityId) {
+      const linked = await this.prisma.$queryRawUnsafe<Array<{ customerId: string | null }>>(
+        `SELECT customer_id AS "customerId"
+           FROM crm_opportunities
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+            AND branch_id=$4::text
+          LIMIT 1`,
+        input.opportunityId,
+        context.tenantId,
+        context.companyId,
+        branchId,
+      );
+      customerId = linked[0]?.customerId ?? null;
+    }
+    if (!customerId && input.leadId) {
+      const linked = await this.prisma.$queryRawUnsafe<Array<{ customerId: string | null }>>(
+        `SELECT customer_id AS "customerId"
+           FROM crm_leads
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+            AND branch_id=$4::text
+          LIMIT 1`,
+        input.leadId,
+        context.tenantId,
+        context.companyId,
+        branchId,
+      );
+      customerId = linked[0]?.customerId ?? null;
+    }
+
     const rows = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
       `INSERT INTO crm_interactions(
          tenant_id,company_id,branch_id,customer_id,lead_id,opportunity_id,owner_user_id,
@@ -114,7 +144,7 @@ export class CrmInteractionService {
       context.tenantId,
       context.companyId,
       branchId,
-      input.customerId ?? null,
+      customerId,
       input.leadId ?? null,
       input.opportunityId ?? null,
       ownerUserId,
