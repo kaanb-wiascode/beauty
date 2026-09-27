@@ -139,7 +139,7 @@ export class CrmQuoteService {
       const quoteNumber = await this.nextQuoteNumber();
       try {
         quoteId = await this.prisma.$transaction(async (tx) => {
-      const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `INSERT INTO crm_quotes(
            tenant_id,company_id,branch_id,opportunity_id,customer_id,owner_user_id,quote_number,
            currency,subtotal,discount_total,total,valid_until,notes,created_by_user_id
@@ -160,9 +160,9 @@ export class CrmQuoteService {
         input.notes ?? null,
         actorUserId,
       );
-      const createdQuoteId = rows[0].id;
+          const createdQuoteId = rows[0].id;
 
-      for (const item of input.items) {
+          for (const item of input.items) {
         const lineTotal = Math.round((item.quantity * item.unitPrice + Number.EPSILON) * 100) / 100;
         await tx.$executeRawUnsafe(
           `INSERT INTO crm_quote_items(quote_id,item_type,reference_id,description,quantity,unit_price,line_total)
@@ -177,8 +177,8 @@ export class CrmQuoteService {
         );
       }
 
-      await tx.$executeRawUnsafe(
-        `INSERT INTO crm_events(tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata)
+          await tx.$executeRawUnsafe(
+            `INSERT INTO crm_events(tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata)
          VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'QUOTE_CREATED',$6::text,$7::jsonb)`,
         context.tenantId,
         context.companyId,
