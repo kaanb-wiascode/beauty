@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import { canTransitionSession } from '../commerce/domain/session-policy';
 
 @Injectable()
@@ -13,6 +14,7 @@ export class SessionsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private requireBranchId(): string {
@@ -85,7 +87,7 @@ export class SessionsService {
     const session = await this.findOne(id);
     this.assertTransition(session.status, 'RESERVED');
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findFirst({
         where: {
           id: appointmentId,
@@ -126,6 +128,13 @@ export class SessionsService {
 
       return tx.session.findUnique({ where: { id: session.id } });
     });
+    await this.domainEvents?.publish({
+      eventName: 'session.reserved',
+      aggregateType: 'session',
+      aggregateId: session.id,
+      payload: { appointmentId, customerPackageId: session.customerPackageId },
+    });
+    return result;
   }
 
   async release(id: string) {
@@ -154,7 +163,14 @@ export class SessionsService {
       );
     }
 
-    return this.prisma.session.findUnique({ where: { id: session.id } });
+    const result = await this.prisma.session.findUnique({ where: { id: session.id } });
+    await this.domainEvents?.publish({
+      eventName: 'session.released',
+      aggregateType: 'session',
+      aggregateId: session.id,
+      payload: { appointmentId: session.appointmentId },
+    });
+    return result;
   }
 
   async consume(id: string) {
@@ -169,7 +185,7 @@ export class SessionsService {
       );
     }
 
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findFirst({
         where: {
           id: session.appointmentId!,
@@ -227,6 +243,16 @@ export class SessionsService {
 
       return tx.session.findUnique({ where: { id: session.id } });
     });
+    await this.domainEvents?.publish({
+      eventName: 'session.consumed',
+      aggregateType: 'session',
+      aggregateId: session.id,
+      payload: {
+        appointmentId: session.appointmentId,
+        customerPackageId: session.customerPackageId,
+      },
+    });
+    return result;
   }
 
   async cancel(id: string) {
@@ -255,6 +281,13 @@ export class SessionsService {
       );
     }
 
-    return this.prisma.session.findUnique({ where: { id: session.id } });
+    const result = await this.prisma.session.findUnique({ where: { id: session.id } });
+    await this.domainEvents?.publish({
+      eventName: 'session.cancelled',
+      aggregateType: 'session',
+      aggregateId: session.id,
+      payload: { previousAppointmentId: session.appointmentId },
+    });
+    return result;
   }
 }
