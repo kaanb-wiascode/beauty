@@ -47,8 +47,7 @@ const OPERATION_GROUPS = [
       { href: "/operations/checklists", label: "Hizmet Kontrol Listeleri" },
       { href: "/operations/branch-checklists", label: "Açılış ve Kapanış" },
       { href: "/operations/incidents", label: "Olaylar ve Kesintiler" },
-      { href: "/operations/intelligence", label: "Operasyon İçgörüleri" },
-      { href: "/operations/optimization", label: "Operasyon Önerileri" },
+      { href: "/operations/insights", label: "İçgörü ve Öneriler" },
     ],
   },
 ] as const;
