@@ -109,9 +109,7 @@ export function OperationsUtilizationPanel() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
             Kapasite kullanımı
           </p>
-          <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">
-            Personel ve Hizmet Kullanımı
-          </h2>
+          <div className="mt-2 flex items-start gap-2"><h2 className="text-lg font-semibold text-[var(--ink)]">Personel ve Hizmet Kullanımı</h2><CardInfo help={getCardHelp("Personel ve Hizmet Kullanımı")} /></div>
           <p className="mt-1 max-w-3xl text-xs text-[var(--muted)]">
             Seçilen tarih aralığında aktif personel kapasitesinin ne kadarının randevularla kullanıldığını gösterir. Hesaplama, bu sürümde vardiya ve izinleri ayrıca dikkate almaz; seçilen zaman aralığının tamamını esas alır.
           </p>
@@ -157,7 +155,7 @@ export function OperationsUtilizationPanel() {
           <div className="mt-5 grid gap-5 xl:grid-cols-2">
             <div className="overflow-hidden rounded-[18px] border border-[var(--line)]">
               <div className="border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-3">
-                <h3 className="text-sm font-semibold text-[var(--ink)]">Personel Kullanımı</h3>
+                <div className="flex items-start gap-2"><h3 className="text-sm font-semibold text-[var(--ink)]">Personel Kullanımı</h3><CardInfo help={getCardHelp("Personel Kullanımı")} /></div>
               </div>
               {summary.staff.length ? (
                 <div className="divide-y divide-[var(--line)]">
@@ -181,7 +179,7 @@ export function OperationsUtilizationPanel() {
 
             <div className="overflow-hidden rounded-[18px] border border-[var(--line)]">
               <div className="border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-3">
-                <h3 className="text-sm font-semibold text-[var(--ink)]">Hizmet Talep Dağılımı</h3>
+                <div className="flex items-start gap-2"><h3 className="text-sm font-semibold text-[var(--ink)]">Hizmet Talep Dağılımı</h3><CardInfo help={getCardHelp("Hizmet Talep Dağılımı")} /></div>
               </div>
               {summary.services.length ? (
                 <div className="divide-y divide-[var(--line)]">
