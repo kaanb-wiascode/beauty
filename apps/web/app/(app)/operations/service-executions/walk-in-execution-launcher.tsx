@@ -87,7 +87,7 @@ export function WalkInExecutionLauncher({
           : staffResult.data[0]?.id ?? "",
       );
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Walk-in hizmet bağlamı yüklenemedi.");
+      onError(err instanceof ApiError ? err.message : "Randevusuz hizmet bilgileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -137,7 +137,7 @@ export function WalkInExecutionLauncher({
       setSaleId("");
       await load();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Walk-in satış bağlantısı kurulamadı.");
+      onError(err instanceof ApiError ? err.message : "Randevusuz hizmet için satış bağlantısı kurulamadı.");
     } finally {
       setBusy(false);
     }
@@ -161,20 +161,20 @@ export function WalkInExecutionLauncher({
       await onChanged();
       await load();
     } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Walk-in hizmet icrası başlatılamadı.");
+      onError(err instanceof ApiError ? err.message : "Randevusuz hizmet başlatılamadı.");
     } finally {
       setBusy(false);
     }
   }
 
   if (loading) {
-    return <Spinner label="Walk-in hizmet bağlamı yükleniyor..." />;
+    return <Spinner label="Randevusuz hizmet bilgileri yükleniyor..." />;
   }
 
   if (!context) {
     return (
       <div className="rounded-[14px] border border-dashed border-[var(--line)] p-3">
-        <p className="text-xs font-semibold text-[var(--ink)]">Walk-in ticari bağlam</p>
+        <p className="text-xs font-semibold text-[var(--ink)]">Randevusuz Müşteri Satış Bağlantısı</p>
         <p className="mt-1 text-[11px] text-[var(--muted)]">
           Appointment oluşturmadan hizmet başlatmak için aynı müşteriye ait CONFIRMED hizmet satışını Visit&apos;e bağlayın.
         </p>
@@ -197,7 +197,7 @@ export function WalkInExecutionLauncher({
     <div className="rounded-[14px] border border-dashed border-[var(--line)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Walk-in hizmet başlat</p>
+          <p className="text-xs font-semibold text-[var(--ink)]">Randevusuz Hizmet Başlat</p>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
             Satış {context.saleId.slice(0, 8)} · {context.saleStatus} · Tahsilat {context.paidTotal}/{context.saleTotal}
           </p>
@@ -251,7 +251,7 @@ export function WalkInExecutionLauncher({
           }
           onClick={() => void startWalkInExecution()}
         >
-          {busy ? "Başlatılıyor..." : "Walk-in Hizmeti Başlat"}
+          {busy ? "Başlatılıyor..." : "Randevusuz Hizmeti Başlat"}
         </Button>
       </div>
     </div>
