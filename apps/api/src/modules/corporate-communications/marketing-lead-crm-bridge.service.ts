@@ -91,13 +91,13 @@ export class MarketingLeadCrmBridgeService {
 
     if (!branchId) {
       throw new BadRequestException(
-        'Marketing lead must resolve to a branch before CRM conversion.',
+        'Müşteri ilişkilerine aktarmadan önce potansiyel müşteri bir şubeye yönlendirilmelidir.',
       );
     }
 
     if (context.branchId && context.branchId !== branchId) {
       throw new BadRequestException(
-        'Marketing lead resolves outside the active branch.',
+        'Potansiyel müşteri aktif şube dışında bir şubeye yönleniyor.',
       );
     }
 
@@ -106,7 +106,7 @@ export class MarketingLeadCrmBridgeService {
       select: { id: true },
     });
     if (!branch) {
-      throw new BadRequestException('Resolved branch is not active in this company.');
+      throw new BadRequestException('Belirlenen hedef şube bu şirkette aktif değil.');
     }
     return branchId;
   }
@@ -174,7 +174,7 @@ export class MarketingLeadCrmBridgeService {
     );
     if (!rows.length) {
       throw new BadRequestException(
-        'Resolved CRM owner is not active in the target branch.',
+        'Belirlenen müşteri ilişkileri sorumlusu hedef şubede aktif değil.',
       );
     }
   }
@@ -208,7 +208,7 @@ export class MarketingLeadCrmBridgeService {
 
     if (rule?.strategy === 'FIXED' && !ownerUserId && !rule.targetBranchId) {
       throw new BadRequestException(
-        'Fixed routing requires a target branch or user.',
+        'Sabit yönlendirme için hedef şube veya sorumlu seçilmelidir.',
       );
     }
 
@@ -307,7 +307,7 @@ export class MarketingLeadCrmBridgeService {
           context.branchId,
         );
 
-        if (!lead) throw new NotFoundException('Marketing lead not found.');
+        if (!lead) throw new NotFoundException('Potansiyel müşteri kaydı bulunamadı.');
         if (lead.crmLeadId) {
           return { crmLeadId: lead.crmLeadId, idempotent: true };
         }
@@ -336,7 +336,7 @@ export class MarketingLeadCrmBridgeService {
         );
 
         if (!crmLead) {
-          throw new BadRequestException('CRM lead could not be created.');
+          throw new BadRequestException('Müşteri ilişkileri potansiyel müşteri kaydı oluşturulamadı.');
         }
 
         await tx.$executeRawUnsafe(
