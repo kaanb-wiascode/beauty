@@ -134,6 +134,29 @@ export type CrmLeadDetail = CrmLead & {
   events: CrmEvent[];
 };
 
+export const interactionTypeLabels: Record<CrmInteraction["type"], string> = {
+  CALL: "Telefon",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  IN_PERSON: "Yüz yüze",
+  VIDEO_CALL: "Görüntülü görüşme",
+  OTHER: "Diğer",
+};
+
+export const interactionOutcomeLabels: Record<NonNullable<CrmInteraction["outcomeCode"]>, string> = {
+  REACHED: "Ulaşıldı",
+  NOT_REACHED: "Ulaşılamadı",
+  INTERESTED: "İlgileniyor",
+  UNDECIDED: "Kararsız",
+  AWAITING_QUOTE: "Teklif bekliyor",
+  APPOINTMENT_CREATED: "Randevu oluşturuldu",
+  CALLBACK: "Tekrar aranacak",
+  SALE: "Satışa döndü",
+  NOT_INTERESTED: "İlgilenmiyor",
+  OTHER: "Diğer",
+};
+
 export const leadSourceLabels: Record<string, string> = {
   MANUAL: "Manuel",
   INSTAGRAM: "Instagram",
