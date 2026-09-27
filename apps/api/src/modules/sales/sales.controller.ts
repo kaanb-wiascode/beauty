@@ -50,18 +50,18 @@ const refundSalePaymentSchema = z.object({
 @Controller('sales')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RestrictTenantMutations()
-@RequirePermission('payments', 'read')
+@RequirePermission('sales', 'read')
 export class SalesController {
   constructor(private readonly salesService: SalesService) {}
 
   @Post()
-  @RequirePermission('payments', 'create')
+  @RequirePermission('sales', 'create')
   create(@Body() body: unknown) {
     return this.salesService.create(createSaleSchema.parse(body));
   }
 
   @Post('from-opportunity/:opportunityId')
-  @RequirePermission('payments', 'create')
+  @RequirePermission('sales', 'create')
   createFromOpportunity(
     @Param('opportunityId', new ParseUUIDPipe()) opportunityId: string,
     @Body() body: unknown,
@@ -85,7 +85,7 @@ export class SalesController {
   }
 
   @Post(':id/payments')
-  @RequirePermission('payments', 'create')
+  @RequirePermission('sales', 'collect')
   addPayment(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Body() body: unknown,
@@ -94,7 +94,7 @@ export class SalesController {
   }
 
   @Post(':id/payments/:paymentId/refund')
-  @RequirePermission('payments', 'refund')
+  @RequirePermission('sales', 'refund')
   refundPayment(
     @Param('id', new ParseUUIDPipe()) id: string,
     @Param('paymentId', new ParseUUIDPipe()) paymentId: string,
@@ -113,13 +113,13 @@ export class SalesController {
   }
 
   @Post(':id/confirm')
-  @RequirePermission('payments', 'create')
+  @RequirePermission('sales', 'confirm')
   confirm(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesService.confirm(id);
   }
 
   @Post(':id/cancel')
-  @RequirePermission('payments', 'create')
+  @RequirePermission('sales', 'cancel')
   cancel(@Param('id', new ParseUUIDPipe()) id: string) {
     return this.salesService.cancel(id);
   }
