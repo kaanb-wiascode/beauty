@@ -60,6 +60,13 @@ export class MarketingLeadWebhookService {
       );
     }
 
+    const publicApiUrl = this.config.get<string>('PUBLIC_API_URL')?.replace(/\/$/, '');
+    if (!publicApiUrl) {
+      throw new BadRequestException(
+        'PUBLIC_API_URL yapılandırılmadan webhook adresi oluşturulamaz.',
+      );
+    }
+
     const secret = randomBytes(32).toString('base64url');
     await this.prisma.$executeRawUnsafe(
       `UPDATE corporate_marketing_provider_connections
@@ -71,17 +78,10 @@ export class MarketingLeadWebhookService {
       this.hashSecret(secret),
     );
 
-    const publicApiUrl = this.config.get<string>('PUBLIC_API_URL')?.replace(/\/$/, '');
-    if (!publicApiUrl) {
-      throw new BadRequestException(
-        'PUBLIC_API_URL yapılandırılmadan webhook adresi oluşturulamaz.',
-      );
-    }
-
     return {
       provider: 'GOOGLE_ADS',
       connectionId,
-      webhookUrl: `${publicApiUrl}/marketing-webhooks/google-ads`,
+      webhookUrl: `${publicApiUrl}/marketing-webhooks/google-ads/${connectionId}`,
       webhookSecret: secret,
       secretVisibleOnce: true,
     };
@@ -97,7 +97,7 @@ export class MarketingLeadWebhookService {
     return fields;
   }
 
-  async ingestGoogle(payload: GoogleWebhookPayload) {
+  async ingestGoogle(connectionId: string, payload: GoogleWebhookPayload) {
     const leadId = payload.lead_id?.trim();
     const campaignId =
       payload.campaign_id == null ? '' : String(payload.campaign_id).trim();
@@ -127,20 +127,17 @@ export class MarketingLeadWebhookService {
           AND c.tenant_id=pc.tenant_id
           AND c.company_id=pc.company_id
         WHERE pc.provider='GOOGLE_ADS'
-          AND pc.external_campaign_id=$1
+          AND pc.connection_id=$1::text
+          AND pc.external_campaign_id=$2
         ORDER BY pc.synced_at DESC
-        LIMIT 2`,
+        LIMIT 1`,
+      connectionId,
       campaignId,
     );
 
     if (!mappings.length) {
       throw new NotFoundException(
-        'Webhook kampanyası herhangi bir Google Ads bağlantısıyla eşleştirilemedi.',
-      );
-    }
-    if (mappings.length > 1) {
-      throw new BadRequestException(
-        'Webhook kampanyası birden fazla bağlantıyla eşleşiyor. Kampanya eşlemelerini kontrol edin.',
+        'Webhook kampanyası bu Google Ads bağlantısıyla eşleştirilemedi.',
       );
     }
 
