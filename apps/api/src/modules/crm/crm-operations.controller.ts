@@ -179,6 +179,12 @@ export class CrmOperationsController {
     return this.reporting.salespersonPerformance(reportRangeSchema.parse(query));
   }
 
+  @Get('reports/surveyors')
+  @RequirePermission('crm', 'read')
+  getSurveyorsReport(@Query() query: unknown) {
+    return this.reporting.surveyorPerformance(reportRangeSchema.parse(query));
+  }
+
   @Get('customer-360/:customerId')
   @RequirePermission('crm', 'read')
   getCustomer360(@Param('customerId') customerId: string) {
