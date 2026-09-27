@@ -76,6 +76,11 @@ export class CorporateCommunicationsController {
     return this.service.listProviderConnections();
   }
 
+  @Get('provider-connections/health')
+  providerConnectionHealth() {
+    return this.service.providerConnectionHealth();
+  }
+
   @Post('provider-connections')
   @RequirePermission('communications', 'manage')
   createProviderConnection(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
