@@ -116,7 +116,7 @@ export class CrmOperationsService {
         LIMIT $10`,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       filters.assignedUserId ?? null,
       filters.mode,
       filters.dayStart,
@@ -157,7 +157,7 @@ export class CrmOperationsService {
         LIMIT $8`,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       filters.ownerUserId ?? null,
       filters.staleBefore,
       visibility.restrictOwners,
@@ -169,7 +169,7 @@ export class CrmOperationsService {
   async getSummary(dayStart: Date, dayEnd: Date) {
     const context = this.context();
     const visibility = await this.dataScope.resolve();
-    const scope = [context.tenantId, context.companyId, context.branchId] as const;
+    const scope = [context.tenantId, context.companyId, visibility.branchId] as const;
 
     const [metricRows, pipeline, agingRows, ownerWorkload] = await Promise.all([
       this.prisma.$queryRawUnsafe<MetricsRow[]>(
