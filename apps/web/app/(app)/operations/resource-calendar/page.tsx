@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
 
@@ -112,7 +115,7 @@ export default function OperationsResourceCalendarPage() {
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Kaynak planlaması</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Kaynak Takvimi</h1>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Kaynak Takvimi</h1><CardInfo help={getCardHelp("Kaynak Takvimi")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Oda ve cihazların rezervasyonlarını, hazırlık ve temizlik süreleri ile bakım veya kullanım dışı dönemleri aynı görünümde izleyin.</p>
       </header>
 
