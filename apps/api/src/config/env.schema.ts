@@ -47,6 +47,10 @@ export const envSchema = z.object({
   OBJECT_STORAGE_PRESIGN_TTL_SECONDS: z.coerce.number().int().min(60).max(3600).optional(),
   OBJECT_STORAGE_MAX_BYTES: z.coerce.number().int().min(1_048_576).max(104_857_600).optional(),
 
+  TEAM_TRANSCRIPTION_API_URL: z.string().url().optional(),
+  TEAM_TRANSCRIPTION_API_KEY: z.string().trim().min(16).optional(),
+  TEAM_TRANSCRIPTION_MODEL: z.string().trim().min(1).default('gpt-4o-mini-transcribe'),
+
   REPORT_EXPORT_STORAGE_DRIVER: z.enum(['filesystem', 'object']).default('filesystem'),
   REPORT_EXPORT_STORAGE_DIR: z.string().trim().min(1).default('.report-exports'),
   REPORT_EXPORT_RETENTION_DAYS: z.coerce.number().int().min(1).max(365).default(7),
@@ -137,6 +141,16 @@ export const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: 'PLATFORM_INVITATION_WEBHOOK_URL and PLATFORM_INVITATION_WEBHOOK_SECRET must be configured together',
       path: ['PLATFORM_INVITATION_WEBHOOK_URL'],
+    });
+  }
+
+  const transcriptionUrl = Boolean(env.TEAM_TRANSCRIPTION_API_URL);
+  const transcriptionKey = Boolean(env.TEAM_TRANSCRIPTION_API_KEY);
+  if (transcriptionUrl !== transcriptionKey) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'TEAM_TRANSCRIPTION_API_URL and TEAM_TRANSCRIPTION_API_KEY must be configured together',
+      path: ['TEAM_TRANSCRIPTION_API_URL'],
     });
   }
 
