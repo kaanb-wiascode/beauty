@@ -7,6 +7,7 @@ import { Alert, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type Recommendation = {
   code: string;
@@ -74,9 +75,9 @@ export default function OperationsOptimizationPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Advanced Operations Intelligence</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Operasyon Planlama Desteği</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Optimizasyon Önerileri</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Kapasite, personel yükü ve geçmiş talep sinyallerinden açıklanabilir öneriler üretir. Otomatik scheduling kapalıdır; tüm booking kararları conflict/izin/yetkinlik/resource kurallarından geçmeye devam eder.</p>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Kapasite, personel yükü ve geçmiş talep verilerinden açıklanabilir öneriler üretir. Otomatik planlama kapalıdır; tüm randevu kararları çakışma, izin, yetkinlik ve kaynak kurallarından geçmeye devam eder.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -95,8 +96,8 @@ export default function OperationsOptimizationPage() {
         </section>
 
         <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">Demand-aware Slot Adayları</h2>
-          <p className="mt-1 text-xs text-[var(--muted)]">Son 8 haftanın aynı gün/saat hizmet talebi ile önümüzdeki 7 günlük mevcut rezervasyonları karşılaştırır.</p>
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Talebe Göre Uygun Saat Önerileri</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">Son 8 haftanın aynı gün ve saatteki hizmet talebini, önümüzdeki 7 günün mevcut randevularıyla karşılaştırır.</p>
           <div className="mt-4 space-y-3">
             {data.demandAwareSlots.length ? data.demandAwareSlots.map((item) => (
               <div key={`${item.serviceId}-${item.isoDow}-${item.hourOfDay}`} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
@@ -104,23 +105,23 @@ export default function OperationsOptimizationPage() {
                   <p className="text-sm font-semibold text-[var(--ink)]">{item.serviceName} · {DAYS[item.isoDow]} {String(item.hourOfDay).padStart(2, "0")}:00</p>
                   <span className="text-xs font-semibold text-[var(--ink)]">Talep farkı {item.demandGap.toFixed(1)}</span>
                 </div>
-                <p className="mt-2 text-xs text-[var(--muted)]">Beklenen/hafta: {item.expectedPerWeek} · Gelecek 7 gün rezervasyon: {item.upcomingAppointments}</p>
+                <p className="mt-2 text-xs text-[var(--muted)]">Haftalık beklenen: {item.expectedPerWeek} · Önümüzdeki 7 gün randevu: {item.upcomingAppointments}</p>
                 <p className="mt-2 text-xs font-medium text-[var(--ink)]">{item.recommendation}</p>
               </div>
-            )) : <p className="text-sm text-[var(--muted)]">Belirgin demand-aware slot fırsatı yok.</p>}
+            )) : <p className="text-sm text-[var(--muted)]">Belirgin bir uygun saat fırsatı bulunmuyor.</p>}
           </div>
         </section>
 
         <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">Anomali Sinyalleri</h2>
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Olağandışı Durum Sinyalleri</h2>
           <div className="mt-4 space-y-3">
             {data.anomalies.length ? data.anomalies.map((item) => (
               <div key={item.code} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
-                <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold">{item.severity}</span><p className="text-sm font-semibold text-[var(--ink)]">{item.title}</p></div>
+                <div className="flex flex-wrap items-center gap-2"><span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold">{userLabel(item.severity)}</span><p className="text-sm font-semibold text-[var(--ink)]">{item.title}</p></div>
                 <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p>
                 <p className="mt-2 text-xs font-medium text-[var(--ink)]">Aksiyon: {item.suggestedAction}</p>
               </div>
-            )) : <p className="text-sm text-[var(--muted)]">Belirgin anomali sinyali yok.</p>}
+            )) : <p className="text-sm text-[var(--muted)]">Belirgin olağandışı durum sinyali yok.</p>}
           </div>
         </section>
       </> : null}
@@ -133,5 +134,5 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function Panel({ title, items, empty }: { title: string; items: Recommendation[]; empty: string }) {
-  return <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm"><div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title, "Operasyon verilerinden üretilen açıklanabilir önerileri gösterir.")} /></div><div className="mt-4 space-y-3">{items.length ? items.map((item) => <div key={item.code} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4"><div className="flex items-center gap-2">{item.priority ? <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold">{item.priority}</span> : null}<p className="text-sm font-semibold text-[var(--ink)]">{item.title}</p></div>{item.explanation ? <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p> : null}<p className="mt-2 text-xs font-medium text-[var(--ink)]">Aksiyon: {item.suggestedAction}</p></div>) : <p className="text-sm text-[var(--muted)]">{empty}</p>}</div></section>;
+  return <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm"><div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">{title}</h2><CardInfo help={getCardHelp(title, "Operasyon verilerinden üretilen açıklanabilir önerileri gösterir.")} /></div><div className="mt-4 space-y-3">{items.length ? items.map((item) => <div key={item.code} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4"><div className="flex items-center gap-2">{item.priority ? <span className="rounded-full border border-[var(--line)] px-2 py-1 text-[10px] font-semibold">{userLabel(item.priority)}</span> : null}<p className="text-sm font-semibold text-[var(--ink)]">{item.title}</p></div>{item.explanation ? <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p> : null}<p className="mt-2 text-xs font-medium text-[var(--ink)]">Aksiyon: {item.suggestedAction}</p></div>) : <p className="text-sm text-[var(--muted)]">{empty}</p>}</div></section>;
 }
