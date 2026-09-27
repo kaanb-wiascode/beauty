@@ -3,6 +3,8 @@ import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CrmDataScopeService } from './crm-data-scope.service';
 import { SalesService } from '../sales/sales.service';
+import { CrmMessageService } from './crm-message.service';
+import type { CrmMessageChannel } from './crm-message-provider-registry.service';
 import type { CreateCrmQuoteInput, UpdateCrmQuoteStatusInput } from './crm-quote.schemas';
 
 @Injectable()
@@ -12,6 +14,7 @@ export class CrmQuoteService {
     private readonly tenantContext: TenantContext,
     private readonly dataScope: CrmDataScopeService,
     private readonly salesService: SalesService,
+    private readonly messages: CrmMessageService,
   ) {}
 
   private context() {
@@ -185,6 +188,104 @@ export class CrmQuoteService {
     return this.get(quoteId);
   }
 
+  async sendQuote(id: string, channel: CrmMessageChannel, actorUserId: string) {
+    const quote = (await this.get(id)) as unknown as {
+      id: string;
+      opportunityId: string;
+      customerId: string | null;
+      quoteNumber: string;
+      status: string;
+      currency: string;
+      subtotal: string | number;
+      discountTotal: string | number;
+      total: string | number;
+      validUntil: Date | string | null;
+      version: number;
+      notes: string | null;
+      items: Array<{
+        description: string;
+        quantity: number;
+        unitPrice: string | number;
+        lineTotal: string | number;
+      }>;
+    };
+    await this.dataScope.assertOpportunityAccess(quote.opportunityId);
+
+    if (['ACCEPTED','REJECTED','EXPIRED','CANCELLED'].includes(quote.status)) {
+      throw new BadRequestException('Sonuçlanmış veya süresi dolmuş teklif müşteriye gönderilemez.');
+    }
+
+    const money = (value: string | number) =>
+      new Intl.NumberFormat('tr-TR', {
+        style: 'currency',
+        currency: quote.currency,
+        maximumFractionDigits: 2,
+      }).format(Number(value));
+
+    const itemLines = quote.items.map((item, index) =>
+      `${index + 1}. ${item.description} — ${item.quantity} × ${money(item.unitPrice)} = ${money(item.lineTotal)}`,
+    );
+    const validity = quote.validUntil
+      ? new Intl.DateTimeFormat('tr-TR', { day: '2-digit', month: '2-digit', year: 'numeric' }).format(new Date(quote.validUntil))
+      : null;
+    const body = [
+      `Teklif No: ${quote.quoteNumber}`,
+      '',
+      ...itemLines,
+      '',
+      `Ara toplam: ${money(quote.subtotal)}`,
+      Number(quote.discountTotal) > 0 ? `İndirim: ${money(quote.discountTotal)}` : null,
+      `Teklif toplamı: ${money(quote.total)}`,
+      validity ? `Son geçerlilik tarihi: ${validity}` : null,
+      quote.notes ? `Not: ${quote.notes}` : null,
+    ].filter((line): line is string => Boolean(line)).join('\n');
+
+    const draft = await this.messages.createDraft(
+      {
+        opportunityId: quote.opportunityId,
+        ...(quote.customerId ? { customerId: quote.customerId } : {}),
+        channel,
+        ...(channel === 'EMAIL' ? { subject: `Teklifiniz · ${quote.quoteNumber}` } : {}),
+        body,
+        idempotencyKey: `CRM_QUOTE:${quote.id}:${channel}:v${quote.version}`,
+      },
+      actorUserId,
+    );
+    const sent = await this.messages.send(draft.id, draft.version);
+
+    if (quote.status === 'DRAFT') {
+      await this.updateStatus(id, { version: quote.version, status: 'SENT' }, actorUserId);
+    }
+
+    const context = this.context();
+    const branchId = this.requireBranchId();
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO crm_events(
+         tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'QUOTE_SENT',$6::text,$7::jsonb)`,
+      context.tenantId,
+      context.companyId,
+      branchId,
+      quote.customerId,
+      quote.opportunityId,
+      actorUserId,
+      JSON.stringify({
+        quoteId: quote.id,
+        quoteNumber: quote.quoteNumber,
+        channel,
+        messageId: sent.id,
+        messageStatus: sent.status,
+      }),
+    );
+
+    return {
+      quoteId: quote.id,
+      channel,
+      messageId: sent.id,
+      messageStatus: sent.status,
+    };
+  }
+
   async convertToSale(id: string, actorUserId: string) {
     const quote = await this.get(id) as {
       opportunityId: string;
@@ -289,7 +390,16 @@ export class CrmQuoteService {
     };
     await this.dataScope.assertOpportunityAccess(current.opportunityId);
 
-    const allowedTransitions: Record<string, string[]> = {
+    const statusLabels: Record<string, string> = {
+      DRAFT: 'Taslak',
+      SENT: 'Gönderildi',
+      VIEWED: 'Görüntülendi',
+      ACCEPTED: 'Kabul Edildi',
+      REJECTED: 'Reddedildi',
+      EXPIRED: 'Süresi Doldu',
+      CANCELLED: 'İptal Edildi',
+    };
+        const allowedTransitions: Record<string, string[]> = {
       DRAFT: ['SENT', 'CANCELLED'],
       SENT: ['VIEWED', 'ACCEPTED', 'REJECTED', 'CANCELLED'],
       VIEWED: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
@@ -300,7 +410,7 @@ export class CrmQuoteService {
     };
     if (!(allowedTransitions[current.status] ?? []).includes(input.status)) {
       throw new BadRequestException(
-        `Teklif “${current.status}” durumundan “${input.status}” durumuna geçirilemez.`,
+        `Teklif “${statusLabels[current.status] ?? current.status}” durumundan “${statusLabels[input.status] ?? input.status}” durumuna geçirilemez.`,
       );
     }
 
