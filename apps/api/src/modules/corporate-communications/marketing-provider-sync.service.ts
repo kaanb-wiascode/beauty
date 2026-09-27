@@ -112,6 +112,98 @@ export class MarketingProviderSyncService {
     return body;
   }
 
+  private async metaCampaigns(connection: ConnectionRow): Promise<SyncedCampaign[]> {
+    const accessToken = await this.accessToken(connection);
+    const base =
+      this.config.get<string>('META_GRAPH_API_BASE_URL')?.trim() ||
+      'https://graph.facebook.com';
+    const version = this.required('META_GRAPH_API_VERSION');
+    const accountId = connection.externalAccountId!.replace(/^act_/, '');
+    const root = base.endsWith('/') ? base.slice(0, -1) : base;
+
+    const accountUrl = new URL(`${root}/${version}/act_${accountId}`);
+    accountUrl.searchParams.set('fields', 'currency');
+    accountUrl.searchParams.set('access_token', accessToken);
+    const accountBody = await this.fetchJson(accountUrl.toString());
+    const account =
+      accountBody && typeof accountBody === 'object'
+        ? accountBody as Record<string, unknown>
+        : {};
+    const currency =
+      typeof account.currency === 'string' ? account.currency : null;
+
+    const campaignUrl = new URL(`${root}/${version}/act_${accountId}/campaigns`);
+    campaignUrl.searchParams.set('fields', 'id,name,status,objective');
+    campaignUrl.searchParams.set('limit', '200');
+    campaignUrl.searchParams.set('access_token', accessToken);
+    const campaignBody = await this.fetchJson(campaignUrl.toString());
+    const campaignData =
+      campaignBody && typeof campaignBody === 'object'
+        ? (campaignBody as Record<string, unknown>).data
+        : [];
+    const campaigns = Array.isArray(campaignData) ? campaignData : [];
+
+    const until = new Date();
+    const since = new Date(Date.now() - 29 * 24 * 60 * 60 * 1000);
+    const date = (value: Date) => value.toISOString().slice(0, 10);
+
+    const insightUrl = new URL(`${root}/${version}/act_${accountId}/insights`);
+    insightUrl.searchParams.set('level', 'campaign');
+    insightUrl.searchParams.set(
+      'fields',
+      'campaign_id,campaign_name,spend,impressions,clicks',
+    );
+    insightUrl.searchParams.set(
+      'time_range',
+      JSON.stringify({ since: date(since), until: date(until) }),
+    );
+    insightUrl.searchParams.set('limit', '200');
+    insightUrl.searchParams.set('access_token', accessToken);
+    const insightBody = await this.fetchJson(insightUrl.toString());
+    const insightData =
+      insightBody && typeof insightBody === 'object'
+        ? (insightBody as Record<string, unknown>).data
+        : [];
+    const insights = Array.isArray(insightData) ? insightData : [];
+
+    const byId = new Map<string, Record<string, unknown>>();
+    for (const item of insights) {
+      if (!item || typeof item !== 'object') continue;
+      const row = item as Record<string, unknown>;
+      const id = typeof row.campaign_id === 'string' ? row.campaign_id : '';
+      if (id) byId.set(id, row);
+    }
+
+    return campaigns.flatMap((entry): SyncedCampaign[] => {
+      if (!entry || typeof entry !== 'object') return [];
+      const campaign = entry as Record<string, unknown>;
+      const id = typeof campaign.id === 'string' ? campaign.id : '';
+      if (!id) return [];
+      const metrics = byId.get(id) ?? {};
+
+      return [{
+        externalCampaignId: id,
+        name:
+          typeof campaign.name === 'string'
+            ? campaign.name
+            : `Meta kampanyası · ${id}`,
+        status: typeof campaign.status === 'string' ? campaign.status : null,
+        objective:
+          typeof campaign.objective === 'string' ? campaign.objective : null,
+        currency,
+        spend: Number(metrics.spend ?? 0),
+        impressions: Number(metrics.impressions ?? 0),
+        clicks: Number(metrics.clicks ?? 0),
+        conversions: 0,
+        conversionValue: 0,
+        raw: {
+          campaign,
+          insights: metrics,
+        },
+      }];
+    });
+  }
+
   private async googleCampaigns(connection: ConnectionRow): Promise<SyncedCampaign[]> {
     const accessToken = await this.accessToken(connection);
     const version =
@@ -319,11 +411,13 @@ export class MarketingProviderSyncService {
       const campaigns =
         connection.provider === 'GOOGLE_ADS'
           ? await this.googleCampaigns(connection)
-          : (() => {
-              throw new BadRequestException(
-                'Bu platformun kampanya senkronizasyonu henüz etkinleştirilmedi.',
-              );
-            })();
+          : connection.provider === 'META'
+            ? await this.metaCampaigns(connection)
+            : (() => {
+                throw new BadRequestException(
+                  'Bu platformun kampanya senkronizasyonu henüz etkinleştirilmedi.',
+                );
+              })();
 
       const linkedCampaignIds: string[] = [];
       for (const campaign of campaigns) {
