@@ -3,8 +3,10 @@
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
+import { getCardHelp } from "@/lib/card-help";
 
 type ConsumableLine = {
   productId: string;
@@ -126,7 +128,7 @@ export function ExecutionConsumablesPanel({
     <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Sarf Malzeme Tüketimi</p>
+          <div className="flex items-start gap-2"><p className="text-xs font-semibold text-[var(--ink)]">Sarf Malzeme Tüketimi</p><CardInfo help={getCardHelp("Sarf Malzeme Tüketimi")} /></div>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
             Gerçek kullanım girilmezse hizmet başlangıcında kaydedilen beklenen miktar stoktan düşülür.
           </p>
