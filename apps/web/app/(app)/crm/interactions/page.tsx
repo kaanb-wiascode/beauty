@@ -12,6 +12,7 @@ import { userErrorMessage } from "@/lib/user-language";
 type InteractionType = "CALL" | "WHATSAPP" | "SMS" | "EMAIL" | "IN_PERSON" | "VIDEO_CALL" | "OTHER";
 type InteractionDirection = "INBOUND" | "OUTBOUND";
 type InteractionStatus = "PLANNED" | "COMPLETED" | "CANCELLED";
+type InteractionOutcome = "REACHED" | "NOT_REACHED" | "INTERESTED" | "UNDECIDED" | "AWAITING_QUOTE" | "APPOINTMENT_CREATED" | "CALLBACK" | "SALE" | "NOT_INTERESTED" | "OTHER";
 
 type Interaction = {
   id: string;
@@ -25,6 +26,7 @@ type Interaction = {
   type: InteractionType;
   direction: InteractionDirection;
   status: InteractionStatus;
+  outcomeCode: InteractionOutcome | null;
   result: string | null;
   notes: string | null;
   startedAt: string;
@@ -47,6 +49,19 @@ const typeLabels: Record<InteractionType, string> = {
 const directionLabels: Record<InteractionDirection, string> = {
   INBOUND: "Gelen",
   OUTBOUND: "Giden",
+};
+
+const outcomeLabels: Record<InteractionOutcome, string> = {
+  REACHED: "Ulaşıldı",
+  NOT_REACHED: "Ulaşılamadı",
+  INTERESTED: "İlgileniyor",
+  UNDECIDED: "Kararsız",
+  AWAITING_QUOTE: "Teklif bekliyor",
+  APPOINTMENT_CREATED: "Randevu oluşturuldu",
+  CALLBACK: "Tekrar aranacak",
+  SALE: "Satışa döndü",
+  NOT_INTERESTED: "İlgilenmiyor",
+  OTHER: "Diğer",
 };
 
 const statusLabels: Record<InteractionStatus, string> = {
@@ -77,13 +92,14 @@ export default function CrmInteractionsPage() {
   const [type, setType] = useState<InteractionType | "ALL">("ALL");
   const [direction, setDirection] = useState<InteractionDirection | "ALL">("ALL");
   const [status, setStatus] = useState<InteractionStatus | "ALL">("ALL");
+  const [outcome, setOutcome] = useState<InteractionOutcome | "ALL">("ALL");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [subject, setSubject] = useState<{ leadId?: string; opportunityId?: string; customerId?: string; label?: string }>({});
-  const [form, setForm] = useState({ type: "CALL" as InteractionType, direction: "OUTBOUND" as InteractionDirection, status: "COMPLETED" as InteractionStatus, result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
+  const [form, setForm] = useState({ type: "CALL" as InteractionType, direction: "OUTBOUND" as InteractionDirection, status: "COMPLETED" as InteractionStatus, outcomeCode: "REACHED" as InteractionOutcome, result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -93,6 +109,7 @@ export default function CrmInteractionsPage() {
       if (type !== "ALL") query.set("type", type);
       if (direction !== "ALL") query.set("direction", direction);
       if (status !== "ALL") query.set("status", status);
+      if (outcome !== "ALL") query.set("outcomeCode", outcome);
       setRows(await api<Interaction[]>(`/crm/interactions?${query}`));
     } catch (requestError) {
       setError(
@@ -103,7 +120,7 @@ export default function CrmInteractionsPage() {
     } finally {
       setLoading(false);
     }
-  }, [direction, status, type]);
+  }, [direction, outcome, status, type]);
 
   useEffect(() => {
     void load();
@@ -139,6 +156,7 @@ export default function CrmInteractionsPage() {
           type: form.type,
           direction: form.direction,
           status: form.status,
+          outcomeCode: form.outcomeCode,
           ...(form.result.trim() ? { result: form.result.trim() } : {}),
           ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
           ...(form.startedAt ? { startedAt: new Date(form.startedAt).toISOString() } : {}),
@@ -148,7 +166,7 @@ export default function CrmInteractionsPage() {
         },
       });
       setCreateOpen(false);
-      setForm({ type: "CALL", direction: "OUTBOUND", status: "COMPLETED", result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
+      setForm({ type: "CALL", direction: "OUTBOUND", status: "COMPLETED", outcomeCode: "REACHED", result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
       await load();
     } catch (requestError) {
       setFormError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Görüşme kaydı oluşturulamadı.") : "Görüşme kaydı oluşturulamadı.");
@@ -204,6 +222,10 @@ export default function CrmInteractionsPage() {
             <option value="COMPLETED">Tamamlandı</option>
             <option value="CANCELLED">İptal edildi</option>
           </Select>
+          <Select value={outcome} onChange={(event) => setOutcome(event.target.value as InteractionOutcome | "ALL")} className="sm:max-w-[210px]" aria-label="Görüşme sonucuna göre filtrele">
+            <option value="ALL">Tüm görüşme sonuçları</option>
+            {Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+          </Select>
         </div>
 
         {loading ? (
@@ -235,7 +257,8 @@ export default function CrmInteractionsPage() {
                     <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Süre: {formatDuration(row.durationSeconds)}</p>
                   </div>
                   <div className="min-w-0">
-                    <p className="truncate text-[11px]">{row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>
+                    <p className="truncate text-[11px]">{row.outcomeCode ? outcomeLabels[row.outcomeCode] : row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>
+                    {row.outcomeCode && row.result ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">{row.result}</p> : null}
                     {row.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">Sonraki: {row.nextAction}</p> : null}
                   </div>
                 </Link>
@@ -278,8 +301,13 @@ export default function CrmInteractionsPage() {
             <Field label="Süre (dakika)">
               <TextInput type="number" min="0" step="0.5" value={form.durationMinutes} onChange={(event) => setForm({ ...form, durationMinutes: event.target.value })} />
             </Field>
-            <Field label="Görüşme sonucu">
-              <TextInput value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })} placeholder="Örn. Teklif bekliyor, randevu istedi" />
+            <Field label="Görüşme sonucu" required>
+              <Select value={form.outcomeCode} onChange={(event) => setForm({ ...form, outcomeCode: event.target.value as InteractionOutcome })}>
+                {Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </Select>
+            </Field>
+            <Field label="Sonuç açıklaması">
+              <TextInput value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })} placeholder="Örn. Fiyat bilgisini değerlendirecek" />
             </Field>
           </div>
           <Field label="Görüşme notu">
