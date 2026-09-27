@@ -7,9 +7,9 @@ import {
   ParseUUIDPipe,
   Post,
   Query,
-  RawBodyRequest,
   Req,
 } from '@nestjs/common';
+import type { RawBodyRequest } from '@nestjs/common';
 import type { Request } from 'express';
 import { MarketingLeadWebhookService } from './marketing-lead-webhook.service';
 
