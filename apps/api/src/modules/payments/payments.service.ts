@@ -158,7 +158,7 @@ export class PaymentsService {
     const paymentAmount = Math.round((Number(input.amount) + Number.EPSILON) * 100) / 100;
     if (Math.abs(paymentAmount - serviceAmount) > 0.01) {
       throw new BadRequestException(
-        'Randevu ödeme tutarı hizmet bedeliyle aynı olmalıdır. Kısmi veya taksitli ödeme için Satış ve Tahsilat ekranını kullanın.',
+        'Randevu ödeme tutarı hizmet bedeliyle aynı olmalıdır. Kısmi tahsilat için randevunun alacak kaydını Finans > Gelirler alanından yönetin.',
       );
     }
 
