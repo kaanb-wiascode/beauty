@@ -47,6 +47,17 @@ type CrmTeam = {
   members: Array<{ userId: string; firstName: string; lastName: string; email: string; skills: string[] }>;
 };
 
+const sourceLabels: Record<string, string> = {
+  MANUAL: "Manuel",
+  INSTAGRAM: "Instagram",
+  GOOGLE: "Google",
+  WEBSITE: "Web Sitesi",
+  REFERRAL: "Tavsiye",
+  WALK_IN: "Doğrudan",
+  SURVEYOR: "Anketör",
+  OTHER: "Diğer",
+};
+
 const assignmentModeLabels: Record<AssignmentMode, string> = {
   MANUAL: "Manuel atama",
   ROUND_ROBIN: "Sırayla dağıtım",
@@ -370,7 +381,7 @@ export default function CrmSettingsPage() {
                   <div>
                     <p className="text-[12px] font-semibold">{rule.name}</p>
                     <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      {rule.sourceFilter ? `Kaynak: ${rule.sourceFilter}` : "Tüm kaynaklar"}
+                      {rule.sourceFilter ? `Kaynak: ${sourceLabels[rule.sourceFilter] ?? rule.sourceFilter}` : "Tüm kaynaklar"}
                       {rule.skillKey ? ` · Yetkinlik: ${rule.skillKey}` : ""}
                     </p>
                   </div>
