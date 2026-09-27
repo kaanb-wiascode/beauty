@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 
 type Rule = {
@@ -113,7 +116,7 @@ export default function BranchWorkingHoursPage() {
     <div className="mx-auto max-w-[1180px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Randevu Planlama Kuralları</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Şube Çalışma Saatları</h1>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Şube Çalışma Saatları</h1><CardInfo help={getCardHelp("Şube Çalışma Saatları")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Bekleme listesi için uygun saat önerileri ve randevu kabulü bu haftalık kuralları dikkate alır. Henüz kural tanımlanmamış şubelerde mevcut randevu akışı kesintiye uğramaz.</p>
       </header>
 
