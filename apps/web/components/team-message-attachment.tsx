@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { api, apiResponse, ApiError } from "@/lib/api";
 
 type Attachment = {
@@ -13,6 +13,80 @@ type Attachment = {
 type AttachmentAccess =
   | { mode: "object"; url: string; mimeType: string; originalName: string; expiresAt: string }
   | { mode: "local"; mimeType: string; originalName: string };
+
+function VoiceMessagePlayer({ url, mine, sizeBytes }: { url: string; mine: boolean; sizeBytes: number }) {
+  const audioRef = useRef<HTMLAudioElement | null>(null);
+  const [playing, setPlaying] = useState(false);
+  const [duration, setDuration] = useState(0);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [rate, setRate] = useState(1);
+
+  const progress = duration > 0 ? Math.min(1, currentTime / duration) : 0;
+  const bars = [30,46,65,38,72,54,82,42,60,76,48,68,36,58,80,44,66,52,74,40,62,84,50,70];
+
+  function formatTime(value: number) {
+    if (!Number.isFinite(value) || value < 0) return "0:00";
+    const minutes = Math.floor(value / 60);
+    const seconds = Math.floor(value % 60).toString().padStart(2, "0");
+    return `${minutes}:${seconds}`;
+  }
+
+  function togglePlayback() {
+    const audio = audioRef.current;
+    if (!audio) return;
+    if (audio.paused) void audio.play();
+    else audio.pause();
+  }
+
+  function cycleRate() {
+    const next = rate === 1 ? 1.5 : rate === 1.5 ? 2 : 1;
+    setRate(next);
+    if (audioRef.current) audioRef.current.playbackRate = next;
+  }
+
+  return (
+    <div className={`rounded-[14px] px-3 py-3 ${mine ? "bg-white/10" : "bg-[var(--surface-2)]"}`}>
+      <audio
+        ref={audioRef}
+        src={url}
+        preload="metadata"
+        onLoadedMetadata={(event) => setDuration(event.currentTarget.duration || 0)}
+        onTimeUpdate={(event) => setCurrentTime(event.currentTarget.currentTime)}
+        onPlay={() => setPlaying(true)}
+        onPause={() => setPlaying(false)}
+        onEnded={() => { setPlaying(false); setCurrentTime(0); }}
+      />
+      <div className="flex items-center gap-3">
+        <button type="button" onClick={togglePlayback} className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-[13px] font-semibold ${mine ? "bg-white/15 text-white" : "bg-[var(--accent-soft)] text-[var(--accent)]"}`} aria-label={playing ? "Duraklat" : "Oynat"}>
+          {playing ? "Ⅱ" : "▶"}
+        </button>
+        <button
+          type="button"
+          onClick={(event) => {
+            const audio = audioRef.current;
+            if (!audio || !duration) return;
+            const rect = event.currentTarget.getBoundingClientRect();
+            const ratio = Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width));
+            audio.currentTime = ratio * duration;
+            setCurrentTime(audio.currentTime);
+          }}
+          className="flex min-w-[180px] flex-1 items-end gap-[2px] py-1"
+          aria-label="Sesli mesaj ilerleme çubuğu"
+        >
+          {bars.map((height, index) => {
+            const filled = index / bars.length <= progress;
+            return <span key={index} className={`w-[3px] rounded-full ${filled ? (mine ? "bg-white" : "bg-[var(--accent)]") : (mine ? "bg-white/30" : "bg-[var(--line-strong)]")}`} style={{ height: `${Math.max(8, Math.round(height * 0.28))}px` }} />;
+          })}
+        </button>
+        <button type="button" onClick={cycleRate} className={`rounded-full px-2 py-1 text-[9px] font-bold ${mine ? "bg-white/10 text-white/80" : "bg-white text-[var(--muted)]"}`}>{rate}×</button>
+      </div>
+      <div className={`mt-1.5 flex items-center justify-between text-[8px] ${mine ? "text-white/55" : "text-[var(--muted)]"}`}>
+        <span>{formatTime(currentTime)} / {formatTime(duration)}</span>
+        <span>{Math.max(1, Math.round(sizeBytes / 1024))} KB</span>
+      </div>
+    </div>
+  );
+}
 
 export function TeamMessageAttachment({
   attachment,
@@ -80,16 +154,11 @@ export function TeamMessageAttachment({
   }
 
   if (attachment.mimeType.startsWith("audio/")) {
-    return (
-      <div className={`rounded-[14px] px-3 py-3 ${mine ? "bg-white/10" : "bg-[var(--surface-2)]"}`}>
-        <div className="mb-2 flex items-center gap-2">
-          <span className={`flex h-8 w-8 items-center justify-center rounded-full text-[13px] ${mine ? "bg-white/15 text-white" : "bg-[var(--accent-soft)] text-[var(--accent)]"}`}>▶</span>
-          <div className="min-w-0">
-            <p className="text-[9px] font-semibold">Sesli mesaj</p>
-            <p className={`mt-0.5 truncate text-[8px] ${mine ? "text-white/55" : "text-[var(--muted)]"}`}>{Math.max(1, Math.round(attachment.sizeBytes / 1024))} KB</p>
-          </div>
-        </div>
-        {url && !failed ? <audio src={url} controls preload="metadata" className="h-9 w-full min-w-[220px]" /> : <p className="py-2 text-[9px] opacity-70">{failed ? "Ses kaydı yüklenemedi" : "Ses kaydı hazırlanıyor…"}</p>}
+    return url && !failed ? (
+      <VoiceMessagePlayer url={url} mine={mine} sizeBytes={attachment.sizeBytes} />
+    ) : (
+      <div className={`rounded-[14px] px-3 py-4 text-[9px] ${mine ? "bg-white/10 text-white/70" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>
+        {failed ? "Ses kaydı yüklenemedi" : "Ses kaydı hazırlanıyor…"}
       </div>
     );
   }
