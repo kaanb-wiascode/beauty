@@ -1,4 +1,4 @@
-import { ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, ServiceUnavailableException } from '@nestjs/common';
 import { CrmMessageProviderRegistryService } from './crm-message-provider-registry.service';
 import { CrmMessageService } from './crm-message.service';
 
@@ -37,6 +37,21 @@ describe('CrmMessageService', () => {
     const result = await service.logManual({ customerId: baseMessage.customerId, direction: 'OUTBOUND', channel: 'WHATSAPP', recipient: baseMessage.recipient, body: 'Merhaba' }, 'actor-1');
     expect(result.providerKey).toBe('MANUAL');
     expect(query).toHaveBeenCalledWith(expect.stringContaining("'MANUAL'"), 'tenant-1', 'company-1', 'branch-1', baseMessage.customerId, null, null, 'OUTBOUND', 'WHATSAPP', 'SENT', baseMessage.recipient, null, 'Merhaba', 'actor-1', null);
+  });
+
+  it('rejects a message when the supplied customer does not belong to the opportunity', async () => {
+    const { service, query } = makeService();
+    query.mockResolvedValueOnce([{ customerId: '33333333-3333-3333-3333-333333333333', leadId: null }]);
+
+    await expect(
+      service.createDraft({
+        opportunityId: '44444444-4444-4444-4444-444444444444',
+        customerId: baseMessage.customerId,
+        channel: 'WHATSAPP',
+        recipient: baseMessage.recipient,
+        body: 'Merhaba',
+      }, 'actor-1'),
+    ).rejects.toBeInstanceOf(BadRequestException);
   });
 
   it('blocks a manual provider send when the contact opted out', async () => {
