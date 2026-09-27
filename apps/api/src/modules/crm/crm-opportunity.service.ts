@@ -234,7 +234,7 @@ export class CrmOpportunityService {
         context.companyId,
       ),
       this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-        `SELECT i.id,i.owner_user_id AS "ownerUserId",i.type,i.direction,i.status,i.result,i.notes,
+        `SELECT i.id,i.owner_user_id AS "ownerUserId",i.type,i.direction,i.status,i.outcome_code AS "outcomeCode",i.result,i.notes,
                 i.started_at AS "startedAt",i.ended_at AS "endedAt",i.duration_seconds AS "durationSeconds",
                 i.next_action AS "nextAction",i.next_action_at AS "nextActionAt"
            FROM crm_interactions i
