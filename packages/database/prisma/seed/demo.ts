@@ -19,7 +19,10 @@ const DEMO_CRM_SOURCE = "VALOO_DEMO";
 const PERMISSIONS = [
   ["customers", "read"], ["customers", "create"], ["customers", "update"], ["customers", "delete"],
   ["appointments", "read"], ["appointments", "create"], ["appointments", "update"], ["appointments", "cancel"],
-  ["payments", "read"], ["payments", "create"], ["payments", "refund"], ["reports", "read"],
+  ["payments", "read"], ["payments", "create"], ["payments", "refund"],
+  ["sales", "read"], ["sales", "create"], ["sales", "confirm"], ["sales", "cancel"], ["sales", "collect"], ["sales", "refund"],
+  ["sessions", "read"], ["sessions", "reserve"], ["sessions", "release"], ["sessions", "consume"], ["sessions", "cancel"],
+  ["reports", "read"],
   ["roles", "read"], ["roles", "update"], ["staff", "read"], ["staff", "create"], ["staff", "update"], ["staff", "delete"],
   ["services", "read"], ["services", "create"], ["services", "update"], ["services", "delete"],
   ["inventory", "read"], ["inventory", "write"], ["crm", "read"], ["crm", "manage"],
