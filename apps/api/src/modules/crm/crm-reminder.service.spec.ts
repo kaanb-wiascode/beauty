@@ -12,6 +12,12 @@ describe('CrmReminderService', () => {
     } as never;
   }
 
+  function dataScope() {
+    return {
+      resolve: jest.fn().mockResolvedValue({ scope: 'BRANCH', userId: 'user-1', ownerUserIds: [], restrictOwners: false, branchId: 'branch-a' }),
+    } as never;
+  }
+
   it('builds a mine-scoped reminder feed from follow-ups and opportunities', async () => {
     const query = jest
       .fn()
@@ -46,6 +52,7 @@ describe('CrmReminderService', () => {
     const service = new CrmReminderService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     const result = await service.getFeed({
@@ -79,6 +86,7 @@ describe('CrmReminderService', () => {
     const service = new CrmReminderService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await service.getFeed({
