@@ -425,7 +425,7 @@ export class CrmQuoteService {
       EXPIRED: 'Süresi Doldu',
       CANCELLED: 'İptal Edildi',
     };
-        const allowedTransitions: Record<string, string[]> = {
+    const allowedTransitions: Record<string, string[]> = {
       DRAFT: ['SENT', 'CANCELLED'],
       SENT: ['VIEWED', 'ACCEPTED', 'REJECTED', 'CANCELLED'],
       VIEWED: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
@@ -444,39 +444,43 @@ export class CrmQuoteService {
     const branchId = this.requireBranchId();
     const now = new Date();
 
-    const rows = await this.prisma.$queryRawUnsafe<Array<Record<string, unknown>>>(
-      `UPDATE crm_quotes SET
-         status=$5,
-         sent_at=CASE WHEN $5='SENT' THEN COALESCE(sent_at,$6::timestamptz) ELSE sent_at END,
-         viewed_at=CASE WHEN $5='VIEWED' THEN COALESCE(viewed_at,$6::timestamptz) ELSE viewed_at END,
-         accepted_at=CASE WHEN $5='ACCEPTED' THEN COALESCE(accepted_at,$6::timestamptz) ELSE accepted_at END,
-         rejected_at=CASE WHEN $5='REJECTED' THEN COALESCE(rejected_at,$6::timestamptz) ELSE rejected_at END,
-         version=version+1,updated_at=NOW()
-       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
-         AND branch_id=$4::text AND version=$7
-       RETURNING id,opportunity_id AS "opportunityId",customer_id AS "customerId",status,version`,
-      id,
-      context.tenantId,
-      context.companyId,
-      branchId,
-      input.status,
-      now,
-      input.version,
-    );
+    await this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<Array<Record<string, unknown>>>(
+        `UPDATE crm_quotes SET
+           status=$5,
+           sent_at=CASE WHEN $5='SENT' THEN COALESCE(sent_at,$6::timestamptz) ELSE sent_at END,
+           viewed_at=CASE WHEN $5='VIEWED' THEN COALESCE(viewed_at,$6::timestamptz) ELSE viewed_at END,
+           accepted_at=CASE WHEN $5='ACCEPTED' THEN COALESCE(accepted_at,$6::timestamptz) ELSE accepted_at END,
+           rejected_at=CASE WHEN $5='REJECTED' THEN COALESCE(rejected_at,$6::timestamptz) ELSE rejected_at END,
+           version=version+1,updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND branch_id=$4::text AND version=$7
+         RETURNING id,opportunity_id AS "opportunityId",customer_id AS "customerId",status,version`,
+        id,
+        context.tenantId,
+        context.companyId,
+        branchId,
+        input.status,
+        now,
+        input.version,
+      );
 
-    if (!rows.length) throw new ConflictException('Teklif başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.');
+      if (!rows.length) {
+        throw new ConflictException('Teklif başka bir kullanıcı tarafından güncellendi. Sayfayı yenileyin.');
+      }
 
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO crm_events(tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata)
-       VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'QUOTE_STATUS_CHANGED',$6::text,$7::jsonb)`,
-      context.tenantId,
-      context.companyId,
-      branchId,
-      current.customerId,
-      current.opportunityId,
-      actorUserId,
-      JSON.stringify({ quoteId: id, previousStatus: current.status, status: input.status }),
-    );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO crm_events(tenant_id,company_id,branch_id,customer_id,opportunity_id,event_type,actor_user_id,metadata)
+         VALUES($1::text,$2::text,$3::text,$4::text,$5::text,'QUOTE_STATUS_CHANGED',$6::text,$7::jsonb)`,
+        context.tenantId,
+        context.companyId,
+        branchId,
+        current.customerId,
+        current.opportunityId,
+        actorUserId,
+        JSON.stringify({ quoteId: id, previousStatus: current.status, status: input.status }),
+      );
+    });
 
     return this.get(id);
   }
