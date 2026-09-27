@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 import type {
   CancelFollowUpInput,
   CompleteFollowUpInput,
@@ -42,6 +43,7 @@ export class CrmService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private context() {
@@ -51,7 +53,7 @@ export class CrmService {
   private requireBranchId() {
     const branchId = this.context().branchId;
     if (!branchId) {
-      throw new BadRequestException('CRM mutation requires an active branch.');
+      throw new BadRequestException('Bu işlem için aktif bir şube seçilmelidir.');
     }
     return branchId;
   }
@@ -153,7 +155,7 @@ export class CrmService {
       context.companyId,
       context.branchId,
     );
-    if (!rows.length) throw new NotFoundException('CRM lead not found.');
+    if (!rows.length) throw new NotFoundException('Potansiyel müşteri bulunamadı.');
 
     const [opportunities, followUps, events] = await Promise.all([
       this.prisma.$queryRawUnsafe<CrmRow[]>(
@@ -300,6 +302,8 @@ export class CrmService {
   }
 
   async qualifyLead(id: string, input: QualifyLeadInput, actorUserId: string) {
+    await this.dataScope.assertLeadAccess(id);
+    await this.dataScope.assertOwnerAllowed(input.ownerUserId ?? actorUserId);
     const context = this.context();
     const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
@@ -317,7 +321,7 @@ export class CrmService {
           branchId,
         );
         const lead = leads[0];
-        if (!lead) throw new NotFoundException('CRM lead not found.');
+        if (!lead) throw new NotFoundException('Potansiyel müşteri bulunamadı.');
 
         const existing = await tx.$queryRawUnsafe<CrmRow[]>(
           `SELECT id,title,stage,version FROM crm_opportunities
@@ -405,6 +409,7 @@ export class CrmService {
     input: TransitionOpportunityInput,
     actorUserId: string,
   ) {
+    await this.dataScope.assertOpportunityAccess(id);
     const context = this.context();
     const branchId = this.requireBranchId();
     if (input.stage === 'LOST' && !input.lostReason) {
@@ -476,6 +481,7 @@ export class CrmService {
     limit?: number;
   }) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
     return this.prisma.$queryRawUnsafe<CrmRow[]>(
       `SELECT f.id,f.lead_id AS "leadId",f.opportunity_id AS "opportunityId",
@@ -501,6 +507,9 @@ export class CrmService {
   }
 
   async createFollowUp(input: CreateFollowUpInput, actorUserId: string) {
+    if (input.leadId) await this.dataScope.assertLeadAccess(input.leadId);
+    if (input.opportunityId) await this.dataScope.assertOpportunityAccess(input.opportunityId);
+    await this.dataScope.assertOwnerAllowed(input.assignedUserId);
     const context = this.context();
     const branchId = this.requireBranchId();
     await this.assertAssignableUser(input.assignedUserId);
@@ -561,6 +570,7 @@ export class CrmService {
     input: CompleteFollowUpInput,
     actorUserId: string,
   ) {
+    await this.dataScope.assertFollowUpAccess(id);
     const context = this.context();
     const branchId = this.requireBranchId();
     return this.prisma.$transaction(async (tx) => {
@@ -598,6 +608,8 @@ export class CrmService {
     input: RescheduleFollowUpInput,
     actorUserId: string,
   ) {
+    await this.dataScope.assertFollowUpAccess(id);
+    await this.dataScope.assertOwnerAllowed(input.assignedUserId);
     const context = this.context();
     const branchId = this.requireBranchId();
     if (input.assignedUserId) {
@@ -659,6 +671,7 @@ export class CrmService {
     input: CancelFollowUpInput,
     actorUserId: string,
   ) {
+    await this.dataScope.assertFollowUpAccess(id);
     const context = this.context();
     const branchId = this.requireBranchId();
     return this.prisma.$transaction(async (tx) => {
