@@ -13,7 +13,7 @@ export class OperationsResourceCalendarController {
   constructor(private readonly calendar: OperationsResourceCalendarService) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list(@Query() query: Record<string, unknown>) {
     return this.calendar.list(resourceCalendarQuerySchema.parse(query));
   }
