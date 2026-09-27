@@ -591,7 +591,7 @@ export default function TeamPage() {
     const body = messageText.trim() || attachmentPlaceholder(selectedFiles);
     const filesToSend = [...selectedFiles];
     setUploadProgress(Object.fromEntries(filesToSend.map((file) => [fileKey(file), 0])));
-    setPendingMessage({ id: `pending-${Date.now()}`, body, attachmentNames: filesToSend.map((file) => file.name) });
+    setPendingMessage({ id: "pending-message", body, attachmentNames: filesToSend.map((file) => file.name) });
     setSending(true);
     setMessageText("");
     try {
