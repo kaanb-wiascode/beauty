@@ -793,36 +793,38 @@ export class SalesService {
     }
 
     const cancelledAt = new Date();
-    const claimed = await this.prisma.sale.updateMany({
-      where: {
-        id: sale.id,
-        tenantId: sale.tenantId,
+    return this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.sale.updateMany({
+        where: {
+          id: sale.id,
+          tenantId: sale.tenantId,
+          branchId: sale.branchId,
+          status: 'DRAFT',
+        },
+        data: { status: 'CANCELLED', cancelledAt },
+      });
+
+      if (claimed.count !== 1) {
+        throw new ConflictException(
+          'Satış artık iptal edilebilir durumda değil.',
+        );
+      }
+
+      const cancelledSale = await tx.sale.findUniqueOrThrow({
+        where: { id: sale.id },
+      });
+
+      await this.recordCrmSaleEvent(tx, {
+        customerId: sale.customerId,
         branchId: sale.branchId,
-        status: 'DRAFT',
-      },
-      data: { status: 'CANCELLED', cancelledAt },
+        saleId: sale.id,
+        eventType: 'SALE_CANCELLED',
+        metadata: {
+          cancelledAt: cancelledAt.toISOString(),
+        },
+      });
+
+      return cancelledSale;
     });
-
-    if (claimed.count !== 1) {
-      throw new ConflictException(
-        'Satış artık iptal edilebilir durumda değil.',
-      );
-    }
-
-    const cancelledSale = await this.prisma.sale.findUniqueOrThrow({
-      where: { id: sale.id },
-    });
-
-    await this.recordCrmSaleEvent(this.prisma, {
-      customerId: sale.customerId,
-      branchId: sale.branchId,
-      saleId: sale.id,
-      eventType: 'SALE_CANCELLED',
-      metadata: {
-        cancelledAt: cancelledAt.toISOString(),
-      },
-    });
-
-    return cancelledSale;
   }
 }
