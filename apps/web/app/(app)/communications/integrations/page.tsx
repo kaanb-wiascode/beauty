@@ -36,6 +36,7 @@ type ConnectionHealth = {
   connected: number;
   attention: number;
   authorizationRequired: number;
+  verificationRequired: number;
   disconnected: number;
   lastSyncAt?: string | null;
   connections: Array<{
@@ -43,7 +44,7 @@ type ConnectionHealth = {
     provider: string;
     status: string;
     credentialsConfigured: boolean;
-    health: "HEALTHY" | "ATTENTION" | "AUTH_REQUIRED" | "DISCONNECTED";
+    health: "HEALTHY" | "ATTENTION" | "VERIFY_REQUIRED" | "AUTH_REQUIRED" | "DISCONNECTED";
     lastSyncAt?: string | null;
     lastError?: string | null;
   }>;
@@ -52,6 +53,7 @@ type ConnectionHealth = {
 const healthLabel: Record<string, string> = {
   HEALTHY: "Bağlı ve Çalışıyor",
   ATTENTION: "Kontrol Gerekiyor",
+  VERIFY_REQUIRED: "Bağlantı Testi Gerekli",
   AUTH_REQUIRED: "Yetkilendirme Gerekiyor",
   DISCONNECTED: "Bağlı Değil",
 };
@@ -199,7 +201,7 @@ export default function AdvertisingConnectionsPage() {
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
       <Metric title="Tanımlı Bağlantı" value={String(health?.total ?? rows.length)} detail="VALOO içinde kayıtlı reklam ve pazarlama hesapları" />
       <Metric title="Çalışan Bağlantı" value={String(health?.connected ?? 0)} detail="Yetkilendirmesi bulunan ve sağlıklı görünen bağlantılar" />
-      <Metric title="İşlem Gerektiren" value={String((health?.attention ?? 0) + (health?.authorizationRequired ?? 0))} detail="Yeniden yetkilendirme veya bağlantı kontrolü gereken hesaplar" />
+      <Metric title="İşlem Gerektiren" value={String((health?.attention ?? 0) + (health?.verificationRequired ?? 0) + (health?.authorizationRequired ?? 0))} detail="Yeniden yetkilendirme veya bağlantı kontrolü gereken hesaplar" />
       <Metric title="Son Veri Eşitleme" value={health?.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString("tr-TR") : "Henüz yok"} detail="Bağlı platformlardan alınan en son veri zamanı" />
     </section>
 
