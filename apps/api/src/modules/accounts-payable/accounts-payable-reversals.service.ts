@@ -2,12 +2,14 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { SupplierExpenseSyncService } from '../finance/supplier-expense-sync.service';
 
 @Injectable()
 export class AccountsPayableReversalsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly supplierExpenseSync: SupplierExpenseSyncService,
   ) {}
 
   private context() {
@@ -16,6 +18,25 @@ export class AccountsPayableReversalsService {
       companyId: this.tenantContext.getCompanyId(),
       branchId: this.tenantContext.getBranchId(),
     };
+  }
+
+  private async currentUserId(
+    db: Prisma.TransactionClient | PrismaService,
+  ): Promise<string> {
+    const context = this.tenantContext.getContext();
+    const rows = await db.$queryRawUnsafe<Array<{ userId: string }>>(
+      `SELECT "userId" AS "userId"
+       FROM memberships
+       WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
+       LIMIT 1`,
+      context.membershipId,
+      context.tenantId,
+      context.companyId,
+    );
+    if (!rows[0]?.userId) {
+      throw new BadRequestException('Oturum açmış kullanıcı bilgisi bulunamadı.');
+    }
+    return rows[0].userId;
   }
 
   private async ensureAccount(
@@ -124,7 +145,7 @@ export class AccountsPayableReversalsService {
             : await this.ensureAccount(tx, tenantId, companyId, '102', 'Bankalar', 'ASSET');
 
         const now = new Date();
-        await tx.journalEntry.create({
+        const reversalJournal = await tx.journalEntry.create({
           data: {
             tenantId,
             companyId,
@@ -143,6 +164,19 @@ export class AccountsPayableReversalsService {
               ],
             },
           },
+          select: { id: true },
+        });
+
+        const actorId = await this.currentUserId(tx);
+        await this.supplierExpenseSync.syncBillPaymentReversal(tx, {
+          tenantId,
+          companyId,
+          branchId,
+          billId,
+          actorId,
+          supplierPaymentId: paymentId,
+          reversalJournalId: reversalJournal.id,
+          reason: normalizedReason,
         });
 
         const totals = await tx.$queryRawUnsafe<any[]>(
