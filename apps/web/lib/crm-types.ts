@@ -31,6 +31,10 @@ export type CrmLead = {
   surveyLocation?: string | null;
   surveyDesk?: string | null;
   surveyDate?: string | null;
+  surveyorFirstName?: string | null;
+  surveyorLastName?: string | null;
+  surveyorDailyDeskQuota?: number | null;
+  surveyorWeeklyDeskQuota?: number | null;
 };
 
 export type CrmOpportunity = {
