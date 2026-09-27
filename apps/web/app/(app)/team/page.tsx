@@ -61,6 +61,7 @@ type Message = {
   createdAt: string;
   reactions: Reaction[];
   readByCount: number;
+  deliveredByCount: number;
   isPinned: boolean;
   attachments: Attachment[];
   acknowledgedByMe: boolean;
@@ -1167,7 +1168,7 @@ export default function TeamPage() {
                               </div>
                             ) : null}
                             <div className="mt-1.5 flex items-center justify-end gap-2">
-                              {mine ? <span className="text-[9px] text-white/55">{message.readByCount > 0 ? `Okundu · ${message.readByCount}` : "Gönderildi"}</span> : null}
+                              {mine ? <span className="text-[9px] text-white/55">{message.readByCount > 0 ? `Okundu · ${message.readByCount}` : message.deliveredByCount > 0 ? `Teslim edildi · ${message.deliveredByCount}` : "Gönderildi"}</span> : null}
                               {message.editedAt ? <span className={`text-[9px] ${mine ? "text-white/45" : "text-[var(--muted-soft)]"}`}>düzenlendi</span> : null}
                               <span className={`text-[9px] ${mine ? "text-white/60" : "text-[var(--muted-soft)]"}`}>{timeLabel(message.createdAt)}</span>
                             </div>
