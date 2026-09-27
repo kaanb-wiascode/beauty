@@ -84,7 +84,7 @@ export default function OperationsIntelligencePage() {
             {data.appointments.length ? <div className="divide-y divide-[var(--line)]">{data.appointments.map((item) => (
               <div key={item.appointmentId} className="grid gap-4 px-6 py-4 lg:grid-cols-[1.2fr_1fr_1fr]">
                 <div><p className="text-sm font-semibold text-[var(--ink)]">{item.customerName} · {item.serviceName}</p><p className="mt-1 text-xs text-[var(--muted)]">{new Date(item.startAt).toLocaleString("tr-TR")} · {item.staffName} · Onay: {item.confirmationStatus ? userLabel(item.confirmationStatus) : "Yok"}</p></div>
-                <RiskCell label="No-show riski" risk={item.noShowRisk} />
+                <RiskCell label="Gelmeme riski" risk={item.noShowRisk} />
                 <RiskCell label="Gecikme riski" risk={item.delayRisk} />
               </div>
             ))}</div> : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Önümüzdeki 24 saat için randevu bulunamadı.</div>}
