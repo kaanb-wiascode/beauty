@@ -289,6 +289,21 @@ export class CrmQuoteService {
     };
     await this.dataScope.assertOpportunityAccess(current.opportunityId);
 
+    const allowedTransitions: Record<string, string[]> = {
+      DRAFT: ['SENT', 'CANCELLED'],
+      SENT: ['VIEWED', 'ACCEPTED', 'REJECTED', 'CANCELLED'],
+      VIEWED: ['ACCEPTED', 'REJECTED', 'CANCELLED'],
+      ACCEPTED: [],
+      REJECTED: [],
+      EXPIRED: [],
+      CANCELLED: [],
+    };
+    if (!(allowedTransitions[current.status] ?? []).includes(input.status)) {
+      throw new BadRequestException(
+        `Teklif “${current.status}” durumundan “${input.status}” durumuna geçirilemez.`,
+      );
+    }
+
     const context = this.context();
     const branchId = this.requireBranchId();
     const now = new Date();
