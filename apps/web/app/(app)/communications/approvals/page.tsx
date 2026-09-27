@@ -2,9 +2,11 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
+import { getCardHelp } from "@/lib/card-help";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Approval = {
   id: string;
@@ -34,7 +36,7 @@ export default function CommunicationsApprovalPage() {
     try {
       setApprovals(await api<Approval[]>("/corporate-communications/approvals"));
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Onay kuyruğu yüklenemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Onay merkezi yüklenemedi.") : "Onay merkezi yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -58,7 +60,7 @@ export default function CommunicationsApprovalPage() {
       setNotes((current) => ({ ...current, [id]: "" }));
       await load();
     } catch (e) {
-      setError(e instanceof ApiError ? e.message : "Onay kararı kaydedilemedi.");
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Onay kararı kaydedilemedi.") : "Onay kararı kaydedilemedi.");
     } finally {
       setActingId("");
     }
@@ -80,7 +82,7 @@ export default function CommunicationsApprovalPage() {
       {error ? <Alert>{error}</Alert> : null}
 
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-        <div className="flex items-center justify-between"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Bekleyen Onaylar</h2><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{pending.length}</span></div>
+        <div className="flex items-center justify-between"><div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Bekleyen Onaylar</h2><CardInfo help={getCardHelp("Bekleyen Onaylar", "Yayınlanmadan önce karar bekleyen içerikleri gösterir.")} /></div><span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{pending.length}</span></div>
         {pending.length ? <div className="mt-4 grid gap-4 xl:grid-cols-2">{pending.map((approval) => (
           <article key={approval.id} className="rounded-[17px] border border-[var(--line)] p-4">
             <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-[13px] font-semibold text-[var(--ink)]">{approval.title}</p><p className="mt-1 text-[10px] uppercase tracking-[.08em] text-[var(--muted)]">{userLabel(approval.platform)} · {userLabel(approval.format)}</p></div><span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[9px] font-semibold text-[var(--muted)]">{new Date(approval.createdAt).toLocaleString("tr-TR")}</span></div>
@@ -90,7 +92,7 @@ export default function CommunicationsApprovalPage() {
       </section>
 
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-        <h2 className="text-[15px] font-semibold text-[var(--ink)]">Karar Geçmişi</h2>
+        <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Karar Geçmişi</h2><CardInfo help={getCardHelp("Karar Geçmişi", "Daha önce verilen onay ve revizyon kararlarını denetim geçmişiyle gösterir.")} /></div>
         {history.length ? <div className="mt-4 overflow-x-auto"><table className="w-full min-w-[800px] text-left"><thead><tr className="border-b border-[var(--line)] text-[10px] uppercase tracking-[.1em] text-[var(--muted-soft)]"><th className="px-3 py-3">İçerik</th><th className="px-3 py-3">Karar</th><th className="px-3 py-3">Not</th><th className="px-3 py-3">Tarih</th></tr></thead><tbody>{history.map((approval) => <tr key={approval.id} className="border-b border-[var(--line)] last:border-0"><td className="px-3 py-3 text-[12px] font-semibold text-[var(--ink)]">{approval.title}</td><td className="px-3 py-3 text-[11px] text-[var(--muted)]">{userLabel(approval.status)}</td><td className="px-3 py-3 text-[11px] text-[var(--muted)]">{approval.decisionNote ?? "—"}</td><td className="px-3 py-3 text-[11px] text-[var(--muted)]">{approval.decidedAt ? new Date(approval.decidedAt).toLocaleString("tr-TR") : "—"}</td></tr>)}</tbody></table></div> : <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz karar geçmişi yok.</p>}
       </section>
     </div>
