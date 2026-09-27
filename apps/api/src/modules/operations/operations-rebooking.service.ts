@@ -42,10 +42,10 @@ export class OperationsRebookingService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -117,7 +117,7 @@ export class OperationsRebookingService {
     );
     if (source.status !== 'COMPLETED') {
       throw new BadRequestException(
-        'Only a completed appointment can produce a next-appointment recommendation.',
+        'Yalnızca tamamlanmış randevu için yeni randevu önerisi oluşturulabilir.',
       );
     }
 
@@ -152,7 +152,7 @@ export class OperationsRebookingService {
       where: { id: serviceId, tenantId, branchId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!service) throw new NotFoundException('Service not found');
+    if (!service) throw new NotFoundException('Hizmet bulunamadı.');
 
     const rows = await this.prisma.$queryRawUnsafe<
       Array<{ serviceId: string; recommendedIntervalDays: number | null }>
@@ -176,7 +176,7 @@ export class OperationsRebookingService {
   async create(sourceAppointmentId: string, input: CreateRebookingInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
     if (input.startAt <= new Date()) {
-      throw new BadRequestException('Rebooking start time must be in the future.');
+      throw new BadRequestException('Yeni randevu zamanı gelecekte olmalıdır.');
     }
 
     return this.prisma.$transaction(
@@ -213,7 +213,7 @@ export class OperationsRebookingService {
         );
         if (source.status !== 'COMPLETED') {
           throw new BadRequestException(
-            'Only a completed appointment can be rebooked from checkout.',
+            'Çıkış ekranından yalnızca tamamlanmış randevu için yeni randevu oluşturulabilir.',
           );
         }
 
@@ -229,7 +229,7 @@ export class OperationsRebookingService {
           select: { id: true },
         });
         if (!staff) {
-          throw new BadRequestException('Selected staff is not active in this branch.');
+          throw new BadRequestException('Seçilen personel bu şubede aktif değil.');
         }
 
         const endAt = new Date(
@@ -247,7 +247,7 @@ export class OperationsRebookingService {
           select: { id: true },
         });
         if (overlap) {
-          throw new ConflictException('Staff already has an overlapping appointment.');
+          throw new ConflictException('Seçilen personelin bu saat aralığında başka bir randevusu var.');
         }
 
         const leave = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -264,7 +264,7 @@ export class OperationsRebookingService {
           endAt,
         );
         if (leave[0]) {
-          throw new ConflictException('Selected staff is on approved leave for this slot.');
+          throw new ConflictException('Seçilen personel bu zaman aralığında onaylı izinde.');
         }
 
         const appointment = await tx.appointment.create({
@@ -357,7 +357,7 @@ export class OperationsRebookingService {
       tenantId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Source appointment not found');
+    if (!rows[0]) throw new NotFoundException('Kaynak randevu bulunamadı.');
     return rows[0];
   }
 }
