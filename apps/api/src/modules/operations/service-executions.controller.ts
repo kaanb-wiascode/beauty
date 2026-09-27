@@ -37,14 +37,14 @@ export class ServiceExecutionsController {
 
   @Get('visits/:visitId')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   listByVisit(@Param('visitId', new ParseUUIDPipe()) visitId: string) {
     return this.executionRead.listByVisit(visitId);
   }
 
   @Post('visits/:visitId/start')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async start(
     @Param('visitId', new ParseUUIDPipe()) visitId: string,
     @Body() body: unknown,
@@ -56,7 +56,7 @@ export class ServiceExecutionsController {
 
   @Post('visits/:visitId/start-walk-in')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   startWalkIn(
     @Param('visitId', new ParseUUIDPipe()) visitId: string,
     @Body() body: unknown,
@@ -69,7 +69,7 @@ export class ServiceExecutionsController {
 
   @Post(':executionId/complete')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async complete(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
     @Body() body: unknown,
@@ -88,7 +88,7 @@ export class ServiceExecutionsController {
 
   @Post(':executionId/complete-appointment')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async completeAppointment(
     @Param('executionId', new ParseUUIDPipe()) executionId: string,
   ) {
