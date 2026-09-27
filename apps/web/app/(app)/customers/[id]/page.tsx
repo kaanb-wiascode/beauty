@@ -134,6 +134,8 @@ export default function CustomerDetailPage({ params }: { params: Promise<{ id: s
       SALE_CANCELLED: "Satış iptal edildi",
       SALE_PAYMENT_RECEIVED: "Ödeme alındı",
       SALE_PAYMENT_REFUNDED: "Ödeme iade edildi",
+      QUOTE_CREATED: "Teklif oluşturuldu",
+      QUOTE_STATUS_CHANGED: "Teklif durumu güncellendi",
     };
     const eventItems = crm360.events.map((item) => ({
       id: `event-${item.id}`,
