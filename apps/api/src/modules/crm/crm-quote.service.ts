@@ -120,6 +120,9 @@ export class CrmQuoteService {
     );
     const opportunity = opportunityRows[0];
     if (!opportunity) throw new NotFoundException('Satış fırsatı bulunamadı.');
+    if (input.customerId && input.customerId !== opportunity.customerId) {
+      throw new BadRequestException('Teklif müşterisi satış fırsatına bağlı müşteriyle aynı olmalıdır.');
+    }
 
     const ownerUserId = input.ownerUserId ?? opportunity.ownerUserId ?? actorUserId;
     await this.dataScope.assertOwnerAllowed(ownerUserId);
