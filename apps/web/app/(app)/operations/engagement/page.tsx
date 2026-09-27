@@ -86,7 +86,7 @@ export default function OperationsEngagementPage() {
         method: "POST",
         body: { channel },
       });
-      setNotice(`${item.customerName} için randevu hatırlatması CRM üzerinden gönderildi.`);
+      setNotice(`${item.customerName} için randevu hatırlatması Müşteri İlişkileri kaydıyla gönderildi.`);
       await load();
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Hatırlatma gönderilemedi.");
@@ -124,9 +124,9 @@ export default function OperationsEngagementPage() {
         method: "POST",
         body: { channel },
       });
-      setNotice("Çıkış sonrası takip mesajı CRM üzerinden gönderildi.");
+      setNotice("Çıkış sonrası takip mesajı Müşteri İlişkileri kaydıyla gönderildi.");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Follow-up gönderilemedi.");
+      setError(err instanceof ApiError ? err.message : "Takip mesajı gönderilemedi.");
     } finally {
       setBusyKey("");
     }
@@ -185,7 +185,7 @@ export default function OperationsEngagementPage() {
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="border-b border-[var(--line)] px-6 py-4">
           <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Çıkış Sonrası Takip</h2><CardInfo help={getCardHelp("Çıkış Sonrası Takip")} /></div>
-          <p className="mt-1 text-xs text-[var(--muted)]">Son checkout kayıtlarından teşekkür/geri bildirim mesajı gönderin. Aynı Visit + kanal idempotent işlenir.</p>
+          <p className="mt-1 text-xs text-[var(--muted)]">Son çıkış kayıtlarından teşekkür veya geri bildirim mesajı gönderin. Aynı ziyaret ve iletişim kanalı için yinelenen gönderimler güvenli biçimde engellenir.</p>
         </div>
         {checkouts.length ? (
           <div className="divide-y divide-[var(--line)]">
@@ -193,13 +193,13 @@ export default function OperationsEngagementPage() {
               <div key={visit.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-[var(--ink)]">{customerNames.get(visit.customerId) ?? `Müşteri ${visit.customerId.slice(0, 8)}`}</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">Checkout: {visit.checkedOutAt ? new Date(visit.checkedOutAt).toLocaleString("tr-TR") : "—"} · Visit {visit.id.slice(0, 8)}</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">Çıkış: {visit.checkedOutAt ? new Date(visit.checkedOutAt).toLocaleString("tr-TR") : "—"} · Ziyaret {visit.id.slice(0, 8)}</p>
                 </div>
-                <Button variant="secondary" disabled={!canUpdate || busyKey === `followup:${visit.id}`} onClick={() => void sendFollowup(visit)}>Follow-up Gönder</Button>
+                <Button variant="secondary" disabled={!canUpdate || busyKey === `followup:${visit.id}`} onClick={() => void sendFollowup(visit)}>Takip Mesajı Gönder</Button>
               </div>
             ))}
           </div>
-        ) : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Checkout kaydı bulunamadı.</div>}
+        ) : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Çıkış kaydı bulunamadı.</div>}
       </section>
     </div>
   );
