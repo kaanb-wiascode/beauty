@@ -9,6 +9,7 @@ import { CorporateCommunicationsService } from './corporate-communications.servi
 import { MarketingExpenseSyncService } from './marketing-expense-sync.service';
 import { MarketingProviderAccountsService } from './marketing-provider-accounts.service';
 import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
+import { MarketingProviderSyncService } from './marketing-provider-sync.service';
 import {
   createBrandAssetSchema,
   createCampaignSchema,
@@ -30,6 +31,7 @@ export class CorporateCommunicationsController {
     private readonly expenseSync: MarketingExpenseSyncService,
     private readonly providerOAuth: MarketingProviderOAuthService,
     private readonly providerAccounts: MarketingProviderAccountsService,
+    private readonly providerSync: MarketingProviderSyncService,
   ) {}
 
   @Get('dashboard')
@@ -135,6 +137,15 @@ export class CorporateCommunicationsController {
   ) {
     const input = selectProviderAccountSchema.parse(body);
     return this.providerAccounts.select(id, input.externalAccountId);
+  }
+
+  @Post('provider-connections/:id/sync')
+  @RequirePermission('communications', 'manage')
+  syncProviderConnection(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    return this.providerSync.sync(id, user.sub);
   }
 
   @Post('provider-connections/:id/oauth/refresh')
