@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 
 export type CrmReportingInput = Readonly<{ from: Date; to: Date }>;
 
@@ -9,10 +10,12 @@ export class CrmReportingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   async performance(input: CrmReportingInput) {
     const context = this.tenantContext.getContext();
+    const visibility = await this.dataScope.resolve();
     const rows = await this.prisma.$queryRawUnsafe<Array<{
       date: Date;
       leadCount: number;
@@ -40,6 +43,7 @@ export class CrmReportingService {
          WHERE l.tenant_id=$1::text AND l.company_id=$2::text
            AND ($3::text IS NULL OR l.branch_id=$3::text)
            AND l.created_at >= $4::timestamptz AND l.created_at <= $5::timestamptz
+           AND ($6::boolean=FALSE OR l.owner_user_id=ANY($7::text[]))
          GROUP BY date_trunc('day',l.created_at)
        ), opportunity_daily AS (
          SELECT date_trunc('day',o.created_at) AS day,
@@ -53,6 +57,7 @@ export class CrmReportingService {
          WHERE o.tenant_id=$1::text AND o.company_id=$2::text
            AND ($3::text IS NULL OR o.branch_id=$3::text)
            AND o.created_at >= $4::timestamptz AND o.created_at <= $5::timestamptz
+           AND ($6::boolean=FALSE OR o.owner_user_id=ANY($7::text[]))
          GROUP BY date_trunc('day',o.created_at)
        )
        SELECT d.day AS date,
@@ -76,6 +81,8 @@ export class CrmReportingService {
       context.branchId,
       input.from,
       input.to,
+      visibility.restrictOwners,
+      visibility.ownerUserIds,
     );
 
     return rows.map((row) => ({
