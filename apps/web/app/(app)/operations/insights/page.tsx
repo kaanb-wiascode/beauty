@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { CardInfo } from "@/components/card-info";
 import { Alert, Spinner } from "@/components/ui";
@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
 import { userLabel } from "@/lib/user-language";
+import { useOperationRealtime } from "@/lib/use-operation-realtime";
 
 type Risk = {
   score: number;
@@ -89,30 +90,39 @@ export default function OperationsInsightsPage() {
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
+  const load = useCallback(async () => {
     if (!hasActiveBranch()) {
       setError("İçgörü ve öneriler için önce aktif bir şube seçin.");
       setLoading(false);
       return;
     }
 
-    Promise.all([
-      api<Intelligence>("/operations/intelligence?hours=24"),
-      api<Optimization>("/operations/optimization?hours=24"),
-    ])
-      .then(([insights, recommendations]) => {
-        setIntelligence(insights);
-        setOptimization(recommendations);
-      })
-      .catch((err) =>
-        setError(
-          err instanceof ApiError
-            ? err.message
-            : "Operasyon içgörüleri ve önerileri yüklenemedi.",
-        ),
-      )
-      .finally(() => setLoading(false));
+    try {
+      const [insights, recommendations] = await Promise.all([
+        api<Intelligence>("/operations/intelligence?hours=24"),
+        api<Optimization>("/operations/optimization?hours=24"),
+      ]);
+      setIntelligence(insights);
+      setOptimization(recommendations);
+      setError("");
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? err.message
+          : "Operasyon içgörüleri ve önerileri yüklenemedi.",
+      );
+    } finally {
+      setLoading(false);
+    }
   }, []);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  useOperationRealtime(() => {
+    void load();
+  }, hasActiveBranch());
 
   if (loading) {
     return (
