@@ -3,7 +3,7 @@
 import Link from "next/link";
 
 export type ValooRichCardPayload = {
-  kind: "APPOINTMENT" | "CUSTOMER" | "PAYMENT" | "STAFF" | "LEAD" | "OPPORTUNITY";
+  kind: "APPOINTMENT" | "CUSTOMER" | "PAYMENT" | "STAFF" | "LEAD" | "OPPORTUNITY" | "SALE" | "INVENTORY" | "TASK";
   id: string;
   title: string;
   subtitle?: string;
@@ -22,7 +22,7 @@ export function parseValooRichCard(value: string): ValooRichCardPayload | null {
   try {
     const parsed = JSON.parse(value.slice(VALOO_CARD_PREFIX.length)) as Partial<ValooRichCardPayload>;
     if (!parsed || !parsed.kind || !parsed.id || !parsed.title || !parsed.href) return null;
-    if (!["APPOINTMENT", "CUSTOMER", "PAYMENT", "STAFF", "LEAD", "OPPORTUNITY"].includes(parsed.kind)) return null;
+    if (!["APPOINTMENT", "CUSTOMER", "PAYMENT", "STAFF", "LEAD", "OPPORTUNITY", "SALE", "INVENTORY", "TASK"].includes(parsed.kind)) return null;
     return parsed as ValooRichCardPayload;
   } catch {
     return null;
@@ -36,6 +36,9 @@ const KIND_LABELS: Record<ValooRichCardPayload["kind"], string> = {
   STAFF: "Personel",
   LEAD: "Potansiyel Müşteri",
   OPPORTUNITY: "Satış Fırsatı",
+  SALE: "Satış",
+  INVENTORY: "Stok Ürünü",
+  TASK: "Takip Görevi",
 };
 
 export function TeamRichCard({ payload, mine }: { payload: ValooRichCardPayload; mine: boolean }) {
