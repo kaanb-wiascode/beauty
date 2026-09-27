@@ -161,6 +161,22 @@ export default function CrmSettingsPage() {
 
   useEffect(() => { void load(); }, [load]);
 
+  async function toggleAssignmentRule(rule: AssignmentRule) {
+    setSaving(`assignment-${rule.id}`);
+    setError("");
+    try {
+      await api(`/crm/assignment-rules/${rule.id}`, {
+        method: "PATCH",
+        body: { active: !rule.active },
+      });
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Atama kuralı güncellenemedi.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function createAssignmentRule(event: FormEvent) {
     event.preventDefault();
     if (!assignmentForm.name.trim()) {
@@ -466,9 +482,9 @@ export default function CrmSettingsPage() {
           {assignmentRules.length ? (
             <div className="divide-y divide-[var(--line)]">
               {assignmentRules.map((rule) => (
-                <div key={rule.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_180px_100px] sm:items-center">
+                <div key={rule.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_180px_100px_auto] sm:items-center">
                   <div>
-                    <p className="text-[12px] font-semibold">{rule.name}</p>
+                    <div className="flex items-center gap-2"><p className="text-[12px] font-semibold">{rule.name}</p><span className={rule.active ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[9px] font-semibold text-[var(--accent)]" : "rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[9px] font-semibold text-[var(--muted)]"}>{rule.active ? "Aktif" : "Pasif"}</span></div>
                     <p className="mt-1 text-[10px] text-[var(--muted)]">
                       {rule.sourceFilter ? `Kaynak: ${sourceLabels[rule.sourceFilter] ?? rule.sourceFilter}` : "Tüm kaynaklar"}
                       {rule.skillKey ? ` · Yetkinlik: ${rule.skillKey}` : ""}
@@ -476,6 +492,7 @@ export default function CrmSettingsPage() {
                   </div>
                   <span className="text-[11px] font-medium">{assignmentModeLabels[rule.mode]}</span>
                   <span className="text-[10px] text-[var(--muted)]">Öncelik: {rule.priority}</span>
+                  <Button variant="secondary" className="min-h-8 px-3 text-[10px]" disabled={saving === `assignment-${rule.id}`} onClick={() => void toggleAssignmentRule(rule)}>{saving === `assignment-${rule.id}` ? "Kaydediliyor..." : rule.active ? "Pasife Al" : "Aktifleştir"}</Button>
                 </div>
               ))}
             </div>
