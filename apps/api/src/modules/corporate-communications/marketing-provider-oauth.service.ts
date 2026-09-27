@@ -135,6 +135,66 @@ export class MarketingProviderOAuthService {
       .join(' ');
   }
 
+  configurationReadiness() {
+    const configured = (name: string) =>
+      Boolean(this.config.get<string>(name)?.trim());
+
+    const providers = [
+      {
+        provider: 'META',
+        label: 'Meta',
+        required: [
+          'MARKETING_INTEGRATION_MASTER_KEY',
+          'META_OAUTH_CLIENT_ID',
+          'META_OAUTH_CLIENT_SECRET',
+          'META_OAUTH_AUTHORIZATION_URL',
+          'META_OAUTH_TOKEN_URL',
+          'META_OAUTH_REDIRECT_URI',
+          'META_GRAPH_API_VERSION',
+          'META_WEBHOOK_VERIFY_TOKEN',
+        ],
+      },
+      {
+        provider: 'GOOGLE_ADS',
+        label: 'Google Ads',
+        required: [
+          'MARKETING_INTEGRATION_MASTER_KEY',
+          'GOOGLE_OAUTH_CLIENT_ID',
+          'GOOGLE_OAUTH_CLIENT_SECRET',
+          'GOOGLE_OAUTH_REDIRECT_URI',
+          'GOOGLE_ADS_DEVELOPER_TOKEN',
+        ],
+      },
+      {
+        provider: 'TIKTOK',
+        label: 'TikTok Ads',
+        required: [
+          'MARKETING_INTEGRATION_MASTER_KEY',
+          'TIKTOK_BUSINESS_APP_ID',
+          'TIKTOK_BUSINESS_SECRET',
+          'TIKTOK_BUSINESS_AUTHORIZATION_URL',
+        ],
+      },
+    ] as const;
+
+    const result = providers.map((item) => {
+      const missing = item.required.filter((name) => !configured(name));
+      return {
+        provider: item.provider,
+        label: item.label,
+        ready: missing.length === 0,
+        configuredCount: item.required.length - missing.length,
+        requiredCount: item.required.length,
+        missing,
+      };
+    });
+
+    return {
+      ready: result.every((item) => item.ready),
+      providers: result,
+    };
+  }
+
   async authorization(connectionId: string, actorUserId: string) {
     const connection = await this.connection(connectionId);
     const { tenantId, companyId } = this.context();
