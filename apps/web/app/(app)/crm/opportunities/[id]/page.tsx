@@ -36,6 +36,17 @@ type CrmQuote = {
   createdAt: string;
 };
 
+type QuoteItemForm = {
+  itemType: "SERVICE" | "PACKAGE" | "CUSTOM";
+  referenceId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+};
+type ServiceOption = { id: string; name: string; price: string | number; currency: string; status: string };
+type ServicePage = { data: ServiceOption[]; meta: { page: number; limit: number; total: number; totalPages: number } };
+type PackageOption = { id: string; name: string; price: string | number; active: boolean };
+
 type FollowUpAction = "complete" | "reschedule" | "cancel";
 type FollowUpForm = { assignedUserId: string; channel: CrmFollowUp["channel"]; dueAt: string; note: string };
 
@@ -99,7 +110,10 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [quoteOpen, setQuoteOpen] = useState(false);
   const [quoteSaving, setQuoteSaving] = useState(false);
   const [quoteError, setQuoteError] = useState("");
-  const [quoteForm, setQuoteForm] = useState({ description: "", quantity: "1", unitPrice: "", discountTotal: "0", validUntil: "", notes: "" });
+  const [quoteForm, setQuoteForm] = useState({ discountTotal: "0", validUntil: "", notes: "" });
+  const [quoteItems, setQuoteItems] = useState<QuoteItemForm[]>([{ itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
+  const [packageOptions, setPackageOptions] = useState<PackageOption[]>([]);
 
   const [transitionOpen, setTransitionOpen] = useState(false);
   const [transitionSaving, setTransitionSaving] = useState(false);
