@@ -9,6 +9,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import { AccountingService } from '../accounting/accounting.service';
 import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
@@ -35,13 +36,14 @@ export class AppointmentsService {
     private readonly organizationScope: OrganizationScopeService,
     private readonly accountingService: AccountingService,
     private readonly commerceFinanceSync: CommerceFinanceSyncService,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private getTenantId(): string {
     const tenantId = this.tenantContext.getTenantId();
 
     if (!tenantId) {
-      throw new InternalServerErrorException('Tenant context is missing');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı bulunamadı.');
     }
 
     return tenantId;
@@ -52,7 +54,7 @@ export class AppointmentsService {
 
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
 
@@ -107,11 +109,11 @@ export class AppointmentsService {
 
   private validateDateRange(startAt: Date, endAt: Date): void {
     if (Number.isNaN(startAt.getTime()) || Number.isNaN(endAt.getTime())) {
-      throw new BadRequestException('Invalid appointment date');
+      throw new BadRequestException('Randevu tarihi geçersiz.');
     }
 
     if (startAt >= endAt) {
-      throw new BadRequestException('Appointment startAt must be before endAt');
+      throw new BadRequestException('Randevu başlangıç zamanı bitiş zamanından önce olmalıdır.');
     }
   }
 
@@ -159,23 +161,23 @@ export class AppointmentsService {
     ]);
 
     if (!customer) {
-      throw new NotFoundException('Customer not found');
+      throw new NotFoundException('Müşteri bulunamadı.');
     }
 
     if (!staff) {
-      throw new NotFoundException('Staff not found');
+      throw new NotFoundException('Personel bulunamadı.');
     }
 
     if (!service) {
-      throw new NotFoundException('Service not found');
+      throw new NotFoundException('Hizmet bulunamadı.');
     }
 
     if (staff.status !== 'ACTIVE') {
-      throw new BadRequestException('Staff is not active');
+      throw new BadRequestException('Seçilen personel aktif değil.');
     }
 
     if (service.status !== 'ACTIVE') {
-      throw new BadRequestException('Service is not active');
+      throw new BadRequestException('Seçilen hizmet aktif değil.');
     }
   }
 
@@ -215,7 +217,7 @@ export class AppointmentsService {
 
     if (conflict) {
       throw new ConflictException(
-        'Staff already has an overlapping appointment',
+        'Seçilen personelin bu saat aralığında başka bir randevusu bulunuyor.',
       );
     }
   }
@@ -269,7 +271,7 @@ export class AppointmentsService {
     );
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           `SELECT 1::int AS locked
            FROM (
@@ -308,7 +310,7 @@ export class AppointmentsService {
 
           if (!session) {
             throw new BadRequestException(
-              'Selected session is not available for this customer, service, or branch.',
+              'Seçilen paket seansı bu müşteri, hizmet veya şube için kullanılamıyor.',
             );
           }
         }
@@ -343,7 +345,7 @@ export class AppointmentsService {
 
           if (reserved.count !== 1) {
             throw new ConflictException(
-              'Selected session was reserved by another operation. Please choose another session.',
+              'Seçilen paket seansı başka bir işlem tarafından ayrıldı. Lütfen başka bir seans seçin.',
             );
           }
         }
@@ -376,6 +378,21 @@ export class AppointmentsService {
 
         return createdAppointment;
       });
+      if (result) {
+        await this.domainEvents?.publish({
+          eventName: 'appointment.created',
+          aggregateType: 'appointment',
+          aggregateId: result.id,
+          payload: {
+            customerId: result.customerId,
+            serviceId: result.serviceId,
+            staffId: result.staffId,
+            startAt: result.startAt.toISOString(),
+            sessionId: result.session?.id ?? null,
+          },
+        });
+      }
+      return result;
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -387,7 +404,7 @@ export class AppointmentsService {
 
       console.error('[AppointmentsService.create] Prisma error:', error);
 
-      throw new InternalServerErrorException('Failed to create appointment');
+      throw new InternalServerErrorException('Randevu oluşturulamadı.');
     }
   }
 
@@ -396,7 +413,7 @@ export class AppointmentsService {
       input;
 
     if (from && to && from > to) {
-      throw new BadRequestException('from must be before to');
+      throw new BadRequestException('Başlangıç tarihi bitiş tarihinden önce olmalıdır.');
     }
 
     const skip = (page - 1) * limit;
@@ -488,7 +505,7 @@ export class AppointmentsService {
     });
 
     if (!appointment) {
-      throw new NotFoundException('Appointment not found');
+      throw new NotFoundException('Randevu bulunamadı.');
     }
 
     return appointment;
@@ -500,7 +517,7 @@ export class AppointmentsService {
       await this.organizationScope.getBranchScopedWhere();
 
     try {
-      return await this.prisma.$transaction(async (tx) => {
+      const result = await this.prisma.$transaction(async (tx) => {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
           `SELECT 1::int AS locked
            FROM (
@@ -520,7 +537,7 @@ export class AppointmentsService {
         });
 
         if (!appointment) {
-          throw new NotFoundException('Appointment not found');
+          throw new NotFoundException('Randevu bulunamadı.');
         }
 
         if (
@@ -528,7 +545,7 @@ export class AppointmentsService {
           input.status !== 'CANCELLED'
         ) {
           throw new BadRequestException(
-            'Cancelled appointment cannot be reactivated',
+            'İptal edilmiş randevu yeniden etkinleştirilemez.',
           );
         }
 
@@ -538,7 +555,7 @@ export class AppointmentsService {
           input.status !== appointment.status
         ) {
           throw new ConflictException(
-            'Terminal appointment status cannot be changed.',
+            'Tamamlanmış veya gelmedi olarak işaretlenmiş randevunun durumu değiştirilemez.',
           );
         }
 
@@ -575,7 +592,7 @@ export class AppointmentsService {
 
           if (!matchingSession) {
             throw new BadRequestException(
-              'Customer or service cannot be changed while the reserved package session does not match.',
+              'Ayrılmış paket seansı yeni müşteri veya hizmetle eşleşmediği için bu bilgiler değiştirilemez.',
             );
           }
         }
@@ -647,7 +664,7 @@ export class AppointmentsService {
               released.count !== 1
             ) {
               throw new ConflictException(
-                'Reserved package session changed during the appointment update.',
+                'Ayrılmış paket seansı işlem sırasında değişti. Lütfen ekranı yenileyin.',
               );
             }
           }
@@ -672,7 +689,7 @@ export class AppointmentsService {
               consumed.count !== 1
             ) {
               throw new ConflictException(
-                'Reserved package session changed during the appointment update.',
+                'Ayrılmış paket seansı işlem sırasında değişti. Lütfen ekranı yenileyin.',
               );
             }
 
@@ -798,6 +815,31 @@ export class AppointmentsService {
 
         return updatedAppointment;
       });
+      if (result) {
+        await this.domainEvents?.publish({
+          eventName:
+            input.status === 'COMPLETED'
+              ? 'appointment.completed'
+              : input.status === 'CANCELLED'
+                ? 'appointment.cancelled'
+                : input.status === 'NO_SHOW'
+                  ? 'appointment.no_show'
+                  : input.status === 'CONFIRMED'
+                    ? 'appointment.confirmed'
+                    : 'appointment.updated',
+          aggregateType: 'appointment',
+          aggregateId: result.id,
+          payload: {
+            customerId: result.customerId,
+            serviceId: result.serviceId,
+            staffId: result.staffId,
+            status: result.status,
+            startAt: result.startAt.toISOString(),
+            sessionId: result.session?.id ?? null,
+          },
+        });
+      }
+      return result;
     } catch (error) {
       if (
         error instanceof BadRequestException ||
@@ -809,7 +851,7 @@ export class AppointmentsService {
 
       console.error('[AppointmentsService.update] Prisma error:', error);
 
-      throw new InternalServerErrorException('Failed to update appointment');
+      throw new InternalServerErrorException('Randevu güncellenemedi.');
     }
   }
 
@@ -838,7 +880,7 @@ export class AppointmentsService {
         });
 
         if (!appointment) {
-          throw new NotFoundException('Appointment not found');
+          throw new NotFoundException('Randevu bulunamadı.');
         }
 
         if (appointment.status === 'CANCELLED') {
