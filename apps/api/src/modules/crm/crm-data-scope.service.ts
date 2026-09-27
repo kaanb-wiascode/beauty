@@ -173,7 +173,7 @@ export class CrmDataScopeService {
           AND ($4::text IS NULL OR branch_id=$4::text)
           AND owner_user_id=ANY($5::text[])
         LIMIT 1`,
-      leadId, context.tenantId, context.companyId, context.branchId, visibility.ownerUserIds,
+      leadId, context.tenantId, context.companyId, visibility.branchId, visibility.ownerUserIds,
     );
     if (!rows.length) throw new ForbiddenException('Bu potansiyel müşteri kaydına erişim yetkiniz yok.');
   }
@@ -188,7 +188,7 @@ export class CrmDataScopeService {
           AND ($4::text IS NULL OR branch_id=$4::text)
           AND owner_user_id=ANY($5::text[])
         LIMIT 1`,
-      opportunityId, context.tenantId, context.companyId, context.branchId, visibility.ownerUserIds,
+      opportunityId, context.tenantId, context.companyId, visibility.branchId, visibility.ownerUserIds,
     );
     if (!rows.length) throw new ForbiddenException('Bu satış fırsatına erişim yetkiniz yok.');
   }
@@ -210,7 +210,7 @@ export class CrmDataScopeService {
             OR o.owner_user_id=ANY($5::text[])
           )
         LIMIT 1`,
-      followUpId, context.tenantId, context.companyId, context.branchId, visibility.ownerUserIds,
+      followUpId, context.tenantId, context.companyId, visibility.branchId, visibility.ownerUserIds,
     );
     if (!rows.length) throw new ForbiddenException('Bu takip kaydına erişim yetkiniz yok.');
   }
