@@ -9,6 +9,7 @@ export type CrmVisibility = {
   userId: string;
   ownerUserIds: string[];
   restrictOwners: boolean;
+  branchId: string | null;
 };
 
 @Injectable()
@@ -61,7 +62,7 @@ export class CrmDataScopeService {
 
     const scope = row.configuredScope ?? fallback;
     if (scope === 'SELF') {
-      return { scope, userId: row.userId, ownerUserIds: [row.userId], restrictOwners: true };
+      return { scope, userId: row.userId, ownerUserIds: [row.userId], restrictOwners: true, branchId: context.branchId };
     }
 
     if (scope === 'TEAM') {
@@ -88,10 +89,16 @@ export class CrmDataScopeService {
         row.userId,
       );
       const ownerUserIds = [...new Set(teamRows.map((item) => item.userId).filter(Boolean))];
-      return { scope, userId: row.userId, ownerUserIds, restrictOwners: true };
+      return { scope, userId: row.userId, ownerUserIds, restrictOwners: true, branchId: context.branchId };
     }
 
-    return { scope, userId: row.userId, ownerUserIds: [], restrictOwners: false };
+    return {
+      scope,
+      userId: row.userId,
+      ownerUserIds: [],
+      restrictOwners: false,
+      branchId: scope === 'BRANCH' ? context.branchId : null,
+    };
   }
 
   async listAccessPolicies() {
