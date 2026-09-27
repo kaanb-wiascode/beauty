@@ -9,6 +9,7 @@ import {
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { CrmCommunicationComplianceService } from './crm-communication-compliance.service';
+import { CrmDataScopeService } from './crm-data-scope.service';
 import {
   CrmMessageChannel,
   CrmMessageProviderRegistryService,
@@ -52,6 +53,7 @@ export class CrmMessageService {
     private readonly tenantContext: TenantContext,
     private readonly providers: CrmMessageProviderRegistryService,
     private readonly compliance: CrmCommunicationComplianceService,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private scope() {
@@ -60,23 +62,50 @@ export class CrmMessageService {
     return { tenantId: context.tenantId, companyId: context.companyId, branchId: context.branchId };
   }
 
-  list(input: MessageSubject & { limit?: number }) {
+  async list(input: MessageSubject & { limit?: number }) {
     const scope = this.scope();
+    const visibility = await this.dataScope.resolve();
     const limit = Math.min(Math.max(input.limit ?? 50, 1), 200);
     return this.prisma.$queryRawUnsafe<MessageRow[]>(
-      `SELECT id, customer_id AS "customerId",lead_id AS "leadId",opportunity_id AS "opportunityId",
-              direction,channel,status,provider_key AS "providerKey",recipient,subject,body,
-              idempotency_key AS "idempotencyKey",external_message_id AS "externalMessageId",
-              error_message AS "errorMessage",version,created_by_user_id AS "createdByUserId",
-              sent_at AS "sentAt",delivered_at AS "deliveredAt",created_at AS "createdAt",updated_at AS "updatedAt"
-       FROM crm_messages
-       WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
-         AND ($4::text IS NULL OR customer_id=$4::text)
-         AND ($5::text IS NULL OR lead_id=$5::text)
-         AND ($6::text IS NULL OR opportunity_id=$6::text)
-       ORDER BY created_at DESC,id DESC LIMIT $7`,
+      `SELECT m.id,m.customer_id AS "customerId",m.lead_id AS "leadId",m.opportunity_id AS "opportunityId",
+              m.direction,m.channel,m.status,m.provider_key AS "providerKey",m.recipient,m.subject,m.body,
+              m.idempotency_key AS "idempotencyKey",m.external_message_id AS "externalMessageId",
+              m.error_message AS "errorMessage",m.version,m.created_by_user_id AS "createdByUserId",
+              m.sent_at AS "sentAt",m.delivered_at AS "deliveredAt",m.created_at AS "createdAt",m.updated_at AS "updatedAt"
+       FROM crm_messages m
+       WHERE m.tenant_id=$1::text AND m.company_id=$2::text AND m.branch_id=$3::text
+         AND ($4::text IS NULL OR m.customer_id=$4::text)
+         AND ($5::text IS NULL OR m.lead_id=$5::text)
+         AND ($6::text IS NULL OR m.opportunity_id=$6::text)
+         AND (
+           $7::boolean=FALSE
+           OR (m.lead_id IS NOT NULL AND EXISTS(
+             SELECT 1 FROM crm_leads l
+              WHERE l.id=m.lead_id AND l.tenant_id=m.tenant_id AND l.company_id=m.company_id
+                AND l.branch_id=m.branch_id AND l.owner_user_id=ANY($8::text[])
+           ))
+           OR (m.opportunity_id IS NOT NULL AND EXISTS(
+             SELECT 1 FROM crm_opportunities o
+              WHERE o.id=m.opportunity_id AND o.tenant_id=m.tenant_id AND o.company_id=m.company_id
+                AND o.branch_id=m.branch_id AND o.owner_user_id=ANY($8::text[])
+           ))
+           OR (m.customer_id IS NOT NULL AND (
+             EXISTS(
+               SELECT 1 FROM crm_opportunities o
+                WHERE o.customer_id=m.customer_id AND o.tenant_id=m.tenant_id AND o.company_id=m.company_id
+                  AND o.branch_id=m.branch_id AND o.owner_user_id=ANY($8::text[])
+             )
+             OR EXISTS(
+               SELECT 1 FROM crm_leads l
+                WHERE l.customer_id=m.customer_id AND l.tenant_id=m.tenant_id AND l.company_id=m.company_id
+                  AND l.branch_id=m.branch_id AND l.owner_user_id=ANY($8::text[])
+             )
+           ))
+         )
+       ORDER BY m.created_at DESC,m.id DESC LIMIT $9`,
       scope.tenantId, scope.companyId, scope.branchId,
-      input.customerId ?? null, input.leadId ?? null, input.opportunityId ?? null, limit,
+      input.customerId ?? null, input.leadId ?? null, input.opportunityId ?? null,
+      visibility.restrictOwners, visibility.ownerUserIds, limit,
     );
   }
 
@@ -92,6 +121,7 @@ export class CrmMessageService {
 
   async logManual(input: MessageSubject & { direction: CrmMessageDirection; channel: CrmMessageChannel; recipient?: string; subject?: string; body: string }, actorUserId: string) {
     const scope = this.scope();
+    await this.assertSubjectAccess(input);
     const recipient = input.recipient?.trim() || await this.resolveRecipient(input, input.channel);
     const delivered = input.direction === 'INBOUND';
     const rows = await this.prisma.$queryRawUnsafe<MessageRow[]>(
@@ -106,6 +136,7 @@ export class CrmMessageService {
 
   async createDraft(input: MessageSubject & { channel: CrmMessageChannel; providerKey?: string; recipient?: string; subject?: string; body: string; idempotencyKey?: string }, actorUserId: string) {
     const scope = this.scope();
+    await this.assertSubjectAccess(input);
     const recipient = input.recipient?.trim() || await this.resolveRecipient(input, input.channel);
     try {
       const rows = await this.prisma.$queryRawUnsafe<MessageRow[]>(
@@ -159,9 +190,23 @@ export class CrmMessageService {
 
   async get(id: string) {
     const scope = this.scope();
+    const visibility = await this.dataScope.resolve();
     const rows = await this.prisma.$queryRawUnsafe<MessageRow[]>(
-      `SELECT id,customer_id AS "customerId",lead_id AS "leadId",opportunity_id AS "opportunityId",direction,channel,status,provider_key AS "providerKey",recipient,subject,body,idempotency_key AS "idempotencyKey",external_message_id AS "externalMessageId",error_message AS "errorMessage",version,created_by_user_id AS "createdByUserId",sent_at AS "sentAt",delivered_at AS "deliveredAt",created_at AS "createdAt",updated_at AS "updatedAt" FROM crm_messages WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text LIMIT 1`,
+      `SELECT m.id,m.customer_id AS "customerId",m.lead_id AS "leadId",m.opportunity_id AS "opportunityId",m.direction,m.channel,m.status,m.provider_key AS "providerKey",m.recipient,m.subject,m.body,m.idempotency_key AS "idempotencyKey",m.external_message_id AS "externalMessageId",m.error_message AS "errorMessage",m.version,m.created_by_user_id AS "createdByUserId",m.sent_at AS "sentAt",m.delivered_at AS "deliveredAt",m.created_at AS "createdAt",m.updated_at AS "updatedAt"
+       FROM crm_messages m
+       WHERE m.id=$1::text AND m.tenant_id=$2::text AND m.company_id=$3::text AND m.branch_id=$4::text
+         AND (
+           $5::boolean=FALSE
+           OR (m.lead_id IS NOT NULL AND EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=m.lead_id AND l.owner_user_id=ANY($6::text[])))
+           OR (m.opportunity_id IS NOT NULL AND EXISTS(SELECT 1 FROM crm_opportunities o WHERE o.id=m.opportunity_id AND o.owner_user_id=ANY($6::text[])))
+           OR (m.customer_id IS NOT NULL AND (
+             EXISTS(SELECT 1 FROM crm_opportunities o WHERE o.customer_id=m.customer_id AND o.tenant_id=m.tenant_id AND o.company_id=m.company_id AND o.branch_id=m.branch_id AND o.owner_user_id=ANY($6::text[]))
+             OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.customer_id=m.customer_id AND l.tenant_id=m.tenant_id AND l.company_id=m.company_id AND l.branch_id=m.branch_id AND l.owner_user_id=ANY($6::text[]))
+           ))
+         )
+       LIMIT 1`,
       id, scope.tenantId, scope.companyId, scope.branchId,
+      visibility.restrictOwners, visibility.ownerUserIds,
     );
     if (!rows[0]) throw new NotFoundException('Mesaj bulunamadı.');
     return rows[0];
@@ -173,6 +218,49 @@ export class CrmMessageService {
       scope.tenantId, scope.companyId, scope.branchId, idempotencyKey,
     );
     return rows[0] ?? null;
+  }
+
+  private async assertSubjectAccess(subject: MessageSubject) {
+    if (subject.leadId) {
+      await this.dataScope.assertLeadAccess(subject.leadId);
+      return;
+    }
+    if (subject.opportunityId) {
+      await this.dataScope.assertOpportunityAccess(subject.opportunityId);
+      return;
+    }
+    if (!subject.customerId) {
+      throw new BadRequestException('Mesaj bir müşteri, potansiyel müşteri veya satış fırsatına bağlanmalıdır.');
+    }
+
+    const scope = this.scope();
+    const visibility = await this.dataScope.resolve();
+    if (!visibility.restrictOwners) return;
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT c.id
+         FROM customers c
+        WHERE c.id=$1::text AND c."tenantId"=$2::text AND c."branchId"=$4::text
+          AND (
+            EXISTS(
+              SELECT 1 FROM crm_opportunities o
+               WHERE o.customer_id=c.id AND o.tenant_id=$2::text AND o.company_id=$3::text
+                 AND o.branch_id=$4::text AND o.owner_user_id=ANY($5::text[])
+            )
+            OR EXISTS(
+              SELECT 1 FROM crm_leads l
+               WHERE l.customer_id=c.id AND l.tenant_id=$2::text AND l.company_id=$3::text
+                 AND l.branch_id=$4::text AND l.owner_user_id=ANY($5::text[])
+            )
+          )
+        LIMIT 1`,
+      subject.customerId,
+      scope.tenantId,
+      scope.companyId,
+      scope.branchId,
+      visibility.ownerUserIds,
+    );
+    if (!rows[0]) throw new ForbiddenException('Bu müşteriyle mesajlaşma yetkiniz yok.');
   }
 
   private async resolveRecipient(subject: MessageSubject, channel: CrmMessageChannel) {
