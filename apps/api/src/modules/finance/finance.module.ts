@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { CommerceFinanceSyncService } from './commerce-finance-sync.service';
 import { ExpenseAccountingController } from './expense-accounting.controller';
 import { ExpenseAccountingService } from './expense-accounting.service';
 import { ExpensePaymentsController } from './expense-payments.controller';
@@ -39,6 +40,7 @@ import { IncomeRecordsService } from './income-records.service';
     IncomeCollectionsController,
   ],
   providers: [
+    CommerceFinanceSyncService,
     ExpensesService,
     FinanceSetupService,
     FinanceConfigurationAuditService,
@@ -54,6 +56,7 @@ import { IncomeRecordsService } from './income-records.service';
     IncomeCollectionsService,
   ],
   exports: [
+    CommerceFinanceSyncService,
     ExpensesService,
     FinanceSetupService,
     FinanceConfigurationAuditService,
