@@ -156,7 +156,7 @@ export class CrmDataScopeService {
 
   async listSurveyorCandidates() {
     const context = this.tenantContext.getContext();
-    if (!context.branchId) throw new BadRequestException('Anketör yönetimi için aktif bir şube seçilmelidir.');
+    if (!context.branchId) return [];
     return this.prisma.$queryRawUnsafe<Array<{
       staffId: string;
       firstName: string;
