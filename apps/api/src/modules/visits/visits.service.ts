@@ -94,6 +94,7 @@ export class VisitsService {
   async checkIn(input: CheckInVisitInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(async (tx) => {
       if (input.idempotencyKey) {
         await tx.$queryRawUnsafe<Array<{ locked: number }>>(
@@ -288,18 +289,21 @@ export class VisitsService {
         now,
       );
 
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'visit.checked_in',
+          aggregateType: 'visit',
+          aggregateId: checkedIn[0].id,
+          payload: {
+            customerId: checkedIn[0].customerId,
+            source: checkedIn[0].source,
+            status: checkedIn[0].status,
+          },
+        })) ?? null;
+
       return checkedIn[0];
     });
-    await this.domainEvents?.publish({
-      eventName: 'visit.checked_in',
-      aggregateType: 'visit',
-      aggregateId: result.id,
-      payload: {
-        customerId: result.customerId,
-        source: result.source,
-        status: result.status,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
@@ -393,6 +397,7 @@ export class VisitsService {
   ) {
     const { tenantId, branchId, membershipId } = this.context();
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(async (tx) => {
       const currentRows = await tx.$queryRawUnsafe<VisitRow[]>(
         `SELECT * FROM "visits"
@@ -473,20 +478,23 @@ export class VisitsService {
         now,
       );
 
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName:
+            input.toStatus === 'CHECKED_OUT'
+              ? 'visit.checked_out'
+              : 'visit.status_changed',
+          aggregateType: 'visit',
+          aggregateId: updated[0].id,
+          payload: {
+            status: updated[0].status,
+            eventType,
+          },
+        })) ?? null;
+
       return updated[0];
     });
-    await this.domainEvents?.publish({
-      eventName:
-        input.toStatus === 'CHECKED_OUT'
-          ? 'visit.checked_out'
-          : 'visit.status_changed',
-      aggregateType: 'visit',
-      aggregateId: result.id,
-      payload: {
-        status: result.status,
-        eventType,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
