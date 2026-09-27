@@ -283,6 +283,186 @@ export class MarketingProviderOAuthService {
     };
   }
 
+  private async persistConnectionState(
+    connectionId: string,
+    input: { status: 'CONNECTED' | 'ERROR'; lastError?: string | null; touchSync?: boolean },
+  ) {
+    const { tenantId, companyId } = this.context();
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE corporate_marketing_provider_connections
+          SET status=$4,
+              last_error=$5,
+              last_sync_at=CASE WHEN $6::boolean THEN NOW() ELSE last_sync_at END,
+              updated_at=NOW()
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+      connectionId,
+      tenantId,
+      companyId,
+      input.status,
+      input.lastError ?? null,
+      Boolean(input.touchSync),
+    );
+  }
+
+  private async refreshGoogleAccessToken(connectionId: string) {
+    const secrets = await this.vault.load(connectionId);
+    const refreshToken = secrets?.refreshToken?.trim();
+    if (!secrets?.accessToken || !refreshToken) {
+      throw new BadRequestException(
+        'Google bağlantısı için yenileme anahtarı bulunamadı. Hesabı yeniden yetkilendirin.',
+      );
+    }
+
+    const form = new URLSearchParams({
+      client_id: this.required('GOOGLE_OAUTH_CLIENT_ID'),
+      client_secret: this.required('GOOGLE_OAUTH_CLIENT_SECRET'),
+      grant_type: 'refresh_token',
+      refresh_token: refreshToken,
+    });
+    const body = await this.responseJson(
+      await fetch('https://oauth2.googleapis.com/token', {
+        method: 'POST',
+        headers: { 'content-type': 'application/x-www-form-urlencoded' },
+        body: form,
+      }),
+    );
+    const accessToken = typeof body.access_token === 'string' ? body.access_token : '';
+    if (!accessToken) {
+      throw new BadRequestException('Google erişim anahtarı yenilenemedi.');
+    }
+    const expiresIn = typeof body.expires_in === 'number' ? body.expires_in : 3600;
+    const expiresAt = new Date(Date.now() + expiresIn * 1000).toISOString();
+
+    await this.vault.store(connectionId, {
+      ...secrets,
+      accessToken,
+      refreshToken,
+      tokenType:
+        typeof body.token_type === 'string'
+          ? body.token_type
+          : secrets.tokenType ?? 'Bearer',
+      scope:
+        typeof body.scope === 'string' ? body.scope : secrets.scope ?? '',
+      expiresAt,
+      refreshedAt: new Date().toISOString(),
+    });
+
+    return { accessToken, expiresAt };
+  }
+
+  private async accessTokenFor(connection: ConnectionRow & { provider: OAuthProvider }) {
+    const secrets = await this.vault.load(connection.id);
+    if (!secrets?.accessToken) {
+      throw new BadRequestException(
+        'Bu bağlantı için güvenli erişim bilgisi bulunamadı. Hesabı yeniden yetkilendirin.',
+      );
+    }
+
+    if (connection.provider === 'GOOGLE_ADS') {
+      const expiresAt = secrets.expiresAt ? Date.parse(secrets.expiresAt) : 0;
+      if (!Number.isFinite(expiresAt) || expiresAt <= Date.now() + 5 * 60_000) {
+        return (await this.refreshGoogleAccessToken(connection.id)).accessToken;
+      }
+    }
+
+    return secrets.accessToken;
+  }
+
+  async refresh(connectionId: string) {
+    const connection = await this.connection(connectionId);
+    if (connection.provider !== 'GOOGLE_ADS') {
+      return {
+        connectionId,
+        provider: connection.provider,
+        refreshed: false,
+        reason:
+          connection.provider === 'TIKTOK'
+            ? 'TikTok Marketing API uzun ömürlü erişim anahtarı kullanır; yeniden yetkilendirme gerektiğinde bağlantı akışı tekrar başlatılır.'
+            : 'Meta bağlantısında Google tipi refresh token akışı kullanılmaz; gerektiğinde yeniden yetkilendirme yapılır.',
+      };
+    }
+
+    const refreshed = await this.refreshGoogleAccessToken(connection.id);
+    await this.persistConnectionState(connection.id, {
+      status: 'CONNECTED',
+      lastError: null,
+    });
+    return {
+      connectionId,
+      provider: connection.provider,
+      refreshed: true,
+      expiresAt: refreshed.expiresAt,
+    };
+  }
+
+  async verify(connectionId: string) {
+    const connection = await this.connection(connectionId);
+    try {
+      const accessToken = await this.accessTokenFor(connection);
+
+      if (connection.provider === 'META') {
+        const base =
+          this.config.get<string>('META_GRAPH_API_BASE_URL')?.trim() ||
+          'https://graph.facebook.com';
+        const url = new URL('/me', base.endsWith('/') ? base : `${base}/`);
+        url.searchParams.set('fields', 'id,name');
+        const response = await fetch(url, {
+          headers: { authorization: `Bearer ${accessToken}` },
+        });
+        await this.responseJson(response);
+      } else if (connection.provider === 'GOOGLE_ADS') {
+        const url = new URL('https://www.googleapis.com/oauth2/v3/tokeninfo');
+        url.searchParams.set('access_token', accessToken);
+        await this.responseJson(await fetch(url));
+      } else {
+        const verifyUrl = this.config
+          .get<string>('TIKTOK_BUSINESS_VERIFY_URL')
+          ?.trim();
+        if (verifyUrl) {
+          const url = new URL(
+            verifyUrl.replace(
+              '{advertiser_id}',
+              encodeURIComponent(connection.externalAccountId ?? ''),
+            ),
+          );
+          const response = await fetch(url, {
+            headers: { 'Access-Token': accessToken },
+          });
+          const body = await this.responseJson(response);
+          if (typeof body.code === 'number' && body.code !== 0) {
+            throw new BadRequestException(
+              'TikTok Business bağlantı doğrulaması platform tarafından reddedildi.',
+            );
+          }
+        } else if (!connection.externalAccountId) {
+          throw new BadRequestException(
+            'TikTok bağlantısını doğrulamak için reklam hesabı numarası veya TIKTOK_BUSINESS_VERIFY_URL yapılandırması gereklidir.',
+          );
+        }
+      }
+
+      await this.persistConnectionState(connection.id, {
+        status: 'CONNECTED',
+        lastError: null,
+        touchSync: true,
+      });
+      return {
+        connectionId: connection.id,
+        provider: connection.provider,
+        healthy: true,
+        verifiedAt: new Date().toISOString(),
+      };
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : 'Platform bağlantısı doğrulanamadı.';
+      await this.persistConnectionState(connection.id, {
+        status: 'ERROR',
+        lastError: message.slice(0, 1000),
+      });
+      throw error;
+    }
+  }
+
   async complete(
     connectionId: string,
     input: { code: string; state: string },
