@@ -37,7 +37,7 @@ export class BrandGovernanceService {
       where: { id: branchId, companyId, status: 'ACTIVE' },
       select: { id: true },
     });
-    if (!branch) throw new BadRequestException('Brand governance branch is outside the active company.');
+    if (!branch) throw new BadRequestException('Marka politikası için seçilen şube aktif şirket kapsamında değil.');
   }
 
   async list() {
@@ -72,7 +72,7 @@ export class BrandGovernanceService {
 
     if (context.branchId) {
       if (requestedBranchId !== context.branchId) {
-        throw new BadRequestException('Branch-scoped users may only manage their active branch governance profile.');
+        throw new BadRequestException('Şube kapsamındaki kullanıcılar yalnızca aktif şubelerinin marka politikasını yönetebilir.');
       }
     } else if (requestedBranchId) {
       await this.assertBranch(requestedBranchId);
