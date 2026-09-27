@@ -28,6 +28,7 @@ import {
   Th,
 } from "@/components/ui";
 import { Modal } from "@/components/modal";
+import { TeamShareAction } from "@/components/team-share-action";
 import { useToast } from "@/components/toast";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -677,7 +678,19 @@ export default function PaymentsPage() {
                         </span>
                       </Td>
                       <Td label="İşlem">
-                        <div className="flex justify-end">
+                        <div className="flex justify-end gap-1.5">
+                          <TeamShareAction
+                            payload={{
+                              kind: "PAYMENT",
+                              id: payment.id,
+                              title: money(payment.amount),
+                              subtitle: customerMap.get(payment.appointment.customerId) ?? "Ödeme",
+                              meta: [serviceMap.get(payment.appointment.serviceId) ?? "Hizmet", dateTime(payment.paidAt), METHOD_LABELS[payment.method], payment.status === "COMPLETED" ? "Tamamlandı" : "İade edildi"],
+                              href: "/payments",
+                            }}
+                            label="Paylaş"
+                            className="rounded-lg px-2.5 py-1.5 text-[10px] font-medium text-[var(--accent)] hover:bg-[var(--accent-soft)]"
+                          />
                           {payment.status === "COMPLETED" ? (
                             <button
                               type="button"
@@ -690,9 +703,7 @@ export default function PaymentsPage() {
                             >
                               İade et
                             </button>
-                          ) : (
-                            <span className="text-[10px] text-[var(--muted-soft)]">—</span>
-                          )}
+                          ) : null}
                         </div>
                       </Td>
                     </tr>
@@ -726,19 +737,33 @@ export default function PaymentsPage() {
                     <span>{payment.status === "COMPLETED" ? "Tamamlandı" : "İade edildi"}</span>
                   </div>
 
-                  {payment.status === "COMPLETED" ? (
-                    <button
-                      type="button"
-                      disabled={!canRefund}
-                      onClick={() => {
-                        setRefundId(payment.id);
-                        setRefundReason("");
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <TeamShareAction
+                      payload={{
+                        kind: "PAYMENT",
+                        id: payment.id,
+                        title: money(payment.amount),
+                        subtitle: customerMap.get(payment.appointment.customerId) ?? "Ödeme",
+                        meta: [serviceMap.get(payment.appointment.serviceId) ?? "Hizmet", dateTime(payment.paidAt), METHOD_LABELS[payment.method], payment.status === "COMPLETED" ? "Tamamlandı" : "İade edildi"],
+                        href: "/payments",
                       }}
-                      className="mt-3 rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)] disabled:opacity-40"
-                    >
-                      İade et
-                    </button>
-                  ) : null}
+                      label="Sohbette Paylaş"
+                      className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--accent)]"
+                    />
+                    {payment.status === "COMPLETED" ? (
+                      <button
+                        type="button"
+                        disabled={!canRefund}
+                        onClick={() => {
+                          setRefundId(payment.id);
+                          setRefundReason("");
+                        }}
+                        className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)] disabled:opacity-40"
+                      >
+                        İade et
+                      </button>
+                    ) : null}
+                  </div>
                 </article>
               ))}
             </div>
