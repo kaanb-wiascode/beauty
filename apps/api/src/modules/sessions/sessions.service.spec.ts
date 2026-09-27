@@ -132,14 +132,14 @@ describe('SessionsService concurrency guards', () => {
   });
 
   it('claims RESERVED session atomically when releasing it', async () => {
-    const { service, prisma } = await createService({
+    const { service, tx } = await createService({
       sessionStatus: 'RESERVED',
       appointmentId: 'appointment-a',
     });
 
     await service.release('session-a');
 
-    expect(prisma.session.updateMany).toHaveBeenCalledWith({
+    expect(tx.session.updateMany).toHaveBeenCalledWith({
       where: {
         id: 'session-a',
         tenantId: 'tenant-a',
