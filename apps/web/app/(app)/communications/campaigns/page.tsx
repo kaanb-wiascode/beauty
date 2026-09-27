@@ -17,7 +17,7 @@ type Campaign = {
   plannedBudget: string | number;
   spentAmount: string | number;
   currency: string;
-  potansiyel müşteriCount: number;
+  leadCount: number;
   revenue: string | number;
   startsAt?: string | null;
   endsAt?: string | null;
@@ -56,9 +56,9 @@ export default function CampaignsPage() {
   const totals = useMemo(() => campaigns.reduce((acc, row) => ({
     spend: acc.spend + Number(row.spentAmount || 0),
     budget: acc.budget + Number(row.plannedBudget || 0),
-    potansiyel müşteris: acc.leads + Number(row.leadCount || 0),
+    leads: acc.leads + Number(row.leadCount || 0),
     revenue: acc.revenue + Number(row.revenue || 0),
-  }), { spend: 0, budget: 0, potansiyel müşteris: 0, revenue: 0 }), [campaigns]);
+  }), { spend: 0, budget: 0, leads: 0, revenue: 0 }), [campaigns]);
 
   async function createCampaign(event: FormEvent) {
     event.preventDefault();
