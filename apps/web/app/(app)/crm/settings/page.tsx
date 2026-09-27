@@ -150,6 +150,25 @@ export default function CrmSettingsPage() {
     }
   }
 
+  async function addTeamMember(teamId: string) {
+    const userId = memberSelections[teamId];
+    if (!userId) {
+      setError("Eklenecek ekip üyesini seçin.");
+      return;
+    }
+    setSaving(`member-${teamId}`);
+    setError("");
+    try {
+      await api(`/crm/teams/${teamId}/members`, { method: "POST", body: { userId } });
+      setMemberSelections((current) => ({ ...current, [teamId]: "" }));
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Ekip üyesi eklenemedi.");
+    } finally {
+      setSaving("");
+    }
+  }
+
   async function updateSla(rule: AutomationRule, config: Record<string, unknown>, enabled = rule.enabled) {
     setSaving(rule.ruleKey);
     setError("");
