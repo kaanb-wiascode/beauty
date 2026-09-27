@@ -163,12 +163,17 @@ export class CrmCustomer360Service {
       this.prisma.$queryRawUnsafe<EventRow[]>(
         `SELECT e.id,e.opportunity_id AS "opportunityId",e.event_type AS "eventType",e.created_at AS "createdAt"
            FROM crm_events e
-           JOIN crm_opportunities o ON o.id=e.opportunity_id
-          WHERE o.customer_id=$4::text AND e.tenant_id=$1::text AND e.company_id=$2::text
+           LEFT JOIN crm_opportunities o ON o.id=e.opportunity_id
+          WHERE e.tenant_id=$1::text AND e.company_id=$2::text
             AND ($3::text IS NULL OR e.branch_id=$3::text)
-            AND ($5::boolean=FALSE OR o.owner_user_id=ANY($6::text[]))
+            AND (e.customer_id=$4::text OR o.customer_id=$4::text)
+            AND (
+              $5::boolean=FALSE
+              OR (o.owner_user_id IS NOT NULL AND o.owner_user_id=ANY($6::text[]))
+              OR (o.id IS NULL)
+            )
           ORDER BY e.created_at DESC,e.id DESC
-          LIMIT 10`,
+          LIMIT 20`,
         ...scope,
         customerId,
         visibility.restrictOwners,
