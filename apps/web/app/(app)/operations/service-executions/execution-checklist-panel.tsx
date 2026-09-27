@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type ChecklistItem = {
   id: string;
@@ -126,7 +128,7 @@ export function ExecutionChecklistPanel({
     <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Hizmet Kontrol Listesi</p>
+          <div className="flex items-start gap-2"><p className="text-xs font-semibold text-[var(--ink)]">Hizmet Kontrol Listesi</p><CardInfo help={getCardHelp("Hizmet Kontrol Listesi")} /></div>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
             Sürüm {checklist.templateVersion} · zorunlu {checklist.requiredCompletedCount}/{checklist.requiredCount}
           </p>
