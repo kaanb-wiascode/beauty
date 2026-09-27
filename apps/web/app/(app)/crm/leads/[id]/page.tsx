@@ -233,15 +233,15 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
     }
   }
 
-  if (loading) return <Spinner label="Potansiyel Müşteri Detayı Hazırlanıyor..." />;
+  if (loading) return <Spinner label="Potansiyel müşteri detayı hazırlanıyor..." />;
   if (!lead)
     return (
       <div className="space-y-4">
         {error ? <Alert>{error}</Alert> : null}
         <EmptyState
-          title="Potansiyel Müşteri Bulunamadı"
-          description="Kayıt Silinmiş Veya Aktif Çalışma Kapsamının Dışında Olabilir."
-          action={<Link href="/crm/leads"><Button>Potansiyel Müşteri Havuzuna Dön</Button></Link>}
+          title="Potansiyel müşteri bulunamadı"
+          description="Kayıt silinmiş veya aktif çalışma kapsamının dışında olabilir."
+          action={<Link href="/crm/leads"><Button>Potansiyel müşteri havuzuna dön</Button></Link>}
         />
       </div>
     );
@@ -250,7 +250,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
   const owner = assignees.find((person) => person.id === lead.ownerUserId);
   return (
     <div className="space-y-6">
-      <Link href="/crm/leads" className="inline-flex text-[11px] font-semibold text-[#1674BD]">← Potansiyel Müşteri Havuzuna Dön</Link>
+      <Link href="/crm/leads" className="inline-flex text-[11px] font-semibold text-[#1674BD]">← Potansiyel müşteri havuzuna dön</Link>
       <PageHeader
         title={`${lead.firstName} ${lead.lastName}`}
         description={`${leadSourceLabels[lead.source] ?? lead.source} Kaynağından · ${leadStatusLabels[lead.status as LeadStatus]}`}
@@ -326,9 +326,28 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
             </dl>
             <div className="mt-5 border-t border-[var(--line)] pt-4">
               <p className="text-[10px] text-[var(--muted)]">İlgi / İhtiyaç Notu</p>
-              <p className="mt-2 whitespace-pre-wrap text-[12px] leading-6">{lead.interestNote || "Not Eklenmemiş."}</p>
+              <p className="mt-2 whitespace-pre-wrap text-[12px] leading-6">{lead.interestNote || "Not eklenmemiş."}</p>
             </div>
           </section>
+          {lead.source === "SURVEYOR" ? <section className="rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)]">
+            <div className="flex items-start gap-2">
+              <CardInfo help={getCardHelp("Kaynak & Anketör", "Potansiyel müşteriyi kazandıran Anketörü ve saha çalışmasına ait kaynak bilgilerini gösterir. Bu bilgiler ileride performans, kota ve hakediş hesaplarında kullanılabilir.")} />
+              <div><h2 className="text-[13px] font-semibold">Kaynak & Anketör</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Müşterinin kazanım ve saha kaynağı</p></div>
+            </div>
+            <dl className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {[
+                ["Anketör", [lead.surveyorFirstName, lead.surveyorLastName].filter(Boolean).join(" ") || "Anketör bilgisi bulunmuyor"],
+                ["Anket tarihi", lead.surveyDate ? formatDateTime(lead.surveyDate) : "—"],
+                ["Çalışma noktası", lead.surveyLocation || "—"],
+                ["Masa / nokta", lead.surveyDesk || "—"],
+                ["Kampanya / saha çalışması", lead.surveyCampaign || "—"],
+                ["Haftalık masa kotası", lead.surveyorWeeklyDeskQuota == null ? "—" : String(lead.surveyorWeeklyDeskQuota)],
+              ].map(([label, value]) => <div key={label}>
+                <dt className="text-[10px] text-[var(--muted)]">{label}</dt>
+                <dd className="mt-1 text-[12px] font-medium">{value}</dd>
+              </div>)}
+            </dl>
+          </section> : null}
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
               <div className="flex items-start gap-2"><CardInfo help={getCardHelp("Satış Fırsatı", "Bu potansiyel müşteriden oluşturulan aktif satış fırsatının aşamasını, değerini ve kazanma olasılığını gösterir.")} /><h2 className="text-[13px] font-semibold">Satış Fırsatı</h2></div>
