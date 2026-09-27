@@ -18,6 +18,15 @@ type Connection = {
   lastError?: string | null;
 };
 
+type MetaPageResult = {
+  connectionId: string;
+  pages: Array<{
+    id: string;
+    name: string;
+    subscribed: boolean;
+  }>;
+};
+
 type WebhookSetup = {
   connectionId: string;
   webhookUrl: string;
@@ -81,6 +90,9 @@ export default function AdvertisingConnectionsPage() {
   const [syncingId, setSyncingId] = useState("");
   const [webhookConfiguringId, setWebhookConfiguringId] = useState("");
   const [webhookSetup, setWebhookSetup] = useState<WebhookSetup | null>(null);
+  const [metaPagesByConnection, setMetaPagesByConnection] = useState<Record<string, MetaPageResult["pages"]>>({});
+  const [loadingMetaPagesId, setLoadingMetaPagesId] = useState("");
+  const [subscribingMetaPageId, setSubscribingMetaPageId] = useState("");
   const [accountOptions, setAccountOptions] = useState<Record<string, DiscoveredAccounts["accounts"]>>({});
   const [error, setError] = useState("");
   const [provider, setProvider] = useState("META");
@@ -185,6 +197,40 @@ export default function AdvertisingConnectionsPage() {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "Reklam verileri eşitlenemedi.") : "Reklam verileri eşitlenemedi.");
     } finally {
       setSyncingId("");
+    }
+  }
+
+  async function loadMetaPages(id: string) {
+    setLoadingMetaPagesId(id);
+    setError("");
+    try {
+      const result = await api<MetaPageResult>(
+        `/corporate-communications/provider-connections/${id}/meta/pages`,
+      );
+      setMetaPagesByConnection((current) => ({ ...current, [id]: result.pages }));
+      if (!result.pages.length) {
+        setError("Bu Meta yetkilendirmesi kapsamında erişilebilir Facebook Sayfası bulunamadı.");
+      }
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Facebook Sayfaları alınamadı.") : "Facebook Sayfaları alınamadı.");
+    } finally {
+      setLoadingMetaPagesId("");
+    }
+  }
+
+  async function subscribeMetaPage(connectionId: string, pageId: string) {
+    setSubscribingMetaPageId(pageId);
+    setError("");
+    try {
+      await api(
+        `/corporate-communications/provider-connections/${connectionId}/meta/pages/${encodeURIComponent(pageId)}/subscribe`,
+        { method: "POST" },
+      );
+      await loadMetaPages(connectionId);
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Meta lead aboneliği oluşturulamadı.") : "Meta lead aboneliği oluşturulamadı.");
+    } finally {
+      setSubscribingMetaPageId("");
     }
   }
 
@@ -314,6 +360,16 @@ export default function AdvertisingConnectionsPage() {
                   className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
                 >
                   {discoveringId === row.id ? "Hesaplar Getiriliyor..." : "Hesapları Getir"}
+                </button>
+              ) : null}
+              {row.provider === "META" && connectionHealth?.credentialsConfigured ? (
+                <button
+                  type="button"
+                  disabled={loadingMetaPagesId === row.id}
+                  onClick={() => void loadMetaPages(row.id)}
+                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  {loadingMetaPagesId === row.id ? "Sayfalar Getiriliyor..." : "Facebook Sayfalarını Getir"}
                 </button>
               ) : null}
               {connectionHealth?.credentialsConfigured && row.externalAccountId ? (
