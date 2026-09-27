@@ -214,6 +214,49 @@ export default function CrmSettingsPage() {
         <GlassCard className="p-0">
           <div className="border-b border-[var(--line)] px-5 py-4">
             <div className="flex items-start gap-2">
+              <CardInfo help={getCardHelp("Satış Ekipleri", "Potansiyel müşteri dağıtımı ve SLA eskalasyonunda kullanılacak satış ekiplerini ve ekip üyelerini yönetir.")} />
+              <div><h2 className="text-[15px] font-semibold">Satış Ekipleri</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Ekip yöneticileri ve satış temsilcileri</p></div>
+            </div>
+          </div>
+          {teams.length ? <div className="divide-y divide-[var(--line)]">{teams.map((team) => {
+            const available = assignees.filter((person) => !team.members.some((member) => member.userId === person.id));
+            return <div key={team.id} className="px-5 py-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div><p className="text-[12px] font-semibold">{team.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Ekip yöneticisi: {[team.managerFirstName, team.managerLastName].filter(Boolean).join(" ") || "Belirtilmedi"} · {team.members.length} üye</p></div>
+                <span className="text-[10px] font-medium text-[var(--muted)]">{team.active ? "Aktif" : "Pasif"}</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">{team.members.map((member) => <span key={member.userId} className="inline-flex items-center gap-1.5 rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-1 text-[10px]">
+                {member.firstName} {member.lastName}
+                {member.userId !== team.managerUserId ? <button type="button" onClick={() => void removeTeamMember(team.id, member.userId)} disabled={saving === `member-${team.id}`} className="text-[var(--muted)] hover:text-[var(--danger)]" aria-label="Ekipten çıkar">×</button> : null}
+              </span>)}</div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                <Select value={memberSelections[team.id] ?? ""} onChange={(event) => setMemberSelections((current) => ({ ...current, [team.id]: event.target.value }))}>
+                  <option value="">Ekip üyesi ekleyin</option>
+                  {available.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+                </Select>
+                <Button variant="secondary" disabled={!memberSelections[team.id] || saving === `member-${team.id}`} onClick={() => void addTeamMember(team.id)}>Üye Ekle</Button>
+              </div>
+            </div>;
+          })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">Henüz CRM satış ekibi oluşturulmamış.</div>}
+        </GlassCard>
+
+        <GlassCard>
+          <div className="flex items-start gap-2">
+            <CardInfo help={getCardHelp("Yeni Satış Ekibi", "Yeni bir CRM satış ekibi oluşturur ve seçilen kullanıcıyı ekip yöneticisi olarak tanımlar.")} />
+            <div><h2 className="text-[15px] font-semibold">Yeni Satış Ekibi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Aktif şube için ekip oluşturun</p></div>
+          </div>
+          <form onSubmit={createTeam} className="mt-5 space-y-4">
+            <Field label="Ekip adı" required><TextInput value={teamForm.name} onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })} /></Field>
+            <Field label="Ekip yöneticisi" required><Select value={teamForm.managerUserId} onChange={(event) => setTeamForm({ ...teamForm, managerUserId: event.target.value })}><option value="">Yönetici seçin</option>{assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</Select></Field>
+            <Button type="submit" className="w-full" disabled={saving === "team"}>{saving === "team" ? "Oluşturuluyor..." : "Ekibi Oluştur"}</Button>
+          </form>
+        </GlassCard>
+      </section>
+
+      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+        <GlassCard className="p-0">
+          <div className="border-b border-[var(--line)] px-5 py-4">
+            <div className="flex items-start gap-2">
               <CardInfo help={getCardHelp("Potansiyel Müşteri Atama Kuralları", "Yeni potansiyel müşterilerin satış ekibine hangi yöntemle dağıtılacağını belirler.")} />
               <div>
                 <h2 className="text-[15px] font-semibold">Potansiyel Müşteri Atama Kuralları</h2>
