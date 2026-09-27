@@ -12,6 +12,18 @@ describe('CrmOperationsService', () => {
     } as never;
   }
 
+  function dataScope(branchId: string | null = 'branch-a') {
+    return {
+      resolve: jest.fn().mockResolvedValue({
+        scope: branchId ? 'BRANCH' : 'COMPANY',
+        userId: 'user-1',
+        ownerUserIds: [],
+        restrictOwners: false,
+        branchId,
+      }),
+    } as never;
+  }
+
   it('returns branch-scoped operational metrics, aging and owner workload', async () => {
     const dayStart = new Date('2026-09-13T21:00:00.000Z');
     const dayEnd = new Date('2026-09-14T21:00:00.000Z');
@@ -57,6 +69,7 @@ describe('CrmOperationsService', () => {
     const service = new CrmOperationsService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(service.getSummary(dayStart, dayEnd)).resolves.toEqual({
@@ -83,10 +96,12 @@ describe('CrmOperationsService', () => {
       'branch-a',
       dayStart,
       dayEnd,
+      false,
+      [],
     ]);
 
     for (const call of query.mock.calls.slice(1)) {
-      expect(call.slice(1)).toEqual(['tenant-a', 'company-a', 'branch-a']);
+      expect(call.slice(1)).toEqual(['tenant-a', 'company-a', 'branch-a', false, []]);
     }
   });
 
@@ -97,6 +112,7 @@ describe('CrmOperationsService', () => {
     const service = new CrmOperationsService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(
@@ -123,6 +139,8 @@ describe('CrmOperationsService', () => {
       'OVERDUE',
       dayStart,
       dayEnd,
+      false,
+      [],
       25,
     ]);
   });
@@ -133,6 +151,7 @@ describe('CrmOperationsService', () => {
     const service = new CrmOperationsService(
       { $queryRawUnsafe: query } as never,
       tenant(),
+      dataScope(),
     );
 
     await expect(
@@ -155,6 +174,8 @@ describe('CrmOperationsService', () => {
       'branch-a',
       'user-1',
       staleBefore,
+      false,
+      [],
       40,
     ]);
   });
