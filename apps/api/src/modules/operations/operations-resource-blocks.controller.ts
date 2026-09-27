@@ -27,21 +27,21 @@ export class OperationsResourceBlocksController {
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list(@Query() query: Record<string, unknown>) {
     return this.blocks.list(listResourceBlocksQuerySchema.parse(query));
   }
 
   @Post()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   create(@Body() body: unknown) {
     return this.blocks.create(createResourceBlockSchema.parse(body));
   }
 
   @Post(':blockId/cancel')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   cancel(
     @Param('blockId', new ParseUUIDPipe()) blockId: string,
     @Body() body: unknown,
