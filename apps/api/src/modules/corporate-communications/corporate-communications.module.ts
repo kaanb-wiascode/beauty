@@ -16,6 +16,7 @@ import { MarketingLeadConversionController } from './marketing-lead-conversion.c
 import { MarketingLeadAppointmentService } from './marketing-lead-appointment.service';
 import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.service';
 import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-bridge.service';
+import { MarketingLeadWebhookService } from './marketing-lead-webhook.service';
 import { MarketingProviderAccountsService } from './marketing-provider-accounts.service';
 import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
 import { MarketingProviderSyncService } from './marketing-provider-sync.service';
@@ -41,6 +42,7 @@ import { MarketingProviderVaultService } from './marketing-provider-vault.servic
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
     MarketingLeadCustomerBridgeService,
+    MarketingLeadWebhookService,
     MarketingProviderVaultService,
     MarketingProviderOAuthService,
     MarketingProviderAccountsService,
@@ -56,6 +58,7 @@ import { MarketingProviderVaultService } from './marketing-provider-vault.servic
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
     MarketingLeadCustomerBridgeService,
+    MarketingLeadWebhookService,
     MarketingProviderVaultService,
     MarketingProviderOAuthService,
     MarketingProviderAccountsService,
