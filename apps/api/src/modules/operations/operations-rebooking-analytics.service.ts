@@ -22,7 +22,7 @@ export class OperationsRebookingAnalyticsService {
       throw new InternalServerErrorException('Tenant context is missing.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, branchId };
   }
