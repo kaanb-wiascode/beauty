@@ -148,6 +148,10 @@ export const completeProviderOAuthSchema = z.object({
   state: z.string().trim().min(20).max(8000),
 });
 
+export const selectProviderAccountSchema = z.object({
+  externalAccountId: z.string().trim().min(1).max(240),
+});
+
 export const routingConditionsSchema = z
   .object({
     autoFollowUp: z.boolean().default(true),
