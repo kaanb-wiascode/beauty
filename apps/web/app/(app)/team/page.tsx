@@ -187,6 +187,8 @@ export default function TeamPage() {
   const [readerModalTitle, setReaderModalTitle] = useState("");
   const [messageReaders, setMessageReaders] = useState<MessageReader[]>([]);
   const [messageInfo, setMessageInfo] = useState<Message | null>(null);
+  const [forwardingMessage, setForwardingMessage] = useState<Message | null>(null);
+  const [forwarding, setForwarding] = useState(false);
   const [attachmentTab, setAttachmentTab] = useState<"MEDIA" | "FILES">("MEDIA");
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
@@ -684,6 +686,23 @@ export default function TeamPage() {
     }
   }
 
+  async function forwardMessageTo(destinationConversationId: string) {
+    if (!forwardingMessage || forwarding) return;
+    setForwarding(true);
+    try {
+      await api(`/team/messages/${forwardingMessage.id}/forward`, {
+        method: "POST",
+        body: { destinationConversationId },
+      });
+      setForwardingMessage(null);
+      await loadOverview(true);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Mesaj iletilemedi.");
+    } finally {
+      setForwarding(false);
+    }
+  }
+
   async function showMessageInfo(message: Message) {
     setMessageInfo(message);
     try {
@@ -1046,6 +1065,7 @@ export default function TeamPage() {
                             <div className={`mt-2 flex flex-wrap gap-1 border-t pt-2 ${mine ? "border-white/10" : "border-[var(--line)]"}`}>
                               <button type="button" onClick={() => setReplyTo(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>Yanıtla</button>
                               <button type="button" onClick={() => void showMessageInfo(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>Bilgi</button>
+                              <button type="button" onClick={() => setForwardingMessage(message)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>İlet</button>
                               <button type="button" onClick={() => void togglePin(message.id)} className={`text-[9px] font-semibold ${mine ? "text-white/65" : "text-[var(--muted)]"}`}>{message.isPinned ? "Sabiti kaldır" : "Sabitle"}</button>
                               {["👍","❤️","👏"].map((emoji) => <button key={emoji} type="button" onClick={() => void toggleReaction(message.id, emoji)} className="text-[11px]">{emoji}</button>)}
                               {mine ? <button type="button" onClick={() => startEditing(message)} className="ml-1 text-[9px] font-semibold text-white/65">Düzenle</button> : null}
@@ -1381,6 +1401,37 @@ export default function TeamPage() {
             {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[65vh] w-full rounded-[14px] bg-white" /> : null}
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(forwardingMessage)}
+        onClose={() => { if (!forwarding) setForwardingMessage(null); }}
+        title="Mesajı ilet"
+        description="Mesajı ve eklerini başka bir konuşmaya gönderin."
+        size="sm"
+      >
+        <div className="max-h-[420px] overflow-y-auto">
+          {conversations.filter((conversation) => conversation.id !== activeId).map((conversation) => (
+            <button
+              key={conversation.id}
+              type="button"
+              disabled={forwarding}
+              onClick={() => void forwardMessageTo(conversation.id)}
+              className="flex w-full items-center gap-3 rounded-[12px] px-3 py-3 text-left transition hover:bg-[var(--surface-2)] disabled:opacity-50"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[var(--accent-soft)] text-[9px] font-semibold text-[var(--accent)]">
+                {conversation.displayName.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{conversation.displayName}</p>
+                <p className="mt-0.5 text-[8px] text-[var(--muted)]">{conversation.type === "DIRECT" ? "Birebir" : conversation.type === "GROUP" ? "Grup" : "Kanal"}</p>
+              </div>
+            </button>
+          ))}
+          {conversations.filter((conversation) => conversation.id !== activeId).length === 0 ? (
+            <p className="py-8 text-center text-[10px] text-[var(--muted)]">İletilebilecek başka konuşma yok.</p>
+          ) : null}
+        </div>
       </Modal>
 
       <Modal
