@@ -1,7 +1,7 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { useCallback, useEffect, useState } from "react";
+import { Alert, Spinner, Select } from "@/components/ui";
 import { CardInfo } from "@/components/card-info";
 import { getCardHelp } from "@/lib/card-help";
 import { api, ApiError } from "@/lib/api";
@@ -94,9 +94,9 @@ export default function AdvertisingConnectionsPage() {
   const [health, setHealth] = useState<ConnectionHealth | null>(null);
   const [configurationReadiness, setConfigurationReadiness] = useState<ConfigurationReadiness | null>(null);
   const [loading, setLoading] = useState(true);
-  const [saving, setSaving] = useState(false);
   const [disconnectingId, setDisconnectingId] = useState("");
   const [connectingId, setConnectingId] = useState("");
+  const [startingProvider, setStartingProvider] = useState("");
   const [verifyingId, setVerifyingId] = useState("");
   const [discoveringId, setDiscoveringId] = useState("");
   const [selectingId, setSelectingId] = useState("");
@@ -108,19 +108,18 @@ export default function AdvertisingConnectionsPage() {
   const [subscribingMetaPageId, setSubscribingMetaPageId] = useState("");
   const [accountOptions, setAccountOptions] = useState<Record<string, DiscoveredAccounts["accounts"]>>({});
   const [error, setError] = useState("");
-  const [provider, setProvider] = useState("META");
-  const [displayName, setDisplayName] = useState("");
-  const [externalAccountId, setExternalAccountId] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true); setError("");
     try {
-      const [connections, connectionHealth] = await Promise.all([
+      const [connections, connectionHealth, readiness] = await Promise.all([
         api<Connection[]>("/corporate-communications/provider-connections"),
         api<ConnectionHealth>("/corporate-communications/provider-connections/health"),
+        api<ConfigurationReadiness>("/corporate-communications/provider-connections/configuration-readiness"),
       ]);
       setRows(connections);
       setHealth(connectionHealth);
+      setConfigurationReadiness(readiness);
     } catch (e) {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "Entegrasyonlar yüklenemedi.") : "Entegrasyonlar yüklenemedi.");
     }
@@ -128,13 +127,23 @@ export default function AdvertisingConnectionsPage() {
   }, []);
   useEffect(() => { void load(); }, [load]);
 
-  async function create(event: FormEvent) {
-    event.preventDefault(); setSaving(true); setError("");
+  async function connectProvider(provider: "META" | "GOOGLE_ADS" | "TIKTOK") {
+    setStartingProvider(provider);
+    setError("");
     try {
-      await api("/corporate-communications/provider-connections", { method: "POST", body: { provider, displayName, externalAccountId: externalAccountId || undefined } });
-      setDisplayName(""); setExternalAccountId(""); await load();
-    } catch (e) { setError(e instanceof ApiError ? userErrorMessage(e.message, "Bağlantı kaydı oluşturulamadı.") : "Bağlantı kaydı oluşturulamadı."); }
-    finally { setSaving(false); }
+      const result = await api<{ authorizationUrl: string }>(
+        "/corporate-communications/provider-connections/oauth/start",
+        { method: "POST", body: { provider } },
+      );
+      window.location.assign(result.authorizationUrl);
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? userErrorMessage(e.message, "Platform bağlantısı başlatılamadı.")
+          : "Platform bağlantısı başlatılamadı.",
+      );
+      setStartingProvider("");
+    }
   }
 
   async function connect(id: string) {
@@ -333,7 +342,53 @@ export default function AdvertisingConnectionsPage() {
     </Alert>
 
     <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
-      {canManage ? <form onSubmit={(e) => void create(e)} className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Bağlantı Kaydı Ekle</h2><CardInfo help={getCardHelp("Bağlantı Kaydı Ekle", "Harici reklam hesabını VALOO içinde tanımlar. Gerçek bağlantı kurulumu için platform yetkilendirmesi ayrıca gerekir.")} /></div><p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Bu alanda şifre istenmez. Yalnızca reklam hesabını tanımlamak için gerekli temel bilgileri girin.</p><label className="mt-5 block text-[11px] font-semibold text-[var(--muted)]">Reklam Platformu<Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}><option value="META">Meta</option><option value="GOOGLE_ADS">Google Ads</option><option value="TIKTOK">TikTok</option><option value="OTHER">Diğer</option></Select></label><label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">Görünen Ad<input required className={fieldClass} value={displayName} onChange={(e) => setDisplayName(e.target.value)} placeholder="Örn. Merkez Meta Ads" /></label><label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">Reklam Hesabı Numarası<input className={fieldClass} value={externalAccountId} onChange={(e) => setExternalAccountId(e.target.value)} placeholder="Varsa platformdaki hesap numarası" /></label><Button className="mt-5" disabled={saving} type="submit">{saving ? "Kaydediliyor..." : "Bağlantı Kaydı Oluştur"}</Button></form> : null}
+      {canManage ? (
+        <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
+          <div className="flex items-center gap-2">
+            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Platform Bağla</h2>
+            <CardInfo help={getCardHelp("Platform Bağla", "Bir platform seçtiğinizde VALOO bağlantı kaydını otomatik oluşturur ve sizi platformun resmi izin ekranına yönlendirir. Reklam hesabı numarası veya teknik kimlik girmeniz gerekmez.")} />
+          </div>
+          <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">
+            Hesabınızı seçin, platformun resmi izin ekranında erişime onay verin ve otomatik olarak VALOO’ya geri dönün.
+          </p>
+          <div className="mt-4 space-y-3">
+            {([
+              ["META", "Meta", "Facebook ve Instagram reklam hesapları, Lead Ads ve performans verileri"],
+              ["GOOGLE_ADS", "Google Ads", "Google Ads hesapları, kampanyalar ve potansiyel müşteri formları"],
+              ["TIKTOK", "TikTok Ads", "TikTok reklam hesapları, kampanyalar ve Lead Generation verileri"],
+            ] as const).map(([providerKey, label, detail]) => {
+              const readiness = configurationReadiness?.providers.find((item) => item.provider === providerKey);
+              return (
+                <div key={providerKey} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[12px] font-semibold text-[var(--ink)]">{label}</p>
+                      <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">{detail}</p>
+                    </div>
+                    <button
+                      type="button"
+                      disabled={startingProvider === providerKey || readiness?.ready === false}
+                      onClick={() => void connectProvider(providerKey)}
+                      className="rounded-[10px] bg-[var(--accent)] px-4 py-2.5 text-[10px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      {startingProvider === providerKey
+                        ? "Platforma Yönlendiriliyor..."
+                        : readiness?.ready === false
+                          ? "Kurulum Bekleniyor"
+                          : "Bağla"}
+                    </button>
+                  </div>
+                  {readiness?.ready === false ? (
+                    <p className="mt-2 text-[9px] leading-4 text-amber-700">
+                      VALOO platform yapılandırması tamamlandığında bu bağlantı otomatik olarak aktif olacaktır.
+                    </p>
+                  ) : null}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Bağlantılar</h2><CardInfo help={getCardHelp("Bağlantılar", "Tanımlı reklam ve pazarlama hesaplarının bağlantı durumunu ve son eşitleme bilgisini gösterir.")} /></div>{rows.length ? <div className="mt-4 space-y-3">{rows.map((row) => {
         const connectionHealth = health?.connections.find((item) => item.id === row.id);
         return <div key={row.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
