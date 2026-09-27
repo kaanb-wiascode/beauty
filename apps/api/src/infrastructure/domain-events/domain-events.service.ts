@@ -135,34 +135,43 @@ export class DomainEventsService implements OnModuleInit, OnModuleDestroy {
   }
 
   async dispatchStored(id: string): Promise<void> {
-    const rows = await this.prisma.$queryRawUnsafe<
-      Array<{
-        id: string;
-        tenantId: string;
-        companyId: string;
-        branchId: string | null;
-        actorMembershipId: string | null;
-        eventName: string;
-        aggregateType: string;
-        aggregateId: string;
-        payload: Record<string, unknown>;
-        occurredAt: Date;
-      }>
-    >(
-      'SELECT id,tenant_id AS "tenantId",company_id AS "companyId",' +
-        'branch_id AS "branchId",actor_membership_id AS "actorMembershipId",' +
-        'event_name AS "eventName",aggregate_type AS "aggregateType",' +
-        'aggregate_id AS "aggregateId",payload,occurred_at AS "occurredAt" ' +
-        'FROM domain_event_log WHERE id=$1 LIMIT 1',
-      id,
-    );
-    const row = rows[0];
-    if (!row) return;
-    await this.dispatch({
-      ...row,
-      occurredAt: row.occurredAt.toISOString(),
-      originInstanceId: this.instanceId,
-    });
+    try {
+      const rows = await this.prisma.$queryRawUnsafe<
+        Array<{
+          id: string;
+          tenantId: string;
+          companyId: string;
+          branchId: string | null;
+          actorMembershipId: string | null;
+          eventName: string;
+          aggregateType: string;
+          aggregateId: string;
+          payload: Record<string, unknown>;
+          occurredAt: Date;
+        }>
+      >(
+        'SELECT id,tenant_id AS "tenantId",company_id AS "companyId",' +
+          'branch_id AS "branchId",actor_membership_id AS "actorMembershipId",' +
+          'event_name AS "eventName",aggregate_type AS "aggregateType",' +
+          'aggregate_id AS "aggregateId",payload,occurred_at AS "occurredAt" ' +
+          'FROM domain_event_log WHERE id=$1 LIMIT 1',
+        id,
+      );
+      const row = rows[0];
+      if (!row) return;
+      await this.dispatch({
+        ...row,
+        occurredAt: row.occurredAt.toISOString(),
+        originInstanceId: this.instanceId,
+      });
+    } catch (error) {
+      this.logger.warn(
+        'Commit edilmiş domain olayı anlık dağıtılamadı; outbox yeniden deneyecek: ' +
+          id +
+          ' · ' +
+          (error instanceof Error ? error.message : String(error)),
+      );
+    }
   }
 
   stream(input: {
