@@ -15,6 +15,7 @@ import { MarketingLeadConversionController } from './marketing-lead-conversion.c
 import { MarketingLeadAppointmentService } from './marketing-lead-appointment.service';
 import { MarketingLeadCrmBridgeService } from './marketing-lead-crm-bridge.service';
 import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-bridge.service';
+import { MarketingProviderVaultService } from './marketing-provider-vault.service';
 
 @Module({
   imports: [AccountsPayableModule],
@@ -36,6 +37,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
     MarketingLeadCustomerBridgeService,
+    MarketingProviderVaultService,
   ],
   exports: [
     CorporateCommunicationsService,
@@ -47,6 +49,7 @@ import { MarketingLeadCustomerBridgeService } from './marketing-lead-customer-br
     MarketingLeadAppointmentService,
     MarketingLeadCrmBridgeService,
     MarketingLeadCustomerBridgeService,
+    MarketingProviderVaultService,
   ],
 })
 export class CorporateCommunicationsModule {}
