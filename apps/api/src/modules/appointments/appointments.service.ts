@@ -43,7 +43,9 @@ export class AppointmentsService {
     const tenantId = this.tenantContext.getTenantId();
 
     if (!tenantId) {
-      throw new InternalServerErrorException('İşletme çalışma kapsamı bulunamadı.');
+      throw new InternalServerErrorException(
+        'İşletme çalışma kapsamı bulunamadı.',
+      );
     }
 
     return tenantId;
@@ -113,7 +115,9 @@ export class AppointmentsService {
     }
 
     if (startAt >= endAt) {
-      throw new BadRequestException('Randevu başlangıç zamanı bitiş zamanından önce olmalıdır.');
+      throw new BadRequestException(
+        'Randevu başlangıç zamanı bitiş zamanından önce olmalıdır.',
+      );
     }
   }
 
@@ -417,7 +421,9 @@ export class AppointmentsService {
       input;
 
     if (from && to && from > to) {
-      throw new BadRequestException('Başlangıç tarihi bitiş tarihinden önce olmalıdır.');
+      throw new BadRequestException(
+        'Başlangıç tarihi bitiş tarihinden önce olmalıdır.',
+      );
     }
 
     const skip = (page - 1) * limit;
@@ -897,9 +903,7 @@ export class AppointmentsService {
         }
 
         if (appointment.status === 'COMPLETED') {
-          throw new ConflictException(
-            'Tamamlanmış randevu iptal edilemez.',
-          );
+          throw new ConflictException('Tamamlanmış randevu iptal edilemez.');
         }
 
         const updated = await tx.appointment.update({
