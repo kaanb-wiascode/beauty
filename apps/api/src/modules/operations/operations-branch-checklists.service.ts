@@ -53,10 +53,10 @@ export class OperationsBranchChecklistsService {
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -89,7 +89,7 @@ export class OperationsBranchChecklistsService {
     const targetBranchId = input.branchId ?? null;
     if (targetBranchId && targetBranchId !== branchId) {
       throw new BadRequestException(
-        'Branch-scoped templates can only target the active branch.',
+        'Şubeye özel kontrol listesi yalnızca aktif şube için kullanılabilir.',
       );
     }
 
@@ -222,7 +222,7 @@ export class OperationsBranchChecklistsService {
         const template = templates[0];
         if (!template) {
           throw new BadRequestException(
-            `No active ${input.category.toLowerCase()} checklist template is configured.`,
+            `Bu işlem için aktif bir kontrol listesi şablonu tanımlanmamış.`,
           );
         }
 
@@ -316,12 +316,12 @@ export class OperationsBranchChecklistsService {
           itemId,
           runId,
         );
-        if (!current[0]) throw new NotFoundException('Checklist item not found');
+        if (!current[0]) throw new NotFoundException('Kontrol listesi maddesi bulunamadı.');
         if (current[0].version !== input.expectedVersion) {
-          throw new ConflictException('Checklist item changed since it was read. Refresh and retry.');
+          throw new ConflictException('Kontrol listesi maddesi başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
         }
         if (current[0].isRequired && input.status === 'NA') {
-          throw new BadRequestException('Required checklist items cannot be marked as not applicable.');
+          throw new BadRequestException('Zorunlu kontrol maddeleri uygulanamaz olarak işaretlenemez.');
         }
         const updated = await tx.$queryRawUnsafe<
           Array<{ id: string; status: string; note: string | null; version: number }>
@@ -339,7 +339,7 @@ export class OperationsBranchChecklistsService {
           membershipId,
           input.expectedVersion,
         );
-        if (!updated[0]) throw new ConflictException('Checklist item changed during update.');
+        if (!updated[0]) throw new ConflictException('Kontrol listesi maddesi güncelleme sırasında değişti. Lütfen tekrar deneyin.');
         await tx.$executeRawUnsafe(
           `INSERT INTO operations_branch_checklist_events (
              run_id, tenant_id, branch_id, actor_membership_id, event_type, note
@@ -368,7 +368,7 @@ export class OperationsBranchChecklistsService {
         );
         const run = await this.requireOpenRun(tx, runId, tenantId, companyId, branchId);
         if (run.version !== input.expectedVersion) {
-          throw new ConflictException('Checklist run changed since it was read. Refresh and retry.');
+          throw new ConflictException('Kontrol listesi kaydı başka bir işlem tarafından değiştirildi. Lütfen ekranı yenileyin.');
         }
         const blockers = await tx.$queryRawUnsafe<Array<{ count: number }>>(
           `SELECT COUNT(*)::int AS count
@@ -377,7 +377,7 @@ export class OperationsBranchChecklistsService {
           runId,
         );
         if ((blockers[0]?.count ?? 0) > 0) {
-          throw new BadRequestException('Complete all required checklist items first.');
+          throw new BadRequestException('Önce tüm zorunlu kontrol maddelerini tamamlayın.');
         }
         const rows = await tx.$queryRawUnsafe<RunRow[]>(
           `UPDATE operations_branch_checklist_runs
@@ -396,7 +396,7 @@ export class OperationsBranchChecklistsService {
           membershipId,
           input.expectedVersion,
         );
-        if (!rows[0]) throw new ConflictException('Checklist run changed during completion.');
+        if (!rows[0]) throw new ConflictException('Kontrol listesi tamamlama sırasında değişti. Lütfen tekrar deneyin.');
         await tx.$executeRawUnsafe(
           `INSERT INTO operations_branch_checklist_events (
              run_id, tenant_id, branch_id, actor_membership_id, event_type, note
@@ -431,8 +431,8 @@ export class OperationsBranchChecklistsService {
       companyId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Checklist run not found');
-    if (rows[0].status !== 'OPEN') throw new ConflictException('Checklist run is already completed.');
+    if (!rows[0]) throw new NotFoundException('Kontrol listesi kaydı bulunamadı.');
+    if (rows[0].status !== 'OPEN') throw new ConflictException('Kontrol listesi zaten tamamlanmış.');
     return rows[0];
   }
 
@@ -455,7 +455,7 @@ export class OperationsBranchChecklistsService {
       companyId,
       branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Checklist run not found');
+    if (!rows[0]) throw new NotFoundException('Kontrol listesi kaydı bulunamadı.');
     const items = await db.$queryRawUnsafe<
       Array<{
         id: string;
