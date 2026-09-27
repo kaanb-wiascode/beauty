@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 
 type ReminderScope = 'MINE' | 'TEAM';
 
@@ -41,6 +42,7 @@ export class CrmReminderService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private context() {
@@ -58,6 +60,7 @@ export class CrmReminderService {
     limit?: number;
   }) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const ownerUserId = filters.scope === 'MINE' ? filters.userId : null;
     const limit = Math.min(Math.max(filters.limit ?? 100, 1), 200);
 
@@ -83,14 +86,21 @@ export class CrmReminderService {
             AND f.status='OPEN'
             AND ($4::text IS NULL OR f.assigned_user_id=$4::text)
             AND (f.due_at < NOW() OR (f.due_at >= $5::timestamptz AND f.due_at < $6::timestamptz))
+            AND ($7::boolean=FALSE OR (
+              f.assigned_user_id=ANY($8::text[])
+              OR l.owner_user_id=ANY($8::text[])
+              OR o.owner_user_id=ANY($8::text[])
+            ))
           ORDER BY CASE WHEN f.due_at < NOW() THEN 0 ELSE 1 END,f.due_at,f.id
-          LIMIT $7`,
+          LIMIT $9`,
         context.tenantId,
         context.companyId,
         context.branchId,
         ownerUserId,
         filters.dayStart,
         filters.dayEnd,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
         limit,
       ),
       this.prisma.$queryRawUnsafe<OpportunityReminderRow[]>(
@@ -120,6 +130,7 @@ export class CrmReminderService {
               (o.expected_close_date IS NOT NULL AND o.expected_close_date >= $5::date AND o.expected_close_date <= $6::date) OR
               o.updated_at < $7::timestamptz
             )
+            AND ($8::boolean=FALSE OR o.owner_user_id=ANY($9::text[]))
           ORDER BY
             CASE
               WHEN o.expected_close_date IS NOT NULL AND o.expected_close_date < $5::date THEN 0
@@ -127,7 +138,7 @@ export class CrmReminderService {
               ELSE 2
             END,
             COALESCE(o.expected_close_date,$5::date),o.updated_at,o.id
-          LIMIT $8`,
+          LIMIT $10`,
         context.tenantId,
         context.companyId,
         context.branchId,
@@ -135,6 +146,8 @@ export class CrmReminderService {
         filters.today,
         filters.closeThrough,
         filters.staleBefore,
+        visibility.restrictOwners,
+        visibility.ownerUserIds,
         limit,
       ),
     ]);
