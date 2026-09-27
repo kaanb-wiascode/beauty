@@ -124,6 +124,7 @@ export class ServiceExecutionsService {
   async start(visitId: string, input: StartServiceExecutionInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
@@ -320,26 +321,29 @@ export class ServiceExecutionsService {
           input.note ?? null,
         );
 
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'service_execution.started',
+            aggregateType: 'service_execution',
+            aggregateId: created[0].id,
+            payload: {
+              visitId,
+              appointmentId: created[0].appointmentId,
+              serviceId: created[0].serviceId,
+            },
+          })) ?? null;
         return created[0];
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'service_execution.started',
-      aggregateType: 'service_execution',
-      aggregateId: result.id,
-      payload: {
-        visitId,
-        appointmentId: result.appointmentId,
-        serviceId: result.serviceId,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
   async complete(executionId: string, input: CompleteServiceExecutionInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
@@ -422,30 +426,35 @@ export class ServiceExecutionsService {
           branchId,
         );
 
+        const visitCanCompleteService = Number(remaining[0]?.count ?? 0) === 0;
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'service_execution.completed',
+            aggregateType: 'service_execution',
+            aggregateId: executionId,
+            payload: {
+              visitId: completed[0].visitId,
+              appointmentId: completed[0].appointmentId,
+              serviceId: completed[0].serviceId,
+              visitCanCompleteService,
+            },
+          })) ?? null;
+
         return {
           execution: completed[0],
-          visitCanCompleteService: Number(remaining[0]?.count ?? 0) === 0,
+          visitCanCompleteService,
         };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'service_execution.completed',
-      aggregateType: 'service_execution',
-      aggregateId: executionId,
-      payload: {
-        visitId: result.execution.visitId,
-        appointmentId: result.execution.appointmentId,
-        serviceId: result.execution.serviceId,
-        visitCanCompleteService: result.visitCanCompleteService,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
   async completeAppointmentHandoff(executionId: string) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
+    const eventIds: string[] = [];
     const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
@@ -601,6 +610,31 @@ export class ServiceExecutionsService {
           },
         });
 
+        const appointmentEventId = await this.domainEvents?.record(tx, {
+          eventName: 'appointment.completed_from_execution',
+          aggregateType: 'appointment',
+          aggregateId: refreshed?.id ?? executionId,
+          payload: {
+            executionId,
+            consumedSessionId,
+          },
+        });
+        if (appointmentEventId) eventIds.push(appointmentEventId);
+
+        if (consumedSessionId) {
+          const sessionEventId = await this.domainEvents?.record(tx, {
+            eventName: 'session.consumed',
+            aggregateType: 'session',
+            aggregateId: consumedSessionId,
+            payload: {
+              executionId,
+              appointmentId: refreshed?.id ?? null,
+              automatic: true,
+            },
+          });
+          if (sessionEventId) eventIds.push(sessionEventId);
+        }
+
         return {
           executionId: execution.id,
           appointment: refreshed,
@@ -610,26 +644,8 @@ export class ServiceExecutionsService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'appointment.completed_from_execution',
-      aggregateType: 'appointment',
-      aggregateId: result.appointment?.id ?? executionId,
-      payload: {
-        executionId,
-        consumedSessionId: result.consumedSessionId,
-      },
-    });
-    if (result.consumedSessionId) {
-      await this.domainEvents?.publish({
-        eventName: 'session.consumed',
-        aggregateType: 'session',
-        aggregateId: result.consumedSessionId,
-        payload: {
-          executionId,
-          appointmentId: result.appointment?.id ?? null,
-          automatic: true,
-        },
-      });
+    for (const eventId of eventIds) {
+      await this.domainEvents?.dispatchStored(eventId);
     }
     return result;
   }
