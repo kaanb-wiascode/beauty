@@ -162,7 +162,7 @@ export class CrmOpportunityService {
        LIMIT $10`,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       filters.stage ?? null,
       filters.ownerUserId ?? null,
       search,
@@ -196,7 +196,7 @@ export class CrmOpportunityService {
       id,
       context.tenantId,
       context.companyId,
-      context.branchId,
+      visibility.branchId,
       visibility.restrictOwners,
       visibility.ownerUserIds,
     );
