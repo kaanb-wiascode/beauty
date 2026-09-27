@@ -1,10 +1,13 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type Customer={id:string;firstName:string;lastName:string;phone?:string|null};
 type Service={id:string;name:string;price:number|string;status?:string};
@@ -70,7 +73,7 @@ export default function SalesPage(){
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-  <PageHeader title="Satış Yönetimi" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin." action={<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>}/>
+  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin." action={<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>}/>
   {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
   <section className="grid gap-3 sm:grid-cols-3"><Metric label="Satış Sayısı" value={totals.count}/><Metric label="Satış Toplamı" value={money(totals.total)}/><Metric label="Onaylı Satış" value={totals.confirmed}/></section>
   <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
@@ -116,4 +119,4 @@ export default function SalesPage(){
   </Modal>
  </div>
 }
-function Metric({label,value}:{label:string;value:string|number}){return <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>}
+function Metric({label,value}:{label:string;value:string|number}){return <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-2 text-xl font-semibold">{value}</p></div>}
