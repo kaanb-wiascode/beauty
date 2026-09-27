@@ -1,6 +1,7 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 
 type SubjectType = 'CUSTOMER' | 'LEAD' | 'OPPORTUNITY';
 type ConversationMode = 'ALL' | 'MINE' | 'UNASSIGNED';
@@ -11,7 +12,11 @@ type Scope = { tenantId: string; companyId: string; branchId: string };
 
 @Injectable()
 export class CrmConversationService {
-  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
+  ) {}
 
   private scope(): Scope {
     const context = this.tenantContext.getContext();
@@ -19,7 +24,7 @@ export class CrmConversationService {
     return { tenantId: context.tenantId, companyId: context.companyId, branchId: context.branchId };
   }
 
-  list(
+  async list(
     actorUserId: string,
     limit = 100,
     mode: ConversationMode = 'ALL',
@@ -28,6 +33,7 @@ export class CrmConversationService {
     channel: ConversationChannelFilter = 'ALL',
   ) {
     const scope = this.scope();
+    const visibility = await this.dataScope.resolve();
     const safeLimit = Math.min(Math.max(limit, 1), 200);
     return this.prisma.$queryRawUnsafe(
       `WITH scoped AS (
@@ -37,6 +43,31 @@ export class CrmConversationService {
          FROM crm_messages m
          WHERE m.tenant_id=$1::text AND m.company_id=$2::text AND m.branch_id=$3::text
            AND COALESCE(m.customer_id,m.opportunity_id,m.lead_id) IS NOT NULL
+           AND (
+             $10::boolean=FALSE
+             OR (m.lead_id IS NOT NULL AND EXISTS(
+               SELECT 1 FROM crm_leads sl
+                WHERE sl.id=m.lead_id AND sl.tenant_id=m.tenant_id AND sl.company_id=m.company_id
+                  AND sl.branch_id=m.branch_id AND sl.owner_user_id=ANY($11::text[])
+             ))
+             OR (m.opportunity_id IS NOT NULL AND EXISTS(
+               SELECT 1 FROM crm_opportunities so
+                WHERE so.id=m.opportunity_id AND so.tenant_id=m.tenant_id AND so.company_id=m.company_id
+                  AND so.branch_id=m.branch_id AND so.owner_user_id=ANY($11::text[])
+             ))
+             OR (m.customer_id IS NOT NULL AND (
+               EXISTS(
+                 SELECT 1 FROM crm_opportunities so
+                  WHERE so.customer_id=m.customer_id AND so.tenant_id=m.tenant_id AND so.company_id=m.company_id
+                    AND so.branch_id=m.branch_id AND so.owner_user_id=ANY($11::text[])
+               )
+               OR EXISTS(
+                 SELECT 1 FROM crm_leads sl
+                  WHERE sl.customer_id=m.customer_id AND sl.tenant_id=m.tenant_id AND sl.company_id=m.company_id
+                    AND sl.branch_id=m.branch_id AND sl.owner_user_id=ANY($11::text[])
+               )
+             ))
+           )
        ), grouped AS (
          SELECT subject_type,subject_id,COUNT(*)::int AS message_count,
                 COUNT(*) FILTER(WHERE direction='INBOUND')::int AS inbound_count,
@@ -95,6 +126,7 @@ export class CrmConversationService {
                 (g.last_inbound_at IS NOT NULL AND (g.last_outbound_at IS NULL OR g.last_inbound_at>g.last_outbound_at)) DESC,g.last_message_at DESC
        LIMIT $5`,
       scope.tenantId, scope.companyId, scope.branchId, actorUserId, safeLimit, mode, status, priority, channel,
+      visibility.restrictOwners, visibility.ownerUserIds,
     );
   }
 
@@ -129,11 +161,37 @@ export class CrmConversationService {
   private subjectColumn(type: SubjectType) { if (type === 'CUSTOMER') return 'customer_id'; if (type === 'LEAD') return 'lead_id'; return 'opportunity_id'; }
 
   private async assertSubject(scope: Scope, type: SubjectType, id: string) {
+    if (type === 'LEAD') {
+      await this.dataScope.assertLeadAccess(id);
+    } else if (type === 'OPPORTUNITY') {
+      await this.dataScope.assertOpportunityAccess(id);
+    }
+
+    const visibility = await this.dataScope.resolve();
     const rows = type === 'CUSTOMER'
-      ? await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM customers WHERE id=$4::text AND "tenantId"=$1::text AND "branchId"=$3::text LIMIT 1`,scope.tenantId,scope.companyId,scope.branchId,id)
+      ? await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT c.id
+             FROM customers c
+            WHERE c.id=$4::text AND c."tenantId"=$1::text AND c."branchId"=$3::text
+              AND (
+                $5::boolean=FALSE
+                OR EXISTS(
+                  SELECT 1 FROM crm_opportunities o
+                   WHERE o.customer_id=c.id AND o.tenant_id=$1::text AND o.company_id=$2::text
+                     AND o.branch_id=$3::text AND o.owner_user_id=ANY($6::text[])
+                )
+                OR EXISTS(
+                  SELECT 1 FROM crm_leads l
+                   WHERE l.customer_id=c.id AND l.tenant_id=$1::text AND l.company_id=$2::text
+                     AND l.branch_id=$3::text AND l.owner_user_id=ANY($6::text[])
+                )
+              )
+            LIMIT 1`,
+          scope.tenantId,scope.companyId,scope.branchId,id,visibility.restrictOwners,visibility.ownerUserIds,
+        )
       : type === 'LEAD'
         ? await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM crm_leads WHERE id=$4::text AND tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text LIMIT 1`,scope.tenantId,scope.companyId,scope.branchId,id)
         : await this.prisma.$queryRawUnsafe<Array<{ id: string }>>(`SELECT id FROM crm_opportunities WHERE id=$4::text AND tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text LIMIT 1`,scope.tenantId,scope.companyId,scope.branchId,id);
-    if (!rows[0]) throw new NotFoundException('Conversation subject not found in active branch.');
+    if (!rows[0]) throw new NotFoundException('Konuşma kaydı aktif yetki kapsamınızda bulunamadı.');
   }
 }
