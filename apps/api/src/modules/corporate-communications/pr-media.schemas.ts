@@ -26,7 +26,7 @@ export const createPrActivitySchema=z.object({
   ownerUserId:z.string().uuid().nullable().optional(),
   notes:z.string().trim().max(8000).nullable().optional(),
   metadata:z.record(z.string(),z.unknown()).default({}),
-}).refine((v)=>!v.startsAt||!v.endsAt||v.endsAt>=v.startsAt,{message:'PR activity end date must be after the start date.'});
+}).refine((v)=>!v.startsAt||!v.endsAt||v.endsAt>=v.startsAt,{message:'Basın ve medya çalışmasının bitiş tarihi başlangıç tarihinden sonra olmalıdır.'});
 
 export const updatePrActivitySchema=z.object({
   status:prActivityStatusSchema.optional(),
