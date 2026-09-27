@@ -275,6 +275,164 @@ export class AccountingService {
     });
   }
 
+  async recordAppointmentReceivable(
+    tx: Prisma.TransactionClient,
+    appointmentId: string,
+    input: CommerceAccountingContext,
+  ) {
+    const companyId = this.tenantContext.getCompanyId();
+    const receivable = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '120',
+      'Alıcılar',
+      'ASSET',
+    );
+    const revenue = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '600',
+      'Hizmet Gelirleri',
+      'REVENUE',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Randevu hizmet alacağı ${appointmentId}`,
+      referenceType: 'APPOINTMENT_RECEIVABLE',
+      referenceId: appointmentId,
+      lines: [
+        {
+          accountId: receivable.id,
+          debit: input.amount,
+          credit: 0,
+          memo: 'Müşteri hizmet alacağı',
+        },
+        {
+          accountId: revenue.id,
+          debit: 0,
+          credit: input.amount,
+          memo: 'Hizmet geliri',
+        },
+      ],
+    });
+  }
+
+  async recordAppointmentPayment(
+    tx: Prisma.TransactionClient,
+    paymentId: string,
+    method: 'CASH' | 'CARD' | 'TRANSFER',
+    input: CommerceAccountingContext,
+  ) {
+    const companyId = this.tenantContext.getCompanyId();
+    const receivable = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '120',
+      'Alıcılar',
+      'ASSET',
+    );
+    const paymentAccountDefinition =
+      method === 'CASH'
+        ? { code: '100', name: 'Kasa' }
+        : method === 'CARD'
+          ? { code: '108', name: 'POS Alacakları' }
+          : { code: '102', name: 'Bankalar' };
+    const paymentAccount = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      paymentAccountDefinition.code,
+      paymentAccountDefinition.name,
+      'ASSET',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Randevu tahsilatı ${paymentId}`,
+      referenceType: 'APPOINTMENT_PAYMENT',
+      referenceId: paymentId,
+      lines: [
+        {
+          accountId: paymentAccount.id,
+          debit: input.amount,
+          credit: 0,
+          memo: 'Randevu tahsilatı',
+        },
+        {
+          accountId: receivable.id,
+          debit: 0,
+          credit: input.amount,
+          memo: 'Müşteri alacağı kapama',
+        },
+      ],
+    });
+  }
+
+  async recordAppointmentPaymentRefund(
+    tx: Prisma.TransactionClient,
+    paymentId: string,
+    method: 'CASH' | 'CARD' | 'TRANSFER',
+    input: CommerceAccountingContext,
+  ) {
+    const companyId = this.tenantContext.getCompanyId();
+    const receivable = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '120',
+      'Alıcılar',
+      'ASSET',
+    );
+    const paymentAccountDefinition =
+      method === 'CASH'
+        ? { code: '100', name: 'Kasa' }
+        : method === 'CARD'
+          ? { code: '108', name: 'POS Alacakları' }
+          : { code: '102', name: 'Bankalar' };
+    const paymentAccount = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      paymentAccountDefinition.code,
+      paymentAccountDefinition.name,
+      'ASSET',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Randevu tahsilat iadesi ${paymentId}`,
+      referenceType: 'APPOINTMENT_PAYMENT_REFUND',
+      referenceId: paymentId,
+      lines: [
+        {
+          accountId: receivable.id,
+          debit: input.amount,
+          credit: 0,
+          memo: 'Müşteri alacağını yeniden açma',
+        },
+        {
+          accountId: paymentAccount.id,
+          debit: 0,
+          credit: input.amount,
+          memo: 'Randevu tahsilat iadesi',
+        },
+      ],
+    });
+  }
+
   async createAccount(input: CreateAccountInput) {
     const { tenantId, companyId } = this.context();
     const code = input.code.trim();
