@@ -144,8 +144,8 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
     (async () => {
       try {
         const { id } = await params;
-        const [result, people, quoteRows] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), canManage ? api<CrmAssignee[]>("/crm/assignees") : Promise.resolve([]), api<CrmQuote[]>(`/crm/quotes?opportunityId=${id}`)]);
-        if (!cancelled) { setOpportunity(result); setAssignees(people); setQuotes(quoteRows); }
+        const [result, people, quoteRows, servicesResult, packageRows] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), canManage ? api<CrmAssignee[]>("/crm/assignees") : Promise.resolve([]), api<CrmQuote[]>(`/crm/quotes?opportunityId=${id}`), canManage ? api<ServicePage>("/services?page=1&limit=100&status=ACTIVE") : Promise.resolve({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 0 } }), canManage ? api<PackageOption[]>("/packages") : Promise.resolve([])]);
+        if (!cancelled) { setOpportunity(result); setAssignees(people); setQuotes(quoteRows); setServiceOptions(servicesResult.data.filter((item) => item.status === "ACTIVE")); setPackageOptions(packageRows.filter((item) => item.active)); }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof ApiError ? requestError.message : "Satış fırsatı yüklenemedi.");
       } finally { if (!cancelled) setLoading(false); }
