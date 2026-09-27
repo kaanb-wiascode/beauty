@@ -621,7 +621,7 @@ export default function CrmLeadsPage() {
           ) : null}
 
           {leadStep === 2 ? (
-            <FormSection title="Satış ve kaynak bilgileri" description="Lead'in kaynağını, sıcaklığını ve sorumlusunu belirleyin.">
+            <FormSection title="Satış ve kaynak bilgileri" description="Potansiyel müşterinin kaynağını, önceliğini ve sorumlu kişisini belirleyin.">
               <FormGrid>
                 <Field label="Kaynak">
                   <ValooSelect
