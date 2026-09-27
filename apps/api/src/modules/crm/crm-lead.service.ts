@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { CrmDataScopeService } from './crm-data-scope.service';
 import type { CreateLeadInput, UpdateLeadInput } from './crm.schemas';
 
 export interface CrmLeadRow {
@@ -20,6 +21,7 @@ export class CrmLeadService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly dataScope: CrmDataScopeService,
   ) {}
 
   private context() {
@@ -112,11 +114,14 @@ export class CrmLeadService {
   async list(filters: { status?: string; ownerUserId?: string; search?: string; limit?: number }) {
     const context = this.context();
     const limit = Math.min(Math.max(filters.limit ?? 50, 1), 200);
+    const visibility = await this.dataScope.resolve();
     return this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
       `SELECT l.id,l.first_name AS "firstName",l.last_name AS "lastName",l.phone,l.alternative_phone AS "alternativePhone",l.email,
               l.preferred_contact_channel AS "preferredContactChannel",l.language,l.timezone,
               ${this.acquisitionSelect()},${this.commercialSelect()},${this.salesSelect()},l.status,l.interest_note AS "interestNote",l.customer_id AS "customerId",
-              l.owner_user_id AS "ownerUserId",l.version,l.created_at AS "createdAt",l.updated_at AS "updatedAt",
+              l.owner_user_id AS "ownerUserId",l.surveyor_staff_id AS "surveyorStaffId",l.surveyor_branch_id AS "surveyorBranchId",
+              l.survey_campaign AS "surveyCampaign",l.survey_location AS "surveyLocation",l.survey_desk AS "surveyDesk",l.survey_date AS "surveyDate",
+              l.version,l.created_at AS "createdAt",l.updated_at AS "updatedAt",
               o.id AS "opportunityId",o.stage AS "opportunityStage",o.estimated_value AS "estimatedValue"
        FROM crm_leads l LEFT JOIN crm_opportunities o ON o.lead_id=l.id
        WHERE l.tenant_id=$1::text AND l.company_id=$2::text
@@ -124,25 +129,31 @@ export class CrmLeadService {
          AND ($4::text IS NULL OR l.status=$4::text)
          AND ($5::text IS NULL OR l.owner_user_id=$5::text)
          AND ($6::text IS NULL OR concat_ws(' ',l.first_name,l.last_name,l.phone,l.alternative_phone,l.email,l.source,l.source_detail,l.campaign_name,l.ad_set_name,l.ad_name,l.utm_campaign,l.customer_intent) ILIKE '%' || $6 || '%')
-       ORDER BY l.updated_at DESC,l.id LIMIT $7`,
+         AND ($7::boolean=FALSE OR l.owner_user_id=ANY($8::text[]))
+       ORDER BY l.updated_at DESC,l.id LIMIT $9`,
       context.tenantId, context.companyId, context.branchId,
-      filters.status ?? null, filters.ownerUserId ?? null, filters.search?.trim() || null, limit,
+      filters.status ?? null, filters.ownerUserId ?? null, filters.search?.trim() || null,
+      visibility.restrictOwners, visibility.ownerUserIds, limit,
     );
   }
 
   async get(id: string) {
     const context = this.context();
+    const visibility = await this.dataScope.resolve();
     const rows = await this.prisma.$queryRawUnsafe<CrmLeadRow[]>(
       `SELECT l.id,l.branch_id AS "branchId",l.first_name AS "firstName",l.last_name AS "lastName",
               l.phone,l.alternative_phone AS "alternativePhone",l.email,
               l.preferred_contact_channel AS "preferredContactChannel",l.language,l.timezone,
               ${this.acquisitionSelect()},${this.commercialSelect()},${this.salesSelect()},l.status,l.interest_note AS "interestNote",l.lost_reason AS "lostReason",
-              l.customer_id AS "customerId",l.owner_user_id AS "ownerUserId",l.version,
+              l.customer_id AS "customerId",l.owner_user_id AS "ownerUserId",l.surveyor_staff_id AS "surveyorStaffId",
+              l.surveyor_branch_id AS "surveyorBranchId",l.survey_campaign AS "surveyCampaign",l.survey_location AS "surveyLocation",
+              l.survey_desk AS "surveyDesk",l.survey_date AS "surveyDate",l.version,
               l.created_at AS "createdAt",l.updated_at AS "updatedAt"
        FROM crm_leads l
        WHERE l.id=$1::text AND l.tenant_id=$2::text AND l.company_id=$3::text
-         AND ($4::text IS NULL OR l.branch_id=$4::text) LIMIT 1`,
-      id, context.tenantId, context.companyId, context.branchId,
+         AND ($4::text IS NULL OR l.branch_id=$4::text)
+         AND ($5::boolean=FALSE OR l.owner_user_id=ANY($6::text[])) LIMIT 1`,
+      id, context.tenantId, context.companyId, context.branchId, visibility.restrictOwners, visibility.ownerUserIds,
     );
     if (!rows.length) throw new NotFoundException('CRM lead not found.');
 
@@ -175,9 +186,17 @@ export class CrmLeadService {
     const context = this.context();
     const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
+    await this.dataScope.assertOwnerAllowed(input.ownerUserId ?? actorUserId);
 
     return this.prisma.$transaction(async (tx) => {
       await this.assertCommercialScope(input, tx);
+      if (input.source === 'SURVEYOR') {
+        const surveyors = await tx.$queryRawUnsafe<Array<{ staffId: string; branchId: string }>>(
+          `SELECT p.staff_id AS "staffId",p.branch_id AS "branchId" FROM crm_surveyor_profiles p JOIN staff s ON s.id=p.staff_id WHERE p.staff_id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text AND p.branch_id=$4::text AND p.active=TRUE AND s.status='ACTIVE' LIMIT 1`,
+          input.surveyorStaffId, context.tenantId, context.companyId, branchId,
+        );
+        if (!surveyors.length) throw new BadRequestException('Seçilen anketör bu şubede aktif değil.');
+      }
       if (input.customerId) {
         const customers = await tx.$queryRawUnsafe<Array<{ id: string }>>(
           `SELECT id FROM customers WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text LIMIT 1`,
@@ -192,11 +211,12 @@ export class CrmLeadService {
            preferred_contact_channel,language,timezone,source,source_detail,campaign_id,campaign_name,ad_set_id,ad_set_name,
            ad_id,ad_name,landing_page,referrer,utm_source,utm_medium,utm_campaign,utm_content,utm_term,click_identifiers,
            interested_service_ids,interested_package_ids,preferred_branch_id,estimated_budget,budget_currency,purchase_urgency,consultation_need,customer_intent,
-           team,lead_score,lead_temperature,first_contacted_at,first_response_at,interest_note,created_by_user_id
+           team,lead_score,lead_temperature,first_contacted_at,first_response_at,interest_note,
+           surveyor_staff_id,surveyor_branch_id,survey_campaign,survey_location,survey_desk,survey_date,created_by_user_id
          ) VALUES(
            $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
            $20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30::text[],$31::text[],$32::text,$33,$34,$35,$36,$37,
-           $38,$39,$40,$41,$42,$43,$44::text
+           $38,$39,$40,$41,$42,$43,$44::text,$45::text,$46,$47,$48,$49,$50::text
          )
          RETURNING id,first_name AS "firstName",last_name AS "lastName",phone,alternative_phone AS "alternativePhone",email,
                    preferred_contact_channel AS "preferredContactChannel",language,timezone,source,source_detail AS "sourceDetail",
@@ -208,7 +228,9 @@ export class CrmLeadService {
                    estimated_budget AS "estimatedBudget",budget_currency AS "budgetCurrency",purchase_urgency AS "purchaseUrgency",
                    consultation_need AS "consultationNeed",customer_intent AS "customerIntent",team,lead_score AS "leadScore",
                    lead_temperature AS "leadTemperature",first_contacted_at AS "firstContactedAt",first_response_at AS "firstResponseAt",
-                   status,interest_note AS "interestNote",owner_user_id AS "ownerUserId",customer_id AS "customerId",version`,
+                   status,interest_note AS "interestNote",owner_user_id AS "ownerUserId",customer_id AS "customerId",
+                   surveyor_staff_id AS "surveyorStaffId",surveyor_branch_id AS "surveyorBranchId",survey_campaign AS "surveyCampaign",
+                   survey_location AS "surveyLocation",survey_desk AS "surveyDesk",survey_date AS "surveyDate",version`,
         context.tenantId, context.companyId, branchId, input.customerId ?? null, input.ownerUserId ?? actorUserId,
         input.firstName, input.lastName, input.phone ?? null, input.alternativePhone ?? null, input.email?.toLowerCase() ?? null,
         input.preferredContactChannel ?? null, input.language ?? null, input.timezone ?? null, input.source,
@@ -218,7 +240,14 @@ export class CrmLeadService {
         JSON.stringify(input.clickIdentifiers ?? {}), input.interestedServiceIds ?? [], input.interestedPackageIds ?? [],
         input.preferredBranchId ?? null, input.estimatedBudget ?? null, input.budgetCurrency, input.purchaseUrgency ?? null,
         input.consultationNeed ?? null, input.customerIntent ?? null, input.team ?? null, input.leadScore,
-        input.leadTemperature, input.firstContactedAt ?? null, input.firstResponseAt ?? null, input.interestNote ?? null, actorUserId,
+        input.leadTemperature, input.firstContactedAt ?? null, input.firstResponseAt ?? null, input.interestNote ?? null,
+        input.source === 'SURVEYOR' ? input.surveyorStaffId ?? null : null,
+        input.source === 'SURVEYOR' ? branchId : null,
+        input.source === 'SURVEYOR' ? input.surveyCampaign ?? null : null,
+        input.source === 'SURVEYOR' ? input.surveyLocation ?? null : null,
+        input.source === 'SURVEYOR' ? input.surveyDesk ?? null : null,
+        input.source === 'SURVEYOR' ? input.surveyDate ?? null : null,
+        actorUserId,
       );
       await tx.$executeRawUnsafe(
         `INSERT INTO crm_events(tenant_id,company_id,branch_id,lead_id,event_type,actor_user_id,metadata)
@@ -226,6 +255,9 @@ export class CrmLeadService {
         context.tenantId, context.companyId, branchId, rows[0].id, actorUserId,
         JSON.stringify({ source: input.source, sourceDetail: input.sourceDetail, campaignId: input.campaignId,
           campaignName: input.campaignName, utmSource: input.utmSource, utmCampaign: input.utmCampaign,
+          surveyorStaffId: input.source === 'SURVEYOR' ? input.surveyorStaffId : undefined,
+          surveyLocation: input.source === 'SURVEYOR' ? input.surveyLocation : undefined,
+          surveyDesk: input.source === 'SURVEYOR' ? input.surveyDesk : undefined,
           commercialContextCaptured: Boolean(input.interestedServiceIds?.length || input.interestedPackageIds?.length ||
             input.preferredBranchId || input.estimatedBudget !== undefined || input.purchaseUrgency || input.consultationNeed || input.customerIntent) }),
       );
@@ -237,6 +269,7 @@ export class CrmLeadService {
     const context = this.context();
     const branchId = this.requireBranchId();
     if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
+    await this.dataScope.assertOwnerAllowed(input.ownerUserId);
     if (input.status === 'LOST' && !input.lostReason) throw new BadRequestException('Lost lead requires a reason.');
 
     return this.prisma.$transaction(async (tx) => {
