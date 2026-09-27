@@ -4,6 +4,7 @@ import Link from "next/link";
 import { CardInfo } from "@/components/card-info";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
+import { TeamShareAction } from "@/components/team-share-action";
 import { Alert, Button, EmptyState, Field, GlassCard, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
@@ -165,7 +166,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   if (error || !opportunity) return <div className="mx-auto max-w-6xl space-y-6"><PageHeader title="Satış Fırsatı" /><Alert>{error || "Satış fırsatı bulunamadı."}</Alert><Link href="/crm/pipeline"><Button variant="secondary">Satış sürecine dön</Button></Link></div>;
 
   return <div className="mx-auto max-w-6xl space-y-6">
-    <PageHeader title={opportunity.title} description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda yönetin." action={<div className="flex flex-wrap gap-2">{canManage && nextStages[opportunity.stage].length ? <Button variant="secondary" onClick={openTransition}>Fırsatı Güncelle</Button> : null}{canManage ? <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button> : null}{subject ? <Link href={subject.href}><Button variant="secondary">{subject.label}</Button></Link> : null}<Link href="/crm/pipeline"><Button>Satış Sürecine Dön</Button></Link></div>} />
+    <PageHeader title={opportunity.title} description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda yönetin." action={<div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "OPPORTUNITY", id: opportunity.id, title: opportunity.title, subtitle: opportunityStageLabels[opportunity.stage], meta: [money(opportunity.estimatedValue, opportunity.currency), `Kazanma olasılığı: %${opportunity.probability}`, opportunity.expectedCloseDate ? `Beklenen kapanış: ${dateOnly(opportunity.expectedCloseDate)}` : ""].filter(Boolean), href: `/crm/opportunities/${opportunity.id}` }} />{canManage && nextStages[opportunity.stage].length ? <Button variant="secondary" onClick={openTransition}>Fırsatı Güncelle</Button> : null}{canManage ? <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button> : null}{subject ? <Link href={subject.href}><Button variant="secondary">{subject.label}</Button></Link> : null}<Link href="/crm/pipeline"><Button>Satış Sürecine Dön</Button></Link></div>} />
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric label="Aşama" value={opportunityStageLabels[opportunity.stage]} /><Metric label="Tahmini Değer" value={money(opportunity.estimatedValue, opportunity.currency)} /><Metric label="Kazanma Olasılığı" value={`%${opportunity.probability}`} /><Metric label="Beklenen Kapanış" value={opportunity.expectedCloseDate ? dateOnly(opportunity.expectedCloseDate) : "—"} />
