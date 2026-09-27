@@ -250,6 +250,83 @@ export class CrmAssignmentService {
     );
   }
 
+  async updateRule(
+    id: string,
+    input: {
+      name?: string;
+      mode?: AssignmentRule['mode'];
+      teamId?: string | null;
+      sourceFilter?: string | null;
+      skillKey?: string | null;
+      priority?: number;
+      active?: boolean;
+    },
+  ) {
+    const context = this.context();
+    if (!context.branchId) throw new BadRequestException('Atama kuralını güncellemek için aktif bir şube seçilmelidir.');
+
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      name: string;
+      mode: AssignmentRule['mode'];
+      teamId: string | null;
+      sourceFilter: string | null;
+      skillKey: string | null;
+      priority: number;
+      active: boolean;
+    }>>(
+      `SELECT id,name,mode,team_id AS "teamId",source_filter AS "sourceFilter",
+              skill_key AS "skillKey",priority,active
+         FROM crm_assignment_rules
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+        LIMIT 1`,
+      id,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+    );
+    const current = rows[0];
+    if (!current) throw new BadRequestException('Atama kuralı aktif şubede bulunamadı.');
+
+    const nextMode = input.mode ?? current.mode;
+    const nextSkillKey = input.skillKey !== undefined ? input.skillKey : current.skillKey;
+    if (nextMode === 'SKILL_BASED' && !nextSkillKey?.trim()) {
+      throw new BadRequestException('Yetkinliğe göre dağıtım için yetkinlik anahtarı gereklidir.');
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE crm_assignment_rules SET
+         name=CASE WHEN $5::boolean THEN $6 ELSE name END,
+         mode=CASE WHEN $7::boolean THEN $8 ELSE mode END,
+         team_id=CASE WHEN $9::boolean THEN $10::text ELSE team_id END,
+         source_filter=CASE WHEN $11::boolean THEN $12::text ELSE source_filter END,
+         skill_key=CASE WHEN $13::boolean THEN $14::text ELSE skill_key END,
+         priority=CASE WHEN $15::boolean THEN $16::int ELSE priority END,
+         active=CASE WHEN $17::boolean THEN $18::boolean ELSE active END,
+         updated_at=NOW()
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+      id,
+      context.tenantId,
+      context.companyId,
+      context.branchId,
+      input.name !== undefined,
+      input.name?.trim() ?? null,
+      input.mode !== undefined,
+      input.mode ?? null,
+      input.teamId !== undefined,
+      input.teamId ?? null,
+      input.sourceFilter !== undefined,
+      input.sourceFilter ?? null,
+      input.skillKey !== undefined,
+      input.skillKey?.trim() || null,
+      input.priority !== undefined,
+      input.priority ?? null,
+      input.active !== undefined,
+      input.active ?? null,
+    );
+    return { id, success: true };
+  }
+
   async createRule(input: {
     name: string;
     mode: AssignmentRule['mode'];
