@@ -50,12 +50,6 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
     ],
   },
   {
-    label: "Ekip",
-    items: [
-      { href: "/team", label: "Mesajlar ve Ekip Durumu", icon: "users" },
-    ],
-  },
-  {
     label: "Müşteri İlişkileri",
     items: [
       { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
