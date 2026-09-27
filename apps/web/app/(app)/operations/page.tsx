@@ -454,7 +454,7 @@ export default function OperationsPage() {
       <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Operasyon Kontrol Merkezi</p>
-          <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Canlı Ziyaret Akışı</h1>
+          <div className="mt-2 flex items-start gap-2"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Canlı Ziyaret Akışı</h1><CardInfo help={getCardHelp("Canlı Ziyaret Akışı")} /></div>
           <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">Şubedeki müşterilerin girişten hizmete ve çıkışa kadar gerçek operasyon durumunu takip edin.</p>
         </div>
         <Button onClick={() => void load()} variant="secondary">Yenile</Button>
@@ -553,7 +553,7 @@ export default function OperationsPage() {
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="border-b border-[var(--line)] px-6 py-4">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">Bugün Beklenen Müşteriler</h2>
+          <div className="flex items-start gap-2"><h2 className="text-sm font-semibold text-[var(--ink)]">Bugün Beklenen Müşteriler</h2><CardInfo help={getCardHelp("Bugün Beklenen Müşteriler")} /></div>
           <p className="mt-1 text-xs text-[var(--muted)]">Giriş bekleyen {expectedAppointments.length} randevu</p>
         </div>
         {expectedAppointments.length ? (
@@ -581,7 +581,7 @@ export default function OperationsPage() {
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-4">
           <div>
-            <h2 className="text-sm font-semibold text-[var(--ink)]">Aktif Ziyaretler</h2>
+            <div className="flex items-start gap-2"><h2 className="text-sm font-semibold text-[var(--ink)]">Aktif Ziyaretler</h2><CardInfo help={getCardHelp("Aktif Ziyaretler")} /></div>
             <p className="mt-1 text-xs text-[var(--muted)]">{activeVisits.length} aktif operasyon kaydı</p>
           </div>
         </div>
@@ -641,7 +641,7 @@ export default function OperationsPage() {
                             </div>
                           ) : null}
                           <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Operasyon Timeline</p>
+                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Operasyon Geçmişi</p>
                             {detail.timeline.length ? (
                               <div className="mt-3 space-y-2">
                                 {detail.timeline.map((event) => (
@@ -656,13 +656,13 @@ export default function OperationsPage() {
                                       </p>
                                     </div>
                                     <div className="text-[11px] text-[var(--muted-soft)]">
-                                      {dateTimeLabel(event.createdAt)} · Aktör {event.actorMembershipId.slice(0, 8)}
+                                      {dateTimeLabel(event.createdAt)}
                                     </div>
                                   </div>
                                 ))}
                               </div>
                             ) : (
-                              <p className="mt-2 text-xs text-[var(--muted)]">Timeline kaydı bulunmuyor.</p>
+                              <p className="mt-2 text-xs text-[var(--muted)]">Operasyon geçmişi bulunmuyor.</p>
                             )}
                           </div>
                         </div>
