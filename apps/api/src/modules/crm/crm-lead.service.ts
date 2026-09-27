@@ -134,7 +134,7 @@ export class CrmLeadService {
          AND ($6::text IS NULL OR concat_ws(' ',l.first_name,l.last_name,l.phone,l.alternative_phone,l.email,l.source,l.source_detail,l.campaign_name,l.ad_set_name,l.ad_name,l.utm_campaign,l.customer_intent) ILIKE '%' || $6 || '%')
          AND ($7::boolean=FALSE OR l.owner_user_id=ANY($8::text[]))
        ORDER BY l.updated_at DESC,l.id LIMIT $9`,
-      context.tenantId, context.companyId, context.branchId,
+      context.tenantId, context.companyId, visibility.branchId,
       filters.status ?? null, filters.ownerUserId ?? null, filters.search?.trim() || null,
       visibility.restrictOwners, visibility.ownerUserIds, limit,
     );
@@ -156,7 +156,7 @@ export class CrmLeadService {
        WHERE l.id=$1::text AND l.tenant_id=$2::text AND l.company_id=$3::text
          AND ($4::text IS NULL OR l.branch_id=$4::text)
          AND ($5::boolean=FALSE OR l.owner_user_id=ANY($6::text[])) LIMIT 1`,
-      id, context.tenantId, context.companyId, context.branchId, visibility.restrictOwners, visibility.ownerUserIds,
+      id, context.tenantId, context.companyId, visibility.branchId, visibility.restrictOwners, visibility.ownerUserIds,
     );
     if (!rows.length) throw new NotFoundException('Potansiyel müşteri bulunamadı veya bu kaydı görüntüleme yetkiniz yok.');
 
