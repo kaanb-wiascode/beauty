@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, use, useCallback, useEffect, useState } from "react";
+import { CardInfo } from "@/components/card-info";
 import { Modal } from "@/components/modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import {
@@ -18,6 +19,7 @@ import {
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { getCardHelp } from "@/lib/card-help";
 import {
   followUpChannelLabels,
   leadSourceLabels,
@@ -47,6 +49,24 @@ const interactionTypeLabels: Record<CrmInteraction["type"], string> = {
   IN_PERSON: "Yüz yüze",
   VIDEO_CALL: "Görüntülü görüşme",
   OTHER: "Diğer",
+};
+
+const scoreComponentLabels: Record<string, string> = {
+  telefon: "Telefon bilgisi",
+  eposta: "E-posta bilgisi",
+  butce: "Bütçe bilgisi",
+  satinAlmaAciliyeti: "Satın alma aciliyeti",
+  danismaTalebi: "Danışma talebi",
+  musteriNiyeti: "Müşteri niyeti",
+  gorusmeler: "Görüşmeler",
+  olumluGorusmeler: "Olumlu görüşmeler",
+  randevular: "Randevular",
+  tamamlananRandevular: "Tamamlanan randevular",
+  gelinmeyenRandevular: "Gelinmeyen randevular",
+  goruntulenenTeklif: "Görüntülenen teklifler",
+  kabulEdilenTeklif: "Kabul edilen teklifler",
+  reddedilenTeklif: "Reddedilen teklifler",
+  gecikenTakip: "Geciken takipler",
 };
 
 const emptyEditForm = {
@@ -267,6 +287,27 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
       {error && !statusOpen && !editOpen ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.3fr)_minmax(300px,.7fr)]">
         <div className="space-y-5">
+          <section className="rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)]">
+            <div className="flex items-start gap-2">
+              <CardInfo help={getCardHelp("Potansiyel Müşteri Puanı", "Müşterinin iletişim bilgileri, görüşmeleri, randevuları, teklifleri ve takip davranışları kullanılarak otomatik hesaplanan öncelik puanıdır.")} />
+              <div><h2 className="text-[13px] font-semibold">Potansiyel Müşteri Puanı</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Satış ekibinin önceliklendirme desteği</p></div>
+            </div>
+            <div className="mt-4 grid gap-4 sm:grid-cols-[160px_1fr]">
+              <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/35 p-4">
+                <strong className="text-[30px] font-semibold tracking-[-.04em]">{lead.leadScore ?? 0}<span className="text-[13px] font-medium text-[var(--muted)]"> / 100</span></strong>
+                <p className="mt-2 text-[11px] font-medium">{lead.leadTemperature === "HOT" ? "Yüksek Öncelik" : lead.leadTemperature === "WARM" ? "Orta Öncelik" : "Düşük Öncelik"}</p>
+                {lead.leadScoreUpdatedAt ? <p className="mt-1 text-[9px] text-[var(--muted)]">Son hesaplama: {formatDateTime(lead.leadScoreUpdatedAt)}</p> : null}
+              </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {Object.entries(lead.leadScoreBreakdown ?? {}).filter(([, value]) => value !== 0).map(([key, value]) => (
+                  <div key={key} className="flex items-center justify-between gap-3 rounded-[13px] border border-[var(--line)] px-3 py-2.5">
+                    <span className="text-[10px] text-[var(--muted)]">{scoreComponentLabels[key] ?? key}</span>
+                    <strong className={value > 0 ? "text-[11px] text-[var(--accent)]" : "text-[11px] text-[#9c513f]"}>{value > 0 ? "+" : ""}{value}</strong>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
           <section className="rounded-[22px] border border-[var(--line)] bg-white p-5 shadow-[var(--shadow-soft)]">
             <h2 className="text-[13px] font-semibold">İletişim Ve İhtiyaç</h2>
             <dl className="mt-5 grid gap-4 sm:grid-cols-2">
