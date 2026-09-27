@@ -38,8 +38,8 @@ export class ServiceExecutionStaffService {
     const companyId = this.tenantContext.getCompanyId();
     const branchId = this.tenantContext.getBranchId();
     const membershipId = this.tenantContext.getMembershipId();
-    if (!tenantId || !companyId || !membershipId) throw new InternalServerErrorException('Organization context is incomplete.');
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!tenantId || !companyId || !membershipId) throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return { tenantId, companyId, branchId, membershipId };
   }
 
@@ -104,7 +104,7 @@ export class ServiceExecutionStaffService {
                    a.started_at AS "startedAt",a.ended_at AS "endedAt",a.note,a.version`,
         assignmentId,executionId,tenantId,branchId,membershipId,input.expectedVersion,
       );
-      if (!rows[0]) throw new ConflictException('Assignment changed, is already ended, or primary assignment cannot be ended directly.');
+      if (!rows[0]) throw new ConflictException('Personel ataması değişti, zaten sona erdi veya ana sorumluluk doğrudan sonlandırılamaz.');
       await this.event(tx, executionId, tenantId, branchId, membershipId, 'STAFF_ASSIGNMENT_ENDED', `${rows[0].staffId}${input.note ? ` - ${input.note}` : ''}`);
       return rows[0];
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
@@ -129,13 +129,13 @@ export class ServiceExecutionStaffService {
                    a.started_at AS "startedAt",a.ended_at AS "endedAt",a.note,a.version`,
         input.fromAssignmentId,executionId,tenantId,branchId,membershipId,input.expectedVersion,
       );
-      if (!closed[0]) throw new ConflictException('Source staff assignment changed or is no longer active.');
+      if (!closed[0]) throw new ConflictException('Mevcut personel sorumluluğu değişti veya artık aktif değil.');
 
       const duplicate = await tx.$queryRawUnsafe<Array<{ id: string }>>(
         `SELECT id FROM operations_service_execution_staff_assignments
          WHERE execution_id=$1 AND staff_id=$2 AND ended_at IS NULL LIMIT 1`, executionId,input.toStaffId,
       );
-      if (duplicate[0]) throw new ConflictException('Target staff already has an active assignment on this execution.');
+      if (duplicate[0]) throw new ConflictException('Seçilen personelin bu hizmette zaten aktif bir görevi bulunuyor.');
 
       const created = await tx.$queryRawUnsafe<AssignmentRow[]>(
         `INSERT INTO operations_service_execution_staff_assignments(
@@ -171,12 +171,12 @@ export class ServiceExecutionStaffService {
        WHERE e.id=$1 AND e.tenant_id=$2 AND e.company_id=$3 AND e.branch_id=$4${forUpdate ? ' FOR UPDATE OF e' : ''}`,
       executionId,tenantId,companyId,branchId,
     );
-    if (!rows[0]) throw new NotFoundException('Service execution not found.');
+    if (!rows[0]) throw new NotFoundException('Hizmet uygulama kaydı bulunamadı.');
     return rows[0];
   }
 
   private assertInProgress(execution: ExecutionContext) {
-    if (execution.status !== 'IN_PROGRESS') throw new ConflictException('Staff assignments can only change while service execution is IN_PROGRESS.');
+    if (execution.status !== 'IN_PROGRESS') throw new ConflictException('Personel sorumlulukları yalnızca hizmet devam ederken değiştirilebilir.');
   }
 
   private lock(tx: Prisma.TransactionClient, tenantId: string, branchId: string, executionId: string) {
