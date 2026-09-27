@@ -128,6 +128,6 @@ export class CrmLeadScoringService {
     for (const lead of leads) {
       if (await this.recalculateLead(scope, lead.id)) updated += 1;
     }
-    return { scanned: leads.length, updated };
+    return { scanned: leads.length, created: updated, skipped: Math.max(0, leads.length - updated), updated };
   }
 }
