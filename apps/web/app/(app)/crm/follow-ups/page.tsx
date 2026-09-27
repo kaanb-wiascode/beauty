@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
+import { CardInfo } from "@/components/card-info";
 import {
   Alert,
   Button,
@@ -17,6 +18,7 @@ import {
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { userErrorMessage } from "@/lib/user-language";
+import { getCardHelp } from "@/lib/card-help";
 import { getStoredUser, hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
@@ -280,7 +282,7 @@ export default function CrmFollowUpsPage() {
     <div className="space-y-6">
       <PageHeader
         title="Takip Merkezi"
-        description="Arama, Mesaj, E-Posta Ve Yüz Yüze Temas Görevlerini Zamanında Tamamlayın."
+        description="Arama, mesaj, e-posta ve yüz yüze temas görevlerini zamanında tamamlayın."
         action={canManage ? (
           <Button onClick={() => {
             if (
@@ -310,14 +312,18 @@ export default function CrmFollowUpsPage() {
             </button>
           ))}
         </div>
-        <Select value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)} aria-label="Sorumluya Göre Filtrele" className="sm:max-w-[230px]">
-          <option value="">Tüm Sorumlular</option>
+        <Select value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)} aria-label="Sorumluya göre filtrele" className="sm:max-w-[230px]">
+          <option value="">Tüm sorumlular</option>
           {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
         </Select>
       </div>
       <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
+        <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+          <div><h2 className="text-[13px] font-semibold">Takip listesi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Müşteri temaslarını, son tarihlerini ve sorumlularını izleyin.</p></div>
+          <CardInfo help={getCardHelp("Takip listesi", "Açık, tamamlanan ve iptal edilen müşteri takiplerini; sorumlu, iletişim kanalı ve son tarih bilgileriyle birlikte gösterir.")} />
+        </div>
         {loading ? (
-          <Spinner label="Takipler Yükleniyor..." />
+          <Spinner label="Takipler yükleniyor..." />
         ) : rows.length ? (
           <div className="divide-y divide-[var(--line)]">
             {rows.map((row) => {
@@ -328,7 +334,7 @@ export default function CrmFollowUpsPage() {
                   <span className="w-fit rounded-full bg-[#EAF5FB] px-2.5 py-1 text-[10px] font-semibold text-[#1674BD]">{followUpChannelLabels[row.channel]}</span>
                   <Link href={href} className="truncate text-[12px] font-semibold hover:text-[#1674BD]">{subjectFor(row)}</Link>
                   <p className="truncate text-[11px] text-[var(--muted)]">
-                    {row.status === "COMPLETED" ? row.outcome : row.status === "CANCELLED" ? row.cancellationReason : row.note || "Not Eklenmedi"}
+                    {row.status === "COMPLETED" ? row.outcome : row.status === "CANCELLED" ? row.cancellationReason : row.note || "Not eklenmedi"}
                   </p>
                   <time className={overdue ? "text-[10px] font-semibold text-[#a14f3b]" : "text-[10px] text-[var(--muted)]"}>
                     {overdue ? "Gecikti · " : ""}{formatDateTime(row.dueAt)}
@@ -358,10 +364,10 @@ export default function CrmFollowUpsPage() {
               );
             })}
           </div>
-        ) : <EmptyState title="Takip Bulunamadı" description="Seçili Filtreye Ait Müşteri Teması Bulunmuyor." />}
+        ) : <EmptyState title="Takip bulunamadı" description="Seçili filtreye ait müşteri teması bulunmuyor." />}
       </section>
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni Takip Görevi" description="Takibi Bir Potansiyel Müşteriye Veya Satış Fırsatına Bağlayın.">
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni takip görevi" description="Takibi bir potansiyel müşteriye veya satış fırsatına bağlayın.">
         <form onSubmit={createFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
           <Field label="Müşteri İlişkileri Kaydı" required>
@@ -394,7 +400,7 @@ export default function CrmFollowUpsPage() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(completing)} onClose={() => setCompleting(null)} title="Takibi Tamamla" description="Görüşme Sonucunu Müşteri İlişkileri Geçmişine Kaydedin.">
+      <Modal open={Boolean(completing)} onClose={() => setCompleting(null)} title="Takibi tamamla" description="Görüşme sonucunu müşteri ilişkileri geçmişine kaydedin.">
         <form onSubmit={completeFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
           <Field label="Görüşme Sonucu" required><TextArea rows={4} value={outcome} onChange={(event) => setOutcome(event.target.value)} /></Field>
@@ -402,7 +408,7 @@ export default function CrmFollowUpsPage() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(rescheduling)} onClose={() => setRescheduling(null)} title="Takibi Yeniden Planla" description="Tarih, İletişim Kanalı, Sorumlu Veya Not Bilgisini Güncelleyin.">
+      <Modal open={Boolean(rescheduling)} onClose={() => setRescheduling(null)} title="Takibi yeniden planla" description="Tarih, iletişim kanalı, sorumlu veya not bilgisini güncelleyin.">
         <form onSubmit={rescheduleFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
           <Field label="Sorumlu" required>
@@ -423,7 +429,7 @@ export default function CrmFollowUpsPage() {
         </form>
       </Modal>
 
-      <Modal open={Boolean(cancelling)} onClose={() => setCancelling(null)} title="Takibi İptal Et" description="İptal Nedeni Müşteri İlişkileri İşlem Geçmişinde Saklanacaktır.">
+      <Modal open={Boolean(cancelling)} onClose={() => setCancelling(null)} title="Takibi iptal et" description="İptal nedeni müşteri ilişkileri işlem geçmişinde saklanacaktır.">
         <form onSubmit={cancelFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
           <Field label="İptal Nedeni" required><TextArea rows={4} value={cancellationReason} onChange={(event) => setCancellationReason(event.target.value)} /></Field>
