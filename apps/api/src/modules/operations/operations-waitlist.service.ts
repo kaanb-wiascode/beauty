@@ -134,6 +134,7 @@ export class OperationsWaitlistService {
       throw new BadRequestException('Bekleme talebinin bitiş zamanı gelecekte olmalıdır.');
     }
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
@@ -233,28 +234,30 @@ export class OperationsWaitlistService {
           input.note ?? null,
         );
 
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'waitlist.created',
+            aggregateType: 'waitlist_entry',
+            aggregateId: created[0].id,
+            payload: {
+              customerId: created[0].customerId,
+              serviceId: created[0].serviceId,
+              preferredStaffId: created[0].preferredStaffId,
+            },
+          })) ?? null;
+
         return { entry: created[0], duplicate: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    if (!result.duplicate) {
-      await this.domainEvents?.publish({
-        eventName: 'waitlist.created',
-        aggregateType: 'waitlist_entry',
-        aggregateId: result.entry.id,
-        payload: {
-          customerId: result.entry.customerId,
-          serviceId: result.entry.serviceId,
-          preferredStaffId: result.entry.preferredStaffId,
-        },
-      });
-    }
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
   async cancel(entryId: string, input: CancelWaitlistEntryInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
@@ -336,19 +339,22 @@ export class OperationsWaitlistService {
           input.note ?? null,
         );
 
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'waitlist.cancelled',
+            aggregateType: 'waitlist_entry',
+            aggregateId: updated[0].id,
+            payload: {
+              customerId: updated[0].customerId,
+              serviceId: updated[0].serviceId,
+            },
+          })) ?? null;
+
         return updated[0];
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'waitlist.cancelled',
-      aggregateType: 'waitlist_entry',
-      aggregateId: result.id,
-      payload: {
-        customerId: result.customerId,
-        serviceId: result.serviceId,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
