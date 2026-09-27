@@ -46,7 +46,7 @@ export const createCreatorCollaborationSchema = z.object({
   })).default([]),
   performance: z.record(z.string(), z.unknown()).default({}),
   notes: z.string().trim().max(8000).nullable().optional(),
-}).refine((v)=>!v.startsAt||!v.endsAt||v.endsAt>=v.startsAt,{message:'Collaboration end date must be after the start date.'});
+}).refine((v)=>!v.startsAt||!v.endsAt||v.endsAt>=v.startsAt,{message:'İş birliği bitiş tarihi başlangıç tarihinden sonra olmalıdır.'});
 
 export type CreateCreatorInput=z.infer<typeof createCreatorSchema>;
 export type CreateCreatorCollaborationInput=z.infer<typeof createCreatorCollaborationSchema>;
