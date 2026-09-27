@@ -701,6 +701,47 @@ export class TeamService {
     return { ok: true };
   }
 
+  async messageReaders(currentUserId: string, messageId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      conversationId: string;
+      createdAt: Date;
+      senderUserId: string;
+    }>>(
+      `SELECT conversation_id AS "conversationId", created_at AS "createdAt", sender_user_id AS "senderUserId"
+       FROM team_messages
+       WHERE id=$1::text
+         AND tenant_id=$2::text
+         AND company_id=$3::text
+         AND deleted_at IS NULL
+       LIMIT 1`,
+      messageId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const message = rows[0];
+    if (!message) throw new NotFoundException('Mesaj bulunamadı.');
+    await this.requireConversationMember(currentUserId, message.conversationId);
+
+    return this.prisma.$queryRawUnsafe(
+      `SELECT
+         u.id,
+         u."firstName" AS "firstName",
+         u."lastName" AS "lastName",
+         u.email,
+         cm.last_read_at AS "readAt"
+       FROM team_conversation_members cm
+       JOIN users u ON u.id=cm.user_id
+       WHERE cm.conversation_id=$1::text
+         AND cm.user_id<>$2::text
+         AND cm.last_read_at IS NOT NULL
+         AND cm.last_read_at>=$3
+       ORDER BY cm.last_read_at DESC`,
+      message.conversationId,
+      message.senderUserId,
+      message.createdAt,
+    );
+  }
+
   async editMessage(currentUserId: string, messageId: string, body: string) {
     const rows = await this.prisma.$queryRawUnsafe<{ id: string }[]>(
       `UPDATE team_messages m
