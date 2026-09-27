@@ -42,6 +42,10 @@ type SalespersonReport = {
   email: string | null;
   leadCount: number;
   interactionCount: number;
+  notReachedInteractionCount: number;
+  appointmentOutcomeCount: number;
+  saleOutcomeCount: number;
+  interactionToAppointmentRate: number;
   opportunityCount: number;
   wonCount: number;
   lostCount: number;
@@ -164,6 +168,8 @@ export default function CrmReportsPage() {
                   <th className="px-5 py-3">Satışçı</th>
                   <th className="px-3 py-3">Pot. Müşteri</th>
                   <th className="px-3 py-3">Görüşme</th>
+                  <th className="px-3 py-3">Ulaşılamadı</th>
+                  <th className="px-3 py-3">Görüşme → Randevu</th>
                   <th className="px-3 py-3">Fırsat</th>
                   <th className="px-3 py-3">Kazanılan</th>
                   <th className="px-3 py-3">Müşteri → Fırsat</th>
@@ -180,6 +186,8 @@ export default function CrmReportsPage() {
                     <td className="px-5 py-4"><p className="font-semibold">{[row.firstName, row.lastName].filter(Boolean).join(" ") || "Kullanıcı"}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{row.email || "—"}</p></td>
                     <td className="px-3 py-4">{row.leadCount}</td>
                     <td className="px-3 py-4">{row.interactionCount}</td>
+                    <td className="px-3 py-4">{row.notReachedInteractionCount}</td>
+                    <td className="px-3 py-4">%{row.interactionToAppointmentRate} <span className="text-[9px] text-[var(--muted)]">({row.appointmentOutcomeCount})</span></td>
                     <td className="px-3 py-4">{row.opportunityCount}</td>
                     <td className="px-3 py-4">{row.wonCount}</td>
                     <td className="px-3 py-4">%{row.leadToOpportunityRate}</td>
