@@ -829,7 +829,7 @@ export class PaymentsService {
 
     if (!payment) {
       throw new NotFoundException(
-        'Payment not found',
+        'Ödeme bulunamadı.',
       );
     }
 
