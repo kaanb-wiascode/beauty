@@ -211,12 +211,19 @@ export class CrmLeadService {
       await this.assertCommercialScope(input, tx);
       const assignment = await this.assignmentService.resolveOwner({ branchId, source: input.source, requestedOwnerUserId: input.ownerUserId ?? null, actorUserId }, tx);
       await this.assertAssignableUser(assignment.ownerUserId, tx);
+      let surveyorSnapshot: { firstName: string; lastName: string } | null = null;
       if (input.source === 'SURVEYOR') {
-        const surveyors = await tx.$queryRawUnsafe<Array<{ staffId: string; branchId: string }>>(
-          `SELECT p.staff_id AS "staffId",p.branch_id AS "branchId" FROM crm_surveyor_profiles p JOIN staff s ON s.id=p.staff_id WHERE p.staff_id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text AND p.branch_id=$4::text AND p.active=TRUE AND s.status='ACTIVE' LIMIT 1`,
+        const surveyors = await tx.$queryRawUnsafe<Array<{ staffId: string; branchId: string; firstName: string; lastName: string }>>(
+          `SELECT p.staff_id AS "staffId",p.branch_id AS "branchId",s."firstName" AS "firstName",s."lastName" AS "lastName"
+             FROM crm_surveyor_profiles p
+             JOIN staff s ON s.id=p.staff_id
+            WHERE p.staff_id=$1::text AND p.tenant_id=$2::text AND p.company_id=$3::text
+              AND p.branch_id=$4::text AND p.active=TRUE AND s.status='ACTIVE'
+            LIMIT 1`,
           input.surveyorStaffId, context.tenantId, context.companyId, branchId,
         );
         if (!surveyors.length) throw new BadRequestException('Seçilen anketör bu şubede aktif değil.');
+        surveyorSnapshot = { firstName: surveyors[0].firstName, lastName: surveyors[0].lastName };
       }
       if (input.customerId) {
         const customers = await tx.$queryRawUnsafe<Array<{ id: string }>>(
@@ -233,11 +240,12 @@ export class CrmLeadService {
            ad_id,ad_name,landing_page,referrer,utm_source,utm_medium,utm_campaign,utm_content,utm_term,click_identifiers,
            interested_service_ids,interested_package_ids,preferred_branch_id,estimated_budget,budget_currency,purchase_urgency,consultation_need,customer_intent,
            team,lead_score,lead_temperature,first_contacted_at,first_response_at,interest_note,
-           surveyor_staff_id,surveyor_branch_id,survey_campaign,survey_location,survey_desk,survey_date,created_by_user_id
+           surveyor_staff_id,surveyor_branch_id,survey_campaign,survey_location,survey_desk,survey_date,
+           surveyor_first_name_snapshot,surveyor_last_name_snapshot,created_by_user_id
          ) VALUES(
            $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19,
            $20,$21,$22,$23,$24,$25,$26,$27,$28,$29::jsonb,$30::text[],$31::text[],$32::text,$33,$34,$35,$36,$37,
-           $38,$39,$40,$41,$42,$43,$44::text,$45::text,$46,$47,$48,$49,$50::text
+           $38,$39,$40,$41,$42,$43,$44::text,$45::text,$46,$47,$48,$49,$50,$51,$52::text
          )
          RETURNING id,first_name AS "firstName",last_name AS "lastName",phone,alternative_phone AS "alternativePhone",email,
                    preferred_contact_channel AS "preferredContactChannel",language,timezone,source,source_detail AS "sourceDetail",
@@ -268,6 +276,8 @@ export class CrmLeadService {
         input.source === 'SURVEYOR' ? input.surveyLocation ?? null : null,
         input.source === 'SURVEYOR' ? input.surveyDesk ?? null : null,
         input.source === 'SURVEYOR' ? input.surveyDate ?? null : null,
+        input.source === 'SURVEYOR' ? surveyorSnapshot?.firstName ?? null : null,
+        input.source === 'SURVEYOR' ? surveyorSnapshot?.lastName ?? null : null,
         actorUserId,
       );
       await this.assignmentService.recordAssignment({
