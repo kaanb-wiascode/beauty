@@ -9,6 +9,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import type {
   CancelResourceBlockInput,
   CreateResourceBlockInput,
@@ -35,6 +36,7 @@ export class OperationsResourceBlocksService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private context() {
@@ -44,10 +46,10 @@ export class OperationsResourceBlocksService {
     const membershipId = this.tenantContext.getMembershipId();
 
     if (!tenantId || !companyId || !membershipId) {
-      throw new InternalServerErrorException('Organization context is incomplete.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return { tenantId, companyId, branchId, membershipId };
   }
@@ -78,7 +80,7 @@ export class OperationsResourceBlocksService {
   async create(input: CreateResourceBlockInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         const resourceKey = input.roomId
           ? `room:${input.roomId}`
@@ -99,7 +101,7 @@ export class OperationsResourceBlocksService {
             companyId,
             branchId,
           );
-          if (!rows[0]) throw new NotFoundException('Room not found');
+          if (!rows[0]) throw new NotFoundException('Oda bulunamadı.');
         } else if (input.assetId) {
           const rows = await tx.$queryRawUnsafe<Array<{ id: string }>>(
             `SELECT id FROM inventory_assets
@@ -110,7 +112,7 @@ export class OperationsResourceBlocksService {
             companyId,
             branchId,
           );
-          if (!rows[0]) throw new NotFoundException('Equipment asset not found');
+          if (!rows[0]) throw new NotFoundException('Cihaz bulunamadı.');
         }
 
         const allocationColumn = input.roomId ? 'room_id' : 'inventory_asset_id';
@@ -183,6 +185,18 @@ export class OperationsResourceBlocksService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'resource.blocked',
+      aggregateType: 'resource_block',
+      aggregateId: result.id,
+      payload: {
+        roomId: result.roomId,
+        assetId: result.assetId,
+        blockedFrom: result.blockedFrom.toISOString(),
+        blockedTo: result.blockedTo.toISOString(),
+      },
+    });
+    return result;
   }
 
   async cancel(blockId: string, input: CancelResourceBlockInput) {
@@ -206,9 +220,19 @@ export class OperationsResourceBlocksService {
     );
     if (!rows[0]) {
       throw new ConflictException(
-        'Resource block changed or is no longer active. Refresh and retry.',
+        'Kaynak kullanılamama kaydı değişti veya artık aktif değil. Lütfen ekranı yenileyin.',
       );
     }
-    return rows[0];
+    const result = rows[0];
+    await this.domainEvents?.publish({
+      eventName: 'resource.block_released',
+      aggregateType: 'resource_block',
+      aggregateId: result.id,
+      payload: {
+        roomId: result.roomId,
+        assetId: result.assetId,
+      },
+    });
+    return result;
   }
 }
