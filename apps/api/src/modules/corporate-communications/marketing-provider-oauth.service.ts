@@ -162,7 +162,6 @@ export class MarketingProviderOAuthService {
           'GOOGLE_OAUTH_CLIENT_ID',
           'GOOGLE_OAUTH_CLIENT_SECRET',
           'GOOGLE_OAUTH_REDIRECT_URI',
-          'GOOGLE_ADS_DEVELOPER_TOKEN',
         ],
       },
       {
