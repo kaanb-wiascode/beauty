@@ -2,12 +2,14 @@ import { createCipheriv, createDecipheriv, createHash, randomBytes } from 'node:
 import { BadRequestException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '@beauty-erp/database';
+import { TenantContext } from '../../common/tenant/tenant-context';
 
 @Injectable()
 export class MarketingProviderVaultService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly tenantContext: TenantContext,
   ) {}
 
   private activeVersion() {
@@ -80,52 +82,81 @@ export class MarketingProviderVaultService {
 
   async store(connectionId: string, secrets: Record<string, string>) {
     this.assertReady();
+    const { tenantId, companyId } = this.tenantContext.getContext();
     const version = this.activeVersion();
     const encrypted = this.encrypt(secrets, version);
     await this.prisma.$transaction(async (tx) => {
+      const connections = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+        `SELECT id FROM corporate_marketing_provider_connections
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+          LIMIT 1`,
+        connectionId,
+        tenantId,
+        companyId,
+      );
+      if (!connections[0]) {
+        throw new BadRequestException('Entegrasyon bağlantısı aktif şirket kapsamında bulunamadı.');
+      }
+
       await tx.$executeRawUnsafe(
-        `INSERT INTO corporate_marketing_provider_secrets(connection_id,encrypted_payload,key_version,updated_at)
-         VALUES($1::text,$2,$3,NOW())
+        `INSERT INTO corporate_marketing_provider_secrets(
+           connection_id,tenant_id,company_id,encrypted_payload,key_version,updated_at
+         ) VALUES($1::text,$2::text,$3::text,$4,$5,NOW())
          ON CONFLICT(connection_id) DO UPDATE SET
+           tenant_id=EXCLUDED.tenant_id,
+           company_id=EXCLUDED.company_id,
            encrypted_payload=EXCLUDED.encrypted_payload,
            key_version=EXCLUDED.key_version,
            updated_at=NOW()`,
         connectionId,
+        tenantId,
+        companyId,
         encrypted,
         version,
       );
       await tx.$executeRawUnsafe(
         `UPDATE corporate_marketing_provider_connections
-            SET credential_reference=$2,status='CONNECTED',last_error=NULL,updated_at=NOW()
-          WHERE id=$1::text`,
+            SET credential_reference=$4,status='CONNECTED',last_error=NULL,updated_at=NOW()
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         connectionId,
+        tenantId,
+        companyId,
         `vault:${connectionId}`,
       );
     });
   }
 
   async load(connectionId: string) {
+    const { tenantId, companyId } = this.tenantContext.getContext();
     const rows = await this.prisma.$queryRawUnsafe<Array<{ encryptedPayload: string; keyVersion: string }>>(
       `SELECT encrypted_payload AS "encryptedPayload",key_version AS "keyVersion"
          FROM corporate_marketing_provider_secrets
-        WHERE connection_id=$1::text
+        WHERE connection_id=$1::text AND tenant_id=$2::text AND company_id=$3::text
         LIMIT 1`,
       connectionId,
+      tenantId,
+      companyId,
     );
     return rows[0] ? this.decrypt(rows[0].encryptedPayload, rows[0].keyVersion) : null;
   }
 
   async clear(connectionId: string) {
+    const { tenantId, companyId } = this.tenantContext.getContext();
     await this.prisma.$transaction(async (tx) => {
       await tx.$executeRawUnsafe(
-        `DELETE FROM corporate_marketing_provider_secrets WHERE connection_id=$1::text`,
+        `DELETE FROM corporate_marketing_provider_secrets
+          WHERE connection_id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         connectionId,
+        tenantId,
+        companyId,
       );
       await tx.$executeRawUnsafe(
         `UPDATE corporate_marketing_provider_connections
-            SET credential_reference=NULL,status='DISCONNECTED',last_sync_at=NULL,updated_at=NOW()
-          WHERE id=$1::text`,
+            SET credential_reference=NULL,status='DISCONNECTED',last_sync_at=NULL,last_error=NULL,updated_at=NOW()
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
         connectionId,
+        tenantId,
+        companyId,
       );
     });
   }
