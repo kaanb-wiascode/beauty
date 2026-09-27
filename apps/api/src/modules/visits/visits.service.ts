@@ -4,6 +4,7 @@ import {
   BadRequestException,
   ConflictException,
   Injectable,
+  Optional,
   InternalServerErrorException,
   NotFoundException,
 } from '@nestjs/common';
@@ -67,6 +68,7 @@ export class VisitsService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    @Optional()
     private readonly domainEvents?: DomainEventsService,
   ) {}
 
