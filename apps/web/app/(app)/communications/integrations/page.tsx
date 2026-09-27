@@ -326,6 +326,16 @@ export default function AdvertisingConnectionsPage() {
                   {syncingId === row.id ? "Veriler Eşitleniyor..." : "Verileri Eşitle"}
                 </button>
               ) : null}
+              {row.provider === "GOOGLE_ADS" && connectionHealth?.credentialsConfigured ? (
+                <button
+                  type="button"
+                  disabled={webhookConfiguringId === row.id}
+                  onClick={() => void configureWebhook(row.id)}
+                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
+                >
+                  {webhookConfiguringId === row.id ? "Webhook Hazırlanıyor..." : "Webhook Kurulumu"}
+                </button>
+              ) : null}
               {connectionHealth?.health !== "DISCONNECTED" ? (
                 <button
                   type="button"
