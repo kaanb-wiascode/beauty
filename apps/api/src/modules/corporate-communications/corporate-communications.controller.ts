@@ -7,6 +7,7 @@ import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CorporateCommunicationsService } from './corporate-communications.service';
 import { MarketingExpenseSyncService } from './marketing-expense-sync.service';
+import { MarketingProviderAccountsService } from './marketing-provider-accounts.service';
 import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
 import {
   createBrandAssetSchema,
@@ -14,6 +15,7 @@ import {
   createMarketingLeadSchema,
   createProviderConnectionSchema,
   completeProviderOAuthSchema,
+  selectProviderAccountSchema,
   createRoutingRuleSchema,
   listCampaignsSchema,
   listMarketingLeadsSchema,
@@ -27,6 +29,7 @@ export class CorporateCommunicationsController {
     private readonly service: CorporateCommunicationsService,
     private readonly expenseSync: MarketingExpenseSyncService,
     private readonly providerOAuth: MarketingProviderOAuthService,
+    private readonly providerAccounts: MarketingProviderAccountsService,
   ) {}
 
   @Get('dashboard')
@@ -114,6 +117,24 @@ export class CorporateCommunicationsController {
       completeProviderOAuthSchema.parse(body),
       user.sub,
     );
+  }
+
+  @Get('provider-connections/:id/accounts')
+  @RequirePermission('communications', 'manage')
+  listProviderAccounts(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.providerAccounts.list(id);
+  }
+
+  @Post('provider-connections/:id/accounts/select')
+  @RequirePermission('communications', 'manage')
+  selectProviderAccount(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    const input = selectProviderAccountSchema.parse(body);
+    return this.providerAccounts.select(id, input.externalAccountId);
   }
 
   @Post('provider-connections/:id/oauth/refresh')
