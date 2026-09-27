@@ -62,7 +62,7 @@ export default function OperationsRebookingPage() {
   async function load() {
     if (!hasActiveBranch()) {
       setLoading(false);
-      setError("Rebooking yönetimi için önce aktif bir şube seçin.");
+      setError("Yeniden randevu yönetimi için önce aktif bir şube seçin.");
       return;
     }
     setLoading(true);
@@ -78,7 +78,7 @@ export default function OperationsRebookingPage() {
       setAnalytics(analyticsRow);
       setServiceId((current) => current || serviceRows.data[0]?.id || "");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Rebooking verileri yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Yeniden randevu verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -110,7 +110,7 @@ export default function OperationsRebookingPage() {
       setNotice("Önerilen yeniden randevu aralığı kaydedildi.");
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Rebooking politikası kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Yeniden randevu kuralı kaydedilemedi.");
     } finally {
       setBusy(false);
     }
@@ -130,7 +130,7 @@ export default function OperationsRebookingPage() {
           notes: `Önceki randevu ${selected.id.slice(0, 8)} üzerinden yeniden randevu`,
         },
       });
-      setNotice("Yeni randevu oluşturuldu ve rebooking bağlantısı kaydedildi.");
+      setNotice("Yeni randevu oluşturuldu ve yeniden randevu bağlantısı kaydedildi.");
       setSelectedId("");
       setStartAt("");
       await load();
@@ -142,7 +142,7 @@ export default function OperationsRebookingPage() {
   }
 
   if (loading && !opportunities.length) {
-    return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Rebooking fırsatları hazırlanıyor..." /></div>;
+    return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Yeniden randevu fırsatları hazırlanıyor..." /></div>;
   }
 
   return (
@@ -158,7 +158,7 @@ export default function OperationsRebookingPage() {
 
       {analytics ? (
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">90 Gün Rebooking Oranı</p><CardInfo help={getCardHelp("90 Gün Rebooking Oranı", "Son 90 gündeki uygun tamamlanmış hizmetlerin ne kadarının yeni randevuya dönüştüğünü gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">%{analytics.rebookingRate}</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">90 Gün Yeniden Randevu Oranı</p><CardInfo help={getCardHelp("90 Gün Yeniden Randevu Oranı", "Son 90 gündeki uygun tamamlanmış hizmetlerin ne kadarının yeni randevuya dönüştüğünü gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">%{analytics.rebookingRate}</p></div>
           <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">Tamamlanan Hizmet</p><CardInfo help={getCardHelp("Tamamlanan Hizmet", "Yeniden randevu değerlendirmesine uygun tamamlanmış hizmetlerin sayısını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.eligibleCompleted}</p></div>
           <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">Yeniden Randevu</p><CardInfo help={getCardHelp("Yeniden Randevu", "Kaynak hizmet sonrasında yeni randevu oluşturulmuş kayıtların sayısını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.rebooked}</p></div>
           <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm"><div className="flex items-start justify-between gap-3"><p className="text-xs font-semibold text-[var(--muted)]">Öneriden Ortalama Sapma</p><CardInfo help={getCardHelp("Öneriden Ortalama Sapma", "Gerçek yeniden randevu tarihi ile önerilen dönüş tarihi arasındaki ortalama gün farkını gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{analytics.avgDeviationDays === null ? "—" : `${analytics.avgDeviationDays > 0 ? "+" : ""}${analytics.avgDeviationDays} gün`}</p></div>
