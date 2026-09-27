@@ -25,6 +25,7 @@ import {
   opportunityStageLabels,
   type CrmAssignee,
   type CrmLeadDetail,
+  type CrmInteraction,
   type LeadStatus,
 } from "@/lib/crm-types";
 
@@ -38,6 +39,16 @@ const eventLabels: Record<string, string> = {
   FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı",
   FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi",
 };
+const interactionTypeLabels: Record<CrmInteraction["type"], string> = {
+  CALL: "Telefon",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  IN_PERSON: "Yüz yüze",
+  VIDEO_CALL: "Görüntülü görüşme",
+  OTHER: "Diğer",
+};
+
 const emptyEditForm = {
   firstName: "",
   lastName: "",
@@ -291,6 +302,26 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
             ) : (
               <EmptyState title="Henüz Satış Fırsatı Yok" description="Potansiyel Müşteri Havuzundaki Nitelendir İşlemiyle Bu Adayı Satış Sürecine Ekleyebilirsiniz." />
             )}
+          </section>
+          <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
+            <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+              <div>
+                <h2 className="text-[13px] font-semibold">Görüşmeler</h2>
+                <p className="mt-1 text-[10px] text-[var(--muted)]">Müşteriyle yapılan temas ve görüşme geçmişi</p>
+              </div>
+              <Link href={`/crm/interactions?leadId=${lead.id}`} className="text-[10px] font-semibold text-[#1674BD]">Tüm Görüşmeler →</Link>
+            </header>
+            {lead.interactions?.length ? (
+              <div className="divide-y divide-[var(--line)]">
+                {lead.interactions.slice(0, 6).map((row) => (
+                  <div key={row.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[120px_1fr_150px] sm:items-center">
+                    <div><p className="text-[10px] font-semibold text-[#1674BD]">{interactionTypeLabels[row.type]}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{row.direction === "INBOUND" ? "Gelen" : "Giden"}</p></div>
+                    <div className="min-w-0"><p className="truncate text-[11px]">{row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>{row.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">Sonraki: {row.nextAction}</p> : null}</div>
+                    <time className="text-[10px] text-[var(--muted)] sm:text-right">{formatDateTime(row.startedAt)}</time>
+                  </div>
+                ))}
+              </div>
+            ) : <EmptyState title="Görüşme Bulunmuyor" description="Bu potansiyel müşteriyle yapılan görüşmeler burada görünür." />}
           </section>
           <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
             <header className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
