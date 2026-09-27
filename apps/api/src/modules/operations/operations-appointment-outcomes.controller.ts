@@ -27,28 +27,28 @@ export class OperationsAppointmentOutcomesController {
 
   @Get('reasons')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   listReasons(@Query('outcome') outcome?: string) {
     return this.outcomes.listReasons(outcome ? appointmentOutcomeTypeSchema.parse(outcome) : undefined);
   }
 
   @Post('reasons')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   createReason(@Body() body: unknown) {
     return this.outcomes.createReason(createCancellationReasonSchema.parse(body));
   }
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   listRecent(@Query('limit') limit?: string) {
     return this.outcomes.listRecent(limit ? Number(limit) : 100);
   }
 
   @Post('appointments/:appointmentId')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('appointments', 'cancel')
+  @RequirePermission('operations', 'manage')
   record(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: unknown,
