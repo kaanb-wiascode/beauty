@@ -204,18 +204,47 @@ export class MarketingProviderOAuthService {
   }
 
   private async exchangeMeta(code: string): Promise<TokenBundle> {
-    const url = new URL(this.required('META_OAUTH_TOKEN_URL'));
-    url.searchParams.set('client_id', this.required('META_OAUTH_CLIENT_ID'));
-    url.searchParams.set('client_secret', this.required('META_OAUTH_CLIENT_SECRET'));
+    const tokenUrl = this.required('META_OAUTH_TOKEN_URL');
+    const clientId = this.required('META_OAUTH_CLIENT_ID');
+    const clientSecret = this.required('META_OAUTH_CLIENT_SECRET');
+
+    const url = new URL(tokenUrl);
+    url.searchParams.set('client_id', clientId);
+    url.searchParams.set('client_secret', clientSecret);
     url.searchParams.set('redirect_uri', this.required('META_OAUTH_REDIRECT_URI'));
     url.searchParams.set('code', code);
     const body = await this.responseJson(await fetch(url));
-    const accessToken = typeof body.access_token === 'string' ? body.access_token : '';
-    if (!accessToken) throw new BadRequestException('Meta erişim anahtarı alınamadı.');
+    const shortLivedToken =
+      typeof body.access_token === 'string' ? body.access_token : '';
+    if (!shortLivedToken) {
+      throw new BadRequestException('Meta erişim anahtarı alınamadı.');
+    }
+
+    const exchangeUrl = new URL(tokenUrl);
+    exchangeUrl.searchParams.set('grant_type', 'fb_exchange_token');
+    exchangeUrl.searchParams.set('client_id', clientId);
+    exchangeUrl.searchParams.set('client_secret', clientSecret);
+    exchangeUrl.searchParams.set('fb_exchange_token', shortLivedToken);
+    const longLived = await this.responseJson(await fetch(exchangeUrl));
+    const accessToken =
+      typeof longLived.access_token === 'string'
+        ? longLived.access_token
+        : shortLivedToken;
+
     return {
       accessToken,
-      tokenType: typeof body.token_type === 'string' ? body.token_type : 'bearer',
-      expiresIn: typeof body.expires_in === 'number' ? body.expires_in : undefined,
+      tokenType:
+        typeof longLived.token_type === 'string'
+          ? longLived.token_type
+          : typeof body.token_type === 'string'
+            ? body.token_type
+            : 'bearer',
+      expiresIn:
+        typeof longLived.expires_in === 'number'
+          ? longLived.expires_in
+          : typeof body.expires_in === 'number'
+            ? body.expires_in
+            : undefined,
     };
   }
 
