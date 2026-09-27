@@ -212,6 +212,7 @@ export default function TeamPage() {
   const [shareAppointments, setShareAppointments] = useState<ShareAppointment[]>([]);
   const [sharePayments, setSharePayments] = useState<SharePayment[]>([]);
   const [shareServices, setShareServices] = useState<ShareService[]>([]);
+  const [externalShareCard, setExternalShareCard] = useState<ValooRichCardPayload | null>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const mediaStreamRef = useRef<MediaStream | null>(null);
   const recordedChunksRef = useRef<Blob[]>([]);
@@ -326,6 +327,17 @@ export default function TeamPage() {
   useEffect(() => {
     void loadOverview();
   }, [loadOverview]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem("valoo-team-pending-rich-card");
+    if (!stored) return;
+    const card = parseValooRichCard(stored);
+    if (!card) {
+      window.localStorage.removeItem("valoo-team-pending-rich-card");
+      return;
+    }
+    setExternalShareCard(card);
+  }, []);
 
   useEffect(() => {
     if (typeof Notification === "undefined") {
@@ -708,6 +720,25 @@ export default function TeamPage() {
       window.setTimeout(() => URL.revokeObjectURL(url), 60_000);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Dosya açılamadı.");
+    }
+  }
+
+  async function sendExternalRichCard(destinationConversationId: string) {
+    if (!externalShareCard || sending) return;
+    setSending(true);
+    try {
+      await api(`/team/conversations/${destinationConversationId}/messages`, {
+        method: "POST",
+        body: { body: encodeValooRichCard(externalShareCard) },
+      });
+      window.localStorage.removeItem("valoo-team-pending-rich-card");
+      setExternalShareCard(null);
+      setActiveId(destinationConversationId);
+      await Promise.all([loadOverview(true), loadMessages(destinationConversationId, true)]);
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "VALOO kaydı paylaşılamadı.");
+    } finally {
+      setSending(false);
     }
   }
 
@@ -1507,6 +1538,39 @@ export default function TeamPage() {
             {preview.mimeType === "application/pdf" ? <iframe src={preview.url} title={preview.name} className="h-[65vh] w-full rounded-[14px] bg-white" /> : null}
           </div>
         ) : null}
+      </Modal>
+
+      <Modal
+        open={Boolean(externalShareCard)}
+        onClose={() => {
+          if (sending) return;
+          window.localStorage.removeItem("valoo-team-pending-rich-card");
+          setExternalShareCard(null);
+        }}
+        title="Sohbette paylaş"
+        description={externalShareCard ? `${externalShareCard.title} kaydını göndereceğiniz konuşmayı seçin.` : ""}
+        size="sm"
+      >
+        <div className="max-h-[440px] overflow-y-auto">
+          {conversations.map((conversation) => (
+            <button
+              key={conversation.id}
+              type="button"
+              disabled={sending}
+              onClick={() => void sendExternalRichCard(conversation.id)}
+              className="flex w-full items-center gap-3 rounded-[12px] px-3 py-3 text-left transition hover:bg-[var(--surface-2)] disabled:opacity-50"
+            >
+              <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px] bg-[var(--accent-soft)] text-[9px] font-semibold text-[var(--accent)]">
+                {conversation.displayName.slice(0, 2).toUpperCase()}
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="truncate text-[10px] font-semibold text-[var(--ink)]">{conversation.displayName}</p>
+                <p className="mt-0.5 text-[8px] text-[var(--muted)]">{conversation.type === "DIRECT" ? "Birebir" : conversation.type === "GROUP" ? "Grup" : "Kanal"}</p>
+              </div>
+            </button>
+          ))}
+          {!conversations.length ? <p className="py-8 text-center text-[10px] text-[var(--muted)]">Paylaşım için önce bir konuşma oluşturun.</p> : null}
+        </div>
       </Modal>
 
       <Modal
