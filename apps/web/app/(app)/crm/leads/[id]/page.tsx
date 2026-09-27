@@ -36,7 +36,7 @@ const eventLabels: Record<string, string> = {
   FOLLOW_UP_CREATED: "Takip Görevi Oluşturuldu",
   FOLLOW_UP_COMPLETED: "Takip Tamamlandı",
   FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı",
-  FOLLOW_UP_CANCELLED: "Takip İptal Edildi",
+  FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi",
 };
 const emptyEditForm = {
   firstName: "",
