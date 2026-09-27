@@ -2,6 +2,17 @@ import { NotFoundException } from '@nestjs/common';
 import { CrmCustomer360Service } from './crm-customer360.service';
 
 describe('CrmCustomer360Service', () => {
+  function dataScope() {
+    return {
+      resolve: jest.fn().mockResolvedValue({
+        scope: 'BRANCH',
+        userId: 'user-1',
+        ownerUserIds: [],
+        restrictOwners: false,
+      }),
+    } as never;
+  }
+
   const tenant = {
     getContext: jest.fn().mockReturnValue({
       tenantId: 'tenant-a',
@@ -18,13 +29,19 @@ describe('CrmCustomer360Service', () => {
       .mockResolvedValueOnce([{ openOpportunityCount: 1, weightedPipeline: 5000 }])
       .mockResolvedValueOnce([{ id: 'opportunity-1' }])
       .mockResolvedValueOnce([{ id: 'follow-up-1' }])
+      .mockResolvedValueOnce([{ id: 'interaction-1' }])
       .mockResolvedValueOnce([{ id: 'event-1' }]);
-    const service = new CrmCustomer360Service({ $queryRawUnsafe: query } as never, tenant as never);
+    const service = new CrmCustomer360Service(
+      { $queryRawUnsafe: query } as never,
+      tenant as never,
+      dataScope(),
+    );
 
     await expect(service.getSummary('customer-1')).resolves.toMatchObject({
       summary: { openOpportunityCount: 1, weightedPipeline: 5000 },
       opportunities: [{ id: 'opportunity-1' }],
       followUps: [{ id: 'follow-up-1' }],
+      interactions: [{ id: 'interaction-1' }],
       events: [{ id: 'event-1' }],
     });
 
@@ -32,13 +49,24 @@ describe('CrmCustomer360Service', () => {
     for (const call of query.mock.calls.slice(1)) {
       expect(String(call[0])).toContain('tenant_id=$1::text');
       expect(String(call[0])).toContain('company_id=$2::text');
-      expect(call.slice(1)).toEqual(['tenant-a', 'company-a', 'branch-a', 'customer-1']);
+      expect(call.slice(1)).toEqual([
+        'tenant-a',
+        'company-a',
+        'branch-a',
+        'customer-1',
+        false,
+        [],
+      ]);
     }
   });
 
   it('does not expose a customer outside active scope', async () => {
     const query = jest.fn().mockResolvedValue([]);
-    const service = new CrmCustomer360Service({ $queryRawUnsafe: query } as never, tenant as never);
+    const service = new CrmCustomer360Service(
+      { $queryRawUnsafe: query } as never,
+      tenant as never,
+      dataScope(),
+    );
     await expect(service.getSummary('outside')).rejects.toBeInstanceOf(NotFoundException);
   });
 });
