@@ -20,6 +20,22 @@ type OpportunityDetail = {
   createdAt: string; updatedAt: string; leadFirstName: string | null; leadLastName: string | null;
   customerFirstName: string | null; customerLastName: string | null; followUps: CrmFollowUp[]; interactions: CrmInteraction[]; events: CrmEvent[];
 };
+type CrmQuote = {
+  id: string;
+  opportunityId: string;
+  customerId: string | null;
+  ownerUserId: string;
+  quoteNumber: string;
+  status: "DRAFT" | "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
+  currency: string;
+  subtotal: string | number;
+  discountTotal: string | number;
+  total: string | number;
+  validUntil: string | null;
+  version: number;
+  createdAt: string;
+};
+
 type FollowUpAction = "complete" | "reschedule" | "cancel";
 type FollowUpForm = { assignedUserId: string; channel: CrmFollowUp["channel"]; dueAt: string; note: string };
 
@@ -35,6 +51,16 @@ const interactionTypeLabels: Record<CrmInteraction["type"], string> = {
   IN_PERSON: "Yüz yüze",
   VIDEO_CALL: "Görüntülü görüşme",
   OTHER: "Diğer",
+};
+
+const quoteStatusLabels: Record<CrmQuote["status"], string> = {
+  DRAFT: "Taslak",
+  SENT: "Gönderildi",
+  VIEWED: "Görüntülendi",
+  ACCEPTED: "Kabul Edildi",
+  REJECTED: "Reddedildi",
+  EXPIRED: "Süresi Doldu",
+  CANCELLED: "İptal Edildi",
 };
 
 const followUpStatusLabels: Record<CrmFollowUp["status"], string> = { OPEN: "Açık", COMPLETED: "Tamamlandı", CANCELLED: "İptal Edildi" };
@@ -69,6 +95,11 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [quotes, setQuotes] = useState<CrmQuote[]>([]);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteSaving, setQuoteSaving] = useState(false);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteForm, setQuoteForm] = useState({ description: "", quantity: "1", unitPrice: "", discountTotal: "0", validUntil: "", notes: "" });
 
   const [transitionOpen, setTransitionOpen] = useState(false);
   const [transitionSaving, setTransitionSaving] = useState(false);
@@ -92,15 +123,15 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   const [rescheduledAt, setRescheduledAt] = useState("");
   const [cancelReason, setCancelReason] = useState("");
 
-  async function refresh(id: string) { const result = await api<OpportunityDetail>(`/crm/opportunities/${id}`); setOpportunity(result); return result; }
+  async function refresh(id: string) { const [result, quoteRows] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), api<CrmQuote[]>(`/crm/quotes?opportunityId=${id}`)]); setOpportunity(result); setQuotes(quoteRows); return result; }
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
         const { id } = await params;
-        const [result, people] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), canManage ? api<CrmAssignee[]>("/crm/assignees") : Promise.resolve([])]);
-        if (!cancelled) { setOpportunity(result); setAssignees(people); }
+        const [result, people, quoteRows] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), canManage ? api<CrmAssignee[]>("/crm/assignees") : Promise.resolve([]), api<CrmQuote[]>(`/crm/quotes?opportunityId=${id}`)]);
+        if (!cancelled) { setOpportunity(result); setAssignees(people); setQuotes(quoteRows); }
       } catch (requestError) {
         if (!cancelled) setError(requestError instanceof ApiError ? requestError.message : "Satış fırsatı yüklenemedi.");
       } finally { if (!cancelled) setLoading(false); }
@@ -136,6 +167,61 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       await api(`/crm/opportunities/${opportunity.id}/transition`, { method: "POST", body: { version: opportunity.version, stage: targetStage, probability: chance, estimatedValue: value, expectedCloseDate: expectedCloseDate ? new Date(`${expectedCloseDate}T12:00:00`).toISOString() : null, ...(targetStage === "LOST" ? { lostReason: lostReason.trim() } : {}) } });
       await refresh(opportunity.id); setTransitionOpen(false); showToast("Satış fırsatı güncellendi.", "success");
     } catch (e) { setTransitionError(e instanceof ApiError ? e.message : "Satış fırsatı güncellenemedi."); } finally { setTransitionSaving(false); }
+  }
+
+  function openQuote() {
+    if (!opportunity || !canManage || !branchReady("Teklif oluşturmak için aktif bir şube seçin.")) return;
+    setQuoteError("");
+    setQuoteForm({
+      description: opportunity.title,
+      quantity: "1",
+      unitPrice: opportunity.estimatedValue == null ? "" : String(opportunity.estimatedValue),
+      discountTotal: "0",
+      validUntil: opportunity.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toISOString().slice(0, 10) : "",
+      notes: "",
+    });
+    setQuoteOpen(true);
+  }
+
+  async function createQuote(event: FormEvent) {
+    event.preventDefault();
+    if (!opportunity) return;
+    const quantity = Number(quoteForm.quantity);
+    const unitPrice = Number(quoteForm.unitPrice);
+    const discountTotal = Number(quoteForm.discountTotal || 0);
+    if (!quoteForm.description.trim()) return setQuoteError("Teklif kalemi açıklaması gereklidir.");
+    if (!Number.isFinite(quantity) || quantity < 1) return setQuoteError("Miktar en az 1 olmalıdır.");
+    if (!Number.isFinite(unitPrice) || unitPrice < 0) return setQuoteError("Birim fiyat sıfır veya pozitif olmalıdır.");
+    if (!Number.isFinite(discountTotal) || discountTotal < 0) return setQuoteError("İndirim sıfır veya pozitif olmalıdır.");
+    if (discountTotal > quantity * unitPrice) return setQuoteError("İndirim teklif toplamını aşamaz.");
+    setQuoteSaving(true);
+    setQuoteError("");
+    try {
+      await api("/crm/quotes", {
+        method: "POST",
+        body: {
+          opportunityId: opportunity.id,
+          ...(opportunity.customerId ? { customerId: opportunity.customerId } : {}),
+          currency: opportunity.currency,
+          discountTotal,
+          ...(quoteForm.validUntil ? { validUntil: new Date(`${quoteForm.validUntil}T23:59:59`).toISOString() } : {}),
+          ...(quoteForm.notes.trim() ? { notes: quoteForm.notes.trim() } : {}),
+          items: [{
+            itemType: "CUSTOM",
+            description: quoteForm.description.trim(),
+            quantity,
+            unitPrice,
+          }],
+        },
+      });
+      await refresh(opportunity.id);
+      setQuoteOpen(false);
+      showToast("Teklif oluşturuldu.", "success");
+    } catch (e) {
+      setQuoteError(e instanceof ApiError ? e.message : "Teklif oluşturulamadı.");
+    } finally {
+      setQuoteSaving(false);
+    }
   }
 
   function openFollowUp() {
@@ -176,7 +262,7 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
   if (error || !opportunity) return <div className="mx-auto max-w-6xl space-y-6"><PageHeader title="Satış Fırsatı" /><Alert>{error || "Satış fırsatı bulunamadı."}</Alert><Link href="/crm/pipeline"><Button variant="secondary">Satış sürecine dön</Button></Link></div>;
 
   return <div className="mx-auto max-w-6xl space-y-6">
-    <PageHeader title={opportunity.title} description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda yönetin." action={<div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "OPPORTUNITY", id: opportunity.id, title: opportunity.title, subtitle: opportunityStageLabels[opportunity.stage], meta: [money(opportunity.estimatedValue, opportunity.currency), `Kazanma olasılığı: %${opportunity.probability}`, opportunity.expectedCloseDate ? `Beklenen kapanış: ${dateOnly(opportunity.expectedCloseDate)}` : ""].filter(Boolean), href: `/crm/opportunities/${opportunity.id}` }} />{canManage && nextStages[opportunity.stage].length ? <Button variant="secondary" onClick={openTransition}>Fırsatı Güncelle</Button> : null}{canManage ? <Link href={`/crm/interactions?new=1&opportunityId=${opportunity.id}&label=${encodeURIComponent(opportunity.title)}`}><Button variant="secondary">+ Görüşme Kaydet</Button></Link> : null}{canManage ? <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button> : null}{subject ? <Link href={subject.href}><Button variant="secondary">{subject.label}</Button></Link> : null}<Link href="/crm/pipeline"><Button>Satış Sürecine Dön</Button></Link></div>} />
+    <PageHeader title={opportunity.title} description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda yönetin." action={<div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "OPPORTUNITY", id: opportunity.id, title: opportunity.title, subtitle: opportunityStageLabels[opportunity.stage], meta: [money(opportunity.estimatedValue, opportunity.currency), `Kazanma olasılığı: %${opportunity.probability}`, opportunity.expectedCloseDate ? `Beklenen kapanış: ${dateOnly(opportunity.expectedCloseDate)}` : ""].filter(Boolean), href: `/crm/opportunities/${opportunity.id}` }} />{canManage && nextStages[opportunity.stage].length ? <Button variant="secondary" onClick={openTransition}>Fırsatı Güncelle</Button> : null}{canManage ? <Link href={`/crm/interactions?new=1&opportunityId=${opportunity.id}&label=${encodeURIComponent(opportunity.title)}`}><Button variant="secondary">+ Görüşme Kaydet</Button></Link> : null}{canManage ? <Button variant="secondary" onClick={openQuote}>+ Teklif Oluştur</Button> : null}{canManage ? <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button> : null}{subject ? <Link href={subject.href}><Button variant="secondary">{subject.label}</Button></Link> : null}<Link href="/crm/pipeline"><Button>Satış Sürecine Dön</Button></Link></div>} />
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric label="Aşama" value={opportunityStageLabels[opportunity.stage]} /><Metric label="Tahmini Değer" value={money(opportunity.estimatedValue, opportunity.currency)} /><Metric label="Kazanma Olasılığı" value={`%${opportunity.probability}`} /><Metric label="Beklenen Kapanış" value={opportunity.expectedCloseDate ? dateOnly(opportunity.expectedCloseDate) : "—"} />
@@ -187,12 +273,40 @@ export default function OpportunityDetailPage({ params }: { params: Promise<{ id
       <GlassCard><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Satış Dönüşümü</p><h2 className="mt-1 text-[18px] font-semibold">Satış Bağlantısı</h2></div><CardInfo help={getCardHelp("Satış Bağlantısı", "Fırsatın satış kaydına dönüşüp dönüşmediğini ve dönüşüm bilgisini gösterir.")} /></div>{opportunity.saleId ? <div className="mt-5 space-y-3"><Detail label="Satış ID" value={opportunity.saleId} /><Detail label="Dönüşüm Tarihi" value={opportunity.convertedAt ? dateTime(opportunity.convertedAt) : "—"} /></div> : <p className="mt-5 text-[12px] leading-5 text-[var(--muted)]">Bu fırsat henüz satış taslağına dönüştürülmemiş.</p>}</GlassCard>
     </section>
 
+    <GlassCard className="p-0">
+      <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+        <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Teklifler</h2><CardInfo help={getCardHelp("Teklifler", "Bu satış fırsatı için oluşturulan ticari teklifleri ve güncel durumlarını gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Fiyat, indirim ve geçerlilik takibi</p></div>
+        {canManage ? <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openQuote}>+ Yeni Teklif</Button> : null}
+      </div>
+      {quotes.length ? <div className="divide-y divide-[var(--line)]">{quotes.map((quote) => <div key={quote.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[150px_120px_1fr_130px] sm:items-center">
+        <div><p className="text-[11px] font-semibold">{quote.quoteNumber}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{dateOnly(quote.createdAt)}</p></div>
+        <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{quoteStatusLabels[quote.status]}</span>
+        <div className="text-[10px] text-[var(--muted)]">Ara toplam: {money(quote.subtotal, quote.currency)} · İndirim: {money(quote.discountTotal, quote.currency)}{quote.validUntil ? ` · Son geçerlilik: ${dateOnly(quote.validUntil)}` : ""}</div>
+        <strong className="text-[12px] sm:text-right">{money(quote.total, quote.currency)}</strong>
+      </div>)}</div> : <EmptyState title="Teklif Bulunmuyor" description="Bu satış fırsatı için henüz teklif oluşturulmamış." action={canManage ? <Button onClick={openQuote}>İlk Teklifi Oluştur</Button> : undefined} />}
+    </GlassCard>
+
     <section className="grid gap-5 xl:grid-cols-2">
       <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Görüşmeler</h2><CardInfo help={getCardHelp("Görüşmeler", "Bu satış fırsatına bağlı müşteri temaslarını gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Satış sürecindeki görüşme geçmişi</p></div><Link href={`/crm/interactions?opportunityId=${opportunity.id}`} className="text-[10px] font-semibold text-[#1674BD]">Tüm Görüşmeler →</Link></div>{opportunity.interactions?.length ? <div className="divide-y divide-[var(--line)]">{opportunity.interactions.slice(0,6).map((row) => <div key={row.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[120px_1fr_150px] sm:items-center"><div><p className="text-[11px] font-semibold">{interactionTypeLabels[row.type]}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{row.direction === "INBOUND" ? "Gelen" : "Giden"}</p></div><div className="min-w-0"><p className="truncate text-[11px]">{row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>{row.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">Sonraki: {row.nextAction}</p> : null}</div><time className="text-[10px] text-[var(--muted)] sm:text-right">{dateTime(row.startedAt)}</time></div>)}</div> : <EmptyState title="Görüşme Bulunmuyor" description="Bu satış fırsatına bağlı görüşme kaydı henüz yok." action={canManage ? <Link href={`/crm/interactions?new=1&opportunityId=${opportunity.id}&label=${encodeURIComponent(opportunity.title)}`}><Button>İlk Görüşmeyi Kaydet</Button></Link> : undefined} />}</GlassCard>
 
     <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Takipler</h2><CardInfo help={getCardHelp("Takipler", "Bu fırsata bağlı müşteri temaslarını ve takip görevlerini gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Bu fırsata bağlı müşteri temasları</p></div>{canManage ? <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openFollowUp}>+ Yeni Takip</Button> : null}</div>{opportunity.followUps.length ? <div className="divide-y divide-[var(--line)]">{opportunity.followUps.map((f) => <div key={f.id} className="px-5 py-4"><div className="flex justify-between gap-3"><p className="text-[12px] font-semibold">{followUpChannelLabels[f.channel]}</p><span className="text-[10px] text-[var(--muted)]">{followUpStatusLabels[f.status]}</span></div><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(f.dueAt)}</p>{f.note ? <p className="mt-2 text-[11px]">{f.note}</p> : null}{f.outcome ? <p className="mt-2 text-[10px] text-[var(--muted)]">Sonuç: {f.outcome}</p> : null}{f.cancellationReason ? <p className="mt-2 text-[10px] text-[var(--muted)]">İptal nedeni: {f.cancellationReason}</p> : null}{canManage && f.status === "OPEN" ? <div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "complete")}>Tamamla</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "reschedule")}>Ertele</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "cancel")}>İptal Et</Button></div> : null}</div>)}</div> : <EmptyState title="Takip Bulunmuyor" description="Bu fırsata bağlı takip kaydı henüz yok." action={canManage ? <Button onClick={openFollowUp}>İlk Takibi Oluştur</Button> : undefined} />}</GlassCard>
       <GlassCard className="p-0"><div className="border-b border-[var(--line)] px-5 py-4"><h2 className="text-[15px] font-semibold">CRM Zaman Çizelgesi</h2></div>{opportunity.events.length ? <div className="divide-y divide-[var(--line)]">{opportunity.events.map((e) => { const summary = eventSummary(e.metadata); return <div key={e.id} className="px-5 py-4"><p className="text-[12px] font-semibold">{eventLabel(e.eventType)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(e.createdAt)}</p>{summary ? <p className="mt-2 text-[10px] text-[var(--muted)]">{summary}</p> : null}</div>; })}</div> : <EmptyState title="CRM Olayı Bulunmuyor" description="Bu fırsat için henüz olay geçmişi oluşmamış." />}</GlassCard>
     </section>
+
+    <Modal open={quoteOpen} onClose={() => !quoteSaving && setQuoteOpen(false)} title="Yeni Teklif Oluştur" description="Satış fırsatı için fiyat, indirim ve geçerlilik bilgilerini belirleyin.">
+      <form onSubmit={createQuote} className="space-y-4">
+        {quoteError ? <Alert>{quoteError}</Alert> : null}
+        <Field label="Teklif kalemi" required><TextInput value={quoteForm.description} onChange={(e) => setQuoteForm({ ...quoteForm, description: e.target.value })} placeholder="Hizmet, paket veya özel teklif açıklaması" /></Field>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="Miktar" required><TextInput type="number" min="1" step="1" value={quoteForm.quantity} onChange={(e) => setQuoteForm({ ...quoteForm, quantity: e.target.value })} /></Field>
+          <Field label={`Birim fiyat (${opportunity.currency})`} required><TextInput type="number" min="0" step="0.01" value={quoteForm.unitPrice} onChange={(e) => setQuoteForm({ ...quoteForm, unitPrice: e.target.value })} /></Field>
+          <Field label={`İndirim (${opportunity.currency})`}><TextInput type="number" min="0" step="0.01" value={quoteForm.discountTotal} onChange={(e) => setQuoteForm({ ...quoteForm, discountTotal: e.target.value })} /></Field>
+          <Field label="Teklif geçerlilik tarihi"><TextInput type="date" value={quoteForm.validUntil} onChange={(e) => setQuoteForm({ ...quoteForm, validUntil: e.target.value })} /></Field>
+        </div>
+        <Field label="Teklif notu"><TextArea rows={4} value={quoteForm.notes} onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })} placeholder="Ödeme koşulları, açıklama veya müşteriye özel not…" /></Field>
+        <div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setQuoteOpen(false)} disabled={quoteSaving}>Vazgeç</Button><Button type="submit" disabled={quoteSaving}>{quoteSaving ? "Oluşturuluyor..." : "Teklifi Oluştur"}</Button></div>
+      </form>
+    </Modal>
 
     <Modal open={transitionOpen} onClose={() => !transitionSaving && setTransitionOpen(false)} title="Satış Fırsatını Güncelle"><form onSubmit={transition} className="space-y-4">{transitionError ? <Alert>{transitionError}</Alert> : null}<Field label="Yeni Aşama" required><Select value={targetStage} onChange={(e) => { const stage = e.target.value as OpportunityStage; setTargetStage(stage); setProbability(stage === "WON" ? "100" : stage === "LOST" ? "0" : String(opportunity.probability)); }}>{nextStages[opportunity.stage].map((stage) => <option key={stage} value={stage}>{opportunityStageLabels[stage]}</option>)}</Select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Kazanma Olasılığı (%)"><TextInput type="number" min="0" max="100" value={probability} disabled={["WON", "LOST"].includes(targetStage)} onChange={(e) => setProbability(e.target.value)} /></Field><Field label={`Tahmini Değer (${opportunity.currency})`}><TextInput type="number" min="0" step="0.01" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} /></Field></div><Field label="Beklenen Kapanış Tarihi"><TextInput type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)} /></Field>{targetStage === "LOST" ? <Field label="Kaybetme Nedeni" required><TextArea rows={4} maxLength={1000} value={lostReason} onChange={(e) => setLostReason(e.target.value)} /></Field> : null}<div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setTransitionOpen(false)} disabled={transitionSaving}>Vazgeç</Button><Button type="submit" disabled={transitionSaving}>{transitionSaving ? "Güncelleniyor..." : "Fırsatı Güncelle"}</Button></div></form></Modal>
 
