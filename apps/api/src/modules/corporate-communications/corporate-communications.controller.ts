@@ -17,6 +17,7 @@ import {
   createMarketingLeadSchema,
   createProviderConnectionSchema,
   completeProviderOAuthSchema,
+  startProviderOAuthSchema,
   selectProviderAccountSchema,
   createRoutingRuleSchema,
   listCampaignsSchema,
@@ -104,6 +105,20 @@ export class CorporateCommunicationsController {
       createProviderConnectionSchema.parse(body),
       user.sub,
     );
+  }
+
+  @Post('provider-connections/oauth/start')
+  @RequirePermission('communications', 'manage')
+  async startProviderOAuth(
+    @Body() body: unknown,
+    @CurrentUser() user: JwtPayload,
+  ) {
+    const input = startProviderOAuthSchema.parse(body);
+    const connection = await this.service.ensureAutomaticProviderConnection(
+      input.provider,
+      user.sub,
+    );
+    return this.providerOAuth.authorization(connection.id, user.sub);
   }
 
   @Post('provider-connections/:id/oauth/authorize')
