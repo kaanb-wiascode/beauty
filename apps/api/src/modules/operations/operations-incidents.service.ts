@@ -89,6 +89,7 @@ export class OperationsIncidentsService {
       throw new BadRequestException('Kesinti bitiş zamanı başlangıç zamanından sonra olmalıdır.');
     }
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         if (input.roomId) {
@@ -206,21 +207,23 @@ export class OperationsIncidentsService {
           membershipId,
           input.description ?? null,
         );
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'incident.opened',
+            aggregateType: 'incident',
+            aggregateId: rows[0].id,
+            payload: {
+              severity: rows[0].severity,
+              roomId: rows[0].roomId,
+              assetId: rows[0].assetId,
+              resourceBlockId: rows[0].resourceBlockId,
+            },
+          })) ?? null;
         return rows[0];
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'incident.opened',
-      aggregateType: 'incident',
-      aggregateId: result.id,
-      payload: {
-        severity: result.severity,
-        roomId: result.roomId,
-        assetId: result.assetId,
-        resourceBlockId: result.resourceBlockId,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
@@ -277,6 +280,7 @@ export class OperationsIncidentsService {
 
   async resolve(incidentId: string, input: ResolveOperationsIncidentInput) {
     const { tenantId, companyId, branchId, membershipId } = this.context();
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
         await tx.$queryRawUnsafe(
@@ -352,19 +356,21 @@ export class OperationsIncidentsService {
           membershipId,
           input.resolutionNote,
         );
+        eventId =
+          (await this.domainEvents?.record(tx, {
+            eventName: 'incident.resolved',
+            aggregateType: 'incident',
+            aggregateId: resolved[0].id,
+            payload: {
+              severity: resolved[0].severity,
+              resourceBlockId: resolved[0].resourceBlockId,
+            },
+          })) ?? null;
         return resolved[0];
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    await this.domainEvents?.publish({
-      eventName: 'incident.resolved',
-      aggregateType: 'incident',
-      aggregateId: result.id,
-      payload: {
-        severity: result.severity,
-        resourceBlockId: result.resourceBlockId,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
