@@ -39,17 +39,18 @@ const NAV_SECTIONS = [
     { href: "/communications/content", permission: "communications.read", label: "İçerik & Marka", icon: "calendar" },
     { href: "/communications/integrations", permission: "communications.read", label: "Entegrasyonlar", icon: "activity" },
   ]},
-  { label: "Operasyon", items: [
-    { href: "/operations/front-desk", permission: "appointments.read", label: "Resepsiyon & Ziyaretler", icon: "user" },
-    { href: "/operations", permission: "appointments.read", label: "Canlı Operasyon", icon: "activity" },
+  { label: "Operasyon Merkezi", items: [
+    { href: "/operations", permission: "appointments.read", label: "Operasyon Merkezi", icon: "activity" },
+    { href: "/operations/front-desk", permission: "appointments.read", label: "Resepsiyon ve Ziyaretler", icon: "user" },
     { href: "/appointments", permission: "appointments.read", label: "Randevular", badge: "3", icon: "calendar" },
-    { href: "/services", permission: "services.read", label: "Hizmetler", icon: "sparkles" },
-    { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
+    { href: "/operations/service-executions", permission: "appointments.read", label: "Hizmet İcraları", icon: "sparkles" },
+    { href: "/sessions", permission: "appointments.read", label: "Seans Yönetimi", icon: "calendar" },
+    { href: "/sales", permission: "payments.read", label: "Satış ve Tahsilat", icon: "receipt" },
     { href: "/payments", permission: "payments.read", label: "Ödemeler", icon: "wallet" },
-  ]},
-  { label: "Satış ve Hizmet", items: [
-    { href: "/sales", permission: "payments.read", label: "Satışlar", icon: "receipt" },
-    { href: "/sessions", permission: "appointments.read", label: "Seanslar", icon: "calendar" },
+    { href: "/operations/waitlist", permission: "appointments.read", label: "Bekleme Listesi", icon: "clock" },
+    { href: "/operations/resources", permission: "appointments.read", label: "Kaynak ve Kapasite", icon: "chart" },
+    { href: "/services", permission: "services.read", label: "Hizmet Tanımları", icon: "sparkles" },
+    { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
   ]},
   { label: "Finans Yönetimi", items: [
     { href: "/finance/cfo", label: "Finans Genel Bakışı", icon: "trend" },
