@@ -6,6 +6,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import { AccountingService } from '../accounting/accounting.service';
 import { CommerceFinanceSyncService } from '../finance/commerce-finance-sync.service';
 import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
@@ -58,6 +59,7 @@ export class SalesService {
     private readonly installmentsService: InstallmentsService,
     private readonly accountingService: AccountingService,
     private readonly commerceFinanceSync: CommerceFinanceSyncService,
+    private readonly domainEvents?: DomainEventsService,
   ) {}
 
   private requireBranchId(): string {
@@ -594,10 +596,19 @@ export class SalesService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-    return {
-      payment,
-      summary: await this.paymentSummary(id, tenantId, branchId),
-    };
+    const summary = await this.paymentSummary(id, tenantId, branchId);
+    await this.domainEvents?.publish({
+      eventName: 'sale.payment_received',
+      aggregateType: 'sale',
+      aggregateId: id,
+      payload: {
+        paymentId: payment.id,
+        amount: Number(payment.amount),
+        method: payment.method,
+        balance: summary.balance,
+      },
+    });
+    return { payment, summary };
   }
 
   async refundPayment(
@@ -722,10 +733,18 @@ export class SalesService {
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
 
-    return {
-      payment,
-      summary: await this.paymentSummary(saleId, tenantId, branchId),
-    };
+    const summary = await this.paymentSummary(saleId, tenantId, branchId);
+    await this.domainEvents?.publish({
+      eventName: 'sale.payment_refunded',
+      aggregateType: 'sale',
+      aggregateId: saleId,
+      payload: {
+        paymentId: payment.id,
+        amount: Number(payment.amount),
+        balance: summary.balance,
+      },
+    });
+    return { payment, summary };
   }
 
   async confirm(id: string) {
@@ -738,7 +757,7 @@ export class SalesService {
       (item) => item.type === 'PACKAGE' && item.packageId,
     );
 
-    return this.prisma.$transaction(
+    const result = await this.prisma.$transaction(
       async (tx) => {
         const confirmedAt = new Date();
         const claimed = await tx.sale.updateMany({
@@ -857,6 +876,17 @@ export class SalesService {
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
+    await this.domainEvents?.publish({
+      eventName: 'sale.confirmed',
+      aggregateType: 'sale',
+      aggregateId: sale.id,
+      payload: {
+        customerId: sale.customerId,
+        total: Number(sale.total),
+        packageCount: packageItems.length,
+      },
+    });
+    return result;
   }
 
   async cancel(id: string) {
@@ -868,7 +898,7 @@ export class SalesService {
     }
 
     const cancelledAt = new Date();
-    return this.prisma.$transaction(async (tx) => {
+    const result = await this.prisma.$transaction(async (tx) => {
       const claimed = await tx.sale.updateMany({
         where: {
           id: sale.id,
@@ -901,5 +931,12 @@ export class SalesService {
 
       return cancelledSale;
     });
+    await this.domainEvents?.publish({
+      eventName: 'sale.cancelled',
+      aggregateType: 'sale',
+      aggregateId: sale.id,
+      payload: { customerId: sale.customerId },
+    });
+    return result;
   }
 }
