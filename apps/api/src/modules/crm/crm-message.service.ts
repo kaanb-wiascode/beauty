@@ -197,8 +197,16 @@ export class CrmMessageService {
        WHERE m.id=$1::text AND m.tenant_id=$2::text AND m.company_id=$3::text AND m.branch_id=$4::text
          AND (
            $5::boolean=FALSE
-           OR (m.lead_id IS NOT NULL AND EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=m.lead_id AND l.owner_user_id=ANY($6::text[])))
-           OR (m.opportunity_id IS NOT NULL AND EXISTS(SELECT 1 FROM crm_opportunities o WHERE o.id=m.opportunity_id AND o.owner_user_id=ANY($6::text[])))
+           OR (m.lead_id IS NOT NULL AND EXISTS(
+             SELECT 1 FROM crm_leads l
+              WHERE l.id=m.lead_id AND l.tenant_id=m.tenant_id AND l.company_id=m.company_id
+                AND l.branch_id=m.branch_id AND l.owner_user_id=ANY($6::text[])
+           ))
+           OR (m.opportunity_id IS NOT NULL AND EXISTS(
+             SELECT 1 FROM crm_opportunities o
+              WHERE o.id=m.opportunity_id AND o.tenant_id=m.tenant_id AND o.company_id=m.company_id
+                AND o.branch_id=m.branch_id AND o.owner_user_id=ANY($6::text[])
+           ))
            OR (m.customer_id IS NOT NULL AND (
              EXISTS(SELECT 1 FROM crm_opportunities o WHERE o.customer_id=m.customer_id AND o.tenant_id=m.tenant_id AND o.company_id=m.company_id AND o.branch_id=m.branch_id AND o.owner_user_id=ANY($6::text[]))
              OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.customer_id=m.customer_id AND l.tenant_id=m.tenant_id AND l.company_id=m.company_id AND l.branch_id=m.branch_id AND l.owner_user_id=ANY($6::text[]))
@@ -221,19 +229,56 @@ export class CrmMessageService {
   }
 
   private async assertSubjectAccess(subject: MessageSubject) {
-    if (subject.leadId) {
-      await this.dataScope.assertLeadAccess(subject.leadId);
-      return;
-    }
-    if (subject.opportunityId) {
-      await this.dataScope.assertOpportunityAccess(subject.opportunityId);
-      return;
-    }
-    if (!subject.customerId) {
+    const scope = this.scope();
+
+    if (!subject.customerId && !subject.leadId && !subject.opportunityId) {
       throw new BadRequestException('Mesaj bir müşteri, potansiyel müşteri veya satış fırsatına bağlanmalıdır.');
     }
 
-    const scope = this.scope();
+    if (subject.opportunityId) {
+      await this.dataScope.assertOpportunityAccess(subject.opportunityId);
+      const rows = await this.prisma.$queryRawUnsafe<Array<{ customerId: string | null; leadId: string | null }>>(
+        `SELECT customer_id AS "customerId",lead_id AS "leadId"
+           FROM crm_opportunities
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+          LIMIT 1`,
+        subject.opportunityId,
+        scope.tenantId,
+        scope.companyId,
+        scope.branchId,
+      );
+      const opportunity = rows[0];
+      if (!opportunity) throw new NotFoundException('Satış fırsatı bulunamadı.');
+      if (subject.customerId && subject.customerId !== opportunity.customerId) {
+        throw new BadRequestException('Mesaj müşterisi satış fırsatına bağlı müşteriyle eşleşmiyor.');
+      }
+      if (subject.leadId && subject.leadId !== opportunity.leadId) {
+        throw new BadRequestException('Mesaj potansiyel müşterisi satış fırsatına bağlı kayıtla eşleşmiyor.');
+      }
+      return;
+    }
+
+    if (subject.leadId) {
+      await this.dataScope.assertLeadAccess(subject.leadId);
+      if (subject.customerId) {
+        const rows = await this.prisma.$queryRawUnsafe<Array<{ customerId: string | null }>>(
+          `SELECT customer_id AS "customerId"
+             FROM crm_leads
+            WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+            LIMIT 1`,
+          subject.leadId,
+          scope.tenantId,
+          scope.companyId,
+          scope.branchId,
+        );
+        if (!rows[0]) throw new NotFoundException('Potansiyel müşteri bulunamadı.');
+        if (rows[0].customerId !== subject.customerId) {
+          throw new BadRequestException('Mesaj müşterisi potansiyel müşteri kaydıyla eşleşmiyor.');
+        }
+      }
+      return;
+    }
+
     const visibility = await this.dataScope.resolve();
     if (!visibility.restrictOwners) return;
 
