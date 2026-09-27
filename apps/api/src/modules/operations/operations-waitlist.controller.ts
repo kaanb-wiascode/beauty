@@ -40,19 +40,19 @@ export class OperationsWaitlistController {
   ) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list(@Query() query: unknown) {
     return this.waitlist.list(listWaitlistEntriesSchema.parse(query));
   }
 
   @Post()
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   create(@Body() body: unknown) {
     return this.waitlist.create(createWaitlistEntrySchema.parse(body));
   }
 
   @Post('recovery/:appointmentId/candidates')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   recoveryCandidates(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: unknown,
@@ -64,7 +64,7 @@ export class OperationsWaitlistController {
   }
 
   @Post(':entryId/matches')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   findMatches(
     @Param('entryId', new ParseUUIDPipe()) entryId: string,
     @Body() body: unknown,
@@ -73,7 +73,7 @@ export class OperationsWaitlistController {
   }
 
   @Post(':entryId/accept-match')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   async acceptMatch(
     @Param('entryId', new ParseUUIDPipe()) entryId: string,
     @Body() body: unknown,
@@ -85,7 +85,7 @@ export class OperationsWaitlistController {
   }
 
   @Post(':entryId/cancel')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   cancel(
     @Param('entryId', new ParseUUIDPipe()) entryId: string,
     @Body() body: unknown,
