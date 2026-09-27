@@ -48,7 +48,7 @@ export default function OperationsCancellationsPage() {
   const load = useCallback(async (selectedOutcome: Outcome) => {
     if (!hasActiveBranch()) {
       setLoading(false);
-      setError("İptal / no-show yönetimi için önce aktif bir şube seçin.");
+      setError("İptal ve gelmeme yönetimi için önce aktif bir şube seçin.");
       return;
     }
     setLoading(true);
@@ -64,7 +64,7 @@ export default function OperationsCancellationsPage() {
       setHistory(outcomeResult);
       setReasonId((current) => reasonResult.some((item) => item.id === current) ? current : (reasonResult[0]?.id ?? ""));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "İptal / no-show verileri yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "İptal ve gelmeme kayıtları yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -103,7 +103,7 @@ export default function OperationsCancellationsPage() {
   }
 
   if (loading && !appointments.length && !history.length) {
-    return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="İptal ve no-show görünümü hazırlanıyor..." /></div>;
+    return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="İptal ve gelmeme görünümü hazırlanıyor..." /></div>;
   }
 
   return (
@@ -119,7 +119,7 @@ export default function OperationsCancellationsPage() {
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <div className="flex flex-wrap gap-2">
           <Button variant={outcome === "CANCELLED" ? "primary" : "secondary"} onClick={() => void changeOutcome("CANCELLED")}>İptal</Button>
-          <Button variant={outcome === "NO_SHOW" ? "primary" : "secondary"} onClick={() => void changeOutcome("NO_SHOW")}>No-show</Button>
+          <Button variant={outcome === "NO_SHOW" ? "primary" : "secondary"} onClick={() => void changeOutcome("NO_SHOW")}>Gelmedi</Button>
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-2">
           <label className="text-xs font-semibold text-[var(--muted)]">Randevu
@@ -138,7 +138,7 @@ export default function OperationsCancellationsPage() {
         <label className="mt-4 block text-xs font-semibold text-[var(--muted)]">Operasyon notu
           <textarea className="mt-2 min-h-24 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm text-[var(--ink)]" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} />
         </label>
-        <div className="mt-4 flex justify-end"><Button disabled={!canCancel || !appointmentId || !reasonId || busy} onClick={() => void submit()}>{busy ? "Kaydediliyor..." : outcome === "CANCELLED" ? "Randevuyu İptal Et" : "No-show Olarak İşaretle"}</Button></div>
+        <div className="mt-4 flex justify-end"><Button disabled={!canCancel || !appointmentId || !reasonId || busy} onClick={() => void submit()}>{busy ? "Kaydediliyor..." : outcome === "CANCELLED" ? "Randevuyu İptal Et" : "Gelmedi Olarak İşaretle"}</Button></div>
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
