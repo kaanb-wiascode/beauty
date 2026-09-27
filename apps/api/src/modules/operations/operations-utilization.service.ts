@@ -60,12 +60,12 @@ export class OperationsUtilizationService {
 
     if (!tenantId || !companyId) {
       throw new InternalServerErrorException(
-        'Organization context is incomplete.',
+        'İşletme çalışma kapsamı eksik.',
       );
     }
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce aktif bir şube seçmelisiniz.',
       );
     }
     return { tenantId, companyId, branchId };
@@ -79,7 +79,7 @@ export class OperationsUtilizationService {
 
     if (windowMinutes <= 0 || windowMinutes > 7 * 24 * 60) {
       throw new BadRequestException(
-        'Utilization window must be greater than zero and no longer than seven days.',
+        'Kullanım analizi aralığı sıfırdan büyük ve en fazla yedi gün olmalıdır.',
       );
     }
 
