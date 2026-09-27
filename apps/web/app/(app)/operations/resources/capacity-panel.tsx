@@ -3,9 +3,11 @@
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Spinner, TextInput } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
+import { getCardHelp } from "@/lib/card-help";
 
 type CapacityCategory = {
   resourceType: "ROOM" | "ASSET";
@@ -117,7 +119,7 @@ export function OperationsCapacityPanel() {
           <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">
             Kapasite planlaması
           </p>
-          <h2 className="mt-2 text-lg font-semibold text-[var(--ink)]">Kaynak Kapasitesi</h2>
+          <div className="mt-2 flex items-start gap-2"><h2 className="text-lg font-semibold text-[var(--ink)]">Kaynak Kapasitesi</h2><CardInfo help={getCardHelp("Kaynak Kapasitesi")} /></div>
           <p className="mt-1 max-w-2xl text-xs text-[var(--muted)]">
             Seçilen zaman aralığında oda ve ekipmanların gerçek rezervasyon yükünü gösterir. Hazırlık, temizlik ve planlı kullanım dışı süreler kapasite hesabına dahildir.
           </p>
@@ -170,7 +172,7 @@ export function OperationsCapacityPanel() {
             </div>
 
             <div className="rounded-[18px] border border-[var(--line)] p-4">
-              <h3 className="text-sm font-semibold text-[var(--ink)]">Darboğazlar</h3>
+              <div className="flex items-start gap-2"><h3 className="text-sm font-semibold text-[var(--ink)]">Darboğazlar</h3><CardInfo help={getCardHelp("Darboğazlar")} /></div>
               <p className="mt-1 text-xs text-[var(--muted)]">%80 üzeri kullanım veya kapasitesiz kaynak grupları.</p>
               <div className="mt-4 space-y-3">
                 {summary.bottlenecks.length ? summary.bottlenecks.map((item) => (
@@ -194,7 +196,7 @@ export function OperationsCapacityPanel() {
 function Metric({ label, value }: { label: string; value: string }) {
   return (
     <div className="rounded-[16px] bg-[var(--surface-2)] p-4">
-      <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p>
+      <div className="flex items-start justify-between gap-2"><p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div>
       <p className="mt-2 text-xl font-semibold tracking-[-0.03em] text-[var(--ink)]">{value}</p>
     </div>
   );
