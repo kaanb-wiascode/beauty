@@ -89,7 +89,7 @@ export class CrmOpportunityService {
   private requireBranchId() {
     const branchId = this.context().branchId;
     if (!branchId) {
-      throw new BadRequestException('CRM mutation requires an active branch.');
+      throw new BadRequestException('Bu CRM işlemi için aktif bir şube seçilmelidir.');
     }
     return branchId;
   }
