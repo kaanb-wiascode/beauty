@@ -656,7 +656,7 @@ export default function CrmLeadsPage() {
                   <Field label="Anket kampanyası">
                     <TextInput value={leadForm.surveyCampaign} onChange={(e) => setLeadForm({ ...leadForm, surveyCampaign: e.target.value })} placeholder="Varsa kampanya veya saha çalışması" />
                   </Field>
-                </> : null>
+                </> : null}
                 <Field label="Potansiyel müşteri önceliği">
                   <ValooSegmentedControl
                     value={leadForm.leadTemperature}
