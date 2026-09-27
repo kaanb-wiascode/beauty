@@ -532,6 +532,7 @@ export default function AdvertisingConnectionsPage() {
       ) : null}
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Bağlantılar</h2><CardInfo help={getCardHelp("Bağlantılar", "Tanımlı reklam ve pazarlama hesaplarının bağlantı durumunu ve son eşitleme bilgisini gösterir.")} /></div>{rows.length ? <div className="mt-4 space-y-3">{rows.map((row) => {
         const connectionHealth = health?.connections.find((item) => item.id === row.id);
+        const providerReadiness = configurationReadiness?.providers.find((item) => item.provider === row.provider);
         return <div key={row.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
@@ -594,16 +595,21 @@ export default function AdvertisingConnectionsPage() {
             <div className="mt-3 flex flex-wrap gap-2">
               <button
                 type="button"
-                disabled={connectingId === row.id}
+                disabled={connectingId === row.id || providerReadiness?.ready === false}
                 onClick={() => void connect(row.id)}
                 className="rounded-[10px] bg-[var(--accent)] px-3 py-2 text-[10px] font-semibold text-white transition disabled:opacity-50"
               >
                 {connectingId === row.id
                   ? "Platforma Yönlendiriliyor..."
-                  : connectionHealth?.credentialsConfigured
-                    ? "Yeniden Yetkilendir"
-                    : "Platforma Bağlan"}
+                  : providerReadiness?.ready === false
+                    ? "Kurulum Gerekiyor"
+                    : connectionHealth?.credentialsConfigured
+                      ? "Yeniden Yetkilendir"
+                      : "Platforma Bağlan"}
               </button>
+              {providerReadiness?.ready === false ? (
+                <CardInfo help={providerSetupHelp[row.provider] ?? getCardHelp(userLabel(row.provider), "Platform kurulumu tamamlanmadan hesap yetkilendirmesi başlatılamaz.")} />
+              ) : null}
               {connectionHealth?.credentialsConfigured ? (
                 <button
                   type="button"
