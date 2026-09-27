@@ -197,8 +197,10 @@ export class CrmLeadService {
   async create(input: CreateLeadInput, actorUserId: string) {
     const context = this.context();
     const branchId = this.requireBranchId();
-    if (input.ownerUserId) await this.assertAssignableUser(input.ownerUserId);
-    await this.dataScope.assertOwnerAllowed(input.ownerUserId ?? actorUserId);
+    if (input.ownerUserId) {
+      await this.assertAssignableUser(input.ownerUserId);
+      await this.dataScope.assertOwnerAllowed(input.ownerUserId);
+    }
 
     return this.prisma.$transaction(async (tx) => {
       await this.assertCommercialScope(input, tx);
