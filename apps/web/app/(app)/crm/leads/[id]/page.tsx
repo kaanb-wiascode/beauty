@@ -235,7 +235,7 @@ export default function CrmLeadDetailPage({ params }: { params: Promise<{ id: st
                 href: `/crm/leads/${lead.id}`,
               }}
             />
-            {canManage ? <Button variant="secondary" onClick={openEdit}>Bilgileri Düzenle</Button> : null}
+            {canManage ? <Link href={`/crm/interactions?new=1&leadId=${lead.id}&label=${encodeURIComponent(`${lead.firstName} ${lead.lastName}`)}`}><Button variant="secondary">+ Görüşme Kaydet</Button></Link> : null}{canManage ? <Button variant="secondary" onClick={openEdit}>Bilgileri Düzenle</Button> : null}
             {canManage && ["NEW", "CONTACTED"].includes(lead.status) ? (
               <Button variant="secondary" onClick={() => {
                 if (
