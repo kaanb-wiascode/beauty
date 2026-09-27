@@ -444,7 +444,6 @@ export class MarketingProviderOAuthService {
       await this.persistConnectionState(connection.id, {
         status: 'CONNECTED',
         lastError: null,
-        touchSync: true,
       });
       return {
         connectionId: connection.id,
