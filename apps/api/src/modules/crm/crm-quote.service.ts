@@ -45,7 +45,8 @@ export class CrmQuoteService {
               q.owner_user_id AS "ownerUserId",q.quote_number AS "quoteNumber",q.status,q.currency,
               q.subtotal,q.discount_total AS "discountTotal",q.total,q.valid_until AS "validUntil",
               q.sent_at AS "sentAt",q.viewed_at AS "viewedAt",q.accepted_at AS "acceptedAt",
-              q.rejected_at AS "rejectedAt",q.notes,q.version,q.created_at AS "createdAt",q.updated_at AS "updatedAt"
+              q.rejected_at AS "rejectedAt",q.sale_id AS "saleId",q.converted_at AS "convertedAt",
+              q.notes,q.version,q.created_at AS "createdAt",q.updated_at AS "updatedAt"
          FROM crm_quotes q
         WHERE q.tenant_id=$1::text AND q.company_id=$2::text
           AND ($3::text IS NULL OR q.branch_id=$3::text)
@@ -69,7 +70,8 @@ export class CrmQuoteService {
               q.owner_user_id AS "ownerUserId",q.quote_number AS "quoteNumber",q.status,q.currency,
               q.subtotal,q.discount_total AS "discountTotal",q.total,q.valid_until AS "validUntil",
               q.sent_at AS "sentAt",q.viewed_at AS "viewedAt",q.accepted_at AS "acceptedAt",
-              q.rejected_at AS "rejectedAt",q.notes,q.version,q.created_at AS "createdAt",q.updated_at AS "updatedAt"
+              q.rejected_at AS "rejectedAt",q.sale_id AS "saleId",q.converted_at AS "convertedAt",
+              q.notes,q.version,q.created_at AS "createdAt",q.updated_at AS "updatedAt"
          FROM crm_quotes q
         WHERE q.id=$1::text AND q.tenant_id=$2::text AND q.company_id=$3::text
           AND ($4::text IS NULL OR q.branch_id=$4::text)
@@ -230,7 +232,7 @@ export class CrmQuoteService {
       throw new BadRequestException('Teklifi satışa dönüştürmeden önce satış fırsatını Kazanıldı aşamasına taşıyın.');
     }
 
-    return this.salesService.createFromOpportunity(
+    const conversion = await this.salesService.createFromOpportunity(
       quote.opportunityId,
       {
         version: opportunity.version,
@@ -244,6 +246,46 @@ export class CrmQuoteService {
       },
       actorUserId,
     );
+
+    const saleId =
+      'sale' in conversion && conversion.sale
+        ? conversion.sale.id
+        : 'saleId' in conversion
+          ? conversion.saleId
+          : null;
+    if (!saleId) {
+      throw new ConflictException('Satış bağlantısı oluşturulamadı.');
+    }
+
+    const convertedAt = new Date();
+    await this.prisma.$transaction(async (tx) => {
+      await tx.$executeRawUnsafe(
+        `UPDATE crm_quotes
+            SET sale_id=$5::text,converted_at=$6::timestamptz,updated_at=NOW()
+          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+        id,
+        context.tenantId,
+        context.companyId,
+        context.branchId,
+        saleId,
+        convertedAt,
+      );
+      await tx.$executeRawUnsafe(
+        `INSERT INTO crm_events(
+           tenant_id,company_id,branch_id,customer_id,opportunity_id,sale_id,event_type,actor_user_id,metadata
+         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,'QUOTE_CONVERTED_TO_SALE',$7::text,$8::jsonb)`,
+        context.tenantId,
+        context.companyId,
+        context.branchId,
+        quote.customerId,
+        quote.opportunityId,
+        saleId,
+        actorUserId,
+        JSON.stringify({ quoteId: id, saleId, convertedAt: convertedAt.toISOString() }),
+      );
+    });
+
+    return { saleId, convertedAt, idempotent: Boolean(conversion.idempotent) };
   }
 
   async updateStatus(id: string, input: UpdateCrmQuoteStatusInput, actorUserId: string) {
