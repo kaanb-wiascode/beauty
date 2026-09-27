@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import type { Paginated, Service } from "@/lib/types";
 import { WaitlistMatchPanel } from "./waitlist-match-panel";
@@ -45,7 +48,7 @@ function initialWindow() {
 
 const statusLabel: Record<WaitlistEntry["status"], string> = {
   WAITING: "Bekliyor",
-  MATCH_FOUND: "Slot bulundu",
+  MATCH_FOUND: "Uygun saat bulundu",
   CONTACTED: "İletişime geçildi",
   BOOKED: "Randevuya dönüştü",
   EXPIRED: "Süresi doldu",
@@ -167,8 +170,8 @@ export default function OperationsWaitlistPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Capacity Recovery</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Bekleme Listesi</h1>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Kapasite Değerlendirmesi</p>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Bekleme Listesi</h1><CardInfo help={getCardHelp("Bekleme Listesi")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">
           Bekleyen talepleri gerçek personel ve kaynak kapasitesiyle eşleştirin; uygun slot kabul edildiğinde randevu ve kaynak rezervasyonları atomik oluşturulur.
         </p>
@@ -178,7 +181,7 @@ export default function OperationsWaitlistPage() {
       {message ? <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] px-4 py-3 text-sm text-[#2d6a49]">{message}</div> : null}
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">Yeni Bekleme Talebi</h2>
+        <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Yeni Bekleme Talebi</h2><CardInfo help={getCardHelp("Yeni Bekleme Talebi")} /></div>
         <div className="mt-4 grid gap-4 lg:grid-cols-3">
           <Field label="Müşteri">
             <Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={form.customerId} onChange={(event) => setForm((current) => ({ ...current, customerId: event.target.value }))}>
@@ -214,7 +217,7 @@ export default function OperationsWaitlistPage() {
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
         <div className="border-b border-[var(--line)] px-6 py-4">
-          <h2 className="text-sm font-semibold text-[var(--ink)]">Bekleme Talepleri</h2>
+          <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Bekleme Talepleri</h2><CardInfo help={getCardHelp("Bekleme Talepleri")} /></div>
           <p className="mt-1 text-xs text-[var(--muted)]">{entries.length} kayıt · aktif talepler öncelik sırasıyla gösterilir</p>
         </div>
         {entries.length ? (
