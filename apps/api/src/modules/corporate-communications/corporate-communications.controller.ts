@@ -32,6 +32,7 @@ export class CorporateCommunicationsController {
     private readonly providerOAuth: MarketingProviderOAuthService,
     private readonly providerAccounts: MarketingProviderAccountsService,
     private readonly providerSync: MarketingProviderSyncService,
+    private readonly leadWebhook: MarketingLeadWebhookService,
   ) {}
 
   @Get('dashboard')
@@ -137,6 +138,14 @@ export class CorporateCommunicationsController {
   ) {
     const input = selectProviderAccountSchema.parse(body);
     return this.providerAccounts.select(id, input.externalAccountId);
+  }
+
+  @Post('provider-connections/:id/webhook/google-ads/configure')
+  @RequirePermission('communications', 'manage')
+  configureGoogleAdsWebhook(
+    @Param('id', new ParseUUIDPipe()) id: string,
+  ) {
+    return this.leadWebhook.configureGoogleWebhook(id);
   }
 
   @Post('provider-connections/:id/sync')
