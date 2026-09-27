@@ -26,19 +26,19 @@ export class OperationsIncidentsController {
   constructor(private readonly incidents: OperationsIncidentsService) {}
 
   @Get()
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   list(@Query() query: unknown) {
     return this.incidents.list(listOperationsIncidentsSchema.parse(query));
   }
 
   @Post()
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   create(@Body() body: unknown) {
     return this.incidents.create(createOperationsIncidentSchema.parse(body));
   }
 
   @Get(':incidentId/affected-appointments')
-  @RequirePermission('appointments', 'read')
+  @RequirePermission('operations', 'read')
   affectedAppointments(
     @Param('incidentId', new ParseUUIDPipe()) incidentId: string,
   ) {
@@ -46,7 +46,7 @@ export class OperationsIncidentsController {
   }
 
   @Post(':incidentId/resolve')
-  @RequirePermission('appointments', 'update')
+  @RequirePermission('operations', 'manage')
   resolve(
     @Param('incidentId', new ParseUUIDPipe()) incidentId: string,
     @Body() body: unknown,
