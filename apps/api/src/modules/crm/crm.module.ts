@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { SalesModule } from '../sales/sales.module';
 import { CrmAcquisitionService } from './crm-acquisition.service';
 import { CrmAutomationMessageActionService } from './crm-automation-message-action.service';
 import { CrmAutomationObservabilityService } from './crm-automation-observability.service';
@@ -57,6 +58,7 @@ import { TwilioSmsConnectionController } from './twilio-sms-connection.controlle
 import { TwilioSmsMessageProvider } from './twilio-sms-message.provider';
 
 @Module({
+  imports: [SalesModule],
   controllers: [CrmController,CrmInteractionController,CrmQuoteController,CrmOperationsController,CrmCommercialController,CrmCommunicationComplianceController,CrmConversationController,CrmConversationAnalyticsController,CrmConversationOperationsController,CrmAutomationRulesController,CrmMessageController,CrmMessageProviderConnectionsController,TwilioSmsConnectionController,ResendEmailConnectionController,CrmMessageWebhookController,CrmMessageWebhookHistoryController,CrmUnresolvedInboundController,CrmLostReasonController],
   providers: [CrmDataScopeService,CrmInteractionService,CrmQuoteService,CrmService,CrmLeadService,CrmOpportunityService,CrmOperationsService,CrmOpportunityCommercialService,CrmCustomer360Service,CrmReminderService,CrmReportingService,CrmCommunicationComplianceService,CrmConversationService,CrmConversationAnalyticsService,CrmConversationOperationsService,CrmAutomationRulesService,CrmAutomationService,CrmAutomationMessageActionService,CrmAutomationObservabilityService,CrmAutomationSchedulerService,CrmInboundContactResolverService,CrmInboundOptOutService,CrmMessageProviderRegistryService,CrmMessageProviderConnectionsService,CrmMessageProviderVaultService,MetaWhatsAppMessageProvider,TwilioSmsMessageProvider,ResendEmailMessageProvider,CrmMessageService,CrmMessageWebhookService,CrmMessageWebhookHistoryService,CrmUnresolvedInboundService,CrmAcquisitionService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmLeadMergeService,CrmLostReasonService,CrmLostTransitionService],
   exports: [CrmDataScopeService,CrmInteractionService,CrmQuoteService,CrmService,CrmLeadService,CrmOpportunityService,CrmOperationsService,CrmReportingService,CrmMessageService,CrmMessageProviderRegistryService,CrmAcquisitionService,CrmLeadDuplicateService,CrmLeadIdentityService,CrmLeadMergeService,CrmLostReasonService,CrmLostTransitionService],
