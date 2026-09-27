@@ -3,8 +3,10 @@
 import { useEffect, useMemo, useState } from "react";
 
 import { Button, Spinner, Select } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
+import { getCardHelp } from "@/lib/card-help";
 
 type Assignment = {
   id: string;
@@ -148,7 +150,7 @@ export function ExecutionStaffPanel({
     <div className="mt-3 rounded-[12px] border border-[var(--line)] p-3">
       <div className="flex items-center justify-between gap-3">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Personel Sorumluluğu</p>
+          <div className="flex items-start gap-2"><p className="text-xs font-semibold text-[var(--ink)]">Personel Sorumluluğu</p><CardInfo help={getCardHelp("Personel Sorumluluğu")} /></div>
           <p className="mt-1 text-[11px] text-[var(--muted)]">Aktif sorumluluk ve yardımcı personel geçmişi işlem kayıtlarında korunur.</p>
         </div>
       </div>
