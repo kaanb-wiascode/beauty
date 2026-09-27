@@ -94,6 +94,68 @@ export class CrmDataScopeService {
     return { scope, userId: row.userId, ownerUserIds: [], restrictOwners: false };
   }
 
+  async listAccessPolicies() {
+    const context = this.tenantContext.getContext();
+    return this.prisma.$queryRawUnsafe<Array<{
+      roleId: string;
+      roleName: string;
+      roleSlug: string;
+      roleScope: string;
+      dataScope: CrmDataScope | null;
+      hasCrmRead: boolean;
+      hasCrmManage: boolean;
+      membershipCount: number;
+    }>>(
+      `SELECT r.id AS "roleId",r.name AS "roleName",r.slug AS "roleSlug",r.scope::text AS "roleScope",
+              p.data_scope AS "dataScope",
+              EXISTS(
+                SELECT 1 FROM role_permissions rp
+                JOIN permissions pm ON pm.id=rp."permissionId"
+                WHERE rp."roleId"=r.id AND pm.resource='crm' AND pm.action='read'
+              ) AS "hasCrmRead",
+              EXISTS(
+                SELECT 1 FROM role_permissions rp
+                JOIN permissions pm ON pm.id=rp."permissionId"
+                WHERE rp."roleId"=r.id AND pm.resource='crm' AND pm.action='manage'
+              ) AS "hasCrmManage",
+              (SELECT COUNT(*)::int FROM memberships m
+                WHERE m."roleId"=r.id AND m."tenantId"=$1::text AND m."companyId"=$2::text
+                  AND m.status='ACTIVE') AS "membershipCount"
+         FROM roles r
+         LEFT JOIN crm_access_policies p ON p.role_id=r.id
+        WHERE r."tenantId"=$1::text AND r."companyId"=$2::text
+        ORDER BY CASE WHEN r.slug='owner' THEN 0 ELSE 1 END,r.name,r.id`,
+      context.tenantId,
+      context.companyId,
+    );
+  }
+
+  async setAccessPolicy(roleId: string, scope: CrmDataScope) {
+    const context = this.tenantContext.getContext();
+    const roles = await this.prisma.$queryRawUnsafe<Array<{ id: string; slug: string }>>(
+      `SELECT id,slug FROM roles
+        WHERE id=$1::text AND "tenantId"=$2::text AND "companyId"=$3::text
+        LIMIT 1`,
+      roleId,
+      context.tenantId,
+      context.companyId,
+    );
+    const role = roles[0];
+    if (!role) throw new BadRequestException('Seçilen rol aktif şirkette bulunamadı.');
+    if (role.slug === 'owner' && scope !== 'ALL') {
+      throw new BadRequestException('Platform sahibi rolünün CRM veri kapsamı Tüm Yetkili Veriler olarak kalmalıdır.');
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `INSERT INTO crm_access_policies(role_id,data_scope,created_at,updated_at)
+       VALUES($1::text,$2,NOW(),NOW())
+       ON CONFLICT(role_id) DO UPDATE SET data_scope=EXCLUDED.data_scope,updated_at=NOW()`,
+      roleId,
+      scope,
+    );
+    return { roleId, dataScope: scope };
+  }
+
   async assertLeadAccess(leadId: string) {
     const visibility = await this.resolve();
     if (!visibility.restrictOwners) return;
