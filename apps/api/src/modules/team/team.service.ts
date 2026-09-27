@@ -1,5 +1,5 @@
 import { createReadStream } from 'node:fs';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { extname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import {
@@ -7,6 +7,7 @@ import {
   ForbiddenException,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { Observable } from 'rxjs';
@@ -577,7 +578,9 @@ export class TeamService {
                'id', a.id,
                'originalName', a.original_name,
                'mimeType', a.mime_type,
-               'sizeBytes', a.size_bytes
+               'sizeBytes', a.size_bytes,
+               'transcriptionStatus', a.transcription_status,
+               'transcriptionText', a.transcription_text
              ) ORDER BY a.created_at)
              FROM team_message_attachments a
              WHERE a.message_id=m.id
@@ -1345,6 +1348,134 @@ export class TeamService {
       attachmentId: rows[0]?.id ?? null,
     });
     return { id: rows[0]?.id };
+  }
+
+  async transcribeAttachment(currentUserId: string, attachmentId: string) {
+    const rows = await this.prisma.$queryRawUnsafe<Array<{
+      id: string;
+      messageId: string;
+      conversationId: string;
+      storageName: string;
+      originalName: string;
+      mimeType: string;
+      transcriptionStatus: string;
+      transcriptionText: string | null;
+    }>>(
+      `SELECT
+         a.id,
+         a.message_id AS "messageId",
+         m.conversation_id AS "conversationId",
+         a.storage_name AS "storageName",
+         a.original_name AS "originalName",
+         a.mime_type AS "mimeType",
+         a.transcription_status AS "transcriptionStatus",
+         a.transcription_text AS "transcriptionText"
+       FROM team_message_attachments a
+       JOIN team_messages m ON m.id=a.message_id
+       JOIN team_conversations c ON c.id=m.conversation_id
+       JOIN team_conversation_members cm ON cm.conversation_id=c.id
+       WHERE a.id=$1::text
+         AND cm.user_id=$2::text
+         AND a.tenant_id=$3::text
+         AND a.company_id=$4::text
+         AND c.tenant_id=$3::text
+         AND c.company_id=$4::text
+       LIMIT 1`,
+      attachmentId,
+      currentUserId,
+      this.tenantId(),
+      this.companyId(),
+    );
+    const attachment = rows[0];
+    if (!attachment) throw new NotFoundException('Ses kaydı bulunamadı.');
+    if (!attachment.mimeType.startsWith('audio/')) {
+      throw new BadRequestException('Yalnızca ses dosyaları metne dönüştürülebilir.');
+    }
+    if (attachment.transcriptionStatus === 'COMPLETED' && attachment.transcriptionText) {
+      return {
+        status: 'COMPLETED',
+        text: attachment.transcriptionText,
+      };
+    }
+
+    const apiUrl = process.env.TEAM_TRANSCRIPTION_API_URL?.trim();
+    const apiKey = process.env.TEAM_TRANSCRIPTION_API_KEY?.trim();
+    const model = process.env.TEAM_TRANSCRIPTION_MODEL?.trim() || 'gpt-4o-mini-transcribe';
+    if (!apiUrl || !apiKey) {
+      throw new ServiceUnavailableException('Sesli mesaj transkripsiyon servisi henüz yapılandırılmadı.');
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE team_message_attachments
+       SET transcription_status='PROCESSING',
+           transcription_error=NULL
+       WHERE id=$1::text`,
+      attachmentId,
+    );
+
+    try {
+      let bytes: Buffer;
+      if (attachment.storageName.startsWith('private/team-messaging/')) {
+        const signed = await this.objectStorage.presignGet(attachment.storageName);
+        const response = await fetch(signed.url);
+        if (!response.ok) throw new Error(`Ses dosyası okunamadı (${response.status}).`);
+        bytes = Buffer.from(await response.arrayBuffer());
+      } else {
+        bytes = await readFile(join(this.uploadRoot(), attachment.storageName));
+      }
+
+      const form = new FormData();
+      form.set('model', model);
+      form.set(
+        'file',
+        new Blob([bytes], { type: attachment.mimeType }),
+        attachment.originalName,
+      );
+      form.set('language', 'tr');
+
+      const response = await fetch(apiUrl, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${apiKey}`,
+        },
+        body: form,
+      });
+      if (!response.ok) {
+        const detail = (await response.text()).slice(0, 600);
+        throw new Error(`Transkripsiyon sağlayıcısı hata verdi (${response.status}): ${detail}`);
+      }
+      const result = await response.json() as { text?: unknown };
+      const text = typeof result.text === 'string' ? result.text.trim() : '';
+      if (!text) throw new Error('Transkripsiyon sağlayıcısı metin döndürmedi.');
+
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE team_message_attachments
+         SET transcription_status='COMPLETED',
+             transcription_text=$2,
+             transcription_error=NULL,
+             transcribed_at=NOW()
+         WHERE id=$1::text`,
+        attachmentId,
+        text,
+      );
+
+      await this.publishConversationEvent(attachment.conversationId, 'attachment.transcribed', {
+        messageId: attachment.messageId,
+        attachmentId,
+      });
+      return { status: 'COMPLETED', text };
+    } catch (error) {
+      const message = error instanceof Error ? error.message.slice(0, 1000) : 'Transkripsiyon tamamlanamadı.';
+      await this.prisma.$executeRawUnsafe(
+        `UPDATE team_message_attachments
+         SET transcription_status='FAILED',
+             transcription_error=$2
+         WHERE id=$1::text`,
+        attachmentId,
+        message,
+      );
+      throw new ServiceUnavailableException('Sesli mesaj metne dönüştürülemedi.');
+    }
   }
 
   async attachmentAccess(currentUserId: string, attachmentId: string) {
