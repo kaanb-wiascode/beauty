@@ -3,7 +3,9 @@
 import { useState } from "react";
 
 import { Alert, Button } from "@/components/ui";
+import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 
 type WaitlistMatch = {
   staffId: string;
@@ -92,9 +94,9 @@ export function WaitlistMatchPanel({
     <div className="mt-3 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <p className="text-xs font-semibold text-[var(--ink)]">Kapasite kurtarma</p>
+          <div className="flex items-start gap-2"><p className="text-xs font-semibold text-[var(--ink)]">Uygun Randevu Saati Bulma</p><CardInfo help={getCardHelp("Uygun Randevu Saati Bulma")} /></div>
           <p className="mt-1 text-[11px] text-[var(--muted)]">
-            Personel, oda, cihaz, bakım, blok ve prep/cleanup süreleri birlikte doğrulanır.
+            Personel, oda, cihaz, bakım, kullanılamama kayıtları ile hazırlık ve temizlik süreleri birlikte değerlendirilir.
           </p>
         </div>
         <Button variant="secondary" disabled={loading || Boolean(busyKey)} onClick={() => void findMatches()}>
@@ -110,7 +112,7 @@ export function WaitlistMatchPanel({
 
       {searched && matches.length === 0 && !error ? (
         <p className="mt-3 text-xs text-[var(--muted)]">
-          Mevcut tercih ve kaynak koşullarını karşılayan boş slot bulunamadı.
+          Mevcut tercih ve kaynak koşullarını karşılayan uygun saat bulunamadı.
         </p>
       ) : null}
 
@@ -128,7 +130,7 @@ export function WaitlistMatchPanel({
                   {match.assetName ? ` · Cihaz: ${match.assetName}` : " · Cihaz gerekmiyor"}
                 </p>
                 <p className="mt-1 text-[11px] text-[var(--muted-soft)]">
-                  Kaynak blok süresi: {new Date(match.blockedFrom).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}–{new Date(match.blockedTo).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
+                  Kaynağın ayrıldığı süre: {new Date(match.blockedFrom).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}–{new Date(match.blockedTo).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}
                 </p>
                 {canUpdate ? (
                   <div className="mt-3 flex justify-end">
