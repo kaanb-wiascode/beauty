@@ -87,6 +87,7 @@ export class SessionsService {
     const session = await this.findOne(id);
     this.assertTransition(session.status, 'RESERVED');
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findFirst({
         where: {
@@ -126,14 +127,19 @@ export class SessionsService {
         );
       }
 
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'session.reserved',
+          aggregateType: 'session',
+          aggregateId: session.id,
+          payload: {
+            appointmentId,
+            customerPackageId: session.customerPackageId,
+          },
+        })) ?? null;
       return tx.session.findUnique({ where: { id: session.id } });
     });
-    await this.domainEvents?.publish({
-      eventName: 'session.reserved',
-      aggregateType: 'session',
-      aggregateId: session.id,
-      payload: { appointmentId, customerPackageId: session.customerPackageId },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
@@ -143,33 +149,39 @@ export class SessionsService {
     const session = await this.findOne(id);
     this.assertTransition(session.status, 'AVAILABLE');
 
-    const claimed = await this.prisma.session.updateMany({
-      where: {
-        id: session.id,
-        tenantId,
-        branchId,
-        status: session.status,
-        appointmentId: session.appointmentId,
-      },
-      data: {
-        status: 'AVAILABLE',
-        appointmentId: null,
-      },
-    });
+    let eventId: string | null = null;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.session.updateMany({
+        where: {
+          id: session.id,
+          tenantId,
+          branchId,
+          status: session.status,
+          appointmentId: session.appointmentId,
+        },
+        data: {
+          status: 'AVAILABLE',
+          appointmentId: null,
+        },
+      });
 
-    if (claimed.count !== 1) {
-      throw new ConflictException(
-        'Seans durumu değiştiği için rezervasyon kaldırılamadı. Lütfen ekranı yenileyin.',
-      );
-    }
+      if (claimed.count !== 1) {
+        throw new ConflictException(
+          'Seans durumu değiştiği için rezervasyon kaldırılamadı. Lütfen ekranı yenileyin.',
+        );
+      }
 
-    const result = await this.prisma.session.findUnique({ where: { id: session.id } });
-    await this.domainEvents?.publish({
-      eventName: 'session.released',
-      aggregateType: 'session',
-      aggregateId: session.id,
-      payload: { appointmentId: session.appointmentId },
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'session.released',
+          aggregateType: 'session',
+          aggregateId: session.id,
+          payload: { appointmentId: session.appointmentId },
+        })) ?? null;
+
+      return tx.session.findUnique({ where: { id: session.id } });
     });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
@@ -185,6 +197,7 @@ export class SessionsService {
       );
     }
 
+    let eventId: string | null = null;
     const result = await this.prisma.$transaction(async (tx) => {
       const appointment = await tx.appointment.findFirst({
         where: {
@@ -241,17 +254,19 @@ export class SessionsService {
         });
       }
 
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'session.consumed',
+          aggregateType: 'session',
+          aggregateId: session.id,
+          payload: {
+            appointmentId: session.appointmentId,
+            customerPackageId: session.customerPackageId,
+          },
+        })) ?? null;
       return tx.session.findUnique({ where: { id: session.id } });
     });
-    await this.domainEvents?.publish({
-      eventName: 'session.consumed',
-      aggregateType: 'session',
-      aggregateId: session.id,
-      payload: {
-        appointmentId: session.appointmentId,
-        customerPackageId: session.customerPackageId,
-      },
-    });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 
@@ -261,33 +276,38 @@ export class SessionsService {
     const session = await this.findOne(id);
     this.assertTransition(session.status, 'CANCELLED');
 
-    const claimed = await this.prisma.session.updateMany({
-      where: {
-        id: session.id,
-        tenantId,
-        branchId,
-        status: session.status,
-        appointmentId: session.appointmentId,
-      },
-      data: {
-        status: 'CANCELLED',
-        appointmentId: null,
-      },
-    });
+    let eventId: string | null = null;
+    const result = await this.prisma.$transaction(async (tx) => {
+      const claimed = await tx.session.updateMany({
+        where: {
+          id: session.id,
+          tenantId,
+          branchId,
+          status: session.status,
+          appointmentId: session.appointmentId,
+        },
+        data: {
+          status: 'CANCELLED',
+          appointmentId: null,
+        },
+      });
 
-    if (claimed.count !== 1) {
-      throw new ConflictException(
-        'Seans durumu değiştiği için iptal işlemi tamamlanamadı. Lütfen ekranı yenileyin.',
-      );
-    }
+      if (claimed.count !== 1) {
+        throw new ConflictException(
+          'Seans durumu değiştiği için iptal işlemi tamamlanamadı. Lütfen ekranı yenileyin.',
+        );
+      }
 
-    const result = await this.prisma.session.findUnique({ where: { id: session.id } });
-    await this.domainEvents?.publish({
-      eventName: 'session.cancelled',
-      aggregateType: 'session',
-      aggregateId: session.id,
-      payload: { previousAppointmentId: session.appointmentId },
+      eventId =
+        (await this.domainEvents?.record(tx, {
+          eventName: 'session.cancelled',
+          aggregateType: 'session',
+          aggregateId: session.id,
+          payload: { previousAppointmentId: session.appointmentId },
+        })) ?? null;
+      return tx.session.findUnique({ where: { id: session.id } });
     });
+    if (eventId) await this.domainEvents?.dispatchStored(eventId);
     return result;
   }
 }
