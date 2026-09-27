@@ -197,7 +197,7 @@ export class TeamController {
   }
 
   @Post('messages/:id/attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 15 * 1024 * 1024 } }))
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   addAttachment(
     @CurrentUser() user: JwtPayload,
     @Param('id', ParseUUIDPipe) id: string,
