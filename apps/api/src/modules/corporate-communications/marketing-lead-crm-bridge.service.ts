@@ -142,7 +142,7 @@ export class MarketingLeadCrmBridgeService {
       input.ownerUserId,
       policy.followUpChannel,
       dueAt,
-      `Marketing lead ilk temas · ${input.provider}`,
+      `Pazarlama talebi ilk temas · ${input.provider}`,
       input.actorUserId,
     );
     if (!followUp) return null;
