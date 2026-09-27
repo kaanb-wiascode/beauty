@@ -25,6 +25,51 @@ type CheckoutReadiness = {
   warnings: CheckoutIssue[];
 };
 
+type SmartAction = {
+  id: string;
+  severity: "INFO" | "WARNING" | "HIGH" | "CRITICAL";
+  title: string;
+  explanation: string;
+  suggestedAction: string;
+};
+
+type OperationsAlertSummary = {
+  alerts: Array<{
+    id: string;
+    severity: SmartAction["severity"];
+    title: string;
+    message: string;
+    suggestedAction: string;
+  }>;
+};
+
+type OperationsIntelligenceSummary = {
+  managerInsights: Array<{
+    code: string;
+    severity: "INFO" | "WARNING" | "HIGH";
+    title: string;
+    explanation: string;
+    suggestedAction: string;
+  }>;
+};
+
+type OperationsOptimizationSummary = {
+  capacityRecommendations: Array<{
+    code: string;
+    priority?: "INFO" | "MEDIUM" | "HIGH";
+    title: string;
+    explanation?: string;
+    suggestedAction: string;
+  }>;
+  staffRecommendations: Array<{
+    code: string;
+    priority?: "INFO" | "MEDIUM" | "HIGH";
+    title: string;
+    explanation?: string;
+    suggestedAction: string;
+  }>;
+};
+
 const STATUS_LABELS: Record<VisitStatus, string> = {
   EXPECTED: "Bekleniyor",
   ARRIVED: "Geldi",
@@ -121,6 +166,7 @@ export default function OperationsPage() {
   const [visitDetails, setVisitDetails] = useState<Record<string, VisitDetail>>({});
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [readinessByVisit, setReadinessByVisit] = useState<Record<string, CheckoutReadiness>>({});
+  const [smartActions, setSmartActions] = useState<SmartAction[]>([]);
 
   const loadCheckoutReadiness = useCallback(async (items: Visit[]) => {
     const checkoutVisits = items.filter((visit) => visit.status === "CHECKOUT_PENDING");
@@ -141,6 +187,78 @@ export default function OperationsPage() {
       if (result.status === "fulfilled") next[result.value[0]] = result.value[1];
     }
     setReadinessByVisit(next);
+  }, []);
+
+  const loadSmartActions = useCallback(async () => {
+    if (!hasActiveBranch()) {
+      setSmartActions([]);
+      return;
+    }
+
+    const [alertsResult, intelligenceResult, optimizationResult] =
+      await Promise.allSettled([
+        api<OperationsAlertSummary>("/operations/alerts"),
+        api<OperationsIntelligenceSummary>("/operations/intelligence?hours=24"),
+        api<OperationsOptimizationSummary>("/operations/optimization?hours=24"),
+      ]);
+
+    const next: SmartAction[] = [];
+    if (alertsResult.status === "fulfilled") {
+      next.push(
+        ...alertsResult.value.alerts.slice(0, 4).map((item) => ({
+          id: `alert:${item.id}`,
+          severity: item.severity,
+          title: item.title,
+          explanation: item.message,
+          suggestedAction: item.suggestedAction,
+        })),
+      );
+    }
+
+    if (intelligenceResult.status === "fulfilled") {
+      next.push(
+        ...intelligenceResult.value.managerInsights.slice(0, 4).map((item) => ({
+          id: `insight:${item.code}`,
+          severity: item.severity,
+          title: item.title,
+          explanation: item.explanation,
+          suggestedAction: item.suggestedAction,
+        })),
+      );
+    }
+
+    if (optimizationResult.status === "fulfilled") {
+      const recommendations = [
+        ...optimizationResult.value.capacityRecommendations,
+        ...optimizationResult.value.staffRecommendations,
+      ];
+      next.push(
+        ...recommendations.slice(0, 4).map((item) => ({
+          id: `recommendation:${item.code}`,
+          severity:
+            item.priority === "HIGH"
+              ? "HIGH"
+              : item.priority === "MEDIUM"
+                ? "WARNING"
+                : "INFO",
+          title: item.title,
+          explanation: item.explanation ?? "Operasyon verilerine göre öneri oluşturuldu.",
+          suggestedAction: item.suggestedAction,
+        })),
+      );
+    }
+
+    const rank: Record<SmartAction["severity"], number> = {
+      CRITICAL: 4,
+      HIGH: 3,
+      WARNING: 2,
+      INFO: 1,
+    };
+    setSmartActions(
+      next
+        .sort((a, b) => rank[b.severity] - rank[a.severity])
+        .slice(0, 6),
+    );
   }, []);
 
   const load = useCallback(async () => {
@@ -180,11 +298,13 @@ export default function OperationsPage() {
 
   useEffect(() => {
     void load();
-  }, [load]);
+    void loadSmartActions();
+  }, [load, loadSmartActions]);
 
   useOperationRealtime(() => {
     setVisitDetails({});
     void load();
+    void loadSmartActions();
   }, hasActiveBranch());
 
   const customerMap = useMemo(
@@ -357,6 +477,51 @@ export default function OperationsPage() {
             <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p>
           </div>
         ))}
+      </section>
+
+      <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <div className="flex items-start gap-2">
+              <h2 className="text-sm font-semibold text-[var(--ink)]">Akıllı Operasyon Önerileri</h2>
+              <CardInfo help={getCardHelp("Akıllı Operasyon Önerileri")} />
+            </div>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Canlı uyarılar, randevu riskleri, personel yükü ve kapasite verileri birlikte değerlendirilir.
+            </p>
+          </div>
+          <Button variant="secondary" onClick={() => void loadSmartActions()}>
+            Önerileri Yenile
+          </Button>
+        </div>
+        {smartActions.length ? (
+          <div className="mt-4 grid gap-3 lg:grid-cols-2">
+            {smartActions.map((item) => (
+              <article key={item.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="rounded-full bg-[var(--surface)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">
+                    {item.severity === "CRITICAL"
+                      ? "Kritik"
+                      : item.severity === "HIGH"
+                        ? "Yüksek"
+                        : item.severity === "WARNING"
+                          ? "Uyarı"
+                          : "Bilgi"}
+                  </span>
+                  <h3 className="text-sm font-semibold text-[var(--ink)]">{item.title}</h3>
+                </div>
+                <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p>
+                <p className="mt-3 rounded-[12px] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--ink)]">
+                  <span className="font-semibold">Önerilen aksiyon:</span> {item.suggestedAction}
+                </p>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <p className="mt-4 text-sm text-[var(--muted)]">
+            Şu anda öncelikli müdahale gerektiren bir operasyon önerisi bulunmuyor.
+          </p>
+        )}
       </section>
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
