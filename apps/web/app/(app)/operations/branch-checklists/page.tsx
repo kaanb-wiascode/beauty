@@ -1,9 +1,12 @@
 "use client";
 
+import { CardInfo } from "@/components/card-info";
+
 import { useEffect, useState } from "react";
 
 import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type Category = "OPENING" | "CLOSING";
@@ -216,7 +219,7 @@ export default function BranchChecklistsPage() {
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
         <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Şube operasyonları</p>
-        <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Açılış / Kapanış Kontrol Listeleri</h1>
+        <div className="mt-2 flex items-start justify-between gap-3"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Açılış / Kapanış Kontrol Listeleri</h1><CardInfo help={getCardHelp("Açılış / Kapanış Kontrol Listeleri")} /></div>
         <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Merkez standardını sürümler halinde yönetin, şubeler için günlük kontrol süreci başlatın ve gerekli maddeler tamamlanmadan operasyon gününü kapatmayın.</p>
       </header>
 
@@ -275,7 +278,7 @@ export default function BranchChecklistsPage() {
       </section>
 
       <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <h2 className="text-sm font-semibold text-[var(--ink)]">Kontrol Listesi Yönetimi</h2>
+        <div className="flex items-start justify-between gap-3"><h2 className="text-sm font-semibold text-[var(--ink)]">Kontrol Listesi Yönetimi</h2><CardInfo help={getCardHelp("Kontrol Listesi Yönetimi")} /></div>
         <div className="mt-4 flex flex-wrap gap-2">
           {(["OPENING", "CLOSING"] as Category[]).map((category) => <Button key={category} variant={draftCategory === category ? undefined : "secondary"} onClick={() => changeDraftCategory(category)}>{categoryLabel[category]}</Button>)}
         </div>
