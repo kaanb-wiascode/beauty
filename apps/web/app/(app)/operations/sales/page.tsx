@@ -1,1 +1,1 @@
-export { default } from "../../sales/page";
+export { default } from "@/components/operation-sales-workspace";
