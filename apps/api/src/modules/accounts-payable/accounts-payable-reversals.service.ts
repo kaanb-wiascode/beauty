@@ -80,7 +80,7 @@ export class AccountsPayableReversalsService {
   async reversePayment(billId: string, paymentId: string, reason: string) {
     const { tenantId, companyId, branchId } = this.context();
     const normalizedReason = reason.trim();
-    if (!normalizedReason) throw new BadRequestException('Reversal reason is required.');
+    if (!normalizedReason) throw new BadRequestException('Ters kayıt nedeni zorunludur.');
 
     return this.prisma.$transaction(
       async (tx) => {
@@ -92,9 +92,9 @@ export class AccountsPayableReversalsService {
           companyId,
           branchId,
         );
-        if (!bills.length) throw new NotFoundException('Supplier bill not found');
+        if (!bills.length) throw new NotFoundException('Tedarikçi faturası bulunamadı.');
         if (bills[0].status === 'CANCELLED') {
-          throw new BadRequestException('Payments on a cancelled bill cannot be reversed.');
+          throw new BadRequestException('İptal edilmiş tedarikçi faturasındaki ödemeler ters kayda alınamaz.');
         }
 
         const payments = await tx.$queryRawUnsafe<any[]>(
@@ -106,10 +106,10 @@ export class AccountsPayableReversalsService {
           billId,
           companyId,
         );
-        if (!payments.length) throw new NotFoundException('Supplier payment not found');
+        if (!payments.length) throw new NotFoundException('Tedarikçi ödemesi bulunamadı.');
         const payment = payments[0];
         if (Number(payment.amount) <= 0 || payment.reversalOfPaymentId) {
-          throw new BadRequestException('Only original positive supplier payments can be reversed.');
+          throw new BadRequestException('Yalnızca asıl pozitif tedarikçi ödemeleri ters kayda alınabilir.');
         }
 
         const existingReversal = await tx.$queryRawUnsafe<any[]>(
@@ -117,7 +117,7 @@ export class AccountsPayableReversalsService {
           paymentId,
         );
         if (existingReversal.length) {
-          throw new BadRequestException('Supplier payment is already reversed.');
+          throw new BadRequestException('Tedarikçi ödemesi zaten ters kayda alınmış.');
         }
 
         const reversalId = randomUUID();
