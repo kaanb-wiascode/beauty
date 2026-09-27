@@ -19,7 +19,7 @@ const HOP_BY_HOP_HEADERS = new Set([
 ]);
 
 const TRANSIENT_UPSTREAM_STATUSES = new Set([502, 503, 504]);
-const WARMUP_DELAYS_MS = [1500, 3000, 5000, 8000, 12000];
+const WARMUP_DELAYS_MS = [1000, 2000, 3000, 5000, 8000, 12000, 15000];
 
 let warmupPromise: Promise<boolean> | null = null;
 
@@ -148,12 +148,22 @@ async function proxy(
     let recoveredFromColdStart = false;
 
     if (TRANSIENT_UPSTREAM_STATUSES.has(upstream.status)) {
-      await upstream.arrayBuffer().catch(() => undefined);
-
       const ready = await waitForUpstream();
       if (ready) {
         upstream = await forward();
         recoveredFromColdStart = !TRANSIENT_UPSTREAM_STATUSES.has(upstream.status);
+      } else {
+        return Response.json(
+          {
+            message: "Staging API şu anda başlatılıyor. Lütfen kısa süre sonra tekrar deneyin.",
+          },
+          {
+            status: 503,
+            headers: {
+              "retry-after": "5",
+            },
+          },
+        );
       }
     }
 
