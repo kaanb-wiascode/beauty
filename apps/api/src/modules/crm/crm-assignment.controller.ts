@@ -1,10 +1,12 @@
-import { Body, Controller, Get, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { CrmAssignmentService } from './crm-assignment.service';
+
+const uuid = z.string().uuid();
 
 const createRuleSchema = z.object({
   name: z.string().trim().min(2).max(120),
@@ -27,6 +29,12 @@ export class CrmAssignmentController {
   @RequirePermission('crm', 'read')
   list() {
     return this.assignments.listRules();
+  }
+
+  @Get('history/:leadId')
+  @RequirePermission('crm', 'read')
+  history(@Param('leadId') leadId: string) {
+    return this.assignments.listHistory(uuid.parse(leadId));
   }
 
   @Post()
