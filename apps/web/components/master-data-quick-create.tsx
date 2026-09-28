@@ -12,6 +12,9 @@ export type QuickCreatedEntity = {
   lastName?: string;
   phone?: string | null;
   price?: number | string;
+  durationMinutes?: number;
+  status?: string;
+  active?: boolean;
 };
 
 export type QuickCreateKind = "customer" | "service" | "package";
