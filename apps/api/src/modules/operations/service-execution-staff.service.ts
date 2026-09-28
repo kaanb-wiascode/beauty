@@ -156,7 +156,7 @@ export class ServiceExecutionStaffService {
 
   private async assertEligible(execution: ExecutionContext, staffId: string) {
     const result = await this.eligibility.check({ staffId, serviceId: execution.serviceId, startAt: execution.startAt, endAt: execution.endAt });
-    if (!result.allowed) throw new ConflictException({ code: 'STAFF_ELIGIBILITY_BLOCKED', message: 'Target staff does not satisfy the active eligibility policy.', blockers: result.blockers });
+    if (!result.allowed) throw new ConflictException({ code: 'STAFF_ELIGIBILITY_BLOCKED', message: 'Seçilen personel aktif görev uygunluğu kurallarını karşılamıyor.', blockers: result.blockers });
     return result;
   }
 
