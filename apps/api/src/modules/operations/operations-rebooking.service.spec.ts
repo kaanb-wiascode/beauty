@@ -88,6 +88,7 @@ describe('OperationsRebookingService', () => {
   it('returns the existing linked appointment when the source was already rebooked', async () => {
     queryRawUnsafe
       .mockResolvedValueOnce([source])
+      .mockResolvedValueOnce([{ locked: 1 }])
       .mockResolvedValueOnce([
         { id: 'rebooking-1', targetAppointmentId: 'appointment-target' },
       ]);
