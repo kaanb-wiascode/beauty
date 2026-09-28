@@ -32,6 +32,7 @@ const date=(v:string)=>new Date(v).toLocaleDateString("tr-TR");
 const statusLabels:Record<string,string>={DRAFT:"Taslak",CONFIRMED:"Onaylandı",CANCELLED:"İptal",COMPLETED:"Tamamlandı",REFUNDED:"İade Edildi",UNPAID:"Ödenmedi",PARTIALLY_PAID:"Kısmen Ödendi",PAID:"Ödendi",PENDING:"Bekliyor"};
 
 export default function SalesPage(){
+ const canReadSales=hasPermission("sales","read");
  const canReadCustomers=hasPermission("customers","read");
  const canReadServices=hasPermission("services","read");
  const canCreateSale=hasPermission("sales","create");
@@ -53,6 +54,11 @@ export default function SalesPage(){
      setError("Satış ve tahsilat ekranı için önce aktif bir şube seçin.");
      return;
    }
+   if(!canReadSales){
+     setSales([]);setCustomers([]);setServices([]);setPackages([]);setLoading(false);
+     setError("Satış ve tahsilat çalışma alanını görüntülemek için satış görüntüleme yetkisi gereklidir.");
+     return;
+   }
    setLoading(true);setError("");
    const[s,c,sv,p]=await Promise.allSettled([
     api<Sale[]>("/sales"),
@@ -67,7 +73,7 @@ export default function SalesPage(){
    if(p.status==="fulfilled"&&p.value)setPackages(Array.isArray(p.value)?p.value:[]);else if(p.status==="rejected"){setPackages([]);errors.push(p.reason instanceof ApiError?p.reason.message:"Paketler yüklenemedi.");}else setPackages([]);
    if(errors.length)setError(Array.from(new Set(errors)).join(" "));
    setLoading(false);
- },[canReadCustomers,canReadServices]);
+ },[canReadCustomers,canReadSales,canReadServices]);
  useEffect(()=>{void load()},[load]);
 
  const openDetail=useCallback(async(id:string)=>{setSelectedId(id);setWorking(true);setError("");try{
@@ -104,7 +110,7 @@ export default function SalesPage(){
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canCreateSale&&canReadCustomers&&canReadServices?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
+  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canReadSales&&canCreateSale&&canReadCustomers&&canReadServices?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
   {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
   {canCreateSale&&(!canReadCustomers||!canReadServices)?<Alert>Yeni satış oluşturmak için müşteri ve hizmet/paket okuma yetkileri gereklidir. Mevcut satışları görüntüleme ve yetkiniz olan tahsilat işlemleri çalışmaya devam eder.</Alert>:null}
   <section className="grid gap-3 sm:grid-cols-3"><Metric label="Satış Sayısı" value={totals.count}/><Metric label="Satış Toplamı" value={money(totals.total)}/><Metric label="Onaylı Satış" value={totals.confirmed}/></section>
