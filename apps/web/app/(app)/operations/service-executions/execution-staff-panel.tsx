@@ -60,8 +60,9 @@ export function ExecutionStaffPanel({
     if (assignmentRows.status === "fulfilled") setAssignments(assignmentRows.value);
     else { setAssignments([]); errors.push(assignmentRows.reason instanceof ApiError ? assignmentRows.reason.message : "Personel atamaları yüklenemedi."); }
     if (staffRows.status === "fulfilled" && staffRows.value) {
-      setStaff(staffRows.value.data ?? []);
-      if (!selectedStaffId && staffRows.value.data?.[0]) setSelectedStaffId(staffRows.value.data[0].id);
+      const staffData = staffRows.value.data ?? [];
+      setStaff(staffData);
+      if (!selectedStaffId && staffData[0]) setSelectedStaffId(staffData[0].id);
     } else if (staffRows.status === "rejected") {
       setStaff([]);
       errors.push(staffRows.reason instanceof ApiError ? staffRows.reason.message : "Aktif personel listesi yüklenemedi.");
