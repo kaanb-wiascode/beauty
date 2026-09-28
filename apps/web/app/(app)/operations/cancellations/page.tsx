@@ -36,7 +36,7 @@ function dayEnd() {
 }
 
 export default function OperationsCancellationsPage() {
-  const canCancel = hasPermission("appointments", "cancel");
+  const canCancel = hasPermission("operations", "manage");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [reasons, setReasons] = useState<Reason[]>([]);
   const [history, setHistory] = useState<OutcomeRow[]>([]);
