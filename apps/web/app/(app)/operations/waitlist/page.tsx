@@ -86,22 +86,23 @@ export default function OperationsWaitlistPage() {
     }
     setLoading(true);
     setError("");
-    try {
-      const [waitlistResult, customerResult, serviceResult, staffResult] = await Promise.all([
-        api<WaitlistEntry[]>("/operations/waitlist"),
-        api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 100 })),
-        api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
-        api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 100, status: "ACTIVE" })),
-      ]);
-      setEntries(waitlistResult);
-      setCustomers(customerResult.data);
-      setServices(serviceResult.data.filter((service) => service.status === "ACTIVE"));
-      setStaff(staffResult.data.filter((member) => member.status === "ACTIVE"));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Bekleme listesi yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
+    const [waitlistResult, customerResult, serviceResult, staffResult] = await Promise.allSettled([
+      api<WaitlistEntry[]>("/operations/waitlist"),
+      api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 100 })),
+      api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
+      api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 100, status: "ACTIVE" })),
+    ]);
+    const errors: string[] = [];
+    if (waitlistResult.status === "fulfilled") setEntries(waitlistResult.value);
+    else { setEntries([]); errors.push(waitlistResult.reason instanceof ApiError ? waitlistResult.reason.message : "Bekleme listesi yüklenemedi."); }
+    if (customerResult.status === "fulfilled") setCustomers(customerResult.value.data);
+    else { setCustomers([]); errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi."); }
+    if (serviceResult.status === "fulfilled") setServices(serviceResult.value.data.filter((service) => service.status === "ACTIVE"));
+    else { setServices([]); errors.push(serviceResult.reason instanceof ApiError ? serviceResult.reason.message : "Hizmetler yüklenemedi."); }
+    if (staffResult.status === "fulfilled") setStaff(staffResult.value.data.filter((member) => member.status === "ACTIVE"));
+    else { setStaff([]); errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Personel yüklenemedi."); }
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }
 
   useEffect(() => {
