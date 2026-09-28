@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, EmptyState, PageHeader, Select, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
+import { hasActiveBranch } from "@/lib/auth";
 import type { Appointment, Paginated } from "@/lib/types";
 import { useOperationRealtime } from "@/lib/use-operation-realtime";
 
@@ -12,7 +13,22 @@ type Session={id:string;status:"AVAILABLE"|"RESERVED"|"CONSUMED"|"CANCELLED";app
 const labels:Record<string,string>={AVAILABLE:"Kullanılabilir",RESERVED:"Rezerve",CONSUMED:"Kullanıldı",CANCELLED:"İptal"};
 export default function SessionsPage(){
  const[rows,setRows]=useState<Session[]>([]),[appointments,setAppointments]=useState<Appointment[]>([]),[status,setStatus]=useState(""),[loading,setLoading]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[appointmentId,setAppointmentId]=useState<Record<string,string>>({});
- const load=useCallback(async()=>{setLoading(true);setError("");try{const q=status?`?status=${status}`:"";const[r,a]=await Promise.all([api<Session[]>(`/sessions${q}`),api<Paginated<Appointment>>("/appointments?page=1&limit=200")]);setRows(Array.isArray(r)?r:[]);setAppointments(Array.isArray(a.data)?a.data:[])}catch(e){setError(e instanceof ApiError?e.message:"Seanslar yüklenemedi.")}finally{setLoading(false)}},[status]);
+ const load=useCallback(async()=>{
+   if(!hasActiveBranch()){
+     setRows([]);setAppointments([]);setLoading(false);setError("Seans yönetimi için önce aktif bir şube seçin.");return;
+   }
+   setLoading(true);setError("");
+   const q=status?`?status=${status}`:"";
+   const[r,a]=await Promise.allSettled([
+     api<Session[]>(`/sessions${q}`),
+     api<Paginated<Appointment>>("/appointments?page=1&limit=200"),
+   ]);
+   const errors:string[]=[];
+   if(r.status==="fulfilled")setRows(Array.isArray(r.value)?r.value:[]);else{setRows([]);errors.push(r.reason instanceof ApiError?r.reason.message:"Seanslar yüklenemedi.");}
+   if(a.status==="fulfilled")setAppointments(Array.isArray(a.value.data)?a.value.data:[]);else{setAppointments([]);errors.push(a.reason instanceof ApiError?a.reason.message:"Randevular yüklenemedi.");}
+   if(errors.length)setError(Array.from(new Set(errors)).join(" "));
+   setLoading(false);
+ },[status]);
  useEffect(()=>{void load()},[load]);
  useOperationRealtime((event)=>{
    if(event.aggregateType==="session"||event.aggregateType==="appointment"||event.aggregateType==="service_execution") void load();
