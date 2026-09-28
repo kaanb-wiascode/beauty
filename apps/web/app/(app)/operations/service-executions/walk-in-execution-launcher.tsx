@@ -72,35 +72,48 @@ export function WalkInExecutionLauncher({
 
   const load = useCallback(async () => {
     setLoading(true);
-    try {
-      const [commercial, staffResult, roomResult, assetResult, visit, sales] = await Promise.all([
-        api<CommercialContext | null>(`/operations/walk-in-commercial/${visitId}`),
-        api<Paginated<Staff>>(`/staff?page=1&limit=100&status=ACTIVE`),
-        api<Room[]>(`/operations/resources/rooms`),
-        api<Asset[]>(`/operations/resources/assets`),
-        api<VisitSummary>(`/visits/${visitId}`),
-        api<SaleOption[]>("/sales"),
-      ]);
-      setContext(commercial);
-      setStaff(staffResult.data);
-      setRooms(roomResult);
-      setAssets(assetResult);
-      setSaleOptions(sales.filter((sale) => sale.customerId === visit.customerId && sale.status === "CONFIRMED"));
-      setSaleItemId((current) =>
-        commercial?.serviceItems.some((item) => item.saleItemId === current)
-          ? current
-          : commercial?.serviceItems[0]?.saleItemId ?? "",
-      );
-      setStaffId((current) =>
-        staffResult.data.some((item) => item.id === current)
-          ? current
-          : staffResult.data[0]?.id ?? "",
-      );
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Randevusuz hizmet bilgileri yüklenemedi.");
-    } finally {
-      setLoading(false);
+    const [commercialResult, staffResult, roomResult, assetResult, visitResult, salesResult] = await Promise.allSettled([
+      api<CommercialContext | null>(`/operations/walk-in-commercial/${visitId}`),
+      api<Paginated<Staff>>(`/staff?page=1&limit=100&status=ACTIVE`),
+      api<Room[]>(`/operations/resources/rooms`),
+      api<Asset[]>(`/operations/resources/assets`),
+      api<VisitSummary>(`/visits/${visitId}`),
+      api<SaleOption[]>("/sales"),
+    ]);
+    const errors: string[] = [];
+    const commercial = commercialResult.status === "fulfilled" ? commercialResult.value : null;
+    const visit = visitResult.status === "fulfilled" ? visitResult.value : null;
+    const sales = salesResult.status === "fulfilled" ? salesResult.value : [];
+
+    setContext(commercial);
+    if (commercialResult.status === "rejected") errors.push(commercialResult.reason instanceof ApiError ? commercialResult.reason.message : "Ticari bağlam yüklenemedi.");
+
+    if (staffResult.status === "fulfilled") {
+      setStaff(staffResult.value.data);
+      setStaffId((current) => staffResult.value.data.some((item) => item.id === current) ? current : staffResult.value.data[0]?.id ?? "");
+    } else {
+      setStaff([]);
+      errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Aktif personel yüklenemedi.");
     }
+
+    if (roomResult.status === "fulfilled") setRooms(roomResult.value);
+    else { setRooms([]); errors.push(roomResult.reason instanceof ApiError ? roomResult.reason.message : "Odalar yüklenemedi."); }
+
+    if (assetResult.status === "fulfilled") setAssets(assetResult.value);
+    else { setAssets([]); errors.push(assetResult.reason instanceof ApiError ? assetResult.reason.message : "Ekipmanlar yüklenemedi."); }
+
+    if (visitResult.status === "rejected") errors.push(visitResult.reason instanceof ApiError ? visitResult.reason.message : "Ziyaret bilgisi yüklenemedi.");
+    if (salesResult.status === "rejected") errors.push(salesResult.reason instanceof ApiError ? salesResult.reason.message : "Satışlar yüklenemedi.");
+
+    setSaleOptions(visit ? sales.filter((sale) => sale.customerId === visit.customerId && sale.status === "CONFIRMED") : []);
+    setSaleItemId((current) =>
+      commercial?.serviceItems.some((item) => item.saleItemId === current)
+        ? current
+        : commercial?.serviceItems[0]?.saleItemId ?? "",
+    );
+
+    if (errors.length) onError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }, [onError, visitId]);
 
   useEffect(() => {
