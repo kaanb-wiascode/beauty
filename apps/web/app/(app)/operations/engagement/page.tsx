@@ -57,7 +57,7 @@ export default function OperationsEngagementPage() {
       const [appointmentRows, visitRows, customerRows] = await Promise.all([
         api<Upcoming[]>("/operations/customer-engagement/upcoming?days=7"),
         api<Visit[]>(withQuery("/visits", { status: "CHECKED_OUT", limit: 30 })),
-        api<Paginated<Customer>>("/customers?page=1&limit=200"),
+        api<Paginated<Customer>>("/customers?page=1&limit=100"),
       ]);
       setUpcoming(appointmentRows);
       setCheckouts(visitRows);
