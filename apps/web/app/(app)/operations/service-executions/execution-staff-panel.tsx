@@ -50,21 +50,22 @@ export function ExecutionStaffPanel({
 
   async function load() {
     setLoading(true);
-    try {
-      const [assignmentRows, staffRows] = await Promise.all([
-        api<Assignment[]>(`/operations/service-executions/${executionId}/staff`),
-        api<StaffResponse>("/staff?status=ACTIVE&limit=100&page=1"),
-      ]);
-      setAssignments(assignmentRows);
-      setStaff(staffRows.data ?? []);
-      if (!selectedStaffId && staffRows.data?.[0]) {
-        setSelectedStaffId(staffRows.data[0].id);
-      }
-    } catch (err) {
-      onError(err instanceof ApiError ? err.message : "Personel atamaları yüklenemedi.");
-    } finally {
-      setLoading(false);
+    const [assignmentRows, staffRows] = await Promise.allSettled([
+      api<Assignment[]>(`/operations/service-executions/${executionId}/staff`),
+      api<StaffResponse>("/staff?status=ACTIVE&limit=100&page=1"),
+    ]);
+    const errors: string[] = [];
+    if (assignmentRows.status === "fulfilled") setAssignments(assignmentRows.value);
+    else { setAssignments([]); errors.push(assignmentRows.reason instanceof ApiError ? assignmentRows.reason.message : "Personel atamaları yüklenemedi."); }
+    if (staffRows.status === "fulfilled") {
+      setStaff(staffRows.value.data ?? []);
+      if (!selectedStaffId && staffRows.value.data?.[0]) setSelectedStaffId(staffRows.value.data[0].id);
+    } else {
+      setStaff([]);
+      errors.push(staffRows.reason instanceof ApiError ? staffRows.reason.message : "Aktif personel listesi yüklenemedi.");
     }
+    if (errors.length) onError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }
 
   useEffect(() => {
