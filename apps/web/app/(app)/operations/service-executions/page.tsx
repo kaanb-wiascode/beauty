@@ -13,6 +13,7 @@ import { ServiceExecutionPanel } from "../service-execution-panel";
 
 export default function ServiceExecutionsPage() {
   const canUpdate = hasPermission("operations", "manage");
+  const canReadCustomers = hasPermission("customers", "read");
   const [visits, setVisits] = useState<Visit[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,16 +32,17 @@ export default function ServiceExecutionsPage() {
     setError("");
     const [visitResult, customerResult] = await Promise.allSettled([
       api<Visit[]>(withQuery("/visits", { limit: 200 })),
-      api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
+      canReadCustomers ? api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })) : Promise.resolve(null),
     ]);
     const errors: string[] = [];
     if (visitResult.status === "fulfilled") setVisits(visitResult.value);
     else { setVisits([]); errors.push(visitResult.reason instanceof ApiError ? visitResult.reason.message : "Ziyaretler yüklenemedi."); }
-    if (customerResult.status === "fulfilled") setCustomers(customerResult.value.data);
-    else { setCustomers([]); errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi."); }
+    if (customerResult.status === "fulfilled" && customerResult.value) setCustomers(customerResult.value.data);
+    else if (customerResult.status === "rejected") { setCustomers([]); errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi."); }
+    else setCustomers([]);
     if (errors.length) setError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
-  }, []);
+  }, [canReadCustomers]);
 
   useEffect(() => {
     void load();
@@ -122,7 +124,7 @@ export default function ServiceExecutionsPage() {
                 <div>
                   <div className="flex items-start gap-2">
                     <h2 className="text-sm font-semibold text-[var(--ink)]">
-                      {customerMap.get(visit.customerId) ?? "Müşteri"}
+                      {customerMap.get(visit.customerId) ?? visit.customerName ?? "Müşteri"}
                     </h2>
                     <CardInfo help={getCardHelp("Hizmet Uygulama Kaydı")} />
                   </div>
