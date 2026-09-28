@@ -170,6 +170,7 @@ export default function OperationsPage() {
   const [detailLoadingId, setDetailLoadingId] = useState<string | null>(null);
   const [readinessByVisit, setReadinessByVisit] = useState<Record<string, CheckoutReadiness>>({});
   const [smartActions, setSmartActions] = useState<SmartAction[]>([]);
+  const [flowFilter, setFlowFilter] = useState<"ALL" | "EXPECTED" | "WAITING" | "IN_SERVICE" | "CHECKOUT_PENDING">("ALL");
 
   const loadCheckoutReadiness = useCallback(async (items: Visit[]) => {
     const checkoutVisits = items.filter((visit) => visit.status === "CHECKOUT_PENDING");
@@ -375,6 +376,29 @@ export default function OperationsPage() {
     checkout: visits.filter((visit) => visit.status === "CHECKOUT_PENDING").length,
   }), [expectedAppointments.length, visits]);
 
+  const visibleVisits = useMemo(() => {
+    if (flowFilter === "ALL" || flowFilter === "EXPECTED") return activeVisits;
+    if (flowFilter === "WAITING") {
+      return activeVisits.filter((visit) => visit.status === "WAITING" || visit.status === "CHECKED_IN");
+    }
+    return activeVisits.filter((visit) => visit.status === flowFilter);
+  }, [activeVisits, flowFilter]);
+
+  const flowSteps: Array<{ key: VisitStatus; label: string }> = [
+    { key: "CHECKED_IN", label: "Giriş" },
+    { key: "WAITING", label: "Bekleme" },
+    { key: "IN_SERVICE", label: "Hizmet" },
+    { key: "SERVICE_COMPLETED", label: "Tamamlandı" },
+    { key: "CHECKOUT_PENDING", label: "Çıkış" },
+  ];
+
+  function flowProgress(status: VisitStatus) {
+    const index = flowSteps.findIndex((step) => step.key === status);
+    if (status === "ARRIVED" || status === "EXPECTED") return -1;
+    if (status === "CHECKED_OUT") return flowSteps.length;
+    return index;
+  }
+
   async function checkInAppointment(appointment: Appointment) {
     if (!canUpdate) return;
 
@@ -478,280 +502,417 @@ export default function OperationsPage() {
   }
 
   if (loading) {
-    return <div className="mx-auto max-w-[1420px] py-10"><Spinner label="Canlı operasyon hazırlanıyor..." /></div>;
+    return <div className="mx-auto max-w-[1480px] py-10"><Spinner label="Canlı operasyon hazırlanıyor..." /></div>;
   }
 
+  const flowTabs = [
+    { key: "ALL" as const, label: "Tümü", value: activeVisits.length },
+    { key: "EXPECTED" as const, label: "Beklenen", value: counts.expected },
+    { key: "WAITING" as const, label: "Bekleyen", value: counts.waiting },
+    { key: "IN_SERVICE" as const, label: "Hizmette", value: counts.inService },
+    { key: "CHECKOUT_PENDING" as const, label: "Çıkış", value: counts.checkout },
+  ];
+
   return (
-    <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
-      <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm lg:flex-row lg:items-end lg:justify-between">
-        <div>
-          <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Operasyon Kontrol Merkezi</p>
-          <div className="mt-2 flex items-start gap-2"><h1 className="text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Canlı Ziyaret Akışı</h1><CardInfo help={getCardHelp("Canlı Ziyaret Akışı")} /></div>
-          <p className="mt-2 max-w-2xl text-sm text-[var(--muted)]">Şubedeki müşterilerin girişten hizmete ve çıkışa kadar gerçek operasyon durumunu takip edin.</p>
+    <div className="mx-auto max-w-[1480px] space-y-4 pb-12">
+      <header className="overflow-hidden rounded-[28px] border border-[var(--line)] bg-[linear-gradient(135deg,var(--surface)_0%,var(--surface)_64%,var(--accent-soft)_140%)] shadow-[0_14px_40px_rgba(20,52,74,.06)]">
+        <div className="flex flex-col gap-5 p-5 sm:p-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-2 rounded-full border border-[var(--line)] bg-[var(--surface)] px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)]">
+                <span className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_0_4px_rgba(16,185,129,.10)]" />
+                Canlı
+              </span>
+              <span className="text-[11px] font-medium text-[var(--muted-soft)]">
+                Operasyon Merkezi
+              </span>
+            </div>
+            <div className="mt-3 flex items-center gap-2">
+              <h1 className="text-[28px] font-semibold tracking-[-0.045em] text-[var(--ink)] sm:text-[34px]">
+                Bugünün operasyon akışı
+              </h1>
+              <CardInfo help={getCardHelp("Canlı Ziyaret Akışı")} />
+            </div>
+            <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">
+              Müşteri gelişinden hizmete, tahsilattan çıkışa kadar şubenin tamamını tek çalışma alanından yönetin.
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            <Link
+              href="/operations/service-executions"
+              className="inline-flex min-h-10 items-center rounded-[13px] border border-[var(--line)] bg-[var(--surface)] px-4 text-xs font-semibold text-[var(--ink)] shadow-sm transition hover:-translate-y-0.5 hover:border-[var(--accent)] hover:text-[var(--accent)]"
+            >
+              Hizmet İcraları
+            </Link>
+            <Button variant="secondary" onClick={() => { void load(); void loadSmartActions(); }}>
+              Yenile
+            </Button>
+          </div>
         </div>
-        <Button onClick={() => void load()} variant="secondary">Yenile</Button>
+
+        <div className="grid border-t border-[var(--line)] bg-[var(--surface)]/70 backdrop-blur-xl sm:grid-cols-5">
+          {flowTabs.map((item) => {
+            const active = flowFilter === item.key;
+            return (
+              <button
+                key={item.key}
+                type="button"
+                onClick={() => setFlowFilter(item.key)}
+                className={`group flex min-h-[72px] items-center justify-between gap-3 border-b border-[var(--line)] px-4 text-left transition sm:border-b-0 sm:border-r last:sm:border-r-0 ${
+                  active ? "bg-[var(--accent-soft)]" : "hover:bg-[var(--surface-2)]"
+                }`}
+              >
+                <div>
+                  <p className={`text-[11px] font-semibold ${active ? "text-[var(--accent)]" : "text-[var(--muted)]"}`}>{item.label}</p>
+                  <p className="mt-1 text-[22px] font-semibold tracking-[-0.04em] text-[var(--ink)]">{item.value}</p>
+                </div>
+                <span className={`h-2.5 w-2.5 rounded-full transition ${
+                  item.key === "IN_SERVICE"
+                    ? "bg-blue-500"
+                    : item.key === "CHECKOUT_PENDING"
+                      ? "bg-amber-500"
+                      : item.key === "WAITING"
+                        ? "bg-violet-500"
+                        : item.key === "EXPECTED"
+                          ? "bg-slate-400"
+                          : "bg-emerald-500"
+                } ${active ? "scale-110" : "opacity-60 group-hover:opacity-100"}`} />
+              </button>
+            );
+          })}
+        </div>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div>
-            <div className="flex items-start gap-2">
-              <h2 className="text-sm font-semibold text-[var(--ink)]">Bağlı Operasyon Akışı</h2>
-              <CardInfo help={getCardHelp("Bağlı Operasyon Akışı", "Bu ekran müşteriler, randevular ve ziyaretleri doğrudan VALOO ana verilerinden kullanır; aşağıdaki bağlantılar aynı veri zincirinin devamıdır.")} />
-            </div>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              Müşteri → Randevu → Ziyaret → Hizmet → Seans → Satış/Tahsilat → Yeniden Randevu zinciri tek çalışma alanında ilerler.
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            {[
-              ["/operations/service-executions", "Hizmeti Yönet"],
-              ["/operations/sessions", "Seansları Gör"],
-              ["/operations/sales", "Satış / Tahsilat"],
-              ["/operations/waitlist", "Bekleme Listesi"],
-              ["/operations/rebooking", "Yeniden Randevu"],
-            ].map(([href, label]) => (
-              <Link
-                key={href}
-                href={href}
-                className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-              >
-                {label}
-              </Link>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        {[
-          ["Beklenen", counts.expected],
-          ["Bekleyen", counts.waiting],
-          ["Hizmette", counts.inService],
-          ["Çıkış Bekliyor", counts.checkout],
-        ].map(([label, value]) => (
-          <div key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-            <div className="flex items-start justify-between gap-3">
-              <p className="text-xs font-medium text-[var(--muted)]">{label}</p>
-              <CardInfo help={getCardHelp(String(label))} />
-            </div>
-            <p className="mt-2 text-3xl font-semibold tracking-[-0.04em] text-[var(--ink)]">{value}</p>
-          </div>
-        ))}
-      </section>
-
-      <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <div className="flex items-start gap-2">
-              <h2 className="text-sm font-semibold text-[var(--ink)]">Akıllı Operasyon Önerileri</h2>
-              <CardInfo help={getCardHelp("Akıllı Operasyon Önerileri")} />
-            </div>
-            <p className="mt-1 text-xs text-[var(--muted)]">
-              Canlı uyarılar, randevu riskleri, personel yükü ve kapasite verileri birlikte değerlendirilir.
-            </p>
-          </div>
-          <Button variant="secondary" onClick={() => void loadSmartActions()}>
-            Önerileri Yenile
-          </Button>
-        </div>
-        {smartActions.length ? (
-          <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {smartActions.map((item) => (
-              <article key={item.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-[var(--surface)] px-2 py-1 text-[10px] font-semibold text-[var(--muted)]">
-                    {item.severity === "CRITICAL"
-                      ? "Kritik"
-                      : item.severity === "HIGH"
-                        ? "Yüksek"
-                        : item.severity === "WARNING"
-                          ? "Uyarı"
-                          : "Bilgi"}
-                  </span>
-                  <h3 className="text-sm font-semibold text-[var(--ink)]">{item.title}</h3>
-                </div>
-                <p className="mt-2 text-xs text-[var(--muted)]">{item.explanation}</p>
-                <p className="mt-3 rounded-[12px] bg-[var(--surface)] px-3 py-2 text-xs text-[var(--ink)]">
-                  <span className="font-semibold">Önerilen aksiyon:</span> {item.suggestedAction}
-                </p>
-              </article>
-            ))}
-          </div>
-        ) : (
-          <p className="mt-4 text-sm text-[var(--muted)]">
-            Şu anda öncelikli müdahale gerektiren bir operasyon önerisi bulunmuyor.
-          </p>
-        )}
-      </section>
-
-      <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
-          <label className="block">
-            <span className="mb-2 block text-xs font-semibold text-[var(--muted)]">Randevusuz müşteri</span>
-            <Select
-              value={walkInCustomerId}
-              onChange={(event) => {
-                setWalkInCustomerId(event.target.value);
-                setWalkInRequestKey(null);
-              }}
-              className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)] outline-none focus:ring-4 focus:ring-[var(--accent-soft)]"
-            >
-              <option value="">Müşteri seçin</option>
-              {customers.map((customer) => (
-                <option key={customer.id} value={customer.id}>{customerMap.get(customer.id)}</option>
-              ))}
-            </Select>
-          </label>
-          <Button
-            disabled={!walkInCustomerId || updatingId === `walk-in:${walkInCustomerId}` || !canUpdate}
-            onClick={() => void checkInWalkIn()}
-          >
-            {updatingId === `walk-in:${walkInCustomerId}` ? "Giriş Yapılıyor..." : "Randevusuz Müşteri Girişi"}
-          </Button>
-        </div>
-      </section>
-
-      <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
-        <div className="border-b border-[var(--line)] px-6 py-4">
-          <div className="flex items-start gap-2"><h2 className="text-sm font-semibold text-[var(--ink)]">Bugün Beklenen Müşteriler</h2><CardInfo help={getCardHelp("Bugün Beklenen Müşteriler")} /></div>
-          <p className="mt-1 text-xs text-[var(--muted)]">Giriş bekleyen {expectedAppointments.length} randevu</p>
-        </div>
-        {expectedAppointments.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {expectedAppointments.map((appointment) => (
-              <div key={appointment.id} className="grid gap-4 px-6 py-4 md:grid-cols-[90px_minmax(0,1fr)_auto] md:items-center">
-                <div className="text-sm font-semibold text-[var(--ink)]">{timeLabel(appointment.startAt)}</div>
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(appointment.customerId) ?? "Müşteri"}</p>
-                  <p className="mt-1 text-xs text-[var(--muted)]">{appointment.status === "CONFIRMED" ? "Onaylı randevu" : "Planlı randevu"}</p>
-                </div>
-                {canUpdate ? (
-                  <Button disabled={updatingId === appointment.id} onClick={() => void checkInAppointment(appointment)}>
-                    {updatingId === appointment.id ? "Giriş Yapılıyor..." : "Giriş Yap"}
-                  </Button>
-                ) : null}
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,.75fr)]">
+        <div className="space-y-4">
+          <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_10px_30px_rgba(20,52,74,.045)] sm:p-5">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <p className="text-[10px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">Hızlı İşlem</p>
+                <h2 className="mt-1 text-base font-semibold tracking-[-0.02em] text-[var(--ink)]">Müşteriyi akışa alın</h2>
+                <p className="mt-1 text-xs text-[var(--muted)]">Randevusuz gelen müşteriyi birkaç saniyede operasyona dahil edin.</p>
               </div>
-            ))}
-          </div>
-        ) : (
-          <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Giriş bekleyen randevu bulunmuyor.</div>
-        )}
-      </section>
+              <div className="grid min-w-0 flex-1 gap-2 md:grid-cols-[minmax(240px,1fr)_auto] lg:max-w-[620px]">
+                <Select
+                  value={walkInCustomerId}
+                  onChange={(event) => {
+                    setWalkInCustomerId(event.target.value);
+                    setWalkInRequestKey(null);
+                  }}
+                  className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm text-[var(--ink)] outline-none focus:ring-4 focus:ring-[var(--accent-soft)]"
+                >
+                  <option value="">Müşteri seçin</option>
+                  {customers.map((customer) => (
+                    <option key={customer.id} value={customer.id}>{customerMap.get(customer.id)}</option>
+                  ))}
+                </Select>
+                <Button
+                  disabled={!walkInCustomerId || updatingId === `walk-in:${walkInCustomerId}` || !canUpdate}
+                  onClick={() => void checkInWalkIn()}
+                >
+                  {updatingId === `walk-in:${walkInCustomerId}` ? "Ekleniyor..." : "Akışa Al"}
+                </Button>
+              </div>
+            </div>
+          </section>
 
-      <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
-        <div className="flex items-center justify-between border-b border-[var(--line)] px-6 py-4">
-          <div>
-            <div className="flex items-start gap-2"><h2 className="text-sm font-semibold text-[var(--ink)]">Aktif Ziyaretler</h2><CardInfo help={getCardHelp("Aktif Ziyaretler")} /></div>
-            <p className="mt-1 text-xs text-[var(--muted)]">{activeVisits.length} aktif operasyon kaydı</p>
-          </div>
-        </div>
+          {flowFilter === "ALL" || flowFilter === "EXPECTED" ? (
+            <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(20,52,74,.045)]">
+              <div className="flex items-center justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-sm font-semibold text-[var(--ink)]">Sıradaki Müşteriler</h2>
+                    <CardInfo help={getCardHelp("Bugün Beklenen Müşteriler")} />
+                  </div>
+                  <p className="mt-1 text-[11px] text-[var(--muted)]">{expectedAppointments.length} randevu giriş bekliyor</p>
+                </div>
+                <Link href="/appointments" className="text-[11px] font-semibold text-[var(--accent)] hover:underline">
+                  Tüm randevular
+                </Link>
+              </div>
 
-        {activeVisits.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {activeVisits.map((visit) => {
-              const action = NEXT_ACTION[visit.status];
-              const readiness = readinessByVisit[visit.id];
-              const detail = visitDetails[visit.id];
-              const expanded = expandedVisitId === visit.id;
-              return (
-                <div key={visit.id}>
-                  <div className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,.9fr)_minmax(0,1fr)_auto] md:items-center">
-                    <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(visit.customerId) ?? visit.customerName ?? "Müşteri"}</p>
-                      <p className="mt-1 text-xs text-[var(--muted)]">{visit.source === "WALK_IN" ? "Randevusuz" : "Randevulu"} · {elapsed(visitAgeStart(visit))}</p>
-                    </div>
-                    <div>
-                      <span className="inline-flex rounded-full border border-[var(--line)] bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{STATUS_LABELS[visit.status]}</span>
-                    </div>
-                    <div className="min-w-0 text-xs text-[var(--muted)]">
-                      {visit.status === "CHECKOUT_PENDING" && readiness ? (
-                        readiness.canCheckout ? (
-                          <span className="font-semibold text-[#2d6a49]">Çıkışa hazır{readiness.warnings.length ? " · doğrulama uyarısı var" : ""}</span>
-                        ) : (
-                          <span className="font-semibold text-[#8f3d3d]">{readiness.blockers.map(checkoutIssueLabel).join(" · ")}</span>
-                        )
-                      ) : (
-                        <>Sürüm {visit.version}</>
-                      )}
-                    </div>
-                    <div className="flex flex-wrap justify-self-start gap-2 md:justify-self-end">
-                      <Button variant="secondary" onClick={() => void toggleVisitDetail(visit)}>
-                        {expanded ? "Detayı Kapat" : "Geçmiş"}
-                      </Button>
-                      {visit.status === "IN_SERVICE" ? (
-                        <Link
-                          href="/operations/service-executions"
-                          className="inline-flex min-h-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
-                        >
-                          Hizmet İcralarını Aç
-                        </Link>
-                      ) : null}
-                      {action && canUpdate ? (
-                        <Button
-                          disabled={updatingId === visit.id || (action.status === "CHECKED_OUT" && readiness ? !readiness.canCheckout : false)}
-                          onClick={() => void advance(visit)}
-                        >
-                          {updatingId === visit.id ? "Güncelleniyor..." : action.label}
+              {expectedAppointments.length ? (
+                <div className="grid gap-2 p-3 sm:p-4">
+                  {expectedAppointments.slice(0, 6).map((appointment, index) => (
+                    <article
+                      key={appointment.id}
+                      className="group grid gap-3 rounded-[18px] border border-transparent bg-[var(--surface-2)] px-4 py-3 transition hover:border-[var(--line)] hover:bg-[var(--surface)] hover:shadow-sm md:grid-cols-[74px_minmax(0,1fr)_auto] md:items-center"
+                    >
+                      <div>
+                        <p className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{timeLabel(appointment.startAt)}</p>
+                        <p className="mt-0.5 text-[10px] text-[var(--muted-soft)]">#{String(index + 1).padStart(2, "0")}</p>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(appointment.customerId) ?? "Müşteri"}</p>
+                          <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2 py-0.5 text-[9px] font-semibold text-[var(--muted)]">
+                            {appointment.status === "CONFIRMED" ? "Onaylı" : "Planlı"}
+                          </span>
+                        </div>
+                        <p className="mt-1 text-[11px] text-[var(--muted)]">Randevu · Giriş bekleniyor</p>
+                      </div>
+                      {canUpdate ? (
+                        <Button disabled={updatingId === appointment.id} onClick={() => void checkInAppointment(appointment)}>
+                          {updatingId === appointment.id ? "İşleniyor..." : "Giriş Yap"}
                         </Button>
                       ) : null}
-                    </div>
-                  </div>
+                    </article>
+                  ))}
+                </div>
+              ) : (
+                <div className="px-6 py-10 text-center">
+                  <p className="text-sm font-semibold text-[var(--ink)]">Bekleyen randevu yok</p>
+                  <p className="mt-1 text-xs text-[var(--muted)]">Bugünkü planlı müşterilerin tamamı işleme alınmış görünüyor.</p>
+                </div>
+              )}
+            </section>
+          ) : null}
 
-                  {expanded ? (
-                    <div className="border-t border-[var(--line)] bg-[var(--surface-2)] px-6 py-5">
-                      {detailLoadingId === visit.id ? (
-                        <p className="text-xs text-[var(--muted)]">Operasyon geçmişi yükleniyor...</p>
-                      ) : detail ? (
-                        <div className="space-y-4">
-                          {readiness?.warnings.length ? (
-                            <div className="rounded-[14px] border border-[#e8d9b5] bg-[#fffaf0] px-4 py-3 text-xs text-[#7a6330]">
-                              {readiness.warnings.map(checkoutIssueLabel).join(" · ")}
+          <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(20,52,74,.045)]">
+            <div className="flex items-center justify-between gap-4 border-b border-[var(--line)] px-5 py-4">
+              <div>
+                <div className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-[var(--ink)]">Canlı Operasyon</h2>
+                  <CardInfo help={getCardHelp("Aktif Ziyaretler")} />
+                </div>
+                <p className="mt-1 text-[11px] text-[var(--muted)]">
+                  {flowFilter === "ALL" || flowFilter === "EXPECTED" ? activeVisits.length : visibleVisits.length} müşteri aktif akışta
+                </p>
+              </div>
+              <div className="hidden items-center gap-2 sm:flex">
+                <span className="h-2 w-2 rounded-full bg-emerald-500" />
+                <span className="text-[10px] font-medium text-[var(--muted)]">Gerçek zamanlı güncelleniyor</span>
+              </div>
+            </div>
+
+            {visibleVisits.length ? (
+              <div className="grid gap-3 p-3 sm:p-4">
+                {visibleVisits.map((visit) => {
+                  const action = NEXT_ACTION[visit.status];
+                  const readiness = readinessByVisit[visit.id];
+                  const detail = visitDetails[visit.id];
+                  const expanded = expandedVisitId === visit.id;
+                  const progress = flowProgress(visit.status);
+                  return (
+                    <article
+                      key={visit.id}
+                      className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_8px_24px_rgba(20,52,74,.04)] transition hover:shadow-[0_12px_32px_rgba(20,52,74,.08)]"
+                    >
+                      <div className="p-4 sm:p-5">
+                        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                          <div className="min-w-0 flex-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <h3 className="truncate text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">
+                                {customerMap.get(visit.customerId) ?? visit.customerName ?? "Müşteri"}
+                              </h3>
+                              <span className={`inline-flex rounded-full px-2.5 py-1 text-[9px] font-semibold ${
+                                visit.status === "IN_SERVICE"
+                                  ? "bg-blue-50 text-blue-700"
+                                  : visit.status === "CHECKOUT_PENDING"
+                                    ? "bg-amber-50 text-amber-700"
+                                    : visit.status === "WAITING" || visit.status === "CHECKED_IN"
+                                      ? "bg-violet-50 text-violet-700"
+                                      : "bg-[var(--surface-2)] text-[var(--muted)]"
+                              }`}>
+                                {STATUS_LABELS[visit.status]}
+                              </span>
+                              <span className="text-[10px] text-[var(--muted-soft)]">
+                                {visit.source === "WALK_IN" ? "Randevusuz" : "Randevulu"} · {elapsed(visitAgeStart(visit))}
+                              </span>
                             </div>
-                          ) : null}
-                          <div>
-                            <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">Operasyon Geçmişi</p>
-                            {detail.timeline.length ? (
-                              <div className="mt-3 space-y-2">
-                                {detail.timeline.map((event) => (
-                                  <div key={event.id} className="flex flex-col gap-1 rounded-[14px] bg-[var(--surface)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+
+                            <div className="mt-4 grid grid-cols-5 gap-1.5">
+                              {flowSteps.map((step, index) => {
+                                const done = progress >= index;
+                                const current = visit.status === step.key;
+                                return (
+                                  <div key={step.key} className="min-w-0">
+                                    <div className={`h-1.5 rounded-full transition ${
+                                      done ? (current ? "bg-[var(--accent)]" : "bg-[var(--accent)]/55") : "bg-[var(--surface-2)]"
+                                    }`} />
+                                    <p className={`mt-1.5 truncate text-[9px] font-medium ${
+                                      current ? "text-[var(--accent)]" : done ? "text-[var(--ink)]" : "text-[var(--muted-soft)]"
+                                    }`}>{step.label}</p>
+                                  </div>
+                                );
+                              })}
+                            </div>
+
+                            {visit.status === "CHECKOUT_PENDING" && readiness ? (
+                              <div className={`mt-4 rounded-[13px] border px-3 py-2.5 text-[11px] ${
+                                readiness.canCheckout
+                                  ? "border-emerald-200 bg-emerald-50/70 text-emerald-800"
+                                  : "border-rose-200 bg-rose-50/70 text-rose-800"
+                              }`}>
+                                {readiness.canCheckout
+                                  ? readiness.warnings.length
+                                    ? `Çıkışa hazır · ${readiness.warnings.map(checkoutIssueLabel).join(" · ")}`
+                                    : "Çıkışa hazır"
+                                  : readiness.blockers.map(checkoutIssueLabel).join(" · ")}
+                              </div>
+                            ) : null}
+                          </div>
+
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            <Button variant="secondary" onClick={() => void toggleVisitDetail(visit)}>
+                              {expanded ? "Geçmişi Kapat" : "Geçmiş"}
+                            </Button>
+                            {visit.status === "IN_SERVICE" ? (
+                              <Link
+                                href="/operations/service-executions"
+                                className="inline-flex min-h-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-xs font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] hover:text-[var(--accent)]"
+                              >
+                                İcrayı Aç
+                              </Link>
+                            ) : null}
+                            {action && canUpdate ? (
+                              <Button
+                                disabled={updatingId === visit.id || (action.status === "CHECKED_OUT" && readiness ? !readiness.canCheckout : false)}
+                                onClick={() => void advance(visit)}
+                              >
+                                {updatingId === visit.id ? "Güncelleniyor..." : action.label}
+                              </Button>
+                            ) : null}
+                          </div>
+                        </div>
+                      </div>
+
+                      {expanded ? (
+                        <div className="border-t border-[var(--line)] bg-[var(--surface-2)] px-4 py-4 sm:px-5">
+                          {detailLoadingId === visit.id ? (
+                            <p className="text-xs text-[var(--muted)]">Operasyon geçmişi yükleniyor...</p>
+                          ) : detail ? (
+                            <div className="relative space-y-3 pl-5 before:absolute before:bottom-2 before:left-[5px] before:top-2 before:w-px before:bg-[var(--line)]">
+                              {detail.timeline.length ? detail.timeline.map((event) => (
+                                <div key={event.id} className="relative">
+                                  <span className="absolute -left-5 top-1.5 h-2.5 w-2.5 rounded-full border-2 border-[var(--surface-2)] bg-[var(--accent)]" />
+                                  <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between">
                                     <div>
-                                      <p className="text-xs font-semibold text-[var(--ink)]">
+                                      <p className="text-[11px] font-semibold text-[var(--ink)]">
                                         {event.toStatus ? STATUS_LABELS[event.toStatus] : event.eventType}
                                       </p>
-                                      <p className="mt-1 text-[11px] text-[var(--muted)]">
-                                        {event.fromStatus ? `${STATUS_LABELS[event.fromStatus]} → ` : ""}{event.toStatus ? STATUS_LABELS[event.toStatus] : event.eventType}
+                                      <p className="mt-0.5 text-[10px] leading-4 text-[var(--muted)]">
+                                        {event.fromStatus ? `${STATUS_LABELS[event.fromStatus]} → ` : ""}
+                                        {event.toStatus ? STATUS_LABELS[event.toStatus] : event.eventType}
                                         {event.note ? ` · ${event.note}` : ""}
                                       </p>
                                     </div>
-                                    <div className="text-[11px] text-[var(--muted-soft)]">
-                                      {dateTimeLabel(event.createdAt)}
-                                    </div>
+                                    <span className="text-[10px] text-[var(--muted-soft)]">{dateTimeLabel(event.createdAt)}</span>
                                   </div>
-                                ))}
-                              </div>
-                            ) : (
-                              <p className="mt-2 text-xs text-[var(--muted)]">Operasyon geçmişi bulunmuyor.</p>
-                            )}
-                          </div>
+                                </div>
+                              )) : (
+                                <p className="text-xs text-[var(--muted)]">Operasyon geçmişi bulunmuyor.</p>
+                              )}
+                            </div>
+                          ) : (
+                            <p className="text-xs text-[var(--muted)]">Ziyaret detayı bulunamadı.</p>
+                          )}
                         </div>
-                      ) : (
-                        <p className="text-xs text-[var(--muted)]">Ziyaret detayı bulunamadı.</p>
-                      )}
-                    </div>
-                  ) : null}
+                      ) : null}
+                    </article>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-6 py-14 text-center">
+                <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[var(--surface-2)] text-lg text-[var(--muted)]">✓</div>
+                <p className="mt-3 text-sm font-semibold text-[var(--ink)]">Bu aşamada aktif müşteri yok</p>
+                <p className="mt-1 text-xs text-[var(--muted)]">Akış değiştiğinde ekran gerçek zamanlı güncellenecek.</p>
+              </div>
+            )}
+          </section>
+        </div>
+
+        <aside className="space-y-4 xl:sticky xl:top-4 xl:self-start">
+          <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-[0_10px_30px_rgba(20,52,74,.045)]">
+            <div className="border-b border-[var(--line)] px-5 py-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">VALOO Assist</p>
+                  <h2 className="mt-1 text-sm font-semibold text-[var(--ink)]">Dikkat gerekiyor</h2>
                 </div>
-              );
-            })}
-          </div>
-        ) : (
-          <div className="px-6 py-14 text-center">
-            <p className="text-sm font-semibold text-[var(--ink)]">Aktif ziyaret bulunmuyor</p>
-            <p className="mt-2 text-xs text-[var(--muted)]">Giriş işlemi tamamlanan müşteriler burada gerçek zamanlı operasyon akışına alınır.</p>
-          </div>
-        )}
+                <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{smartActions.length}</span>
+              </div>
+            </div>
+
+            {smartActions.length ? (
+              <div className="divide-y divide-[var(--line)]">
+                {smartActions.map((item) => (
+                  <article key={item.id} className="px-5 py-4">
+                    <div className="flex items-start gap-3">
+                      <span className={`mt-1 h-2.5 w-2.5 shrink-0 rounded-full ${
+                        item.severity === "CRITICAL"
+                          ? "bg-rose-500"
+                          : item.severity === "HIGH"
+                            ? "bg-orange-500"
+                            : item.severity === "WARNING"
+                              ? "bg-amber-400"
+                              : "bg-blue-400"
+                      }`} />
+                      <div className="min-w-0">
+                        <p className="text-xs font-semibold text-[var(--ink)]">{item.title}</p>
+                        <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{item.explanation}</p>
+                        <div className="mt-2 rounded-[11px] bg-[var(--surface-2)] px-3 py-2 text-[10px] leading-4 text-[var(--ink)]">
+                          <span className="font-semibold">Öneri:</span> {item.suggestedAction}
+                        </div>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="px-5 py-8 text-center">
+                <p className="text-xs font-semibold text-[var(--ink)]">Operasyon sakin görünüyor</p>
+                <p className="mt-1 text-[11px] text-[var(--muted)]">Öncelikli müdahale gerektiren bir konu yok.</p>
+              </div>
+            )}
+          </section>
+
+          <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_10px_30px_rgba(20,52,74,.045)]">
+            <p className="px-1 text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">Hızlı Geçişler</p>
+            <div className="mt-3 grid gap-2">
+              {[
+                ["/operations/service-executions", "Hizmet İcraları", "Aktif hizmetleri yönetin"],
+                ["/operations/sales", "Satış & Tahsilat", "Ödeme ve finans akışına geçin"],
+                ["/operations/waitlist", "Bekleme Listesi", "Boşlukları hızlı doldurun"],
+                ["/operations/rebooking", "Yeniden Randevu", "Devamlılık fırsatlarını yönetin"],
+                ["/operations/resources", "Kaynaklar", "Oda ve cihazları kontrol edin"],
+              ].map(([href, title, description]) => (
+                <Link
+                  key={href}
+                  href={href}
+                  className="group rounded-[15px] border border-transparent bg-[var(--surface-2)] px-3.5 py-3 transition hover:border-[var(--line)] hover:bg-[var(--surface)] hover:shadow-sm"
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-[11px] font-semibold text-[var(--ink)] group-hover:text-[var(--accent)]">{title}</p>
+                      <p className="mt-0.5 text-[10px] text-[var(--muted)]">{description}</p>
+                    </div>
+                    <span className="text-[14px] text-[var(--muted-soft)] transition group-hover:translate-x-0.5 group-hover:text-[var(--accent)]">→</span>
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </section>
+
+          <section className="rounded-[24px] border border-[var(--line)] bg-[linear-gradient(160deg,var(--surface)_0%,var(--accent-soft)_180%)] p-5 shadow-[0_10px_30px_rgba(20,52,74,.045)]">
+            <div className="flex items-center gap-2">
+              <h2 className="text-xs font-semibold text-[var(--ink)]">Bağlı operasyon zinciri</h2>
+              <CardInfo help={getCardHelp("Bağlı Operasyon Akışı", "Müşteri, randevu, ziyaret, hizmet, tahsilat ve yeniden randevu aynı canlı süreçte birbirine bağlıdır.")} />
+            </div>
+            <div className="mt-4 flex flex-wrap gap-1.5">
+              {["Müşteri", "Randevu", "Ziyaret", "Hizmet", "Tahsilat", "CRM", "Yeniden Randevu"].map((item, index, arr) => (
+                <div key={item} className="flex items-center gap-1.5">
+                  <span className="rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[9px] font-semibold text-[var(--ink)]">{item}</span>
+                  {index < arr.length - 1 ? <span className="text-[10px] text-[var(--muted-soft)]">→</span> : null}
+                </div>
+              ))}
+            </div>
+          </section>
+        </aside>
       </section>
     </div>
   );
