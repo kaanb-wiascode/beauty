@@ -501,6 +501,7 @@ export function ValooMultiSelect({
   searchable = true,
   ariaLabel,
   className,
+  createAction,
   maxSelections,
 }: SharedSelectProps & {
   values: readonly string[];
@@ -649,6 +650,17 @@ export function ValooMultiSelect({
             onChange(maxSelections ? merged.slice(0, maxSelections) : merged);
           }}
           onClearAll={() => onChange([])}
+          createAction={
+            createAction
+              ? {
+                  ...createAction,
+                  onClick: (query) => {
+                    setOpen(false);
+                    createAction.onClick(query);
+                  },
+                }
+              : undefined
+          }
         />
       ) : null}
     </div>
