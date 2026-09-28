@@ -90,6 +90,10 @@ export default function InventoryPage() {
   const [assetOpen, setAssetOpen] = useState(false);
   const [categoryOpen, setCategoryOpen] = useState(false);
   const [supplierOpen, setSupplierOpen] = useState(false);
+  const [quickCreateTarget, setQuickCreateTarget] = useState<
+    "product-category" | "product-supplier" | "asset-category" | "asset-supplier" | null
+  >(null);
+  const [quickCreateName, setQuickCreateName] = useState("");
   const [productTab, setProductTab] = useState<ProductTab>("Genel");
   const [assetTab, setAssetTab] = useState<AssetTab>("Genel");
   const [saving, setSaving] = useState(false);
@@ -208,7 +212,7 @@ export default function InventoryPage() {
     const formData = new FormData(event.currentTarget);
     setSaving(true);
     try {
-      await api("/inventory/categories", {
+      const created = await api<InventoryCategory>("/inventory/categories", {
         method: "POST",
         body: {
           name: String(formData.get("name")),
@@ -217,9 +221,20 @@ export default function InventoryPage() {
           defaultUnit: String(formData.get("defaultUnit") || "UNIT"),
         },
       });
-      showToast("Kategori Oluşturuldu.");
+      setCategories((current) => {
+        const withoutCreated = current.filter((item) => item.id !== created.id);
+        return [...withoutCreated, created].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+      });
+      if (quickCreateTarget === "product-category") {
+        updateProduct("categoryId", created.id);
+      }
+      if (quickCreateTarget === "asset-category") {
+        updateAsset("categoryId", created.id);
+      }
+      showToast("Kategori oluşturuldu ve seçildi.");
       setCategoryOpen(false);
-      await load();
+      setQuickCreateTarget(null);
+      setQuickCreateName("");
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Kategori Oluşturulamadı.");
     } finally {
@@ -232,7 +247,7 @@ export default function InventoryPage() {
     const formData = new FormData(event.currentTarget);
     setSaving(true);
     try {
-      await api("/inventory/suppliers", {
+      const created = await api<InventorySupplier>("/inventory/suppliers", {
         method: "POST",
         body: {
           name: String(formData.get("name")),
@@ -243,14 +258,37 @@ export default function InventoryPage() {
           address: String(formData.get("address") || ""),
         },
       });
-      showToast("Tedarikçi Oluşturuldu.");
+      setSuppliers((current) => {
+        const withoutCreated = current.filter((item) => item.id !== created.id);
+        return [...withoutCreated, created].sort((a, b) => a.name.localeCompare(b.name, "tr"));
+      });
+      if (quickCreateTarget === "product-supplier") {
+        updateProduct("supplierId", created.id);
+      }
+      if (quickCreateTarget === "asset-supplier") {
+        updateAsset("supplierId", created.id);
+      }
+      showToast("Tedarikçi oluşturuldu ve seçildi.");
       setSupplierOpen(false);
-      await load();
+      setQuickCreateTarget(null);
+      setQuickCreateName("");
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Tedarikçi Oluşturulamadı.");
     } finally {
       setSaving(false);
     }
+  }
+
+  function openQuickCategory(target: "product-category" | "asset-category", query = "") {
+    setQuickCreateTarget(target);
+    setQuickCreateName(query);
+    setCategoryOpen(true);
+  }
+
+  function openQuickSupplier(target: "product-supplier" | "asset-supplier", query = "") {
+    setQuickCreateTarget(target);
+    setQuickCreateName(query);
+    setSupplierOpen(true);
   }
 
   if (loading && !data) return <div className="mx-auto max-w-[1480px] py-16"><Spinner label="Envanter Hazırlanıyor..."/></div>;
@@ -321,10 +359,10 @@ export default function InventoryPage() {
       <QuickCard icon="shield" title="Varlık yönetimi" text={`${assets.length} taşınır / ekipman`} onClick={() => setTab("Varlıklar")}/>
     </section>
 
-    {productOpen ? <FormOverlay title="Yeni ürün ekle" description="Ürünü kategori, stok politikası, tedarik, finans ve son kullanma bilgileriyle oluşturun." tabs={productTabs} activeTab={productTab} setActiveTab={setProductTab} onClose={() => setProductOpen(false)} onSubmit={createProduct} saving={saving} footer="Ürünü kaydet"><ProductFormContent tab={productTab} form={form} update={updateProduct} categories={categories} suppliers={suppliers}/></FormOverlay> : null}
-    {assetOpen ? <FormOverlay title="Yeni envanter ekle" description="Şirketin taşınır varlığını satın alma, konum, zimmet, garanti ve bakım bilgileriyle kaydedin." tabs={assetTabs} activeTab={assetTab} setActiveTab={setAssetTab} onClose={() => setAssetOpen(false)} onSubmit={createAsset} saving={saving} footer="Envanteri kaydet"><AssetFormContent tab={assetTab} form={asset} update={updateAsset} categories={categories} suppliers={suppliers} warehouses={data?.warehouses ?? []} activeBranchId={activeBranchId}/></FormOverlay> : null}
-    {categoryOpen ? <SimpleOverlay title="Yeni kategori" onClose={() => setCategoryOpen(false)} onSubmit={createCategory} footer="Kategori oluştur" saving={saving}><div className="grid gap-4 sm:grid-cols-2"><Field label="Kategori adı" required><TextInput name="name" required placeholder="Sarf malzemeleri"/></Field><Field label="Kategori kodu"><TextInput name="code" placeholder="Örn. SARF-MALZEME"/></Field><Field label="Varsayılan birim"><SelectNative name="defaultUnit">{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{inventoryUnitLabel(unit)}</option>)}</SelectNative></Field><Field label="Açıklama"><TextInput name="description" placeholder="Kategori açıklaması"/></Field></div></SimpleOverlay> : null}
-    {supplierOpen ? <SimpleOverlay title="Yeni tedarikçi" onClose={() => setSupplierOpen(false)} onSubmit={createSupplier} footer="Tedarikçiyi Kaydet" saving={saving}><div className="grid gap-4 sm:grid-cols-2"><Field label="Firma adı" required><TextInput name="name" required placeholder="ABC Tedarik"/></Field><Field label="Yetkili"><TextInput name="contactName" placeholder="Ad Soyad"/></Field><Field label="Telefon"><TextInput name="phone" placeholder="+90"/></Field><Field label="E-posta"><TextInput name="email" type="email" placeholder="Satın alma e-postası"/></Field><Field label="Vergi no"><TextInput name="taxNumber"/></Field><Field label="Adres"><TextInput name="address"/></Field></div></SimpleOverlay> : null}
+    {productOpen ? <FormOverlay title="Yeni ürün ekle" description="Ürünü kategori, stok politikası, tedarik, finans ve son kullanma bilgileriyle oluşturun." tabs={productTabs} activeTab={productTab} setActiveTab={setProductTab} onClose={() => setProductOpen(false)} onSubmit={createProduct} saving={saving} footer="Ürünü kaydet"><ProductFormContent tab={productTab} form={form} update={updateProduct} categories={categories} suppliers={suppliers} onCreateCategory={(query) => openQuickCategory("product-category", query)} onCreateSupplier={(query) => openQuickSupplier("product-supplier", query)}/></FormOverlay> : null}
+    {assetOpen ? <FormOverlay title="Yeni envanter ekle" description="Şirketin taşınır varlığını satın alma, konum, zimmet, garanti ve bakım bilgileriyle kaydedin." tabs={assetTabs} activeTab={assetTab} setActiveTab={setAssetTab} onClose={() => setAssetOpen(false)} onSubmit={createAsset} saving={saving} footer="Envanteri kaydet"><AssetFormContent tab={assetTab} form={asset} update={updateAsset} categories={categories} suppliers={suppliers} warehouses={data?.warehouses ?? []} activeBranchId={activeBranchId} onCreateCategory={(query) => openQuickCategory("asset-category", query)} onCreateSupplier={(query) => openQuickSupplier("asset-supplier", query)}/></FormOverlay> : null}
+    {categoryOpen ? <SimpleOverlay title="Yeni kategori" onClose={() => { setCategoryOpen(false); setQuickCreateTarget(null); setQuickCreateName(""); }} onSubmit={createCategory} footer="Kategori oluştur" saving={saving}><div className="grid gap-4 sm:grid-cols-2"><Field label="Kategori adı" required><TextInput name="name" required defaultValue={quickCreateName} placeholder="Sarf malzemeleri"/></Field><Field label="Kategori kodu"><TextInput name="code" placeholder="Örn. SARF-MALZEME"/></Field><Field label="Varsayılan birim"><SelectNative name="defaultUnit">{INVENTORY_UNITS.map((unit) => <option key={unit} value={unit}>{inventoryUnitLabel(unit)}</option>)}</SelectNative></Field><Field label="Açıklama"><TextInput name="description" placeholder="Kategori açıklaması"/></Field></div></SimpleOverlay> : null}
+    {supplierOpen ? <SimpleOverlay title="Yeni tedarikçi" onClose={() => { setSupplierOpen(false); setQuickCreateTarget(null); setQuickCreateName(""); }} onSubmit={createSupplier} footer="Tedarikçiyi Kaydet" saving={saving}><div className="grid gap-4 sm:grid-cols-2"><Field label="Firma adı" required><TextInput name="name" required defaultValue={quickCreateName} placeholder="ABC Tedarik"/></Field><Field label="Yetkili"><TextInput name="contactName" placeholder="Ad Soyad"/></Field><Field label="Telefon"><TextInput name="phone" placeholder="+90"/></Field><Field label="E-posta"><TextInput name="email" type="email" placeholder="Satın alma e-postası"/></Field><Field label="Vergi no"><TextInput name="taxNumber"/></Field><Field label="Adres"><TextInput name="address"/></Field></div></SimpleOverlay> : null}
   </div>;
 }
 
