@@ -37,6 +37,7 @@ function dayEnd() {
 
 export default function OperationsCancellationsPage() {
   const canCancel = hasPermission("operations", "manage");
+  const canReadAppointments = hasPermission("appointments", "read");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [reasons, setReasons] = useState<Reason[]>([]);
   const [history, setHistory] = useState<OutcomeRow[]>([]);
@@ -57,13 +58,14 @@ export default function OperationsCancellationsPage() {
     setLoading(true);
     setError("");
     const [appointmentResult, reasonResult, outcomeResult] = await Promise.allSettled([
-      api<Paginated<Appointment>>(withQuery("/appointments", { page: 1, limit: 100, from: dayStart(), to: dayEnd() })),
+      canReadAppointments ? api<Paginated<Appointment>>(withQuery("/appointments", { page: 1, limit: 100, from: dayStart(), to: dayEnd() })) : Promise.resolve(null),
       api<Reason[]>(withQuery("/operations/appointment-outcomes/reasons", { outcome: selectedOutcome })),
       api<OutcomeRow[]>("/operations/appointment-outcomes?limit=100"),
     ]);
     const errors: string[] = [];
-    if (appointmentResult.status === "fulfilled") setAppointments(appointmentResult.value.data);
-    else { setAppointments([]); errors.push(appointmentResult.reason instanceof ApiError ? appointmentResult.reason.message : "Randevular yüklenemedi."); }
+    if (appointmentResult.status === "fulfilled" && appointmentResult.value) setAppointments(appointmentResult.value.data);
+    else if (appointmentResult.status === "rejected") { setAppointments([]); errors.push(appointmentResult.reason instanceof ApiError ? appointmentResult.reason.message : "Randevular yüklenemedi."); }
+    else setAppointments([]);
     if (reasonResult.status === "fulfilled") {
       setReasons(reasonResult.value);
       setReasonId((current) => reasonResult.value.some((item) => item.id === current) ? current : (reasonResult.value[0]?.id ?? ""));
@@ -72,7 +74,7 @@ export default function OperationsCancellationsPage() {
     else { setHistory([]); errors.push(outcomeResult.reason instanceof ApiError ? outcomeResult.reason.message : "İptal geçmişi yüklenemedi."); }
     if (errors.length) setError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
-  }, []);
+  }, [canReadAppointments]);
 
   useEffect(() => { void load("CANCELLED"); }, [load]);
 
@@ -142,7 +144,7 @@ export default function OperationsCancellationsPage() {
         <label className="mt-4 block text-xs font-semibold text-[var(--muted)]">Operasyon notu
           <textarea className="mt-2 min-h-24 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-sm text-[var(--ink)]" value={note} onChange={(event) => setNote(event.target.value)} maxLength={1000} />
         </label>
-        <div className="mt-4 flex justify-end"><Button disabled={!canCancel || !appointmentId || !reasonId || busy} onClick={() => void submit()}>{busy ? "Kaydediliyor..." : outcome === "CANCELLED" ? "Randevuyu İptal Et" : "Gelmedi Olarak İşaretle"}</Button></div>
+        <div className="mt-4 flex justify-end"><Button disabled={!canCancel || !canReadAppointments || !appointmentId || !reasonId || busy} onClick={() => void submit()}>{busy ? "Kaydediliyor..." : outcome === "CANCELLED" ? "Randevuyu İptal Et" : "Gelmedi Olarak İşaretle"}</Button></div>
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
