@@ -13,6 +13,8 @@ import type {
   CreateRebookingInput,
   UpsertRebookingPolicyInput,
 } from './dto/rebooking.dto';
+import { OperationsBranchWorkingHoursService } from './operations-branch-working-hours.service';
+import { OperationsStaffEligibilityService } from './operations-staff-eligibility.service';
 
 type SourceAppointment = {
   id: string;
@@ -34,6 +36,8 @@ export class OperationsRebookingService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly workingHours: OperationsBranchWorkingHoursService,
+    private readonly staffEligibility: OperationsStaffEligibilityService,
   ) {}
 
   private context() {
@@ -177,6 +181,40 @@ export class OperationsRebookingService {
     const { tenantId, companyId, branchId, membershipId } = this.context();
     if (input.startAt <= new Date()) {
       throw new BadRequestException('Yeni randevu zamanı gelecekte olmalıdır.');
+    }
+
+    const preflightSource = await this.requireSource(
+      this.prisma,
+      sourceAppointmentId,
+      tenantId,
+      branchId,
+    );
+    if (preflightSource.status !== 'COMPLETED') {
+      throw new BadRequestException(
+        'Yalnızca tamamlanmış bir randevu üzerinden yeniden randevu oluşturulabilir.',
+      );
+    }
+    const preflightStaffId = input.staffId ?? preflightSource.staffId;
+    const preflightEndAt = new Date(
+      input.startAt.getTime() + preflightSource.durationMinutes * 60 * 1000,
+    );
+
+    await this.workingHours.assertOpen({
+      startAt: input.startAt,
+      endAt: preflightEndAt,
+    });
+    const eligibility = await this.staffEligibility.check({
+      staffId: preflightStaffId,
+      serviceId: preflightSource.serviceId,
+      startAt: input.startAt,
+      endAt: preflightEndAt,
+    });
+    if (!eligibility.allowed) {
+      throw new ConflictException({
+        code: 'STAFF_ELIGIBILITY_BLOCKED',
+        message: 'Seçilen personel aktif operasyon uygunluk politikasını karşılamıyor.',
+        blockers: eligibility.blockers,
+      });
     }
 
     return this.prisma.$transaction(
