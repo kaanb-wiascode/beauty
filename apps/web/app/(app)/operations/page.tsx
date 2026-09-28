@@ -681,6 +681,14 @@ export default function OperationsPage() {
                       <Button variant="secondary" onClick={() => void toggleVisitDetail(visit)}>
                         {expanded ? "Detayı Kapat" : "Geçmiş"}
                       </Button>
+                      {visit.status === "IN_SERVICE" ? (
+                        <Link
+                          href="/operations/service-executions"
+                          className="inline-flex min-h-10 items-center justify-center rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-xs font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+                        >
+                          Hizmet İcralarını Aç
+                        </Link>
+                      ) : null}
                       {action && canUpdate ? (
                         <Button
                           disabled={updatingId === visit.id || (action.status === "CHECKED_OUT" && readiness ? !readiness.canCheckout : false)}
