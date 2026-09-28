@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { hasPermission } from "@/lib/auth";
 
 const OPERATION_GROUPS = [
@@ -72,7 +72,13 @@ function canAccessOperationPath(pathname: string) {
 
 export default function OperationsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const canAccessCurrentPath = canAccessOperationPath(pathname);
+  const [authReady, setAuthReady] = useState(false);
+
+  useEffect(() => {
+    setAuthReady(true);
+  }, []);
+
+  const canAccessCurrentPath = authReady && canAccessOperationPath(pathname);
 
   return (
     <div className="space-y-4">
@@ -82,7 +88,7 @@ export default function OperationsLayout({ children }: { children: ReactNode }) 
       >
         <div className="overflow-x-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-stretch gap-1">
-            {OPERATION_GROUPS.map((group) => {
+            {authReady ? OPERATION_GROUPS.map((group) => {
               const visibleItems = group.items.filter((tab) => canSeeOperationTab(tab.href));
               if (!visibleItems.length) return null;
               return (
@@ -113,11 +119,15 @@ export default function OperationsLayout({ children }: { children: ReactNode }) 
                 </div>
               </section>
               );
-            })}
+            }) : null}
           </div>
         </div>
       </nav>
-      {canAccessCurrentPath ? children : (
+      {!authReady ? (
+        <section className="mx-auto max-w-[1480px] rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
+          <p className="text-sm text-[var(--muted)]">Çalışma alanı yetkileri hazırlanıyor...</p>
+        </section>
+      ) : canAccessCurrentPath ? children : (
         <section className="mx-auto max-w-[1480px] rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">Erişim Kısıtlı</p>
           <h1 className="mt-2 text-lg font-semibold text-[var(--ink)]">Bu çalışma alanını görüntüleme yetkiniz yok</h1>
