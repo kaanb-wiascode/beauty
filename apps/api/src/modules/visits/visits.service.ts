@@ -434,6 +434,51 @@ export class VisitsService {
         );
       }
 
+      if (current.status === 'IN_SERVICE' && input.toStatus === 'SERVICE_COMPLETED') {
+        const executionState = await tx.$queryRawUnsafe<
+          Array<{ total: number; inProgress: number; completed: number }>
+        >(
+          `SELECT COUNT(*)::int AS total,
+                  COUNT(*) FILTER (WHERE status::text='IN_PROGRESS')::int AS "inProgress",
+                  COUNT(*) FILTER (WHERE status::text='COMPLETED')::int AS completed
+             FROM operations_service_executions
+            WHERE visit_id=$1 AND tenant_id=$2 AND branch_id=$3
+              AND status::text <> 'CANCELLED'`,
+          current.id,
+          tenantId,
+          branchId,
+        );
+        const state = executionState[0] ?? { total: 0, inProgress: 0, completed: 0 };
+        if (state.total === 0) {
+          throw new BadRequestException(
+            'Ziyaret hizmet tamamlandı aşamasına alınmadan önce en az bir hizmet uygulama kaydı başlatılmalıdır.',
+          );
+        }
+        if (state.inProgress > 0) {
+          throw new BadRequestException(
+            'Devam eden hizmet uygulamaları tamamlanmadan ziyaret hizmet tamamlandı aşamasına alınamaz.',
+          );
+        }
+
+        const linkedAppointments = await tx.$queryRawUnsafe<
+          Array<{ total: number; incomplete: number }>
+        >(
+          `SELECT COUNT(*)::int AS total,
+                  COUNT(*) FILTER (WHERE a.status::text <> 'COMPLETED')::int AS incomplete
+             FROM visit_appointments va
+             JOIN appointments a ON a.id=va."appointmentId"
+            WHERE va."visitId"=$1 AND a."tenantId"=$2 AND a."branchId"=$3`,
+          current.id,
+          tenantId,
+          branchId,
+        );
+        if ((linkedAppointments[0]?.total ?? 0) > 0 && (linkedAppointments[0]?.incomplete ?? 0) > 0) {
+          throw new BadRequestException(
+            'Bağlı randevular tamamlanmadan ziyaret hizmet tamamlandı aşamasına alınamaz. Hizmet Uygulama Kayıtları ekranından randevu tamamlamasını gerçekleştirin.',
+          );
+        }
+      }
+
       const timestampColumn = transitionTimestampColumn(input.toStatus);
       const timestampSet = timestampColumn
         ? `, "${timestampColumn}" = $6`
