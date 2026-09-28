@@ -50,6 +50,7 @@ function errorMessage(error: unknown, fallback: string) {
 }
 
 export default function OperationsRebookingPage() {
+  const canReadAppointments = hasPermission("appointments", "read");
   const canCreate = hasPermission("appointments", "create");
   const canManagePolicy = hasPermission("services", "update");
   const canReadCustomers = hasPermission("customers", "read");
@@ -89,9 +90,9 @@ export default function OperationsRebookingPage() {
     setWarning("");
 
     const requests = await Promise.allSettled([
-      api<Opportunity[]>("/operations/rebooking/opportunities"),
+      canReadAppointments ? api<Opportunity[]>("/operations/rebooking/opportunities") : Promise.resolve(null),
       canReadServices ? api<Paginated<Service>>("/services?page=1&limit=100&status=ACTIVE") : Promise.resolve(null),
-      api<RebookingAnalytics>("/operations/rebooking-analytics?days=90"),
+      canReadAppointments ? api<RebookingAnalytics>("/operations/rebooking-analytics?days=90") : Promise.resolve(null),
       canReadCustomers
         ? api<Paginated<Customer>>("/customers?page=1&limit=100")
         : Promise.resolve(null),
@@ -103,11 +104,13 @@ export default function OperationsRebookingPage() {
     const [opportunitiesResult, servicesResult, analyticsResult, customersResult, staffResult] = requests;
     const warnings: string[] = [];
 
-    if (opportunitiesResult.status === "fulfilled") {
+    if (opportunitiesResult.status === "fulfilled" && opportunitiesResult.value) {
       setOpportunities(opportunitiesResult.value);
-    } else {
+    } else if (opportunitiesResult.status === "rejected") {
       setOpportunities([]);
       warnings.push(errorMessage(opportunitiesResult.reason, "Tamamlanan hizmetler yüklenemedi."));
+    } else {
+      setOpportunities([]);
     }
 
     if (servicesResult.status === "fulfilled" && servicesResult.value) {
@@ -120,11 +123,13 @@ export default function OperationsRebookingPage() {
       setServices([]);
     }
 
-    if (analyticsResult.status === "fulfilled") {
+    if (analyticsResult.status === "fulfilled" && analyticsResult.value) {
       setAnalytics(analyticsResult.value);
-    } else {
+    } else if (analyticsResult.status === "rejected") {
       setAnalytics(null);
       warnings.push(errorMessage(analyticsResult.reason, "Yeniden randevu özeti yüklenemedi."));
+    } else {
+      setAnalytics(null);
     }
 
     if (customersResult.status === "fulfilled" && customersResult.value) {
@@ -268,6 +273,11 @@ export default function OperationsRebookingPage() {
         </div>
       ) : null}
       {notice ? <Alert tone="success" onClose={() => setNotice("")}>{notice}</Alert> : null}
+      {!canReadAppointments ? (
+        <Alert>
+          Yeniden randevu fırsatlarını ve performans özetini görüntülemek için randevu görüntüleme yetkisi gereklidir. Hizmet dönüş politikasını yetkiniz varsa yine yönetebilirsiniz.
+        </Alert>
+      ) : null}
 
       {analytics ? (
         <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
