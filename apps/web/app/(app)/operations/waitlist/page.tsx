@@ -57,6 +57,9 @@ const statusLabel: Record<WaitlistEntry["status"], string> = {
 
 export default function OperationsWaitlistPage() {
   const canUpdate = hasPermission("operations", "manage");
+  const canReadCustomers = hasPermission("customers", "read");
+  const canReadServices = hasPermission("services", "read");
+  const canReadStaff = hasPermission("staff", "read");
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -88,19 +91,22 @@ export default function OperationsWaitlistPage() {
     setError("");
     const [waitlistResult, customerResult, serviceResult, staffResult] = await Promise.allSettled([
       api<WaitlistEntry[]>("/operations/waitlist"),
-      api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 100 })),
-      api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
-      api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 100, status: "ACTIVE" })),
+      canReadCustomers ? api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 100 })) : Promise.resolve(null),
+      canReadServices ? api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })) : Promise.resolve(null),
+      canReadStaff ? api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 100, status: "ACTIVE" })) : Promise.resolve(null),
     ]);
     const errors: string[] = [];
     if (waitlistResult.status === "fulfilled") setEntries(waitlistResult.value);
     else { setEntries([]); errors.push(waitlistResult.reason instanceof ApiError ? waitlistResult.reason.message : "Bekleme listesi yüklenemedi."); }
-    if (customerResult.status === "fulfilled") setCustomers(customerResult.value.data);
-    else { setCustomers([]); errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi."); }
-    if (serviceResult.status === "fulfilled") setServices(serviceResult.value.data.filter((service) => service.status === "ACTIVE"));
-    else { setServices([]); errors.push(serviceResult.reason instanceof ApiError ? serviceResult.reason.message : "Hizmetler yüklenemedi."); }
-    if (staffResult.status === "fulfilled") setStaff(staffResult.value.data.filter((member) => member.status === "ACTIVE"));
-    else { setStaff([]); errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Personel yüklenemedi."); }
+    if (customerResult.status === "fulfilled" && customerResult.value) setCustomers(customerResult.value.data);
+    else if (customerResult.status === "rejected") { setCustomers([]); errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi."); }
+    else setCustomers([]);
+    if (serviceResult.status === "fulfilled" && serviceResult.value) setServices(serviceResult.value.data.filter((service) => service.status === "ACTIVE"));
+    else if (serviceResult.status === "rejected") { setServices([]); errors.push(serviceResult.reason instanceof ApiError ? serviceResult.reason.message : "Hizmetler yüklenemedi."); }
+    else setServices([]);
+    if (staffResult.status === "fulfilled" && staffResult.value) setStaff(staffResult.value.data.filter((member) => member.status === "ACTIVE"));
+    else if (staffResult.status === "rejected") { setStaff([]); errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Personel yüklenemedi."); }
+    else setStaff([]);
     if (errors.length) setError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
   }
@@ -212,7 +218,7 @@ export default function OperationsWaitlistPage() {
         </div>
         <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
           <Field label="Operasyon notu"><TextInput value={form.note} onChange={(event) => setForm((current) => ({ ...current, note: event.target.value }))} placeholder="Tercih / ulaşılabilirlik notu" /></Field>
-          <Button disabled={!canUpdate || saving} onClick={() => void createEntry()}>{saving ? "Ekleniyor..." : "Bekleme Listesine Ekle"}</Button>
+          <Button disabled={!canUpdate || !canReadCustomers || !canReadServices || saving} onClick={() => void createEntry()}>{saving ? "Ekleniyor..." : "Bekleme Listesine Ekle"}</Button>
         </div>
       </section>
 
