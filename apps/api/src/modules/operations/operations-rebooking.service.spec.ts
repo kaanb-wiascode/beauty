@@ -27,6 +27,17 @@ describe('OperationsRebookingService', () => {
     getBranchId: () => 'branch-1',
     getMembershipId: () => 'membership-1',
   } as never;
+  const workingHours = {
+    assertOpen: jest.fn().mockResolvedValue({ allowed: true }),
+  } as never;
+  const staffEligibility = {
+    check: jest.fn().mockResolvedValue({
+      allowed: true,
+      mode: 'WARN',
+      blockers: [],
+      warnings: [],
+    }),
+  } as never;
 
   const source = {
     id: 'appointment-source',
@@ -50,11 +61,18 @@ describe('OperationsRebookingService', () => {
     appointmentCreate.mockReset();
     staffFindFirst.mockReset();
     transaction.mockClear();
+    (workingHours.assertOpen as jest.Mock).mockClear();
+    (staffEligibility.check as jest.Mock).mockClear();
   });
 
   it('calculates the recommended next appointment from the configured service interval', async () => {
     queryRawUnsafe.mockResolvedValueOnce([source]);
-    const service = new OperationsRebookingService(prisma, tenantContext);
+    const service = new OperationsRebookingService(
+      prisma,
+      tenantContext,
+      workingHours,
+      staffEligibility,
+    );
 
     const result = await service.getRecommendation(source.id);
 
@@ -67,7 +85,7 @@ describe('OperationsRebookingService', () => {
 
   it('returns the existing linked appointment when the source was already rebooked', async () => {
     queryRawUnsafe
-      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([source])
       .mockResolvedValueOnce([
         { id: 'rebooking-1', targetAppointmentId: 'appointment-target' },
       ]);
@@ -76,7 +94,12 @@ describe('OperationsRebookingService', () => {
       status: 'SCHEDULED',
     });
 
-    const service = new OperationsRebookingService(prisma, tenantContext);
+    const service = new OperationsRebookingService(
+      prisma,
+      tenantContext,
+      workingHours,
+      staffEligibility,
+    );
     const result = await service.create(source.id, {
       startAt: new Date('2026-10-01T10:00:00.000Z'),
     });
