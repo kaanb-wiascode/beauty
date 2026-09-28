@@ -19,7 +19,7 @@ export class OperationsRebookingAnalyticsService {
     const tenantId = this.tenantContext.getTenantId();
     const branchId = this.tenantContext.getBranchId();
     if (!tenantId) {
-      throw new InternalServerErrorException('Tenant context is missing.');
+      throw new InternalServerErrorException('İşletme çalışma kapsamı eksik.');
     }
     if (!branchId) {
       throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
