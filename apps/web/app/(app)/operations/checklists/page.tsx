@@ -40,6 +40,7 @@ function emptyItem(index: number): ChecklistItem {
 
 export default function OperationsChecklistsPage() {
   const canUpdate = hasPermission("operations", "manage");
+  const canReadServices = hasPermission("services", "read");
   const [services, setServices] = useState<Service[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [activeTemplate, setActiveTemplate] = useState<ChecklistTemplate | null>(null);
@@ -58,6 +59,10 @@ export default function OperationsChecklistsPage() {
         return;
       }
       try {
+        if (!canReadServices) {
+          setServices([]);
+          return;
+        }
         const result = await api<Paginated<Service>>(
           withQuery("/services", { page: 1, limit: 100 }),
         );
@@ -69,7 +74,7 @@ export default function OperationsChecklistsPage() {
       }
     }
     void loadServices();
-  }, []);
+  }, [canReadServices]);
 
   async function selectService(serviceId: string) {
     setSelectedServiceId(serviceId);
@@ -278,7 +283,7 @@ export default function OperationsChecklistsPage() {
             >
               Adım Ekle
             </Button>
-            <Button disabled={!canUpdate || saving} onClick={() => void saveVersion()}>
+            <Button disabled={!canUpdate || !canReadServices || saving} onClick={() => void saveVersion()}>
               {saving ? "Sürüm kaydediliyor..." : "Yeni sürümü yayınla"}
             </Button>
           </div>
