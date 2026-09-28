@@ -53,6 +53,7 @@ export type Visit = {
   companyId: string;
   branchId: string;
   customerId: string;
+  customerName?: string | null;
   source: VisitSource;
   status: VisitStatus;
   note: string | null;
