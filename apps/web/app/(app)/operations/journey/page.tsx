@@ -36,7 +36,7 @@ export default function OperationsJourneyPage() {
       }
       try {
         const [a, r] = await Promise.all([
-          api<Paginated<Appointment>>("/appointments?page=1&limit=200"),
+          api<Paginated<Appointment>>("/appointments?page=1&limit=100"),
           api<Reliability>("/operations/reliability?days=180"),
         ]);
         setAppointments(a.data);
