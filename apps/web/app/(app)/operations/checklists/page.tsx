@@ -59,7 +59,7 @@ export default function OperationsChecklistsPage() {
       }
       try {
         const result = await api<Paginated<Service>>(
-          withQuery("/services", { page: 1, limit: 200 }),
+          withQuery("/services", { page: 1, limit: 100 }),
         );
         setServices(result.data.filter((service) => service.status === "ACTIVE"));
       } catch (err) {
