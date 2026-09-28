@@ -53,20 +53,20 @@ export default function OperationsEngagementPage() {
     }
     setLoading(true);
     setError("");
-    try {
-      const [appointmentRows, visitRows, customerRows] = await Promise.all([
-        api<Upcoming[]>("/operations/customer-engagement/upcoming?days=7"),
-        api<Visit[]>(withQuery("/visits", { status: "CHECKED_OUT", limit: 30 })),
-        api<Paginated<Customer>>("/customers?page=1&limit=100"),
-      ]);
-      setUpcoming(appointmentRows);
-      setCheckouts(visitRows);
-      setCustomers(customerRows.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Müşteri iletişimi verileri yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
+    const [appointmentRows, visitRows, customerRows] = await Promise.allSettled([
+      api<Upcoming[]>("/operations/customer-engagement/upcoming?days=7"),
+      api<Visit[]>(withQuery("/visits", { status: "CHECKED_OUT", limit: 30 })),
+      api<Paginated<Customer>>("/customers?page=1&limit=100"),
+    ]);
+    const errors: string[] = [];
+    if (appointmentRows.status === "fulfilled") setUpcoming(appointmentRows.value);
+    else { setUpcoming([]); errors.push(appointmentRows.reason instanceof ApiError ? appointmentRows.reason.message : "Yaklaşan randevular yüklenemedi."); }
+    if (visitRows.status === "fulfilled") setCheckouts(visitRows.value);
+    else { setCheckouts([]); errors.push(visitRows.reason instanceof ApiError ? visitRows.reason.message : "Çıkış yapan ziyaretler yüklenemedi."); }
+    if (customerRows.status === "fulfilled") setCustomers(customerRows.value.data);
+    else { setCustomers([]); errors.push(customerRows.reason instanceof ApiError ? customerRows.reason.message : "Müşteriler yüklenemedi."); }
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }
 
   useEffect(() => { void load(); }, []);
