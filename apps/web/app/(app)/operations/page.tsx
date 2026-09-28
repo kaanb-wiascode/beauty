@@ -155,6 +155,8 @@ function checkoutIssueLabel(issue: CheckoutIssue) {
 
 export default function OperationsPage() {
   const canUpdate = hasPermission("operations", "manage");
+  const canReadAppointments = hasPermission("appointments", "read");
+  const canReadCustomers = hasPermission("customers", "read");
   const [visits, setVisits] = useState<Visit[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -278,13 +280,17 @@ export default function OperationsPage() {
 
     const [visitResult, appointmentResult, customerResult] = await Promise.allSettled([
       api<Visit[]>(withQuery("/visits", { limit: 200 })),
-      api<Paginated<Appointment>>(withQuery("/appointments", {
-        page: 1,
-        limit: 100,
-        from: startOfToday(),
-        to: endOfToday(),
-      })),
-      api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
+      canReadAppointments
+        ? api<Paginated<Appointment>>(withQuery("/appointments", {
+            page: 1,
+            limit: 100,
+            from: startOfToday(),
+            to: endOfToday(),
+          }))
+        : Promise.resolve(null),
+      canReadCustomers
+        ? api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 }))
+        : Promise.resolve(null),
     ]);
 
     const errors: string[] = [];
@@ -297,18 +303,22 @@ export default function OperationsPage() {
       errors.push(visitResult.reason instanceof ApiError ? visitResult.reason.message : "Ziyaretler yüklenemedi.");
     }
 
-    if (appointmentResult.status === "fulfilled") {
+    if (appointmentResult.status === "fulfilled" && appointmentResult.value) {
       setAppointments(appointmentResult.value.data);
-    } else {
+    } else if (appointmentResult.status === "rejected") {
       setAppointments([]);
       errors.push(appointmentResult.reason instanceof ApiError ? appointmentResult.reason.message : "Bugünkü randevular yüklenemedi.");
+    } else {
+      setAppointments([]);
     }
 
-    if (customerResult.status === "fulfilled") {
+    if (customerResult.status === "fulfilled" && customerResult.value) {
       setCustomers(customerResult.value.data);
-    } else {
+    } else if (customerResult.status === "rejected") {
       setCustomers([]);
       errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi.");
+    } else {
+      setCustomers([]);
     }
 
     if (errors.length) {
@@ -316,7 +326,7 @@ export default function OperationsPage() {
     }
 
     setLoading(false);
-  }, [loadCheckoutReadiness]);
+  }, [canReadAppointments, canReadCustomers, loadCheckoutReadiness]);
 
   useEffect(() => {
     void load();
@@ -650,7 +660,7 @@ export default function OperationsPage() {
                 <div key={visit.id}>
                   <div className="grid gap-4 px-6 py-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,.9fr)_minmax(0,1fr)_auto] md:items-center">
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(visit.customerId) ?? "Müşteri"}</p>
+                      <p className="truncate text-sm font-semibold text-[var(--ink)]">{customerMap.get(visit.customerId) ?? visit.customerName ?? "Müşteri"}</p>
                       <p className="mt-1 text-xs text-[var(--muted)]">{visit.source === "WALK_IN" ? "Randevusuz" : "Randevulu"} · {elapsed(visitAgeStart(visit))}</p>
                     </div>
                     <div>
