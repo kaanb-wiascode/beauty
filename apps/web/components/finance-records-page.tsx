@@ -3,6 +3,8 @@
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 
 import { FormActions, FormGrid, FormSection } from "@/components/form-system";
+import { FinanceQuickCreate, type FinanceQuickCreateKind } from "@/components/finance-quick-create";
+import { ValooSelect } from "@/components/valoo-controls";
 import { Modal } from "@/components/modal";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -66,6 +68,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const[form,setForm]=useState<RecordForm>(initialForm);
   const[amount,setAmount]=useState(""),[accountId,setAccountId]=useState(""),[method,setMethod]=useState("TRANSFER"),[reference,setReference]=useState("");
   const[moneyHistory,setMoneyHistory]=useState<Array<Record<string,unknown>>>([]);
+  const[quickCreate,setQuickCreate]=useState<{kind:FinanceQuickCreateKind;name:string}|null>(null);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
@@ -228,8 +231,8 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title={`Yeni ${expense?"Gider":"Gelir"}`} description="Finansal olayı kaydedin. Ödeme veya tahsilat ayrı bir nakit hareketi olarak işlenir.">
       <form onSubmit={createRecord} className="space-y-5">
         <FormSection title="Kayıt Bilgileri"><FormGrid>
-          <Field label="Kategori" required><Select value={form.categoryId} onChange={e=>setForm({...form,categoryId:e.target.value})} required><option value="">Kategori seçin</option>{categories.map(x=><option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</Select></Field>
-          <Field label="Masraf / Maliyet Merkezi"><Select value={form.costCenterId} onChange={e=>setForm({...form,costCenterId:e.target.value})}><option value="">Seçilmedi</option>{costCenters.map(x=><option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</Select></Field>
+          <Field label="Kategori" required><ValooSelect value={form.categoryId} onChange={(categoryId)=>setForm({...form,categoryId})} placeholder="Kategori seçin" searchPlaceholder="Kategori ara…" emptyLabel="Kategori bulunamadı." options={categories.map(x=>({value:x.id,label:`${x.code} · ${x.name}`}))} createAction={canManage?{label:`Yeni ${expense?"gider":"gelir"} kategorisi oluştur`,onClick:(query)=>setQuickCreate({kind:expense?"expense-category":"income-category",name:query})}:undefined}/></Field>
+          <Field label="Masraf / Maliyet Merkezi"><ValooSelect value={form.costCenterId} onChange={(costCenterId)=>setForm({...form,costCenterId})} placeholder="Seçilmedi" searchPlaceholder="Maliyet merkezi ara…" emptyLabel="Maliyet merkezi bulunamadı." options={costCenters.map(x=>({value:x.id,label:`${x.code} · ${x.name}`}))} createAction={canManage?{label:"Yeni maliyet merkezi oluştur",onClick:(query)=>setQuickCreate({kind:"cost-center",name:query})}:undefined}/></Field>
           <Field label="Karşı Taraf"><TextInput value={form.counterpartyName} onChange={e=>setForm({...form,counterpartyName:e.target.value})} placeholder="Firma, kişi veya kurum"/></Field>
           <Field label="Vergi / Kimlik No"><TextInput value={form.counterpartyTaxNumber} onChange={e=>setForm({...form,counterpartyTaxNumber:e.target.value})}/></Field>
         </FormGrid></FormSection>
@@ -251,6 +254,25 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         <FormActions sticky><Button variant="secondary" onClick={()=>setCreateOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working}>{working?"Kaydediliyor...":"Taslak Olarak Kaydet"}</Button></FormActions>
       </form>
     </Modal>
+
+    {quickCreate?<FinanceQuickCreate
+      open
+      kind={quickCreate.kind}
+      initialName={quickCreate.name}
+      onClose={()=>setQuickCreate(null)}
+      onCreated={(entity)=>{
+        if(quickCreate.kind==="cost-center"){
+          const created:CostCenter={id:entity.id,code:entity.code,name:entity.name,active:entity.active};
+          setCostCenters(current=>[...current.filter(item=>item.id!==created.id),created].sort((a,b)=>a.name.localeCompare(b.name,"tr")));
+          setForm(current=>({...current,costCenterId:created.id}));
+        }else{
+          const created:Category={id:entity.id,code:entity.code,name:entity.name,parentId:entity.parentId??null,active:entity.active};
+          setCategories(current=>[...current.filter(item=>item.id!==created.id),created].sort((a,b)=>a.name.localeCompare(b.name,"tr")));
+          setForm(current=>({...current,categoryId:created.id}));
+        }
+        setQuickCreate(null);
+      }}
+    />:null}
 
     <Modal open={Boolean(selected)&&!moneyOpen} onClose={()=>setSelected(null)} size="lg" title={expense?"Gider Detayı":"Gelir Detayı"} description="Onay, muhasebe ve nakit hareketlerini yönetin.">
       {selected?<div className="space-y-5">
