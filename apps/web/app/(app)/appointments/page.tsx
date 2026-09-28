@@ -24,6 +24,7 @@ import {
   TextArea,
 } from "@/components/ui";
 import { Modal } from "@/components/modal";
+import { MasterDataQuickCreate, type QuickCreateKind } from "@/components/master-data-quick-create";
 import { PaymentModal } from "@/components/payment-modal";
 import { TeamShareAction } from "@/components/team-share-action";
 import { ValooSelect } from "@/components/valoo-controls";
@@ -209,6 +210,7 @@ export default function AppointmentsPage() {
   const [pendingCancel, setPendingCancel] = useState<Appointment | null>(null);
   const [paymentOpen, setPaymentOpen] = useState(false);
   const [paymentAppointment, setPaymentAppointment] = useState<Appointment | null>(null);
+  const [quickCreate, setQuickCreate] = useState<{ kind: QuickCreateKind; name: string } | null>(null);
 
   const dateFrom = useMemo(() => toIso(startOfDay(selectedDate).toISOString()), [selectedDate]);
   const dateTo = useMemo(() => toIso(endOfDay(selectedDate).toISOString()), [selectedDate]);
@@ -763,12 +765,17 @@ export default function AppointmentsPage() {
                   loading={loadingRefs}
                   placeholder="Müşteri seçin"
                   searchPlaceholder="Ad, telefon veya e-posta ara…"
+                  emptyLabel="Müşteri bulunamadı."
                   options={customers.map((item) => ({
                     value: item.id,
                     label: fullName(item.firstName, item.lastName),
                     description: item.phone || item.email || undefined,
                     keywords: [item.phone, item.email].filter(Boolean).join(" "),
                   }))}
+                  createAction={!editing && hasPermission("customers", "create") ? {
+                    label: "Yeni müşteri oluştur",
+                    onClick: (query) => setQuickCreate({ kind: "customer", name: query }),
+                  } : undefined}
                 />
               </Field>
               <Field label="Personel" required>
@@ -794,11 +801,16 @@ export default function AppointmentsPage() {
                   loading={loadingRefs}
                   placeholder="Hizmet seçin"
                   searchPlaceholder="Hizmet ara…"
+                  emptyLabel="Hizmet bulunamadı."
                   options={services.filter((item) => item.status === "ACTIVE").map((item) => ({
                     value: item.id,
                     label: item.name,
                     description: `${item.durationMinutes} dk · ₺${Number(item.price).toLocaleString("tr-TR")}`,
                   }))}
+                  createAction={!editing && hasPermission("services", "create") ? {
+                    label: "Yeni hizmet oluştur",
+                    onClick: (query) => setQuickCreate({ kind: "service", name: query }),
+                  } : undefined}
                 />
               </Field>
               {editing ? (
@@ -901,6 +913,58 @@ export default function AppointmentsPage() {
           </FormActions>
         </div>
       </Modal>
+
+      {quickCreate ? (
+        <MasterDataQuickCreate
+          open
+          kind={quickCreate.kind}
+          initialName={quickCreate.name}
+          services={services}
+          onClose={() => setQuickCreate(null)}
+          onCreated={(entity) => {
+            if (quickCreate.kind === "customer") {
+              const created = {
+                id: entity.id,
+                firstName: entity.firstName ?? "",
+                lastName: entity.lastName ?? "",
+                phone: entity.phone ?? null,
+                email: null,
+              } as Customer;
+              setCustomers((current) => [
+                ...current.filter((item) => item.id !== created.id),
+                created,
+              ]);
+              setForm((current) => ({
+                ...current,
+                customerId: created.id,
+                sessionId: "",
+              }));
+            } else if (quickCreate.kind === "service") {
+              const created = {
+                id: entity.id,
+                name: entity.name ?? quickCreate.name,
+                price: entity.price ?? 0,
+                durationMinutes: entity.durationMinutes ?? 60,
+                status: (entity.status ?? "ACTIVE") as Service["status"],
+              } as Service;
+              setServices((current) => [
+                ...current.filter((item) => item.id !== created.id),
+                created,
+              ]);
+              setForm((current) => ({
+                ...current,
+                serviceId: created.id,
+                sessionId: "",
+                endAt: addMinutesLocal(
+                  current.startAt,
+                  created.durationMinutes,
+                ),
+              }));
+            }
+            setQuickCreate(null);
+          }}
+        />
+      ) : null}
 
       <Modal open={confirmOpen} onClose={() => !saving && setConfirmOpen(false)} title="Randevuyu İptal Et" description={pendingCancel ? `${customerMap.get(pendingCancel.customerId) ?? "Müşteri"} İçin ${formatTime(pendingCancel.startAt)} Randevusu İptal Edilecek.` : ""}>
         <div className="flex justify-end gap-2"><Button variant="secondary" onClick={() => setConfirmOpen(false)} disabled={saving}>Vazgeç</Button><Button variant="danger" onClick={cancelAppointment} disabled={saving || !canCancelAppointment}>İptal Et</Button></div>
