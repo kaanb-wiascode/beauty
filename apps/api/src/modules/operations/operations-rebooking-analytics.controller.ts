@@ -13,7 +13,7 @@ export class OperationsRebookingAnalyticsController {
 
   @Get()
   @UseGuards(PermissionsGuard)
-  @RequirePermission('operations', 'read')
+  @RequirePermission('appointments', 'read')
   summary(@Query('days') days?: string) {
     return this.analytics.summary(days ? Number(days) : 90);
   }
