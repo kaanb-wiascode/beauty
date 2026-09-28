@@ -39,7 +39,7 @@ function emptyItem(index: number): ChecklistItem {
 }
 
 export default function OperationsChecklistsPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [services, setServices] = useState<Service[]>([]);
   const [selectedServiceId, setSelectedServiceId] = useState("");
   const [activeTemplate, setActiveTemplate] = useState<ChecklistTemplate | null>(null);
