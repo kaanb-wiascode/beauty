@@ -51,7 +51,7 @@ const severityLabel = {
 } as const;
 
 export default function OperationsIncidentsPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [rooms, setRooms] = useState<Room[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
