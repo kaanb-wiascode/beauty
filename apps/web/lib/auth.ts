@@ -108,9 +108,18 @@ export function persistSession(input: {
   }
 
   if (input.membership) {
+    const currentMembership = getStoredMembership();
+    const nextMembership = {
+      ...currentMembership,
+      ...input.membership,
+      permissions:
+        Array.isArray(input.membership.permissions) && input.membership.permissions.length
+          ? input.membership.permissions
+          : currentMembership?.permissions ?? [],
+    };
     window.localStorage.setItem(
       MEMBERSHIP_KEY,
-      JSON.stringify(input.membership),
+      JSON.stringify(nextMembership),
     );
   }
 }
@@ -131,5 +140,16 @@ export function hasPermission(
   const membership = getStoredMembership();
   if (!membership) return false;
 
-  return membership.permissions.includes(`${resource}.${action}`);
+  const permissions = Array.isArray(membership.permissions)
+    ? membership.permissions
+    : [];
+
+  if (permissions.includes(`${resource}.${action}`)) return true;
+
+  // Owner is a full-access role. This client-side fallback repairs legacy
+  // sessions whose context-switch response did not include permissions.
+  // Backend permission guards remain the authorization authority.
+  if (membership.role?.toLowerCase() === "owner") return true;
+
+  return false;
 }
