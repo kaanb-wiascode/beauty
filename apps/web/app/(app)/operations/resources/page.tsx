@@ -53,7 +53,7 @@ const roomStatusLabel: Record<Room["status"], string> = {
 };
 
 export default function OperationsResourcesPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [services, setServices] = useState<Service[]>([]);
