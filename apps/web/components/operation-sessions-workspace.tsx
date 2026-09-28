@@ -12,6 +12,7 @@ import { useOperationRealtime } from "@/lib/use-operation-realtime";
 type Session={id:string;status:"AVAILABLE"|"RESERVED"|"CONSUMED"|"CANCELLED";appointmentId:string|null;service:{id:string;name:string};customerPackage:{id:string;customer:{id:string;firstName:string;lastName:string};package:{id:string;name:string}};consumedAt?:string|null};
 const labels:Record<string,string>={AVAILABLE:"Kullanılabilir",RESERVED:"Rezerve",CONSUMED:"Kullanıldı",CANCELLED:"İptal"};
 export default function SessionsPage(){
+ const canReadSessions=hasPermission("sessions","read");
  const canReadAppointments=hasPermission("appointments","read");
  const canReserve=hasPermission("sessions","reserve");
  const canRelease=hasPermission("sessions","release");
@@ -21,6 +22,9 @@ export default function SessionsPage(){
  const load=useCallback(async()=>{
    if(!hasActiveBranch()){
      setRows([]);setAppointments([]);setLoading(false);setError("Seans yönetimi için önce aktif bir şube seçin.");return;
+   }
+   if(!canReadSessions){
+     setRows([]);setAppointments([]);setLoading(false);setError("Seans yönetimi çalışma alanını görüntülemek için seans görüntüleme yetkisi gereklidir.");return;
    }
    setLoading(true);setError("");
    const q=status?`?status=${status}`:"";
@@ -33,7 +37,7 @@ export default function SessionsPage(){
    if(a.status==="fulfilled"&&a.value)setAppointments(Array.isArray(a.value.data)?a.value.data:[]);else if(a.status==="rejected"){setAppointments([]);errors.push(a.reason instanceof ApiError?a.reason.message:"Randevular yüklenemedi.");}else setAppointments([]);
    if(errors.length)setError(Array.from(new Set(errors)).join(" "));
    setLoading(false);
- },[status,canReadAppointments]);
+ },[status,canReadAppointments,canReadSessions]);
  useEffect(()=>{void load()},[load]);
  useOperationRealtime((event)=>{
    if(event.aggregateType==="session"||event.aggregateType==="appointment"||event.aggregateType==="service_execution") void load();
