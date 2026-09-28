@@ -2,7 +2,8 @@
 
 import { useMemo, useState, type FormEvent } from "react";
 
-import { Alert, Button, Field, Modal, Select, TextArea, TextInput } from "@/components/ui";
+import { Modal } from "@/components/modal";
+import { Alert, Button, Field, Select, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 export type QuickCreatedEntity = {
