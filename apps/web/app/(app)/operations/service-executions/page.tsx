@@ -29,18 +29,17 @@ export default function ServiceExecutionsPage() {
 
     setLoading(true);
     setError("");
-    try {
-      const [visitResult, customerResult] = await Promise.all([
-        api<Visit[]>(withQuery("/visits", { limit: 200 })),
-        api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
-      ]);
-      setVisits(visitResult);
-      setCustomers(customerResult.data);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Hizmet icra kayıtları yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
+    const [visitResult, customerResult] = await Promise.allSettled([
+      api<Visit[]>(withQuery("/visits", { limit: 200 })),
+      api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
+    ]);
+    const errors: string[] = [];
+    if (visitResult.status === "fulfilled") setVisits(visitResult.value);
+    else { setVisits([]); errors.push(visitResult.reason instanceof ApiError ? visitResult.reason.message : "Ziyaretler yüklenemedi."); }
+    if (customerResult.status === "fulfilled") setCustomers(customerResult.value.data);
+    else { setCustomers([]); errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi."); }
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }, []);
 
   useEffect(() => {
