@@ -77,20 +77,20 @@ export default function OperationsIncidentsPage() {
     }
     setLoading(true);
     setError("");
-    try {
-      const [incidentResult, roomResult, assetResult] = await Promise.all([
-        api<Incident[]>("/operations/incidents"),
-        api<Room[]>("/operations/resources/rooms"),
-        api<Asset[]>("/operations/resources/assets"),
-      ]);
-      setIncidents(incidentResult);
-      setRooms(roomResult);
-      setAssets(assetResult);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Operasyon olay kayıtları yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
+    const [incidentResult, roomResult, assetResult] = await Promise.allSettled([
+      api<Incident[]>("/operations/incidents"),
+      api<Room[]>("/operations/resources/rooms"),
+      api<Asset[]>("/operations/resources/assets"),
+    ]);
+    const errors: string[] = [];
+    if (incidentResult.status === "fulfilled") setIncidents(incidentResult.value);
+    else { setIncidents([]); errors.push(incidentResult.reason instanceof ApiError ? incidentResult.reason.message : "Operasyon olayları yüklenemedi."); }
+    if (roomResult.status === "fulfilled") setRooms(roomResult.value);
+    else { setRooms([]); errors.push(roomResult.reason instanceof ApiError ? roomResult.reason.message : "Odalar yüklenemedi."); }
+    if (assetResult.status === "fulfilled") setAssets(assetResult.value);
+    else { setAssets([]); errors.push(assetResult.reason instanceof ApiError ? assetResult.reason.message : "Ekipmanlar yüklenemedi."); }
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }
 
   useEffect(() => {
