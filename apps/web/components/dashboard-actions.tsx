@@ -15,6 +15,7 @@ import {
   FormSummaryItem,
 } from "@/components/form-system";
 import { Modal } from "@/components/modal";
+import { MasterDataQuickCreate, type QuickCreateKind } from "@/components/master-data-quick-create";
 import { Alert, Button, Field, TextArea, TextInput } from "@/components/ui";
 import { ValooSegmentedControl, ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
@@ -118,6 +119,7 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
     endAt: addMinutes(localDateTime(), 60),
     notes: "",
   });
+  const [quickCreate, setQuickCreate] = useState<{ kind: QuickCreateKind; name: string } | null>(null);
   const [payment, setPayment] = useState({
     appointmentId: "",
     amount: "",
@@ -452,7 +454,8 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
   });
 
   return (
-    <Modal
+    <>
+      <Modal
       size={action === "service" ? "xl" : action === "customer" || action === "appointment" ? "lg" : "md"}
       open={Boolean(action)}
       onClose={onClose}
@@ -596,17 +599,22 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
                 <ValooSelect
                   value={appointment.customerId}
                   onChange={(customerId) =>
-                    setAppointment((current) => ({ ...current, customerId }))
+                    setAppointment((current) => ({ ...current, customerId, sessionId: "" }))
                   }
                   disabled={loadingRefs}
                   loading={loadingRefs}
                   placeholder="Müşteri seçin"
                   searchPlaceholder="Müşteri ara…"
+                  emptyLabel="Müşteri bulunamadı."
                   options={customers.map((item) => ({
                     value: item.id,
                     label: labelName(item.firstName, item.lastName),
                     keywords: [item.phone, item.email].filter(Boolean).join(" "),
                   }))}
+                  createAction={hasPermission("customers", "create") ? {
+                    label: "Yeni müşteri oluştur",
+                    onClick: (query) => setQuickCreate({ kind: "customer", name: query }),
+                  } : undefined}
                 />
               </Field>
               <Field label="Personel" required>
@@ -635,11 +643,16 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
                 loading={loadingRefs}
                 placeholder="Hizmet seçin"
                 searchPlaceholder="Hizmet ara…"
+                emptyLabel="Hizmet bulunamadı."
                 options={services.map((item) => ({
                   value: item.id,
                   label: item.name,
                   description: `${item.durationMinutes} dk · ₺${Number(item.price).toLocaleString("tr-TR")}`,
                 }))}
+                createAction={hasPermission("services", "create") ? {
+                  label: "Yeni hizmet oluştur",
+                  onClick: (query) => setQuickCreate({ kind: "service", name: query }),
+                } : undefined}
               />
             </Field>
             {eligibleSessions.length || loadingSessions ? (
@@ -776,7 +789,57 @@ export function DashboardActions({ action, onClose, onSaved }: Props) {
           <QuickFormActions saving={saving} onClose={onClose} idleLabel="Ödemeyi kaydet" />
         </form>
       ) : null}
-    </Modal>
+      </Modal>
+
+      {quickCreate ? (
+        <MasterDataQuickCreate
+          open
+          kind={quickCreate.kind}
+          initialName={quickCreate.name}
+          services={services}
+          onClose={() => setQuickCreate(null)}
+          onCreated={(entity) => {
+            if (quickCreate.kind === "customer") {
+              const created = {
+                id: entity.id,
+                firstName: entity.firstName ?? "",
+                lastName: entity.lastName ?? "",
+                phone: entity.phone ?? null,
+                email: null,
+              } as Customer;
+              setCustomers((current) => [
+                ...current.filter((item) => item.id !== created.id),
+                created,
+              ]);
+              setAppointment((current) => ({
+                ...current,
+                customerId: created.id,
+                sessionId: "",
+              }));
+            } else if (quickCreate.kind === "service") {
+              const created = {
+                id: entity.id,
+                name: entity.name ?? quickCreate.name,
+                price: entity.price ?? 0,
+                durationMinutes: 60,
+                status: "ACTIVE",
+              } as Service;
+              setServices((current) => [
+                ...current.filter((item) => item.id !== created.id),
+                created,
+              ]);
+              setAppointment((current) => ({
+                ...current,
+                serviceId: created.id,
+                sessionId: "",
+                endAt: addMinutes(current.startAt, created.durationMinutes),
+              }));
+            }
+            setQuickCreate(null);
+          }}
+        />
+      ) : null}
+    </>
   );
 }
 
