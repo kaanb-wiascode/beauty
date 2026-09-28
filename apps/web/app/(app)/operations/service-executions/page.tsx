@@ -32,7 +32,7 @@ export default function ServiceExecutionsPage() {
     try {
       const [visitResult, customerResult] = await Promise.all([
         api<Visit[]>(withQuery("/visits", { limit: 200 })),
-        api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 200 })),
+        api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
       ]);
       setVisits(visitResult);
       setCustomers(customerResult.data);
