@@ -503,7 +503,13 @@ export class AuthService {
       include: {
         tenant: true,
         company: true,
-        role: true,
+        role: {
+          include: {
+            rolePermissions: {
+              include: { permission: true },
+            },
+          },
+        },
         branchAccesses: {
           include: { branch: true },
           orderBy: { createdAt: 'asc' },
