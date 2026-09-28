@@ -27,16 +27,18 @@ describe('OperationsRebookingService', () => {
     getBranchId: () => 'branch-1',
     getMembershipId: () => 'membership-1',
   } as never;
+  const workingHoursAssertOpen = jest.fn().mockResolvedValue({ allowed: true });
+  const staffEligibilityCheck = jest.fn().mockResolvedValue({
+    allowed: true,
+    mode: 'WARN',
+    blockers: [],
+    warnings: [],
+  });
   const workingHours = {
-    assertOpen: jest.fn().mockResolvedValue({ allowed: true }),
+    assertOpen: workingHoursAssertOpen,
   } as never;
   const staffEligibility = {
-    check: jest.fn().mockResolvedValue({
-      allowed: true,
-      mode: 'WARN',
-      blockers: [],
-      warnings: [],
-    }),
+    check: staffEligibilityCheck,
   } as never;
 
   const source = {
@@ -61,8 +63,8 @@ describe('OperationsRebookingService', () => {
     appointmentCreate.mockReset();
     staffFindFirst.mockReset();
     transaction.mockClear();
-    (workingHours.assertOpen as jest.Mock).mockClear();
-    (staffEligibility.check as jest.Mock).mockClear();
+    workingHoursAssertOpen.mockClear();
+    staffEligibilityCheck.mockClear();
   });
 
   it('calculates the recommended next appointment from the configured service interval', async () => {
