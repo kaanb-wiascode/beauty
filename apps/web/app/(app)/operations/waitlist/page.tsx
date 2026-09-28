@@ -89,9 +89,9 @@ export default function OperationsWaitlistPage() {
     try {
       const [waitlistResult, customerResult, serviceResult, staffResult] = await Promise.all([
         api<WaitlistEntry[]>("/operations/waitlist"),
-        api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 200 })),
-        api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 200 })),
-        api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 200, status: "ACTIVE" })),
+        api<Paginated<CustomerOption>>(withQuery("/customers", { page: 1, limit: 100 })),
+        api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
+        api<Paginated<StaffOption>>(withQuery("/staff", { page: 1, limit: 100, status: "ACTIVE" })),
       ]);
       setEntries(waitlistResult);
       setCustomers(customerResult.data);
