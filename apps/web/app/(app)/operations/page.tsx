@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { CardInfo } from "@/components/card-info";
 
@@ -482,6 +483,37 @@ export default function OperationsPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+
+      <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <div className="flex items-start gap-2">
+              <h2 className="text-sm font-semibold text-[var(--ink)]">Bağlı Operasyon Akışı</h2>
+              <CardInfo help={getCardHelp("Bağlı Operasyon Akışı", "Bu ekran müşteriler, randevular ve ziyaretleri doğrudan VALOO ana verilerinden kullanır; aşağıdaki bağlantılar aynı veri zincirinin devamıdır.")} />
+            </div>
+            <p className="mt-1 text-xs text-[var(--muted)]">
+              Müşteri → Randevu → Ziyaret → Hizmet → Seans → Satış/Tahsilat → Yeniden Randevu zinciri tek çalışma alanında ilerler.
+            </p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            {[
+              ["/operations/service-executions", "Hizmeti Yönet"],
+              ["/operations/sessions", "Seansları Gör"],
+              ["/operations/sales", "Satış / Tahsilat"],
+              ["/operations/waitlist", "Bekleme Listesi"],
+              ["/operations/rebooking", "Yeniden Randevu"],
+            ].map(([href, label]) => (
+              <Link
+                key={href}
+                href={href}
+                className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] px-3 py-2 text-xs font-semibold text-[var(--ink)] transition-colors hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]"
+              >
+                {label}
+              </Link>
+            ))}
+          </div>
+        </div>
+      </section>
 
       <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {[
