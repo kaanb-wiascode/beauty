@@ -98,12 +98,16 @@ export default function OperationsInsightsPage() {
     }
 
     try {
-      const [insights, recommendations] = await Promise.all([
+      const [insights, recommendations] = await Promise.allSettled([
         api<Intelligence>("/operations/intelligence?hours=24"),
         api<Optimization>("/operations/optimization?hours=24"),
       ]);
-      setIntelligence(insights);
-      setOptimization(recommendations);
+      const errors: string[] = [];
+      if (insights.status === "fulfilled") setIntelligence(insights.value);
+      else { setIntelligence(null); errors.push(insights.reason instanceof ApiError ? insights.reason.message : "Operasyon içgörüleri yüklenemedi."); }
+      if (recommendations.status === "fulfilled") setOptimization(recommendations.value);
+      else { setOptimization(null); errors.push(recommendations.reason instanceof ApiError ? recommendations.reason.message : "Operasyon önerileri yüklenemedi."); }
+      if (errors.length) setError(Array.from(new Set(errors)).join(" "));
       setError("");
     } catch (err) {
       setError(
