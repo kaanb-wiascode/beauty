@@ -14,6 +14,8 @@ import {
   ToolbarSelect,
 } from "@/components/data-view";
 import { Modal } from "@/components/modal";
+import { InventorySupplierQuickCreate } from "@/components/inventory-supplier-quick-create";
+import { ValooSelect } from "@/components/valoo-controls";
 import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
@@ -95,6 +97,7 @@ export default function PurchasesPage() {
   const [supplierId, setSupplierId] = useState("");
   const [unitCost, setUnitCost] = useState("");
   const [note, setNote] = useState("");
+  const [quickSupplierName, setQuickSupplierName] = useState<string | null>(null);
   const canWrite = hasPermission("inventory", "write");
 
   const load = useCallback(async (withSpinner = false) => {
@@ -320,13 +323,29 @@ export default function PurchasesPage() {
         <DataViewMeta><span>{visibleCount} Kayıt Gösteriliyor</span><span>Toplam {totalCount} Kayıt</span></DataViewMeta>
       </DataView>
 
+      {quickSupplierName !== null ? (
+        <InventorySupplierQuickCreate
+          open
+          initialName={quickSupplierName}
+          onClose={() => setQuickSupplierName(null)}
+          onCreated={(supplier) => {
+            setSuppliers((current) => [
+              ...current.filter((item) => item.id !== supplier.id),
+              { id: supplier.id, name: supplier.name },
+            ].sort((a,b)=>a.name.localeCompare(b.name,"tr")));
+            setSupplierId(supplier.id);
+            setQuickSupplierName(null);
+          }}
+        />
+      ) : null}
+
       <PurchaseOrderApprovalModal order={approvalTarget} canWrite={canWrite} onClose={() => setApprovalTarget(null)} onChanged={() => load()} />
       <PurchaseOrderReceiptModal order={receiptTarget} onClose={() => setReceiptTarget(null)} onChanged={() => load()} />
 
       <Modal open={Boolean(convertTarget)} onClose={closeConvert} title="Talebi Siparişe Dönüştür" description={convertTarget ? `${convertTarget.productName} İçin Tedarikçi Ve Birim Maliyet Seçin.` : undefined}>
         <form className="space-y-4" onSubmit={convertRequest}>
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Tedarikçi" required><Select value={supplierId} onChange={(event) => setSupplierId(event.target.value)} required><option value="">Tedarikçi Seçin</option>{suppliers.map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</Select></Field>
+            <Field label="Tedarikçi" required><ValooSelect value={supplierId} onChange={setSupplierId} placeholder="Tedarikçi seçin" searchPlaceholder="Tedarikçi ara…" emptyLabel="Tedarikçi bulunamadı." options={suppliers.map((supplier)=>({value:supplier.id,label:supplier.name}))} createAction={canWrite?{label:"Yeni tedarikçi oluştur",onClick:(query)=>setQuickSupplierName(query)}:undefined}/></Field>
             <Field label="Birim Maliyet" required><TextInput type="number" min="0" step="0.01" inputMode="decimal" value={unitCost} onChange={(event) => setUnitCost(event.target.value)} placeholder="0,00" required /></Field>
           </div>
           <Field label="Not"><TextInput value={note} maxLength={500} onChange={(event) => setNote(event.target.value)} placeholder="İsteğe Bağlı Satın Alma Notu" /></Field>
