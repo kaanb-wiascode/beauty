@@ -1,6 +1,8 @@
 "use client";
 
 import { CardInfo } from "@/components/card-info";
+import { MasterDataQuickCreate, type QuickCreateKind } from "@/components/master-data-quick-create";
+import { ValooSelect } from "@/components/valoo-controls";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
 import { Modal } from "@/components/modal";
@@ -8,6 +10,7 @@ import { TeamShareAction } from "@/components/team-share-action";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
+import { hasPermission } from "@/lib/auth";
 import { useOperationRealtime } from "@/lib/use-operation-realtime";
 
 type Customer={id:string;firstName:string;lastName:string;phone?:string|null};
@@ -34,6 +37,7 @@ export default function SalesPage(){
  const[customerId,setCustomerId]=useState(""),[discount,setDiscount]=useState("0"),[lines,setLines]=useState<LineDraft[]>([{type:"SERVICE",referenceId:"",quantity:"1"}]);
  const[paymentAmount,setPaymentAmount]=useState(""),[paymentMethod,setPaymentMethod]=useState<"CASH"|"CARD"|"TRANSFER">("CARD"),[paymentReference,setPaymentReference]=useState(""),[paymentNote,setPaymentNote]=useState("");
  const[installmentCount,setInstallmentCount]=useState("2"),[firstDueAt,setFirstDueAt]=useState(new Date().toISOString().slice(0,10)),[intervalMonths,setIntervalMonths]=useState("1");
+ const[quickCreate,setQuickCreate]=useState<{kind:QuickCreateKind;name:string;lineIndex:number|null}|null>(null);
 
  const load=useCallback(async()=>{setLoading(true);setError("");try{
    const[s,c,sv,p]=await Promise.all([
@@ -91,11 +95,11 @@ export default function SalesPage(){
 
   <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet/paket ekleyin.">
    <form onSubmit={createSale} className="space-y-5">
-    <Field label="Müşteri" required><Select value={customerId} onChange={e=>setCustomerId(e.target.value)} required><option value="">Müşteri seçin</option>{customers.map(c=><option key={c.id} value={c.id}>{c.firstName} {c.lastName}{c.phone?` · ${c.phone}`:""}</option>)}</Select></Field>
+    <Field label="Müşteri" required><ValooSelect value={customerId} onChange={setCustomerId} placeholder="Müşteri seçin" searchPlaceholder="Müşteri ara…" emptyLabel="Müşteri bulunamadı." options={customers.map(item=>({value:item.id,label:`${item.firstName} ${item.lastName}`,description:item.phone??undefined}))} createAction={hasPermission("customers","create")?{label:"Yeni müşteri oluştur",onClick:(query)=>setQuickCreate({kind:"customer",name:query,lineIndex:null})}:undefined}/></Field>
     <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Satış Kalemleri</h3><Button type="button" size="sm" variant="secondary" onClick={()=>setLines([...lines,{type:"SERVICE",referenceId:"",quantity:"1"}])}>+ Kalem</Button></div>
     {lines.map((line,index)=><div key={index} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-[160px_1fr_120px_auto]">
       <Select value={line.type} onChange={e=>setLines(lines.map((l,i)=>i===index?{...l,type:e.target.value as LineDraft["type"],referenceId:""}:l))}><option value="SERVICE">Hizmet</option><option value="PACKAGE">Paket</option></Select>
-      <Select value={line.referenceId} onChange={e=>setLines(lines.map((l,i)=>i===index?{...l,referenceId:e.target.value}:l))}><option value="">Seçin</option>{(line.type==="SERVICE"?services:packages).map(item=><option key={item.id} value={item.id}>{item.name} · {money(item.price)}</option>)}</Select>
+      <ValooSelect value={line.referenceId} onChange={(value)=>setLines(lines.map((l,i)=>i===index?{...l,referenceId:value}:l))} placeholder={line.type==="SERVICE"?"Hizmet seçin":"Paket seçin"} searchPlaceholder={line.type==="SERVICE"?"Hizmet ara…":"Paket ara…"} emptyLabel={line.type==="SERVICE"?"Hizmet bulunamadı.":"Paket bulunamadı."} options={(line.type==="SERVICE"?services:packages).map(item=>({value:item.id,label:item.name,description:money(item.price)}))} createAction={hasPermission("services","create")?{label:line.type==="SERVICE"?"Yeni hizmet oluştur":"Yeni paket oluştur",onClick:(query)=>setQuickCreate({kind:line.type==="SERVICE"?"service":"package",name:query,lineIndex:index})}:undefined}/>
       <TextInput type="number" min="1" step="1" value={line.quantity} onChange={e=>setLines(lines.map((l,i)=>i===index?{...l,quantity:e.target.value}:l))}/>
       <Button type="button" variant="danger" size="sm" disabled={lines.length===1} onClick={()=>setLines(lines.filter((_,i)=>i!==index))}>Sil</Button>
     </div>)}</div>
@@ -124,6 +128,30 @@ export default function SalesPage(){
     {selected.installmentPlan?<section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Taksit Planı</div>{selected.installmentPlan.installments.map(i=><div key={i.id} className="grid grid-cols-4 gap-3 border-b border-[var(--line)] px-4 py-3 last:border-0"><span>{i.sequence}. Taksit</span><span>{date(i.dueAt)}</span><span>{money(i.amount)}</span><span>{statusLabels[i.status]??i.status}</span></div>)}</section>:null}
    </div>:null}
   </Modal>
+
+  {quickCreate ? <MasterDataQuickCreate
+    open
+    kind={quickCreate.kind}
+    initialName={quickCreate.name}
+    services={services}
+    onClose={()=>setQuickCreate(null)}
+    onCreated={(entity)=>{
+      if(quickCreate.kind==="customer"){
+        const created:Customer={id:entity.id,firstName:entity.firstName??"",lastName:entity.lastName??"",phone:entity.phone??null};
+        setCustomers(current=>[...current.filter(item=>item.id!==created.id),created]);
+        setCustomerId(created.id);
+      }else if(quickCreate.kind==="service"){
+        const created:Service={id:entity.id,name:entity.name??quickCreate.name,price:entity.price??0,status:"ACTIVE"};
+        setServices(current=>[...current.filter(item=>item.id!==created.id),created]);
+        if(quickCreate.lineIndex!==null)setLines(current=>current.map((line,index)=>index===quickCreate.lineIndex?{...line,type:"SERVICE",referenceId:created.id}:line));
+      }else{
+        const created:Package={id:entity.id,name:entity.name??quickCreate.name,price:entity.price??0,active:true};
+        setPackages(current=>[...current.filter(item=>item.id!==created.id),created]);
+        if(quickCreate.lineIndex!==null)setLines(current=>current.map((line,index)=>index===quickCreate.lineIndex?{...line,type:"PACKAGE",referenceId:created.id}:line));
+      }
+      setQuickCreate(null);
+    }}
+  /> : null}
  </div>
 }
 function Metric({label,value}:{label:string;value:string|number}){return <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4"><div className="flex items-start justify-between gap-3"><p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><p className="mt-2 text-xl font-semibold">{value}</p></div>}
