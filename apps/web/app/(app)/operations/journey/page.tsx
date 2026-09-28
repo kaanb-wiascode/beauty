@@ -34,19 +34,26 @@ export default function OperationsJourneyPage() {
         setLoading(false);
         return;
       }
-      try {
-        const [a, r] = await Promise.all([
-          api<Paginated<Appointment>>("/appointments?page=1&limit=100"),
-          api<Reliability>("/operations/reliability?days=180"),
-        ]);
-        setAppointments(a.data);
-        setReliability(r);
-        setSelectedId(a.data[0]?.id ?? "");
-      } catch (err) {
-        setError(err instanceof ApiError ? err.message : "Veriler yüklenemedi.");
-      } finally {
-        setLoading(false);
+      const [appointmentsResult, reliabilityResult] = await Promise.allSettled([
+        api<Paginated<Appointment>>("/appointments?page=1&limit=100"),
+        api<Reliability>("/operations/reliability?days=180"),
+      ]);
+      const errors: string[] = [];
+      if (appointmentsResult.status === "fulfilled") {
+        setAppointments(appointmentsResult.value.data);
+        setSelectedId(appointmentsResult.value.data[0]?.id ?? "");
+      } else {
+        setAppointments([]);
+        errors.push(appointmentsResult.reason instanceof ApiError ? appointmentsResult.reason.message : "Randevular yüklenemedi.");
       }
+      if (reliabilityResult.status === "fulfilled") {
+        setReliability(reliabilityResult.value);
+      } else {
+        setReliability(null);
+        errors.push(reliabilityResult.reason instanceof ApiError ? reliabilityResult.reason.message : "Müşteri güvenilirlik verileri yüklenemedi.");
+      }
+      if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+      setLoading(false);
     })();
   }, []);
 
