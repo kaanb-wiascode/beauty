@@ -56,7 +56,7 @@ const statusLabel: Record<WaitlistEntry["status"], string> = {
 };
 
 export default function OperationsWaitlistPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [entries, setEntries] = useState<WaitlistEntry[]>([]);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [services, setServices] = useState<Service[]>([]);
