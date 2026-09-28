@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { hasActiveBranch } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type Mode = "OFF" | "WARN" | "BLOCK";
 type Policy = {
@@ -21,6 +21,7 @@ type Policy = {
 };
 
 export default function StaffEligibilityPolicyPage() {
+  const canManage = hasPermission("operations", "manage");
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
@@ -42,19 +43,19 @@ export default function StaffEligibilityPolicyPage() {
   useEffect(load, []);
 
   const save = async () => {
-    if (!policy) return;
+    if (!policy || !canManage) return;
     setSaving(true);
     setError("");
     try {
       const next = await api<Policy>("/operations/staff-eligibility/policy", {
         method: "PUT",
-        body: JSON.stringify({
+        body: {
           mode: policy.mode,
           requirePublishedShift: policy.requirePublishedShift,
           requireServiceCertification: policy.requireServiceCertification,
           requireCompetency: policy.requireCompetency,
           expectedVersion: policy.version || undefined,
-        }),
+        },
       });
       setPolicy(next);
     } catch (err) {
@@ -99,7 +100,7 @@ export default function StaffEligibilityPolicyPage() {
             Engelle modu, personel uygun değilse hizmet başlatmayı ve bekleme listesindeki uygun saati randevuya dönüştürmeyi durdurur. İzin bilgisi her modda değerlendirilir; ayrıca mevcut randevu çakışma kontrolleri çalışmaya devam eder.
           </div>
 
-          <div className="flex justify-end"><Button onClick={save} disabled={saving}>{saving ? "Kaydediliyor..." : "Politikayı Kaydet"}</Button></div>
+          <div className="flex justify-end"><Button onClick={save} disabled={!canManage || saving}>{saving ? "Kaydediliyor..." : "Politikayı Kaydet"}</Button></div>
         </section>
       ) : null}
     </div>
