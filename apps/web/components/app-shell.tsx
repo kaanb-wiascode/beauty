@@ -47,6 +47,7 @@ const NAV_SECTIONS = [
     { href: "/operations/sales", permission: "sales.read", label: "Satış ve Tahsilat", icon: "receipt" },
     { href: "/payments", permission: "payments.read", label: "Ödemeler", icon: "wallet" },
     { href: "/operations/waitlist", permission: "operations.read", label: "Bekleme Listesi", icon: "clock" },
+    { href: "/operations/rebooking", permission: "operations.read", label: "Yeniden Randevu", icon: "calendar" },
     { href: "/operations/resources", permission: "operations.read", label: "Kaynak ve Kapasite", icon: "chart" },
     { href: "/services", permission: "services.read", label: "Hizmet Tanımları", icon: "sparkles" },
     { href: "/staff", permission: "staff.read", label: "Personel", icon: "user" },
