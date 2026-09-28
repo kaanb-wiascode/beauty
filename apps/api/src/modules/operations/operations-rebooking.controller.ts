@@ -26,14 +26,14 @@ export class OperationsRebookingController {
 
   @Get('opportunities')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('operations', 'read')
+  @RequirePermission('appointments', 'read')
   listOpportunities() {
     return this.rebooking.listOpportunities();
   }
 
   @Get('appointments/:appointmentId/recommendation')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('operations', 'read')
+  @RequirePermission('appointments', 'read')
   recommendation(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
   ) {
@@ -42,7 +42,7 @@ export class OperationsRebookingController {
 
   @Post('appointments/:appointmentId')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('operations', 'manage')
+  @RequirePermission('appointments', 'create')
   create(
     @Param('appointmentId', new ParseUUIDPipe()) appointmentId: string,
     @Body() body: unknown,
@@ -55,7 +55,7 @@ export class OperationsRebookingController {
 
   @Put('services/:serviceId/policy')
   @UseGuards(PermissionsGuard)
-  @RequirePermission('operations', 'manage')
+  @RequirePermission('services', 'update')
   upsertPolicy(
     @Param('serviceId', new ParseUUIDPipe()) serviceId: string,
     @Body() body: unknown,
