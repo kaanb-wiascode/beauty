@@ -4,12 +4,21 @@ import { CardInfo } from "@/components/card-info";
 
 import { useEffect, useState } from "react";
 
-import { Alert, Button, Spinner, Select } from "@/components/ui";
+import { Alert, Button, Field, Spinner, Select, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { ValooSelect } from "@/components/valoo-controls";
+import type { Paginated, Service, Staff } from "@/lib/types";
 
 type Mode = "OFF" | "WARN" | "BLOCK";
+type EligibilityResult = {
+  allowed: boolean;
+  mode: Mode;
+  blockers: Array<{ code: string; message: string }>;
+  warnings: Array<{ code: string; message: string }>;
+};
+
 type Policy = {
   id: string | null;
   mode: Mode;
@@ -22,25 +31,77 @@ type Policy = {
 
 export default function StaffEligibilityPolicyPage() {
   const canManage = hasPermission("operations", "manage");
+  const canReadStaff = hasPermission("staff", "read");
+  const canReadServices = hasPermission("services", "read");
   const [policy, setPolicy] = useState<Policy | null>(null);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [staff, setStaff] = useState<Staff[]>([]);
+  const [services, setServices] = useState<Service[]>([]);
+  const [staffId, setStaffId] = useState("");
+  const [serviceId, setServiceId] = useState("");
+  const [startAt, setStartAt] = useState("");
+  const [endAt, setEndAt] = useState("");
+  const [checking, setChecking] = useState(false);
+  const [checkResult, setCheckResult] = useState<EligibilityResult | null>(null);
 
-  const load = () => {
+  const load = async () => {
     if (!hasActiveBranch()) {
       setError("Personel uygunluk politikası için önce aktif bir şube seçin.");
       setLoading(false);
       return;
     }
     setLoading(true);
-    api<Policy>("/operations/staff-eligibility/policy")
-      .then(setPolicy)
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Politika yüklenemedi."))
-      .finally(() => setLoading(false));
+    setError("");
+    const [policyResult, staffResult, serviceResult] = await Promise.allSettled([
+      api<Policy>("/operations/staff-eligibility/policy"),
+      canReadStaff ? api<Paginated<Staff>>("/staff?page=1&limit=100&status=ACTIVE") : Promise.resolve(null),
+      canReadServices ? api<Paginated<Service>>("/services?page=1&limit=100&status=ACTIVE") : Promise.resolve(null),
+    ]);
+    const errors: string[] = [];
+    if (policyResult.status === "fulfilled") setPolicy(policyResult.value);
+    else errors.push(policyResult.reason instanceof ApiError ? policyResult.reason.message : "Politika yüklenemedi.");
+    if (staffResult.status === "fulfilled" && staffResult.value) {
+      setStaff(staffResult.value.data);
+      setStaffId((current) => current || staffResult.value?.data[0]?.id || "");
+    } else if (staffResult.status === "rejected") {
+      errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Personel listesi yüklenemedi.");
+    }
+    if (serviceResult.status === "fulfilled" && serviceResult.value) {
+      setServices(serviceResult.value.data);
+      setServiceId((current) => current || serviceResult.value?.data[0]?.id || "");
+    } else if (serviceResult.status === "rejected") {
+      errors.push(serviceResult.reason instanceof ApiError ? serviceResult.reason.message : "Hizmet listesi yüklenemedi.");
+    }
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   };
 
-  useEffect(load, []);
+  useEffect(() => { void load(); }, []);
+
+  const checkEligibility = async () => {
+    if (!staffId || !serviceId || !startAt || !endAt) {
+      setError("Uygunluk testi için personel, hizmet, başlangıç ve bitiş zamanı seçin.");
+      return;
+    }
+    setChecking(true);
+    setError("");
+    setCheckResult(null);
+    try {
+      const params = new URLSearchParams({
+        staffId,
+        serviceId,
+        startAt: new Date(startAt).toISOString(),
+        endAt: new Date(endAt).toISOString(),
+      });
+      setCheckResult(await api<EligibilityResult>(`/operations/staff-eligibility/check?${params.toString()}`));
+    } catch (err) {
+      setError(err instanceof ApiError ? err.message : "Personel uygunluğu kontrol edilemedi.");
+    } finally {
+      setChecking(false);
+    }
+  };
 
   const save = async () => {
     if (!policy || !canManage) return;
@@ -76,6 +137,64 @@ export default function StaffEligibilityPolicyPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+
+      <section className="space-y-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
+        <div>
+          <h2 className="text-sm font-semibold text-[var(--ink)]">Personel–Hizmet Uygunluk Testi</h2>
+          <p className="mt-1 text-xs text-[var(--muted)]">
+            Uygulamadaki gerçek personel, hizmet, vardiya, izin, sertifika, yetkinlik ve randevu çakışmalarını birlikte kontrol edin.
+          </p>
+        </div>
+        <div className="grid gap-4 md:grid-cols-2">
+          <Field label="Personel">
+            <ValooSelect
+              value={staffId}
+              onChange={setStaffId}
+              placeholder="Personel seçin"
+              searchPlaceholder="Personel ara…"
+              emptyLabel={canReadStaff ? "Aktif personel bulunamadı." : "Personel okuma yetkisi yok."}
+              options={staff.map((item) => ({ value: item.id, label: `${item.firstName} ${item.lastName}`.trim() }))}
+            />
+          </Field>
+          <Field label="Hizmet">
+            <ValooSelect
+              value={serviceId}
+              onChange={setServiceId}
+              placeholder="Hizmet seçin"
+              searchPlaceholder="Hizmet ara…"
+              emptyLabel={canReadServices ? "Aktif hizmet bulunamadı." : "Hizmet okuma yetkisi yok."}
+              options={services.map((item) => ({ value: item.id, label: item.name, description: `${item.durationMinutes} dk` }))}
+            />
+          </Field>
+          <Field label="Başlangıç">
+            <TextInput type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
+          </Field>
+          <Field label="Bitiş">
+            <TextInput type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
+          </Field>
+        </div>
+        <div className="flex justify-end">
+          <Button
+            variant="secondary"
+            onClick={() => void checkEligibility()}
+            disabled={checking || !canReadStaff || !canReadServices}
+          >
+            {checking ? "Kontrol Ediliyor..." : "Uygunluğu Kontrol Et"}
+          </Button>
+        </div>
+        {checkResult ? (
+          <div className={`rounded-[16px] border p-4 text-sm ${checkResult.allowed ? "border-emerald-200 bg-emerald-50 text-emerald-900" : "border-rose-200 bg-rose-50 text-rose-900"}`}>
+            <p className="font-semibold">{checkResult.allowed ? "Personel bu hizmet için uygun." : "Personel bu hizmet için uygun değil."}</p>
+            {[...checkResult.blockers, ...checkResult.warnings].length ? (
+              <ul className="mt-2 list-disc space-y-1 pl-5 text-xs">
+                {[...checkResult.blockers, ...checkResult.warnings].map((item) => <li key={item.code}>{item.message}</li>)}
+              </ul>
+            ) : (
+              <p className="mt-1 text-xs">Aktif politika kapsamında engel veya uyarı bulunmadı.</p>
+            )}
+          </div>
+        ) : null}
+      </section>
 
       {policy ? (
         <section className="space-y-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
