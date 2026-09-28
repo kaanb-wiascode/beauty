@@ -36,6 +36,7 @@ const confirmationLabels: Record<ConfirmationStatus, string> = {
 
 export default function OperationsEngagementPage() {
   const canUpdate = hasPermission("operations", "manage");
+  const canReadCustomers = hasPermission("customers", "read");
   const [upcoming, setUpcoming] = useState<Upcoming[]>([]);
   const [checkouts, setCheckouts] = useState<Visit[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
@@ -56,15 +57,16 @@ export default function OperationsEngagementPage() {
     const [appointmentRows, visitRows, customerRows] = await Promise.allSettled([
       api<Upcoming[]>("/operations/customer-engagement/upcoming?days=7"),
       api<Visit[]>(withQuery("/visits", { status: "CHECKED_OUT", limit: 30 })),
-      api<Paginated<Customer>>("/customers?page=1&limit=100"),
+      canReadCustomers ? api<Paginated<Customer>>("/customers?page=1&limit=100") : Promise.resolve(null),
     ]);
     const errors: string[] = [];
     if (appointmentRows.status === "fulfilled") setUpcoming(appointmentRows.value);
     else { setUpcoming([]); errors.push(appointmentRows.reason instanceof ApiError ? appointmentRows.reason.message : "Yaklaşan randevular yüklenemedi."); }
     if (visitRows.status === "fulfilled") setCheckouts(visitRows.value);
     else { setCheckouts([]); errors.push(visitRows.reason instanceof ApiError ? visitRows.reason.message : "Çıkış yapan ziyaretler yüklenemedi."); }
-    if (customerRows.status === "fulfilled") setCustomers(customerRows.value.data);
-    else { setCustomers([]); errors.push(customerRows.reason instanceof ApiError ? customerRows.reason.message : "Müşteriler yüklenemedi."); }
+    if (customerRows.status === "fulfilled" && customerRows.value) setCustomers(customerRows.value.data);
+    else if (customerRows.status === "rejected") { setCustomers([]); errors.push(customerRows.reason instanceof ApiError ? customerRows.reason.message : "Müşteriler yüklenemedi."); }
+    else setCustomers([]);
     if (errors.length) setError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
   }
@@ -192,7 +194,7 @@ export default function OperationsEngagementPage() {
             {checkouts.map((visit) => (
               <div key={visit.id} className="flex flex-col gap-3 px-6 py-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-[var(--ink)]">{customerNames.get(visit.customerId) ?? `Müşteri ${visit.customerId.slice(0, 8)}`}</p>
+                  <p className="text-sm font-semibold text-[var(--ink)]">{customerNames.get(visit.customerId) ?? visit.customerName ?? `Müşteri ${visit.customerId.slice(0, 8)}`}</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">Çıkış: {visit.checkedOutAt ? new Date(visit.checkedOutAt).toLocaleString("tr-TR") : "—"} · Ziyaret {visit.id.slice(0, 8)}</p>
                 </div>
                 <Button variant="secondary" disabled={!canUpdate || busyKey === `followup:${visit.id}`} onClick={() => void sendFollowup(visit)}>Takip Mesajı Gönder</Button>
