@@ -29,6 +29,11 @@ export type ValooOption = {
 type SharedSelectProps = {
   options: readonly ValooOption[];
   placeholder?: string;
+  createAction?: {
+    label: string;
+    onClick: (query: string) => void;
+    disabled?: boolean;
+  };
   searchPlaceholder?: string;
   emptyLabel?: string;
   disabled?: boolean;
@@ -167,6 +172,7 @@ function SelectPanel({
   style,
   onSelectAll,
   onClearAll,
+  createAction,
 }: {
   id: string;
   query: string;
@@ -183,6 +189,11 @@ function SelectPanel({
   style: CSSProperties;
   onSelectAll?: () => void;
   onClearAll?: () => void;
+  createAction?: {
+    label: string;
+    onClick: (query: string) => void;
+    disabled?: boolean;
+  };
 }) {
   return createPortal(
     <div
@@ -289,6 +300,25 @@ function SelectPanel({
           </div>
         )}
       </div>
+
+      {createAction ? (
+        <div className="border-t border-[var(--line)] p-2">
+          <button
+            type="button"
+            disabled={createAction.disabled}
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => createAction.onClick(query)}
+            className="flex min-h-10 w-full items-center gap-2 rounded-[11px] px-3 text-left text-[12px] font-semibold text-[var(--accent)] transition hover:bg-[var(--accent-soft)] disabled:cursor-not-allowed disabled:opacity-45"
+          >
+            <span className="text-[18px] leading-none">+</span>
+            <span className="min-w-0 flex-1 truncate">
+              {query.trim()
+                ? `“${query.trim()}” için ${createAction.label}`
+                : createAction.label}
+            </span>
+          </button>
+        </div>
+      ) : null}
     </div>,
     document.body,
   );
@@ -306,6 +336,7 @@ export function ValooSelect({
   searchable = true,
   ariaLabel,
   className,
+  createAction,
 }: SharedSelectProps & {
   value: string;
   onChange: (value: string) => void;
@@ -441,6 +472,17 @@ export function ValooSelect({
           emptyLabel={emptyLabel}
           loading={loading}
           style={floatingStyle}
+          createAction={
+            createAction
+              ? {
+                  ...createAction,
+                  onClick: (query) => {
+                    setOpen(false);
+                    createAction.onClick(query);
+                  },
+                }
+              : undefined
+          }
         />
       ) : null}
     </div>
