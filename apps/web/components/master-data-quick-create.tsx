@@ -44,6 +44,15 @@ export function MasterDataQuickCreate({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
 
+  const customerNameParts = useMemo(
+    () => initialName.trim().split(/\s+/).filter(Boolean),
+    [initialName],
+  );
+  const initialCustomerFirstName =
+    customerNameParts.length > 1 ? customerNameParts.slice(0, -1).join(" ") : customerNameParts[0] ?? "";
+  const initialCustomerLastName =
+    customerNameParts.length > 1 ? customerNameParts.at(-1) ?? "" : "";
+
   const title = useMemo(() => {
     if (kind === "customer") return "Yeni müşteri";
     if (kind === "service") return "Yeni hizmet";
@@ -169,10 +178,10 @@ export function MasterDataQuickCreate({
         {kind === "customer" ? (
           <div className="grid gap-4 sm:grid-cols-2">
             <Field label="Ad" required>
-              <TextInput name="firstName" required autoFocus />
+              <TextInput name="firstName" required defaultValue={initialCustomerFirstName} autoFocus />
             </Field>
             <Field label="Soyad" required>
-              <TextInput name="lastName" required />
+              <TextInput name="lastName" required defaultValue={initialCustomerLastName} />
             </Field>
             <Field label="Telefon">
               <TextInput name="phone" placeholder="+90" />
