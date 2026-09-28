@@ -256,7 +256,14 @@ export default function OperationsRebookingPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      {warning ? <Alert tone="warning" onClose={() => setWarning("")}>{warning}</Alert> : null}
+      {warning ? (
+        <div className="flex items-start justify-between gap-3 rounded-[16px] border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+          <span>{warning}</span>
+          <button type="button" onClick={() => setWarning("")} className="shrink-0 text-xs font-semibold">
+            Kapat
+          </button>
+        </div>
+      ) : null}
       {notice ? <Alert tone="success" onClose={() => setNotice("")}>{notice}</Alert> : null}
 
       {analytics ? (
@@ -311,12 +318,14 @@ export default function OperationsRebookingPage() {
             placeholder="Tüm müşteriler"
             searchPlaceholder="Müşteri ara…"
             emptyLabel="Müşteri bulunamadı."
-            clearable
-            options={customers.map((item) => ({
+            options={[
+              { value: "", label: "Tüm müşteriler" },
+              ...customers.map((item) => ({
               value: item.id,
               label: `${item.firstName} ${item.lastName}`.trim(),
               description: item.phone ?? item.email ?? undefined,
-            }))}
+            })),
+            ]}
           />
           <ValooSelect
             value={serviceFilter}
@@ -324,12 +333,14 @@ export default function OperationsRebookingPage() {
             placeholder="Tüm hizmetler"
             searchPlaceholder="Hizmet ara…"
             emptyLabel="Hizmet bulunamadı."
-            clearable
-            options={services.map((item) => ({
+            options={[
+              { value: "", label: "Tüm hizmetler" },
+              ...services.map((item) => ({
               value: item.id,
               label: item.name,
               description: `${item.durationMinutes} dk`,
-            }))}
+            })),
+            ]}
           />
         </div>
       </section>
