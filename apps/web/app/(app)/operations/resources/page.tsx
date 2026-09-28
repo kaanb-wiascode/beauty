@@ -54,6 +54,7 @@ const roomStatusLabel: Record<Room["status"], string> = {
 
 export default function OperationsResourcesPage() {
   const canUpdate = hasPermission("operations", "manage");
+  const canReadServices = hasPermission("services", "read");
   const [rooms, setRooms] = useState<Room[]>([]);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [services, setServices] = useState<Service[]>([]);
@@ -75,15 +76,16 @@ export default function OperationsResourcesPage() {
     const [roomResult, assetResult, serviceResult] = await Promise.allSettled([
       api<Room[]>("/operations/resources/rooms"),
       api<Asset[]>("/operations/resources/assets"),
-      api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
+      canReadServices ? api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })) : Promise.resolve(null),
     ]);
     const errors: string[] = [];
     if (roomResult.status === "fulfilled") setRooms(roomResult.value);
     else { setRooms([]); errors.push(roomResult.reason instanceof ApiError ? roomResult.reason.message : "Odalar yüklenemedi."); }
     if (assetResult.status === "fulfilled") setAssets(assetResult.value);
     else { setAssets([]); errors.push(assetResult.reason instanceof ApiError ? assetResult.reason.message : "Ekipmanlar yüklenemedi."); }
-    if (serviceResult.status === "fulfilled") setServices(serviceResult.value.data.filter((service) => service.status === "ACTIVE"));
-    else { setServices([]); errors.push(serviceResult.reason instanceof ApiError ? serviceResult.reason.message : "Hizmetler yüklenemedi."); }
+    if (serviceResult.status === "fulfilled" && serviceResult.value) setServices(serviceResult.value.data.filter((service) => service.status === "ACTIVE"));
+    else if (serviceResult.status === "rejected") { setServices([]); errors.push(serviceResult.reason instanceof ApiError ? serviceResult.reason.message : "Hizmetler yüklenemedi."); }
+    else setServices([]);
     if (errors.length) setError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
   }
@@ -219,7 +221,7 @@ export default function OperationsResourcesPage() {
           <Field label="Hizmet"><Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedServiceId} onChange={(event) => void selectService(event.target.value)}><option value="">Hizmet seçin</option>{services.map((service) => <option key={service.id} value={service.id}>{service.name}</option>)}</Select></Field>
           {requirement ? <><Field label="Oda tipi"><TextInput value={requirement.roomType ?? ""} onChange={(event) => setRequirement((current) => current ? { ...current, roomType: event.target.value } : current)} placeholder="Örn. Uygulama odası" /></Field><Field label="Ekipman tipi"><Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={requirement.requiredAssetType ?? ""} disabled={Boolean(requirement.requiredAssetId)} onChange={(event) => setRequirement((current) => current ? { ...current, requiredAssetType: event.target.value || null } : current)}><option value="">Tip gerekmiyor</option>{assetTypes.map((type) => <option key={type} value={type}>{userLabel(type)}</option>)}</Select></Field><Field label="Belirli cihaz"><Select className="min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={requirement.requiredAssetId ?? ""} onChange={(event) => setRequirement((current) => current ? { ...current, requiredAssetId: event.target.value || null, requiredAssetType: event.target.value ? null : current.requiredAssetType } : current)}><option value="">Belirli cihaz gerekmiyor</option>{assets.filter((asset) => !asset.maintenanceBlocked).map((asset) => <option key={asset.id} value={asset.id}>{asset.name} ({asset.assetCode})</option>)}</Select></Field><Field label="Hazırlık (dk)"><TextInput type="number" min="0" max="240" value={requirement.prepDurationMinutes} onChange={(event) => setRequirement((current) => current ? { ...current, prepDurationMinutes: Number(event.target.value) } : current)} /></Field><Field label="Temizlik (dk)"><TextInput type="number" min="0" max="240" value={requirement.cleanupDurationMinutes} onChange={(event) => setRequirement((current) => current ? { ...current, cleanupDurationMinutes: Number(event.target.value) } : current)} /></Field></> : null}
         </div>
-        {requirement ? <div className="mt-5"><Button disabled={!canUpdate || saving} onClick={() => void saveRequirement()}>{saving ? "Kaydediliyor..." : "Gereksinimleri Kaydet"}</Button></div> : null}
+        {requirement ? <div className="mt-5"><Button disabled={!canUpdate || !canReadServices || saving} onClick={() => void saveRequirement()}>{saving ? "Kaydediliyor..." : "Gereksinimleri Kaydet"}</Button></div> : null}
       </section>
     </div>
   );
