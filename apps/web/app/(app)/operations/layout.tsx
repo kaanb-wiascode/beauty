@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
+import { hasPermission } from "@/lib/auth";
 
 const OPERATION_GROUPS = [
   {
@@ -57,6 +58,12 @@ function isActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
+function canSeeOperationTab(href: string) {
+  if (href === "/operations/sales") return hasPermission("sales", "read");
+  if (href === "/operations/sessions") return hasPermission("sessions", "read");
+  return hasPermission("operations", "read");
+}
+
 export default function OperationsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
 
@@ -68,14 +75,17 @@ export default function OperationsLayout({ children }: { children: ReactNode }) 
       >
         <div className="overflow-x-auto px-2 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <div className="flex min-w-max items-stretch gap-1">
-            {OPERATION_GROUPS.map((group, groupIndex) => (
+            {OPERATION_GROUPS.map((group) => {
+              const visibleItems = group.items.filter((tab) => canSeeOperationTab(tab.href));
+              if (!visibleItems.length) return null;
+              return (
               <section key={group.label} className="flex items-center gap-1">
-                {groupIndex > 0 ? <span className="mx-1 h-6 w-px bg-[var(--line)]" aria-hidden="true" /> : null}
+                <span className="mx-1 h-6 w-px bg-[var(--line)] first:hidden" aria-hidden="true" />
                 <div className="flex items-center gap-1">
                   <span className="px-2 text-[9px] font-semibold uppercase tracking-[0.13em] text-[var(--muted-soft)]">
                     {group.label}
                   </span>
-                  {group.items.map((tab) => {
+                  {visibleItems.map((tab) => {
                     const active = isActive(pathname, tab.href);
                     return (
                       <Link
@@ -95,7 +105,8 @@ export default function OperationsLayout({ children }: { children: ReactNode }) 
                   })}
                 </div>
               </section>
-            ))}
+              );
+            })}
           </div>
         </div>
       </nav>
