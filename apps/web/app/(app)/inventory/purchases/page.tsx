@@ -16,7 +16,7 @@ import {
 import { Modal } from "@/components/modal";
 import { InventorySupplierQuickCreate } from "@/components/inventory-supplier-quick-create";
 import { ValooSelect } from "@/components/valoo-controls";
-import { Alert, Button, Field, Select, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
