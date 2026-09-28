@@ -93,7 +93,7 @@ export class OperationsBranchWorkingHoursService {
 
   async assertOpen(input: BranchWorkingHoursCheckInput) {
     const result = await this.check(input);
-    if (!result.allowed) throw new ConflictException({ code: result.reason, message: 'Requested interval is outside configured branch working hours.', rule: result.rule });
+    if (!result.allowed) throw new ConflictException({ code: result.reason, message: 'Seçilen zaman aralığı şubenin tanımlı çalışma saatleri dışındadır.', rule: result.rule });
     return result;
   }
 }
