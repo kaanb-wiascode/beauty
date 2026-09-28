@@ -35,7 +35,7 @@ const confirmationLabels: Record<ConfirmationStatus, string> = {
 };
 
 export default function OperationsEngagementPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [upcoming, setUpcoming] = useState<Upcoming[]>([]);
   const [checkouts, setCheckouts] = useState<Visit[]>([]);
   const [customers, setCustomers] = useState<Customer[]>([]);
