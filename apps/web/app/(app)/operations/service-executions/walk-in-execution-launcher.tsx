@@ -91,8 +91,9 @@ export function WalkInExecutionLauncher({
     if (commercialResult.status === "rejected") errors.push(commercialResult.reason instanceof ApiError ? commercialResult.reason.message : "Ticari bağlam yüklenemedi.");
 
     if (staffResult.status === "fulfilled" && staffResult.value) {
-      setStaff(staffResult.value.data);
-      setStaffId((current) => staffResult.value.data.some((item) => item.id === current) ? current : staffResult.value.data[0]?.id ?? "");
+      const staffData = staffResult.value.data;
+      setStaff(staffData);
+      setStaffId((current) => staffData.some((item) => item.id === current) ? current : staffData[0]?.id ?? "");
     } else if (staffResult.status === "rejected") {
       setStaff([]);
       errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Aktif personel yüklenemedi.");
