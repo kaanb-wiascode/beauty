@@ -1,8 +1,10 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Spinner, TextInput } from "@/components/ui";
+import { MasterDataQuickCreate } from "@/components/master-data-quick-create";
+import { Button, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 
 type Customer = {
   id: string;
@@ -27,6 +29,7 @@ export function CustomerSearchPicker({
   const [rows, setRows] = useState<Customer[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [createOpen, setCreateOpen] = useState(false);
 
   useEffect(() => {
     if (selected && !query) {
@@ -78,7 +81,7 @@ export function CustomerSearchPicker({
       />
       {loading ? <div className="py-2"><Spinner label="Müşteriler aranıyor..." /></div> : null}
       {error ? <p className="text-[11px] text-[#9c513f]">{error}</p> : null}
-      {rows.length ? (
+      {rows.length || (query.trim().length >= 2 && hasPermission("customers", "create")) ? (
         <div className="absolute z-30 max-h-72 w-full overflow-auto rounded-[14px] border border-[var(--line)] bg-white p-1 shadow-xl">
           {rows.map((row) => {
             const contact = row.phone || row.email || "İletişim bilgisi yok";
@@ -98,7 +101,41 @@ export function CustomerSearchPicker({
               </button>
             );
           })}
+          {hasPermission("customers", "create") ? (
+            <div className="mt-1 border-t border-[var(--line)] pt-1">
+              <Button
+                type="button"
+                variant="ghost"
+                className="w-full justify-start text-[12px]"
+                onClick={() => setCreateOpen(true)}
+              >
+                + Yeni müşteri oluştur
+              </Button>
+            </div>
+          ) : null}
         </div>
+      ) : null}
+
+      {createOpen ? (
+        <MasterDataQuickCreate
+          open
+          kind="customer"
+          initialName={query}
+          onClose={() => setCreateOpen(false)}
+          onCreated={(entity) => {
+            const customer: Customer = {
+              id: entity.id,
+              firstName: entity.firstName ?? "",
+              lastName: entity.lastName ?? "",
+              phone: entity.phone ?? null,
+              email: null,
+            };
+            onSelect(customer);
+            setQuery(`${customer.firstName} ${customer.lastName}`.trim());
+            setRows([]);
+            setCreateOpen(false);
+          }}
+        />
       ) : null}
     </div>
   );
