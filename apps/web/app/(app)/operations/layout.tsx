@@ -64,8 +64,15 @@ function canSeeOperationTab(href: string) {
   return hasPermission("operations", "read");
 }
 
+function canAccessOperationPath(pathname: string) {
+  if (pathname.startsWith("/operations/sales")) return hasPermission("sales", "read");
+  if (pathname.startsWith("/operations/sessions")) return hasPermission("sessions", "read");
+  return hasPermission("operations", "read");
+}
+
 export default function OperationsLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
+  const canAccessCurrentPath = canAccessOperationPath(pathname);
 
   return (
     <div className="space-y-4">
@@ -110,7 +117,15 @@ export default function OperationsLayout({ children }: { children: ReactNode }) 
           </div>
         </div>
       </nav>
-      {children}
+      {canAccessCurrentPath ? children : (
+        <section className="mx-auto max-w-[1480px] rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
+          <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-[var(--muted-soft)]">Erişim Kısıtlı</p>
+          <h1 className="mt-2 text-lg font-semibold text-[var(--ink)]">Bu çalışma alanını görüntüleme yetkiniz yok</h1>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-[var(--muted)]">
+            Rolünüz için tanımlı çalışma alanlarını üst menüden kullanabilirsiniz. Bu sayfaya doğrudan bağlantıyla ulaştıysanız yöneticinizden ilgili görüntüleme yetkisini isteyin.
+          </p>
+        </section>
+      )}
     </div>
   );
 }
