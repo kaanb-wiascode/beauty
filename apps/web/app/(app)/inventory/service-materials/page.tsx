@@ -2,18 +2,20 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { InventoryProductQuickCreate } from "@/components/inventory-product-quick-create";
+import { MasterDataQuickCreate } from "@/components/master-data-quick-create";
 import {
   Alert,
   Button,
   Field,
   PageHeader,
   Panel,
-  Select,
   Spinner,
   TextInput,
 } from "@/components/ui";
+import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
-import { hasActiveBranch } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type Service = {
   id: string;
@@ -80,6 +82,8 @@ export default function ServiceMaterialsPage() {
   const [baseError, setBaseError] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [quickServiceName, setQuickServiceName] = useState<string | null>(null);
+  const [quickProduct, setQuickProduct] = useState<{ lineKey: string; name: string } | null>(null);
 
   const loadBase = useCallback(async () => {
     setLoading(true);
@@ -266,17 +270,22 @@ export default function ServiceMaterialsPage() {
             </p>
             <div className="mt-5">
               <Field label="Hizmet">
-                <Select
+                <ValooSelect
                   value={selectedServiceId}
-                  onChange={(event) => setSelectedServiceId(event.target.value)}
-                >
-                  <option value="">Hizmet Seçin</option>
-                  {services.map((service) => (
-                    <option key={service.id} value={service.id}>
-                      {service.name}
-                    </option>
-                  ))}
-                </Select>
+                  onChange={setSelectedServiceId}
+                  placeholder="Hizmet seçin"
+                  searchPlaceholder="Hizmet ara…"
+                  emptyLabel="Hizmet bulunamadı."
+                  options={services.map((service) => ({
+                    value: service.id,
+                    label: service.name,
+                    description: `${service.durationMinutes} dakika`,
+                  }))}
+                  createAction={hasPermission("services", "create") ? {
+                    label: "Yeni hizmet oluştur",
+                    onClick: (query) => setQuickServiceName(query),
+                  } : undefined}
+                />
               </Field>
             </div>
             {selectedService ? (
@@ -324,22 +333,24 @@ export default function ServiceMaterialsPage() {
                   return (
                     <div key={line.key} className="grid gap-3 py-4 md:grid-cols-[minmax(0,1fr)_160px_90px] md:items-end">
                       <Field label="Ürün">
-                        <Select
+                        <ValooSelect
                           value={line.productId}
                           disabled={!activeBranch}
-                          onChange={(event) => updateLine(line.key, { productId: event.target.value })}
-                        >
-                          <option value="">Ürün Seçin</option>
-                          {products.map((product) => (
-                            <option
-                              key={product.id}
-                              value={product.id}
-                              disabled={selectedProductIds.has(product.id) && product.id !== line.productId}
-                            >
-                              {product.name}{product.sku ? ` · ${product.sku}` : ""}
-                            </option>
-                          ))}
-                        </Select>
+                          onChange={(productId) => updateLine(line.key, { productId })}
+                          placeholder="Ürün seçin"
+                          searchPlaceholder="Ürün ara…"
+                          emptyLabel="Ürün bulunamadı."
+                          options={products.map((product) => ({
+                            value: product.id,
+                            label: product.name,
+                            description: product.sku || (UNIT_LABELS[product.unit] ?? product.unit),
+                            disabled: selectedProductIds.has(product.id) && product.id !== line.productId,
+                          }))}
+                          createAction={activeBranch && hasPermission("inventory", "write") ? {
+                            label: "Yeni ürün oluştur",
+                            onClick: (query) => setQuickProduct({ lineKey: line.key, name: query }),
+                          } : undefined}
+                        />
                       </Field>
 
                       <Field
@@ -391,6 +402,51 @@ export default function ServiceMaterialsPage() {
           )}
         </Panel>
       </div>
+      {quickServiceName !== null ? (
+        <MasterDataQuickCreate
+          open
+          kind="service"
+          initialName={quickServiceName}
+          onClose={() => setQuickServiceName(null)}
+          onCreated={(entity) => {
+            const created: Service = {
+              id: entity.id,
+              name: entity.name ?? quickServiceName,
+              status: entity.status ?? "ACTIVE",
+              durationMinutes: entity.durationMinutes ?? 60,
+            };
+            setServices((current) => [
+              ...current.filter((item) => item.id !== created.id),
+              created,
+            ]);
+            setSelectedServiceId(created.id);
+            setQuickServiceName(null);
+          }}
+        />
+      ) : null}
+
+      {quickProduct ? (
+        <InventoryProductQuickCreate
+          open
+          initialName={quickProduct.name}
+          onClose={() => setQuickProduct(null)}
+          onCreated={(entity) => {
+            const created: Product = {
+              id: entity.id,
+              name: entity.name,
+              sku: entity.sku ?? null,
+              unit: entity.unit,
+              status: entity.status ?? "ACTIVE",
+            };
+            setProducts((current) => [
+              ...current.filter((item) => item.id !== created.id),
+              created,
+            ]);
+            updateLine(quickProduct.lineKey, { productId: created.id });
+            setQuickProduct(null);
+          }}
+        />
+      ) : null}
     </div>
   );
 }
