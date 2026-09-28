@@ -58,7 +58,7 @@ export default function OperationsCancellationsPage() {
     setError("");
     try {
       const [appointmentResult, reasonResult, outcomeResult] = await Promise.all([
-        api<Paginated<Appointment>>(withQuery("/appointments", { page: 1, limit: 200, from: dayStart(), to: dayEnd() })),
+        api<Paginated<Appointment>>(withQuery("/appointments", { page: 1, limit: 100, from: dayStart(), to: dayEnd() })),
         api<Reason[]>(withQuery("/operations/appointment-outcomes/reasons", { outcome: selectedOutcome })),
         api<OutcomeRow[]>("/operations/appointment-outcomes?limit=100"),
       ]);
