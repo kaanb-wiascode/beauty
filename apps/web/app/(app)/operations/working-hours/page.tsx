@@ -7,7 +7,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { hasActiveBranch } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 
 type Rule = {
   id: string;
@@ -37,6 +37,7 @@ function defaultDraft(weekday: number): Draft {
 }
 
 export default function BranchWorkingHoursPage() {
+  const canManage = hasPermission("operations", "manage");
   const [drafts, setDrafts] = useState<Draft[]>(DAYS.map((_, index) => defaultDraft(index)));
   const [loading, setLoading] = useState(true);
   const [savingDay, setSavingDay] = useState<number | null>(null);
@@ -45,7 +46,7 @@ export default function BranchWorkingHoursPage() {
 
   const load = () => {
     if (!hasActiveBranch()) {
-      setError("Çalışma saatlarını yönetmek için önce aktif bir şube seçin.");
+      setError("Çalışma saatlerini yönetmek için önce aktif bir şube seçin.");
       setLoading(false);
       return;
     }
@@ -67,7 +68,7 @@ export default function BranchWorkingHoursPage() {
           };
         }));
       })
-      .catch((err) => setError(err instanceof ApiError ? err.message : "Çalışma saatları yüklenemedi."))
+      .catch((err) => setError(err instanceof ApiError ? err.message : "Çalışma saatleri yüklenemedi."))
       .finally(() => setLoading(false));
   };
 
@@ -78,13 +79,14 @@ export default function BranchWorkingHoursPage() {
   };
 
   const save = async (draft: Draft) => {
+    if (!canManage) return;
     setSavingDay(draft.weekday);
     setError("");
     setMessage("");
     try {
       const saved = await api<Rule>("/operations/branch-working-hours", {
         method: "PUT",
-        body: JSON.stringify({
+        body: {
           weekday: draft.weekday,
           isClosed: draft.isClosed,
           opensAt: draft.isClosed ? null : draft.opensAt,
@@ -92,7 +94,7 @@ export default function BranchWorkingHoursPage() {
           crossesMidnight: draft.isClosed ? false : draft.crossesMidnight,
           timeZone: draft.timeZone,
           expectedVersion: draft.version,
-        }),
+        },
       });
       patch(draft.weekday, {
         version: saved.version,
@@ -104,7 +106,7 @@ export default function BranchWorkingHoursPage() {
       });
       setMessage(`${DAYS[draft.weekday]} çalışma saatleri kaydedildi.`);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Çalışma saatları kaydedilemedi.");
+      setError(err instanceof ApiError ? err.message : "Çalışma saatleri kaydedilemedi.");
     } finally {
       setSavingDay(null);
     }
@@ -142,7 +144,7 @@ export default function BranchWorkingHoursPage() {
             <label className="flex min-h-10 items-center gap-2 text-sm text-[var(--ink)]">
               <input type="checkbox" disabled={draft.isClosed} checked={draft.crossesMidnight} onChange={(event) => patch(draft.weekday, { crossesMidnight: event.target.checked })} /> Geceye taşar
             </label>
-            <Button onClick={() => save(draft)} disabled={savingDay !== null}>{savingDay === draft.weekday ? "Kaydediliyor..." : "Kaydet"}</Button>
+            <Button onClick={() => save(draft)} disabled={!canManage || savingDay !== null}>{savingDay === draft.weekday ? "Kaydediliyor..." : "Kaydet"}</Button>
           </div>
         ))}
       </section>
