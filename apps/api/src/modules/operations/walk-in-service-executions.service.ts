@@ -106,7 +106,7 @@ export class WalkInServiceExecutionsService {
     if (!eligibility.allowed) {
       throw new ConflictException({
         code: 'STAFF_ELIGIBILITY_BLOCKED',
-        message: 'Selected staff does not satisfy the active eligibility policy.',
+        message: 'Seçilen personel aktif görev uygunluğu kurallarını karşılamıyor.',
         blockers: eligibility.blockers,
       });
     }
