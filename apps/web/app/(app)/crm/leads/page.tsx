@@ -6,6 +6,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { FormActions, FormGrid, FormHint, FormSection, FormStepper } from "@/components/form-system";
 import { Modal } from "@/components/modal";
+import { MasterDataQuickCreate } from "@/components/master-data-quick-create";
 import {
   Alert,
   Button,
@@ -111,6 +112,7 @@ export default function CrmLeadsPage() {
   const [qualifying, setQualifying] = useState<CrmLead | null>(null);
   const [leadForm, setLeadForm] = useState(emptyLead);
   const [opportunityForm, setOpportunityForm] = useState(emptyOpportunity);
+  const [quickServiceName, setQuickServiceName] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -575,11 +577,16 @@ export default function CrmLeadsPage() {
                   onChange={(interestedServiceIds) => setLeadForm({ ...leadForm, interestedServiceIds })}
                   placeholder="Hizmet seçin"
                   searchPlaceholder="Hizmet ara…"
+                  emptyLabel="Hizmet bulunamadı."
                   options={services.map((service) => ({
                     value: service.id,
                     label: service.name,
                     description: `${service.durationMinutes} dk · ₺${Number(service.price).toLocaleString("tr-TR")}`,
                   }))}
+                  createAction={hasPermission("services", "create") ? {
+                    label: "Yeni hizmet oluştur",
+                    onClick: (query) => setQuickServiceName(query),
+                  } : undefined}
                 />
               </Field>
               <FormGrid className="mt-4">
@@ -730,6 +737,35 @@ export default function CrmLeadsPage() {
           </FormActions>
         </form>
       </Modal>
+
+      {quickServiceName !== null ? (
+        <MasterDataQuickCreate
+          open
+          kind="service"
+          initialName={quickServiceName}
+          onClose={() => setQuickServiceName(null)}
+          onCreated={(entity) => {
+            const created = {
+              id: entity.id,
+              name: entity.name ?? quickServiceName,
+              price: entity.price ?? 0,
+              durationMinutes: entity.durationMinutes ?? 60,
+              status: (entity.status ?? "ACTIVE") as Service["status"],
+            } as Service;
+            setServices((current) => [
+              ...current.filter((item) => item.id !== created.id),
+              created,
+            ]);
+            setLeadForm((current) => ({
+              ...current,
+              interestedServiceIds: Array.from(
+                new Set([...current.interestedServiceIds, created.id]),
+              ),
+            }));
+            setQuickServiceName(null);
+          }}
+        />
+      ) : null}
 
       <Modal
         open={Boolean(qualifying)}
