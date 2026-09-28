@@ -2,7 +2,8 @@
 
 import { useState, type FormEvent } from "react";
 
-import { Alert, Button, Field, Modal, TextInput } from "@/components/ui";
+import { Modal } from "@/components/modal";
+import { Alert, Button, Field, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 
 export type QuickSupplier = {
