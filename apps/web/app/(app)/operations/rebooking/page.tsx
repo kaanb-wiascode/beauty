@@ -148,9 +148,9 @@ export default function OperationsRebookingPage() {
   return (
     <div className="mx-auto max-w-[1420px] space-y-5 pb-10">
       <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Retention Operations</p>
+        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-[var(--muted-soft)]">Müşteri Devamlılığı</p>
         <h1 className="mt-2 text-2xl font-semibold tracking-[-0.03em] text-[var(--ink)]">Yeniden Randevu</h1>
-        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Tamamlanan hizmetlerden sonraki önerilen dönüş tarihini gösterir ve yeni Appointment kaydını kaynak randevuya audit edilebilir biçimde bağlar.</p>
+        <p className="mt-2 max-w-3xl text-sm text-[var(--muted)]">Tamamlanan hizmetlerden sonraki önerilen dönüş tarihini gösterir ve yeni randevuyu kaynak randevuya izlenebilir biçimde bağlar.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -182,7 +182,7 @@ export default function OperationsRebookingPage() {
       </section>
 
       <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)] shadow-sm">
-        <div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Tamamlanan Hizmetler ve Rebooking Fırsatları</h2></div>
+        <div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Tamamlanan Hizmetler ve Yeniden Randevu Fırsatları</h2></div>
         {opportunities.length ? (
           <div className="divide-y divide-[var(--line)]">
             {opportunities.map((item) => (
@@ -190,7 +190,7 @@ export default function OperationsRebookingPage() {
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <p className="text-sm font-semibold text-[var(--ink)]">{item.customerName} · {item.serviceName}</p>
-                    {item.rebooked ? <span className="rounded-full bg-[rgba(47,122,86,0.10)] px-2 py-1 text-[10px] font-semibold text-[#2d5c45]">Rebooked</span> : null}
+                    {item.rebooked ? <span className="rounded-full bg-[rgba(47,122,86,0.10)] px-2 py-1 text-[10px] font-semibold text-[#2d5c45]">Yeniden Randevulandı</span> : null}
                   </div>
                   <p className="mt-1 text-xs text-[var(--muted)]">Son hizmet: {new Date(item.endAt).toLocaleString("tr-TR")} · Personel: {item.staffName}</p>
                   <p className="mt-1 text-xs text-[var(--muted)]">{item.recommendedStartAt ? `Önerilen dönüş: ${new Date(item.recommendedStartAt).toLocaleString("tr-TR")} (${item.recommendedIntervalDays} gün)` : "Bu hizmet için önerilen dönüş aralığı tanımlanmamış."}</p>
