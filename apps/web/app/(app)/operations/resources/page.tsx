@@ -76,7 +76,7 @@ export default function OperationsResourcesPage() {
       const [roomResult, assetResult, serviceResult] = await Promise.all([
         api<Room[]>("/operations/resources/rooms"),
         api<Asset[]>("/operations/resources/assets"),
-        api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 200 })),
+        api<Paginated<Service>>(withQuery("/services", { page: 1, limit: 100 })),
       ]);
       setRooms(roomResult);
       setAssets(assetResult);
