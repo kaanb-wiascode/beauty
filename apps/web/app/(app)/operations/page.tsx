@@ -283,7 +283,7 @@ export default function OperationsPage() {
           from: startOfToday(),
           to: endOfToday(),
         })),
-        api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 200 })),
+        api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
       ]);
       setVisits(visitResult);
       setAppointments(appointmentResult.data);
