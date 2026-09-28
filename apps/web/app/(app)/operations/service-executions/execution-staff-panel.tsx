@@ -7,6 +7,7 @@ import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
 import { userLabel } from "@/lib/user-language";
 import { getCardHelp } from "@/lib/card-help";
+import { hasPermission } from "@/lib/auth";
 
 type Assignment = {
   id: string;
@@ -42,6 +43,7 @@ export function ExecutionStaffPanel({
   onChanged: () => Promise<void>;
   onError: (message: string) => void;
 }) {
+  const canReadStaff = hasPermission("staff", "read");
   const [assignments, setAssignments] = useState<Assignment[]>([]);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [selectedStaffId, setSelectedStaffId] = useState("");
@@ -52,17 +54,19 @@ export function ExecutionStaffPanel({
     setLoading(true);
     const [assignmentRows, staffRows] = await Promise.allSettled([
       api<Assignment[]>(`/operations/service-executions/${executionId}/staff`),
-      api<StaffResponse>("/staff?status=ACTIVE&limit=100&page=1"),
+      canReadStaff ? api<StaffResponse>("/staff?status=ACTIVE&limit=100&page=1") : Promise.resolve(null),
     ]);
     const errors: string[] = [];
     if (assignmentRows.status === "fulfilled") setAssignments(assignmentRows.value);
     else { setAssignments([]); errors.push(assignmentRows.reason instanceof ApiError ? assignmentRows.reason.message : "Personel atamaları yüklenemedi."); }
-    if (staffRows.status === "fulfilled") {
+    if (staffRows.status === "fulfilled" && staffRows.value) {
       setStaff(staffRows.value.data ?? []);
       if (!selectedStaffId && staffRows.value.data?.[0]) setSelectedStaffId(staffRows.value.data[0].id);
-    } else {
+    } else if (staffRows.status === "rejected") {
       setStaff([]);
       errors.push(staffRows.reason instanceof ApiError ? staffRows.reason.message : "Aktif personel listesi yüklenemedi.");
+    } else {
+      setStaff([]);
     }
     if (errors.length) onError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
@@ -174,7 +178,7 @@ export function ExecutionStaffPanel({
         ))}
       </div>
 
-      {canUpdate && availableStaff.length > 0 ? (
+      {canUpdate && canReadStaff && availableStaff.length > 0 ? (
         <div className="mt-3 flex flex-col gap-2 border-t border-[var(--line)] pt-3 sm:flex-row sm:items-end">
           <label className="min-w-0 flex-1">
             <span className="mb-1 block text-[11px] font-semibold text-[var(--muted)]">Personel</span>
