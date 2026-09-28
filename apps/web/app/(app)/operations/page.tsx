@@ -274,26 +274,47 @@ export default function OperationsPage() {
 
     setLoading(true);
     setError("");
-    try {
-      const [visitResult, appointmentResult, customerResult] = await Promise.all([
-        api<Visit[]>(withQuery("/visits", { limit: 200 })),
-        api<Paginated<Appointment>>(withQuery("/appointments", {
-          page: 1,
-          limit: 200,
-          from: startOfToday(),
-          to: endOfToday(),
-        })),
-        api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
-      ]);
-      setVisits(visitResult);
-      setAppointments(appointmentResult.data);
-      setCustomers(customerResult.data);
-      void loadCheckoutReadiness(visitResult);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Operasyon verileri yüklenemedi.");
-    } finally {
-      setLoading(false);
+
+    const [visitResult, appointmentResult, customerResult] = await Promise.allSettled([
+      api<Visit[]>(withQuery("/visits", { limit: 200 })),
+      api<Paginated<Appointment>>(withQuery("/appointments", {
+        page: 1,
+        limit: 100,
+        from: startOfToday(),
+        to: endOfToday(),
+      })),
+      api<Paginated<Customer>>(withQuery("/customers", { page: 1, limit: 100 })),
+    ]);
+
+    const errors: string[] = [];
+
+    if (visitResult.status === "fulfilled") {
+      setVisits(visitResult.value);
+      void loadCheckoutReadiness(visitResult.value);
+    } else {
+      setVisits([]);
+      errors.push(visitResult.reason instanceof ApiError ? visitResult.reason.message : "Ziyaretler yüklenemedi.");
     }
+
+    if (appointmentResult.status === "fulfilled") {
+      setAppointments(appointmentResult.value.data);
+    } else {
+      setAppointments([]);
+      errors.push(appointmentResult.reason instanceof ApiError ? appointmentResult.reason.message : "Bugünkü randevular yüklenemedi.");
+    }
+
+    if (customerResult.status === "fulfilled") {
+      setCustomers(customerResult.value.data);
+    } else {
+      setCustomers([]);
+      errors.push(customerResult.reason instanceof ApiError ? customerResult.reason.message : "Müşteriler yüklenemedi.");
+    }
+
+    if (errors.length) {
+      setError(Array.from(new Set(errors)).join(" "));
+    }
+
+    setLoading(false);
   }, [loadCheckoutReadiness]);
 
   useEffect(() => {
