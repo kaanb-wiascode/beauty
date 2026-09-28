@@ -10,7 +10,7 @@ import { TeamShareAction } from "@/components/team-share-action";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { hasPermission } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { useOperationRealtime } from "@/lib/use-operation-realtime";
 
 type Customer={id:string;firstName:string;lastName:string;phone?:string|null};
@@ -25,6 +25,7 @@ type Sale={
 };
 type PaymentSummary={saleId:string;saleStatus:string;total:number;paid:number;balance:number;paymentStatus:string};
 type LineDraft={type:"SERVICE"|"PACKAGE";referenceId:string;quantity:string};
+type PaginatedResponse<T>={data:T[];meta?:{page:number;limit:number;total:number;totalPages:number}};
 
 const money=(v:number|string|null|undefined)=>new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(Number(v??0));
 const date=(v:string)=>new Date(v).toLocaleDateString("tr-TR");
@@ -39,15 +40,27 @@ export default function SalesPage(){
  const[installmentCount,setInstallmentCount]=useState("2"),[firstDueAt,setFirstDueAt]=useState(new Date().toISOString().slice(0,10)),[intervalMonths,setIntervalMonths]=useState("1");
  const[quickCreate,setQuickCreate]=useState<{kind:QuickCreateKind;name:string;lineIndex:number|null}|null>(null);
 
- const load=useCallback(async()=>{setLoading(true);setError("");try{
-   const[s,c,sv,p]=await Promise.all([
+ const load=useCallback(async()=>{
+   if(!hasActiveBranch()){
+     setSales([]);setCustomers([]);setServices([]);setPackages([]);setLoading(false);
+     setError("Satış ve tahsilat ekranı için önce aktif bir şube seçin.");
+     return;
+   }
+   setLoading(true);setError("");
+   const[s,c,sv,p]=await Promise.allSettled([
     api<Sale[]>("/sales"),
-    api<{data:Customer[]}>("/customers?limit=100"),
-    api<Service[]>("/services?limit=200"),
+    api<PaginatedResponse<Customer>>("/customers?page=1&limit=100"),
+    api<PaginatedResponse<Service>>("/services?page=1&limit=200&status=ACTIVE"),
     api<Package[]>("/packages"),
    ]);
-   setSales(Array.isArray(s)?s:[]);setCustomers(Array.isArray(c.data)?c.data:[]);setServices(Array.isArray(sv)?sv:[]);setPackages(Array.isArray(p)?p:[]);
- }catch(e){setError(e instanceof ApiError?e.message:"Satış verileri yüklenemedi.")}finally{setLoading(false)}},[]);
+   const errors:string[]=[];
+   if(s.status==="fulfilled")setSales(Array.isArray(s.value)?s.value:[]);else{setSales([]);errors.push(s.reason instanceof ApiError?s.reason.message:"Satışlar yüklenemedi.");}
+   if(c.status==="fulfilled")setCustomers(Array.isArray(c.value.data)?c.value.data:[]);else{setCustomers([]);errors.push(c.reason instanceof ApiError?c.reason.message:"Müşteriler yüklenemedi.");}
+   if(sv.status==="fulfilled")setServices(Array.isArray(sv.value.data)?sv.value.data:[]);else{setServices([]);errors.push(sv.reason instanceof ApiError?sv.reason.message:"Hizmetler yüklenemedi.");}
+   if(p.status==="fulfilled")setPackages(Array.isArray(p.value)?p.value:[]);else{setPackages([]);errors.push(p.reason instanceof ApiError?p.reason.message:"Paketler yüklenemedi.");}
+   if(errors.length)setError(Array.from(new Set(errors)).join(" "));
+   setLoading(false);
+ },[]);
  useEffect(()=>{void load()},[load]);
 
  const openDetail=useCallback(async(id:string)=>{setSelectedId(id);setWorking(true);setError("");try{
