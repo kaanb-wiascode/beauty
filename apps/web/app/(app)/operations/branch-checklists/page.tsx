@@ -75,7 +75,7 @@ function today() {
 }
 
 export default function BranchChecklistsPage() {
-  const canUpdate = hasPermission("appointments", "update");
+  const canUpdate = hasPermission("operations", "manage");
   const [templates, setTemplates] = useState<Template[]>([]);
   const [runs, setRuns] = useState<Partial<Record<Category, Run>>>({});
   const [date, setDate] = useState(today());
@@ -95,26 +95,34 @@ export default function BranchChecklistsPage() {
     }
     setLoading(true);
     setError("");
-    try {
-      const [templateResult, runList] = await Promise.all([
-        api<Template[]>("/operations/branch-checklists/templates"),
-        api<Array<Omit<Run, "items">>>(
-          withQuery("/operations/branch-checklists/runs", { from: date, to: date }),
-        ),
-      ]);
-      setTemplates(templateResult);
-      const loadedRuns: Partial<Record<Category, Run>> = {};
-      for (const run of runList) {
-        loadedRuns[run.category] = await api<Run>(
-          `/operations/branch-checklists/runs/${run.id}`,
-        );
-      }
-      setRuns(loadedRuns);
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Şube kontrol listeleri yüklenemedi.");
-    } finally {
-      setLoading(false);
+    const [templateResult, runListResult] = await Promise.allSettled([
+      api<Template[]>("/operations/branch-checklists/templates"),
+      api<Array<Omit<Run, "items">>>(
+        withQuery("/operations/branch-checklists/runs", { from: date, to: date }),
+      ),
+    ]);
+    const errors: string[] = [];
+    if (templateResult.status === "fulfilled") setTemplates(templateResult.value);
+    else { setTemplates([]); errors.push(templateResult.reason instanceof ApiError ? templateResult.reason.message : "Kontrol listesi şablonları yüklenemedi."); }
+
+    const loadedRuns: Partial<Record<Category, Run>> = {};
+    if (runListResult.status === "fulfilled") {
+      const details = await Promise.allSettled(
+        runListResult.value.map((run) => api<Run>(`/operations/branch-checklists/runs/${run.id}`)),
+      );
+      details.forEach((result, index) => {
+        if (result.status === "fulfilled") {
+          loadedRuns[runListResult.value[index].category] = result.value;
+        } else {
+          errors.push(result.reason instanceof ApiError ? result.reason.message : "Kontrol listesi çalışması yüklenemedi.");
+        }
+      });
+    } else {
+      errors.push(runListResult.reason instanceof ApiError ? runListResult.reason.message : "Günlük kontrol listeleri yüklenemedi.");
     }
+    setRuns(loadedRuns);
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }
 
   useEffect(() => {
