@@ -53,6 +53,7 @@ export default function OperationsRebookingPage() {
   const canCreate = hasPermission("appointments", "create");
   const canManagePolicy = hasPermission("services", "update");
   const canReadCustomers = hasPermission("customers", "read");
+  const canReadServices = hasPermission("services", "read");
   const canReadStaff = hasPermission("staff", "read");
 
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -89,7 +90,7 @@ export default function OperationsRebookingPage() {
 
     const requests = await Promise.allSettled([
       api<Opportunity[]>("/operations/rebooking/opportunities"),
-      api<Paginated<Service>>("/services?page=1&limit=100&status=ACTIVE"),
+      canReadServices ? api<Paginated<Service>>("/services?page=1&limit=100&status=ACTIVE") : Promise.resolve(null),
       api<RebookingAnalytics>("/operations/rebooking-analytics?days=90"),
       canReadCustomers
         ? api<Paginated<Customer>>("/customers?page=1&limit=100")
@@ -109,12 +110,14 @@ export default function OperationsRebookingPage() {
       warnings.push(errorMessage(opportunitiesResult.reason, "Tamamlanan hizmetler yüklenemedi."));
     }
 
-    if (servicesResult.status === "fulfilled") {
+    if (servicesResult.status === "fulfilled" && servicesResult.value) {
       setServices(servicesResult.value.data);
-      setPolicyServiceId((current) => current || servicesResult.value.data[0]?.id || "");
-    } else {
+      setPolicyServiceId((current) => current || servicesResult.value?.data[0]?.id || "");
+    } else if (servicesResult.status === "rejected") {
       setServices([]);
       warnings.push(errorMessage(servicesResult.reason, "Hizmetler yüklenemedi."));
+    } else {
+      setServices([]);
     }
 
     if (analyticsResult.status === "fulfilled") {
