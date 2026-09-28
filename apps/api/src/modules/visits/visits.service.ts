@@ -328,6 +328,7 @@ export class VisitsService {
 
     return this.prisma.$queryRawUnsafe<VisitListRow[]>(
       `SELECT v.*,
+              trim(concat(c."firstName", ' ', c."lastName")) AS "customerName",
               COALESCE(
                 ARRAY(
                   SELECT va."appointmentId"
@@ -338,6 +339,10 @@ export class VisitsService {
                 ARRAY[]::TEXT[]
               ) AS "appointmentIds"
        FROM "visits" v
+       JOIN "customers" c
+         ON c."id" = v."customerId"
+        AND c."tenantId" = v."tenantId"
+        AND c."branchId" = v."branchId"
        WHERE ${conditions.join(' AND ')}
        ORDER BY v."createdAt" DESC
        LIMIT $${params.length}`,
