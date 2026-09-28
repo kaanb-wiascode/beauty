@@ -56,21 +56,22 @@ export default function OperationsCancellationsPage() {
     }
     setLoading(true);
     setError("");
-    try {
-      const [appointmentResult, reasonResult, outcomeResult] = await Promise.all([
-        api<Paginated<Appointment>>(withQuery("/appointments", { page: 1, limit: 100, from: dayStart(), to: dayEnd() })),
-        api<Reason[]>(withQuery("/operations/appointment-outcomes/reasons", { outcome: selectedOutcome })),
-        api<OutcomeRow[]>("/operations/appointment-outcomes?limit=100"),
-      ]);
-      setAppointments(appointmentResult.data);
-      setReasons(reasonResult);
-      setHistory(outcomeResult);
-      setReasonId((current) => reasonResult.some((item) => item.id === current) ? current : (reasonResult[0]?.id ?? ""));
-    } catch (err) {
-      setError(err instanceof ApiError ? err.message : "İptal ve gelmeme kayıtları yüklenemedi.");
-    } finally {
-      setLoading(false);
-    }
+    const [appointmentResult, reasonResult, outcomeResult] = await Promise.allSettled([
+      api<Paginated<Appointment>>(withQuery("/appointments", { page: 1, limit: 100, from: dayStart(), to: dayEnd() })),
+      api<Reason[]>(withQuery("/operations/appointment-outcomes/reasons", { outcome: selectedOutcome })),
+      api<OutcomeRow[]>("/operations/appointment-outcomes?limit=100"),
+    ]);
+    const errors: string[] = [];
+    if (appointmentResult.status === "fulfilled") setAppointments(appointmentResult.value.data);
+    else { setAppointments([]); errors.push(appointmentResult.reason instanceof ApiError ? appointmentResult.reason.message : "Randevular yüklenemedi."); }
+    if (reasonResult.status === "fulfilled") {
+      setReasons(reasonResult.value);
+      setReasonId((current) => reasonResult.value.some((item) => item.id === current) ? current : (reasonResult.value[0]?.id ?? ""));
+    } else { setReasons([]); errors.push(reasonResult.reason instanceof ApiError ? reasonResult.reason.message : "İptal nedenleri yüklenemedi."); }
+    if (outcomeResult.status === "fulfilled") setHistory(outcomeResult.value);
+    else { setHistory([]); errors.push(outcomeResult.reason instanceof ApiError ? outcomeResult.reason.message : "İptal geçmişi yüklenemedi."); }
+    if (errors.length) setError(Array.from(new Set(errors)).join(" "));
+    setLoading(false);
   }, []);
 
   useEffect(() => { void load("CANCELLED"); }, [load]);
