@@ -587,6 +587,10 @@ export class AuthService {
         role: membership.role.slug,
         roleScope: membership.role.scope,
         status: membership.status,
+        permissions: membership.role.rolePermissions.map(
+          (item) =>
+            `${item.permission.resource}.${item.permission.action}`,
+        ),
         branchIds: membership.branchAccesses.map((access) => access.branchId),
       },
     };
