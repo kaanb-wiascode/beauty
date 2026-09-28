@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { hasActiveBranch } from "@/lib/auth";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { userLabel } from "@/lib/user-language";
 import type { Appointment, Paginated } from "@/lib/types";
 
@@ -20,6 +20,7 @@ type Reliability = {
 };
 
 export default function OperationsJourneyPage() {
+  const canReadAppointments = hasPermission("appointments", "read");
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [timeline, setTimeline] = useState<Timeline | null>(null);
@@ -35,16 +36,18 @@ export default function OperationsJourneyPage() {
         return;
       }
       const [appointmentsResult, reliabilityResult] = await Promise.allSettled([
-        api<Paginated<Appointment>>("/appointments?page=1&limit=100"),
+        canReadAppointments ? api<Paginated<Appointment>>("/appointments?page=1&limit=100") : Promise.resolve(null),
         api<Reliability>("/operations/reliability?days=180"),
       ]);
       const errors: string[] = [];
-      if (appointmentsResult.status === "fulfilled") {
+      if (appointmentsResult.status === "fulfilled" && appointmentsResult.value) {
         setAppointments(appointmentsResult.value.data);
         setSelectedId(appointmentsResult.value.data[0]?.id ?? "");
-      } else {
+      } else if (appointmentsResult.status === "rejected") {
         setAppointments([]);
         errors.push(appointmentsResult.reason instanceof ApiError ? appointmentsResult.reason.message : "Randevular yüklenemedi.");
+      } else {
+        setAppointments([]);
       }
       if (reliabilityResult.status === "fulfilled") {
         setReliability(reliabilityResult.value);
@@ -55,7 +58,7 @@ export default function OperationsJourneyPage() {
       if (errors.length) setError(Array.from(new Set(errors)).join(" "));
       setLoading(false);
     })();
-  }, []);
+  }, [canReadAppointments]);
 
   async function showTimeline() {
     if (!selectedId) return;
@@ -79,7 +82,7 @@ export default function OperationsJourneyPage() {
       {[["Randevu", reliability.totalAppointments],["Gelmedi", reliability.noShows],["Geç iptal", reliability.lateCancellations],["Katılım", reliability.attendanceRate == null ? "—" : `%${reliability.attendanceRate}`],["Onay", reliability.confirmationRate == null ? "—" : `%${reliability.confirmationRate}`]].map(([label,value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-start justify-between gap-3"><p className="text-xs text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(String(label), "Müşteri yolculuğu güvenilirlik görünümündeki ilgili göstergenin güncel değerini gösterir.")} /></div><p className="mt-2 text-2xl font-semibold text-[var(--ink)]">{value}</p></article>)}
     </section> : null}
     <section className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-sm">
-      <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-xs font-semibold text-[var(--muted)]">Randevu<Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seçin</option>{appointments.map((a) => <option key={a.id} value={a.id}>{new Date(a.startAt).toLocaleString("tr-TR")} · {userLabel(a.status)}</option>)}</Select></label><Button disabled={!selectedId} onClick={() => void showTimeline()}>Zaman çizelgesini göster</Button></div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end"><label className="flex-1 text-xs font-semibold text-[var(--muted)]">Randevu<Select className="mt-2 min-h-11 w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-3 text-sm" value={selectedId} onChange={(e) => setSelectedId(e.target.value)}><option value="">Seçin</option>{appointments.map((a) => <option key={a.id} value={a.id}>{new Date(a.startAt).toLocaleString("tr-TR")} · {userLabel(a.status)}</option>)}</Select></label><Button disabled={!canReadAppointments || !selectedId} onClick={() => void showTimeline()}>Zaman çizelgesini göster</Button></div>
       {timeline ? <div className="mt-5 space-y-3">{timeline.events.map((e, i) => <article key={`${e.occurredAt}-${i}`} className="rounded-[18px] bg-[var(--surface-2)] p-4"><div className="flex gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{e.title}</p><span className="text-[10px] text-[var(--muted)]">{userLabel(e.source)}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{new Date(e.occurredAt).toLocaleString("tr-TR")}</p>{e.detail ? <p className="mt-2 text-xs text-[var(--muted)]">{e.detail}</p> : null}</article>)}</div> : null}
     </section>
     {reliability ? <section className="overflow-hidden rounded-[24px] border border-[var(--line)] bg-[var(--surface)]"><div className="border-b border-[var(--line)] px-6 py-4"><h2 className="text-sm font-semibold text-[var(--ink)]">Müşteri Göstergeleri</h2></div><div className="divide-y divide-[var(--line)]">{reliability.customers.slice(0,30).map((c) => <div key={c.customerId} className="grid gap-2 px-6 py-4 md:grid-cols-[1fr_repeat(4,110px)]"><div><p className="text-sm font-semibold text-[var(--ink)]">{c.customerName}</p><p className="text-xs text-[var(--muted)]">{c.appointmentCount} randevu</p></div><p className="text-xs">Gelmedi {c.noShowCount}</p><p className="text-xs">Geç iptal {c.lateCancellationCount}</p><p className="text-xs">Katılım {c.attendanceRate == null ? "—" : `%${c.attendanceRate}`}</p><p className="text-xs">Onay {c.confirmationRate == null ? "—" : `%${c.confirmationRate}`}</p></div>)}</div></section> : null}
