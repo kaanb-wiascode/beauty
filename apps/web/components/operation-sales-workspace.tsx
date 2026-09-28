@@ -32,6 +32,8 @@ const date=(v:string)=>new Date(v).toLocaleDateString("tr-TR");
 const statusLabels:Record<string,string>={DRAFT:"Taslak",CONFIRMED:"Onaylandı",CANCELLED:"İptal",COMPLETED:"Tamamlandı",REFUNDED:"İade Edildi",UNPAID:"Ödenmedi",PARTIALLY_PAID:"Kısmen Ödendi",PAID:"Ödendi",PENDING:"Bekliyor"};
 
 export default function SalesPage(){
+ const canReadCustomers=hasPermission("customers","read");
+ const canReadServices=hasPermission("services","read");
  const canCreateSale=hasPermission("sales","create");
  const canConfirmSale=hasPermission("sales","confirm");
  const canCancelSale=hasPermission("sales","cancel");
@@ -54,18 +56,18 @@ export default function SalesPage(){
    setLoading(true);setError("");
    const[s,c,sv,p]=await Promise.allSettled([
     api<Sale[]>("/sales"),
-    api<PaginatedResponse<Customer>>("/customers?page=1&limit=100"),
-    api<PaginatedResponse<Service>>("/services?page=1&limit=200&status=ACTIVE"),
-    api<Package[]>("/packages"),
+    canReadCustomers ? api<PaginatedResponse<Customer>>("/customers?page=1&limit=100") : Promise.resolve(null),
+    canReadServices ? api<PaginatedResponse<Service>>("/services?page=1&limit=200&status=ACTIVE") : Promise.resolve(null),
+    canReadServices ? api<Package[]>("/packages") : Promise.resolve(null),
    ]);
    const errors:string[]=[];
    if(s.status==="fulfilled")setSales(Array.isArray(s.value)?s.value:[]);else{setSales([]);errors.push(s.reason instanceof ApiError?s.reason.message:"Satışlar yüklenemedi.");}
-   if(c.status==="fulfilled")setCustomers(Array.isArray(c.value.data)?c.value.data:[]);else{setCustomers([]);errors.push(c.reason instanceof ApiError?c.reason.message:"Müşteriler yüklenemedi.");}
-   if(sv.status==="fulfilled")setServices(Array.isArray(sv.value.data)?sv.value.data:[]);else{setServices([]);errors.push(sv.reason instanceof ApiError?sv.reason.message:"Hizmetler yüklenemedi.");}
-   if(p.status==="fulfilled")setPackages(Array.isArray(p.value)?p.value:[]);else{setPackages([]);errors.push(p.reason instanceof ApiError?p.reason.message:"Paketler yüklenemedi.");}
+   if(c.status==="fulfilled"&&c.value)setCustomers(Array.isArray(c.value.data)?c.value.data:[]);else if(c.status==="rejected"){setCustomers([]);errors.push(c.reason instanceof ApiError?c.reason.message:"Müşteriler yüklenemedi.");}else setCustomers([]);
+   if(sv.status==="fulfilled"&&sv.value)setServices(Array.isArray(sv.value.data)?sv.value.data:[]);else if(sv.status==="rejected"){setServices([]);errors.push(sv.reason instanceof ApiError?sv.reason.message:"Hizmetler yüklenemedi.");}else setServices([]);
+   if(p.status==="fulfilled"&&p.value)setPackages(Array.isArray(p.value)?p.value:[]);else if(p.status==="rejected"){setPackages([]);errors.push(p.reason instanceof ApiError?p.reason.message:"Paketler yüklenemedi.");}else setPackages([]);
    if(errors.length)setError(Array.from(new Set(errors)).join(" "));
    setLoading(false);
- },[]);
+ },[canReadCustomers,canReadServices]);
  useEffect(()=>{void load()},[load]);
 
  const openDetail=useCallback(async(id:string)=>{setSelectedId(id);setWorking(true);setError("");try{
@@ -102,8 +104,9 @@ export default function SalesPage(){
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canCreateSale?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
+  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canCreateSale&&canReadCustomers&&canReadServices?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
   {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
+  {canCreateSale&&(!canReadCustomers||!canReadServices)?<Alert>Yeni satış oluşturmak için müşteri ve hizmet/paket okuma yetkileri gereklidir. Mevcut satışları görüntüleme ve yetkiniz olan tahsilat işlemleri çalışmaya devam eder.</Alert>:null}
   <section className="grid gap-3 sm:grid-cols-3"><Metric label="Satış Sayısı" value={totals.count}/><Metric label="Satış Toplamı" value={money(totals.total)}/><Metric label="Onaylı Satış" value={totals.confirmed}/></section>
   <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
    {sales.length?<div className="overflow-x-auto"><table className="w-full min-w-[980px] text-left text-xs"><thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/40"><th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Müşteri</th><th className="px-4 py-3">Kalem</th><th className="px-4 py-3">İndirim</th><th className="px-4 py-3">Toplam</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3"></th></tr></thead><tbody>
@@ -111,7 +114,7 @@ export default function SalesPage(){
    </tbody></table></div>:<EmptyState title="Satış bulunamadı" description="Henüz satış kaydı oluşturulmamış."/>}
   </section>
 
-  <Modal open={createOpen&&canCreateSale} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet/paket ekleyin.">
+  <Modal open={createOpen&&canCreateSale&&canReadCustomers&&canReadServices} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet/paket ekleyin.">
    <form onSubmit={createSale} className="space-y-5">
     <Field label="Müşteri" required><ValooSelect value={customerId} onChange={setCustomerId} placeholder="Müşteri seçin" searchPlaceholder="Müşteri ara…" emptyLabel="Müşteri bulunamadı." options={customers.map(item=>({value:item.id,label:`${item.firstName} ${item.lastName}`,description:item.phone??undefined}))} createAction={hasPermission("customers","create")?{label:"Yeni müşteri oluştur",onClick:(query)=>setQuickCreate({kind:"customer",name:query,lineIndex:null})}:undefined}/></Field>
     <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Satış Kalemleri</h3><Button type="button" size="sm" variant="secondary" onClick={()=>setLines([...lines,{type:"SERVICE",referenceId:"",quantity:"1"}])}>+ Kalem</Button></div>
