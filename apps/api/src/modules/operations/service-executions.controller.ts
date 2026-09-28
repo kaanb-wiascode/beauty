@@ -77,7 +77,7 @@ export class ServiceExecutionsController {
     const checklist = await this.checklists.getExecutionChecklist(executionId);
     if (checklist.completionBlocked) {
       throw new BadRequestException(
-        'Required service checklist items must be completed first.',
+        'Hizmeti tamamlamadan önce zorunlu kontrol listesi maddelerini tamamlayın.',
       );
     }
     return this.executions.complete(
