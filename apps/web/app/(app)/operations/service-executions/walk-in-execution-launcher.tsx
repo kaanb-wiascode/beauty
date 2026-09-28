@@ -7,6 +7,7 @@ import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { userLabel } from "@/lib/user-language";
+import { hasPermission } from "@/lib/auth";
 import type { Paginated, Staff } from "@/lib/types";
 
 type CommercialItem = {
@@ -56,6 +57,7 @@ export function WalkInExecutionLauncher({
   onChanged: () => Promise<void>;
   onError: (message: string) => void;
 }) {
+  const canReadStaff = hasPermission("staff", "read");
   const [context, setContext] = useState<CommercialContext | null>(null);
   const [staff, setStaff] = useState<Staff[]>([]);
   const [saleOptions, setSaleOptions] = useState<SaleOption[]>([]);
@@ -74,7 +76,7 @@ export function WalkInExecutionLauncher({
     setLoading(true);
     const [commercialResult, staffResult, roomResult, assetResult, visitResult, salesResult] = await Promise.allSettled([
       api<CommercialContext | null>(`/operations/walk-in-commercial/${visitId}`),
-      api<Paginated<Staff>>(`/staff?page=1&limit=100&status=ACTIVE`),
+      canReadStaff ? api<Paginated<Staff>>(`/staff?page=1&limit=100&status=ACTIVE`) : Promise.resolve(null),
       api<Room[]>(`/operations/resources/rooms`),
       api<Asset[]>(`/operations/resources/assets`),
       api<VisitSummary>(`/visits/${visitId}`),
@@ -88,12 +90,14 @@ export function WalkInExecutionLauncher({
     setContext(commercial);
     if (commercialResult.status === "rejected") errors.push(commercialResult.reason instanceof ApiError ? commercialResult.reason.message : "Ticari bağlam yüklenemedi.");
 
-    if (staffResult.status === "fulfilled") {
+    if (staffResult.status === "fulfilled" && staffResult.value) {
       setStaff(staffResult.value.data);
       setStaffId((current) => staffResult.value.data.some((item) => item.id === current) ? current : staffResult.value.data[0]?.id ?? "");
-    } else {
+    } else if (staffResult.status === "rejected") {
       setStaff([]);
       errors.push(staffResult.reason instanceof ApiError ? staffResult.reason.message : "Aktif personel yüklenemedi.");
+    } else {
+      setStaff([]);
     }
 
     if (roomResult.status === "fulfilled") setRooms(roomResult.value);
@@ -274,7 +278,7 @@ export function WalkInExecutionLauncher({
       <div className="mt-3 flex justify-end">
         <Button
           disabled={
-            !canUpdate || busy || !selectedItem || !staffId ||
+            !canUpdate || !canReadStaff || busy || !selectedItem || !staffId ||
             Boolean(requirement?.roomType && !roomId) ||
             Boolean((requirement?.requiredAssetId || requirement?.requiredAssetType) && !assetId)
           }
