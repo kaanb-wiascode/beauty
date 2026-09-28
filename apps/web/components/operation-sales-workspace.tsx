@@ -32,6 +32,11 @@ const date=(v:string)=>new Date(v).toLocaleDateString("tr-TR");
 const statusLabels:Record<string,string>={DRAFT:"Taslak",CONFIRMED:"Onaylandı",CANCELLED:"İptal",COMPLETED:"Tamamlandı",REFUNDED:"İade Edildi",UNPAID:"Ödenmedi",PARTIALLY_PAID:"Kısmen Ödendi",PAID:"Ödendi",PENDING:"Bekliyor"};
 
 export default function SalesPage(){
+ const canCreateSale=hasPermission("sales","create");
+ const canConfirmSale=hasPermission("sales","confirm");
+ const canCancelSale=hasPermission("sales","cancel");
+ const canCollect=hasPermission("sales","collect");
+ const canRefund=hasPermission("sales","refund");
  const[sales,setSales]=useState<Sale[]>([]),[customers,setCustomers]=useState<Customer[]>([]),[services,setServices]=useState<Service[]>([]),[packages,setPackages]=useState<Package[]>([]);
  const[loading,setLoading]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const[createOpen,setCreateOpen]=useState(false),[selectedId,setSelectedId]=useState(""),[selected,setSelected]=useState<Sale|null>(null),[summary,setSummary]=useState<PaymentSummary|null>(null);
@@ -97,7 +102,7 @@ export default function SalesPage(){
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin." action={<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>}/>
+  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canCreateSale?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
   {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
   <section className="grid gap-3 sm:grid-cols-3"><Metric label="Satış Sayısı" value={totals.count}/><Metric label="Satış Toplamı" value={money(totals.total)}/><Metric label="Onaylı Satış" value={totals.confirmed}/></section>
   <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
@@ -106,7 +111,7 @@ export default function SalesPage(){
    </tbody></table></div>:<EmptyState title="Satış bulunamadı" description="Henüz satış kaydı oluşturulmamış."/>}
   </section>
 
-  <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet/paket ekleyin.">
+  <Modal open={createOpen&&canCreateSale} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet/paket ekleyin.">
    <form onSubmit={createSale} className="space-y-5">
     <Field label="Müşteri" required><ValooSelect value={customerId} onChange={setCustomerId} placeholder="Müşteri seçin" searchPlaceholder="Müşteri ara…" emptyLabel="Müşteri bulunamadı." options={customers.map(item=>({value:item.id,label:`${item.firstName} ${item.lastName}`,description:item.phone??undefined}))} createAction={hasPermission("customers","create")?{label:"Yeni müşteri oluştur",onClick:(query)=>setQuickCreate({kind:"customer",name:query,lineIndex:null})}:undefined}/></Field>
     <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Satış Kalemleri</h3><Button type="button" size="sm" variant="secondary" onClick={()=>setLines([...lines,{type:"SERVICE",referenceId:"",quantity:"1"}])}>+ Kalem</Button></div>
@@ -125,9 +130,9 @@ export default function SalesPage(){
    {working&&!selected?<Spinner label="Satış yükleniyor..."/>:selected?<div className="space-y-5">
     <section className="grid gap-3 sm:grid-cols-4"><Metric label="Toplam" value={money(selected.total)}/><Metric label="Ödenen" value={money(summary?.paid)}/><Metric label="Kalan" value={money(summary?.balance)}/><Metric label="Ödeme Durumu" value={statusLabels[summary?.paymentStatus??""]??summary?.paymentStatus??"—"}/></section>
     <section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Satış Kalemleri</div>{selected.items.map(item=><div key={item.id} className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-[var(--line)] px-4 py-3 last:border-0"><span>{item.description}</span><span className="text-[var(--muted)]">{item.quantity} adet</span><strong>{money(item.lineTotal)}</strong></div>)}</section>
-    <div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "SALE", id: selected.id, title: money(selected.total), subtitle: selected.customer ? `${selected.customer.firstName} ${selected.customer.lastName}` : "Satış", meta: [statusLabels[selected.status] ?? selected.status, `${selected.items?.length ?? 0} kalem`, date(selected.createdAt)], href: "/operations/sales" }} />{selected.status==="DRAFT"?<Button onClick={()=>void saleAction("confirm")} disabled={working}>Satışı Onayla</Button>:null}{selected.status==="DRAFT"?<Button variant="danger" onClick={()=>void saleAction("cancel")} disabled={working}>İptal Et</Button>:null}</div>
+    <div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "SALE", id: selected.id, title: money(selected.total), subtitle: selected.customer ? `${selected.customer.firstName} ${selected.customer.lastName}` : "Satış", meta: [statusLabels[selected.status] ?? selected.status, `${selected.items?.length ?? 0} kalem`, date(selected.createdAt)], href: "/operations/sales" }} />{selected.status==="DRAFT"&&canConfirmSale?<Button onClick={()=>void saleAction("confirm")} disabled={working}>Satışı Onayla</Button>:null}{selected.status==="DRAFT"&&canCancelSale?<Button variant="danger" onClick={()=>void saleAction("cancel")} disabled={working}>İptal Et</Button>:null}</div>
 
-    {selected.status==="CONFIRMED"&&Number(summary?.balance??0)>0?<form onSubmit={addPayment} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-4">
+    {selected.status==="CONFIRMED"&&Number(summary?.balance??0)>0&&canCollect?<form onSubmit={addPayment} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-4">
       <Field label="Ödeme Tutarı"><TextInput type="number" min="0.01" step="0.01" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></Field>
       <Field label="Yöntem"><Select value={paymentMethod} onChange={e=>setPaymentMethod(e.target.value as typeof paymentMethod)}><option value="CARD">Kart</option><option value="CASH">Nakit</option><option value="TRANSFER">Havale / EFT</option></Select></Field>
       <Field label="Referans"><TextInput value={paymentReference} onChange={e=>setPaymentReference(e.target.value)}/></Field>
@@ -135,7 +140,7 @@ export default function SalesPage(){
       <div className="md:col-span-4"><Field label="Not"><TextArea rows={2} value={paymentNote} onChange={e=>setPaymentNote(e.target.value)}/></Field></div>
     </form>:null}
 
-    <section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Ödeme Geçmişi</div>{selected.payments?.length?selected.payments.map(p=><div key={p.id} className="grid gap-2 border-b border-[var(--line)] px-4 py-3 last:border-0 md:grid-cols-[1fr_1fr_1fr_auto]"><span>{money(p.amount)}</span><span className="text-[var(--muted)]">{p.method}</span><span className="text-[var(--muted)]">{p.reference??date(p.paidAt)}</span>{p.status==="COMPLETED"?<Button size="sm" variant="danger" onClick={()=>void refund(p)} disabled={working}>İade Et</Button>:<span>{statusLabels[p.status]??p.status}</span>}</div>):<div className="p-4 text-sm text-[var(--muted)]">Henüz ödeme yok.</div>}</section>
+    <section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Ödeme Geçmişi</div>{selected.payments?.length?selected.payments.map(p=><div key={p.id} className="grid gap-2 border-b border-[var(--line)] px-4 py-3 last:border-0 md:grid-cols-[1fr_1fr_1fr_auto]"><span>{money(p.amount)}</span><span className="text-[var(--muted)]">{p.method}</span><span className="text-[var(--muted)]">{p.reference??date(p.paidAt)}</span>{p.status==="COMPLETED"&&canRefund?<Button size="sm" variant="danger" onClick={()=>void refund(p)} disabled={working}>İade Et</Button>:<span>{statusLabels[p.status]??p.status}</span>}</div>):<div className="p-4 text-sm text-[var(--muted)]">Henüz ödeme yok.</div>}</section>
 
     {!selected.installmentPlan&&selected.status==="CONFIRMED"?<form onSubmit={createInstallment} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-4"><Field label="Taksit Sayısı"><TextInput type="number" min="2" max="60" value={installmentCount} onChange={e=>setInstallmentCount(e.target.value)}/></Field><Field label="İlk Vade"><TextInput type="date" value={firstDueAt} onChange={e=>setFirstDueAt(e.target.value)}/></Field><Field label="Ay Aralığı"><TextInput type="number" min="1" max="24" value={intervalMonths} onChange={e=>setIntervalMonths(e.target.value)}/></Field><div className="flex items-end"><Button className="w-full" type="submit" disabled={working}>Taksit Planı Oluştur</Button></div></form>:null}
     {selected.installmentPlan?<section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Taksit Planı</div>{selected.installmentPlan.installments.map(i=><div key={i.id} className="grid grid-cols-4 gap-3 border-b border-[var(--line)] px-4 py-3 last:border-0"><span>{i.sequence}. Taksit</span><span>{date(i.dueAt)}</span><span>{money(i.amount)}</span><span>{statusLabels[i.status]??i.status}</span></div>)}</section>:null}
