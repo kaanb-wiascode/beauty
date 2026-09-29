@@ -312,5 +312,33 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       bankTransactionId,
     );
     expect(bankRows[0]?.reconciliationStatus).toBe('UNMATCHED');
+
+    const controlProjection = await request(app.getHttpServer())
+      .get('/finance/control/projection')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(controlProjection.body.ledger).toEqual(expect.objectContaining({
+      bank: expect.any(Number),
+      supplierPayable: expect.any(Number),
+    }));
+
+    const auditTrail = await request(app.getHttpServer())
+      .get('/finance/control/audit-trail?limit=200')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(
+      auditTrail.body.some(
+        (event: { domain?: string; eventType?: string }) =>
+          event.domain === 'RECONCILIATION' &&
+          event.eventType === 'RECONCILIATION_REVERSED',
+      ),
+    ).toBe(true);
+
+    const cfo = await request(app.getHttpServer())
+      .get('/profitability/cfo/management-cockpit')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(cfo.body.baseCurrency).toBe('TRY');
+    expect(cfo.body.workingCapital).toBeTruthy();
   });
 });
