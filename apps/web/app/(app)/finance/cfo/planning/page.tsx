@@ -13,7 +13,7 @@ export default function CfoPlanningPage() {
     <EnterpriseDataPage
       eyebrow="Finans Yönetimi · Planlama ve Kârlılık"
       title="Finans Planlama ve Kârlılık"
-      description="Bütçe, maliyet merkezi, net kârlılık, nakit senaryoları, finansal sağlık ve yönetim politikalarını backend verileriyle tek merkezden yönetin."
+      description="Bütçe, maliyet merkezi, kârlılık, nakit senaryoları ve finansal sağlık göstergelerini tek merkezden yönetin."
       sections={[
         { title: "Kârlılık Özeti", path: `/profitability/summary?from=${from}&to=${to}` },
         { title: "Şube Kârlılığı", path: `/profitability/branches?from=${from}&to=${to}` },
@@ -61,95 +61,47 @@ export default function CfoPlanningPage() {
       forms={[
         {
           title: "Maliyet Merkezi Oluştur",
+          description: "Örneğin Merkez Ofis, Pazarlama veya Şube Operasyonları gibi giderlerinizi takip edeceğiniz bir alan oluşturun.",
           path: "/profitability/cost-centers",
           fields: [
-            { name: "code", label: "Kod", required: true },
-            { name: "name", label: "Ad", required: true },
+            { name: "code", label: "Kısa Ad", placeholder: "Örn. MERKEZ", required: true },
+            { name: "name", label: "Maliyet Merkezi Adı", placeholder: "Örn. Merkez Ofis", required: true },
           ],
         },
+
         {
-          title: "Maliyet Merkezi Dağılımı Kaydet",
-          path: "/profitability/cost-centers/{id}/allocations",
-          fields: [
-            { name: "id", label: "Maliyet Merkezi Kodu", required: true },
-            {
-              name: "allocations",
-              label: "Şube Dağılımları",
-              type: "json",
-              required: true,
-              placeholder: '[{"branchId":"ŞUBE_KODU","percent":100}]',
-            },
-          ],
-        },
-        {
-          title: "Muhasebe Satırına Maliyet Merkezi Ata",
-          path: "/profitability/journal-lines/{journalEntryLineId}/cost-center",
-          fields: [
-            { name: "journalEntryLineId", label: "Yevmiye Satırı Kodu", required: true },
-            { name: "costCenterId", label: "Maliyet Merkezi Kodu", required: true },
-          ],
-        },
-        {
-          title: "Bütçe Kaydet",
-          path: "/profitability/budgets",
-          fields: [
-            { name: "targetType", label: "Hedef Türü", type: "select", required: true, options: [{ value: "BRANCH", label: "Şube" }, { value: "COST_CENTER", label: "Maliyet Merkezi" }] },
-            { name: "targetId", label: "Hedef Kodu", required: true },
-            { name: "metricType", label: "Bütçe Türü", type: "select", required: true, options: [{ value: "REVENUE", label: "Gelir" }, { value: "EXPENSE", label: "Gider" }] },
-            { name: "periodStart", label: "Başlangıç", type: "date", required: true, defaultValue: from },
-            { name: "periodEnd", label: "Bitiş", type: "date", required: true, defaultValue: to },
-            { name: "amount", label: "Tutar", type: "number", required: true },
-            { name: "note", label: "Not", type: "textarea" },
-          ],
-        },
-        {
-          title: "Hazine Risk Ayarlarını Güncelle",
+          title: "Nakit Güvenlik Ayarlarını Güncelle",
           path: "/profitability/treasury/settings",
           fields: [
-            { name: "minimumLiquidity", label: "Minimum Likidite", type: "number", required: true },
-            { name: "warningBufferPercent", label: "Uyarı Tamponu (%)", type: "number" },
-            { name: "reportingCurrency", label: "Raporlama Para Birimi", defaultValue: "TRY" },
+            { name: "minimumLiquidity", label: "Korunacak Minimum Nakit", type: "number", required: true },
+            { name: "warningBufferPercent", label: "Erken Uyarı Payı (%)", type: "number" },
+            { name: "reportingCurrency", label: "Raporlarda Gösterilecek Para Birimi", defaultValue: "TRY", placeholder: "TRY, EUR, USD" },
           ],
         },
         {
           title: "Finansal Sağlık Eşiklerini Güncelle",
           path: "/profitability/cfo/health/thresholds",
           fields: [
-            { name: "minimumHealthScore", label: "Minimum Sağlık Skoru", type: "number" },
+            { name: "minimumHealthScore", label: "Minimum Finansal Sağlık Puanı", type: "number" },
             { name: "minimumRunwayWeeks", label: "Minimum Nakit Dayanma Haftası", type: "number" },
-            { name: "maximumDsoDays", label: "Maksimum Tahsilat Günü", type: "number" },
+            { name: "maximumDsoDays", label: "En Fazla Ortalama Tahsilat Süresi (gün)", type: "number" },
             { name: "minimumNetWorkingCapital", label: "Minimum Net Çalışma Sermayesi", type: "number" },
-            { name: "maximumOverdueReceivableRatio", label: "Maksimum Gecikmiş Alacak Oranı (%)", type: "number" },
-            { name: "maximumLiquidityAlerts", label: "Maksimum Likidite Uyarısı", type: "number" },
+            { name: "maximumOverdueReceivableRatio", label: "En Fazla Gecikmiş Alacak Oranı (%)", type: "number" },
+            { name: "maximumLiquidityAlerts", label: "En Fazla Aktif Likidite Uyarısı", type: "number" },
           ],
         },
         {
-          title: "Finans Görev Politikası Güncelle",
+          title: "Finans Görev Sürelerini Güncelle",
           path: "/profitability/cfo/actions/policy",
           fields: [
             { name: "criticalHours", label: "Kritik Görev Süresi (saat)", type: "number" },
             { name: "highHours", label: "Yüksek Görev Süresi (saat)", type: "number" },
             { name: "mediumHours", label: "Orta Görev Süresi (saat)", type: "number" },
             { name: "lowHours", label: "Düşük Görev Süresi (saat)", type: "number" },
-            { name: "escalationGraceHours", label: "Eskalasyon Ek Süresi (saat)", type: "number" },
+            { name: "escalationGraceHours", label: "Gecikme Sonrası Ek Süre (saat)", type: "number" },
           ],
         },
-        {
-          title: "Personel Komisyon Oranı Güncelle",
-          path: "/profitability/staff/{staffId}/commission",
-          fields: [
-            { name: "staffId", label: "Personel Kodu", required: true },
-            { name: "rate", label: "Komisyon Oranı (%)", type: "number", required: true },
-          ],
-        },
-        {
-          title: "Satış Kalemini Randevuya Bağla",
-          path: "/profitability/sale-items/{saleItemId}/attribute",
-          fields: [
-            { name: "saleItemId", label: "Satış Kalemi Kodu", required: true },
-            { name: "appointmentId", label: "Randevu Kodu", required: true },
-          ],
-        },
+
       ]}
     />
   );
