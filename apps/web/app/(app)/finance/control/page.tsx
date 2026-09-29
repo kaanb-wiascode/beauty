@@ -20,6 +20,7 @@ type Projection = {
 type Integrity = { healthy:boolean; issueCount:number; criticalCount:number; checkedAt:string; issues:Array<{code:string;severity:string;domain:string;recordId:string|null;title:string;detail:string}> };
 type Validation = { valid:boolean; tolerance:number; checks:Array<{code:string;label:string;expected:number;actual:number;variance:number;ok:boolean}> };
 type Audit = { id:string; createdAt:string; domain:string; eventType:string; recordId:string|null; actorId:string|null; reason:string|null };
+type FinanceSettings = { companyId:string; name?:string; baseCurrency:string };
 type Period = { id:string; name:string; startsAt:string; endsAt:string; status:"OPEN"|"CLOSED"; closedAt?:string|null; closeReason?:string|null };
 type PeriodCloseChecklist = {
   closable:boolean;
@@ -29,6 +30,8 @@ type PeriodCloseChecklist = {
 
 export default function FinanceControlPage(){
   const[projection,setProjection]=useState<Projection|null>(null);
+  const[settings,setSettings]=useState<FinanceSettings|null>(null);
+  const[baseCurrencyInput,setBaseCurrencyInput]=useState("");
   const[integrity,setIntegrity]=useState<Integrity|null>(null);
   const[validation,setValidation]=useState<Validation|null>(null);
   const[audit,setAudit]=useState<Audit[]>([]);
@@ -44,18 +47,30 @@ export default function FinanceControlPage(){
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
-      const[p,i,v,a,fp]=await Promise.all([
+      const[p,i,v,a,fp,s]=await Promise.all([
         api<Projection>("/finance/control/projection"),
         api<Integrity>("/finance/control/integrity"),
         api<Validation>("/finance/control/kpi-validation"),
         api<Audit[]>("/finance/control/audit-trail?limit=100"),
         api<Period[]>("/finance/periods"),
+        api<FinanceSettings>("/finance/control/settings"),
       ]);
-      setProjection(p);setIntegrity(i);setValidation(v);setAudit(a);setPeriods(fp);
+      setProjection(p);setIntegrity(i);setValidation(v);setAudit(a);setPeriods(fp);setSettings(s);setBaseCurrencyInput(s.baseCurrency||"TRY");
     }catch(e){setError(e instanceof ApiError?e.message:"Finans kontrol verileri yüklenemedi.");}
     finally{setLoading(false);}
   },[]);
   useEffect(()=>{void load();},[load]);
+
+  async function saveBaseCurrency(){
+    const value=baseCurrencyInput.trim().toUpperCase();
+    if(!/^[A-Z]{3}$/.test(value))return;
+    setPeriodBusy(true);setError("");
+    try{
+      const updated=await api<FinanceSettings>("/finance/control/settings",{method:"PUT",body:{baseCurrency:value}});
+      setSettings(updated);setBaseCurrencyInput(updated.baseCurrency);
+    }catch(e){setError(e instanceof ApiError?e.message:"Baz para birimi güncellenemedi.");}
+    finally{setPeriodBusy(false);}
+  }
 
   async function createPeriod(){
     if(!canManagePeriods||!periodName.trim()||!periodFrom||!periodTo)return;
@@ -169,6 +184,14 @@ export default function FinanceControlPage(){
         </div>
       </FinancePanel>
       <FinancePanel title="Teknik ve Yönetim Ayarları" description="Günlük finans kullanıcılarından ayrıştırılmış yönetim araçları">
+        <div className="mb-4 rounded-[14px] border border-[var(--line)] p-4">
+          <p className="text-[11px] font-semibold text-[var(--ink)]">Şirket Baz Para Birimi</p>
+          <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Muhasebe defterinin functional currency değeridir. Muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.</p>
+          <div className="mt-3 flex gap-2">
+            <input value={baseCurrencyInput} maxLength={3} onChange={e=>setBaseCurrencyInput(e.target.value.toUpperCase())} className="control h-10 w-28 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px] uppercase" placeholder={settings?.baseCurrency||"TRY"}/>
+            <Button disabled={periodBusy||!canManagePeriods||!/^[A-Z]{3}$/.test(baseCurrencyInput)} onClick={()=>void saveBaseCurrency()}>Kaydet</Button>
+          </div>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2">
           <Quick href="/finance/configuration" title="Muhasebe Eşlemeleri" text="Gelir ve gider kategorilerinin hesap planı eşlemeleri"/>
           <Quick href="/finance/integrations" title="Banka ve POS Bağlantıları" text="Finansal veri sağlayıcıları ve bağlantı ayarları"/>
