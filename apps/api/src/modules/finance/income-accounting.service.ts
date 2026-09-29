@@ -201,11 +201,12 @@ export class IncomeAccountingService {
         return { id: income.id, accountingStatus: 'POSTED', journalEntryId: existing.id, idempotent: true };
       }
 
+      const exchangeRate = Number(income.exchangeRate);
       const lines = buildIncomeAccrualJournalLines(
         {
-          grossAmount: Number(income.grossAmount),
-          netAmount: Number(income.netAmount),
-          taxAmount: Number(income.taxAmount),
+          grossAmount: Number(income.grossAmount) * exchangeRate,
+          netAmount: Number(income.netAmount) * exchangeRate,
+          taxAmount: Number(income.taxAmount) * exchangeRate,
         },
         mapping,
       );
@@ -282,11 +283,12 @@ export class IncomeAccountingService {
       throw new BadRequestException('A positive exchange rate is required for foreign-currency income.');
     }
     try {
+      const exchangeRate = Number(income.exchangeRate);
       buildIncomeAccrualJournalLines(
         {
-          grossAmount: Number(income.grossAmount),
-          netAmount: Number(income.netAmount),
-          taxAmount: Number(income.taxAmount),
+          grossAmount: Number(income.grossAmount) * exchangeRate,
+          netAmount: Number(income.netAmount) * exchangeRate,
+          taxAmount: Number(income.taxAmount) * exchangeRate,
         },
         mapping,
       );
