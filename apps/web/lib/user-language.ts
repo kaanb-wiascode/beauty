@@ -397,6 +397,7 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   "Para birimi 3 harfli ISO kodu olmalıdır.": "Para Birimi 3 Harfli Bir Kod Olmalıdır. Örnek: TRY, EUR, USD.",
   "Döviz kuru sıfırdan büyük olmalıdır.": "Döviz Kuru Sıfırdan Büyük Olmalıdır.",
   "Baz para birimi, muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.": "Muhasebeleştirilmiş Kayıt Bulunduğu İçin Şirketin Baz Para Birimi Artık Değiştirilemez.",
+  "Baz para birimi, finansal kayıt oluşturulduktan sonra değiştirilemez.": "Finansal Kayıt Oluşturulduğu İçin Şirketin Baz Para Birimi Artık Değiştirilemez.",
   "Yevmiye kaydını oluşturan kullanıcı aynı kaydı onaylayamaz.": "Yevmiye Kaydını Oluşturan Kullanıcı Aynı Kaydı Onaylayamaz.",
   "Kaydı oluşturan veya onaylayan kullanıcı aynı kaydı muhasebeleştiremez.": "Yevmiye Kaydını Oluşturan Veya Onaylayan Kullanıcı Aynı Kaydı Muhasebeleştiremez.",
   "Yalnızca taslak yevmiye kaydı onaya gönderilebilir.": "Yalnızca Taslak Yevmiye Kaydı Onaya Gönderilebilir.",
