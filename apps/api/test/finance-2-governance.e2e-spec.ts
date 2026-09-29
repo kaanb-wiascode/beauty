@@ -470,4 +470,150 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
     expect(reopened.body.status).toBe('OPEN');
   });
 
+
+  it('posts USD expense settlement FX loss and protects closed-period cash mutations', async () => {
+    const [expenseCategories, accounts] = await Promise.all([
+      request(app.getHttpServer()).get('/finance/setup/expense-categories').set('Authorization', authorization).expect(200),
+      request(app.getHttpServer()).get('/accounting/accounts').set('Authorization', authorization).expect(200),
+    ]);
+    const category = expenseCategories.body.find((item: { id: string; active: boolean }) => item.active);
+    const bank = accounts.body.find((item: { code: string }) => item.code === '102');
+    const expenseAccount = accounts.body.find((item: { type: string; code: string }) => item.type === 'EXPENSE' && item.code !== '656');
+    const payable = accounts.body.find((item: { type: string }) => item.type === 'LIABILITY');
+    expect(category?.id).toBeTruthy();
+    expect(bank?.id).toBeTruthy();
+    expect(expenseAccount?.id).toBeTruthy();
+    expect(payable?.id).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .put('/finance/setup/expense-accounting-mappings')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: category.id,
+        expenseAccountId: expenseAccount.id,
+        payableAccountId: payable.id,
+      })
+      .expect(200);
+
+    const expense = await request(app.getHttpServer())
+      .post('/finance/expenses')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: category.id,
+        transactionDate: '2198-06-10T12:00:00.000Z',
+        grossAmount: 1000,
+        netAmount: 1000,
+        taxAmount: 0,
+        withholdingAmount: 0,
+        currency: 'USD',
+        exchangeRate: 35,
+        description: 'USD kur farkı kabul testi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/submit`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/approve`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/accounting/prepare`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/accounting/post`).set('Authorization', authorization).expect(201);
+
+    const payment = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({
+        amount: 1000,
+        paymentAccountId: bank.id,
+        method: 'TRANSFER',
+        exchangeRate: 36,
+        paidAt: '2198-06-11T12:00:00.000Z',
+      })
+      .expect(201);
+
+    expect(payment.body.realizedFxDifference).toBeCloseTo(1000, 2);
+    const paymentLines = await prisma.journalEntryLine.findMany({
+      where: { journalEntryId: payment.body.journalEntryId },
+      include: { account: { select: { code: true } } },
+    });
+    expect(paymentLines.some((line) => line.account.code === '320' && Number(line.debit) === 35000)).toBe(true);
+    expect(paymentLines.some((line) => line.account.code === '102' && Number(line.credit) === 36000)).toBe(true);
+    expect(paymentLines.some((line) => line.account.code === '656' && Number(line.debit) === 1000)).toBe(true);
+
+    const closedPeriod = await request(app.getHttpServer())
+      .post('/finance/periods')
+      .set('Authorization', authorization)
+      .send({
+        name: 'Temmuz 2198',
+        startsAt: '2198-07-01T00:00:00.000Z',
+        endsAt: '2198-07-31T23:59:59.999Z',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/finance/periods/${closedPeriod.body.id}/close`)
+      .set('Authorization', authorization)
+      .send({ reason: 'Kapalı dönem mutation matrix' })
+      .expect(201);
+
+    const blockedPayment = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({
+        amount: 1,
+        paymentAccountId: bank.id,
+        method: 'TRANSFER',
+        exchangeRate: 36,
+        paidAt: '2198-07-15T12:00:00.000Z',
+      });
+    expect(blockedPayment.status).toBe(400);
+    expect(String(blockedPayment.body.message)).toContain('kapalı finansal döneme');
+
+    const incomeCategories = await request(app.getHttpServer())
+      .get('/finance/setup/income-categories')
+      .set('Authorization', authorization)
+      .expect(200);
+    const incomeCategory = incomeCategories.body.find((item: { id: string; active: boolean }) => item.active);
+    const receivable = accounts.body.find((item: { code: string }) => item.code === '120');
+    const revenue = accounts.body.find((item: { type: string; code: string }) => item.type === 'REVENUE' && item.code !== '646');
+    expect(incomeCategory?.id).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .put('/finance/setup/income-accounting-mappings')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: incomeCategory.id,
+        revenueAccountId: revenue.id,
+        receivableAccountId: receivable.id,
+      })
+      .expect(200);
+
+    const income = await request(app.getHttpServer())
+      .post('/finance/income')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: incomeCategory.id,
+        transactionDate: '2198-08-10T12:00:00.000Z',
+        grossAmount: 500,
+        netAmount: 500,
+        taxAmount: 0,
+        currency: 'TRY',
+        exchangeRate: 1,
+        description: 'Kapalı dönem tahsilat matrix kaydı',
+      })
+      .expect(201);
+    await request(app.getHttpServer()).post(`/finance/income/${income.body.id}/submit`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/income/${income.body.id}/approve`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/income/${income.body.id}/accounting/post`).set('Authorization', authorization).expect(201);
+
+    const blockedCollection = await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/collections`)
+      .set('Authorization', authorization)
+      .send({
+        amount: 100,
+        collectionAccountId: bank.id,
+        method: 'TRANSFER',
+        collectedAt: '2198-07-15T12:00:00.000Z',
+      });
+    expect(blockedCollection.status).toBe(400);
+    expect(String(blockedCollection.body.message)).toContain('kapalı finansal döneme');
+  });
+
 });
