@@ -310,12 +310,13 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
       { tenantId: tenantId!, companyId, branchId },
       posTransactionId,
       {
-        eventType: 'CHARGEBACK',
-        externalEventId: `chargeback-partial-${suffix}`,
+        eventType: 'REFUND',
+        externalEventId: `refund-partial-${suffix}`,
         amount: 300,
         occurredAt: new Date(),
       },
     );
+    expect(partialChargeback.eventType).toBe('REFUND');
     expect(partialChargeback.fullyReversed).toBe(false);
     expect(partialChargeback.cumulativeAmount).toBe(300);
 
@@ -389,6 +390,23 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
     );
     expect(refundedIncomeRows[0]?.collectionStatus).toBe('UNCOLLECTED');
     expect(Number(refundedIncomeRows[0]?.netCollected ?? 0)).toBeCloseTo(0, 2);
+
+    const finalPosRows = await prisma.$queryRawUnsafe<Array<{ status: string; salePaymentStatus: string }>>(
+      `SELECT pt.status,sp.status::text AS "salePaymentStatus"
+       FROM pos_transactions pt
+       JOIN sale_payments sp ON sp.id=pt.sale_payment_id
+       WHERE pt.id=$1::text`,
+      posTransactionId,
+    );
+    expect(finalPosRows[0]?.status).toBe('CHARGEBACK');
+    expect(finalPosRows[0]?.salePaymentStatus).toBe('REFUNDED');
+
+    const financeAudit = await request(app.getHttpServer())
+      .get('/finance/control/audit-trail?limit=200')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(financeAudit.body.some((event: { eventType?: string }) => event.eventType === 'POS_REFUND')).toBe(true);
+    expect(financeAudit.body.some((event: { eventType?: string }) => event.eventType === 'POS_CHARGEBACK')).toBe(true);
 
     const cfo = await request(app.getHttpServer())
       .get('/profitability/cfo/management-cockpit')
