@@ -105,6 +105,11 @@ export class FinanceControlService {
     const ledger = Object.fromEntries(
       ledgerRows.map((row) => [String(row.code), this.round(row.balance)]),
     );
+    const revenue = this.round(
+      ledgerRows
+        .filter((row) => String(row.type) === 'REVENUE')
+        .reduce((sum, row) => sum + Math.abs(Number(row.balance ?? 0)), 0),
+    );
     const finance = financeRows[0] ?? {};
     return {
       currencyBasis: 'BASE_CURRENCY_BY_TRANSACTION_EXCHANGE_RATE',
@@ -114,7 +119,7 @@ export class FinanceControlService {
         posReceivable: ledger['108'] ?? 0,
         customerReceivable: ledger['120'] ?? 0,
         supplierPayable: Math.abs(ledger['320'] ?? 0),
-        revenue: Math.abs(ledger['600'] ?? 0),
+        revenue,
       },
       subledger: {
         recognizedIncome: this.round(finance.recognizedIncome),
