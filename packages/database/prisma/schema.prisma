@@ -583,6 +583,7 @@ model SaleItem {
   package ServicePackage? @relation(fields: [packageId], references: [id], onDelete: Restrict)
 
   @@index([saleId])
+  @@index([productId])
   @@map("sale_items")
 }
 
