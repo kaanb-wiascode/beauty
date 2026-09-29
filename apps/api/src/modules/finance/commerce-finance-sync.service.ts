@@ -323,9 +323,9 @@ export class CommerceFinanceSyncService {
     const reversalId = randomUUID();
     await tx.$executeRawUnsafe(
       `INSERT INTO income_collection_reversals(
-         id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,reason,
+         id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,amount,reason,
          source_type,source_id,created_by,created_at
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,'SALE_PAYMENT_REFUND',$8,$9::text,CURRENT_TIMESTAMP)`,
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'SALE_PAYMENT_REFUND',$9,$10::text,CURRENT_TIMESTAMP)`,
       reversalId,
       input.tenantId,
       input.companyId,
@@ -597,10 +597,10 @@ export class CommerceFinanceSyncService {
     const reversalId = randomUUID();
     await tx.$executeRawUnsafe(
       `INSERT INTO income_collection_reversals(
-         id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,reason,
+         id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,amount,reason,
          source_type,source_id,created_by,created_at
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,
-                'APPOINTMENT_PAYMENT_REFUND',$8,$9::text,CURRENT_TIMESTAMP)`,
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,
+                'APPOINTMENT_PAYMENT_REFUND',$9,$10::text,CURRENT_TIMESTAMP)`,
       reversalId,
       input.tenantId,
       input.companyId,
