@@ -35,6 +35,11 @@ import {
   type CfoTabKey,
 } from "@/lib/cfo-types";
 
+type KpiValidation = {
+  valid: boolean;
+  checks: Array<{ code: string; label: string; expected: number; actual: number; variance: number; ok: boolean }>;
+};
+
 export default function CfoCockpitPage() {
   const { showToast } = useToast();
   const [cockpit, setCockpit] = useState<CfoCockpit | null>(null);
@@ -43,6 +48,7 @@ export default function CfoCockpitPage() {
   const [actions, setActions] = useState<CfoActionItem[]>([]);
   const [history, setHistory] = useState<CfoHealthHistoryItem[]>([]);
   const [cashFlow, setCashFlow] = useState<CfoCashFlow | null>(null);
+  const [kpiValidation, setKpiValidation] = useState<KpiValidation | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
@@ -52,13 +58,14 @@ export default function CfoCockpitPage() {
     setLoading(true);
     setError("");
     try {
-      const [c, b, a, acts, h, cf] = await Promise.all([
+      const [c, b, a, acts, h, cf, kv] = await Promise.all([
         api<CfoCockpit>("/profitability/cfo/management-cockpit"),
         api<CfoBenchmark>("/profitability/cfo/branches/benchmark"),
         api<CfoAnomalies>("/profitability/cfo/anomalies?days=60"),
         api<CfoActionItem[]>("/profitability/cfo/actions?limit=100"),
         api<CfoHealthHistoryItem[]>("/profitability/cfo/health/history?limit=180"),
         api<CfoCashFlow>("/profitability/cash-flow/13-week?scenario=BASE"),
+        api<KpiValidation>("/finance/control/kpi-validation"),
       ]);
       setCockpit(c);
       setBenchmark(b);
@@ -66,6 +73,7 @@ export default function CfoCockpitPage() {
       setActions(acts);
       setHistory(h);
       setCashFlow(cf);
+      setKpiValidation(kv);
     } catch (e) {
       setError(e instanceof ApiError ? e.message : "Finans Verileri Yüklenemedi.");
     } finally {
@@ -189,6 +197,11 @@ export default function CfoCockpitPage() {
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+      {kpiValidation && !kpiValidation.valid ? (
+        <Alert>
+          CFO göstergeleri ile muhasebe/alt defter projeksiyonu arasında fark bulundu. Finans Kontrol Merkezi üzerinden ayrıntıları inceleyin.
+        </Alert>
+      ) : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <FinanceMetric
