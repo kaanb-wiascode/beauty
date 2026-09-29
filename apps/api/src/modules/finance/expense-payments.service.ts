@@ -96,7 +96,7 @@ export class ExpensePaymentsService {
       `SELECT p.id,p.expense_id AS "expenseId",p.payable_account_id AS "payableAccountId",
               pa.code AS "payableAccountCode",pa.name AS "payableAccountName",
               p.payment_account_id AS "paymentAccountId",ca.code AS "paymentAccountCode",ca.name AS "paymentAccountName",
-              p.journal_entry_id AS "journalEntryId",p.amount,p.method,p.reference,p.note,p.paid_at AS "paidAt",
+              p.journal_entry_id AS "journalEntryId",p.amount,p.exchange_rate AS "exchangeRate",p.method,p.reference,p.note,p.paid_at AS "paidAt",
               p.source_type AS "sourceType",p.source_id AS "sourceId",p.created_by AS "createdBy",p.created_at AS "createdAt",
               r.id AS "reversalId",r.reason AS "reversalReason",r.created_by AS "reversedBy",r.created_at AS "reversedAt",
               r.journal_entry_id AS "reversalJournalEntryId"
