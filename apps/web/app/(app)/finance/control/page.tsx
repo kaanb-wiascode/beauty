@@ -125,7 +125,7 @@ export default function FinanceControlPage(){
   return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
     <header className="flex flex-col gap-4 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Finance 2.0</p>
+        <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Finans Yönetimi</p>
         <h1 className="mt-2 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Finans Kontrol Merkezi</h1>
         <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Gelir, gider, tahsilat, ödeme, muhasebe, banka ve POS kayıtlarının birbiriyle tutarlı çalışıp çalışmadığını tek merkezden izleyin.</p>
       </div>
@@ -143,10 +143,10 @@ export default function FinanceControlPage(){
     </section>
 
     <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
-      <FinancePanel title="Kaynakların Birbiriyle Tutarlılığı" description="Alt defterler ile genel muhasebe arasındaki otomatik kontroller">
+      <FinancePanel title="Kaynakların Birbiriyle Tutarlılığı" description="Gelir, gider, tahsilat ve ödeme kayıtları ile muhasebe arasındaki otomatik kontroller">
         <div className="space-y-2">
           {(validation?.checks??[]).map(check=><div key={check.code} className="flex flex-col gap-2 rounded-[14px] border border-[var(--line)] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[12px] font-semibold text-[var(--ink)]">{check.label}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Alt defter {money(check.expected,settings?.baseCurrency||"TRY")} · Muhasebe {money(check.actual,settings?.baseCurrency||"TRY")}</p></div>
+            <div><p className="text-[12px] font-semibold text-[var(--ink)]">{check.label}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Finans kayıtları {money(check.expected,settings?.baseCurrency||"TRY")} · Muhasebe {money(check.actual,settings?.baseCurrency||"TRY")}</p></div>
             <div className="flex items-center gap-2"><FinanceStatus status={check.ok?"PROCESSED":"FAILED"} label={check.ok?"Tutarlı":`Fark ${money(check.variance,settings?.baseCurrency||"TRY")}`}/>{!check.ok?<Link href={kpiHref(check.code)} className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">İncele</Link>:null}</div>
           </div>)}
           {!validation?.checks?.length?<FinanceEmpty title="Kontrol sonucu bulunamadı."/>:null}
@@ -187,10 +187,10 @@ export default function FinanceControlPage(){
           {!audit.length?<FinanceEmpty title="Finans işlem geçmişi bulunamadı."/>:null}
         </div>
       </FinancePanel>
-      <FinancePanel title="Teknik ve Yönetim Ayarları" description="Günlük finans kullanıcılarından ayrıştırılmış yönetim araçları">
+      <FinancePanel title="Yönetim Ayarları" description="Muhasebe, banka bağlantıları ve şirket para birimiyle ilgili yönetici ayarları">
         <div className="mb-4 rounded-[14px] border border-[var(--line)] p-4">
           <p className="text-[11px] font-semibold text-[var(--ink)]">Şirket Baz Para Birimi</p>
-          <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Muhasebe defterinin functional currency değeridir. Muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.</p>
+          <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Şirketin muhasebe kayıtlarının temel para birimidir. Finansal kayıt oluşturulduktan sonra değiştirilemez.</p>
           <div className="mt-3 flex gap-2">
             <input value={baseCurrencyInput} maxLength={3} onChange={e=>setBaseCurrencyInput(e.target.value.toUpperCase())} className="control h-10 w-28 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px] uppercase" placeholder={settings?.baseCurrency||"TRY"}/>
             <Button disabled={periodBusy||!canManageFinance||!/^[A-Z]{3}$/.test(baseCurrencyInput)} onClick={()=>void saveBaseCurrency()}>Kaydet</Button>
@@ -199,8 +199,8 @@ export default function FinanceControlPage(){
         <div className="grid gap-3 sm:grid-cols-2">
           <Quick href="/finance/configuration" title="Muhasebe Eşlemeleri" text="Gelir ve gider kategorilerinin hesap planı eşlemeleri"/>
           <Quick href="/finance/integrations" title="Banka ve POS Bağlantıları" text="Finansal veri sağlayıcıları ve bağlantı ayarları"/>
-          <Quick href="/finance/integrations/operations" title="Bağlantı Sağlığı" text="Senkronizasyon, hata ve bağlantı geçmişi"/>
-          <Quick href="/finance/integrations/transactions" title="POS İşlemleri" text="POS finans olayları, iade ve teknik işlem yönetimi"/>
+          <Quick href="/finance/integrations/operations" title="Bağlantı Durumu" text="Banka ve ödeme bağlantılarının çalışma durumu ile işlem geçmişi"/>
+          <Quick href="/finance/integrations/transactions" title="POS İşlemleri" text="Kart tahsilatları, iadeler, banka geçişleri ve eşleştirme işlemleri"/>
         </div>
       </FinancePanel>
     </section>
@@ -211,7 +211,33 @@ function Quick({href,title,text}:{href:string;title:string;text:string}){return 
 function money(value:unknown,currency="TRY"){const n=Number(value??0);return new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:2}).format(Number.isFinite(n)?n:0)}
 function date(value:string){return new Intl.DateTimeFormat("tr-TR",{dateStyle:"medium"}).format(new Date(value))}
 function dateTime(value:string){return new Intl.DateTimeFormat("tr-TR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value))}
-function domainLabel(v:string){return v==="INCOME"?"Gelir":v==="EXPENSE"?"Gider":v==="CONFIGURATION"?"Finans Ayarı":v==="ACCOUNTING"?"Muhasebe":v==="PERIOD"?"Finansal Dönem":v==="RECONCILIATION"?"Mutabakat":v}
+function domainLabel(v:string){
+  const labels:Record<string,string>={
+    INCOME:"Gelir",
+    EXPENSE:"Gider",
+    CONFIGURATION:"Finans Ayarı",
+    ACCOUNTING:"Muhasebe",
+    PERIOD:"Finansal Dönem",
+    RECONCILIATION:"Mutabakat",
+    POS:"POS İşlemi",
+  };
+  return labels[v]??"Finans İşlemi";
+}
 function issueHref(code:string){if(code.startsWith("INCOME")||code.startsWith("COLLECTION"))return "/finance/income";if(code.startsWith("EXPENSE")||code.startsWith("PAYMENT"))return "/finance/expenses";return "/finance/accounting"}
 function kpiHref(code:string){if(code.includes("BANK")||code.includes("POS"))return "/finance/reconciliation";if(code.includes("REVENUE"))return "/finance/accounting";return "/finance/control"}
-function eventLabel(v:string){return v.replaceAll("_"," ").toLocaleLowerCase("tr-TR").replace(/(^|\s)\S/g,(m)=>m.toLocaleUpperCase("tr-TR"))}
+function eventLabel(v:string){
+  const labels:Record<string,string>={
+    JOURNAL_CREATED:"Yevmiye kaydı oluşturuldu",
+    JOURNAL_SUBMITTED:"Yevmiye kaydı onaya gönderildi",
+    JOURNAL_APPROVED:"Yevmiye kaydı onaylandı",
+    JOURNAL_POSTED:"Yevmiye kaydı muhasebeleştirildi",
+    PERIOD_CLOSED:"Finansal dönem kapatıldı",
+    PERIOD_REOPENED:"Finansal dönem yeniden açıldı",
+    RECONCILIATION_MATCHED:"Banka hareketi eşleştirildi",
+    RECONCILIATION_REVERSED:"Mutabakat geri alındı",
+    POS_SETTLEMENT_BANK_MATCHED:"POS geçişi banka hareketiyle eşleştirildi",
+    POS_REFUND:"POS iadesi işlendi",
+    POS_CHARGEBACK:"Kart işlemi ters ibraz edildi",
+  };
+  return labels[v]??v.replaceAll("_"," ").toLocaleLowerCase("tr-TR").replace(/(^|\s)\S/g,(m)=>m.toLocaleUpperCase("tr-TR"));
+}
