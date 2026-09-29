@@ -231,8 +231,21 @@ export class FinanceControlService {
            AND ($3::text IS NULL OR c.branch_id=$3::text) AND r.id IS NULL
            AND NOT EXISTS (
              SELECT 1 FROM journal_entries je
-             WHERE je."companyId"=c.company_id AND je."referenceType"='INCOME_COLLECTION'
-               AND je."referenceId"=c.id
+             WHERE je."companyId"=c.company_id
+               AND je.status='POSTED'
+               AND (
+                 (je."referenceType"='INCOME_COLLECTION' AND je."referenceId"=c.id)
+                 OR (
+                   c.source_type='SALE_PAYMENT'
+                   AND je."referenceType"='SALE_PAYMENT'
+                   AND je."referenceId"=c.source_id
+                 )
+                 OR (
+                   c.source_type='APPOINTMENT_PAYMENT'
+                   AND je."referenceType"='APPOINTMENT_PAYMENT'
+                   AND je."referenceId"=c.source_id
+                 )
+               )
            )
          LIMIT 200`,
         tenantId, companyId, branchId,
