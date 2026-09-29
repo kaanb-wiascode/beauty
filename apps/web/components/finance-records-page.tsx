@@ -106,7 +106,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   }),[records,approvalFilter,search,categories]);
 
   const metrics=useMemo(()=>({
-    total:records.reduce((sum,r)=>sum+Number(r.grossAmount||0),0),
+    total:records.reduce((sum,r)=>sum+Number(r.grossAmount||0)*Number(r.exchangeRate||1),0),
     approved:records.filter(r=>r.approvalStatus==="APPROVED").length,
     pending:records.filter(r=>r.approvalStatus==="SUBMITTED").length,
     openMoney:records.filter(r=>expense?!["PAID","CANCELLED"].includes(r.paymentStatus??""):r.collectionStatus!=="COLLECTED").length,
@@ -203,7 +203,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric label="Kayıtlı Tutar" value={money(metrics.total)}/>
+      <Metric label={`Kayıtlı Tutar (${baseCurrency})`} value={money(metrics.total,baseCurrency)}/>
       <Metric label="Onaylanan Kayıt" value={metrics.approved}/>
       <Metric label="Onay Bekleyen" value={metrics.pending}/>
       <Metric label={expense?"Ödemesi Açık":"Tahsilatı Açık"} value={metrics.openMoney}/>
@@ -255,7 +255,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
           <Field label="Net Tutar" required><TextInput type="number" min="0" step="0.01" value={form.netAmount} onChange={e=>setForm({...form,netAmount:e.target.value})} required/></Field>
           <Field label="Vergi"><TextInput type="number" min="0" step="0.01" value={form.taxAmount} onChange={e=>setForm({...form,taxAmount:e.target.value})}/></Field>
           {expense?<Field label="Stopaj"><TextInput type="number" min="0" step="0.01" value={form.withholdingAmount} onChange={e=>setForm({...form,withholdingAmount:e.target.value})}/></Field>:null}
-          <Field label="Para Birimi"><TextInput maxLength={3} value={form.currency} onChange={e=>setForm({...form,currency:e.target.value.toUpperCase()})}/></Field>
+          <Field label="Para Birimi"><TextInput maxLength={3} value={form.currency} onChange={e=>{const currency=e.target.value.toUpperCase();setForm({...form,currency,exchangeRate:currency===baseCurrency?"1":form.exchangeRate})}}/></Field>
           <Field label="Kur"><TextInput type="number" min="0.000001" step="0.000001" value={form.exchangeRate} onChange={e=>setForm({...form,exchangeRate:e.target.value})}/></Field>
         </FormGrid><Field label="Açıklama"><TextArea rows={3} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Kaydın nedenini ve gerekli notları yazın."/></Field></FormSection>
         <FormActions sticky><Button variant="secondary" onClick={()=>setCreateOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working}>{working?"Kaydediliyor...":"Taslak Olarak Kaydet"}</Button></FormActions>
