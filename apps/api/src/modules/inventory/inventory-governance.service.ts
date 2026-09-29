@@ -40,7 +40,7 @@ export class InventoryGovernanceService {
   private async assertApprover(userId: string, branchId: string | null) {
     const { tenantId, companyId, branchId: activeBranchId } = this.context();
     if (activeBranchId && branchId && activeBranchId !== branchId) {
-      throw new ForbiddenException('Operation is outside active branch scope.');
+      throw new ForbiddenException('Bu işlem aktif şube kapsamınızda değil.');
     }
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT r.slug AS "roleSlug",r.name AS "roleName",r.scope AS "roleScope",
@@ -55,14 +55,14 @@ export class InventoryGovernanceService {
       branchId,
     );
     const actor = rows[0];
-    if (!actor) throw new ForbiddenException('Approver has no active membership in tenant scope.');
+    if (!actor) throw new ForbiddenException('Onaylayacak kullanıcının aktif üyeliği bulunamadı.');
     if (actor.roleScope === 'BRANCH' && branchId && !actor.hasBranchAccess && activeBranchId !== branchId) {
-      throw new ForbiddenException('Approver has no access to operation branch.');
+      throw new ForbiddenException('Onaylayacak kullanıcının bu şubeye erişimi yok.');
     }
     const identities = new Set([this.normalizeRole(actor.roleSlug), this.normalizeRole(actor.roleName)]);
     const allowed = ['manager','branch-manager','company-manager','general-manager','finance','finance-manager','finance-director','cfo','director','owner','admin','super-admin'];
     if (!allowed.some((role) => identities.has(role))) {
-      throw new ForbiddenException('Inventory approval requires manager or higher authority.');
+      throw new ForbiddenException('Bu işlem için yönetici veya daha yüksek yetki gerekir.');
     }
   }
 
@@ -94,15 +94,15 @@ export class InventoryGovernanceService {
        LIMIT 1`,
       id, tenantId, companyId, branchId,
     );
-    if (!transfer.length) throw new NotFoundException('Transfer not found.');
-    if (transfer[0].status !== 'PENDING') throw new BadRequestException('Only pending transfers can be approved.');
+    if (!transfer.length) throw new NotFoundException('Transfer kaydı bulunamadı.');
+    if (transfer[0].status !== 'PENDING') throw new BadRequestException('Yalnızca onay bekleyen transferler onaylanabilir.');
     await this.assertApprover(userId, transfer[0].sourceBranchId ?? transfer[0].destinationBranchId ?? null);
     const updated = await this.prisma.$executeRawUnsafe(
       `UPDATE inventory_transfers SET status='APPROVED',approved_by_user_id=$2::text,approved_at=NOW(),updated_at=NOW()
        WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='PENDING'`,
       id, userId, tenantId, companyId,
     );
-    if (updated !== 1) throw new BadRequestException('Transfer changed concurrently.');
+    if (updated !== 1) throw new BadRequestException('Transfer başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
     return { transferId: id, status: 'APPROVED' };
   }
 
@@ -120,9 +120,9 @@ export class InventoryGovernanceService {
          FOR UPDATE`,
         id, tenantId, companyId, branchId,
       );
-      if (!rows.length) throw new NotFoundException('Transfer not found.');
+      if (!rows.length) throw new NotFoundException('Transfer kaydı bulunamadı.');
       const transfer = rows[0];
-      if (transfer.status !== 'APPROVED') throw new BadRequestException('Only approved transfers can be dispatched.');
+      if (transfer.status !== 'APPROVED') throw new BadRequestException('Yalnızca onaylanmış transferler sevk edilebilir.');
 
       const items = await tx.$queryRawUnsafe<any[]>(
         `SELECT i.id,i.product_id AS "productId",i.quantity,i.dispatched_quantity AS "dispatchedQuantity"
@@ -131,17 +131,17 @@ export class InventoryGovernanceService {
          WHERE i.transfer_id=$1::text ORDER BY i.id FOR UPDATE`,
         id, companyId,
       );
-      if (!items.length) throw new BadRequestException('Transfer has no items.');
+      if (!items.length) throw new BadRequestException('Transferde ürün bulunmuyor.');
       let totalValue = 0;
       for (const item of items) {
-        if (Number(item.dispatchedQuantity) !== 0) throw new BadRequestException('Transfer item has already been dispatched.');
+        if (Number(item.dispatchedQuantity) !== 0) throw new BadRequestException('Bu ürün daha önce sevk edilmiş.');
         const stock = await tx.$queryRawUnsafe<any[]>(
           `SELECT quantity,cost_per_unit AS "costPerUnit" FROM inventory_stock
            WHERE product_id=$1::text AND warehouse_id=$2::text FOR UPDATE`,
           item.productId, transfer.sourceWarehouseId,
         );
         if (!stock.length || Number(stock[0].quantity) < Number(item.quantity)) {
-          throw new BadRequestException(`Insufficient source stock for product ${item.productId}.`);
+          throw new BadRequestException(`Ürün için kaynak depoda yeterli stok yok: ${item.productId}.`);
         }
         const quantity = Number(item.quantity);
         const unitCost = Number(stock[0].costPerUnit ?? 0);
@@ -170,7 +170,7 @@ export class InventoryGovernanceService {
          WHERE id=$1::text AND tenant_id=$4::text AND company_id=$5::text AND status='APPROVED'`,
         id, userId, totalValue, tenantId, companyId,
       );
-      if (updated !== 1) throw new BadRequestException('Transfer changed concurrently.');
+      if (updated !== 1) throw new BadRequestException('Transfer başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
       return { transferId: id, status: 'IN_TRANSIT', totalValue };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
@@ -178,10 +178,10 @@ export class InventoryGovernanceService {
   async createCycleCount(input: CycleCountInput) {
     const { tenantId, companyId, branchId } = this.context();
     const reason = input.reason.trim();
-    if (!reason) throw new BadRequestException('Cycle count reason is required.');
-    if (!input.items.length) throw new BadRequestException('Cycle count must contain at least one item.');
+    if (!reason) throw new BadRequestException('Sayım nedeni zorunludur.');
+    if (!input.items.length) throw new BadRequestException('Sayımda en az bir ürün bulunmalıdır.');
     const ids = input.items.map((item) => item.productId);
-    if (new Set(ids).size !== ids.length) throw new BadRequestException('A product can only appear once in a cycle count.');
+    if (new Set(ids).size !== ids.length) throw new BadRequestException('Aynı ürün bir sayımda yalnızca bir kez yer alabilir.');
 
     return this.prisma.$transaction(async (tx) => {
       const warehouses = await tx.$queryRawUnsafe<any[]>(
@@ -191,7 +191,7 @@ export class InventoryGovernanceService {
          FOR UPDATE`,
         input.warehouseId, tenantId, companyId, branchId,
       );
-      if (!warehouses.length) throw new NotFoundException('Warehouse not found.');
+      if (!warehouses.length) throw new NotFoundException('Depo bulunamadı.');
       const countId = randomUUID();
       await tx.$executeRawUnsafe(
         `INSERT INTO inventory_cycle_counts(id,tenant_id,company_id,branch_id,warehouse_id,status,reason,created_by_user_id)
@@ -200,7 +200,7 @@ export class InventoryGovernanceService {
       );
       for (const item of input.items) {
         const counted = Number(item.countedQuantity);
-        if (!Number.isFinite(counted) || counted < 0) throw new BadRequestException('Counted quantity cannot be negative.');
+        if (!Number.isFinite(counted) || counted < 0) throw new BadRequestException('Sayılan miktar negatif olamaz.');
         const stock = await tx.$queryRawUnsafe<any[]>(
           `SELECT p.id,COALESCE(s.quantity,0)::numeric AS quantity,COALESCE(s.cost_per_unit,0)::numeric AS "costPerUnit"
            FROM inventory_products p
@@ -208,7 +208,7 @@ export class InventoryGovernanceService {
            WHERE p.id=$1::text AND p.company_id=$2::text AND p.status='ACTIVE' LIMIT 1`,
           item.productId, companyId, input.warehouseId,
         );
-        if (!stock.length) throw new NotFoundException(`Product ${item.productId} not found.`);
+        if (!stock.length) throw new NotFoundException(`Ürün bulunamadı: ${item.productId}.`);
         const expected = Number(stock[0].quantity ?? 0);
         const unitCost = Number(stock[0].costPerUnit ?? 0);
         const variance = counted - expected;
@@ -234,7 +234,7 @@ export class InventoryGovernanceService {
          AND ($4::text IS NULL OR cc.branch_id=$4::text) LIMIT 1`,
       id, tenantId, companyId, branchId,
     );
-    if (!rows.length) throw new NotFoundException('Cycle count not found.');
+    if (!rows.length) throw new NotFoundException('Sayım kaydı bulunamadı.');
     return rows[0];
   }
 
@@ -262,13 +262,13 @@ export class InventoryGovernanceService {
        WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='DRAFT'`,
       id, userId, tenantId, companyId,
     );
-    if (updated !== 1) throw new BadRequestException('Only draft cycle counts can be submitted.');
+    if (updated !== 1) throw new BadRequestException('Yalnızca taslak sayımlar onaya gönderilebilir.');
     return this.getCycleCount(id);
   }
 
   async approveCycleCount(id: string, userId: string) {
     const count = await this.getCycleCount(id);
-    if (count.status !== 'SUBMITTED') throw new BadRequestException('Only submitted cycle counts can be approved.');
+    if (count.status !== 'SUBMITTED') throw new BadRequestException('Yalnızca onay bekleyen sayımlar onaylanabilir.');
     await this.assertApprover(userId, count.branchId ?? null);
     const { tenantId, companyId } = this.context();
     const updated = await this.prisma.$executeRawUnsafe(
@@ -276,16 +276,16 @@ export class InventoryGovernanceService {
        WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='SUBMITTED'`,
       id, userId, tenantId, companyId,
     );
-    if (updated !== 1) throw new BadRequestException('Cycle count changed concurrently.');
+    if (updated !== 1) throw new BadRequestException('Sayım başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
     return this.getCycleCount(id);
   }
 
   async rejectCycleCount(id: string, userId: string, reason: string) {
     const count = await this.getCycleCount(id);
-    if (count.status !== 'SUBMITTED') throw new BadRequestException('Only submitted cycle counts can be rejected.');
+    if (count.status !== 'SUBMITTED') throw new BadRequestException('Yalnızca onay bekleyen sayımlar reddedilebilir.');
     await this.assertApprover(userId, count.branchId ?? null);
     const clean = reason.trim();
-    if (!clean) throw new BadRequestException('Rejection reason is required.');
+    if (!clean) throw new BadRequestException('Red nedeni zorunludur.');
     const { tenantId, companyId } = this.context();
     const updated = await this.prisma.$executeRawUnsafe(
       `UPDATE inventory_cycle_counts
@@ -293,7 +293,7 @@ export class InventoryGovernanceService {
        WHERE id=$1::text AND tenant_id=$4::text AND company_id=$5::text AND status='SUBMITTED'`,
       id, userId, clean, tenantId, companyId,
     );
-    if (updated !== 1) throw new BadRequestException('Cycle count changed concurrently.');
+    if (updated !== 1) throw new BadRequestException('Sayım başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
     return this.getCycleCount(id);
   }
 
@@ -307,9 +307,9 @@ export class InventoryGovernanceService {
            AND ($4::text IS NULL OR cc.branch_id=$4::text) FOR UPDATE`,
         id, tenantId, companyId, branchId,
       );
-      if (!counts.length) throw new NotFoundException('Cycle count not found.');
+      if (!counts.length) throw new NotFoundException('Sayım kaydı bulunamadı.');
       const count = counts[0];
-      if (count.status !== 'APPROVED') throw new BadRequestException('Only approved cycle counts can be posted.');
+      if (count.status !== 'APPROVED') throw new BadRequestException('Yalnızca onaylanmış sayımlar stoklara işlenebilir.');
       const items = await tx.$queryRawUnsafe<any[]>(
         `SELECT id,product_id AS "productId",expected_quantity AS "expectedQuantity",counted_quantity AS "countedQuantity",
                 variance_quantity AS "varianceQuantity",unit_cost_snapshot AS "unitCost",variance_value AS "varianceValue"
@@ -325,7 +325,7 @@ export class InventoryGovernanceService {
         );
         const currentQty = Number(current[0]?.quantity ?? 0);
         if (Math.abs(currentQty - Number(item.expectedQuantity)) > 0.0005) {
-          throw new BadRequestException(`Stock changed after count snapshot for product ${item.productId}. Recount is required.`);
+          throw new BadRequestException(`Ürünün stoku sayımdan sonra değişti. Yeniden sayım yapmanız gerekiyor: ${item.productId}.`);
         }
         const variance = Number(item.varianceQuantity);
         const value = Number(item.varianceValue);
@@ -377,7 +377,7 @@ export class InventoryGovernanceService {
          WHERE id=$1::text AND tenant_id=$4::text AND company_id=$5::text AND status='APPROVED'`,
         id, userId, totalVarianceValue, tenantId, companyId,
       );
-      if (updated !== 1) throw new BadRequestException('Cycle count changed concurrently.');
+      if (updated !== 1) throw new BadRequestException('Sayım başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
       return { cycleCountId: id, status: 'POSTED', totalVarianceValue, positiveValue, negativeValue };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
