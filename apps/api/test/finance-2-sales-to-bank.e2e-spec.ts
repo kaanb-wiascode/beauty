@@ -179,6 +179,7 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
     const posIntegrationId = randomUUID();
     const bankIntegrationId = randomUUID();
     const bankAccountId = randomUUID();
+    const posTerminalId = randomUUID();
     const posTransactionId = randomUUID();
 
     await prisma.$executeRawUnsafe(
@@ -212,14 +213,28 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
     );
 
     await prisma.$executeRawUnsafe(
+      `INSERT INTO pos_terminals(
+         id,tenant_id,company_id,branch_id,integration_id,external_terminal_id,name,currency,active
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,'TRY',true)`,
+      posTerminalId,
+      tenantId,
+      companyId,
+      branchId,
+      posIntegrationId,
+      `terminal-${suffix}`,
+      `Acceptance POS Terminal ${suffix}`,
+    );
+
+    await prisma.$executeRawUnsafe(
       `INSERT INTO pos_transactions(
-         id,tenant_id,company_id,branch_id,integration_id,provider_transaction_id,
+         id,tenant_id,company_id,branch_id,terminal_id,integration_id,provider_transaction_id,
          status,amount,fee_amount,net_amount,currency,expected_settlement_at
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,'CAPTURED',1000,20,980,'TRY',NOW())`,
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,'CAPTURED',1000,20,980,'TRY',NOW())`,
       posTransactionId,
       tenantId,
       companyId,
       branchId,
+      posTerminalId,
       posIntegrationId,
       paymentReference,
     );
