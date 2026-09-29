@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 
+import { AccountingModule } from '../accounting/accounting.module';
 import { CrmModule } from '../crm/crm.module';
 import { HrModule } from '../hr/hr.module';
 import { VisitsModule } from '../visits/visits.module';
@@ -63,7 +64,7 @@ import { ServiceExecutionsService } from './service-executions.service';
 import { WalkInServiceExecutionsService } from './walk-in-service-executions.service';
 
 @Module({
-  imports: [VisitsModule, CrmModule, HrModule],
+  imports: [VisitsModule, CrmModule, HrModule, AccountingModule],
   controllers: [
     OperationsRealtimeController,
     OperationsResourcesController,
