@@ -443,6 +443,7 @@ export class InventoryService {
       'EXPIRED',
       'SERVICE_CONSUMPTION',
       'TRANSFER_OUT',
+      'SALE',
     ].includes(type);
 
     return this.prisma.$transaction(async (tx) => {
@@ -484,7 +485,7 @@ export class InventoryService {
         productId,
         warehouseId,
         type,
-        outbound ? -quantity : quantity,
+        quantity,
         unitCost ?? null,
         referenceId ?? null,
         note ?? null,
