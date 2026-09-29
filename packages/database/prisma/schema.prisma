@@ -697,6 +697,12 @@ model JournalEntry {
   description   String
   referenceType String?
   referenceId   String?
+  createdBy     String?
+  submittedBy   String?
+  submittedAt   DateTime?
+  approvedBy    String?
+  approvedAt    DateTime?
+  postedBy      String?
   postedAt      DateTime?
   createdAt     DateTime           @default(now())
   updatedAt     DateTime           @updatedAt
@@ -889,6 +895,8 @@ enum AccountType {
 
 enum JournalEntryStatus {
   DRAFT
+  SUBMITTED
+  APPROVED
   POSTED
   REVERSED
 }
