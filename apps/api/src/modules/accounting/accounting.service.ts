@@ -208,6 +208,56 @@ export class AccountingService {
     });
   }
 
+  async recordProductCostOfGoodsSold(
+    tx: Prisma.TransactionClient,
+    saleId: string,
+    input: CommerceAccountingContext,
+  ) {
+    if (!Number.isFinite(input.amount) || input.amount <= 0) return null;
+
+    const companyId = this.tenantContext.getCompanyId();
+    const inventory = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '150',
+      'İlk Madde ve Malzeme',
+      'ASSET',
+    );
+    const costOfGoodsSold = await this.ensureSystemAccount(
+      tx,
+      input.tenantId,
+      companyId,
+      '621',
+      'Satılan Ticari Mallar Maliyeti',
+      'EXPENSE',
+    );
+
+    return this.createAutomaticJournal(tx, {
+      tenantId: input.tenantId,
+      companyId,
+      branchId: input.branchId,
+      entryDate: input.entryDate,
+      description: `Ürün satış maliyeti ${saleId}`,
+      referenceType: 'SALE_COGS',
+      referenceId: saleId,
+      lines: [
+        {
+          accountId: costOfGoodsSold.id,
+          debit: input.amount,
+          credit: 0,
+          memo: 'Satılan ürünlerin maliyeti',
+        },
+        {
+          accountId: inventory.id,
+          debit: 0,
+          credit: input.amount,
+          memo: 'Satılan ürünlerin stoktan çıkışı',
+        },
+      ],
+    });
+  }
+
   async recordSalePayment(
     tx: Prisma.TransactionClient,
     paymentId: string,
