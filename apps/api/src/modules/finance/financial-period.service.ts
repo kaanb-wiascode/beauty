@@ -56,7 +56,113 @@ export class FinancialPeriodService {
     return rows[0];
   }
 
+
+  private async getPeriod(id: string) {
+    const { tenantId, companyId, branchId } = this.context();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,name,starts_at AS "startsAt",ends_at AS "endsAt",status::text AS status,branch_id AS "branchId"
+       FROM financial_periods
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND ($4::text IS NULL OR branch_id IS NULL OR branch_id=$4::text)
+       LIMIT 1`,
+      id, tenantId, companyId, branchId,
+    );
+    if (!rows.length) throw new NotFoundException('Finansal dönem bulunamadı.');
+    return rows[0];
+  }
+
+  async closeChecklist(id: string) {
+    const { tenantId, companyId } = this.context();
+    const period = await this.getPeriod(id);
+    const scopeBranchId = period.branchId ?? null;
+    const [journals, income, expenses, bank, pos, balance] = await Promise.all([
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count
+         FROM journal_entries
+         WHERE "tenantId"=$1::text AND "companyId"=$2::text
+           AND ($3::text IS NULL OR "branchId"=$3::text)
+           AND "entryDate" BETWEEN $4::timestamptz AND $5::timestamptz
+           AND status IN ('DRAFT','SUBMITTED','APPROVED')`,
+        tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count
+         FROM income_records
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND transaction_date BETWEEN $4::timestamptz AND $5::timestamptz
+           AND approval_status='APPROVED' AND accounting_status<>'POSTED'`,
+        tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count
+         FROM expenses
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND transaction_date BETWEEN $4::timestamptz AND $5::timestamptz
+           AND approval_status='APPROVED' AND accounting_status<>'POSTED'`,
+        tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count
+         FROM bank_transactions
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND booked_at BETWEEN $4::timestamptz AND $5::timestamptz
+           AND reconciliation_status NOT IN ('MATCHED','IGNORED')`,
+        tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ count: bigint }>>(
+        `SELECT COUNT(*)::bigint AS count
+         FROM pos_transactions
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND captured_at BETWEEN $4::timestamptz AND $5::timestamptz
+           AND status='CAPTURED' AND settled_at IS NULL`,
+        tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ debit: unknown; credit: unknown }>>(
+        `SELECT COALESCE(SUM(jel.debit),0)::numeric AS debit,
+                COALESCE(SUM(jel.credit),0)::numeric AS credit
+         FROM journal_entry_lines jel
+         JOIN journal_entries je ON je.id=jel."journalEntryId"
+         WHERE je."tenantId"=$1::text AND je."companyId"=$2::text
+           AND ($3::text IS NULL OR je."branchId"=$3::text)
+           AND je."entryDate" BETWEEN $4::timestamptz AND $5::timestamptz
+           AND je.status='POSTED'`,
+        tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
+      ),
+    ]);
+
+    const debit = Number(balance[0]?.debit ?? 0);
+    const credit = Number(balance[0]?.credit ?? 0);
+    const trialVariance = Math.round((debit - credit + Number.EPSILON) * 100) / 100;
+    const checks = [
+      { code: 'OPEN_JOURNALS', label: 'Tamamlanmamış yevmiye kayıtları', count: Number(journals[0]?.count ?? 0), blocking: true },
+      { code: 'UNPOSTED_INCOME', label: 'Muhasebeleştirilmemiş onaylı gelirler', count: Number(income[0]?.count ?? 0), blocking: true },
+      { code: 'UNPOSTED_EXPENSES', label: 'Muhasebeleştirilmemiş onaylı giderler', count: Number(expenses[0]?.count ?? 0), blocking: true },
+      { code: 'UNRECONCILED_BANK', label: 'Mutabakat bekleyen banka hareketleri', count: Number(bank[0]?.count ?? 0), blocking: true },
+      { code: 'UNSETTLED_POS', label: 'Hesaba geçmemiş POS hareketleri', count: Number(pos[0]?.count ?? 0), blocking: false },
+      { code: 'TRIAL_BALANCE_VARIANCE', label: 'Mizan farkı', count: Math.abs(trialVariance), blocking: true },
+    ];
+    return {
+      period,
+      closable: checks.every((check) => !check.blocking || check.count === 0),
+      blockingCount: checks.filter((check) => check.blocking && check.count !== 0).length,
+      checks,
+      trialBalance: { debit, credit, variance: trialVariance },
+    };
+  }
+
   async close(id: string, actorId: string, reason?: string) {
+    const checklist = await this.closeChecklist(id);
+    if (!checklist.closable) {
+      const labels = checklist.checks
+        .filter((check) => check.blocking && check.count !== 0)
+        .map((check) => check.label)
+        .join(', ');
+      throw new BadRequestException(`Finansal dönem kapatılamaz. Önce şu kontrolleri tamamlayın: ${labels}.`);
+    }
     const { tenantId, companyId, branchId } = this.context();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `UPDATE financial_periods
