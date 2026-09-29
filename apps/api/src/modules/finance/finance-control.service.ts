@@ -1,4 +1,4 @@
-import { Injectable } from '@nestjs/common';
+import { BadRequestException, Injectable } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -28,6 +28,43 @@ export class FinanceControlService {
 
   private round(value: unknown) {
     return Math.round((Number(value ?? 0) + Number.EPSILON) * 100) / 100;
+  }
+
+  async settings() {
+    const { tenantId, companyId } = this.context();
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, tenantId },
+      select: { id: true, name: true, baseCurrency: true },
+    });
+    if (!company) return { companyId, baseCurrency: 'TRY' };
+    return company;
+  }
+
+  async updateSettings(input: { baseCurrency: string }) {
+    const { tenantId, companyId } = this.context();
+    const baseCurrency = input.baseCurrency.trim().toUpperCase();
+    const company = await this.prisma.company.findFirst({
+      where: { id: companyId, tenantId },
+      select: { id: true, baseCurrency: true },
+    });
+    if (!company) throw new Error('Company not found.');
+    if (company.baseCurrency === baseCurrency) return { companyId, baseCurrency };
+
+    const posted = await this.prisma.journalEntry.count({
+      where: { tenantId, companyId, status: 'POSTED' },
+    });
+    if (posted > 0) {
+      throw new BadRequestException(
+        'Baz para birimi, muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.',
+      );
+    }
+
+    const updated = await this.prisma.company.update({
+      where: { id: companyId },
+      data: { baseCurrency },
+      select: { id: true, name: true, baseCurrency: true },
+    });
+    return updated;
   }
 
   async projection() {
