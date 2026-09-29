@@ -571,6 +571,7 @@ model SaleItem {
   type        SaleItemType
   serviceId   String?
   packageId   String?
+  productId   String?
   description String
   quantity    Int          @default(1)
   unitPrice   Decimal      @db.Decimal(10, 2)
@@ -870,6 +871,7 @@ enum SaleStatus {
 enum SaleItemType {
   SERVICE
   PACKAGE
+  PRODUCT
 }
 
 enum CustomerPackageStatus {
