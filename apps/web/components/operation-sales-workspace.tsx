@@ -16,7 +16,8 @@ import { useOperationRealtime } from "@/lib/use-operation-realtime";
 type Customer={id:string;firstName:string;lastName:string;phone?:string|null};
 type Service={id:string;name:string;price:number|string;status?:string};
 type Package={id:string;name:string;price:number|string;active:boolean};
-type SaleItem={id:string;type:"SERVICE"|"PACKAGE";serviceId:string|null;packageId:string|null;description:string;quantity:number;unitPrice:number|string;lineTotal:number|string};
+type Product={id:string;name:string;salePrice:number|string;quantity:number|string;unit?:string};
+type SaleItem={id:string;type:"SERVICE"|"PACKAGE"|"PRODUCT";serviceId:string|null;packageId:string|null;productId?:string|null;description:string;quantity:number;unitPrice:number|string;lineTotal:number|string};
 type SalePayment={id:string;amount:number|string;method:"CASH"|"CARD"|"TRANSFER";status:string;reference:string|null;note:string|null;paidAt:string;refundReason?:string|null};
 type Installment={id:string;sequence:number;dueAt:string;amount:number|string;paidAmount:number|string;status:string};
 type Sale={
@@ -24,23 +25,25 @@ type Sale={
  customer:Customer;items:SaleItem[];payments:SalePayment[];installmentPlan?:{id:string;installmentCount:number;installments:Installment[]}|null;
 };
 type PaymentSummary={saleId:string;saleStatus:string;total:number;paid:number;balance:number;paymentStatus:string};
-type LineDraft={type:"SERVICE"|"PACKAGE";referenceId:string;quantity:string};
+type LineDraft={type:"SERVICE"|"PACKAGE"|"PRODUCT";referenceId:string;quantity:string};
 type PaginatedResponse<T>={data:T[];meta?:{page:number;limit:number;total:number;totalPages:number}};
 
 const money=(v:number|string|null|undefined)=>new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(Number(v??0));
 const date=(v:string)=>new Date(v).toLocaleDateString("tr-TR");
 const statusLabels:Record<string,string>={DRAFT:"Taslak",CONFIRMED:"Onaylandı",CANCELLED:"İptal",COMPLETED:"Tamamlandı",REFUNDED:"İade Edildi",UNPAID:"Ödenmedi",PARTIALLY_PAID:"Kısmen Ödendi",PAID:"Ödendi",PENDING:"Bekliyor"};
+const paymentMethodLabels:Record<string,string>={CASH:"Nakit",CARD:"Kart",TRANSFER:"Havale / EFT"};
 
 export default function SalesPage(){
  const canReadSales=hasPermission("sales","read");
  const canReadCustomers=hasPermission("customers","read");
  const canReadServices=hasPermission("services","read");
+ const canReadInventory=hasPermission("inventory","read");
  const canCreateSale=hasPermission("sales","create");
  const canConfirmSale=hasPermission("sales","confirm");
  const canCancelSale=hasPermission("sales","cancel");
  const canCollect=hasPermission("sales","collect");
  const canRefund=hasPermission("sales","refund");
- const[sales,setSales]=useState<Sale[]>([]),[customers,setCustomers]=useState<Customer[]>([]),[services,setServices]=useState<Service[]>([]),[packages,setPackages]=useState<Package[]>([]);
+ const[sales,setSales]=useState<Sale[]>([]),[customers,setCustomers]=useState<Customer[]>([]),[services,setServices]=useState<Service[]>([]),[packages,setPackages]=useState<Package[]>([]),[products,setProducts]=useState<Product[]>([]);
  const[loading,setLoading]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const[createOpen,setCreateOpen]=useState(false),[selectedId,setSelectedId]=useState(""),[selected,setSelected]=useState<Sale|null>(null),[summary,setSummary]=useState<PaymentSummary|null>(null);
  const[customerId,setCustomerId]=useState(""),[discount,setDiscount]=useState("0"),[lines,setLines]=useState<LineDraft[]>([{type:"SERVICE",referenceId:"",quantity:"1"}]);
@@ -50,30 +53,32 @@ export default function SalesPage(){
 
  const load=useCallback(async()=>{
    if(!hasActiveBranch()){
-     setSales([]);setCustomers([]);setServices([]);setPackages([]);setLoading(false);
+     setSales([]);setCustomers([]);setServices([]);setPackages([]);setProducts([]);setLoading(false);
      setError("Satış ve tahsilat ekranı için önce aktif bir şube seçin.");
      return;
    }
    if(!canReadSales){
-     setSales([]);setCustomers([]);setServices([]);setPackages([]);setLoading(false);
+     setSales([]);setCustomers([]);setServices([]);setPackages([]);setProducts([]);setLoading(false);
      setError("Satış ve tahsilat çalışma alanını görüntülemek için satış görüntüleme yetkisi gereklidir.");
      return;
    }
    setLoading(true);setError("");
-   const[s,c,sv,p]=await Promise.allSettled([
+   const[s,c,sv,p,pr]=await Promise.allSettled([
     api<Sale[]>("/sales"),
     canReadCustomers ? api<PaginatedResponse<Customer>>("/customers?page=1&limit=100") : Promise.resolve(null),
     canReadServices ? api<PaginatedResponse<Service>>("/services?page=1&limit=200&status=ACTIVE") : Promise.resolve(null),
     canReadServices ? api<Package[]>("/packages") : Promise.resolve(null),
+    canReadInventory ? api<Product[]>("/inventory/products") : Promise.resolve(null),
    ]);
    const errors:string[]=[];
    if(s.status==="fulfilled")setSales(Array.isArray(s.value)?s.value:[]);else{setSales([]);errors.push(s.reason instanceof ApiError?s.reason.message:"Satışlar yüklenemedi.");}
    if(c.status==="fulfilled"&&c.value)setCustomers(Array.isArray(c.value.data)?c.value.data:[]);else if(c.status==="rejected"){setCustomers([]);errors.push(c.reason instanceof ApiError?c.reason.message:"Müşteriler yüklenemedi.");}else setCustomers([]);
    if(sv.status==="fulfilled"&&sv.value)setServices(Array.isArray(sv.value.data)?sv.value.data:[]);else if(sv.status==="rejected"){setServices([]);errors.push(sv.reason instanceof ApiError?sv.reason.message:"Hizmetler yüklenemedi.");}else setServices([]);
    if(p.status==="fulfilled"&&p.value)setPackages(Array.isArray(p.value)?p.value:[]);else if(p.status==="rejected"){setPackages([]);errors.push(p.reason instanceof ApiError?p.reason.message:"Paketler yüklenemedi.");}else setPackages([]);
+   if(pr.status==="fulfilled"&&pr.value)setProducts(Array.isArray(pr.value)?pr.value:[]);else if(pr.status==="rejected"){setProducts([]);errors.push(pr.reason instanceof ApiError?pr.reason.message:"Ürünler yüklenemedi.");}else setProducts([]);
    if(errors.length)setError(Array.from(new Set(errors)).join(" "));
    setLoading(false);
- },[canReadCustomers,canReadSales,canReadServices]);
+ },[canReadCustomers,canReadInventory,canReadSales,canReadServices]);
  useEffect(()=>{void load()},[load]);
 
  const openDetail=useCallback(async(id:string)=>{setSelectedId(id);setWorking(true);setError("");try{
@@ -110,7 +115,7 @@ export default function SalesPage(){
 
  if(loading&&!sales.length)return <Spinner label="Satış merkezi hazırlanıyor..."/>;
  return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-  <PageHeader title="Satış ve Tahsilat" description="Hizmet ve paket satışlarını, tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canReadSales&&canCreateSale&&canReadCustomers&&canReadServices?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
+  <PageHeader title="Satış ve Tahsilat" description="Hizmet, paket ve ürün satışlarını; tahsilatları, iadeleri ve taksit planlarını tek merkezden yönetin."action={canReadSales&&canCreateSale&&canReadCustomers&&canReadServices?<Button onClick={()=>setCreateOpen(true)}>+ Yeni Satış</Button>:undefined}/>
   {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}{notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
   {canCreateSale&&(!canReadCustomers||!canReadServices)?<Alert>Yeni satış oluşturmak için müşteri ve hizmet/paket okuma yetkileri gereklidir. Mevcut satışları görüntüleme ve yetkiniz olan tahsilat işlemleri çalışmaya devam eder.</Alert>:null}
   <section className="grid gap-3 sm:grid-cols-3"><Metric label="Satış Sayısı" value={totals.count}/><Metric label="Satış Toplamı" value={money(totals.total)}/><Metric label="Onaylı Satış" value={totals.confirmed}/></section>
@@ -120,13 +125,26 @@ export default function SalesPage(){
    </tbody></table></div>:<EmptyState title="Satış bulunamadı" description="Henüz satış kaydı oluşturulmamış."/>}
   </section>
 
-  <Modal open={createOpen&&canCreateSale&&canReadCustomers&&canReadServices} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet/paket ekleyin.">
+  <Modal open={createOpen&&canCreateSale&&canReadCustomers&&canReadServices} onClose={()=>setCreateOpen(false)} size="lg" title="Yeni Satış" description="Müşteriye bir veya daha fazla hizmet, paket veya ürün ekleyin.">
    <form onSubmit={createSale} className="space-y-5">
     <Field label="Müşteri" required><ValooSelect value={customerId} onChange={setCustomerId} placeholder="Müşteri seçin" searchPlaceholder="Müşteri ara…" emptyLabel="Müşteri bulunamadı." options={customers.map(item=>({value:item.id,label:`${item.firstName} ${item.lastName}`,description:item.phone??undefined}))} createAction={hasPermission("customers","create")?{label:"Yeni müşteri oluştur",onClick:(query)=>setQuickCreate({kind:"customer",name:query,lineIndex:null})}:undefined}/></Field>
     <div className="space-y-3"><div className="flex items-center justify-between"><h3 className="text-sm font-semibold">Satış Kalemleri</h3><Button type="button" size="sm" variant="secondary" onClick={()=>setLines([...lines,{type:"SERVICE",referenceId:"",quantity:"1"}])}>+ Kalem</Button></div>
     {lines.map((line,index)=><div key={index} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-[160px_1fr_120px_auto]">
-      <Select value={line.type} onChange={e=>setLines(lines.map((l,i)=>i===index?{...l,type:e.target.value as LineDraft["type"],referenceId:""}:l))}><option value="SERVICE">Hizmet</option><option value="PACKAGE">Paket</option></Select>
-      <ValooSelect value={line.referenceId} onChange={(value)=>setLines(lines.map((l,i)=>i===index?{...l,referenceId:value}:l))} placeholder={line.type==="SERVICE"?"Hizmet seçin":"Paket seçin"} searchPlaceholder={line.type==="SERVICE"?"Hizmet ara…":"Paket ara…"} emptyLabel={line.type==="SERVICE"?"Hizmet bulunamadı.":"Paket bulunamadı."} options={(line.type==="SERVICE"?services:packages).map(item=>({value:item.id,label:item.name,description:money(item.price)}))} createAction={hasPermission("services","create")?{label:line.type==="SERVICE"?"Yeni hizmet oluştur":"Yeni paket oluştur",onClick:(query)=>setQuickCreate({kind:line.type==="SERVICE"?"service":"package",name:query,lineIndex:index})}:undefined}/>
+      <Select value={line.type} onChange={e=>setLines(lines.map((l,i)=>i===index?{...l,type:e.target.value as LineDraft["type"],referenceId:""}:l))}><option value="SERVICE">Hizmet</option><option value="PACKAGE">Paket</option>{canReadInventory?<option value="PRODUCT">Ürün</option>:null}</Select>
+      <ValooSelect
+        value={line.referenceId}
+        onChange={(value)=>setLines(lines.map((l,i)=>i===index?{...l,referenceId:value}:l))}
+        placeholder={line.type==="SERVICE"?"Hizmet seçin":line.type==="PACKAGE"?"Paket seçin":"Ürün seçin"}
+        searchPlaceholder={line.type==="SERVICE"?"Hizmet ara…":line.type==="PACKAGE"?"Paket ara…":"Ürün ara…"}
+        emptyLabel={line.type==="SERVICE"?"Hizmet bulunamadı.":line.type==="PACKAGE"?"Paket bulunamadı.":"Ürün bulunamadı."}
+        options={(line.type==="SERVICE"
+          ? services.map(item=>({value:item.id,label:item.name,description:money(item.price)}))
+          : line.type==="PACKAGE"
+            ? packages.map(item=>({value:item.id,label:item.name,description:money(item.price)}))
+            : products.map(item=>({value:item.id,label:item.name,description:`${money(item.salePrice)} · Mevcut ${Number(item.quantity||0)}`}))
+        )}
+        createAction={line.type==="PRODUCT"?undefined:hasPermission("services","create")?{label:line.type==="SERVICE"?"Yeni hizmet oluştur":"Yeni paket oluştur",onClick:(query)=>setQuickCreate({kind:line.type==="SERVICE"?"service":"package",name:query,lineIndex:index})}:undefined}
+      />
       <TextInput type="number" min="1" step="1" value={line.quantity} onChange={e=>setLines(lines.map((l,i)=>i===index?{...l,quantity:e.target.value}:l))}/>
       <Button type="button" variant="danger" size="sm" disabled={lines.length===1} onClick={()=>setLines(lines.filter((_,i)=>i!==index))}>Sil</Button>
     </div>)}</div>
@@ -149,7 +167,7 @@ export default function SalesPage(){
       <div className="md:col-span-4"><Field label="Not"><TextArea rows={2} value={paymentNote} onChange={e=>setPaymentNote(e.target.value)}/></Field></div>
     </form>:null}
 
-    <section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Ödeme Geçmişi</div>{selected.payments?.length?selected.payments.map(p=><div key={p.id} className="grid gap-2 border-b border-[var(--line)] px-4 py-3 last:border-0 md:grid-cols-[1fr_1fr_1fr_auto]"><span>{money(p.amount)}</span><span className="text-[var(--muted)]">{p.method}</span><span className="text-[var(--muted)]">{p.reference??date(p.paidAt)}</span>{p.status==="COMPLETED"&&canRefund?<Button size="sm" variant="danger" onClick={()=>void refund(p)} disabled={working}>İade Et</Button>:<span>{statusLabels[p.status]??p.status}</span>}</div>):<div className="p-4 text-sm text-[var(--muted)]">Henüz ödeme yok.</div>}</section>
+    <section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Ödeme Geçmişi</div>{selected.payments?.length?selected.payments.map(p=><div key={p.id} className="grid gap-2 border-b border-[var(--line)] px-4 py-3 last:border-0 md:grid-cols-[1fr_1fr_1fr_auto]"><span>{money(p.amount)}</span><span className="text-[var(--muted)]">{paymentMethodLabels[p.method]??"Diğer"}</span><span className="text-[var(--muted)]">{p.reference??date(p.paidAt)}</span>{p.status==="COMPLETED"&&canRefund?<Button size="sm" variant="danger" onClick={()=>void refund(p)} disabled={working}>İade Et</Button>:<span>{statusLabels[p.status]??p.status}</span>}</div>):<div className="p-4 text-sm text-[var(--muted)]">Henüz ödeme yok.</div>}</section>
 
     {!selected.installmentPlan&&selected.status==="CONFIRMED"?<form onSubmit={createInstallment} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-4"><Field label="Taksit Sayısı"><TextInput type="number" min="2" max="60" value={installmentCount} onChange={e=>setInstallmentCount(e.target.value)}/></Field><Field label="İlk Vade"><TextInput type="date" value={firstDueAt} onChange={e=>setFirstDueAt(e.target.value)}/></Field><Field label="Ay Aralığı"><TextInput type="number" min="1" max="24" value={intervalMonths} onChange={e=>setIntervalMonths(e.target.value)}/></Field><div className="flex items-end"><Button className="w-full" type="submit" disabled={working}>Taksit Planı Oluştur</Button></div></form>:null}
     {selected.installmentPlan?<section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Taksit Planı</div>{selected.installmentPlan.installments.map(i=><div key={i.id} className="grid grid-cols-4 gap-3 border-b border-[var(--line)] px-4 py-3 last:border-0"><span>{i.sequence}. Taksit</span><span>{date(i.dueAt)}</span><span>{money(i.amount)}</span><span>{statusLabels[i.status]??i.status}</span></div>)}</section>:null}
