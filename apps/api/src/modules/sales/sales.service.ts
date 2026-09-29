@@ -251,13 +251,25 @@ export class SalesService {
     });
     if (!sale) throw new NotFoundException('Satış kaydı bulunamadı.');
 
-    const aggregate = await this.prisma.salePayment.aggregate({
-      where: { saleId, tenantId, branchId, status: 'COMPLETED' },
-      _sum: { amount: true },
-    });
+    const paidRows = await this.prisma.$queryRawUnsafe<Array<{ paid: Prisma.Decimal }>>(
+      `SELECT COALESCE(SUM(
+               sp.amount-COALESCE((
+                 SELECT SUM(pfe.amount)
+                 FROM pos_transactions pt
+                 JOIN pos_financial_events pfe ON pfe.pos_transaction_id=pt.id
+                 WHERE pt.sale_payment_id=sp.id
+               ),0)
+             ),0) AS paid
+       FROM sale_payments sp
+       WHERE sp."saleId"=$1::text AND sp."tenantId"=$2::text AND sp."branchId"=$3::text
+         AND sp.status='COMPLETED'`,
+      saleId,
+      tenantId,
+      branchId,
+    );
 
     const total = Number(sale.total);
-    const paid = Number(aggregate._sum.amount ?? 0);
+    const paid = Number(paidRows[0]?.paid ?? 0);
     const balance = Math.max(
       0,
       Math.round((total - paid + Number.EPSILON) * 100) / 100,
@@ -501,12 +513,24 @@ export class SalesService {
           );
         }
 
-        const aggregate = await tx.salePayment.aggregate({
-          where: { saleId: sale.id, tenantId, branchId, status: 'COMPLETED' },
-          _sum: { amount: true },
-        });
+        const paidRows = await tx.$queryRawUnsafe<Array<{ paid: Prisma.Decimal }>>(
+          `SELECT COALESCE(SUM(
+                   sp.amount-COALESCE((
+                     SELECT SUM(pfe.amount)
+                     FROM pos_transactions pt
+                     JOIN pos_financial_events pfe ON pfe.pos_transaction_id=pt.id
+                     WHERE pt.sale_payment_id=sp.id
+                   ),0)
+                 ),0) AS paid
+           FROM sale_payments sp
+           WHERE sp."saleId"=$1::text AND sp."tenantId"=$2::text AND sp."branchId"=$3::text
+             AND sp.status='COMPLETED'`,
+          sale.id,
+          tenantId,
+          branchId,
+        );
 
-        const paid = Number(aggregate._sum.amount ?? 0);
+        const paid = Number(paidRows[0]?.paid ?? 0);
         const total = Number(sale.total);
         const remaining =
           Math.round((total - paid + Number.EPSILON) * 100) / 100;
