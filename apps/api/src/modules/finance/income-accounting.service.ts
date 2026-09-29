@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
+import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import { buildIncomeAccrualJournalLines } from './domain/income-accounting-policy';
 
 interface UpsertIncomeAccountingMappingInput {
@@ -148,6 +149,12 @@ export class IncomeAccountingService {
   async prepare(incomeId: string, actorId: string) {
     return this.prisma.$transaction(async (tx) => {
       const income = await this.getIncomeForUpdate(tx, incomeId);
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: income.tenantId,
+        companyId: income.companyId,
+        branchId: income.branchId,
+        date: income.transactionDate,
+      });
       const mapping = await this.getMapping(tx, income.categoryId);
       if (income.approvalStatus !== 'APPROVED') {
         throw new BadRequestException('Only approved income records can become ready to post.');
@@ -170,6 +177,12 @@ export class IncomeAccountingService {
   async post(incomeId: string, actorId: string) {
     return this.prisma.$transaction(async (tx) => {
       const income = await this.getIncomeForUpdate(tx, incomeId);
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: income.tenantId,
+        companyId: income.companyId,
+        branchId: income.branchId,
+        date: income.transactionDate,
+      });
       const mapping = await this.getMapping(tx, income.categoryId);
       if (!mapping) throw new BadRequestException('Income category requires an accounting mapping before posting.');
 
