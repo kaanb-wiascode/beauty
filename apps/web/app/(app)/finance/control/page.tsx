@@ -147,7 +147,7 @@ export default function FinanceControlPage(){
         <div className="space-y-2">
           {(validation?.checks??[]).map(check=><div key={check.code} className="flex flex-col gap-2 rounded-[14px] border border-[var(--line)] p-4 sm:flex-row sm:items-center sm:justify-between">
             <div><p className="text-[12px] font-semibold text-[var(--ink)]">{check.label}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Alt defter {money(check.expected,settings?.baseCurrency||"TRY")} · Muhasebe {money(check.actual,settings?.baseCurrency||"TRY")}</p></div>
-            <FinanceStatus status={check.ok?"PROCESSED":"FAILED"} label={check.ok?"Tutarlı":`Fark ${money(check.variance,settings?.baseCurrency||"TRY")}`}/>
+            <div className="flex items-center gap-2"><FinanceStatus status={check.ok?"PROCESSED":"FAILED"} label={check.ok?"Tutarlı":`Fark ${money(check.variance,settings?.baseCurrency||"TRY")}`}/>{!check.ok?<Link href={kpiHref(check.code)} className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">İncele</Link>:null}</div>
           </div>)}
           {!validation?.checks?.length?<FinanceEmpty title="Kontrol sonucu bulunamadı."/>:null}
         </div>
@@ -174,7 +174,7 @@ export default function FinanceControlPage(){
     <FinancePanel title="Bütünlük Bulguları" description="Muhasebeleştirilmiş görünüp karşılığı bulunmayan veya zinciri kopmuş finansal kayıtlar">
       <div className="space-y-2">
         {(integrity?.issues??[]).map((issue,index)=><div key={issue.code+"-"+index} className="rounded-[14px] border border-[var(--line)] p-4">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">{issue.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{issue.domain} · {issue.detail}</p></div><FinanceStatus status={issue.severity==="CRITICAL"?"FAILED":"RETRY_PENDING"} label={issue.severity==="CRITICAL"?"Kritik":"Kontrol"}/></div>
+          <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">{issue.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{issue.domain} · {issue.detail}</p></div><div className="flex items-center gap-2"><FinanceStatus status={issue.severity==="CRITICAL"?"FAILED":"RETRY_PENDING"} label={issue.severity==="CRITICAL"?"Kritik":"Kontrol"}/><Link href={issueHref(issue.code)} className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Kaydı İncele</Link></div></div>
         </div>)}
         {integrity?.healthy?<FinanceEmpty title="Finansal kayıt zincirinde kritik tutarsızlık bulunmadı."/>:null}
       </div>
@@ -211,5 +211,7 @@ function Quick({href,title,text}:{href:string;title:string;text:string}){return 
 function money(value:unknown,currency="TRY"){const n=Number(value??0);return new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:2}).format(Number.isFinite(n)?n:0)}
 function date(value:string){return new Intl.DateTimeFormat("tr-TR",{dateStyle:"medium"}).format(new Date(value))}
 function dateTime(value:string){return new Intl.DateTimeFormat("tr-TR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value))}
-function domainLabel(v:string){return v==="INCOME"?"Gelir":v==="EXPENSE"?"Gider":v==="CONFIGURATION"?"Finans Ayarı":v}
+function domainLabel(v:string){return v==="INCOME"?"Gelir":v==="EXPENSE"?"Gider":v==="CONFIGURATION"?"Finans Ayarı":v==="ACCOUNTING"?"Muhasebe":v==="PERIOD"?"Finansal Dönem":v==="RECONCILIATION"?"Mutabakat":v}
+function issueHref(code:string){if(code.startsWith("INCOME")||code.startsWith("COLLECTION"))return "/finance/income";if(code.startsWith("EXPENSE")||code.startsWith("PAYMENT"))return "/finance/expenses";return "/finance/accounting"}
+function kpiHref(code:string){if(code.includes("BANK")||code.includes("POS"))return "/finance/reconciliation";if(code.includes("REVENUE"))return "/finance/accounting";return "/finance/control"}
 function eventLabel(v:string){return v.replaceAll("_"," ").toLocaleLowerCase("tr-TR").replace(/(^|\s)\S/g,(m)=>m.toLocaleUpperCase("tr-TR"))}
