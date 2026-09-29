@@ -5,7 +5,7 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { CardInfo } from "@/components/card-info";
 import { getCardHelp } from "@/lib/card-help";
 import { cx } from "@/lib/format";
-import { userLabel } from "@/lib/user-language";
+import { userLabel, userText } from "@/lib/user-language";
 
 export function FinanceMetric({
   label,
@@ -29,14 +29,14 @@ export function FinanceMetric({
   return (
     <article className="rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[0_7px_22px_rgba(17,70,104,0.04)] sm:rounded-[20px] sm:p-5">
       <div className="flex items-start justify-between gap-3">
-        <p className="text-[11px] font-medium text-[var(--muted)]">{label}</p>
+        <p className="text-[11px] font-medium text-[var(--muted)]">{userText(label)}</p>
         <div className="flex shrink-0 items-center gap-2">
           <span aria-hidden="true" className={cx("h-2.5 w-2.5 rounded-full", tones[tone])} />
           <CardInfo help={getCardHelp(label, typeof detail === "string" ? detail : undefined)} />
         </div>
       </div>
       <div className="mt-1.5 text-[23px] font-semibold tracking-[-0.04em] text-[var(--ink)] sm:mt-2 sm:text-[26px]">{value}</div>
-      {detail ? <div className="mt-1 text-[11px] text-[var(--muted-soft)]">{detail}</div> : null}
+      {detail ? <div className="mt-1 text-[11px] text-[var(--muted-soft)]">{typeof detail==="string"?userText(detail):detail}</div> : null}
     </article>
   );
 }
@@ -59,10 +59,10 @@ export function FinancePanel({
       <div className="flex flex-col gap-2.5 border-b border-[var(--line)] px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:px-5 sm:py-4">
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
-            <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{title}</h2>
+            <h2 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)]">{userText(title)}</h2>
             <CardInfo help={getCardHelp(title, description)} />
           </div>
-          {description ? <p className="mt-1 text-[11px] text-[var(--muted)]">{description}</p> : null}
+          {description ? <p className="mt-1 text-[11px] text-[var(--muted)]">{userText(description)}</p> : null}
         </div>
         {actions ? <div className="flex shrink-0 flex-wrap gap-2">{actions}</div> : null}
       </div>
@@ -132,7 +132,7 @@ export function FinanceEmpty({
 }) {
   return (
     <div className="rounded-[16px] border border-dashed border-[var(--line)] bg-[var(--surface-2)]/35 px-5 py-8 text-center">
-      <p className="text-[12px] font-semibold text-[var(--ink)]">{children ?? title ?? "Kayıt Bulunamadı."}</p>
+      <p className="text-[12px] font-semibold text-[var(--ink)]">{typeof children==="string"?userText(children):children??userText(title??"Kayıt Bulunamadı.")}</p>
       {description ? <p className="mx-auto mt-1 max-w-md text-[10px] leading-5 text-[var(--muted)]">{description}</p> : null}
     </div>
   );
