@@ -45,8 +45,12 @@ interface ListExpensesInput {
   accountingStatus?: 'UNPOSTED' | 'READY_TO_POST' | 'POSTED' | 'REVERSED';
   categoryId?: string;
   costCenterId?: string;
+  search?: string;
   from?: Date;
   to?: Date;
+  sortBy: 'transactionDate' | 'grossAmount' | 'createdAt';
+  sortDir: 'asc' | 'desc';
+  page?: number;
   limit: number;
 }
 
@@ -284,27 +288,18 @@ export class ExpensesService {
 
   async list(input: ListExpensesInput) {
     const { tenantId, companyId, branchId } = this.context();
-    const rows = await this.prisma.$queryRawUnsafe<ExpenseRow[]>(
-      `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",cost_center_id AS "costCenterId",
-              category_id AS "categoryId",counterparty_name AS "counterpartyName",counterparty_tax_number AS "counterpartyTaxNumber",
-              document_type AS "documentType",document_number AS "documentNumber",document_date AS "documentDate",document_url AS "documentUrl",
-              transaction_date AS "transactionDate",due_date AS "dueDate",gross_amount AS "grossAmount",net_amount AS "netAmount",
-              tax_amount AS "taxAmount",withholding_amount AS "withholdingAmount",currency,exchange_rate AS "exchangeRate",description,
-              approval_status AS "approvalStatus",payment_status AS "paymentStatus",reconciliation_status AS "reconciliationStatus",
-              accounting_status AS "accountingStatus",source_type AS "sourceType",source_id AS "sourceId",version,created_by AS "createdBy",
-              created_at AS "createdAt",updated_at AS "updatedAt"
-       FROM expenses
-       WHERE tenant_id=$1::text AND company_id=$2::text
-         AND ($3::text IS NULL OR branch_id=$3::text)
-         AND ($4::text IS NULL OR approval_status::text=$4)
-         AND ($5::text IS NULL OR payment_status::text=$5)
-         AND ($6::text IS NULL OR accounting_status::text=$6)
-         AND ($7::text IS NULL OR category_id=$7::text)
-         AND ($8::text IS NULL OR cost_center_id=$8::text)
-         AND ($9::timestamp IS NULL OR transaction_date >= $9)
-         AND ($10::timestamp IS NULL OR transaction_date <= $10)
-       ORDER BY transaction_date DESC, created_at DESC
-       LIMIT $11`,
+    const page = input.page ?? 1;
+    const offset = (page - 1) * input.limit;
+    const orderColumn =
+      input.sortBy === 'grossAmount'
+        ? 'gross_amount'
+        : input.sortBy === 'createdAt'
+          ? 'created_at'
+          : 'transaction_date';
+    const orderDirection = input.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const search = input.search?.trim() || null;
+
+    const args = [
       tenantId,
       companyId,
       branchId,
@@ -313,11 +308,63 @@ export class ExpensesService {
       input.accountingStatus ?? null,
       input.categoryId ?? null,
       input.costCenterId ?? null,
+      search,
       input.from ?? null,
       input.to ?? null,
-      input.limit,
-    );
-    return rows.map((row) => this.map(row));
+    ] as const;
+
+    const where = `
+       WHERE tenant_id=$1::text AND company_id=$2::text
+         AND ($3::text IS NULL OR branch_id=$3::text)
+         AND ($4::text IS NULL OR approval_status::text=$4)
+         AND ($5::text IS NULL OR payment_status::text=$5)
+         AND ($6::text IS NULL OR accounting_status::text=$6)
+         AND ($7::text IS NULL OR category_id=$7::text)
+         AND ($8::text IS NULL OR cost_center_id=$8::text)
+         AND ($9::text IS NULL OR
+              COALESCE(counterparty_name,'') ILIKE '%'||$9||'%' OR
+              COALESCE(document_number,'') ILIKE '%'||$9||'%' OR
+              COALESCE(description,'') ILIKE '%'||$9||'%' OR
+              COALESCE(source_type,'') ILIKE '%'||$9||'%')
+         AND ($10::timestamp IS NULL OR transaction_date >= $10)
+         AND ($11::timestamp IS NULL OR transaction_date <= $11)`;
+
+    const [rows,countRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<ExpenseRow[]>(
+        `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",cost_center_id AS "costCenterId",
+                category_id AS "categoryId",counterparty_name AS "counterpartyName",counterparty_tax_number AS "counterpartyTaxNumber",
+                document_type AS "documentType",document_number AS "documentNumber",document_date AS "documentDate",document_url AS "documentUrl",
+                transaction_date AS "transactionDate",due_date AS "dueDate",gross_amount AS "grossAmount",net_amount AS "netAmount",
+                tax_amount AS "taxAmount",withholding_amount AS "withholdingAmount",currency,exchange_rate AS "exchangeRate",description,
+                approval_status AS "approvalStatus",payment_status AS "paymentStatus",reconciliation_status AS "reconciliationStatus",
+                accounting_status AS "accountingStatus",source_type AS "sourceType",source_id AS "sourceId",version,created_by AS "createdBy",
+                created_at AS "createdAt",updated_at AS "updatedAt"
+         FROM expenses
+         ${where}
+         ORDER BY ${orderColumn} ${orderDirection}, created_at DESC
+         LIMIT $12 OFFSET $13`,
+        ...args,
+        input.limit,
+        offset,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
+        `SELECT COUNT(*)::bigint AS total FROM expenses ${where}`,
+        ...args,
+      ),
+    ]);
+
+    const data = rows.map((row) => this.map(row));
+    const total = Number(countRows[0]?.total ?? 0);
+    if (input.page == null) return data;
+    return {
+      data,
+      meta: {
+        page,
+        limit: input.limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / input.limit)),
+      },
+    };
   }
 
   async get(id: string) {
