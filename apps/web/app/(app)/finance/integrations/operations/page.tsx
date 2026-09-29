@@ -179,7 +179,7 @@ export default function IntegrationOperationsPage() {
             <FinancePanel
               title="Bağlantı ve veri güncelleme durumu"
               description={`${current.displayName} · ${current.provider}`}
-              actions={<FinanceStatus status={health.healthy ? "PROCESSED" : "RETRY_PENDING"} label={health.healthy ? "HEALTHY" : "ATTENTION"} />}
+              actions={<FinanceStatus status={health.healthy ? "PROCESSED" : "RETRY_PENDING"} label={userLabel(health.healthy ? "HEALTHY" : "ATTENTION")} />}
             >
               <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 <Info label="Bağlantı durumu" value={userLabel(health.status)} />
@@ -219,7 +219,7 @@ export default function IntegrationOperationsPage() {
             <FinancePanel
               title="Sistem uyarıları"
               description="Bağlantıların sağlıklı çalışmasını etkileyen durumlar burada gösterilir."
-              actions={<FinanceStatus status={alerts.state === "HEALTHY" ? "PROCESSED" : alerts.state === "CRITICAL" ? "FAILED" : "RETRY_PENDING"} label={alerts.state} />}
+              actions={<FinanceStatus status={alerts.state === "HEALTHY" ? "PROCESSED" : alerts.state === "CRITICAL" ? "FAILED" : "RETRY_PENDING"} label={userLabel(alerts.state)} />}
             >
               <div className="space-y-2">
                 {alerts.alerts.length ? (
@@ -227,19 +227,19 @@ export default function IntegrationOperationsPage() {
                     <div key={`${alert.code}-${index}`} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-[11px] font-semibold text-[var(--ink)]">Sistem uyarısı</p>
-                        <FinanceStatus status={alert.severity === "CRITICAL" ? "FAILED" : "RETRY_PENDING"} label={alert.severity} />
+                        <FinanceStatus status={alert.severity === "CRITICAL" ? "FAILED" : "RETRY_PENDING"} label={userLabel(alert.severity)} />
                       </div>
-                      <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Bağlantı durumu Kontrol Edilmeli.</p>
+                      <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Bağlantı durumu kontrol edilmeli.</p>
                     </div>
                   ))
                 ) : (
-                  <FinanceEmpty>Aktif Sistem uyarısı Yok.</FinanceEmpty>
+                  <FinanceEmpty>Aktif sistem uyarısı yok.</FinanceEmpty>
                 )}
               </div>
             </FinancePanel>
           </section>
 
-          <FinancePanel title="İşlem geçmişi" description="Bu Bağlantı İçin Son 50 Değişiklik Kaydı Gösterilir. Gizli Bağlantı bilgileri İşlem geçmişine Yazılmaz.">
+          <FinancePanel title="İşlem geçmişi" description="Bu bağlantı için son 50 değişiklik gösterilir. Gizli bağlantı bilgileri işlem geçmişine kaydedilmez.">
             <DataView>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left text-xs">
@@ -260,7 +260,7 @@ export default function IntegrationOperationsPage() {
                   </tbody>
                 </table>
               </div>
-              {!audit.length ? <FinanceEmpty>İşlem geçmişi Bulunmuyor.</FinanceEmpty> : null}
+              {!audit.length ? <FinanceEmpty>İşlem geçmişi bulunmuyor.</FinanceEmpty> : null}
               <DataViewMeta><span>{audit.length} kayıt</span><span>Son 50 işlem</span></DataViewMeta>
             </DataView>
           </FinancePanel>
