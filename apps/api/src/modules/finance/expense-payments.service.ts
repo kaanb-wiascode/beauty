@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
+import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import {
   assertExpensePaymentAllowed,
   buildExpensePaymentLines,
@@ -208,6 +209,12 @@ export class ExpensePaymentsService {
 
       const paymentId = randomUUID();
       const paidAt = input.paidAt ?? new Date();
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: expense.tenantId,
+        companyId: expense.companyId,
+        branchId: expense.branchId,
+        date: paidAt,
+      });
       const journal = await tx.journalEntry.create({
         data: {
           tenantId: expense.tenantId,
