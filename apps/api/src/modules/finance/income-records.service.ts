@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import { assertIncomeAmounts, assertIncomeApprovalTransition, IncomeApprovalStatus } from './domain/income-policy';
 
 interface CreateIncomeInput {
@@ -199,6 +200,7 @@ export class IncomeRecordsService {
     const { tenantId, companyId, branchId } = this.context();
 
     return this.prisma.$transaction(async (tx) => {
+      await assertFinancialPeriodOpen(tx, { tenantId, companyId, branchId, date: input.transactionDate });
       await this.validateDimensions(tx, input.categoryId, input.costCenterId);
       if (input.sourceType && input.sourceId) {
         await this.acquireLock(tx, companyId, `${input.sourceType}:${input.sourceId}`);
@@ -347,6 +349,12 @@ export class IncomeRecordsService {
     const { tenantId, companyId } = this.context();
     return this.prisma.$transaction(async (tx) => {
       const current = await this.getForUpdate(tx, id);
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: current.tenantId,
+        companyId: current.companyId,
+        branchId: current.branchId,
+        date: input.transactionDate ?? current.transactionDate,
+      });
       if (!['DRAFT', 'REJECTED'].includes(current.approvalStatus)) {
         throw new BadRequestException('Only draft or rejected income records can be edited.');
       }
