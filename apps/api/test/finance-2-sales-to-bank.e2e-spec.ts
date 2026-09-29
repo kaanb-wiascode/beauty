@@ -319,5 +319,19 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
       bank: expect.any(Number),
       revenue: expect.any(Number),
     }));
+
+    const integrity = await request(app.getHttpServer())
+      .get('/finance/control/integrity')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(integrity.body.healthy).toBe(true);
+    expect(integrity.body.issueCount).toBe(0);
+
+    const kpiValidation = await request(app.getHttpServer())
+      .get('/finance/control/kpi-validation')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(kpiValidation.body.valid).toBe(true);
+    expect(kpiValidation.body.baseCurrency).toBe('TRY');
   });
 });
