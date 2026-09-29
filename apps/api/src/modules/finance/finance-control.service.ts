@@ -71,15 +71,15 @@ export class FinanceControlService {
     const { tenantId, companyId, branchId } = this.context();
     const [ledgerRows, financeRows, bankRows, posRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT coa.code,coa.name,
+        `SELECT coa.code,coa.name,coa.type::text AS type,
                 COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS balance
          FROM journal_entry_lines jel
          JOIN journal_entries je ON je.id=jel."journalEntryId" AND je.status='POSTED'
          JOIN chart_of_accounts coa ON coa.id=jel."accountId"
          WHERE je."tenantId"=$1::text AND je."companyId"=$2::text
            AND ($3::text IS NULL OR je."branchId"=$3::text)
-           AND coa.code IN ('100','102','108','120','320','600')
-         GROUP BY coa.code,coa.name
+           AND (coa.code IN ('100','102','108','120','320') OR coa.type='REVENUE')
+         GROUP BY coa.code,coa.name,coa.type
          ORDER BY coa.code`,
         tenantId,
         companyId,
@@ -95,13 +95,13 @@ export class FinanceControlService {
              WHERE tenant_id=$1::text AND company_id=$2::text
                AND ($3::text IS NULL OR branch_id=$3::text)
                AND approval_status='APPROVED'),0)::numeric AS "recognizedExpense",
-           COALESCE((SELECT SUM(c.amount*i.exchange_rate)
+           COALESCE((SELECT SUM(c.amount*c.exchange_rate)
              FROM income_collections c
              JOIN income_records i ON i.id=c.income_record_id
              LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
              WHERE c.tenant_id=$1::text AND c.company_id=$2::text
                AND ($3::text IS NULL OR c.branch_id=$3::text) AND r.id IS NULL),0)::numeric AS collected,
-           COALESCE((SELECT SUM(p.amount*e.exchange_rate)
+           COALESCE((SELECT SUM(p.amount*p.exchange_rate)
              FROM expense_payments p
              JOIN expenses e ON e.id=p.expense_id
              LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
