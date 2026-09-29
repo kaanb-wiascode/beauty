@@ -21,6 +21,11 @@ type Integrity = { healthy:boolean; issueCount:number; criticalCount:number; che
 type Validation = { valid:boolean; tolerance:number; checks:Array<{code:string;label:string;expected:number;actual:number;variance:number;ok:boolean}> };
 type Audit = { id:string; createdAt:string; domain:string; eventType:string; recordId:string|null; actorId:string|null; reason:string|null };
 type Period = { id:string; name:string; startsAt:string; endsAt:string; status:"OPEN"|"CLOSED"; closedAt?:string|null; closeReason?:string|null };
+type PeriodCloseChecklist = {
+  closable:boolean;
+  blockingCount:number;
+  checks:Array<{code:string;label:string;count:number;blocking:boolean}>;
+};
 
 export default function FinanceControlPage(){
   const[projection,setProjection]=useState<Projection|null>(null);
@@ -66,6 +71,20 @@ export default function FinanceControlPage(){
     if(!canManagePeriods)return;
     let body:Record<string,unknown>|undefined;
     if(action==="close"){
+      try{
+        const checklist=await api<PeriodCloseChecklist>(`/finance/periods/${period.id}/close-checklist`);
+        if(!checklist.closable){
+          const blockers=checklist.checks
+            .filter(check=>check.blocking&&check.count!==0)
+            .map(check=>`${check.label}: ${check.count}`)
+            .join(" · ");
+          setError(`Bu dönem henüz kapatılamaz. ${blockers}`);
+          return;
+        }
+      }catch(e){
+        setError(e instanceof ApiError?e.message:"Dönem kapanış kontrolleri tamamlanamadı.");
+        return;
+      }
       const reason=window.prompt("Dönem kapatma nedeni (isteğe bağlı)");
       if(reason===null)return;
       body=reason.trim()?{reason:reason.trim()}:undefined;
