@@ -17,21 +17,21 @@ export function calculateSaleTotals(
   discountTotal = 0,
 ): SaleTotals {
   if (lines.length === 0) {
-    throw new Error('A sale must contain at least one line.');
+    throw new Error('Satışta en az bir kalem bulunmalıdır.');
   }
 
   if (discountTotal < 0) {
-    throw new Error('Discount cannot be negative.');
+    throw new Error('İndirim tutarı negatif olamaz.');
   }
 
   const subtotal = toMoney(
     lines.reduce((sum, line) => {
       if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
-        throw new Error('Sale line quantity must be a positive integer.');
+        throw new Error('Satış kalemi miktarı sıfırdan büyük tam sayı olmalıdır.');
       }
 
       if (!Number.isFinite(line.unitPrice) || line.unitPrice < 0) {
-        throw new Error('Sale line unit price must be a non-negative number.');
+        throw new Error('Satış kalemi birim fiyatı negatif olamaz.');
       }
 
       return sum + line.quantity * line.unitPrice;
@@ -41,7 +41,7 @@ export function calculateSaleTotals(
   const normalizedDiscount = toMoney(discountTotal);
 
   if (normalizedDiscount > subtotal) {
-    throw new Error('Discount cannot exceed subtotal.');
+    throw new Error('İndirim tutarı ara toplamı aşamaz.');
   }
 
   return {
