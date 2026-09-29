@@ -7,8 +7,6 @@ import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import { buildExpenseSettlementLines, ensureFxAccounts, reverseJournalLines } from './domain/fx-settlement-policy';
 import {
   assertExpensePaymentAllowed,
-  buildExpensePaymentLines,
-  buildExpensePaymentReversalLines,
   expensePayableAmount,
   expensePaymentStatus,
 } from './domain/expense-payment-policy';
