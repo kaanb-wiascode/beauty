@@ -459,6 +459,18 @@ export class FinanceControlService {
          WHERE ps.tenant_id=$1::text AND ps.company_id=$2::text
            AND ($3::text IS NULL OR ps.branch_id=$3::text)
            AND ps.reconciled_at IS NOT NULL
+         UNION ALL
+         SELECT pfe.id||':event',pfe.occurred_at,'POS',('POS_'||pfe.event_type)::text,pfe.id,NULL::text,NULL::text,
+                NULL::jsonb,
+                jsonb_build_object(
+                  'posTransactionId',pfe.pos_transaction_id,
+                  'amount',pfe.amount,
+                  'feeAmount',pfe.fee_amount,
+                  'externalEventId',pfe.external_event_id
+                )
+         FROM pos_financial_events pfe
+         WHERE pfe.tenant_id=$1::text AND pfe.company_id=$2::text
+           AND ($3::text IS NULL OR pfe.branch_id=$3::text)
        ) events
        ORDER BY "createdAt" DESC,id DESC
        LIMIT $4`,
