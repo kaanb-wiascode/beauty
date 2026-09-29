@@ -14,6 +14,7 @@ type Mode = "expense" | "income";
 type Category = { id:string; code:string; name:string; parentId:string|null; active:boolean };
 type CostCenter = { id:string; code:string; name:string; active:boolean };
 type Account = { id:string; code:string; name:string; type:string; active:boolean };
+type PageResult<T>={data:T[];meta:{page:number;limit:number;total:number;totalPages:number}};
 type FinanceRecord = {
   id:string; categoryId:string; costCenterId:string|null; counterpartyName:string|null;
   counterpartyTaxNumber:string|null; documentType:string|null; documentNumber:string|null;
@@ -64,7 +65,10 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const[accounts,setAccounts]=useState<Account[]>([]);
   const[loading,setLoading]=useState(true),[working,setWorking]=useState(false);
   const[error,setError]=useState(""),[notice,setNotice]=useState("");
-  const[search,setSearch]=useState(""),[approvalFilter,setApprovalFilter]=useState("");
+  const[search,setSearch]=useState(""),[querySearch,setQuerySearch]=useState(""),[approvalFilter,setApprovalFilter]=useState("");
+  const[sortBy,setSortBy]=useState<"transactionDate"|"grossAmount"|"createdAt">("transactionDate");
+  const[sortDir,setSortDir]=useState<"asc"|"desc">("desc");
+  const[page,setPage]=useState(1),[totalPages,setTotalPages]=useState(1),[totalRecords,setTotalRecords]=useState(0);
   const[createOpen,setCreateOpen]=useState(false),[selected,setSelected]=useState<FinanceRecord|null>(null),[moneyOpen,setMoneyOpen]=useState(false);
   const[form,setForm]=useState<RecordForm>(initialForm);
   const[amount,setAmount]=useState(""),[accountId,setAccountId]=useState(""),[method,setMethod]=useState("TRANSFER"),[reference,setReference]=useState("");
@@ -75,8 +79,11 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
-      const[nextRecords,initialCategories,nextCostCenters,nextAccounts,financeSettings]=await Promise.all([
-        api<FinanceRecord[]>(expense?"/finance/expenses?limit=200":"/finance/income?limit=200"),
+      const params=new URLSearchParams({page:String(page),limit:"50",sortBy,sortDir});
+      if(querySearch)params.set("search",querySearch);
+      if(approvalFilter)params.set("approvalStatus",approvalFilter);
+      const[nextPage,initialCategories,nextCostCenters,nextAccounts,financeSettings]=await Promise.all([
+        api<PageResult<FinanceRecord>>(`${expense?"/finance/expenses":"/finance/income"}?${params.toString()}`),
         api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`),
         api<CostCenter[]>("/finance/setup/cost-centers"),
         canReadAccounting ? api<Account[]>("/accounting/accounts") : Promise.resolve([] as Account[]),
@@ -88,22 +95,18 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         nextCategories=await api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`);
       }
       setBaseCurrency(financeSettings.baseCurrency||"TRY");
-      setRecords(nextRecords);
+      setRecords(nextPage.data);
+      setTotalPages(nextPage.meta.totalPages);
+      setTotalRecords(nextPage.meta.total);
       setCategories(nextCategories.filter(x=>x.active));
       setCostCenters(nextCostCenters.filter(x=>x.active));
       setAccounts(nextAccounts.filter(x=>x.active&&x.type==="ASSET"));
     }catch(e){setError(e instanceof ApiError?e.message:"Finans kayıtları yüklenemedi.");}
     finally{setLoading(false);}
-  },[expense,canManage,canReadAccounting]);
+  },[expense,canManage,canReadAccounting,page,querySearch,approvalFilter,sortBy,sortDir]);
+  useEffect(()=>{const timer=window.setTimeout(()=>{setPage(1);setQuerySearch(search.trim())},350);return()=>window.clearTimeout(timer)},[search]);
   useEffect(()=>{void load();},[load]);
   useEffect(()=>{if(!selected){setMoneyHistory([]);return;}void(async()=>{try{const path=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;const result=await api<Array<Record<string,unknown>>>(path);setMoneyHistory(Array.isArray(result)?result:[])}catch{setMoneyHistory([])}})()},[selected,expense,basePath]);
-
-  const filtered=useMemo(()=>records.filter(record=>{
-    if(approvalFilter&&record.approvalStatus!==approvalFilter)return false;
-    if(!search.trim())return true;
-    const category=categories.find(x=>x.id===record.categoryId)?.name??"";
-    return [record.counterpartyName,record.documentNumber,record.description,category].join(" ").toLocaleLowerCase("tr-TR").includes(search.trim().toLocaleLowerCase("tr-TR"));
-  }),[records,approvalFilter,search,categories]);
 
   const metrics=useMemo(()=>({
     total:records.reduce((sum,r)=>sum+Number(r.grossAmount||0)*Number(r.exchangeRate||1),0),
@@ -203,25 +206,32 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric label={`Kayıtlı Tutar (${baseCurrency})`} value={money(metrics.total,baseCurrency)}/>
+      <Metric label={`Bu Sayfa Tutarı (${baseCurrency})`} value={money(metrics.total,baseCurrency)}/>
       <Metric label="Onaylanan Kayıt" value={metrics.approved}/>
       <Metric label="Onay Bekleyen" value={metrics.pending}/>
       <Metric label={expense?"Ödemesi Açık":"Tahsilatı Açık"} value={metrics.openMoney}/>
     </section>
 
     <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
-      <div className="grid gap-3 border-b border-[var(--line)] p-4 md:grid-cols-[1fr_220px_auto]">
+      <div className="grid gap-3 border-b border-[var(--line)] p-4 md:grid-cols-[1fr_220px_220px_auto]">
         <TextInput value={search} onChange={e=>setSearch(e.target.value)} placeholder="Karşı taraf, belge no, kategori veya açıklama ara..."/>
-        <Select value={approvalFilter} onChange={e=>setApprovalFilter(e.target.value)}>
+        <Select value={approvalFilter} onChange={e=>{setApprovalFilter(e.target.value);setPage(1)}}>
           <option value="">Tüm onay durumları</option><option value="DRAFT">Taslak</option><option value="SUBMITTED">Onay bekliyor</option><option value="APPROVED">Onaylandı</option><option value="REJECTED">Reddedildi</option>
+        </Select>
+        <Select value={`${sortBy}:${sortDir}`} onChange={e=>{const [nextSort,nextDir]=e.target.value.split(":") as [typeof sortBy,typeof sortDir];setSortBy(nextSort);setSortDir(nextDir);setPage(1)}}>
+          <option value="transactionDate:desc">Tarih · Yeni → Eski</option>
+          <option value="transactionDate:asc">Tarih · Eski → Yeni</option>
+          <option value="grossAmount:desc">Tutar · Yüksek → Düşük</option>
+          <option value="grossAmount:asc">Tutar · Düşük → Yüksek</option>
+          <option value="createdAt:desc">Eklenme · Yeni → Eski</option>
         </Select>
         <Button variant="secondary" onClick={()=>void load()} disabled={loading}>{loading?"Yükleniyor...":"Yenile"}</Button>
       </div>
-      {filtered.length?<div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-xs">
+      {records.length?<div className="overflow-x-auto"><table className="w-full min-w-[1050px] text-left text-xs">
         <thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/45 text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">
           <th className="px-4 py-3">Tarih</th><th className="px-4 py-3">Kategori</th><th className="px-4 py-3">Karşı Taraf</th><th className="px-4 py-3">Belge</th><th className="px-4 py-3">Tutar</th><th className="px-4 py-3">Onay</th><th className="px-4 py-3">{expense?"Ödeme":"Tahsilat"}</th><th className="px-4 py-3">Muhasebe</th><th className="px-4 py-3">İşlem</th>
         </tr></thead>
-        <tbody>{filtered.map(record=><tr key={record.id} className="border-b border-[var(--line)] last:border-0">
+        <tbody>{records.map(record=><tr key={record.id} className="border-b border-[var(--line)] last:border-0">
           <td className="px-4 py-4 text-[var(--muted)]">{date(record.transactionDate)}</td>
           <td className="px-4 py-4 font-medium text-[var(--ink)]">{categories.find(x=>x.id===record.categoryId)?.name??"Kategori"}</td>
           <td className="px-4 py-4 text-[var(--muted)]">{record.counterpartyName||"—"}</td>
@@ -233,6 +243,13 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
           <td className="px-4 py-4"><Button size="sm" variant="secondary" onClick={()=>setSelected(record)}>Aç</Button></td>
         </tr>)}</tbody>
       </table></div>:<EmptyState title="Kayıt bulunamadı" description={expense?"Henüz gider kaydı yok veya filtrelere uyan kayıt bulunamadı.":"Henüz gelir kaydı yok veya filtrelere uyan kayıt bulunamadı."}/>}
+      <div className="flex flex-col gap-3 border-t border-[var(--line)] px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-[10px] text-[var(--muted)]">Toplam {totalRecords} kayıt · Sayfa {page}/{totalPages}</p>
+        <div className="flex gap-2">
+          <Button size="sm" variant="secondary" disabled={page<=1||loading} onClick={()=>setPage(current=>Math.max(1,current-1))}>Önceki</Button>
+          <Button size="sm" variant="secondary" disabled={page>=totalPages||loading} onClick={()=>setPage(current=>Math.min(totalPages,current+1))}>Sonraki</Button>
+        </div>
+      </div>
     </section>
 
     <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title={`Yeni ${expense?"Gider":"Gelir"}`} description="Finansal olayı kaydedin. Ödeme veya tahsilat ayrı bir nakit hareketi olarak işlenir.">
