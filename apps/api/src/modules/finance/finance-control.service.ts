@@ -321,6 +321,44 @@ export class FinanceControlService {
                 f.before_state AS "beforeState",f.after_state AS "afterState"
          FROM finance_configuration_audit_events f
          WHERE f.tenant_id=$1::text AND (f.company_id=$2::text OR f.company_id IS NULL)
+         UNION ALL
+         SELECT je.id||':created',je."createdAt",'ACCOUNTING','JOURNAL_CREATED',je.id,je."createdBy",NULL::text,
+                NULL::jsonb,jsonb_build_object('status','DRAFT')
+         FROM journal_entries je
+         WHERE je."tenantId"=$1::text AND je."companyId"=$2::text
+           AND ($3::text IS NULL OR je."branchId"=$3::text) AND je."createdBy" IS NOT NULL
+         UNION ALL
+         SELECT je.id||':submitted',je."submittedAt",'ACCOUNTING','JOURNAL_SUBMITTED',je.id,je."submittedBy",NULL::text,
+                jsonb_build_object('status','DRAFT'),jsonb_build_object('status','SUBMITTED')
+         FROM journal_entries je
+         WHERE je."tenantId"=$1::text AND je."companyId"=$2::text
+           AND ($3::text IS NULL OR je."branchId"=$3::text) AND je."submittedAt" IS NOT NULL
+         UNION ALL
+         SELECT je.id||':approved',je."approvedAt",'ACCOUNTING','JOURNAL_APPROVED',je.id,je."approvedBy",NULL::text,
+                jsonb_build_object('status','SUBMITTED'),jsonb_build_object('status','APPROVED')
+         FROM journal_entries je
+         WHERE je."tenantId"=$1::text AND je."companyId"=$2::text
+           AND ($3::text IS NULL OR je."branchId"=$3::text) AND je."approvedAt" IS NOT NULL
+         UNION ALL
+         SELECT je.id||':posted',je."postedAt",'ACCOUNTING','JOURNAL_POSTED',je.id,je."postedBy",NULL::text,
+                jsonb_build_object('status','APPROVED'),jsonb_build_object('status','POSTED')
+         FROM journal_entries je
+         WHERE je."tenantId"=$1::text AND je."companyId"=$2::text
+           AND ($3::text IS NULL OR je."branchId"=$3::text) AND je."postedAt" IS NOT NULL
+         UNION ALL
+         SELECT fp.id||':closed',fp.closed_at,'PERIOD','PERIOD_CLOSED',fp.id,fp.closed_by,fp.close_reason,
+                jsonb_build_object('status','OPEN'),jsonb_build_object('status','CLOSED','name',fp.name)
+         FROM financial_periods fp
+         WHERE fp.tenant_id=$1::text AND fp.company_id=$2::text
+           AND ($3::text IS NULL OR fp.branch_id IS NULL OR fp.branch_id=$3::text)
+           AND fp.closed_at IS NOT NULL
+         UNION ALL
+         SELECT fp.id||':reopened',fp.reopened_at,'PERIOD','PERIOD_REOPENED',fp.id,fp.reopened_by,NULL::text,
+                jsonb_build_object('status','CLOSED'),jsonb_build_object('status','OPEN','name',fp.name)
+         FROM financial_periods fp
+         WHERE fp.tenant_id=$1::text AND fp.company_id=$2::text
+           AND ($3::text IS NULL OR fp.branch_id IS NULL OR fp.branch_id=$3::text)
+           AND fp.reopened_at IS NOT NULL
        ) events
        ORDER BY "createdAt" DESC,id DESC
        LIMIT $4`,
