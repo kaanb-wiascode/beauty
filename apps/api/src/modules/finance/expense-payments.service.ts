@@ -4,6 +4,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
 import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
+import { buildExpenseSettlementLines, ensureFxAccounts, reverseJournalLines } from './domain/fx-settlement-policy';
 import {
   assertExpensePaymentAllowed,
   buildExpensePaymentLines,
@@ -19,6 +20,7 @@ interface RecordExpensePaymentInput {
   reference?: string;
   note?: string;
   paidAt?: Date;
+  exchangeRate?: number;
   sourceType?: string;
   sourceId?: string;
 }
@@ -38,6 +40,7 @@ interface ExpensePaymentContextRow {
   grossAmount: Prisma.Decimal;
   withholdingAmount: Prisma.Decimal;
   exchangeRate: Prisma.Decimal;
+  currency: string;
   approvalStatus: string;
   accountingStatus: string;
   paymentStatus: string;
@@ -50,6 +53,7 @@ interface ReversibleExpensePaymentRow {
   paymentAccountId: string;
   journalEntryId: string;
   amount: Prisma.Decimal;
+  exchangeRate: Prisma.Decimal;
   paidAt: Date;
   reversalId: string | null;
 }
@@ -195,12 +199,18 @@ export class ExpensePaymentsService {
         throw new BadRequestException(error instanceof Error ? error.message : 'Expense payment is not allowed.');
       }
 
-      const baseAmount = input.amount * Number(expense.exchangeRate);
-      const lines = buildExpensePaymentLines({
+      const settlementRate = input.exchangeRate ?? Number(expense.exchangeRate);
+      const fxAccounts = await ensureFxAccounts(tx, { tenantId: expense.tenantId, companyId: expense.companyId });
+      const settlement = buildExpenseSettlementLines({
+        amount: input.amount,
+        documentRate: Number(expense.exchangeRate),
+        settlementRate,
         payableAccountId,
         paymentAccountId: paymentAccount.id,
-        amount: baseAmount,
+        gainAccountId: fxAccounts.gainAccountId,
+        lossAccountId: fxAccounts.lossAccountId,
       });
+      const lines = settlement.lines;
       try {
         validateJournalLines(lines);
       } catch (error) {
@@ -235,9 +245,9 @@ export class ExpensePaymentsService {
       const rows = await tx.$queryRawUnsafe<Array<{ id: string; amount: Prisma.Decimal; paidAt: Date }>>(
         `INSERT INTO expense_payments(
            id,tenant_id,company_id,branch_id,expense_id,payable_account_id,payment_account_id,journal_entry_id,
-           amount,method,reference,note,paid_at,source_type,source_id,created_by
-         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9,$10,$11,$12,$13,$14,$15,$16::text)
-         RETURNING id,amount,paid_at AS "paidAt"`,
+           amount,exchange_rate,method,reference,note,paid_at,source_type,source_id,created_by
+         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7::text,$8::text,$9,$10,$11,$12,$13,$14,$15,$16,$17::text)
+         RETURNING id,amount,exchange_rate AS "exchangeRate",paid_at AS "paidAt"`,
         paymentId,
         expense.tenantId,
         expense.companyId,
@@ -247,6 +257,7 @@ export class ExpensePaymentsService {
         paymentAccount.id,
         journal.id,
         input.amount,
+        settlementRate,
         input.method,
         input.reference?.trim() || null,
         input.note?.trim() || null,
@@ -279,6 +290,9 @@ export class ExpensePaymentsService {
         payableAmount,
         remainingAmount: Math.max(0, payableAmount - newPaidAmount),
         journalEntryId: journal.id,
+        documentExchangeRate: Number(expense.exchangeRate),
+        settlementExchangeRate: settlementRate,
+        realizedFxDifference: settlement.difference,
       };
     });
   }
@@ -323,7 +337,7 @@ export class ExpensePaymentsService {
       const paymentRows = await tx.$queryRawUnsafe<ReversibleExpensePaymentRow[]>(
         `SELECT p.id,p.expense_id AS "expenseId",p.payable_account_id AS "payableAccountId",
                 p.payment_account_id AS "paymentAccountId",p.journal_entry_id AS "journalEntryId",
-                p.amount,p.paid_at AS "paidAt",r.id AS "reversalId"
+                p.amount,p.exchange_rate AS "exchangeRate",p.paid_at AS "paidAt",r.id AS "reversalId"
          FROM expense_payments p
          LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
          WHERE p.id=$1::text AND p.expense_id=$2::text AND p.tenant_id=$3::text AND p.company_id=$4::text
@@ -339,12 +353,22 @@ export class ExpensePaymentsService {
       if (payment.reversalId) throw new BadRequestException('Expense payment is already reversed.');
 
       const amount = Number(payment.amount);
-      const baseAmount = amount * Number(expense.exchangeRate);
-      const lines = buildExpensePaymentReversalLines({
-        payableAccountId: payment.payableAccountId,
-        paymentAccountId: payment.paymentAccountId,
-        amount: baseAmount,
+      const originalJournalLines = await tx.journalEntryLine.findMany({
+        where: { journalEntryId: payment.journalEntryId },
+        select: { accountId: true, debit: true, credit: true, memo: true },
       });
+      if (!originalJournalLines.length) {
+        throw new BadRequestException('Ödemenin orijinal muhasebe fişi bulunamadı.');
+      }
+      const lines = reverseJournalLines(
+        originalJournalLines.map((line) => ({
+          accountId: line.accountId,
+          debit: Number(line.debit),
+          credit: Number(line.credit),
+          memo: line.memo ?? undefined,
+        })),
+        'Gider ödeme ters kaydı',
+      );
       try {
         validateJournalLines(lines);
       } catch (error) {
