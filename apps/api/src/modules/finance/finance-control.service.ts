@@ -247,6 +247,15 @@ export class FinanceControlService {
     const revenueVariance = this.round(
       projection.subledger.recognizedIncome - projection.ledger.revenue,
     );
+    const tryBank = projection.provider.bankBalances.find((item) => item.currency === 'TRY') ?? null;
+    const tryPos = projection.provider.unsettledPos.find((item) => item.currency === 'TRY') ?? null;
+    const bankVariance = tryBank
+      ? this.round(tryBank.currentBalance - projection.ledger.bank)
+      : null;
+    const posVariance = tryPos
+      ? this.round(tryPos.unsettledNet - projection.ledger.posReceivable)
+      : null;
+
     const checks = [
       {
         code: 'RECOGNIZED_INCOME_VS_GL_REVENUE',
@@ -255,6 +264,24 @@ export class FinanceControlService {
         actual: projection.ledger.revenue,
         variance: revenueVariance,
         ok: Math.abs(revenueVariance) <= tolerance,
+      },
+      {
+        code: 'BANK_PROVIDER_VS_GL_102',
+        label: 'Canlı banka bakiyesi / 102 Bankalar',
+        expected: tryBank?.currentBalance ?? null,
+        actual: projection.ledger.bank,
+        variance: bankVariance,
+        comparable: Boolean(tryBank),
+        ok: bankVariance == null ? true : Math.abs(bankVariance) <= tolerance,
+      },
+      {
+        code: 'UNSETTLED_POS_VS_GL_108',
+        label: 'Bekleyen POS / 108 POS Alacakları',
+        expected: tryPos?.unsettledNet ?? null,
+        actual: projection.ledger.posReceivable,
+        variance: posVariance,
+        comparable: Boolean(tryPos),
+        ok: posVariance == null ? true : Math.abs(posVariance) <= tolerance,
       },
     ];
     return {
