@@ -343,6 +343,35 @@ const USER_ACTION_LABELS: Record<string, string> = {
   clone: "Kopyalama",
 };
 
+const USER_TEXT_LABELS: Record<string, string> = {
+  RESOLVE_LIQUIDITY_GAP: "Likidite Açığını Gider",
+  FINANCIAL_RECOVERY_PLAN: "Finansal Toparlanma Planı",
+  EXTEND_RUNWAY: "Nakit Dayanma Süresini Uzat",
+  ACCELERATE_COLLECTIONS: "Tahsilatları Hızlandır",
+  IMPROVE_WORKING_CAPITAL: "İşletme Sermayesini İyileştir",
+  REDUCE_OVERDUE_RECEIVABLES: "Gecikmiş Alacakları Azalt",
+  "Minimum financial health score": "Minimum finansal sağlık puanı",
+  "Minimum cash runway": "Minimum nakit dayanma süresi",
+  "Maximum DSO": "En yüksek tahsilat süresi",
+  "Minimum net working capital": "Minimum net işletme sermayesi",
+  "Maximum overdue receivable ratio": "En yüksek vadesi geçmiş alacak oranı",
+  "Maximum 13-week liquidity alerts": "13 haftalık likidite uyarı sınırı",
+  "Initiate a financial recovery plan and review liquidity, collections, cost controls and near-term commitments weekly.":
+    "Finansal toparlanma planı başlatın; likiditeyi, tahsilatları, maliyet kontrollerini ve kısa vadeli yükümlülükleri haftalık olarak gözden geçirin.",
+  "Protect cash immediately: defer non-essential outflows, accelerate collections and preserve the configured liquidity floor.":
+    "Nakit pozisyonunu koruyun: zorunlu olmayan ödemeleri erteleyin, tahsilatları hızlandırın ve belirlenen minimum likidite seviyesini koruyun.",
+  "Review the first forecasted liquidity breach week and reschedule supplier payments or accelerate receivable collection before that date.":
+    "İlk likidite açığı beklenen haftayı inceleyin; bu tarihten önce tedarikçi ödemelerini yeniden planlayın veya alacak tahsilatını hızlandırın.",
+  "Prioritize overdue customer balances, shorten payment terms for new sales and follow up before installment due dates.":
+    "Vadesi geçmiş müşteri bakiyelerine öncelik verin, yeni satışlarda ödeme vadelerini kısaltın ve taksit vadelerinden önce takip başlatın.",
+  "Reduce inventory tied-up cash, accelerate receivables and renegotiate supplier terms to restore working-capital headroom.":
+    "Stokta bağlı nakdi azaltın, alacak tahsilatını hızlandırın ve işletme sermayesi alanı yaratmak için tedarikçi vadelerini yeniden görüşün.",
+  "Segment overdue balances by aging and customer exposure, then prioritize high-value and 90+ day accounts for collection.":
+    "Vadesi geçmiş bakiyeleri yaşlandırma ve müşteri riskine göre ayırın; yüksek tutarlı ve 90 günü aşan alacaklara tahsilatta öncelik verin.",
+  "Review the breached financial threshold and assign a corrective action owner.":
+    "Aşılan finansal eşiği inceleyin ve düzeltici aksiyon için sorumlu atayın.",
+};
+
 const USER_ERROR_MESSAGES: Record<string, string> = {
   "Invalid email or password": "E-Posta Veya Şifre Hatalı.",
   "No active tenant membership": "Aktif İşletme Üyeliği Bulunamadı.",
@@ -498,6 +527,23 @@ const SYSTEM_WORD_LABELS: Record<string, string> = {
   AUTHENTICATED: "Doğrulandı",
   ONLINE: "Çevrim İçi",
   OFFLINE: "Çevrim Dışı",
+  RESOLVE: "Gider",
+  LIQUIDITY: "Likidite",
+  GAP: "Açığı",
+  FINANCIAL: "Finansal",
+  RECOVERY: "Toparlanma",
+  EXTEND: "Uzat",
+  RUNWAY: "Dayanma Süresi",
+  ACCELERATE: "Hızlandır",
+  COLLECTIONS: "Tahsilatlar",
+  IMPROVE: "İyileştir",
+  WORKING: "İşletme",
+  CAPITAL: "Sermayesi",
+  REDUCE: "Azalt",
+  OVERDUE: "Gecikmiş",
+  RECEIVABLES: "Alacaklar",
+  ALERTS: "Uyarılar",
+  LIQUIDITY: "Likidite",
 };
 
 function humanizeSystemValue(value: string): string {
@@ -584,6 +630,23 @@ export function userPermissionKeyLabel(value: string | null | undefined): string
   const [resource, action] = value.split(".");
   if (!resource || !action) return userLabel(value);
   return userPermissionLabel(resource, action);
+}
+
+export function userText(value: string | null | undefined, fallback?: string): string {
+  if (!value) return fallback ?? "—";
+  const normalized=value.trim();
+  if (!normalized) return fallback ?? "—";
+
+  const exact=USER_TEXT_LABELS[normalized] ?? USER_LABELS[normalized];
+  if (exact) return exact;
+
+  if (/^[A-Z0-9_\-]{3,}$/.test(normalized)) return humanizeSystemValue(normalized);
+
+  if (looksTechnical(normalized)) {
+    return fallback ?? humanizeSystemValue(normalized);
+  }
+
+  return normalized;
 }
 
 export function userNoticeMessage(message: string): string {
