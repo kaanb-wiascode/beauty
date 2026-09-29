@@ -30,10 +30,10 @@ type RecordForm = {
 };
 
 const today=()=>new Date().toISOString().slice(0,10);
-const initialForm=():RecordForm=>({
+const initialForm=(baseCurrency="TRY"):RecordForm=>({
   categoryId:"",costCenterId:"",counterpartyName:"",counterpartyTaxNumber:"",
   documentType:"",documentNumber:"",documentDate:"",transactionDate:today(),dueDate:"",
-  grossAmount:"",netAmount:"",taxAmount:"0",withholdingAmount:"0",currency:"TRY",exchangeRate:"1",description:"",
+  grossAmount:"",netAmount:"",taxAmount:"0",withholdingAmount:"0",currency:baseCurrency,exchangeRate:"1",description:"",
 });
 const money=(value:number|string|null|undefined,currency="TRY")=>new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:2}).format(Number(value??0));
 const date=(value:string|null|undefined)=>value?new Date(value).toLocaleDateString("tr-TR"):"—";
@@ -58,6 +58,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const canReadAccounting=hasPermission("accounting","read");
 
   const[records,setRecords]=useState<FinanceRecord[]>([]);
+  const[baseCurrency,setBaseCurrency]=useState("TRY");
   const[categories,setCategories]=useState<Category[]>([]);
   const[costCenters,setCostCenters]=useState<CostCenter[]>([]);
   const[accounts,setAccounts]=useState<Account[]>([]);
@@ -74,17 +75,19 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
-      const[nextRecords,initialCategories,nextCostCenters,nextAccounts]=await Promise.all([
+      const[nextRecords,initialCategories,nextCostCenters,nextAccounts,financeSettings]=await Promise.all([
         api<FinanceRecord[]>(expense?"/finance/expenses?limit=200":"/finance/income?limit=200"),
         api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`),
         api<CostCenter[]>("/finance/setup/cost-centers"),
         canReadAccounting ? api<Account[]>("/accounting/accounts") : Promise.resolve([] as Account[]),
+        api<{baseCurrency:string}>("/finance/control/settings"),
       ]);
       let nextCategories=initialCategories;
       if(!nextCategories.length&&canManage){
         await api("/finance/setup/bootstrap-default-taxonomy",{method:"POST"});
         nextCategories=await api<Category[]>(`/finance/setup/${expense?"expense":"income"}-categories`);
       }
+      setBaseCurrency(financeSettings.baseCurrency||"TRY");
       setRecords(nextRecords);
       setCategories(nextCategories.filter(x=>x.active));
       setCostCenters(nextCostCenters.filter(x=>x.active));
@@ -130,7 +133,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         currency:form.currency.toUpperCase(),exchangeRate:Number(form.exchangeRate||1),
         ...(form.description?{description:form.description}:{}),
       }});
-      setCreateOpen(false);setForm(initialForm());setNotice(`${expense?"Gider":"Gelir"} kaydı oluşturuldu.`);await load();
+      setCreateOpen(false);setForm(initialForm(baseCurrency));setNotice(`${expense?"Gider":"Gelir"} kaydı oluşturuldu.`);await load();
     }catch(e){setError(e instanceof ApiError?e.message:"Kayıt oluşturulamadı.");}
     finally{setWorking(false);}
   }
@@ -158,7 +161,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
 
   function openMoney(record:FinanceRecord){
     setSelected(record);setAmount(String(record.grossAmount));setAccountId(accounts[0]?.id??"");setMethod("TRANSFER");setReference("");
-    setSettlementExchangeRate(record.currency==="TRY"?"1":String(record.exchangeRate||""));
+    setSettlementExchangeRate(record.currency===baseCurrency?"1":String(record.exchangeRate||""));
     setMoneyOpen(true);
   }
 
@@ -182,7 +185,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     event.preventDefault();if(!selected||!accountId||!Number(amount))return;setWorking(true);setError("");
     try{
       const path=expense?`${basePath}/${selected.id}/payments`:`${basePath}/${selected.id}/collections`;
-      const exchangeRateBody=selected.currency!=="TRY"&&Number(settlementExchangeRate)>0?{exchangeRate:Number(settlementExchangeRate)}:{};
+      const exchangeRateBody=selected.currency!==baseCurrency&&Number(settlementExchangeRate)>0?{exchangeRate:Number(settlementExchangeRate)}:{};
       const body=expense
         ?{amount:Number(amount),paymentAccountId:accountId,method,...exchangeRateBody,...(reference?{reference}:{})}
         :{amount:Number(amount),collectionAccountId:accountId,method,...exchangeRateBody,...(reference?{reference}:{})};
@@ -195,7 +198,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
   if(loading&&!records.length)return <Spinner label={`${title} hazırlanıyor...`}/>;
 
   return <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
-    <PageHeader title={title} description={expense?"Gideri kaydetme, onay, muhasebe ve ödeme süreçlerini tek merkezden yönetin.":"Satış dışı ve operasyonel gelirlerin kayıt, onay, muhasebe ve tahsilat süreçlerini yönetin."} action={canManage?<Button onClick={()=>{setForm(initialForm());setCreateOpen(true);}}>+ Yeni {expense?"Gider":"Gelir"}</Button>:undefined}/>
+    <PageHeader title={title} description={expense?"Gideri kaydetme, onay, muhasebe ve ödeme süreçlerini tek merkezden yönetin.":"Satış dışı ve operasyonel gelirlerin kayıt, onay, muhasebe ve tahsilat süreçlerini yönetin."} action={canManage?<Button onClick={()=>{setForm(initialForm(baseCurrency));setCreateOpen(true);}}>+ Yeni {expense?"Gider":"Gelir"}</Button>:undefined}/>
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
 
@@ -289,7 +292,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
           {moneyHistory.length?<div className="divide-y divide-[var(--line)]">{moneyHistory.map((item,index)=><div key={String(item.id??index)} className="grid gap-3 px-4 py-3 md:grid-cols-[1fr_1fr_1fr_auto] md:items-center">
             <div><p className="text-[10px] text-[var(--muted-soft)]">Tutar</p><p className="text-[12px] font-semibold text-[var(--ink)]">{money(Number(item.amount??0),selected.currency)}</p></div>
             <div><p className="text-[10px] text-[var(--muted-soft)]">Hesap</p><p className="text-[11px] text-[var(--muted)]">{String(item.paymentAccountName??item.collectionAccountName??"—")}</p></div>
-            <div><p className="text-[10px] text-[var(--muted-soft)]">Referans / Kur</p><p className="text-[11px] text-[var(--muted)]">{String(item.reference??"—")}{selected.currency!=="TRY"&&item.exchangeRate?` · Kur ${Number(item.exchangeRate).toLocaleString("tr-TR",{maximumFractionDigits:6})}`:""}</p></div>
+            <div><p className="text-[10px] text-[var(--muted-soft)]">Referans / Kur</p><p className="text-[11px] text-[var(--muted)]">{String(item.reference??"—")}{selected.currency!==baseCurrency&&item.exchangeRate?` · Kur ${Number(item.exchangeRate).toLocaleString("tr-TR",{maximumFractionDigits:6})}`:""}</p></div>
             <div>{canManage&&!item.reversalId?<Button size="sm" variant="danger" disabled={working} onClick={()=>void reverseMoney(item)}>Geri Al</Button>:<span className="text-[10px] text-[var(--muted-soft)]">{item.reversalId?"Ters kayıtlı":""}</span>}</div>
           </div>)}</div>:<div className="px-4 py-6 text-center text-[11px] text-[var(--muted)]">Henüz hareket yok.</div>}
         </section>
@@ -308,9 +311,9 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
         <Field label="Tutar" required><TextInput type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} required/></Field>
         <Field label={expense?"Ödeme Hesabı":"Tahsilat Hesabı"} required><Select value={accountId} onChange={e=>setAccountId(e.target.value)} required><option value="">Kasa / banka hesabı seçin</option>{accounts.map(x=><option key={x.id} value={x.id}>{x.code} · {x.name}</option>)}</Select></Field>
         <Field label="Yöntem" required><Select value={method} onChange={e=>setMethod(e.target.value)}><option value="TRANSFER">Banka Havalesi / EFT</option><option value="CASH">Nakit</option><option value="CARD">Kart</option><option value="OTHER">Diğer</option></Select></Field>
-        {selected?.currency!=="TRY"?<Field label="Gerçekleşen Döviz Kuru" required><TextInput type="number" min="0.000001" step="0.000001" value={settlementExchangeRate} onChange={e=>setSettlementExchangeRate(e.target.value)} required/><p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Belge kuru {Number(selected?.exchangeRate??0).toLocaleString("tr-TR",{maximumFractionDigits:6})}. Aradaki fark otomatik olarak kur farkı geliri/gideri hesabına işlenir.</p></Field>:null}
+        {selected?.currency!==baseCurrency?<Field label="Gerçekleşen Döviz Kuru" required><TextInput type="number" min="0.000001" step="0.000001" value={settlementExchangeRate} onChange={e=>setSettlementExchangeRate(e.target.value)} required/><p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Belge kuru {Number(selected?.exchangeRate??0).toLocaleString("tr-TR",{maximumFractionDigits:6})}. Aradaki fark otomatik olarak kur farkı geliri/gideri hesabına işlenir.</p></Field>:null}
         <Field label="Referans / Dekont No"><TextInput value={reference} onChange={e=>setReference(e.target.value)}/></Field>
-        <FormActions><Button variant="secondary" onClick={()=>setMoneyOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working||!accountId||(selected?.currency!=="TRY"&&!Number(settlementExchangeRate))}>{working?"Kaydediliyor...":expense?"Ödemeyi Kaydet":"Tahsilatı Kaydet"}</Button></FormActions>
+        <FormActions><Button variant="secondary" onClick={()=>setMoneyOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working||!accountId||(selected?.currency!==baseCurrency&&!Number(settlementExchangeRate))}>{working?"Kaydediliyor...":expense?"Ödemeyi Kaydet":"Tahsilatı Kaydet"}</Button></FormActions>
       </form>
     </Modal>
   </div>;
