@@ -301,7 +301,12 @@ export class IncomeRecordsService {
               COALESCE(counterparty_name,'') ILIKE '%'||$11||'%' OR
               COALESCE(document_number,'') ILIKE '%'||$11||'%' OR
               COALESCE(description,'') ILIKE '%'||$11||'%' OR
-              COALESCE(source_type,'') ILIKE '%'||$11||'%')
+              COALESCE(source_type,'') ILIKE '%'||$11||'%' OR
+              EXISTS (
+                SELECT 1 FROM income_categories category
+                WHERE category.id=income_records.category_id
+                  AND category.name ILIKE '%'||$11||'%'
+              ))
          AND ($12::timestamp IS NULL OR transaction_date >= $12)
          AND ($13::timestamp IS NULL OR transaction_date <= $13)`;
 
