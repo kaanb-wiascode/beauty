@@ -355,6 +355,12 @@ export class ExpenseAccountingService {
       }
 
       const reversedAt = new Date();
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: expense.tenantId,
+        companyId: expense.companyId,
+        branchId: expense.branchId,
+        date: reversedAt,
+      });
       const reversal = await tx.journalEntry.create({
         data: {
           tenantId: expense.tenantId,
