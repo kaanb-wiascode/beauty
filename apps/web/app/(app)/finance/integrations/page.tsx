@@ -45,6 +45,7 @@ function financeStatus(status: string) {
 
 export default function FinancialIntegrationsPage() {
   const [providers, setProviders] = useState<Provider[]>([]);
+  const [baseCurrency, setBaseCurrency] = useState("TRY");
   const [integrations, setIntegrations] = useState<Integration[]>([]);
   const [liquidity, setLiquidity] = useState<Liquidity | null>(null);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
@@ -65,7 +66,7 @@ export default function FinancialIntegrationsPage() {
   const refresh = useCallback(async () => {
     setLoading(true);
     try {
-      const [providerRows, integrationRows, liquidityData, transactionRows, posData, treasuryData, forecastData] = await Promise.all([
+      const [providerRows, integrationRows, liquidityData, transactionRows, posData, treasuryData, forecastData, financeSettings] = await Promise.all([
         api<Provider[]>("/financial-integrations/providers"),
         api<Integration[]>("/financial-integrations"),
         api<Liquidity>("/financial-integrations/liquidity"),
@@ -73,6 +74,7 @@ export default function FinancialIntegrationsPage() {
         api<PosSummary>("/financial-integrations/pos/summary"),
         api<TreasuryPosition>("/financial-integrations/treasury-position"),
         api<SettlementForecast>("/financial-integrations/pos/settlement-forecast?days=14"),
+        api<{baseCurrency:string}>("/finance/control/settings"),
       ]);
       setProviders(providerRows);
       setIntegrations(integrationRows);
@@ -81,6 +83,7 @@ export default function FinancialIntegrationsPage() {
       setPosSummary(posData);
       setTreasuryPosition(treasuryData);
       setSettlementForecast(forecastData);
+      setBaseCurrency(financeSettings.baseCurrency||"TRY");
       setError(null);
     } catch (requestError) {
       setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Banka ve ödeme bağlantıları yüklenemedi.") : "Banka ve ödeme bağlantıları yüklenemedi.");
@@ -102,7 +105,7 @@ export default function FinancialIntegrationsPage() {
     Boolean(settlementForecast);
   useEffect(() => {
     setProvider(kindProviders[0]?.provider ?? "");
-    setDisplayName(kind === "OPEN_BANKING" ? "Ana Banka Bağlantısı" : "Online POS");
+    setDisplayName(kind === "OPEN_BANKING" ? "Ana Banka Bağlantısı" : "Sanal POS");
   }, [kind, kindProviders]);
 
   async function loadDetails(id: string) {
@@ -214,7 +217,7 @@ export default function FinancialIntegrationsPage() {
     {error ? <Alert onClose={() => setError(null)}>{error}</Alert> : null}
     {notice ? <Alert tone="success" onClose={() => setNotice(null)}>{notice}</Alert> : null}
 
-    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><FinanceMetric label="Aktif Bağlantı" value={integrations.filter((item) => item.status === "CONNECTED").length} detail={`${integrations.length} Toplam Bağlantı`} tone="success"/><FinanceMetric label="Banka Hesabı" value={liquidity?.accountCount ?? 0} detail="Güncellenmiş Hesap" tone="info"/><FinanceMetric label="Henüz Hesaba Geçmeyen POS Tutarı" value={money(posSummary?.currencies.find((item) => item.currency === "TRY")?.nearCash)} detail="Bankaya Aktarılmayı Bekleyen" tone="warning"/><FinanceMetric label="Kullanılabilir Bakiye" value={money(liquidity?.byCurrency?.TRY?.available)} detail="Canlı Banka Toplamı"/></section>
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4"><FinanceMetric label="Aktif Bağlantı" value={integrations.filter((item) => item.status === "CONNECTED").length} detail={`${integrations.length} Toplam Bağlantı`} tone="success"/><FinanceMetric label="Banka Hesabı" value={liquidity?.accountCount ?? 0} detail="Güncellenmiş Hesap" tone="info"/><FinanceMetric label="Henüz Hesaba Geçmeyen POS Tutarı" value={money(posSummary?.currencies.find((item) => item.currency === baseCurrency)?.nearCash,baseCurrency)} detail={`${baseCurrency} · Bankaya Aktarılmayı Bekleyen`} tone="warning"/><FinanceMetric label="Kullanılabilir Bakiye" value={money(liquidity?.byCurrency?.[baseCurrency]?.available,baseCurrency)} detail={`${baseCurrency} · Canlı Banka Toplamı`}/></section>
 
     <section className="grid gap-5 xl:grid-cols-[420px_minmax(0,1fr)]">
       <FinancePanel title="Yeni Bağlantı" description="Yalnızca Sistem Tarafından Desteklenen Banka Ve Ödeme Kuruluşları Gösterilir."><FormSection><div className="grid grid-cols-2 gap-2 rounded-[14px] bg-[var(--surface-2)] p-1.5">{(["OPEN_BANKING", "VIRTUAL_POS"] as IntegrationKind[]).map((value) => <button key={value} type="button" onClick={() => setKind(value)} className={`rounded-[11px] px-3 py-2.5 text-[11px] font-semibold ${kind === value ? "bg-[var(--surface)] text-[var(--accent)] shadow-sm" : "text-[var(--muted)]"}`}>{value === "OPEN_BANKING" ? "Banka Bağla" : "Sanal POS Bağla"}</button>)}</div><label className="block"><span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">Hizmet Sağlayıcı</span><Select className="control h-11 w-full" value={provider} onChange={(event) => setProvider(event.target.value)}>{kindProviders.map((item) => <option key={item.provider} value={item.provider}>{item.displayName}{item.runtimeReady ? "" : " · Kısmen Kullanıma Hazır"}</option>)}</Select></label><label className="block"><span className="mb-1.5 block text-[11px] font-medium text-[var(--muted)]">Bağlantı Adı</span><TextInput value={displayName} onChange={(event) => setDisplayName(event.target.value)}/></label><FormHint tone="warning" title="Bağlantı Bilgisi Güvenliği">İnternet Bankacılığı Kullanıcı Adı Veya Şifresi Toplanmaz. Gizli Bilgiler Yalnızca Güvenli Kasada Şifreli Olarak Saklanır Ve Sonradan Görüntülenmez.</FormHint></FormSection><FormActions><Button type="button" onClick={() => void createIntegration()} disabled={busy !== null || displayName.trim().length < 2 || !provider}>{busy === "create" ? "Oluşturuluyor…" : "Bağlantıyı Oluştur"}</Button></FormActions></FinancePanel>
