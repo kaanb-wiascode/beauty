@@ -10,8 +10,8 @@ export default function FinanceObligationsPage(){
       {title:"Takvim Kayıtları",path:"/finance/obligations/calendar/entries?limit=250"},
       {title:"Tekrarlayan Kurallar",path:"/finance/obligations/rules?limit=250"},
     ]} forms={[
-      {title:"Yeni Yükümlülük",description:"Kira, vergi, SGK, leasing, abonelik veya benzeri ödeme yükümlülüğü oluşturun.",path:"/finance/obligations",fields:[
-        {name:"obligationType",label:"Yükümlülük Türü",required:true,placeholder:"KİRA, VERGİ, SGK, LEASING..."},
+      {title:"Yeni Yükümlülük",description:"Kira, vergi, SGK, finansal kiralama, abonelik veya benzeri ödeme yükümlülüğü oluşturun.",path:"/finance/obligations",fields:[
+        {name:"obligationType",label:"Yükümlülük Türü",required:true,placeholder:"Örn. Kira, Vergi, SGK, Finansal Kiralama"},
         {name:"title",label:"Başlık",required:true},
         {name:"counterparty",label:"Karşı Taraf"},
         {name:"amount",label:"Tutar",type:"number",required:true},
@@ -27,7 +27,7 @@ export default function FinanceObligationsPage(){
         {name:"amount",label:"Tutar",type:"number",required:true},
         {name:"currency",label:"Para Birimi",defaultValue:"TRY",required:true},
         {name:"frequency",label:"Sıklık",type:"select",required:true,defaultValue:"MONTHLY",options:[{value:"WEEKLY",label:"Haftalık"},{value:"MONTHLY",label:"Aylık"},{value:"QUARTERLY",label:"Üç Aylık"},{value:"YEARLY",label:"Yıllık"}]},
-        {name:"intervalCount",label:"Tekrar Aralığı",type:"number",defaultValue:"1",required:true},
+        {name:"intervalCount",label:"Kaç Dönemde Bir Tekrarlansın?",type:"number",defaultValue:"1",required:true},
         {name:"dayOfMonth",label:"Ayın Günü",type:"number"},
         {name:"startDate",label:"Başlangıç Tarihi",type:"date",required:true},
         {name:"priority",label:"Öncelik",type:"select",defaultValue:"NORMAL",options:[{value:"LOW",label:"Düşük"},{value:"NORMAL",label:"Normal"},{value:"HIGH",label:"Yüksek"},{value:"CRITICAL",label:"Kritik"}]},
