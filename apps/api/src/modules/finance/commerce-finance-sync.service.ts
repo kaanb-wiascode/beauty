@@ -40,6 +40,18 @@ type AppointmentPaymentFinanceContext = AppointmentFinanceContext & {
 
 @Injectable()
 export class CommerceFinanceSyncService {
+  private async companyBaseCurrency(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    companyId: string,
+  ) {
+    const company = await tx.company.findFirst({
+      where: { id: companyId, tenantId },
+      select: { baseCurrency: true },
+    });
+    return company?.baseCurrency ?? 'TRY';
+  }
+
   private async ensureSalesCategory(
     tx: Prisma.TransactionClient,
     tenantId: string,
@@ -137,6 +149,7 @@ export class CommerceFinanceSyncService {
       categoryId,
     });
 
+    const baseCurrency = await this.companyBaseCurrency(tx, input.tenantId, input.companyId);
     const incomeId = randomUUID();
     const rows = await tx.$queryRawUnsafe<
       Array<{ id: string; grossAmount: Prisma.Decimal; collectionStatus: string }>
@@ -147,7 +160,7 @@ export class CommerceFinanceSyncService {
          approval_status,collection_status,reconciliation_status,accounting_status,source_type,source_id,
          version,created_by,created_at,updated_at
        )
-       SELECT $1::text,$2::text,$3::text,$4::text,$5::text,$6,'SATIS',$7,$8,$8,$9,$9,0,'TRY',1,$10,
+       SELECT $1::text,$2::text,$3::text,$4::text,$5::text,$6,'SATIS',$7,$8,$8,$9,$9,0,$10,1,$11,
               'APPROVED'::"FinanceApprovalStatus",'UNCOLLECTED'::"IncomeCollectionStatus",
               'UNRECONCILED'::"FinanceReconciliationStatus",'POSTED'::"FinanceAccountingStatus",
               'SALE',$11,1,$12::text,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
@@ -165,6 +178,7 @@ export class CommerceFinanceSyncService {
       input.saleId,
       input.occurredAt,
       input.amount,
+      baseCurrency,
       `Satış kaydı ${input.saleId}`,
       input.saleId,
       input.actorId,
@@ -384,6 +398,7 @@ export class CommerceFinanceSyncService {
       categoryId,
     });
 
+    const baseCurrency = await this.companyBaseCurrency(tx, input.tenantId, input.companyId);
     const incomeId = randomUUID();
     const description = input.serviceName?.trim()
       ? `Randevu hizmet geliri · ${input.serviceName}`
@@ -398,7 +413,7 @@ export class CommerceFinanceSyncService {
          approval_status,collection_status,reconciliation_status,accounting_status,source_type,source_id,
          version,created_by,created_at,updated_at
        )
-       SELECT $1::text,$2::text,$3::text,$4::text,$5::text,$6,'RANDEVU',$7,$8,$9,$10,$10,0,'TRY',1,$11,
+       SELECT $1::text,$2::text,$3::text,$4::text,$5::text,$6,'RANDEVU',$7,$8,$9,$10,$10,0,$11,1,$12,
               'APPROVED'::"FinanceApprovalStatus",'UNCOLLECTED'::"IncomeCollectionStatus",
               'UNRECONCILED'::"FinanceReconciliationStatus",'POSTED'::"FinanceAccountingStatus",
               'APPOINTMENT',$12,1,$13::text,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
@@ -418,6 +433,7 @@ export class CommerceFinanceSyncService {
       input.occurredAt,
       input.dueAt ?? input.occurredAt,
       input.amount,
+      baseCurrency,
       description,
       input.appointmentId,
       input.actorId,
