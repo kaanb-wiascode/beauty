@@ -34,6 +34,11 @@ export class FinancialPeriodController {
     return this.service.create(createSchema.parse(body), user.sub);
   }
 
+  @Get(':id/close-checklist')
+  closeChecklist(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.closeChecklist(id);
+  }
+
   @Post(':id/close')
   @RequirePermission('accounting', 'manage')
   close(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
