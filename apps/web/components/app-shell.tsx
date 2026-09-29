@@ -62,8 +62,7 @@ const NAV_SECTIONS = [
     { href: "/finance/cfo/planning", permission: "finance.read", label: "Planlama ve Kârlılık", icon: "chart" },
     { href: "/finance/accounting", permission: "accounting.read", label: "Muhasebe", icon: "file" },
     { href: "/finance/tax", permission: "accounting.read", label: "Vergi ve Uyum", icon: "shield" },
-    { href: "/finance/integrations", permission: "finance.manage", label: "Finans Bağlantıları", icon: "settings" },
-    { href: "/finance/configuration", permission: "finance.manage", label: "Finans Ayarları", icon: "settings" },
+    { href: "/finance/control", permission: "finance.manage", label: "Finans Kontrolü", icon: "settings" },
   ]},
   { label: "İnsan Kaynakları", items: [
     { href: "/hr", label: "İnsan Kaynakları Genel Bakış", icon: "briefcase" },
