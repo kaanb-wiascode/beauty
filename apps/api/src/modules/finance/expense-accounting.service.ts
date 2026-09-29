@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
+import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import { buildExpensePostingLines } from './domain/expense-accounting-policy';
 import { assertExpenseAccountingTransition } from './domain/expense-policy';
 
@@ -162,6 +163,12 @@ export class ExpenseAccountingService {
   async prepare(expenseId: string, actorId: string) {
     return this.prisma.$transaction(async (tx) => {
       const expense = await this.getExpenseForUpdate(tx, expenseId);
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: expense.tenantId,
+        companyId: expense.companyId,
+        branchId: expense.branchId,
+        date: expense.transactionDate,
+      });
       const mapping = await this.getMapping(tx, expense.categoryId);
       try {
         assertExpenseAccountingTransition({
@@ -188,6 +195,12 @@ export class ExpenseAccountingService {
   async post(expenseId: string, actorId: string) {
     return this.prisma.$transaction(async (tx) => {
       const expense = await this.getExpenseForUpdate(tx, expenseId);
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: expense.tenantId,
+        companyId: expense.companyId,
+        branchId: expense.branchId,
+        date: expense.transactionDate,
+      });
       const mapping = await this.getMapping(tx, expense.categoryId);
       if (!mapping) throw new BadRequestException('Expense category requires an accounting mapping before posting.');
 
