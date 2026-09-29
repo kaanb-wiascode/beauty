@@ -263,58 +263,123 @@ export class TreasuryRiskService {
   }
 
   async overdueReceivableStress(asOfInput: Date) {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const asOf = this.startOfDay(asOfInput);
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT i.id,i."dueAt" AS "dueAt",s."customerId" AS "customerId",
-              GREATEST(i.amount-COALESCE(SUM(CASE WHEN sp.status='COMPLETED' THEN ia.amount ELSE 0 END),0),0)::numeric AS outstanding
-       FROM installments i
-       JOIN installment_plans ip ON ip.id=i."installmentPlanId"
-       JOIN sales s ON s.id=ip."saleId" AND s.status='CONFIRMED'
-       JOIN branches b ON b.id=s."branchId"
-       LEFT JOIN installment_allocations ia ON ia."installmentId"=i.id
-       LEFT JOIN sale_payments sp ON sp.id=ia."salePaymentId"
-       WHERE b."companyId"=$1::text AND ($2::text IS NULL OR s."branchId"=$2::text) AND i."dueAt"<$3::timestamptz
-       GROUP BY i.id,i."dueAt",i.amount,s."customerId"
-       HAVING GREATEST(i.amount-COALESCE(SUM(CASE WHEN sp.status='COMPLETED' THEN ia.amount ELSE 0 END),0),0)>0
-       ORDER BY i."dueAt"`, companyId, branchId, asOf);
+      `SELECT i.id,i.due_date AS "dueAt",i.counterparty_name AS "counterpartyName",
+              GREATEST(
+                i.gross_amount-COALESCE((
+                  SELECT SUM(c.amount)
+                  FROM income_collections c
+                  LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
+                  WHERE c.income_record_id=i.id AND r.id IS NULL
+                ),0),
+                0
+              )*i.exchange_rate AS outstanding
+       FROM income_records i
+       WHERE i.tenant_id=$1::text AND i.company_id=$2::text
+         AND ($3::text IS NULL OR i.branch_id=$3::text)
+         AND i.approval_status='APPROVED'
+         AND i.due_date IS NOT NULL
+         AND i.due_date<$4::timestamptz
+         AND GREATEST(
+           i.gross_amount-COALESCE((
+             SELECT SUM(c.amount)
+             FROM income_collections c
+             LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
+             WHERE c.income_record_id=i.id AND r.id IS NULL
+           ),0),
+           0
+         )>0.01
+       ORDER BY i.due_date`,
+      tenantId, companyId, branchId, asOf,
+    );
     const buckets = { days1to30: 0, days31to60: 0, days61to90: 0, days90plus: 0 };
     let total = 0;
-    const customers = new Map<string, number>();
+    const counterparties = new Map<string, number>();
     for (const row of rows) {
       const amount = Number(row.outstanding ?? 0);
       const overdueDays = Math.max(1, this.diffDays(asOf, new Date(row.dueAt)));
       total += amount;
-      customers.set(row.customerId, (customers.get(row.customerId) ?? 0) + amount);
+      const counterparty = String(row.counterpartyName ?? 'Belirtilmemiş');
+      counterparties.set(counterparty, (counterparties.get(counterparty) ?? 0) + amount);
       if (overdueDays <= 30) buckets.days1to30 += amount;
       else if (overdueDays <= 60) buckets.days31to60 += amount;
       else if (overdueDays <= 90) buckets.days61to90 += amount;
       else buckets.days90plus += amount;
     }
     const overdueOutstanding = this.round(total);
-    const normalizedBuckets = Object.fromEntries(Object.entries(buckets).map(([key, value]) => [key, this.round(value)]));
-    const topCustomers = Array.from(customers.entries()).map(([customerId, amount]) => ({ customerId, outstanding: this.round(amount) })).sort((a, b) => b.outstanding - a.outstanding).slice(0, 10);
-    return { asOf, overdueInstallmentCount: rows.length, overdueOutstanding, buckets: normalizedBuckets, stressScenarios: [{ scenario: 'NORMAL', recoveryRate: 0.8 }, { scenario: 'STRESS', recoveryRate: 0.5 }, { scenario: 'SEVERE', recoveryRate: 0.25 }].map((item) => ({ ...item, recoverableCash: this.round(overdueOutstanding * item.recoveryRate), potentialLossOrDelay: this.round(overdueOutstanding * (1 - item.recoveryRate)) })), topCustomers };
+    const normalizedBuckets = Object.fromEntries(
+      Object.entries(buckets).map(([key, value]) => [key, this.round(value)]),
+    );
+    const topCustomers = Array.from(counterparties.entries())
+      .map(([counterpartyName, amount]) => ({
+        customerId: null,
+        counterpartyName,
+        outstanding: this.round(amount),
+      }))
+      .sort((a, b) => b.outstanding - a.outstanding)
+      .slice(0, 10);
+    return {
+      asOf,
+      overdueInstallmentCount: rows.length,
+      overdueReceivableCount: rows.length,
+      overdueOutstanding,
+      buckets: normalizedBuckets,
+      stressScenarios: [
+        { scenario: 'NORMAL', recoveryRate: 0.8 },
+        { scenario: 'STRESS', recoveryRate: 0.5 },
+        { scenario: 'SEVERE', recoveryRate: 0.25 },
+      ].map((item) => ({
+        ...item,
+        recoverableCash: this.round(overdueOutstanding * item.recoveryRate),
+        potentialLossOrDelay: this.round(overdueOutstanding * (1 - item.recoveryRate)),
+      })),
+      topCustomers,
+    };
   }
 
   async paymentPriorities(asOfInput: Date) {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     const asOf = this.startOfDay(asOfInput);
     const [settings, forecast, rows] = await Promise.all([
-      this.getSettings(), this.cashFlow.thirteenWeek(asOf, 'BASE'),
+      this.getSettings(),
+      this.cashFlow.thirteenWeek(asOf, 'BASE'),
       this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT sb.id,sb.supplier_id AS "supplierId",s.name AS "supplierName",
-                sb.invoice_number AS "invoiceNumber",sb.description,sb.due_at AS "dueAt",
-                GREATEST(sb.amount-COALESCE(SUM(sbp.amount),0),0)::numeric AS outstanding
-         FROM supplier_bills sb JOIN inventory_suppliers s ON s.id=sb.supplier_id
-         LEFT JOIN supplier_bill_payments sbp ON sbp.supplier_bill_id=sb.id
-         WHERE sb.company_id=$1::text AND ($2::text IS NULL OR sb.branch_id=$2::text) AND sb.status<>'CANCELLED'
-         GROUP BY sb.id,sb.supplier_id,s.name,sb.invoice_number,sb.description,sb.due_at,sb.amount
-         HAVING GREATEST(sb.amount-COALESCE(SUM(sbp.amount),0),0)>0
-         ORDER BY sb.due_at NULLS LAST,sb.created_at`, companyId, branchId),
+        `SELECT e.id,e.counterparty_name AS "supplierName",
+                e.document_number AS "invoiceNumber",e.description,e.due_date AS "dueAt",
+                GREATEST(
+                  (e.gross_amount-e.withholding_amount)-COALESCE((
+                    SELECT SUM(p.amount)
+                    FROM expense_payments p
+                    LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
+                    WHERE p.expense_id=e.id AND r.id IS NULL
+                  ),0),
+                  0
+                )*e.exchange_rate AS outstanding
+         FROM expenses e
+         WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+           AND ($3::text IS NULL OR e.branch_id=$3::text)
+           AND e.approval_status='APPROVED'
+           AND e.due_date IS NOT NULL
+           AND GREATEST(
+             (e.gross_amount-e.withholding_amount)-COALESCE((
+               SELECT SUM(p.amount)
+               FROM expense_payments p
+               LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
+               WHERE p.expense_id=e.id AND r.id IS NULL
+             ),0),
+             0
+           )>0.01
+         ORDER BY e.due_date,e.created_at`,
+        tenantId, companyId, branchId,
+      ),
     ]);
     const minimumLiquidity = Number(settings.minimumLiquidity ?? 0);
-    let availableForPayments = Math.max(0, this.round(forecast.openingLiquidity - minimumLiquidity));
+    let availableForPayments = Math.max(
+      0,
+      this.round(forecast.openingLiquidity - minimumLiquidity),
+    );
     const ranked = rows.map((row) => {
       const dueAt = row.dueAt ? new Date(row.dueAt) : null;
       const overdueDays = dueAt ? Math.max(0, this.diffDays(asOf, dueAt)) : 0;
@@ -326,13 +391,50 @@ export class TreasuryRiskService {
       else if (dueInDays !== null && dueInDays <= 30) priorityScore += 50;
       else if (dueAt) priorityScore += 20;
       priorityScore += Math.min(Math.floor(outstanding / 10000), 20);
-      return { billId: row.id, supplierId: row.supplierId, supplierName: row.supplierName, invoiceNumber: row.invoiceNumber, description: row.description, dueAt, overdueDays, dueInDays, outstanding, priorityScore, urgency: overdueDays > 0 ? 'OVERDUE' : dueInDays !== null && dueInDays <= 7 ? 'DUE_SOON' : 'PLANNED' };
+      return {
+        billId: row.id,
+        expenseId: row.id,
+        supplierId: null,
+        supplierName: row.supplierName ?? 'Belirtilmemiş',
+        invoiceNumber: row.invoiceNumber,
+        description: row.description,
+        dueAt,
+        overdueDays,
+        dueInDays,
+        outstanding,
+        priorityScore,
+        urgency: overdueDays > 0
+          ? 'OVERDUE'
+          : dueInDays !== null && dueInDays <= 7
+            ? 'DUE_SOON'
+            : 'PLANNED',
+      };
     }).sort((a, b) => b.priorityScore - a.priorityScore);
     const recommendations = ranked.map((item) => {
       const recommendedPayNow = availableForPayments >= item.outstanding;
-      if (recommendedPayNow) availableForPayments = this.round(availableForPayments - item.outstanding);
-      return { ...item, recommendedPayNow, recommendation: recommendedPayNow ? 'PAY_NOW' : item.urgency === 'OVERDUE' ? 'NEGOTIATE_OR_PARTIAL_PAY' : 'SCHEDULE' };
+      if (recommendedPayNow) {
+        availableForPayments = this.round(availableForPayments - item.outstanding);
+      }
+      return {
+        ...item,
+        recommendedPayNow,
+        recommendation: recommendedPayNow
+          ? 'PAY_NOW'
+          : item.urgency === 'OVERDUE'
+            ? 'NEGOTIATE_OR_PARTIAL_PAY'
+            : 'SCHEDULE',
+      };
     });
-    return { asOf, openingLiquidity: forecast.openingLiquidity, minimumLiquidity, initialPaymentCapacity: this.round(Math.max(0, forecast.openingLiquidity - minimumLiquidity)), remainingPaymentCapacity: availableForPayments, recommendations };
+    return {
+      asOf,
+      openingLiquidity: forecast.openingLiquidity,
+      minimumLiquidity,
+      initialPaymentCapacity: this.round(
+        Math.max(0, forecast.openingLiquidity - minimumLiquidity),
+      ),
+      remainingPaymentCapacity: availableForPayments,
+      recommendations,
+    };
   }
+
 }
