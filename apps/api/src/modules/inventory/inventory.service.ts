@@ -23,13 +23,13 @@ export class InventoryService {
 
   private tenantId() {
     const id = this.tenantContext.getTenantId();
-    if (!id) throw new BadRequestException('Tenant context is missing');
+    if (!id) throw new BadRequestException('Şirket oturumu bulunamadı. Lütfen yeniden giriş yapın.');
     return id;
   }
 
   private companyId() {
     const id = this.tenantContext.getCompanyId();
-    if (!id) throw new BadRequestException('Company context is missing');
+    if (!id) throw new BadRequestException('Şirket bilgisi bulunamadı. Lütfen yeniden giriş yapın.');
     return id;
   }
 
@@ -43,7 +43,7 @@ export class InventoryService {
       warehouseId,
       companyId,
     );
-    if (!rows.length) throw new NotFoundException('Warehouse not found');
+    if (!rows.length) throw new NotFoundException('Depo bulunamadı.');
   }
 
   private async requireWarehouseInActiveScope(
@@ -63,7 +63,7 @@ export class InventoryService {
     );
     if (!rows.length) {
       throw new BadRequestException(
-        'Warehouse is outside the active branch scope.',
+        'Seçilen depo aktif şube kapsamınızda değil.',
       );
     }
     return rows[0];
@@ -79,7 +79,7 @@ export class InventoryService {
       productId,
       companyId,
     );
-    if (!rows.length) throw new NotFoundException('Product not found');
+    if (!rows.length) throw new NotFoundException('Ürün bulunamadı.');
   }
 
   private async requireSupplier(
@@ -92,7 +92,7 @@ export class InventoryService {
       supplierId,
       companyId,
     );
-    if (!rows.length) throw new NotFoundException('Supplier not found');
+    if (!rows.length) throw new NotFoundException('Tedarikçi bulunamadı.');
   }
 
   private async requireCategory(
@@ -105,7 +105,7 @@ export class InventoryService {
       categoryId,
       companyId,
     );
-    if (!rows.length) throw new NotFoundException('Category not found');
+    if (!rows.length) throw new NotFoundException('Kategori bulunamadı.');
   }
 
   private async ensureWarehouses() {
@@ -125,7 +125,7 @@ export class InventoryService {
         branchId,
         companyId,
       );
-      if (!branches.length) throw new NotFoundException('Branch not found');
+      if (!branches.length) throw new NotFoundException('Şube bulunamadı.');
 
       await this.prisma.$executeRawUnsafe(
         `INSERT INTO inventory_warehouses(tenant_id,company_id,branch_id,name,type) VALUES($1::text,$2::text,$3::text,$4,'BRANCH') ON CONFLICT DO NOTHING`,
@@ -246,7 +246,7 @@ export class InventoryService {
     const tenantId = this.tenantId();
     const companyId = this.companyId();
     if (!input.name?.trim()) {
-      throw new BadRequestException('Category name is required');
+      throw new BadRequestException('Kategori adı zorunludur.');
     }
 
     return this.prisma.$transaction(async (tx) => {
@@ -276,10 +276,10 @@ export class InventoryService {
     const units = ['UNIT', 'ML', 'LITER', 'GRAM', 'KG', 'METER', 'PAIR', 'BOX'];
 
     if (!units.includes(input.unit ?? 'UNIT')) {
-      throw new BadRequestException('Invalid inventory unit');
+      throw new BadRequestException('Geçersiz ölçü birimi seçildi.');
     }
     if (!input.name?.trim()) {
-      throw new BadRequestException('Product name is required');
+      throw new BadRequestException('Ürün adı zorunludur.');
     }
 
     const initial = Number(input.initialQuantity || 0);
@@ -417,7 +417,7 @@ export class InventoryService {
       branchIds,
     );
     if (!rows.length) {
-      throw new BadRequestException('Inventory warehouse not found');
+      throw new BadRequestException('Kullanılabilir depo bulunamadı.');
     }
     return rows[0].id;
   }
@@ -432,7 +432,7 @@ export class InventoryService {
     note?: string,
   ) {
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new BadRequestException('Quantity must be greater than zero');
+      throw new BadRequestException('Miktar sıfırdan büyük olmalıdır.');
     }
 
     const tenantId = this.tenantId();
@@ -456,7 +456,7 @@ export class InventoryService {
           warehouseId,
         );
         if (!stock.length || Number(stock[0].quantity) < quantity) {
-          throw new BadRequestException('Insufficient stock');
+          throw new BadRequestException('Yeterli stok bulunmuyor.');
         }
       } else {
         await tx.$executeRawUnsafe(
@@ -537,7 +537,7 @@ export class InventoryService {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için önce bir şube seçmelisiniz.',
       );
     }
 
@@ -548,12 +548,12 @@ export class InventoryService {
         tenantId,
         branchId,
       );
-      if (!service.length) throw new NotFoundException('Service not found');
+      if (!service.length) throw new NotFoundException('Hizmet bulunamadı.');
 
       for (const material of materials) {
         if (!Number.isFinite(material.quantity) || material.quantity <= 0) {
           throw new BadRequestException(
-            'Material quantity must be greater than zero',
+            'Sarf malzemesi miktarı sıfırdan büyük olmalıdır.',
           );
         }
         await this.requireProduct(tx, material.productId, companyId);
@@ -600,7 +600,7 @@ export class InventoryService {
     const tenantId = this.tenantId();
     const companyId = this.companyId();
     if (!input.name?.trim()) {
-      throw new BadRequestException('Supplier name is required');
+      throw new BadRequestException('Tedarikçi adı zorunludur.');
     }
     return (
       await this.prisma.$queryRawUnsafe<any[]>(
@@ -643,8 +643,8 @@ export class InventoryService {
     const companyId = this.companyId();
     const contextBranchId = this.tenantContext.getBranchId();
     const { branchIds } = await this.inventoryScope.getWarehouseScope();
-    if (!input.name?.trim()) throw new BadRequestException('Asset name is required');
-    if (!input.assetCode?.trim()) throw new BadRequestException('Asset code is required');
+    if (!input.name?.trim()) throw new BadRequestException('Varlık adı zorunludur.');
+    if (!input.assetCode?.trim()) throw new BadRequestException('Varlık kodu zorunludur.');
 
     return this.prisma.$transaction(async (tx) => {
       if (input.categoryId) {
@@ -666,7 +666,7 @@ export class InventoryService {
           companyId,
           branchIds,
         );
-        if (!branches.length) throw new NotFoundException('Branch not found');
+        if (!branches.length) throw new NotFoundException('Şube bulunamadı.');
       }
 
       if (contextBranchId) {
@@ -677,7 +677,7 @@ export class InventoryService {
         }
         effectiveBranchId = contextBranchId;
       } else if (effectiveBranchId && branchIds && !branchIds.includes(effectiveBranchId)) {
-        throw new BadRequestException('Asset branch is outside the active organization scope.');
+        throw new BadRequestException('Seçilen şube bu işlem için erişilebilir değil.');
       }
 
       if (input.warehouseId) {
@@ -690,7 +690,7 @@ export class InventoryService {
           companyId,
           branchIds,
         );
-        if (!warehouses.length) throw new NotFoundException('Warehouse not found');
+        if (!warehouses.length) throw new NotFoundException('Depo bulunamadı.');
 
         const warehouseBranchId = warehouses[0].branchId as string | null;
         if (warehouseBranchId && effectiveBranchId && warehouseBranchId !== effectiveBranchId) {
@@ -716,7 +716,7 @@ export class InventoryService {
           companyId,
           branchIds,
         );
-        if (!staff.length) throw new NotFoundException('Staff not found');
+        if (!staff.length) throw new NotFoundException('Personel bulunamadı.');
 
         const staffBranchId = staff[0].branchId as string;
         if (effectiveBranchId && staffBranchId !== effectiveBranchId) {
@@ -790,7 +790,7 @@ export class InventoryService {
   }
 
   async createAssetMaintenance(input: any) {
-    if (!input.assetId) throw new BadRequestException('Asset is required');
+    if (!input.assetId) throw new BadRequestException('Varlık seçimi zorunludur.');
     const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     const asset = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id FROM inventory_assets
@@ -801,7 +801,7 @@ export class InventoryService {
       companyId,
       branchIds,
     );
-    if (!asset.length) throw new NotFoundException('Asset not found');
+    if (!asset.length) throw new NotFoundException('Varlık bulunamadı.');
 
     return (
       await this.prisma.$queryRawUnsafe<any[]>(
@@ -873,7 +873,7 @@ export class InventoryService {
           !Number.isFinite(unitCost) ||
           unitCost < 0
         ) {
-          throw new BadRequestException('Invalid purchase order item');
+          throw new BadRequestException('Satın alma siparişi kalemi geçersiz.');
         }
         await this.requireProduct(tx, item.productId, companyId);
         totalAmount += quantity * unitCost;
@@ -950,7 +950,7 @@ export class InventoryService {
       for (const item of input.items) {
         const quantity = Number(item.quantity);
         if (!Number.isFinite(quantity) || quantity <= 0) {
-          throw new BadRequestException('Invalid transfer quantity');
+          throw new BadRequestException('Transfer miktarı geçersiz.');
         }
         await this.requireProduct(tx, item.productId, companyId);
       }
