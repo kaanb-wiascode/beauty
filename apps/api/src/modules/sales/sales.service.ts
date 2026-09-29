@@ -971,7 +971,7 @@ export class SalesService {
               companyId,
               line.productId!,
               warehouse.id,
-              -line.quantity,
+              line.quantity,
               unitCost,
               sale.id,
               'Ürün satışı nedeniyle stok çıkışı',
