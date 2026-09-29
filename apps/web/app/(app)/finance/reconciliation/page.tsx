@@ -120,6 +120,7 @@ function dt(value?: string | null) {
 
 export default function ReconciliationPage() {
   const [tab, setTab] = useState<TabKey>("reconciliation");
+  const [baseCurrency,setBaseCurrency]=useState("TRY");
   const [settlements, setSettlements] = useState<Settlement[]>([]);
   const [transactions, setTransactions] = useState<BankTransaction[]>([]);
   const [summary, setSummary] = useState<Summary | null>(null);
@@ -137,16 +138,18 @@ export default function ReconciliationPage() {
     setError("");
     try {
       const eventQuery = eventFilter ? `?status=${eventFilter}&limit=200` : "?limit=200";
-      const [settlementResult, transactionResult, summaryResult, eventResult] = await Promise.all([
+      const [settlementResult, transactionResult, summaryResult, eventResult, financeSettings] = await Promise.all([
         api<Settlement[]>("/financial-integrations/pos/settlements"),
         api<BankTransaction[]>("/financial-integrations/bank-transactions?limit=300"),
         api<Summary>("/financial-integrations/pos/reconciliation/summary"),
         api<ProcessingEvent[]>(`/financial-integrations/pos/webhooks${eventQuery}`),
+        api<{baseCurrency:string}>("/finance/control/settings"),
       ]);
       setSettlements(settlementResult);
       setTransactions(transactionResult);
       setSummary(summaryResult);
       setEvents(eventResult);
+      setBaseCurrency(financeSettings.baseCurrency||"TRY");
       setSelected((current) => current ? settlementResult.find((item) => item.id === current.id) ?? null : null);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Mutabakat Verileri Yüklenemedi.");
@@ -305,7 +308,7 @@ export default function ReconciliationPage() {
           <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <FinanceMetric label="POS Geçiş Kaydı" value={summary?.total ?? 0} detail="Toplam Kayıt" />
             <FinanceMetric label="Eşleşen" value={summary?.matched ?? 0} detail="Mutabakat Tamamlandı" tone="success" />
-            <FinanceMetric label="Bekleyen" value={summary?.unmatched ?? 0} detail={money(summary?.unmatchedAmount, "TRY")} tone="warning" />
+            <FinanceMetric label="Bekleyen" value={summary?.unmatched ?? 0} detail={money(summary?.unmatchedAmount, baseCurrency)} tone="warning" />
             <FinanceMetric label="Eşleşmemiş Banka Hareketi" value={summary?.unmatchedBankTransactions ?? 0} detail="İnceleme Bekliyor" tone="danger" />
             <FinanceMetric label="Mutabakat Dışı" value={summary?.ignoredBankTransactions ?? 0} detail="İnceleme Dışında" tone="info" />
           </section>
@@ -399,7 +402,7 @@ export default function ReconciliationPage() {
                 <tbody className="divide-y divide-[var(--line)]">
                   {events.map((event) => (
                     <tr key={event.id} className="align-top text-[11px] text-[var(--muted)] hover:bg-[var(--surface-2)]/35">
-                      <td className="whitespace-nowrap px-3 py-3">{dt(event.createdAt)}</td><td className="px-3 py-3 font-semibold text-[var(--ink)]">{event.provider}</td><td className="px-3 py-3">Otomatik Ödeme İşlemi</td><td className="px-3 py-3"><FinanceStatus status={event.status} /></td><td className="px-3 py-3">{event.retryCount}</td><td className="px-3 py-3">{dt(event.lastAttemptAt)}</td>
+                      <td className="whitespace-nowrap px-3 py-3">{dt(event.createdAt)}</td><td className="px-3 py-3 font-semibold text-[var(--ink)]">{event.provider}</td><td className="px-3 py-3">Otomatik Ödeme İşlemi</td><td className="px-3 py-3"><FinanceStatus status={event.status} label={statusLabel(event.status)} /></td><td className="px-3 py-3">{event.retryCount}</td><td className="px-3 py-3">{dt(event.lastAttemptAt)}</td>
                       <td className="px-3 py-3 text-right">{event.status !== "PROCESSING" ? <Button variant="secondary" className="h-9 min-h-9 px-3 text-[10px] text-[var(--accent)]" disabled={Boolean(busy)} onClick={() => void reprocessEvent(event.id)}>{busy === `replay:${event.id}` ? "Sıraya Alınıyor..." : "Yeniden Dene"}</Button> : <span className="text-[9px] text-[var(--muted-soft)]">İşleniyor</span>}</td>
                     </tr>
                   ))}
@@ -413,3 +416,5 @@ export default function ReconciliationPage() {
     </div>
   );
 }
+
+function statusLabel(value:ProcessingStatus){return PROCESS_FILTERS.find(item=>item.value===value)?.label??"İşlem Durumu"}
