@@ -107,12 +107,13 @@ export class FinanceControlService {
              WHERE tenant_id=$1::text AND company_id=$2::text
                AND ($3::text IS NULL OR branch_id=$3::text)
                AND approval_status='APPROVED'),0)::numeric AS "recognizedExpense",
-           COALESCE((SELECT SUM(c.amount*c.exchange_rate)
+           COALESCE((SELECT SUM((
+                 c.amount-COALESCE((SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id),0)
+               )*c.exchange_rate)
              FROM income_collections c
              JOIN income_records i ON i.id=c.income_record_id
-             LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
              WHERE c.tenant_id=$1::text AND c.company_id=$2::text
-               AND ($3::text IS NULL OR c.branch_id=$3::text) AND r.id IS NULL),0)::numeric AS collected,
+               AND ($3::text IS NULL OR c.branch_id=$3::text)),0)::numeric AS collected,
            COALESCE((SELECT SUM(p.amount*p.exchange_rate)
              FROM expense_payments p
              JOIN expenses e ON e.id=p.expense_id
@@ -226,9 +227,9 @@ export class FinanceControlService {
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT c.id,c.income_record_id AS "incomeRecordId"
          FROM income_collections c
-         LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
          WHERE c.tenant_id=$1::text AND c.company_id=$2::text
-           AND ($3::text IS NULL OR c.branch_id=$3::text) AND r.id IS NULL
+           AND ($3::text IS NULL OR c.branch_id=$3::text)
+           AND c.amount-COALESCE((SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id),0)>0.01
            AND NOT EXISTS (
              SELECT 1 FROM journal_entries je
              WHERE je."companyId"=c.company_id
