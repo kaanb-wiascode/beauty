@@ -19,6 +19,7 @@ export class CashFlowForecastService {
 
   private context() {
     return {
+      tenantId: this.tenantContext.getTenantId(),
       companyId: this.tenantContext.getCompanyId(),
       branchId: this.tenantContext.getBranchId(),
     };
@@ -80,22 +81,35 @@ export class CashFlowForecastService {
   }
 
   private async receivables(from: Date, to: Date) {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT i.id,i."dueAt" AS due_at,
-              GREATEST(i.amount-COALESCE(SUM(CASE WHEN sp.status='COMPLETED' THEN ia.amount ELSE 0 END),0),0)::numeric AS outstanding
-       FROM installments i
-       JOIN installment_plans ip ON ip.id=i."installmentPlanId"
-       JOIN sales s ON s.id=ip."saleId" AND s.status='CONFIRMED'
-       JOIN branches b ON b.id=s."branchId"
-       LEFT JOIN installment_allocations ia ON ia."installmentId"=i.id
-       LEFT JOIN sale_payments sp ON sp.id=ia."salePaymentId"
-       WHERE b."companyId"=$1::text
-         AND ($2::text IS NULL OR s."branchId"=$2::text)
-         AND i."dueAt">=$3::timestamptz AND i."dueAt"<$4::timestamptz
-       GROUP BY i.id,i."dueAt",i.amount
-       HAVING GREATEST(i.amount-COALESCE(SUM(CASE WHEN sp.status='COMPLETED' THEN ia.amount ELSE 0 END),0),0)>0
-       ORDER BY i."dueAt"`,
+      `SELECT i.id,i.due_date AS due_at,
+              GREATEST(
+                i.gross_amount-COALESCE((
+                  SELECT SUM(c.amount)
+                  FROM income_collections c
+                  LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
+                  WHERE c.income_record_id=i.id AND r.id IS NULL
+                ),0),
+                0
+              )*i.exchange_rate AS outstanding
+       FROM income_records i
+       WHERE i.tenant_id=$1::text AND i.company_id=$2::text
+         AND ($3::text IS NULL OR i.branch_id=$3::text)
+         AND i.approval_status='APPROVED'
+         AND i.due_date IS NOT NULL
+         AND i.due_date>=$4::timestamptz AND i.due_date<$5::timestamptz
+         AND GREATEST(
+           i.gross_amount-COALESCE((
+             SELECT SUM(c.amount)
+             FROM income_collections c
+             LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
+             WHERE c.income_record_id=i.id AND r.id IS NULL
+           ),0),
+           0
+         )>0.01
+       ORDER BY i.due_date`,
+      tenantId,
       companyId,
       branchId,
       from,
@@ -104,20 +118,35 @@ export class CashFlowForecastService {
   }
 
   private async payables(from: Date, to: Date) {
-    const { companyId, branchId } = this.context();
+    const { tenantId, companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT sb.id,sb.due_at,
-              GREATEST(sb.amount-COALESCE(SUM(sbp.amount),0),0)::numeric AS outstanding
-       FROM supplier_bills sb
-       LEFT JOIN supplier_bill_payments sbp ON sbp.supplier_bill_id=sb.id
-       WHERE sb.company_id=$1::text
-         AND ($2::text IS NULL OR sb.branch_id=$2::text)
-         AND sb.status<>'CANCELLED'
-         AND sb.due_at IS NOT NULL
-         AND sb.due_at>=$3::timestamptz AND sb.due_at<$4::timestamptz
-       GROUP BY sb.id,sb.due_at,sb.amount
-       HAVING GREATEST(sb.amount-COALESCE(SUM(sbp.amount),0),0)>0
-       ORDER BY sb.due_at`,
+      `SELECT e.id,e.due_date AS due_at,
+              GREATEST(
+                (e.gross_amount-e.withholding_amount)-COALESCE((
+                  SELECT SUM(p.amount)
+                  FROM expense_payments p
+                  LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
+                  WHERE p.expense_id=e.id AND r.id IS NULL
+                ),0),
+                0
+              )*e.exchange_rate AS outstanding
+       FROM expenses e
+       WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+         AND ($3::text IS NULL OR e.branch_id=$3::text)
+         AND e.approval_status='APPROVED'
+         AND e.due_date IS NOT NULL
+         AND e.due_date>=$4::timestamptz AND e.due_date<$5::timestamptz
+         AND GREATEST(
+           (e.gross_amount-e.withholding_amount)-COALESCE((
+             SELECT SUM(p.amount)
+             FROM expense_payments p
+             LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=p.id
+             WHERE p.expense_id=e.id AND r.id IS NULL
+           ),0),
+           0
+         )>0.01
+       ORDER BY e.due_date`,
+      tenantId,
       companyId,
       branchId,
       from,
