@@ -46,7 +46,7 @@ interface ReversibleCollectionRow {
   amount: Prisma.Decimal;
   exchangeRate: Prisma.Decimal;
   collectedAt: Date;
-  reversalId: string | null;
+  reversedAmount: Prisma.Decimal;
 }
 
 @Injectable()
@@ -90,11 +90,13 @@ export class IncomeCollectionsService {
               a.code AS "collectionAccountCode",a.name AS "collectionAccountName",c.amount,c.exchange_rate AS "exchangeRate",c.method,c.reference,c.note,
               c.collected_at AS "collectedAt",c.source_type AS "sourceType",c.source_id AS "sourceId",
               c.created_by AS "createdBy",c.created_at AS "createdAt",
-              r.id AS "reversalId",r.reason AS "reversalReason",r.created_by AS "reversedBy",r.created_at AS "reversedAt",
-              r.journal_entry_id AS "reversalJournalEntryId"
+              COALESCE((SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id),0) AS "reversedAmount",
+              (SELECT r.reason FROM income_collection_reversals r WHERE r.income_collection_id=c.id ORDER BY r.created_at DESC LIMIT 1) AS "reversalReason",
+              (SELECT r.created_by FROM income_collection_reversals r WHERE r.income_collection_id=c.id ORDER BY r.created_at DESC LIMIT 1) AS "reversedBy",
+              (SELECT r.created_at FROM income_collection_reversals r WHERE r.income_collection_id=c.id ORDER BY r.created_at DESC LIMIT 1) AS "reversedAt",
+              (SELECT r.journal_entry_id FROM income_collection_reversals r WHERE r.income_collection_id=c.id ORDER BY r.created_at DESC LIMIT 1) AS "reversalJournalEntryId"
        FROM income_collections c
        JOIN chart_of_accounts a ON a.id=c.collection_account_id
-       LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
        WHERE c.income_record_id=$1::text AND c.tenant_id=$2::text AND c.company_id=$3::text
          AND ($4::text IS NULL OR c.branch_id=$4::text)
        ORDER BY c.collected_at DESC,c.created_at DESC`,
@@ -164,10 +166,11 @@ export class IncomeCollectionsService {
       }
 
       const totals = await tx.$queryRawUnsafe<Array<{ total: Prisma.Decimal | null }>>(
-        `SELECT COALESCE(SUM(c.amount),0) AS total
+        `SELECT COALESCE(SUM(c.amount-COALESCE((
+             SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id
+           ),0)),0) AS total
          FROM income_collections c
-         LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
-         WHERE c.income_record_id=$1::text AND c.tenant_id=$2::text AND c.company_id=$3::text AND r.id IS NULL`,
+         WHERE c.income_record_id=$1::text AND c.tenant_id=$2::text AND c.company_id=$3::text`,
         income.id,
         tenantId,
         companyId,
@@ -326,9 +329,9 @@ export class IncomeCollectionsService {
 
       const collectionRows = await tx.$queryRawUnsafe<ReversibleCollectionRow[]>(
         `SELECT c.id,c.income_record_id AS "incomeRecordId",c.collection_account_id AS "collectionAccountId",
-                c.amount,c.exchange_rate AS "exchangeRate",c.collected_at AS "collectedAt",r.id AS "reversalId"
+                c.amount,c.exchange_rate AS "exchangeRate",c.collected_at AS "collectedAt",
+                COALESCE((SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id),0) AS "reversedAmount"
          FROM income_collections c
-         LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
          WHERE c.id=$1::text AND c.income_record_id=$2::text AND c.tenant_id=$3::text AND c.company_id=$4::text
            AND ($5::text IS NULL OR c.branch_id=$5::text) LIMIT 1`,
         collectionId,
@@ -339,7 +342,9 @@ export class IncomeCollectionsService {
       );
       if (!collectionRows.length) throw new NotFoundException('Income collection not found');
       const collection = collectionRows[0];
-      if (collection.reversalId) throw new BadRequestException('Income collection is already reversed.');
+      const reversedAmount = Number(collection.reversedAmount ?? 0);
+      const amount = Math.round((Number(collection.amount) - reversedAmount + Number.EPSILON) * 100) / 100;
+      if (amount <= 0.01) throw new BadRequestException('Income collection is already fully reversed.');
 
       const mappingRows = await tx.$queryRawUnsafe<Array<{ receivableAccountId: string }>>(
         `SELECT receivable_account_id AS "receivableAccountId"
@@ -353,30 +358,17 @@ export class IncomeCollectionsService {
         throw new BadRequestException('Income accounting mapping is required before collection can be reversed.');
       }
 
-      const amount = Number(collection.amount);
-      const originalJournalLines = await tx.journalEntryLine.findMany({
-        where: {
-          journalEntry: {
-            companyId,
-            referenceType: 'INCOME_COLLECTION',
-            referenceId: collection.id,
-            status: 'POSTED',
-          },
-        },
-        select: { accountId: true, debit: true, credit: true, memo: true },
+      const fxAccounts = await ensureFxAccounts(tx, { tenantId: income.tenantId, companyId: income.companyId });
+      const originalSettlement = buildIncomeSettlementLines({
+        amount,
+        documentRate: Number(income.exchangeRate),
+        settlementRate: Number(collection.exchangeRate),
+        collectionAccountId: collection.collectionAccountId,
+        receivableAccountId: mappingRows[0].receivableAccountId,
+        gainAccountId: fxAccounts.gainAccountId,
+        lossAccountId: fxAccounts.lossAccountId,
       });
-      if (!originalJournalLines.length) {
-        throw new BadRequestException('Tahsilatın orijinal muhasebe fişi bulunamadı.');
-      }
-      const lines = reverseJournalLines(
-        originalJournalLines.map((line) => ({
-          accountId: line.accountId,
-          debit: Number(line.debit),
-          credit: Number(line.credit),
-          memo: line.memo ?? undefined,
-        })),
-        'Tahsilat ters kaydı',
-      );
+      const lines = reverseJournalLines(originalSettlement.lines, 'Tahsilat ters kaydı');
       try {
         validateJournalLines(lines);
       } catch (error) {
@@ -410,14 +402,15 @@ export class IncomeCollectionsService {
 
       await tx.$executeRawUnsafe(
         `INSERT INTO income_collection_reversals(
-           id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,reason,source_type,source_id,created_by
-         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10::text)`,
+           id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,amount,reason,source_type,source_id,created_by
+         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11::text)`,
         reversalId,
         income.tenantId,
         income.companyId,
         income.branchId,
         collection.id,
         journal.id,
+        amount,
         reason,
         input.sourceType ?? null,
         input.sourceId ?? null,
@@ -425,10 +418,11 @@ export class IncomeCollectionsService {
       );
 
       const totals = await tx.$queryRawUnsafe<Array<{ total: Prisma.Decimal | null }>>(
-        `SELECT COALESCE(SUM(c.amount),0) AS total
+        `SELECT COALESCE(SUM(c.amount-COALESCE((
+             SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id
+           ),0)),0) AS total
          FROM income_collections c
-         LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
-         WHERE c.income_record_id=$1::text AND c.tenant_id=$2::text AND c.company_id=$3::text AND r.id IS NULL`,
+         WHERE c.income_record_id=$1::text AND c.tenant_id=$2::text AND c.company_id=$3::text`,
         income.id,
         tenantId,
         companyId,
