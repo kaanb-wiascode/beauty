@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
@@ -24,6 +24,13 @@ const reversalSchema = z.object({
 @RequirePermission('finance', 'read')
 export class FinancialObligationPaymentsController {
   constructor(private readonly service: FinancialObligationPaymentsService) {}
+
+  @Get('payment-options')
+  paymentOptions(@Query('limit') limit?: string) {
+    return this.service.paymentOptions(
+      z.coerce.number().int().min(1).max(500).default(200).parse(limit ?? 200),
+    );
+  }
 
   @Get(':id/payment-allocations')
   list(@Param('id', new ParseUUIDPipe()) id: string) {
