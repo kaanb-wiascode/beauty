@@ -163,10 +163,10 @@ export class CommerceFinanceSyncService {
        SELECT $1::text,$2::text,$3::text,$4::text,$5::text,$6,'SATIS',$7,$8,$8,$9,$9,0,$10,1,$11,
               'APPROVED'::"FinanceApprovalStatus",'UNCOLLECTED'::"IncomeCollectionStatus",
               'UNRECONCILED'::"FinanceReconciliationStatus",'POSTED'::"FinanceAccountingStatus",
-              'SALE',$11,1,$12::text,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+              'SALE',$12,1,$13::text,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
        WHERE NOT EXISTS(
          SELECT 1 FROM income_records
-          WHERE tenant_id=$2::text AND company_id=$3::text AND source_type='SALE' AND source_id=$11
+          WHERE tenant_id=$2::text AND company_id=$3::text AND source_type='SALE' AND source_id=$12
        )
        RETURNING id,gross_amount AS "grossAmount",collection_status::text AS "collectionStatus"`,
       incomeId,
@@ -416,11 +416,11 @@ export class CommerceFinanceSyncService {
        SELECT $1::text,$2::text,$3::text,$4::text,$5::text,$6,'RANDEVU',$7,$8,$9,$10,$10,0,$11,1,$12,
               'APPROVED'::"FinanceApprovalStatus",'UNCOLLECTED'::"IncomeCollectionStatus",
               'UNRECONCILED'::"FinanceReconciliationStatus",'POSTED'::"FinanceAccountingStatus",
-              'APPOINTMENT',$12,1,$13::text,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+              'APPOINTMENT',$13,1,$14::text,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
        WHERE NOT EXISTS(
          SELECT 1 FROM income_records
           WHERE tenant_id=$2::text AND company_id=$3::text
-            AND source_type='APPOINTMENT' AND source_id=$12
+            AND source_type='APPOINTMENT' AND source_id=$13
        )
        RETURNING id,gross_amount AS "grossAmount",collection_status::text AS "collectionStatus"`,
       incomeId,
