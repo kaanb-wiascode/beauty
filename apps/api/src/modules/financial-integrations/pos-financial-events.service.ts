@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { assertFinancialPeriodOpen } from '../finance/domain/financial-period-lock';
 
 interface RecordPosFinancialEventInput {
   eventType: 'REFUND' | 'CHARGEBACK';
@@ -124,6 +125,13 @@ export class PosFinancialEventsService {
         throw new BadRequestException('Unsettled POS financial events cannot post an additional bank fee before settlement.');
       }
 
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: ctx.tenantId,
+        companyId: ctx.companyId,
+        branchId: pos.branchId,
+        date: input.occurredAt,
+      });
+
       const journal = await tx.journalEntry.create({
         data: {
           tenantId: ctx.tenantId,
@@ -162,6 +170,75 @@ export class PosFinancialEventsService {
         input.occurredAt,
         journal.id,
       );
+
+      if (pos.salePaymentId) {
+        const collectionRows = await tx.$queryRawUnsafe<Array<{ id: string; incomeRecordId: string; amount: Prisma.Decimal; reversedAmount: Prisma.Decimal }>>(
+          `SELECT c.id,c.income_record_id AS "incomeRecordId",c.amount,
+                  COALESCE((SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id),0) AS "reversedAmount"
+           FROM income_collections c
+           WHERE c.tenant_id=$1::text AND c.company_id=$2::text
+             AND c.source_type='SALE_PAYMENT' AND c.source_id=$3::text
+           LIMIT 1`,
+          ctx.tenantId,
+          ctx.companyId,
+          pos.salePaymentId,
+        );
+        const collection = collectionRows[0];
+        if (collection) {
+          const remainingReversible = this.round(Number(collection.amount) - Number(collection.reversedAmount ?? 0));
+          if (amount - remainingReversible > 0.01) {
+            throw new BadRequestException('POS financial event exceeds the remaining Finance collection balance.');
+          }
+          await tx.$executeRawUnsafe(
+            `INSERT INTO income_collection_reversals(
+               id,tenant_id,company_id,branch_id,income_collection_id,journal_entry_id,amount,reason,
+               source_type,source_id,created_by,created_at
+             ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,NOW())
+             ON CONFLICT (tenant_id,company_id,source_type,source_id) WHERE source_type IS NOT NULL AND source_id IS NOT NULL
+             DO NOTHING`,
+            randomUUID(),
+            ctx.tenantId,
+            ctx.companyId,
+            pos.branchId,
+            collection.id,
+            journal.id,
+            amount,
+            input.eventType === 'CHARGEBACK' ? 'POS chargeback' : 'POS refund',
+            input.eventType === 'CHARGEBACK' ? 'POS_CHARGEBACK' : 'POS_REFUND',
+            input.externalEventId.trim(),
+            'SYSTEM_POS',
+          );
+
+          const statusRows = await tx.$queryRawUnsafe<Array<{ gross: Prisma.Decimal; collected: Prisma.Decimal }>>(
+            `SELECT i.gross_amount AS gross,
+                    COALESCE(SUM(c.amount-COALESCE((
+                      SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id
+                    ),0)),0) AS collected
+             FROM income_records i
+             LEFT JOIN income_collections c ON c.income_record_id=i.id
+             WHERE i.id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
+             GROUP BY i.gross_amount`,
+            collection.incomeRecordId,
+            ctx.tenantId,
+            ctx.companyId,
+          );
+          const gross = Number(statusRows[0]?.gross ?? 0);
+          const collected = Number(statusRows[0]?.collected ?? 0);
+          const collectionStatus =
+            collected <= 0.01
+              ? 'UNCOLLECTED'
+              : Math.abs(gross - collected) <= 0.01
+                ? 'COLLECTED'
+                : 'PARTIALLY_COLLECTED';
+          await tx.$executeRawUnsafe(
+            `UPDATE income_records
+             SET collection_status=$1::"IncomeCollectionStatus",version=version+1,updated_at=NOW()
+             WHERE id=$2::text`,
+            collectionStatus,
+            collection.incomeRecordId,
+          );
+        }
+      }
 
       const fullyReversed = cumulativeAmount >= this.round(Number(pos.amount) - 0.01);
       const hasChargeback = Boolean(aggregateRows[0]?.hasChargeback) || input.eventType === 'CHARGEBACK';
