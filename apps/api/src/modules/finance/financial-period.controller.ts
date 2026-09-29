@@ -29,7 +29,7 @@ export class FinancialPeriodController {
   }
 
   @Post()
-  @RequirePermission('finance', 'manage')
+  @RequirePermission('accounting', 'manage')
   create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.service.create(createSchema.parse(body), user.sub);
   }
