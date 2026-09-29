@@ -50,12 +50,24 @@ export class FinanceControlService {
     if (!company) throw new Error('Company not found.');
     if (company.baseCurrency === baseCurrency) return { companyId, baseCurrency };
 
-    const posted = await this.prisma.journalEntry.count({
-      where: { tenantId, companyId, status: 'POSTED' },
-    });
-    if (posted > 0) {
+    const [posted, financeRecordRows] = await Promise.all([
+      this.prisma.journalEntry.count({
+        where: { tenantId, companyId, status: 'POSTED' },
+      }),
+      this.prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
+        `SELECT (
+           (SELECT COUNT(*) FROM income_records WHERE tenant_id=$1::text AND company_id=$2::text)
+           +
+           (SELECT COUNT(*) FROM expenses WHERE tenant_id=$1::text AND company_id=$2::text)
+         )::bigint AS total`,
+        tenantId,
+        companyId,
+      ),
+    ]);
+    const financeRecordCount = Number(financeRecordRows[0]?.total ?? 0);
+    if (posted > 0 || financeRecordCount > 0) {
       throw new BadRequestException(
-        'Baz para birimi, muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.',
+        'Baz para birimi, finansal kayıt oluşturulduktan sonra değiştirilemez.',
       );
     }
 
