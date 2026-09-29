@@ -430,11 +430,12 @@ export class ExpenseAccountingService {
     }
 
     try {
+      const exchangeRate = Number(expense.exchangeRate);
       return buildExpensePostingLines({
-        grossAmount: Number(expense.grossAmount),
-        netAmount: Number(expense.netAmount),
-        taxAmount: Number(expense.taxAmount),
-        withholdingAmount: Number(expense.withholdingAmount),
+        grossAmount: Number(expense.grossAmount) * exchangeRate,
+        netAmount: Number(expense.netAmount) * exchangeRate,
+        taxAmount: Number(expense.taxAmount) * exchangeRate,
+        withholdingAmount: Number(expense.withholdingAmount) * exchangeRate,
         expenseAccountId: mapping.expenseAccountId,
         taxAccountId: mapping.taxAccountId,
         payableAccountId: mapping.payableAccountId,
