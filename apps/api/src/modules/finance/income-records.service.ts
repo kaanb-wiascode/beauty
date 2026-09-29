@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, ConflictException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { assertExchangeRateForCurrency, getCompanyBaseCurrency } from './domain/currency-policy';
 import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import { assertIncomeAmounts, assertIncomeApprovalTransition, IncomeApprovalStatus } from './domain/income-policy';
 
@@ -201,6 +202,8 @@ export class IncomeRecordsService {
 
     return this.prisma.$transaction(async (tx) => {
       await assertFinancialPeriodOpen(tx, { tenantId, companyId, branchId, date: input.transactionDate });
+      const baseCurrency = await getCompanyBaseCurrency(tx, { tenantId, companyId });
+      assertExchangeRateForCurrency({ currency: input.currency, exchangeRate: input.exchangeRate, baseCurrency });
       await this.validateDimensions(tx, input.categoryId, input.costCenterId);
       if (input.sourceType && input.sourceId) {
         await this.acquireLock(tx, companyId, `${input.sourceType}:${input.sourceId}`);
@@ -376,6 +379,8 @@ export class IncomeRecordsService {
         exchangeRate: input.exchangeRate ?? Number(current.exchangeRate),
       };
       this.validateAmounts(amounts);
+      const baseCurrency = await getCompanyBaseCurrency(tx, { tenantId: current.tenantId, companyId: current.companyId });
+      assertExchangeRateForCurrency({ currency: input.currency ?? current.currency, exchangeRate: amounts.exchangeRate, baseCurrency });
 
       if (sourceType && sourceId) {
         await this.acquireLock(tx, companyId, `${sourceType}:${sourceId}`);
