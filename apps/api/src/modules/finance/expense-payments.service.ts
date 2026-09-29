@@ -279,7 +279,16 @@ export class ExpensePaymentsService {
       );
       await this.audit(tx, expense, actorId, 'EXPENSE_PAYMENT_RECORDED', {
         before: { paymentStatus: expense.paymentStatus, paidAmount },
-        after: { paymentStatus, paidAmount: newPaidAmount, payableAmount, paymentId },
+        after: {
+          paymentStatus,
+          paidAmount: newPaidAmount,
+          payableAmount,
+          paymentId,
+          documentExchangeRate: Number(expense.exchangeRate),
+          settlementExchangeRate: settlementRate,
+          realizedFxDifference: settlement.difference,
+          currency: expense.currency,
+        },
       });
 
       return {
