@@ -107,7 +107,7 @@ export class FinanceControlService {
     );
     const revenue = this.round(
       ledgerRows
-        .filter((row) => String(row.type) === 'REVENUE')
+        .filter((row) => String(row.type) === 'REVENUE' && String(row.code) !== '646')
         .reduce((sum, row) => sum + Math.abs(Number(row.balance ?? 0)), 0),
     );
     const finance = financeRows[0] ?? {};
