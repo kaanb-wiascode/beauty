@@ -236,7 +236,7 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
     const bank = accounts.body.find((item: { code: string }) => item.code === '102');
     const revenue = accounts.body.find((item: { type: string; code: string }) => item.type === 'REVENUE' && item.code !== '646');
     const expenseAccount = accounts.body.find((item: { type: string }) => item.type === 'EXPENSE');
-    const payable = accounts.body.find((item: { type: string }) => item.type === 'LIABILITY');
+    const payable = accounts.body.find((item: { code: string }) => item.code === '320');
     expect(incomeCategory?.id).toBeTruthy();
     expect(expenseCategory?.id).toBeTruthy();
     expect(receivable?.id).toBeTruthy();
@@ -536,6 +536,12 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
     expect(paymentLines.some((line) => line.account.code === '320' && Number(line.debit) === 35000)).toBe(true);
     expect(paymentLines.some((line) => line.account.code === '102' && Number(line.credit) === 36000)).toBe(true);
     expect(paymentLines.some((line) => line.account.code === '656' && Number(line.debit) === 1000)).toBe(true);
+
+    await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments/${payment.body.id}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'Kapalı dönem ödeme kontrolü öncesi borcu yeniden aç' })
+      .expect(201);
 
     const closedPeriod = await request(app.getHttpServer())
       .post('/finance/periods')
