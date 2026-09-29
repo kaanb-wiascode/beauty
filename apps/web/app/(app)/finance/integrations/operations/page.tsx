@@ -253,7 +253,7 @@ export default function IntegrationOperationsPage() {
                       <tr key={row.id} className="border-b border-[var(--line)] last:border-0">
                         <td className="px-3 py-3 text-[var(--muted)]">{dateTime(row.createdAt)}</td>
                         <td className="px-3 py-3 font-medium text-[var(--ink)]">{auditActionLabel(row.action)}</td>
-                        <td className="px-3 py-3"><FinanceStatus status={row.outcome === "SUCCESS" ? "PROCESSED" : "FAILED"} label={row.outcome} /></td>
+                        <td className="px-3 py-3"><FinanceStatus status={row.outcome === "SUCCESS" ? "PROCESSED" : "FAILED"} label={userLabel(row.outcome)} /></td>
                         <td className="max-w-[320px] truncate px-3 py-3 text-[var(--danger)]" title={row.errorMessage ?? undefined}>{row.errorMessage ? "İşlem tamamlanamadı" : "—"}</td>
                       </tr>
                     ))}
