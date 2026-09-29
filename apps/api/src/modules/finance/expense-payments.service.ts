@@ -36,6 +36,7 @@ interface ExpensePaymentContextRow {
   categoryId: string;
   grossAmount: Prisma.Decimal;
   withholdingAmount: Prisma.Decimal;
+  exchangeRate: Prisma.Decimal;
   approvalStatus: string;
   accountingStatus: string;
   paymentStatus: string;
@@ -193,10 +194,11 @@ export class ExpensePaymentsService {
         throw new BadRequestException(error instanceof Error ? error.message : 'Expense payment is not allowed.');
       }
 
+      const baseAmount = input.amount * Number(expense.exchangeRate);
       const lines = buildExpensePaymentLines({
         payableAccountId,
         paymentAccountId: paymentAccount.id,
-        amount: input.amount,
+        amount: baseAmount,
       });
       try {
         validateJournalLines(lines);
@@ -330,10 +332,11 @@ export class ExpensePaymentsService {
       if (payment.reversalId) throw new BadRequestException('Expense payment is already reversed.');
 
       const amount = Number(payment.amount);
+      const baseAmount = amount * Number(expense.exchangeRate);
       const lines = buildExpensePaymentReversalLines({
         payableAccountId: payment.payableAccountId,
         paymentAccountId: payment.paymentAccountId,
-        amount,
+        amount: baseAmount,
       });
       try {
         validateJournalLines(lines);
