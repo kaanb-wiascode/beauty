@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 
 type Projection = {
   currencyBasis: string;
@@ -27,6 +28,11 @@ export default function FinanceControlPage(){
   const[validation,setValidation]=useState<Validation|null>(null);
   const[audit,setAudit]=useState<Audit[]>([]);
   const[periods,setPeriods]=useState<Period[]>([]);
+  const[periodName,setPeriodName]=useState("");
+  const[periodFrom,setPeriodFrom]=useState("");
+  const[periodTo,setPeriodTo]=useState("");
+  const[periodBusy,setPeriodBusy]=useState(false);
+  const canManagePeriods=hasPermission("accounting","manage");
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState("");
 
@@ -45,6 +51,32 @@ export default function FinanceControlPage(){
     finally{setLoading(false);}
   },[]);
   useEffect(()=>{void load();},[load]);
+
+  async function createPeriod(){
+    if(!canManagePeriods||!periodName.trim()||!periodFrom||!periodTo)return;
+    setPeriodBusy(true);setError("");
+    try{
+      await api("/finance/periods",{method:"POST",body:{name:periodName.trim(),startsAt:periodFrom,endsAt:periodTo}});
+      setPeriodName("");setPeriodFrom("");setPeriodTo("");await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Finansal dönem oluşturulamadı.");}
+    finally{setPeriodBusy(false);}
+  }
+
+  async function changePeriod(period:Period,action:"close"|"reopen"){
+    if(!canManagePeriods)return;
+    let body:Record<string,unknown>|undefined;
+    if(action==="close"){
+      const reason=window.prompt("Dönem kapatma nedeni (isteğe bağlı)");
+      if(reason===null)return;
+      body=reason.trim()?{reason:reason.trim()}:undefined;
+    }
+    setPeriodBusy(true);setError("");
+    try{
+      await api(`/finance/periods/${period.id}/${action}`,{method:"POST",...(body?{body}:{})});
+      await load();
+    }catch(e){setError(e instanceof ApiError?e.message:"Finansal dönem güncellenemedi.");}
+    finally{setPeriodBusy(false);}
+  }
 
   const currentPeriod=useMemo(()=>periods.find((period)=>{
     const now=Date.now();return new Date(period.startsAt).getTime()<=now&&new Date(period.endsAt).getTime()>=now;
@@ -84,7 +116,20 @@ export default function FinanceControlPage(){
       </FinancePanel>
       <FinancePanel title="Finansal Dönem" description="Kapalı dönemlere yeni veya değiştirilen finansal kayıt yazılamaz.">
         {currentPeriod?<div className="rounded-[14px] border border-[var(--line)] p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-[13px] font-semibold text-[var(--ink)]">{currentPeriod.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{date(currentPeriod.startsAt)} – {date(currentPeriod.endsAt)}</p></div><FinanceStatus status={currentPeriod.status==="OPEN"?"PROCESSED":"FAILED"} label={currentPeriod.status==="OPEN"?"Açık":"Kapalı"}/></div></div>:<FinanceEmpty title="Bugünü kapsayan finansal dönem tanımlı değil."/>}
-        <p className="mt-3 text-[10px] leading-5 text-[var(--muted)]">Dönem oluşturma, kapatma ve yeniden açma işlemleri muhasebe yönetim yetkisiyle API üzerinden yönetilir; kullanıcı arayüzü dönem yönetimi sonraki genişletmede bu karta bağlanabilir.</p>
+        {canManagePeriods?<div className="mt-4 space-y-3">
+          <div className="grid gap-2 sm:grid-cols-3">
+            <input value={periodName} onChange={e=>setPeriodName(e.target.value)} placeholder="Dönem adı" className="control h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px]"/>
+            <input type="date" value={periodFrom} onChange={e=>setPeriodFrom(e.target.value)} className="control h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px]"/>
+            <input type="date" value={periodTo} onChange={e=>setPeriodTo(e.target.value)} className="control h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px]"/>
+          </div>
+          <Button disabled={periodBusy||!periodName.trim()||!periodFrom||!periodTo} onClick={()=>void createPeriod()}>Yeni Dönem Oluştur</Button>
+          <div className="max-h-[220px] space-y-2 overflow-auto">
+            {periods.map(period=><div key={period.id} className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--line)] px-3 py-2">
+              <div><p className="text-[11px] font-semibold text-[var(--ink)]">{period.name}</p><p className="text-[9px] text-[var(--muted)]">{date(period.startsAt)} – {date(period.endsAt)}</p></div>
+              <div className="flex items-center gap-2"><FinanceStatus status={period.status==="OPEN"?"PROCESSED":"FAILED"} label={period.status==="OPEN"?"Açık":"Kapalı"}/><Button variant="secondary" disabled={periodBusy} onClick={()=>void changePeriod(period,period.status==="OPEN"?"close":"reopen")}>{period.status==="OPEN"?"Kapat":"Yeniden Aç"}</Button></div>
+            </div>)}
+          </div>
+        </div>:<p className="mt-3 text-[10px] leading-5 text-[var(--muted)]">Dönem yönetimi için Muhasebe · Yönetme yetkisi gerekir.</p>}
       </FinancePanel>
     </section>
 
