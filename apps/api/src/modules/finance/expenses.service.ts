@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import {
   assertExpenseAmounts,
   assertExpenseApprovalTransition,
