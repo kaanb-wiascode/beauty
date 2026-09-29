@@ -34,7 +34,21 @@ const updateIncomeSchema = createIncomeSchema.partial().extend({
   version: z.coerce.number().int().positive(),
 });
 
-const listSchema = z.object({ limit: z.coerce.number().int().min(1).max(200).default(50) });
+const listSchema = z.object({
+  approvalStatus: z.enum(['DRAFT', 'SUBMITTED', 'APPROVED', 'REJECTED', 'CANCELLED']).optional(),
+  collectionStatus: z.enum(['UNCOLLECTED', 'PARTIALLY_COLLECTED', 'COLLECTED', 'CANCELLED']).optional(),
+  accountingStatus: z.enum(['UNPOSTED', 'READY_TO_POST', 'POSTED', 'REVERSED']).optional(),
+  reconciliationStatus: z.enum(['UNRECONCILED', 'PARTIALLY_RECONCILED', 'RECONCILED']).optional(),
+  categoryId: z.string().uuid().optional(),
+  costCenterId: z.string().uuid().optional(),
+  sourceType: z.string().trim().max(100).optional(),
+  from: z.coerce.date().optional(),
+  to: z.coerce.date().optional(),
+  page: z.coerce.number().int().min(1).optional(),
+  limit: z.coerce.number().int().min(1).max(200).default(50),
+}).refine((value) => !value.from || !value.to || value.from <= value.to, {
+  message: 'from must be before or equal to to',
+});
 const reasonSchema = z.object({ reason: z.string().trim().min(1).max(500) });
 
 @Controller('finance/income')
@@ -52,7 +66,7 @@ export class IncomeRecordsController {
 
   @Get()
   list(@Query() query: unknown) {
-    return this.service.list(listSchema.parse(query).limit);
+    return this.service.list(listSchema.parse(query));
   }
 
   @Get(':id')
