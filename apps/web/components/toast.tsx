@@ -9,7 +9,7 @@ import {
   type ReactNode,
 } from "react";
 import { cx } from "@/lib/format";
-import { userErrorMessage, userNoticeMessage } from "@/lib/user-language";
+import { userErrorMessage, userText } from "@/lib/user-language";
 
 type Tone = "success" | "error";
 
@@ -33,7 +33,7 @@ export function ToastProvider({ children }: { children: ReactNode }) {
     const safeMessage =
       tone === "error"
         ? userErrorMessage(message)
-        : userNoticeMessage(message);
+        : userText(message,"İşlem tamamlandı.");
 
     setToasts((current) => [...current, { id, message: safeMessage, tone }]);
     window.setTimeout(() => {
