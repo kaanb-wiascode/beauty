@@ -70,7 +70,7 @@ export function FinanceObligationAllocationPanel(){
     finally{setBusy(false);}
   }
 
-  return <FinancePanel title="Ödeme Tahsisi" description="Kimlik kodu girmeden yükümlülüğü ve uygun gider ödemesini seçerek eşleştirin.">
+  return <FinancePanel title="Ödeme Tahsisi" description="Yükümlülüğü ve uygun gider ödemesini seçerek birbirine bağlayın.">
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
     <form onSubmit={allocate} className="grid gap-4 lg:grid-cols-[1.1fr_1.4fr_.6fr_auto] lg:items-end">
