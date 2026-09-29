@@ -73,6 +73,11 @@ describe('Role / permission matrix (e2e)', () => {
 
     { permission: 'accounting.read', method: 'get', path: '/accounting/accounts' },
     { permission: 'accounting.manage', method: 'post', path: '/accounting/accounts', body: { code: '', name: '', type: 'ASSET' } },
+    { permission: 'accounting_journal.create', method: 'post', path: '/accounting/journal-entries', body: {} },
+    { permission: 'accounting_journal.approve', method: 'post', path: `/accounting/journal-entries/${randomUUID()}/approve` },
+    { permission: 'accounting_journal.post', method: 'post', path: `/accounting/journal-entries/${randomUUID()}/post` },
+    { permission: 'finance_period.close', method: 'post', path: `/finance/periods/${randomUUID()}/close`, body: {} },
+    { permission: 'finance_period.reopen', method: 'post', path: `/finance/periods/${randomUUID()}/reopen` },
 
     { permission: 'hr.read', method: 'get', path: '/hr/employees' },
     { permission: 'hr.manage', method: 'post', path: '/hr/employees', body: { firstName: 'Matrix' } },
