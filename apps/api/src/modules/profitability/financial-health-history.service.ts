@@ -187,7 +187,7 @@ export class FinancialHealthHistoryService {
               priority: 'CRITICAL',
               action: 'FINANCIAL_RECOVERY_PLAN',
               recommendation:
-                'Initiate a financial recovery plan and review liquidity, collections, cost controls and near-term commitments weekly.',
+                'Finansal toparlanma planı başlatın; likiditeyi, tahsilatları, maliyet kontrollerini ve kısa vadeli yükümlülükleri haftalık olarak gözden geçirin.',
             };
           case 'RUNWAY_WEEKS':
             return {
@@ -195,7 +195,7 @@ export class FinancialHealthHistoryService {
               priority: 'CRITICAL',
               action: 'EXTEND_RUNWAY',
               recommendation:
-                'Protect cash immediately: defer non-essential outflows, accelerate collections and preserve the configured liquidity floor.',
+                'Nakit pozisyonunu koruyun: zorunlu olmayan ödemeleri erteleyin, tahsilatları hızlandırın ve belirlenen minimum likidite seviyesini koruyun.',
             };
           case 'LIQUIDITY_ALERTS':
             return {
@@ -203,7 +203,7 @@ export class FinancialHealthHistoryService {
               priority: 'CRITICAL',
               action: 'RESOLVE_LIQUIDITY_GAP',
               recommendation:
-                'Review the first forecasted liquidity breach week and reschedule supplier payments or accelerate receivable collection before that date.',
+                'İlk likidite açığı beklenen haftayı inceleyin; bu tarihten önce tedarikçi ödemelerini yeniden planlayın veya alacak tahsilatını hızlandırın.',
             };
           case 'DSO_DAYS':
             return {
@@ -211,7 +211,7 @@ export class FinancialHealthHistoryService {
               priority: 'HIGH',
               action: 'ACCELERATE_COLLECTIONS',
               recommendation:
-                'Prioritize overdue customer balances, shorten payment terms for new sales and follow up before installment due dates.',
+                'Vadesi geçmiş müşteri bakiyelerine öncelik verin, yeni satışlarda ödeme vadelerini kısaltın ve taksit vadelerinden önce takip başlatın.',
             };
           case 'NET_WORKING_CAPITAL':
             return {
@@ -219,7 +219,7 @@ export class FinancialHealthHistoryService {
               priority: 'HIGH',
               action: 'IMPROVE_WORKING_CAPITAL',
               recommendation:
-                'Reduce inventory tied-up cash, accelerate receivables and renegotiate supplier terms to restore working-capital headroom.',
+                'Stokta bağlı nakdi azaltın, alacak tahsilatını hızlandırın ve işletme sermayesi alanı yaratmak için tedarikçi vadelerini yeniden görüşün.',
             };
           case 'OVERDUE_RECEIVABLE_RATIO':
             return {
@@ -227,14 +227,14 @@ export class FinancialHealthHistoryService {
               priority: 'HIGH',
               action: 'REDUCE_OVERDUE_RECEIVABLES',
               recommendation:
-                'Segment overdue balances by aging and customer exposure, then prioritize high-value and 90+ day accounts for collection.',
+                'Vadesi geçmiş bakiyeleri yaşlandırma ve müşteri riskine göre ayırın; yüksek tutarlı ve 90 günü aşan alacaklara tahsilatta öncelik verin.',
             };
           default:
             return {
               code: item.code,
               priority: 'MEDIUM',
               action: 'REVIEW',
-              recommendation: 'Review the breached financial threshold and assign a corrective action owner.',
+              recommendation: 'Aşılan finansal eşiği inceleyin ve düzeltici aksiyon için sorumlu atayın.',
             };
         }
       });
