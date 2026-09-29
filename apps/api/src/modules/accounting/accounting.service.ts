@@ -258,56 +258,6 @@ export class AccountingService {
     });
   }
 
-  async recordServiceConsumptionCost(
-    tx: Prisma.TransactionClient,
-    appointmentId: string,
-    input: CommerceAccountingContext,
-  ) {
-    if (!Number.isFinite(input.amount) || input.amount <= 0) return null;
-
-    const companyId = this.tenantContext.getCompanyId();
-    const inventory = await this.ensureSystemAccount(
-      tx,
-      input.tenantId,
-      companyId,
-      '150',
-      'İlk Madde ve Malzeme',
-      'ASSET',
-    );
-    const serviceCost = await this.ensureSystemAccount(
-      tx,
-      input.tenantId,
-      companyId,
-      '740',
-      'Hizmet Üretim Maliyeti',
-      'EXPENSE',
-    );
-
-    return this.createAutomaticJournal(tx, {
-      tenantId: input.tenantId,
-      companyId,
-      branchId: input.branchId,
-      entryDate: input.entryDate,
-      description: `Hizmet sarf malzemesi maliyeti ${appointmentId}`,
-      referenceType: 'SERVICE_CONSUMPTION',
-      referenceId: appointmentId,
-      lines: [
-        {
-          accountId: serviceCost.id,
-          debit: input.amount,
-          credit: 0,
-          memo: 'Hizmette kullanılan sarf malzemeleri',
-        },
-        {
-          accountId: inventory.id,
-          debit: 0,
-          credit: input.amount,
-          memo: 'Sarf malzemesi stok çıkışı',
-        },
-      ],
-    });
-  }
-
   async recordSalePayment(
     tx: Prisma.TransactionClient,
     paymentId: string,
