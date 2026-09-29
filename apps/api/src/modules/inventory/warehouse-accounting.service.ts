@@ -67,11 +67,11 @@ export class WarehouseAccountingService {
          FOR UPDATE`,
         id, tenantId, companyId, branchIds,
       );
-      if (!rows.length) throw new NotFoundException('Transfer not found.');
+      if (!rows.length) throw new NotFoundException('Transfer kaydı bulunamadı.');
       const transfer = rows[0];
-      if (transfer.status === 'RECEIVED') throw new BadRequestException('Transfer has already been received.');
+      if (transfer.status === 'RECEIVED') throw new BadRequestException('Transfer daha önce teslim alınmış.');
       if (!['PENDING', 'APPROVED', 'IN_TRANSIT'].includes(transfer.status)) {
-        throw new BadRequestException('Transfer is not ready to be received.');
+        throw new BadRequestException('Transfer henüz teslim alınmaya hazır değil.');
       }
 
       const items = await tx.$queryRawUnsafe<any[]>(
@@ -82,7 +82,7 @@ export class WarehouseAccountingService {
          ORDER BY i.id FOR UPDATE`,
         id, companyId,
       );
-      if (!items.length) throw new BadRequestException('Transfer has no items.');
+      if (!items.length) throw new BadRequestException('Transferde ürün bulunmuyor.');
 
       let totalValue = 0;
       for (const item of items) {
@@ -91,11 +91,11 @@ export class WarehouseAccountingService {
            WHERE product_id=$1::text AND warehouse_id=$2::text FOR UPDATE`,
           item.productId, transfer.sourceWarehouseId,
         );
-        if (!sourceRows.length) throw new BadRequestException(`Source stock not found for product ${item.productId}.`);
+        if (!sourceRows.length) throw new BadRequestException(`Ürün için kaynak depoda stok kaydı bulunamadı: ${item.productId}.`);
         const quantity = Number(item.quantity);
         const available = Number(sourceRows[0].quantity);
         const unitCost = Number(sourceRows[0].costPerUnit ?? 0);
-        if (available < quantity) throw new BadRequestException(`Insufficient source stock for product ${item.productId}.`);
+        if (available < quantity) throw new BadRequestException(`Ürün için kaynak depoda yeterli stok yok: ${item.productId}.`);
         const lineValue = this.round(quantity * unitCost);
         totalValue = this.round(totalValue + lineValue);
 
@@ -142,7 +142,7 @@ export class WarehouseAccountingService {
          WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status<>'RECEIVED'`,
         id, totalValue, tenantId, companyId,
       );
-      if (updated !== 1) throw new BadRequestException('Transfer changed concurrently.');
+      if (updated !== 1) throw new BadRequestException('Transfer başka bir işlem tarafından güncellendi. Lütfen ekranı yenileyin.');
       return { transferId: id, status: 'RECEIVED', totalValue };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
@@ -151,10 +151,10 @@ export class WarehouseAccountingService {
     const { tenantId, companyId } = this.context();
     const { branchIds } = await this.inventoryScope.getWarehouseScope();
     const reason = input.reason?.trim();
-    if (!reason) throw new BadRequestException('Adjustment reason is required.');
-    if (!input.items?.length) throw new BadRequestException('Adjustment must contain at least one item.');
+    if (!reason) throw new BadRequestException('Stok düzeltme nedeni zorunludur.');
+    if (!input.items?.length) throw new BadRequestException('Stok düzeltmesinde en az bir ürün bulunmalıdır.');
     const ids = input.items.map((item) => item.productId);
-    if (new Set(ids).size !== ids.length) throw new BadRequestException('A product can only appear once in an adjustment.');
+    if (new Set(ids).size !== ids.length) throw new BadRequestException('Aynı ürün bir stok düzeltmesinde yalnızca bir kez yer alabilir.');
 
     return this.prisma.$transaction(async (tx) => {
       const warehouses = await tx.$queryRawUnsafe<any[]>(
@@ -164,7 +164,7 @@ export class WarehouseAccountingService {
          FOR UPDATE`,
         input.warehouseId, tenantId, companyId, branchIds,
       );
-      if (!warehouses.length) throw new NotFoundException('Warehouse not found.');
+      if (!warehouses.length) throw new NotFoundException('Depo bulunamadı.');
       const warehouse = warehouses[0];
       const outbound = input.type !== 'ADJUSTMENT_IN';
       let totalValue = 0;
@@ -172,7 +172,7 @@ export class WarehouseAccountingService {
 
       for (const item of input.items) {
         const quantity = Number(item.quantity);
-        if (!Number.isFinite(quantity) || quantity <= 0) throw new BadRequestException('Adjustment quantities must be greater than zero.');
+        if (!Number.isFinite(quantity) || quantity <= 0) throw new BadRequestException('Stok düzeltme miktarı sıfırdan büyük olmalıdır.');
         const product = await tx.$queryRawUnsafe<any[]>(
           `SELECT p.id,s.quantity,s.cost_per_unit AS "costPerUnit"
            FROM inventory_products p
@@ -180,13 +180,13 @@ export class WarehouseAccountingService {
            WHERE p.id=$1::text AND p.company_id=$2::text AND p.status='ACTIVE' LIMIT 1 FOR UPDATE OF p`,
           item.productId, companyId, input.warehouseId,
         );
-        if (!product.length) throw new NotFoundException(`Product ${item.productId} not found.`);
+        if (!product.length) throw new NotFoundException(`Ürün bulunamadı: ${item.productId}.`);
         const currentQty = Number(product[0].quantity ?? 0);
-        if (outbound && currentQty < quantity) throw new BadRequestException(`Insufficient stock for product ${item.productId}.`);
+        if (outbound && currentQty < quantity) throw new BadRequestException(`Ürün için yeterli stok yok: ${item.productId}.`);
         const unitCost = outbound
           ? Number(product[0].costPerUnit ?? 0)
           : Number(item.unitCost ?? product[0].costPerUnit ?? 0);
-        if (!Number.isFinite(unitCost) || unitCost < 0) throw new BadRequestException('Unit cost cannot be negative.');
+        if (!Number.isFinite(unitCost) || unitCost < 0) throw new BadRequestException('Birim maliyet negatif olamaz.');
         const lineValue = this.round(quantity * unitCost);
         totalValue = this.round(totalValue + lineValue);
         prepared.push({ productId: item.productId, quantity, unitCost, lineValue });
