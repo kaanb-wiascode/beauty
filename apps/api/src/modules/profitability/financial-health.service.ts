@@ -228,7 +228,7 @@ export class FinancialHealthService {
     const covenants = [
       {
         code: 'HEALTH_SCORE',
-        label: 'Minimum financial health score',
+        label: 'Minimum finansal sağlık puanı',
         actual: healthScore,
         threshold: thresholds.minimumHealthScore,
         operator: '>=',
@@ -236,7 +236,7 @@ export class FinancialHealthService {
       },
       {
         code: 'RUNWAY_WEEKS',
-        label: 'Minimum cash runway',
+        label: 'Minimum nakit dayanma süresi',
         actual: dashboard.runway.runwayWeeks,
         threshold: thresholds.minimumRunwayWeeks,
         operator: '>=',
@@ -246,7 +246,7 @@ export class FinancialHealthService {
       },
       {
         code: 'DSO_DAYS',
-        label: 'Maximum DSO',
+        label: 'En yüksek tahsilat süresi',
         actual: dashboard.workingCapital.dsoDays,
         threshold: thresholds.maximumDsoDays,
         operator: '<=',
@@ -256,7 +256,7 @@ export class FinancialHealthService {
       },
       {
         code: 'NET_WORKING_CAPITAL',
-        label: 'Minimum net working capital',
+        label: 'Minimum net işletme sermayesi',
         actual: dashboard.workingCapital.netWorkingCapital,
         threshold: thresholds.minimumNetWorkingCapital,
         operator: '>=',
@@ -265,7 +265,7 @@ export class FinancialHealthService {
       },
       {
         code: 'OVERDUE_RECEIVABLE_RATIO',
-        label: 'Maximum overdue receivable ratio',
+        label: 'En yüksek vadesi geçmiş alacak oranı',
         actual: overdueRatio,
         threshold: thresholds.maximumOverdueReceivableRatio,
         operator: '<=',
@@ -273,7 +273,7 @@ export class FinancialHealthService {
       },
       {
         code: 'LIQUIDITY_ALERTS',
-        label: 'Maximum 13-week liquidity alerts',
+        label: '13 haftalık likidite için en fazla uyarı sayısı',
         actual: dashboard.treasuryAlerts.alertCount,
         threshold: thresholds.maximumLiquidityAlerts,
         operator: '<=',
