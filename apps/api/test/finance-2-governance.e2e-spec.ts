@@ -370,4 +370,104 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
     expect(reversePayment1.body.remainingAmount).toBeCloseTo(1000, 2);
   });
 
+
+  it('blocks period close on unresolved finance work, then closes and reopens after resolution', async () => {
+    const period = await request(app.getHttpServer())
+      .post('/finance/periods')
+      .set('Authorization', authorization)
+      .send({
+        name: 'Nisan 2198',
+        startsAt: '2198-04-01T00:00:00.000Z',
+        endsAt: '2198-04-30T23:59:59.999Z',
+      })
+      .expect(201);
+
+    const [categories, accounts] = await Promise.all([
+      request(app.getHttpServer()).get('/finance/setup/income-categories').set('Authorization', authorization).expect(200),
+      request(app.getHttpServer()).get('/accounting/accounts').set('Authorization', authorization).expect(200),
+    ]);
+    const category = categories.body.find((item: { id: string; active: boolean }) => item.active);
+    const revenue = accounts.body.find((item: { type: string; code: string }) => item.type === 'REVENUE' && item.code !== '646');
+    const receivable = accounts.body.find((item: { code: string }) => item.code === '120');
+    expect(category?.id).toBeTruthy();
+    expect(revenue?.id).toBeTruthy();
+    expect(receivable?.id).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .put('/finance/setup/income-accounting-mappings')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: category.id,
+        revenueAccountId: revenue.id,
+        receivableAccountId: receivable.id,
+      })
+      .expect(200);
+
+    const income = await request(app.getHttpServer())
+      .post('/finance/income')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: category.id,
+        transactionDate: '2198-04-15T12:00:00.000Z',
+        grossAmount: 750,
+        netAmount: 750,
+        taxAmount: 0,
+        currency: 'TRY',
+        exchangeRate: 1,
+        description: 'Dönem kapanış blokaj testi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/submit`)
+      .set('Authorization', authorization)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/approve`)
+      .set('Authorization', authorization)
+      .expect(201);
+
+    const blockedChecklist = await request(app.getHttpServer())
+      .get(`/finance/periods/${period.body.id}/close-checklist`)
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(blockedChecklist.body.closable).toBe(false);
+    expect(
+      blockedChecklist.body.checks.some(
+        (check: { code: string; count: number }) =>
+          check.code === 'UNPOSTED_INCOME' && Number(check.count) >= 1,
+      ),
+    ).toBe(true);
+
+    const blockedClose = await request(app.getHttpServer())
+      .post(`/finance/periods/${period.body.id}/close`)
+      .set('Authorization', authorization)
+      .send({ reason: 'Blokaj varken kapanmamalı' });
+    expect(blockedClose.status).toBe(400);
+
+    await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/accounting/post`)
+      .set('Authorization', authorization)
+      .expect(201);
+
+    const clearChecklist = await request(app.getHttpServer())
+      .get(`/finance/periods/${period.body.id}/close-checklist`)
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(clearChecklist.body.closable).toBe(true);
+
+    const closed = await request(app.getHttpServer())
+      .post(`/finance/periods/${period.body.id}/close`)
+      .set('Authorization', authorization)
+      .send({ reason: 'Acceptance close' })
+      .expect(201);
+    expect(closed.body.status).toBe('CLOSED');
+
+    const reopened = await request(app.getHttpServer())
+      .post(`/finance/periods/${period.body.id}/reopen`)
+      .set('Authorization', authorization)
+      .expect(201);
+    expect(reopened.body.status).toBe('OPEN');
+  });
+
 });
