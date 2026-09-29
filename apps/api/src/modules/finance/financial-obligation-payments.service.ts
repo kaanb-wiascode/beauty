@@ -15,6 +15,32 @@ export class FinancialObligationPaymentsService {
     };
   }
 
+  async paymentOptions(limit = 200) {
+    const ctx = this.ctx();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT ep.id,ep.amount,e.currency,ep.paid_at AS "paidAt",
+              e.counterparty_name AS "counterpartyName",e.document_number AS "documentNumber",
+              e.description,
+              COALESCE(SUM(a.amount) FILTER (WHERE a.reversed_at IS NULL),0)::numeric AS allocated,
+              GREATEST(ep.amount-COALESCE(SUM(a.amount) FILTER (WHERE a.reversed_at IS NULL),0),0)::numeric AS remaining
+       FROM expense_payments ep
+       JOIN expenses e ON e.id=ep.expense_id
+       LEFT JOIN expense_payment_reversals r ON r.expense_payment_id=ep.id
+       LEFT JOIN financial_obligation_payment_allocations a ON a.expense_payment_id=ep.id
+       WHERE ep.tenant_id=$1 AND ep.company_id=$2
+         AND ($3::text IS NULL OR ep.branch_id=$3)
+         AND r.id IS NULL
+       GROUP BY ep.id,ep.amount,e.currency,ep.paid_at,e.counterparty_name,e.document_number,e.description
+       HAVING GREATEST(ep.amount-COALESCE(SUM(a.amount) FILTER (WHERE a.reversed_at IS NULL),0),0)>0
+       ORDER BY ep.paid_at DESC
+       LIMIT $4`,
+      ctx.tenantId,
+      ctx.companyId,
+      ctx.branchId,
+      Math.min(Math.max(limit, 1), 500),
+    );
+  }
+
   async list(obligationId: string) {
     const ctx = this.ctx();
     return this.prisma.$queryRawUnsafe<any[]>(
