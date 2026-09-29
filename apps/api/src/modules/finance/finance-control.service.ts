@@ -396,6 +396,27 @@ export class FinanceControlService {
          WHERE fp.tenant_id=$1::text AND fp.company_id=$2::text
            AND ($3::text IS NULL OR fp.branch_id IS NULL OR fp.branch_id=$3::text)
            AND fp.reopened_at IS NOT NULL
+         UNION ALL
+         SELECT rm.id||':matched',rm.matched_at,'RECONCILIATION','RECONCILIATION_MATCHED',rm.id,rm.matched_by,NULL::text,
+                NULL::jsonb,
+                jsonb_build_object(
+                  'bankTransactionId',rm.bank_transaction_id,
+                  'expensePaymentId',rm.expense_payment_id,
+                  'incomeCollectionId',rm.income_collection_id,
+                  'amount',rm.amount,
+                  'currency',rm.currency
+                )
+         FROM finance_reconciliation_matches rm
+         WHERE rm.tenant_id=$1::text AND rm.company_id=$2::text
+           AND ($3::text IS NULL OR rm.branch_id=$3::text)
+         UNION ALL
+         SELECT rm.id||':reversed',rm.reversed_at,'RECONCILIATION','RECONCILIATION_REVERSED',rm.id,rm.reversed_by,rm.reversal_reason,
+                jsonb_build_object('status','MATCHED'),
+                jsonb_build_object('status','REVERSED','amount',rm.amount,'currency',rm.currency)
+         FROM finance_reconciliation_matches rm
+         WHERE rm.tenant_id=$1::text AND rm.company_id=$2::text
+           AND ($3::text IS NULL OR rm.branch_id=$3::text)
+           AND rm.reversed_at IS NOT NULL
        ) events
        ORDER BY "createdAt" DESC,id DESC
        LIMIT $4`,
