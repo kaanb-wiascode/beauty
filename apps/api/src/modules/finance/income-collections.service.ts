@@ -268,7 +268,15 @@ export class IncomeCollectionsService {
         income.id,
         actorId,
         JSON.stringify({ collectionStatus: income.collectionStatus, collectedAmount: collected }),
-        JSON.stringify({ collectionStatus, collectedAmount: newTotal, collectionId }),
+        JSON.stringify({
+          collectionStatus,
+          collectedAmount: newTotal,
+          collectionId,
+          documentExchangeRate: Number(income.exchangeRate),
+          settlementExchangeRate: settlementRate,
+          realizedFxDifference: settlement.difference,
+          currency: income.currency,
+        }),
       );
 
       return {
