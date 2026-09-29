@@ -4,6 +4,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
 import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
+import { assertExchangeRateForCurrency, getCompanyBaseCurrency } from './domain/currency-policy';
 import { buildExpenseSettlementLines, ensureFxAccounts, reverseJournalLines } from './domain/fx-settlement-policy';
 import {
   assertExpensePaymentAllowed,
@@ -198,6 +199,8 @@ export class ExpensePaymentsService {
       }
 
       const settlementRate = input.exchangeRate ?? Number(expense.exchangeRate);
+      const baseCurrency = await getCompanyBaseCurrency(tx, { tenantId: expense.tenantId, companyId: expense.companyId });
+      assertExchangeRateForCurrency({ currency: expense.currency, exchangeRate: settlementRate, baseCurrency });
       const fxAccounts = await ensureFxAccounts(tx, { tenantId: expense.tenantId, companyId: expense.companyId });
       const settlement = buildExpenseSettlementLines({
         amount: input.amount,
