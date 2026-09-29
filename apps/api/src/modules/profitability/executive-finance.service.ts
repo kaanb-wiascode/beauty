@@ -16,6 +16,7 @@ export class ExecutiveFinanceService {
 
   private context() {
     return {
+      tenantId: this.tenantContext.getTenantId(),
       companyId: this.tenantContext.getCompanyId(),
     };
   }
@@ -143,11 +144,16 @@ export class ExecutiveFinanceService {
   }
 
   async executiveSummary(query: CfoDashboardQuery = {}) {
-    const [score, trend, recommendations, ranking] = await Promise.all([
+    const { tenantId, companyId } = this.context();
+    const [score, trend, recommendations, ranking, company] = await Promise.all([
       this.health.score(query),
       this.history.trend(query),
       this.history.recommendations(query),
       this.branchRanking(50),
+      this.prisma.company.findFirst({
+        where: { id: companyId, tenantId },
+        select: { baseCurrency: true },
+      }),
     ]);
 
     const scoredBranches = ranking.filter((item) => item.currentScore !== null);
@@ -166,6 +172,7 @@ export class ExecutiveFinanceService {
 
     return {
       asOf: score.asOf,
+      baseCurrency: company?.baseCurrency ?? 'TRY',
       health: {
         score: score.healthScore,
         status: score.healthStatus,
