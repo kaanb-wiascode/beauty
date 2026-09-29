@@ -33,6 +33,7 @@ type SettlementCurrencyTotal = {
 };
 type LiquidityPosition = {
   asOf: string;
+  baseCurrency: string;
   reportingCurrency: string | null;
   book: {
     cashOnHand: number;
@@ -120,7 +121,8 @@ export default function TreasuryCockpitPage() {
     void load();
   }, [load]);
 
-  const reportingCurrency = position?.reportingCurrency ?? "TRY";
+  const baseCurrency = position?.baseCurrency ?? "TRY";
+  const reportingCurrency = position?.reportingCurrency ?? baseCurrency;
   const book = position?.book;
   const bankVariance = position?.reconciliation?.bankVariance;
   const providerBalances = position?.provider?.bankBalancesByCurrency ?? [];
@@ -209,9 +211,9 @@ export default function TreasuryCockpitPage() {
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
-        <FinanceMetric label="Mevcut Nakit" value={money(book?.actualCash)} detail="Kasa Ve Banka Toplamı" tone="success" />
-        <FinanceMetric label="Hesaba Geçmeyi Bekleyen" value={money(book?.nearCash)} detail="POS Alacakları" />
-        <FinanceMetric label="Toplam Likit Pozisyon" value={money(book?.totalLiquidPosition)} detail="Mevcut Nakit Ve Bekleyen POS" tone="success" />
+        <FinanceMetric label="Mevcut Nakit" value={money(book?.actualCash,baseCurrency)} detail={`Kasa Ve Banka Toplamı · ${baseCurrency}`} tone="success" />
+        <FinanceMetric label="Hesaba Geçmeyi Bekleyen" value={money(book?.nearCash,baseCurrency)} detail={`POS Alacakları · ${baseCurrency}`} />
+        <FinanceMetric label="Toplam Likit Pozisyon" value={money(book?.totalLiquidPosition,baseCurrency)} detail={`Mevcut Nakit Ve Bekleyen POS · ${baseCurrency}`} tone="success" />
         <FinanceMetric label="Canlı Banka Bakiyesi" value={bankVariance?.comparable ? money(bankVariance?.providerCurrentBalance, reportingCurrency) : "—"} detail={bankVariance?.comparable ? `${reportingCurrency} Güncel Banka Bakiyesi` : "Raporlama Para Birimi Ayarlanmalı"} />
         <FinanceMetric label="Banka Bakiye Farkı" value={bankVariance?.comparable ? signedMoney(bankVariance?.variance, reportingCurrency) : "—"} detail="Canlı Banka Bakiyesi İle Muhasebe Bakiyesi Farkı" tone={varianceTone(bankVariance?.variance)} />
         <FinanceMetric label="Beklenen POS Geçişi" value={money(forecastTotal?.netAmount, reportingCurrency)} detail={`${forecastTotal?.transactionCount ?? 0} İşlem`} />
@@ -223,15 +225,15 @@ export default function TreasuryCockpitPage() {
         </FinancePanel>
         <FinancePanel title="Nakit Kontrolü" description="Muhasebe, Banka Ve POS Görünümü">
           <div className="grid gap-3 sm:grid-cols-2">
-            <Mini label="Kasa" value={money(book?.cashOnHand)} />
-            <Mini label="Bankalar" value={money(book?.bankBalance)} />
+            <Mini label="Kasa" value={money(book?.cashOnHand,baseCurrency)} />
+            <Mini label="Bankalar" value={money(book?.bankBalance,baseCurrency)} />
             <Mini label="Kullanılabilir Banka Bakiyesi" value={providerBalance ? money(providerBalance.availableBalance, providerBalance.currency) : "—"} />
             <Mini label="Mutabakat Oranı" value={percent(reconciliation?.matched, reconciliation?.total)} />
             <Mini label="Geçiş Tarihi Bilinmeyen POS" value={money(unknownTiming?.netAmount, reportingCurrency)} />
             <Mini label="Mutabakatsız POS" value={`${reconciliation?.unmatched ?? 0} · ${money(reconciliation?.unmatchedAmount)}`} />
           </div>
           <div className="mt-4 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4 text-[11px] leading-5 text-[var(--muted)]">
-            Muhasebe Banka Bakiyesi İle Canlı Banka Bakiyesi Yalnızca Raporlama Para Birimi Tanımlandığında Karşılaştırılır. Farklar Mutabakat Kontrolü İçin Kullanılır; Canlı Banka Bakiyesi Muhasebe Kayıtlarının Yerine Geçmez.
+            Muhasebe banka bakiyesi şirketin baz para birimi olan {baseCurrency} üzerinden tutulur. Canlı banka farkı da yalnızca bu para birimindeki banka bakiyesiyle karşılaştırılır. Raporlama para birimi ekran sunumu içindir; muhasebe defterinin para birimini değiştirmez.
           </div>
           <Link href="/finance/reconciliation" className="mt-4 inline-flex rounded-[12px] bg-[var(--accent)] px-4 py-2.5 text-[11px] font-semibold text-white">
             Mutabakat Merkezine Git
