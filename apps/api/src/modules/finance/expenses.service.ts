@@ -202,6 +202,7 @@ export class ExpensesService {
     const { tenantId, companyId, branchId } = this.context();
 
     return this.prisma.$transaction(async (tx) => {
+      await assertFinancialPeriodOpen(tx, { tenantId, companyId, branchId, date: input.transactionDate });
       await this.validateDimensions(tx, input);
 
       if (input.sourceType && input.sourceId) {
@@ -346,6 +347,12 @@ export class ExpensesService {
     return this.prisma.$transaction(async (tx) => {
       await this.acquireLock(tx, companyId, id);
       const current = await this.getForUpdate(tx, id, tenantId, companyId, branchId);
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: current.tenantId,
+        companyId: current.companyId,
+        branchId: current.branchId,
+        date: input.transactionDate ?? current.transactionDate,
+      });
       if (!['DRAFT', 'REJECTED'].includes(current.approvalStatus)) {
         throw new BadRequestException('Only draft or rejected expenses can be edited.');
       }
