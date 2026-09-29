@@ -201,7 +201,7 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
       `INSERT INTO bank_accounts(
          id,tenant_id,company_id,branch_id,integration_id,external_account_id,
          bank_name,account_name,currency,available_balance,current_balance,balance_as_of,active
-       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,'TRY',1000,1000,NOW(),true)`,
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,'TRY',980,980,NOW(),true)`,
       bankAccountId,
       tenantId,
       companyId,
