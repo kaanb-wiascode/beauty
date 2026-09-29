@@ -42,8 +42,11 @@ const listSchema = z.object({
   categoryId: z.string().uuid().optional(),
   costCenterId: z.string().uuid().optional(),
   sourceType: z.string().trim().max(100).optional(),
+  search: z.string().trim().max(200).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  sortBy: z.enum(['transactionDate', 'grossAmount', 'createdAt']).default('transactionDate'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
   page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
 }).refine((value) => !value.from || !value.to || value.from <= value.to, {
