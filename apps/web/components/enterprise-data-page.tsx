@@ -4,7 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { userErrorMessage, userFieldLabel, userLabel } from "@/lib/user-language";
+import { userErrorMessage, userFieldLabel, userLabel, userText } from "@/lib/user-language";
 
 export type EnterpriseSection = {
   title: string;
@@ -53,7 +53,7 @@ function display(value: unknown): string {
       if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString("tr-TR");
     }
     if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)) return "Sistem kaydı";
-    return userLabel(value);
+    return userText(value);
   }
   if (Array.isArray(value)) return value.length ? `${value.length} kayıt` : "—";
   if (typeof value === "object") return "Ayrıntılar mevcut";
@@ -140,7 +140,7 @@ export function EnterpriseDataPage({
     setNotice("");
     try {
       await api(action.path, { method: action.method ?? "POST", body: action.body });
-      setNotice(action.success ?? `${action.label} tamamlandı.`);
+      setNotice(action.success ?? `${userText(action.label)} tamamlandı.`);
       await load();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? userErrorMessage(requestError.message) : "İşlem tamamlanamadı.");
@@ -215,8 +215,8 @@ export function EnterpriseDataPage({
       {forms.map((form) => {
         const values = formValues[form.title] ?? {};
         return <div key={form.title} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{form.title}</h2>
-          {form.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{form.description}</p> : null}
+          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{userText(form.title)}</h2>
+          {form.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{userText(form.description)}</p> : null}
           <div className="mt-4 grid gap-4">
             {form.fields.map((field) => <Field key={field.name} label={field.label} required={field.required}>
               {field.type === "select" || field.type === "boolean" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
@@ -241,10 +241,10 @@ export function EnterpriseDataPage({
         {sections.map((section) => {
           const rows = rowsFrom(data[section.title]);
           const keys = visibleKeys(rows);
-          return <section key={section.title} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
+          return <section key={userText(section.title)} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
             <div className="border-b border-[var(--line)] px-5 py-4">
               <h2 className="text-[14px] font-semibold text-[var(--ink)]">{section.title}</h2>
-              {section.description ? <p className="mt-1 text-[11px] text-[var(--muted)]">{section.description}</p> : null}
+              {section.description ? <p className="mt-1 text-[11px] text-[var(--muted)]">{userText(section.description)}</p> : null}
             </div>
             {rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs">
               <thead><tr className="border-b border-[var(--line)] bg-[var(--surface-2)]/45 text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">
