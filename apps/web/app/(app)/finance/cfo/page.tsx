@@ -15,7 +15,7 @@ import { Alert, Button, Spinner } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
-import { userLabel } from "@/lib/user-language";
+import { userLabel, userText } from "@/lib/user-language";
 import {
   CFO_STATUS_LABEL,
   formatCfoMoney,
@@ -318,7 +318,7 @@ function Overview({ cockpit, benchmark, actions, currency }: { cockpit: CfoCockp
             {actions.slice(0, 5).map((action) => (
               <div key={action.id} className="rounded-[14px] border border-[var(--line)] p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-[12px] font-semibold leading-5 text-[var(--ink)]">{action.title}</p>
+                  <p className="text-[12px] font-semibold leading-5 text-[var(--ink)]">{userText(action.title)}</p>
                   <PriorityBadge value={action.priority} />
                 </div>
                 <p className="mt-2 text-[10px] text-[var(--muted-soft)]">
@@ -468,7 +468,7 @@ function ActionCenter({ actions, sla, busy, onStatus }: { actions: CfoActionItem
                   {(action.escalationLevel ?? 0) > 0 ? <span className="rounded-full bg-[var(--danger-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--danger)]">Yönetim Seviyesi {action.escalationLevel}</span> : null}
                 </div>
                 <p className="mt-2 text-[13px] font-semibold text-[var(--ink)]">{action.title}</p>
-                {action.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{action.description}</p> : null}
+                {action.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{userText(action.description)}</p> : null}
                 <p className="mt-2 text-[10px] text-[var(--muted-soft)]">{action.dueAt ? `Son Tarih ${formatDate(action.dueAt)}` : "Son Tarih Belirlenmedi"}</p>
               </div>
               {!['COMPLETED', 'CANCELLED'].includes(action.status) ? (
@@ -536,12 +536,12 @@ const CFO_ALERT_LABELS:Record<string,string>={
 
 function PriorityNotice({ priority }: { priority: CfoPriorityItem }) {
   const title=CFO_ACTION_LABELS[priority.action??""]??userLabel(priority.action??"")??"Yönetim Önceliği";
-  return <Notice severity={priority.priority === "CRITICAL" ? "CRITICAL" : "WARNING"} title={title} text={priority.recommendation ?? "Yönetim görevi gerekli."} />;
+  return <Notice severity={priority.priority === "CRITICAL" ? "CRITICAL" : "WARNING"} title={title} text={userText(priority.recommendation,"Yönetim görevi gerekli.")} />;
 }
 
 function AlertNotice({ alert }: { alert: CfoExecutiveAlert }) {
   const title=CFO_ALERT_LABELS[alert.code]??alert.title??"Finansal Uyarı";
-  return <Notice severity={alert.severity} title={title} text={`Gerçekleşen: ${String(alert.actual ?? "—")} · Eşik: ${String(alert.threshold ?? "—")}`} />;
+  return <Notice severity={alert.severity} title={userText(title)} text={`Gerçekleşen: ${String(alert.actual ?? "—")} · Eşik: ${String(alert.threshold ?? "—")}`} />;
 }
 
 function Mini({ label, value, danger = false }: { label: string; value: ReactNode; danger?: boolean }) {
