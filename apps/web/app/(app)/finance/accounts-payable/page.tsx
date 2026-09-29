@@ -14,13 +14,14 @@ type Aging = { notDue: number; days0to30: number; days31to60: number; days61to90
 type Bill = { id: string; supplierId: string; supplierName: string; invoiceNumber: string | null; description: string; amount: number | string; dueAt: string | null; status: "OPEN" | "PARTIALLY_PAID" | "PAID" | "CANCELLED"; paid: number | string; balance: number | string; createdAt: string };
 type PaymentMethod = "CASH" | "CARD" | "TRANSFER";
 
-const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
 const statusLabel: Record<string, string> = { OPEN: "Açık", PARTIALLY_PAID: "Kısmi Ödendi", PAID: "Ödendi", CANCELLED: "İptal" };
 
 export default function AccountsPayablePage() {
   const { showToast } = useToast();
   const canManage = hasPermission("finance", "manage");
   const [summary, setSummary] = useState<Summary | null>(null);
+  const [baseCurrency, setBaseCurrency] = useState("TRY");
+  const money = useMemo(() => new Intl.NumberFormat("tr-TR", { style: "currency", currency: baseCurrency, maximumFractionDigits: 2 }), [baseCurrency]);
   const [aging, setAging] = useState<Aging | null>(null);
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -35,11 +36,13 @@ export default function AccountsPayablePage() {
     setLoading(true);
     setError("");
     try {
-      const [summaryData, agingData, billRows] = await Promise.all([
+      const [summaryData, agingData, billRows, financeSettings] = await Promise.all([
         api<Summary>("/accounts-payable/summary"),
         api<Aging>("/accounts-payable/aging"),
         api<Bill[]>("/accounts-payable/bills"),
+        api<{baseCurrency:string}>("/finance/control/settings"),
       ]);
+      setBaseCurrency(financeSettings.baseCurrency||"TRY");
       setSummary(summaryData);
       setAging(agingData);
       setBills(billRows);
@@ -91,7 +94,7 @@ export default function AccountsPayablePage() {
   return <div className="mx-auto max-w-[1480px] space-y-6 pb-12">
     <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[0_12px_36px_rgba(17,70,104,0.04)] xl:flex-row xl:items-end xl:justify-between">
       <div>
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Finans / Accounts Payable</p>
+        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Finans Yönetimi</p>
         <h1 className="text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Tedarikçi Borçları</h1>
         <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Tedarikçi faturalarını, açık bakiyeleri, vade riskini ve ödemeleri muhasebe bütünlüğünü koruyarak yönetin.</p>
       </div>
