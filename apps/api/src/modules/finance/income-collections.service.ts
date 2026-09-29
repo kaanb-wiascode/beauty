@@ -4,6 +4,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
 import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
+import { assertExchangeRateForCurrency, getCompanyBaseCurrency } from './domain/currency-policy';
 import { buildIncomeSettlementLines, ensureFxAccounts, reverseJournalLines } from './domain/fx-settlement-policy';
 
 interface RecordIncomeCollectionInput {
@@ -209,6 +210,8 @@ export class IncomeCollectionsService {
       );
 
       const settlementRate = input.exchangeRate ?? Number(income.exchangeRate);
+      const baseCurrency = await getCompanyBaseCurrency(tx, { tenantId: income.tenantId, companyId: income.companyId });
+      assertExchangeRateForCurrency({ currency: income.currency, exchangeRate: settlementRate, baseCurrency });
       const fxAccounts = await ensureFxAccounts(tx, { tenantId: income.tenantId, companyId: income.companyId });
       const settlement = buildIncomeSettlementLines({
         amount: input.amount,
