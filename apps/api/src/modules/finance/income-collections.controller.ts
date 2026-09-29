@@ -16,6 +16,7 @@ const collectionSchema = z.object({
   reference: z.string().trim().max(150).optional(),
   note: z.string().trim().max(500).optional(),
   collectedAt: z.coerce.date().optional(),
+  exchangeRate: z.coerce.number().positive().optional(),
   sourceType: z.string().trim().max(100).optional(),
   sourceId: z.string().trim().max(150).optional(),
 });
