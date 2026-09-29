@@ -1,4 +1,4 @@
-import { Controller, Get, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Put, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
@@ -11,6 +11,20 @@ import { FinanceControlService } from './finance-control.service';
 @RequirePermission('finance', 'read')
 export class FinanceControlController {
   constructor(private readonly service: FinanceControlService) {}
+
+  @Get('settings')
+  settings() {
+    return this.service.settings();
+  }
+
+  @Put('settings')
+  @RequirePermission('finance', 'manage')
+  updateSettings(@Body() body: unknown) {
+    const parsed = z.object({
+      baseCurrency: z.string().trim().length(3).transform((value) => value.toUpperCase()),
+    }).parse(body);
+    return this.service.updateSettings(parsed);
+  }
 
   @Get('projection')
   projection() {
