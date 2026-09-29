@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -34,17 +35,6 @@ const inventoryUnit = z.enum([
   'METER',
   'PAIR',
   'BOX',
-]);
-const movementType = z.enum([
-  'PURCHASE',
-  'SERVICE_CONSUMPTION',
-  'TRANSFER_IN',
-  'TRANSFER_OUT',
-  'ADJUSTMENT_IN',
-  'ADJUSTMENT_OUT',
-  'DAMAGE',
-  'EXPIRED',
-  'RETURN',
 ]);
 const purchaseStatus = z.enum([
   'DRAFT',
@@ -102,16 +92,6 @@ const categorySchema = z.object({
   parentId: uuid.nullable().optional(),
   description: optionalText(2000),
   defaultUnit: inventoryUnit.nullable().optional(),
-});
-
-const movementSchema = z.object({
-  productId: uuid,
-  warehouseId: uuid,
-  quantity: z.coerce.number().positive(),
-  type: movementType,
-  unitCost: z.coerce.number().min(0).optional(),
-  referenceId: z.string().trim().max(200).optional(),
-  note: z.string().trim().max(2000).optional(),
 });
 
 const movementListSchema = z.object({
@@ -213,7 +193,7 @@ const transferSchema = z
   .refine(
     (value) => value.sourceWarehouseId !== value.destinationWarehouseId,
     {
-      message: 'Source and destination warehouses must be different.',
+      message: 'Kaynak ve hedef depo aynı olamaz.',
       path: ['destinationWarehouseId'],
     },
   );
@@ -259,7 +239,7 @@ const movementReportSchema = z
     to: z.coerce.date().optional(),
   })
   .refine((value) => !value.from || !value.to || value.from <= value.to, {
-    message: 'Start date must be before end date.',
+    message: 'Başlangıç tarihi bitiş tarihinden sonra olamaz.',
     path: ['to'],
   });
 
@@ -278,7 +258,7 @@ export class InventoryController {
   private userId(req: { user?: { sub?: string } }) {
     const userId = req.user?.sub;
     if (!userId) {
-      throw new UnauthorizedException('Authenticated user id is missing.');
+      throw new UnauthorizedException('Kullanıcı bilgisi doğrulanamadı. Lütfen yeniden giriş yapın.');
     }
     return userId;
   }
@@ -312,16 +292,9 @@ export class InventoryController {
 
   @Post('movements')
   @RequirePermission('inventory', 'write')
-  movement(@Body() body: unknown) {
-    const input = movementSchema.parse(body);
-    return this.inventory.addMovement(
-      input.productId,
-      input.warehouseId,
-      input.quantity,
-      input.type,
-      input.unitCost,
-      input.referenceId,
-      input.note,
+  movement() {
+    throw new BadRequestException(
+      'Stok hareketleri güvenli işlem akışlarından oluşturulmalıdır. Stok düzeltmesi, depo transferi, satın alma veya hizmet sarf ekranını kullanın.',
     );
   }
 
