@@ -40,13 +40,13 @@ export class FinancialPeriodController {
   }
 
   @Post(':id/close')
-  @RequirePermission('accounting', 'manage')
+  @RequirePermission('finance_period', 'close')
   close(@Param('id', new ParseUUIDPipe()) id: string, @Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.service.close(id, user.sub, closeSchema.parse(body).reason);
   }
 
   @Post(':id/reopen')
-  @RequirePermission('accounting', 'manage')
+  @RequirePermission('finance_period', 'reopen')
   reopen(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
     return this.service.reopen(id, user.sub);
   }
