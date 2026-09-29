@@ -14,7 +14,7 @@ import { calculateSaleTotals } from '../commerce/domain/sale-calculator';
 import { InstallmentsService } from '../installments/installments.service';
 
 interface SaleItemInput {
-  type: 'SERVICE' | 'PACKAGE';
+  type: 'SERVICE' | 'PACKAGE' | 'PRODUCT';
   referenceId: string;
   quantity: number;
 }
@@ -44,9 +44,10 @@ interface RefundSalePaymentInput {
 }
 
 type SaleLine = {
-  type: 'SERVICE' | 'PACKAGE';
+  type: 'SERVICE' | 'PACKAGE' | 'PRODUCT';
   serviceId: string | null;
   packageId: string | null;
+  productId: string | null;
   description: string;
   quantity: number;
   unitPrice: number;
@@ -161,9 +162,41 @@ export class SalesService {
             type: 'SERVICE' as const,
             serviceId: service.id,
             packageId: null,
+            productId: null,
             description: service.name,
             quantity: item.quantity,
             unitPrice: Number(service.price),
+          };
+        }
+
+        if (item.type === 'PRODUCT') {
+          const companyId = this.tenantContext.getCompanyId();
+          const products = await tx.$queryRawUnsafe<
+            Array<{ id: string; name: string; salePrice: Prisma.Decimal }>
+          >(
+            `SELECT id,name,sale_price AS "salePrice"
+             FROM inventory_products
+             WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+               AND status='ACTIVE'
+             LIMIT 1`,
+            item.referenceId,
+            tenantId,
+            companyId,
+          );
+          const product = products[0];
+          if (!product) {
+            throw new BadRequestException(
+              'Satıştaki bir veya daha fazla ürün geçersiz ya da kullanılamıyor.',
+            );
+          }
+          return {
+            type: 'PRODUCT' as const,
+            serviceId: null,
+            packageId: null,
+            productId: product.id,
+            description: product.name,
+            quantity: item.quantity,
+            unitPrice: Number(product.salePrice),
           };
         }
 
@@ -178,6 +211,7 @@ export class SalesService {
           type: 'PACKAGE' as const,
           serviceId: null,
           packageId: servicePackage.id,
+          productId: null,
           description: servicePackage.name,
           quantity: item.quantity,
           unitPrice: Number(servicePackage.price),
@@ -227,6 +261,7 @@ export class SalesService {
             type: line.type,
             serviceId: line.serviceId,
             packageId: line.packageId,
+            productId: line.productId,
             description: line.description,
             quantity: line.quantity,
             unitPrice: line.unitPrice,
@@ -398,7 +433,7 @@ export class SalesService {
           total: Number(totals.total),
           items: lines.map((line) => ({
             type: line.type,
-            referenceId: line.serviceId ?? line.packageId,
+            referenceId: line.serviceId ?? line.packageId ?? line.productId,
             description: line.description,
             quantity: line.quantity,
             unitPrice: line.unitPrice,
@@ -789,6 +824,10 @@ export class SalesService {
       (item) => item.type === 'PACKAGE' && item.packageId,
     );
 
+    const productItems = sale.items.filter(
+      (item) => item.type === 'PRODUCT' && item.productId,
+    );
+
     let eventId: string | null = null;
     const result = await this.prisma.$transaction(
       async (tx) => {
@@ -864,12 +903,99 @@ export class SalesService {
           }
         }
 
+        let productCostTotal = 0;
+        if (productItems.length > 0) {
+          const companyId = this.tenantContext.getCompanyId();
+          const warehouses = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+            `SELECT id
+             FROM inventory_warehouses
+             WHERE tenant_id=$1::text AND company_id=$2::text
+               AND branch_id=$3::text AND type='BRANCH' AND status='ACTIVE'
+             ORDER BY created_at ASC
+             LIMIT 1`,
+            sale.tenantId,
+            companyId,
+            sale.branchId,
+          );
+          const warehouse = warehouses[0];
+          if (!warehouse) {
+            throw new BadRequestException(
+              'Bu şube için aktif stok alanı bulunamadı. Satışı onaylamadan önce şube stok alanını oluşturun.',
+            );
+          }
+
+          for (const line of productItems) {
+            const stockRows = await tx.$queryRawUnsafe<
+              Array<{ quantity: Prisma.Decimal; costPerUnit: Prisma.Decimal }>
+            >(
+              `SELECT quantity,cost_per_unit AS "costPerUnit"
+               FROM inventory_stock
+               WHERE product_id=$1::text AND warehouse_id=$2::text
+               FOR UPDATE`,
+              line.productId!,
+              warehouse.id,
+            );
+            const stock = stockRows[0];
+            const available = Number(stock?.quantity ?? 0);
+            if (!stock || available < line.quantity) {
+              throw new BadRequestException(
+                `${line.description} için yeterli kullanılabilir stok bulunmuyor. Mevcut: ${available}, gerekli: ${line.quantity}.`,
+              );
+            }
+
+            const unitCost = Number(stock.costPerUnit ?? 0);
+            const lineCost = Math.round(
+              (unitCost * line.quantity + Number.EPSILON) * 100,
+            ) / 100;
+            productCostTotal = Math.round(
+              (productCostTotal + lineCost + Number.EPSILON) * 100,
+            ) / 100;
+
+            await tx.$executeRawUnsafe(
+              `UPDATE inventory_stock
+               SET quantity=quantity-$3,updated_at=NOW()
+               WHERE product_id=$1::text AND warehouse_id=$2::text`,
+              line.productId!,
+              warehouse.id,
+              line.quantity,
+            );
+            await tx.$executeRawUnsafe(
+              `INSERT INTO inventory_movements(
+                 tenant_id,company_id,product_id,warehouse_id,type,quantity,unit_cost,
+                 reference_type,reference_id,note
+               ) VALUES(
+                 $1::text,$2::text,$3::text,$4::text,'SALE',$5,$6,
+                 'SALE',$7::text,$8
+               )`,
+              sale.tenantId,
+              companyId,
+              line.productId!,
+              warehouse.id,
+              -line.quantity,
+              unitCost,
+              sale.id,
+              'Ürün satışı nedeniyle stok çıkışı',
+            );
+          }
+        }
+
         await this.accountingService.recordSaleConfirmed(tx, sale.id, {
           tenantId: sale.tenantId,
           branchId: sale.branchId,
           entryDate: confirmedAt,
           amount: Number(sale.total),
         });
+
+        await this.accountingService.recordProductCostOfGoodsSold(
+          tx,
+          sale.id,
+          {
+            tenantId: sale.tenantId,
+            branchId: sale.branchId,
+            entryDate: confirmedAt,
+            amount: productCostTotal,
+          },
+        );
 
         const actorId = await this.currentUserId(tx);
         await this.commerceFinanceSync.syncSaleConfirmed(tx, {
@@ -903,6 +1029,7 @@ export class SalesService {
               customerId: sale.customerId,
               total: Number(sale.total),
               packageCount: packageItems.length,
+              productCount: productItems.length,
             },
           })) ?? null;
 
