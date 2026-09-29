@@ -2,6 +2,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { DocumentSequenceService } from '../document-sequences/document-sequence.service';
+import { assertFinancialPeriodOpen } from '../finance/domain/financial-period-lock';
 import { validateJournalLines } from './domain/journal-policy';
 
 interface CreateAccountInput {
@@ -465,7 +466,7 @@ export class AccountingService {
     });
   }
 
-  async createJournalEntry(input: CreateJournalEntryInput) {
+  async createJournalEntry(input: CreateJournalEntryInput, actorId: string) {
     const { tenantId, companyId, branchId } = this.context();
 
     try {
@@ -492,6 +493,7 @@ export class AccountingService {
     }
 
     return this.prisma.$transaction(async (tx) => {
+      await assertFinancialPeriodOpen(tx, { tenantId, companyId, branchId, date: input.entryDate });
       const number = await this.documentSequences.next(tx, {
         documentType: 'journal-entry',
         prefix: 'JE',
@@ -508,6 +510,7 @@ export class AccountingService {
           description: input.description.trim(),
           referenceType: input.referenceType?.trim() || null,
           referenceId: input.referenceId?.trim() || null,
+          createdBy: actorId,
           lines: {
             create: input.lines.map((line) => ({
               accountId: line.accountId,
@@ -541,7 +544,48 @@ export class AccountingService {
     return entry;
   }
 
-  async postJournalEntry(id: string) {
+  async submitJournalEntry(id: string, actorId: string) {
+    const { tenantId, companyId, branchId } = this.context();
+    const entry = await this.prisma.journalEntry.findFirst({
+      where: { id, tenantId, companyId, ...(branchId ? { branchId } : {}) },
+      include: { lines: true },
+    });
+    if (!entry) throw new NotFoundException('Yevmiye kaydı bulunamadı.');
+    if (entry.status !== 'DRAFT') throw new BadRequestException('Yalnızca taslak yevmiye kaydı onaya gönderilebilir.');
+    if (entry.createdBy && entry.createdBy !== actorId) {
+      // Gönderenin oluşturan kişi olması zorunlu değildir; bu bilgi yalnızca audit için tutulur.
+    }
+    return this.prisma.journalEntry.update({
+      where: { id: entry.id },
+      data: { status: 'SUBMITTED', submittedBy: actorId, submittedAt: new Date() },
+      include: { lines: { include: { account: true } }, branch: true },
+    });
+  }
+
+  async approveJournalEntry(id: string, actorId: string) {
+    const { tenantId, companyId, branchId } = this.context();
+    const entry = await this.prisma.journalEntry.findFirst({
+      where: { id, tenantId, companyId, ...(branchId ? { branchId } : {}) },
+      include: { lines: true },
+    });
+    if (!entry) throw new NotFoundException('Yevmiye kaydı bulunamadı.');
+    if (entry.status !== 'SUBMITTED') throw new BadRequestException('Yalnızca onay bekleyen yevmiye kaydı onaylanabilir.');
+    if (entry.createdBy === actorId) {
+      throw new BadRequestException('Yevmiye kaydını oluşturan kullanıcı aynı kaydı onaylayamaz.');
+    }
+    try {
+      validateJournalLines(entry.lines.map((line) => ({ debit: Number(line.debit), credit: Number(line.credit) })));
+    } catch (error) {
+      throw new BadRequestException(error instanceof Error ? error.message : 'Yevmiye kaydı dengeli değil.');
+    }
+    return this.prisma.journalEntry.update({
+      where: { id: entry.id },
+      data: { status: 'APPROVED', approvedBy: actorId, approvedAt: new Date() },
+      include: { lines: { include: { account: true } }, branch: true },
+    });
+  }
+
+  async postJournalEntry(id: string, actorId: string) {
     const { tenantId, companyId, branchId } = this.context();
 
     return this.prisma.$transaction(async (tx) => {
@@ -549,20 +593,24 @@ export class AccountingService {
         where: { id, tenantId, companyId, ...(branchId ? { branchId } : {}) },
         include: { lines: true },
       });
-      if (!entry) throw new NotFoundException('Journal entry not found.');
-      if (entry.status !== 'DRAFT') throw new BadRequestException('Only draft journal entries can be posted.');
+      if (!entry) throw new NotFoundException('Yevmiye kaydı bulunamadı.');
+      if (entry.status !== 'APPROVED') throw new BadRequestException('Yalnızca onaylanmış yevmiye kaydı muhasebeleştirilebilir.');
+      if (entry.createdBy === actorId || entry.approvedBy === actorId) {
+        throw new BadRequestException('Kaydı oluşturan veya onaylayan kullanıcı aynı kaydı muhasebeleştiremez.');
+      }
+      await assertFinancialPeriodOpen(tx, { tenantId, companyId, branchId: entry.branchId, date: entry.entryDate });
 
       try {
         validateJournalLines(entry.lines.map((line) => ({ debit: Number(line.debit), credit: Number(line.credit) })));
       } catch (error) {
-        throw new BadRequestException(error instanceof Error ? error.message : 'Invalid journal entry.');
+        throw new BadRequestException(error instanceof Error ? error.message : 'Yevmiye kaydı dengeli değil.');
       }
 
       const posted = await tx.journalEntry.updateMany({
-        where: { id: entry.id, status: 'DRAFT' },
-        data: { status: 'POSTED', postedAt: new Date() },
+        where: { id: entry.id, status: 'APPROVED' },
+        data: { status: 'POSTED', postedAt: new Date(), postedBy: actorId },
       });
-      if (posted.count !== 1) throw new BadRequestException('Journal entry is no longer in a postable state.');
+      if (posted.count !== 1) throw new BadRequestException('Yevmiye kaydı artık muhasebeleştirilebilir durumda değil.');
 
       return tx.journalEntry.findUnique({
         where: { id: entry.id },
