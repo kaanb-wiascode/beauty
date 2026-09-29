@@ -141,8 +141,10 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
       .expect(200);
     const revenueAccount = accounts.body.find((item: { code: string }) => item.code === '600');
     const receivableAccount = accounts.body.find((item: { code: string }) => item.code === '120');
+    const bankAccount = accounts.body.find((item: { code: string }) => item.code === '102');
     expect(revenueAccount?.id).toBeTruthy();
     expect(receivableAccount?.id).toBeTruthy();
+    expect(bankAccount?.id).toBeTruthy();
 
     await request(app.getHttpServer())
       .put('/finance/setup/income-accounting-mappings')
@@ -195,5 +197,29 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
     expect(credit).toBeCloseTo(40500, 2);
     expect(lines.some((line) => line.account.code === '120' && Number(line.debit) === 40500)).toBe(true);
     expect(lines.some((line) => line.account.code === '600' && Number(line.credit) === 40500)).toBe(true);
+
+    const collection = await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/collections`)
+      .set('Authorization', authorization)
+      .send({
+        amount: 1000,
+        collectionAccountId: bankAccount.id,
+        method: 'TRANSFER',
+        exchangeRate: 41,
+        reference: `FX-${suffix}`,
+      })
+      .expect(201);
+
+    expect(collection.body.realizedFxDifference).toBeCloseTo(500, 2);
+    expect(collection.body.documentExchangeRate).toBeCloseTo(40.5, 6);
+    expect(collection.body.settlementExchangeRate).toBeCloseTo(41, 6);
+
+    const collectionLines = await prisma.journalEntryLine.findMany({
+      where: { journalEntryId: collection.body.journalEntryId },
+      include: { account: { select: { code: true } } },
+    });
+    expect(collectionLines.some((line) => line.account.code === '102' && Number(line.debit) === 41000)).toBe(true);
+    expect(collectionLines.some((line) => line.account.code === '120' && Number(line.credit) === 40500)).toBe(true);
+    expect(collectionLines.some((line) => line.account.code === '646' && Number(line.credit) === 500)).toBe(true);
   });
 });
