@@ -40,7 +40,10 @@ export default function FinanceControlPage(){
   const[periodFrom,setPeriodFrom]=useState("");
   const[periodTo,setPeriodTo]=useState("");
   const[periodBusy,setPeriodBusy]=useState(false);
-  const canManagePeriods=hasPermission("accounting","manage");
+  const canCreatePeriod=hasPermission("accounting","manage");
+  const canClosePeriod=hasPermission("finance_period","close");
+  const canReopenPeriod=hasPermission("finance_period","reopen");
+  const canManageFinance=hasPermission("finance","manage");
   const[loading,setLoading]=useState(true);
   const[error,setError]=useState("");
 
@@ -73,7 +76,7 @@ export default function FinanceControlPage(){
   }
 
   async function createPeriod(){
-    if(!canManagePeriods||!periodName.trim()||!periodFrom||!periodTo)return;
+    if(!canCreatePeriod||!periodName.trim()||!periodFrom||!periodTo)return;
     setPeriodBusy(true);setError("");
     try{
       await api("/finance/periods",{method:"POST",body:{name:periodName.trim(),startsAt:periodFrom,endsAt:periodTo}});
@@ -83,7 +86,8 @@ export default function FinanceControlPage(){
   }
 
   async function changePeriod(period:Period,action:"close"|"reopen"){
-    if(!canManagePeriods)return;
+    if(action==="close"&&!canClosePeriod)return;
+    if(action==="reopen"&&!canReopenPeriod)return;
     let body:Record<string,unknown>|undefined;
     if(action==="close"){
       try{
@@ -131,39 +135,39 @@ export default function FinanceControlPage(){
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
       <FinanceMetric label="Finansal Bütünlük" value={integrity?.healthy?"Sağlıklı":"Kontrol Gerekli"} detail={integrity?integrity.issueCount+" bulgu":"—"} tone={integrity?.healthy?"success":"danger"}/>
-      <FinanceMetric label="Kasa" value={money(projection?.ledger.cash)} detail="Muhasebe bakiyesi"/>
-      <FinanceMetric label="Banka" value={money(projection?.ledger.bank)} detail="Muhasebe bakiyesi"/>
-      <FinanceMetric label="POS Alacakları" value={money(projection?.ledger.posReceivable)} detail="Hesaba geçmeyi bekleyen"/>
-      <FinanceMetric label="Müşteri Alacakları" value={money(projection?.ledger.customerReceivable)} detail="Genel muhasebe"/>
-      <FinanceMetric label="Tedarikçi Borçları" value={money(projection?.ledger.supplierPayable)} detail="Genel muhasebe"/>
+      <FinanceMetric label="Kasa" value={money(projection?.ledger.cash,settings?.baseCurrency||"TRY")} detail="Muhasebe bakiyesi"/>
+      <FinanceMetric label="Banka" value={money(projection?.ledger.bank,settings?.baseCurrency||"TRY")} detail="Muhasebe bakiyesi"/>
+      <FinanceMetric label="POS Alacakları" value={money(projection?.ledger.posReceivable,settings?.baseCurrency||"TRY")} detail="Hesaba geçmeyi bekleyen"/>
+      <FinanceMetric label="Müşteri Alacakları" value={money(projection?.ledger.customerReceivable,settings?.baseCurrency||"TRY")} detail="Genel muhasebe"/>
+      <FinanceMetric label="Tedarikçi Borçları" value={money(projection?.ledger.supplierPayable,settings?.baseCurrency||"TRY")} detail="Genel muhasebe"/>
     </section>
 
     <section className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
       <FinancePanel title="Kaynakların Birbiriyle Tutarlılığı" description="Alt defterler ile genel muhasebe arasındaki otomatik kontroller">
         <div className="space-y-2">
           {(validation?.checks??[]).map(check=><div key={check.code} className="flex flex-col gap-2 rounded-[14px] border border-[var(--line)] p-4 sm:flex-row sm:items-center sm:justify-between">
-            <div><p className="text-[12px] font-semibold text-[var(--ink)]">{check.label}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Alt defter {money(check.expected)} · Muhasebe {money(check.actual)}</p></div>
-            <FinanceStatus status={check.ok?"PROCESSED":"FAILED"} label={check.ok?"Tutarlı":`Fark ${money(check.variance)}`}/>
+            <div><p className="text-[12px] font-semibold text-[var(--ink)]">{check.label}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Alt defter {money(check.expected,settings?.baseCurrency||"TRY")} · Muhasebe {money(check.actual,settings?.baseCurrency||"TRY")}</p></div>
+            <FinanceStatus status={check.ok?"PROCESSED":"FAILED"} label={check.ok?"Tutarlı":`Fark ${money(check.variance,settings?.baseCurrency||"TRY")}`}/>
           </div>)}
           {!validation?.checks?.length?<FinanceEmpty title="Kontrol sonucu bulunamadı."/>:null}
         </div>
       </FinancePanel>
       <FinancePanel title="Finansal Dönem" description="Kapalı dönemlere yeni veya değiştirilen finansal kayıt yazılamaz.">
         {currentPeriod?<div className="rounded-[14px] border border-[var(--line)] p-4"><div className="flex items-center justify-between gap-3"><div><p className="text-[13px] font-semibold text-[var(--ink)]">{currentPeriod.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{date(currentPeriod.startsAt)} – {date(currentPeriod.endsAt)}</p></div><FinanceStatus status={currentPeriod.status==="OPEN"?"PROCESSED":"FAILED"} label={currentPeriod.status==="OPEN"?"Açık":"Kapalı"}/></div></div>:<FinanceEmpty title="Bugünü kapsayan finansal dönem tanımlı değil."/>}
-        {canManagePeriods?<div className="mt-4 space-y-3">
-          <div className="grid gap-2 sm:grid-cols-3">
+        {(canCreatePeriod||canClosePeriod||canReopenPeriod)?<div className="mt-4 space-y-3">
+          {canCreatePeriod?<><div className="grid gap-2 sm:grid-cols-3">
             <input value={periodName} onChange={e=>setPeriodName(e.target.value)} placeholder="Dönem adı" className="control h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px]"/>
             <input type="date" value={periodFrom} onChange={e=>setPeriodFrom(e.target.value)} className="control h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px]"/>
             <input type="date" value={periodTo} onChange={e=>setPeriodTo(e.target.value)} className="control h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px]"/>
           </div>
-          <Button disabled={periodBusy||!periodName.trim()||!periodFrom||!periodTo} onClick={()=>void createPeriod()}>Yeni Dönem Oluştur</Button>
+          <Button disabled={periodBusy||!periodName.trim()||!periodFrom||!periodTo} onClick={()=>void createPeriod()}>Yeni Dönem Oluştur</Button></>:null}
           <div className="max-h-[220px] space-y-2 overflow-auto">
             {periods.map(period=><div key={period.id} className="flex items-center justify-between gap-3 rounded-[12px] border border-[var(--line)] px-3 py-2">
               <div><p className="text-[11px] font-semibold text-[var(--ink)]">{period.name}</p><p className="text-[9px] text-[var(--muted)]">{date(period.startsAt)} – {date(period.endsAt)}</p></div>
-              <div className="flex items-center gap-2"><FinanceStatus status={period.status==="OPEN"?"PROCESSED":"FAILED"} label={period.status==="OPEN"?"Açık":"Kapalı"}/><Button variant="secondary" disabled={periodBusy} onClick={()=>void changePeriod(period,period.status==="OPEN"?"close":"reopen")}>{period.status==="OPEN"?"Kapat":"Yeniden Aç"}</Button></div>
+              <div className="flex items-center gap-2"><FinanceStatus status={period.status==="OPEN"?"PROCESSED":"FAILED"} label={period.status==="OPEN"?"Açık":"Kapalı"}/>{period.status==="OPEN"&&canClosePeriod?<Button variant="secondary" disabled={periodBusy} onClick={()=>void changePeriod(period,"close")}>Kapat</Button>:null}{period.status==="CLOSED"&&canReopenPeriod?<Button variant="secondary" disabled={periodBusy} onClick={()=>void changePeriod(period,"reopen")}>Yeniden Aç</Button>:null}</div>
             </div>)}
           </div>
-        </div>:<p className="mt-3 text-[10px] leading-5 text-[var(--muted)]">Dönem yönetimi için Muhasebe · Yönetme yetkisi gerekir.</p>}
+        </div>:<p className="mt-3 text-[10px] leading-5 text-[var(--muted)]">Finansal dönem işlemleri için ilgili oluşturma, kapatma veya yeniden açma yetkisi gerekir.</p>}
       </FinancePanel>
     </section>
 
@@ -189,7 +193,7 @@ export default function FinanceControlPage(){
           <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">Muhasebe defterinin functional currency değeridir. Muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.</p>
           <div className="mt-3 flex gap-2">
             <input value={baseCurrencyInput} maxLength={3} onChange={e=>setBaseCurrencyInput(e.target.value.toUpperCase())} className="control h-10 w-28 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[11px] uppercase" placeholder={settings?.baseCurrency||"TRY"}/>
-            <Button disabled={periodBusy||!canManagePeriods||!/^[A-Z]{3}$/.test(baseCurrencyInput)} onClick={()=>void saveBaseCurrency()}>Kaydet</Button>
+            <Button disabled={periodBusy||!canManageFinance||!/^[A-Z]{3}$/.test(baseCurrencyInput)} onClick={()=>void saveBaseCurrency()}>Kaydet</Button>
           </div>
         </div>
         <div className="grid gap-3 sm:grid-cols-2">
@@ -204,7 +208,7 @@ export default function FinanceControlPage(){
 }
 
 function Quick({href,title,text}:{href:string;title:string;text:string}){return <Link href={href} className="rounded-[14px] border border-[var(--line)] p-4 transition hover:bg-[var(--surface-2)]"><p className="text-[12px] font-semibold text-[var(--ink)]">{title}</p><p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">{text}</p></Link>}
-function money(value:unknown){const n=Number(value??0);return new Intl.NumberFormat("tr-TR",{style:"currency",currency:"TRY",maximumFractionDigits:2}).format(Number.isFinite(n)?n:0)}
+function money(value:unknown,currency="TRY"){const n=Number(value??0);return new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:2}).format(Number.isFinite(n)?n:0)}
 function date(value:string){return new Intl.DateTimeFormat("tr-TR",{dateStyle:"medium"}).format(new Date(value))}
 function dateTime(value:string){return new Intl.DateTimeFormat("tr-TR",{dateStyle:"short",timeStyle:"short"}).format(new Date(value))}
 function domainLabel(v:string){return v==="INCOME"?"Gelir":v==="EXPENSE"?"Gider":v==="CONFIGURATION"?"Finans Ayarı":v}
