@@ -486,6 +486,7 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
 };
 
 const TECHNICAL_ERROR_PATTERN = /\b(?:backend|frontend|api|endpoint|prisma|postgres|postgresql|sql|constraint|stack|trace|exception|uuid|jwt|token|payload|runtime|undefined|null|database|db|foreign key|unique key|validation failed|internal server error|syntax error|query failed)\b/i;
+const ENGLISH_UI_PATTERN = /\b(?:review|maximum|minimum|resolve|failed|success|warning|critical|pending|approved|rejected|created|updated|deleted|branch|customer|payment|financial|liquidity|account|status|required|invalid|please|select|save|cancel|close|open|forecast|receivable|supplier|collection|working capital|runway)\b/i;
 
 const SYSTEM_WORD_LABELS: Record<string, string> = {
   ACTIVE: "Aktif",
@@ -639,10 +640,18 @@ export function userText(value: string | null | undefined, fallback?: string): s
   const exact=USER_TEXT_LABELS[normalized] ?? USER_LABELS[normalized];
   if (exact) return exact;
 
-  if (/^[A-Z0-9_\-]{3,}$/.test(normalized)) return humanizeSystemValue(normalized);
+  if (/^[A-Z0-9_\-]{3,}$/.test(normalized)) {
+    return fallback ?? "Sistem İşlemi";
+  }
 
   if (looksTechnical(normalized)) {
-    return fallback ?? humanizeSystemValue(normalized);
+    return fallback ?? "Sistem Bilgisi";
+  }
+
+  const hasTurkishCharacters=/[çğıöşüÇĞİÖŞÜ]/.test(normalized);
+  const commonTurkishWords=/\b(?:bir|bu|için|ile|ve|veya|değil|görev|işlem|kullanıcı|müşteri|ödeme|tahsilat|finans|şube|sağlık|uyarı|durum|kayıt|yönetim)\b/i.test(normalized);
+  if (!hasTurkishCharacters && !commonTurkishWords && ENGLISH_UI_PATTERN.test(normalized)) {
+    return fallback ?? "Bilgi mevcut.";
   }
 
   return normalized;
@@ -650,8 +659,10 @@ export function userText(value: string | null | undefined, fallback?: string): s
 
 export function userNoticeMessage(message: string): string {
   const normalized = message.trim();
-  if (!normalized) return "İşlem Tamamlandı.";
-  return titleCaseVisibleText(USER_ERROR_MESSAGES[normalized] ?? normalized);
+  if (!normalized) return "İşlem tamamlandı.";
+  const mapped=USER_ERROR_MESSAGES[normalized];
+  if(mapped) return mapped;
+  return userText(normalized,"İşlem tamamlandı.");
 }
 
 export function userErrorMessage(
