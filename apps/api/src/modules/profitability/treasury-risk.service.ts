@@ -269,10 +269,11 @@ export class TreasuryRiskService {
       `SELECT i.id,i.due_date AS "dueAt",i.counterparty_name AS "counterpartyName",
               GREATEST(
                 i.gross_amount-COALESCE((
-                  SELECT SUM(c.amount)
+                  SELECT SUM(c.amount-COALESCE((
+                    SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id
+                  ),0))
                   FROM income_collections c
-                  LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
-                  WHERE c.income_record_id=i.id AND r.id IS NULL
+                  WHERE c.income_record_id=i.id
                 ),0),
                 0
               )*i.exchange_rate AS outstanding
