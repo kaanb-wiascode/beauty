@@ -19,7 +19,13 @@ type Tab = "overview" | "trial" | "journals" | "accounts";
 
 const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
 const typeLabel: Record<string, string> = { ASSET: "Varlık", LIABILITY: "Yükümlülük", EQUITY: "Özkaynak", REVENUE: "Gelir", EXPENSE: "Gider" };
-const journalStatusLabel: Record<string, string> = { DRAFT: "Taslak", POSTED: "Muhasebeleştirildi" };
+const journalStatusLabel: Record<string, string> = {
+  DRAFT: "Taslak",
+  SUBMITTED: "Onay Bekliyor",
+  APPROVED: "Onaylandı",
+  POSTED: "Muhasebeleştirildi",
+  REVERSED: "Ters Kayıt",
+};
 
 export default function AccountingPage() {
   const { showToast } = useToast();
@@ -57,19 +63,26 @@ export default function AccountingPage() {
   useEffect(() => { void load(); }, [load]);
 
   const draftCount = useMemo(() => journals.filter((row) => row.status === "DRAFT").length, [journals]);
+  const pendingJournalCount = useMemo(() => journals.filter((row) => row.status === "SUBMITTED").length, [journals]);
   const postedCount = useMemo(() => journals.filter((row) => row.status === "POSTED").length, [journals]);
   const balanced = Math.abs(Number(trial?.totals.debit ?? 0) - Number(trial?.totals.credit ?? 0)) < 0.01;
 
-  async function postJournal(id: string) {
+  async function journalAction(id: string, action: "submit" | "approve" | "post") {
     if (!canManage || busy) return;
     setBusy(true);
     setError("");
     try {
-      await api(`/accounting/journal-entries/${id}/post`, { method: "POST" });
-      showToast("Yevmiye kaydı muhasebeleştirildi.");
+      await api(`/accounting/journal-entries/${id}/${action}`, { method: "POST" });
+      showToast(
+        action === "submit"
+          ? "Yevmiye kaydı onaya gönderildi."
+          : action === "approve"
+            ? "Yevmiye kaydı onaylandı."
+            : "Yevmiye kaydı muhasebeleştirildi.",
+      );
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Yevmiye kaydı muhasebeleştirilemedi.");
+      setError(requestError instanceof ApiError ? requestError.message : "Yevmiye işlemi tamamlanamadı.");
     } finally {
       setBusy(false);
     }
@@ -94,7 +107,7 @@ export default function AccountingPage() {
       <FinanceMetric label="Gider" value={money.format(Number(income?.expense ?? 0))} detail="Muhasebeleştirilmiş gider" />
       <FinanceMetric label="Net Sonuç" value={money.format(Number(income?.netIncome ?? 0))} detail="Gelir − gider" tone={(income?.netIncome ?? 0) < 0 ? "danger" : "success"} />
       <FinanceMetric label="Hesap" value={accounts.length} detail={`${accounts.filter((row) => row.active).length} aktif hesap`} />
-      <FinanceMetric label="Taslak Fiş" value={draftCount} detail={`${postedCount} muhasebeleştirilmiş`} tone={draftCount > 0 ? "warning" : "neutral"} />
+      <FinanceMetric label="Taslak Fiş" value={draftCount} detail={`${pendingJournalCount} onay bekliyor · ${postedCount} muhasebeleştirilmiş`} tone={draftCount + pendingJournalCount > 0 ? "warning" : "neutral"} />
       <FinanceMetric label="Mizan" value={balanced ? "Dengeli" : "Kontrol"} detail={`${money.format(Number(trial?.totals.debit ?? 0))} borç`} tone={balanced ? "success" : "danger"} />
     </section>
 
@@ -124,7 +137,11 @@ export default function AccountingPage() {
     </FinancePanel> : null}
 
     {tab === "journals" ? <FinancePanel title="Yevmiye Kayıtları" description="Taslak ve muhasebeleştirilmiş fişler">
-      <div className="space-y-3">{journals.map((entry) => <article key={entry.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px] text-[var(--ink)]">{entry.number}</strong><span className="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{journalStatusLabel[entry.status] ?? userLabel(entry.status)}</span></div><p className="mt-1 text-[12px] text-[var(--muted)]">{entry.description}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(entry.entryDate))} · {entry.lines.length} satır</p></div>{entry.status === "DRAFT" && canManage ? <Button disabled={busy} onClick={() => void postJournal(entry.id)}>Muhasebeleştir</Button> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{entry.lines.map((line) => <div key={line.id} className="flex justify-between gap-3 rounded-[10px] bg-white/70 px-3 py-2 text-[10px]"><span className="truncate text-[var(--muted)]">{line.account.code} · {line.account.name}</span><span className="shrink-0 font-semibold text-[var(--ink)]">{Number(line.debit) > 0 ? `B ${money.format(Number(line.debit))}` : `A ${money.format(Number(line.credit))}`}</span></div>)}</div></article>)}{!journals.length ? <EmptyState title="Yevmiye kaydı yok" description="Aktif kapsamda yevmiye kaydı bulunmuyor." /> : null}</div>
+      <div className="space-y-3">{journals.map((entry) => <article key={entry.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px] text-[var(--ink)]">{entry.number}</strong><span className="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{journalStatusLabel[entry.status] ?? userLabel(entry.status)}</span></div><p className="mt-1 text-[12px] text-[var(--muted)]">{entry.description}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(entry.entryDate))} · {entry.lines.length} satır</p></div>{canManage ? <div className="flex flex-wrap gap-2">
+  {entry.status === "DRAFT" ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "submit")}>Onaya Gönder</Button> : null}
+  {entry.status === "SUBMITTED" ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "approve")}>Onayla</Button> : null}
+  {entry.status === "APPROVED" ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "post")}>Muhasebeleştir</Button> : null}
+</div> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{entry.lines.map((line) => <div key={line.id} className="flex justify-between gap-3 rounded-[10px] bg-white/70 px-3 py-2 text-[10px]"><span className="truncate text-[var(--muted)]">{line.account.code} · {line.account.name}</span><span className="shrink-0 font-semibold text-[var(--ink)]">{Number(line.debit) > 0 ? `B ${money.format(Number(line.debit))}` : `A ${money.format(Number(line.credit))}`}</span></div>)}</div></article>)}{!journals.length ? <EmptyState title="Yevmiye kaydı yok" description="Aktif kapsamda yevmiye kaydı bulunmuyor." /> : null}</div>
     </FinancePanel> : null}
 
     {tab === "accounts" ? <FinancePanel title="Hesap Planı" description="Şirket hesap planı ve hesap türleri">
