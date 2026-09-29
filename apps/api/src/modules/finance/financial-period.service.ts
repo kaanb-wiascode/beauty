@@ -117,7 +117,7 @@ export class FinancialPeriodService {
          FROM pos_transactions
          WHERE tenant_id=$1::text AND company_id=$2::text
            AND ($3::text IS NULL OR branch_id=$3::text)
-           AND captured_at BETWEEN $4::timestamptz AND $5::timestamptz
+           AND created_at BETWEEN $4::timestamptz AND $5::timestamptz
            AND status='CAPTURED' AND settled_at IS NULL`,
         tenantId, companyId, scopeBranchId, period.startsAt, period.endsAt,
       ),
