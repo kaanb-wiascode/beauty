@@ -18,6 +18,35 @@ export class ProfitabilityConfigService {
     };
   }
 
+  async planningOptions() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
+
+    const [branches, costCenters, staff] = await Promise.all([
+      this.prisma.branch.findMany({
+        where: { companyId, status: 'ACTIVE' },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.$queryRawUnsafe<Array<{ id: string; name: string; code: string }>>(
+        `SELECT id,name,code FROM cost_centers
+         WHERE company_id=$1::text AND active=true
+         ORDER BY name`,
+        companyId,
+      ),
+      branchId
+        ? this.prisma.staff.findMany({
+            where: { tenantId, branchId, status: 'ACTIVE' },
+            select: { id: true, firstName: true, lastName: true },
+            orderBy: [{ firstName: 'asc' }, { lastName: 'asc' }],
+          })
+        : Promise.resolve([]),
+    ]);
+
+    return { branches, costCenters, staff };
+  }
+
   async setStaffCommission(staffId: string, rateInput: number) {
     const { tenantId, branchId } = this.context();
     const rate = Math.round((Number(rateInput) + Number.EPSILON) * 100) / 100;
