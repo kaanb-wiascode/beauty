@@ -52,9 +52,12 @@ function display(value: unknown): string {
       const parsed = new Date(value);
       if (!Number.isNaN(parsed.getTime())) return parsed.toLocaleString("tr-TR");
     }
+    if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(value)) return "Sistem kaydı";
     return userLabel(value);
   }
-  return JSON.stringify(value);
+  if (Array.isArray(value)) return value.length ? `${value.length} kayıt` : "—";
+  if (typeof value === "object") return "Ayrıntılar mevcut";
+  return String(value);
 }
 
 function rowsFrom(value: unknown): Array<Record<string, unknown>> {
@@ -73,6 +76,12 @@ function visibleKeys(rows: Array<Record<string, unknown>>) {
   for (const row of rows.slice(0, 10)) {
     for (const [key, value] of Object.entries(row)) {
       if (value === undefined || value === null || typeof value === "object") continue;
+      if (
+        key === "id" ||
+        /Id$/.test(key) ||
+        /^(tenant|company|branch|source|target|reference|external).*Id$/i.test(key) ||
+        /^(createdBy|updatedBy|actorId|membershipId|journalEntryLineId)$/i.test(key)
+      ) continue;
       score.set(key, (score.get(key) ?? 0) + 1);
     }
   }
