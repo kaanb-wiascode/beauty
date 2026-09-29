@@ -284,18 +284,19 @@ export class FinanceControlService {
   }
 
   async kpiValidation() {
-    const projection = await this.projection();
+    const [projection, settings] = await Promise.all([this.projection(), this.settings()]);
+    const baseCurrency = settings.baseCurrency ?? 'TRY';
     const tolerance = 0.01;
     const revenueVariance = this.round(
       projection.subledger.recognizedIncome - projection.ledger.revenue,
     );
-    const tryBank = projection.provider.bankBalances.find((item) => item.currency === 'TRY') ?? null;
-    const tryPos = projection.provider.unsettledPos.find((item) => item.currency === 'TRY') ?? null;
-    const bankVariance = tryBank
-      ? this.round(tryBank.currentBalance - projection.ledger.bank)
+    const baseBank = projection.provider.bankBalances.find((item) => item.currency === baseCurrency) ?? null;
+    const basePos = projection.provider.unsettledPos.find((item) => item.currency === baseCurrency) ?? null;
+    const bankVariance = baseBank
+      ? this.round(baseBank.currentBalance - projection.ledger.bank)
       : null;
-    const posVariance = tryPos
-      ? this.round(tryPos.unsettledNet - projection.ledger.posReceivable)
+    const posVariance = basePos
+      ? this.round(basePos.unsettledNet - projection.ledger.posReceivable)
       : null;
 
     const checks = [
@@ -310,19 +311,19 @@ export class FinanceControlService {
       {
         code: 'BANK_PROVIDER_VS_GL_102',
         label: 'Canlı banka bakiyesi / 102 Bankalar',
-        expected: tryBank?.currentBalance ?? null,
+        expected: baseBank?.currentBalance ?? null,
         actual: projection.ledger.bank,
         variance: bankVariance,
-        comparable: Boolean(tryBank),
+        comparable: Boolean(baseBank),
         ok: bankVariance == null ? true : Math.abs(bankVariance) <= tolerance,
       },
       {
         code: 'UNSETTLED_POS_VS_GL_108',
         label: 'Bekleyen POS / 108 POS Alacakları',
-        expected: tryPos?.unsettledNet ?? null,
+        expected: basePos?.unsettledNet ?? null,
         actual: projection.ledger.posReceivable,
         variance: posVariance,
-        comparable: Boolean(tryPos),
+        comparable: Boolean(basePos),
         ok: posVariance == null ? true : Math.abs(posVariance) <= tolerance,
       },
     ];
@@ -330,6 +331,7 @@ export class FinanceControlService {
       tolerance,
       valid: checks.every((check) => check.ok),
       checks,
+      baseCurrency,
       projection,
     };
   }
