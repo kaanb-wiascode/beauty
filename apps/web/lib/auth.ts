@@ -146,10 +146,11 @@ export function hasPermission(
 
   if (permissions.includes(`${resource}.${action}`)) return true;
 
-  // Owner is a full-access role. This client-side fallback repairs legacy
-  // sessions whose context-switch response did not include permissions.
+  // Full-access owner roles remain visible even when a legacy session
+  // was created before the current permission set was returned to the client.
   // Backend permission guards remain the authorization authority.
-  if (membership.role?.toLowerCase() === "owner") return true;
+  const normalizedRole=(membership.role??"").toLowerCase().replace(/[_\s]+/g,"-");
+  if (["owner","platform-owner","valoo-platform-owner"].includes(normalizedRole)) return true;
 
   return false;
 }
