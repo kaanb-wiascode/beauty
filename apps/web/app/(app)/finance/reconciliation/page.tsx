@@ -152,7 +152,7 @@ export default function ReconciliationPage() {
       setBaseCurrency(financeSettings.baseCurrency||"TRY");
       setSelected((current) => current ? settlementResult.find((item) => item.id === current.id) ?? null : null);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Mutabakat Verileri Yüklenemedi.");
+      setError(err instanceof ApiError ? err.message : "Mutabakat verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -193,7 +193,7 @@ export default function ReconciliationPage() {
         method: "POST",
         body: { bankTransactionId, confidence, note },
       });
-      setNotice("POS Geçiş Kaydı Banka Hareketiyle Eşleştirildi.");
+      setNotice("POS geçiş kaydı banka hareketiyle eşleştirildi.");
       setSelected(null);
       setSuggestions([]);
       await load();
@@ -210,10 +210,10 @@ export default function ReconciliationPage() {
     setNotice("");
     try {
       await api(`/financial-integrations/bank-transactions/${bankTransactionId}/ignore`, { method: "POST" });
-      setNotice("Banka Hareketi Mutabakat Dışında Bırakıldı.");
+      setNotice("Banka hareketi mutabakat dışında bırakıldı.");
       await load();
     } catch {
-      setError("Banka Hareketi Mutabakat Dışına Alınamadı.");
+      setError("Banka hareketi mutabakat dışına alınamadı.");
     } finally {
       setBusy("");
     }
@@ -228,7 +228,7 @@ export default function ReconciliationPage() {
         "/financial-integrations/pos/reconciliation/auto-match",
         { method: "POST", body: { limit: 300 } },
       );
-      setNotice(`${result.scanned} Kayıt Tarandı, ${result.matched} Kayıt Otomatik Eşleşti, ${result.skipped} Kayıt İncelemeye Kaldı.`);
+      setNotice(`${result.scanned} kayıt tarandı, ${result.matched} kayıt otomatik eşleşti, ${result.skipped} kayıt incelemeye kaldı.`);
       await load();
     } catch {
       setError("Otomatik Eşleştirme Çalıştırılamadı.");
@@ -243,10 +243,10 @@ export default function ReconciliationPage() {
     setNotice("");
     try {
       await api(`/financial-integrations/pos/webhooks/${eventId}/replay`, { method: "POST" });
-      setNotice("İşlem Yeniden Deneme Sırasına Alındı.");
+      setNotice("İşlem yeniden deneme sırasına alındı.");
       await load();
     } catch {
-      setError("İşlem Yeniden Deneme Sırasına Alınamadı.");
+      setError("İşlem yeniden deneme sırasına alınamadı.");
     } finally {
       setBusy("");
     }
@@ -259,14 +259,14 @@ export default function ReconciliationPage() {
           <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-[var(--muted-soft)]">Finans Yönetimi · Mutabakat</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)] sm:text-[38px]">Mutabakat Merkezi</h1>
           <p className="mt-1 max-w-3xl text-[14px] leading-6 text-[var(--muted)]">
-            POS Geçişlerini Banka Hareketleriyle Eşleştirin, Bekleyen Farkları İnceleyin Ve Yeniden İşlenmesi Gereken Kayıtları Yönetin.
+            POS geçişlerini banka hareketleriyle eşleştirin, bekleyen farkları inceleyin ve yeniden işlenmesi gereken kayıtları yönetin.
           </p>
         </div>
         <Alert>{error}</Alert>
-        <FinancePanel title="Mutabakat Verileri Yüklenemedi" description="Finansal Durum Bilinmiyor; Sıfır Kayıt Veya Temiz Kuyruk Olarak Yorumlanmadı.">
+        <FinancePanel title="Mutabakat Verileri Yüklenemedi" description="Finansal durum bilinmiyor; sıfır kayıt veya temiz kuyruk olarak yorumlanmadı.">
           <div className="py-8 text-center">
             <p className="text-[12px] leading-6 text-[var(--muted)]">
-              POS Geçişleri, Banka Hareketleri Ve İşlem İzleme Verilerine Şu Anda Ulaşılamıyor. Bağlantıyı Kontrol Edip Yeniden Deneyin.
+              POS geçişleri, banka hareketleri ve işlem izleme verilerine şu anda ulaşılamıyor. Bağlantıyı kontrol edip yeniden deneyin.
             </p>
             <Button className="mt-5" onClick={() => void load()}>Tekrar Dene</Button>
           </div>
@@ -282,7 +282,7 @@ export default function ReconciliationPage() {
           <p className="text-[12px] font-medium uppercase tracking-[0.1em] text-[var(--muted-soft)]">Finans Yönetimi · Mutabakat</p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)] sm:text-[38px]">Mutabakat Merkezi</h1>
           <p className="mt-1 max-w-3xl text-[14px] leading-6 text-[var(--muted)]">
-            POS Geçişlerini Banka Hareketleriyle Eşleştirin, Bekleyen Farkları İnceleyin Ve Yeniden İşlenmesi Gereken Kayıtları Yönetin.
+            POS geçişlerini banka hareketleriyle eşleştirin, bekleyen farkları inceleyin ve yeniden işlenmesi gereken kayıtları yönetin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
