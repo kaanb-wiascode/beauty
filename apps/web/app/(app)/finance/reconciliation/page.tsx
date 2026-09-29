@@ -57,6 +57,11 @@ type Suggestion = {
   currency: string;
   description?: string | null;
   confidence: number;
+  varianceAmount?: number;
+  exactAmount?: boolean;
+  feeLikeVariance?: boolean;
+  reasons?: string[];
+  explanation?: string;
 };
 
 type ProcessingStatus =
@@ -331,8 +336,21 @@ export default function ReconciliationPage() {
                   {suggestions.map((suggestion) => (
                     <div key={suggestion.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/30 p-4">
                       <div className="flex items-start justify-between gap-4">
-                        <div className="min-w-0"><p className="text-[13px] font-semibold text-[var(--ink)]">{money(suggestion.amount, suggestion.currency)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{dt(suggestion.bookedAt)}</p><p className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">{suggestion.description || "Açıklama Yok"}</p></div>
-                        <div className="text-right"><span className="inline-flex rounded-full bg-[var(--success-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--success)]">Eşleşme %{suggestion.confidence}</span><Button className="mt-3 h-9 min-h-9 px-3 text-[10px]" disabled={Boolean(busy)} onClick={() => void match(selected.id, suggestion.id, suggestion.confidence, "SUGGESTION_UI_MATCH")}>Eşleştir</Button></div>
+                        <div className="min-w-0">
+                          <p className="text-[13px] font-semibold text-[var(--ink)]">{money(suggestion.amount, suggestion.currency)}</p>
+                          <p className="mt-1 text-[10px] text-[var(--muted)]">{dt(suggestion.bookedAt)}</p>
+                          <p className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">{suggestion.description || "Açıklama Yok"}</p>
+                          {suggestion.explanation ? <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">{suggestion.explanation}</p> : null}
+                          {typeof suggestion.varianceAmount === "number" && Math.abs(suggestion.varianceAmount) > 0.01 ? (
+                            <p className="mt-1 text-[10px] font-semibold text-[var(--warning)]">
+                              Tutar farkı: {money(Math.abs(suggestion.varianceAmount), suggestion.currency)}
+                            </p>
+                          ) : null}
+                        </div>
+                        <div className="text-right">
+                          <span className="inline-flex rounded-full bg-[var(--success-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--success)]">Eşleşme %{suggestion.confidence}</span>
+                          <Button className="mt-3 h-9 min-h-9 px-3 text-[10px]" disabled={Boolean(busy)} onClick={() => void match(selected.id, suggestion.id, suggestion.confidence, "SUGGESTION_UI_MATCH")}>Eşleştir</Button>
+                        </div>
                       </div>
                     </div>
                   ))}
