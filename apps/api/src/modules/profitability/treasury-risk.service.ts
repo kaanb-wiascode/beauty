@@ -46,7 +46,7 @@ export class TreasuryRiskService {
   async liquidityPosition(asOfInput: Date = new Date()) {
     const { tenantId, companyId, branchId } = this.context();
     const asOf = new Date(asOfInput);
-    const [bookRows, bankRows, settlementRows, unknownSettlementRows, settings] = await Promise.all([
+    const [bookRows, bankRows, settlementRows, unknownSettlementRows, settings, company] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT coa.code,COALESCE(SUM(jel.debit-jel.credit),0)::numeric AS amount
          FROM journal_entry_lines jel
@@ -110,6 +110,10 @@ export class TreasuryRiskService {
         branchId,
       ),
       this.getSettings(),
+      this.prisma.company.findFirst({
+        where: { id: companyId, tenantId },
+        select: { baseCurrency: true },
+      }),
     ]);
 
     const book = new Map<string, number>();
@@ -128,13 +132,12 @@ export class TreasuryRiskService {
       accountCount: Number(row.accountCount ?? 0),
     }));
 
-    const reportingCurrency = settings.reportingCurrency ?? null;
-    const comparableProviderBalance = reportingCurrency
-      ? providerBankBalances.find((row) => row.currency === reportingCurrency) ?? null
-      : null;
-    const bankVariance = reportingCurrency && comparableProviderBalance
+    const baseCurrency = company?.baseCurrency ?? 'TRY';
+    const reportingCurrency = settings.reportingCurrency ?? baseCurrency;
+    const comparableProviderBalance = providerBankBalances.find((row) => row.currency === baseCurrency) ?? null;
+    const bankVariance = comparableProviderBalance
       ? {
-          currency: reportingCurrency,
+          currency: baseCurrency,
           bookBalance: bookBankBalance,
           providerCurrentBalance: comparableProviderBalance.currentBalance,
           variance: this.round(comparableProviderBalance.currentBalance - bookBankBalance),
@@ -143,13 +146,13 @@ export class TreasuryRiskService {
           reason: null,
         }
       : {
-          currency: reportingCurrency,
+          currency: baseCurrency,
           bookBalance: bookBankBalance,
           providerCurrentBalance: null,
           variance: null,
           providerBalanceAsOf: null,
           comparable: false,
-          reason: reportingCurrency ? 'NO_PROVIDER_BALANCE_FOR_REPORTING_CURRENCY' : 'REPORTING_CURRENCY_NOT_CONFIGURED',
+          reason: 'NO_PROVIDER_BALANCE_FOR_BASE_CURRENCY',
         };
 
     const settlementForecast = settlementRows.map((row) => ({
@@ -169,6 +172,7 @@ export class TreasuryRiskService {
 
     return {
       asOf,
+      baseCurrency,
       reportingCurrency,
       book: {
         cashOnHand,
@@ -192,7 +196,7 @@ export class TreasuryRiskService {
         actualCash: '100 Cash + 102 Banks',
         nearCash: '108 POS Receivables',
         totalLiquidPosition: 'Actual Cash + Near Cash',
-        bankVariance: 'Provider current balance - 102 book balance, only in configured reporting currency',
+        bankVariance: 'Provider current balance - 102 book balance, only in company base currency',
       },
     };
   }
