@@ -31,7 +31,7 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
     app.useGlobalFilters(new PrismaExceptionFilter(), new ZodExceptionFilter());
     await app.init();
     prisma = moduleFixture.get(PrismaService);
-    posFinancialEvents = moduleFixture.get(PosFinancialEventsService);
+    posFinancialEvents = await moduleFixture.resolve(PosFinancialEventsService);
 
     const registered = await request(app.getHttpServer())
       .post('/auth/register')
