@@ -4,6 +4,7 @@ import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
 import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
+import { buildIncomeSettlementLines, ensureFxAccounts, reverseJournalLines } from './domain/fx-settlement-policy';
 
 interface RecordIncomeCollectionInput {
   amount: number;
@@ -12,6 +13,7 @@ interface RecordIncomeCollectionInput {
   reference?: string;
   note?: string;
   collectedAt?: Date;
+  exchangeRate?: number;
   sourceType?: string;
   sourceId?: string;
 }
@@ -30,6 +32,7 @@ interface IncomeCollectionContextRow {
   categoryId: string;
   grossAmount: Prisma.Decimal;
   exchangeRate: Prisma.Decimal;
+  currency: string;
   approvalStatus: string;
   accountingStatus: string;
   collectionStatus: string;
@@ -40,6 +43,7 @@ interface ReversibleCollectionRow {
   incomeRecordId: string;
   collectionAccountId: string;
   amount: Prisma.Decimal;
+  exchangeRate: Prisma.Decimal;
   collectedAt: Date;
   reversalId: string | null;
 }
@@ -82,7 +86,7 @@ export class IncomeCollectionsService {
     await this.assertIncomeVisible(incomeId);
     return this.prisma.$queryRawUnsafe(
       `SELECT c.id,c.income_record_id AS "incomeRecordId",c.collection_account_id AS "collectionAccountId",
-              a.code AS "collectionAccountCode",a.name AS "collectionAccountName",c.amount,c.method,c.reference,c.note,
+              a.code AS "collectionAccountCode",a.name AS "collectionAccountName",c.amount,c.exchange_rate AS "exchangeRate",c.method,c.reference,c.note,
               c.collected_at AS "collectedAt",c.source_type AS "sourceType",c.source_id AS "sourceId",
               c.created_by AS "createdBy",c.created_at AS "createdAt",
               r.id AS "reversalId",r.reason AS "reversalReason",r.created_by AS "reversedBy",r.created_at AS "reversedAt",
@@ -183,10 +187,10 @@ export class IncomeCollectionsService {
       });
       const rows = await tx.$queryRawUnsafe<Array<{ id: string; amount: Prisma.Decimal; collectedAt: Date }>>(
         `INSERT INTO income_collections(
-           id,tenant_id,company_id,branch_id,income_record_id,collection_account_id,amount,method,reference,note,
+           id,tenant_id,company_id,branch_id,income_record_id,collection_account_id,amount,exchange_rate,method,reference,note,
            collected_at,source_type,source_id,created_by
-         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,$12,$13,$14::text)
-         RETURNING id,amount,collected_at AS "collectedAt"`,
+         ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,$12,$13,$14,$15::text)
+         RETURNING id,amount,exchange_rate AS "exchangeRate",collected_at AS "collectedAt"`,
         collectionId,
         income.tenantId,
         income.companyId,
@@ -194,6 +198,7 @@ export class IncomeCollectionsService {
         income.id,
         collectionAccount.id,
         input.amount,
+        input.exchangeRate ?? Number(income.exchangeRate),
         input.method,
         input.reference?.trim() || null,
         input.note?.trim() || null,
@@ -203,11 +208,18 @@ export class IncomeCollectionsService {
         actorId,
       );
 
-      const baseAmount = input.amount * Number(income.exchangeRate);
-      const lines = [
-        { accountId: collectionAccount.id, debit: baseAmount, credit: 0, memo: 'Gelir tahsilatı' },
-        { accountId: mappingRows[0].receivableAccountId, debit: 0, credit: baseAmount, memo: 'Gelir alacağı kapama' },
-      ];
+      const settlementRate = input.exchangeRate ?? Number(income.exchangeRate);
+      const fxAccounts = await ensureFxAccounts(tx, { tenantId: income.tenantId, companyId: income.companyId });
+      const settlement = buildIncomeSettlementLines({
+        amount: input.amount,
+        documentRate: Number(income.exchangeRate),
+        settlementRate,
+        collectionAccountId: collectionAccount.id,
+        receivableAccountId: mappingRows[0].receivableAccountId,
+        gainAccountId: fxAccounts.gainAccountId,
+        lossAccountId: fxAccounts.lossAccountId,
+      });
+      const lines = settlement.lines;
       try {
         validateJournalLines(lines);
       } catch (error) {
@@ -264,6 +276,9 @@ export class IncomeCollectionsService {
         collectedAmount: newTotal,
         remainingAmount: Math.max(0, gross - newTotal),
         journalEntryId: journal.id,
+        documentExchangeRate: Number(income.exchangeRate),
+        settlementExchangeRate: settlementRate,
+        realizedFxDifference: settlement.difference,
       };
     });
   }
@@ -300,7 +315,7 @@ export class IncomeCollectionsService {
 
       const collectionRows = await tx.$queryRawUnsafe<ReversibleCollectionRow[]>(
         `SELECT c.id,c.income_record_id AS "incomeRecordId",c.collection_account_id AS "collectionAccountId",
-                c.amount,c.collected_at AS "collectedAt",r.id AS "reversalId"
+                c.amount,c.exchange_rate AS "exchangeRate",c.collected_at AS "collectedAt",r.id AS "reversalId"
          FROM income_collections c
          LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
          WHERE c.id=$1::text AND c.income_record_id=$2::text AND c.tenant_id=$3::text AND c.company_id=$4::text
@@ -328,11 +343,29 @@ export class IncomeCollectionsService {
       }
 
       const amount = Number(collection.amount);
-      const baseAmount = amount * Number(income.exchangeRate);
-      const lines = [
-        { accountId: mappingRows[0].receivableAccountId, debit: baseAmount, credit: 0, memo: 'Tahsilat ters kaydı - alacağı yeniden aç' },
-        { accountId: collection.collectionAccountId, debit: 0, credit: baseAmount, memo: 'Tahsilat ters kaydı - varlık hesabını azalt' },
-      ];
+      const originalJournalLines = await tx.journalEntryLine.findMany({
+        where: {
+          journalEntry: {
+            companyId,
+            referenceType: 'INCOME_COLLECTION',
+            referenceId: collection.id,
+            status: 'POSTED',
+          },
+        },
+        select: { accountId: true, debit: true, credit: true, memo: true },
+      });
+      if (!originalJournalLines.length) {
+        throw new BadRequestException('Tahsilatın orijinal muhasebe fişi bulunamadı.');
+      }
+      const lines = reverseJournalLines(
+        originalJournalLines.map((line) => ({
+          accountId: line.accountId,
+          debit: Number(line.debit),
+          credit: Number(line.credit),
+          memo: line.memo ?? undefined,
+        })),
+        'Tahsilat ters kaydı',
+      );
       try {
         validateJournalLines(lines);
       } catch (error) {
@@ -443,7 +476,7 @@ export class IncomeCollectionsService {
     const { tenantId, companyId, branchId } = this.context();
     const rows = await tx.$queryRawUnsafe<IncomeCollectionContextRow[]>(
       `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",category_id AS "categoryId",
-              gross_amount AS "grossAmount",exchange_rate AS "exchangeRate",approval_status AS "approvalStatus",accounting_status AS "accountingStatus",
+              gross_amount AS "grossAmount",exchange_rate AS "exchangeRate",currency,approval_status AS "approvalStatus",accounting_status AS "accountingStatus",
               collection_status AS "collectionStatus"
        FROM income_records
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND ($4::text IS NULL OR branch_id=$4::text) LIMIT 1`,
