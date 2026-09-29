@@ -77,7 +77,7 @@ export class AccountingController {
   }
 
   @Post('journal-entries')
-  @RequirePermission('accounting', 'manage')
+  @RequirePermission('accounting_journal', 'create')
   createJournalEntry(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.accountingService.createJournalEntry(createJournalEntrySchema.parse(body), user.sub);
   }
@@ -93,19 +93,19 @@ export class AccountingController {
   }
 
   @Post('journal-entries/:id/submit')
-  @RequirePermission('accounting', 'manage')
+  @RequirePermission('accounting_journal', 'create')
   submitJournalEntry(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
     return this.accountingService.submitJournalEntry(id, user.sub);
   }
 
   @Post('journal-entries/:id/approve')
-  @RequirePermission('accounting', 'manage')
+  @RequirePermission('accounting_journal', 'approve')
   approveJournalEntry(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
     return this.accountingService.approveJournalEntry(id, user.sub);
   }
 
   @Post('journal-entries/:id/post')
-  @RequirePermission('accounting', 'manage')
+  @RequirePermission('accounting_journal', 'post')
   postJournalEntry(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
     return this.accountingService.postJournalEntry(id, user.sub);
   }
