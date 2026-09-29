@@ -18,7 +18,7 @@ import { RestrictTenantMutations } from '../../common/tenant/tenant-lifecycle-po
 import { SalesService } from './sales.service';
 
 const saleItemSchema = z.object({
-  type: z.enum(['SERVICE', 'PACKAGE']),
+  type: z.enum(['SERVICE', 'PACKAGE', 'PRODUCT']),
   referenceId: z.string().uuid(),
   quantity: z.coerce.number().int().positive().default(1),
 });
