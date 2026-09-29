@@ -222,4 +222,152 @@ describe('Finance 2.0 governance and FX (e2e)', () => {
     expect(collectionLines.some((line) => line.account.code === '120' && Number(line.credit) === 40500)).toBe(true);
     expect(collectionLines.some((line) => line.account.code === '646' && Number(line.credit) === 500)).toBe(true);
   });
+
+  it('keeps partial collection and payment lifecycle consistent through reversals', async () => {
+    const [incomeCategories, expenseCategories, accounts] = await Promise.all([
+      request(app.getHttpServer()).get('/finance/setup/income-categories').set('Authorization', authorization).expect(200),
+      request(app.getHttpServer()).get('/finance/setup/expense-categories').set('Authorization', authorization).expect(200),
+      request(app.getHttpServer()).get('/accounting/accounts').set('Authorization', authorization).expect(200),
+    ]);
+
+    const incomeCategory = incomeCategories.body.find((item: { id: string; active: boolean }) => item.active);
+    const expenseCategory = expenseCategories.body.find((item: { id: string; active: boolean }) => item.active);
+    const receivable = accounts.body.find((item: { code: string }) => item.code === '120');
+    const bank = accounts.body.find((item: { code: string }) => item.code === '102');
+    const revenue = accounts.body.find((item: { type: string; code: string }) => item.type === 'REVENUE' && item.code !== '646');
+    const expenseAccount = accounts.body.find((item: { type: string }) => item.type === 'EXPENSE');
+    const payable = accounts.body.find((item: { type: string }) => item.type === 'LIABILITY');
+    expect(incomeCategory?.id).toBeTruthy();
+    expect(expenseCategory?.id).toBeTruthy();
+    expect(receivable?.id).toBeTruthy();
+    expect(bank?.id).toBeTruthy();
+    expect(revenue?.id).toBeTruthy();
+    expect(expenseAccount?.id).toBeTruthy();
+    expect(payable?.id).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .put('/finance/setup/income-accounting-mappings')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: incomeCategory.id,
+        revenueAccountId: revenue.id,
+        receivableAccountId: receivable.id,
+      })
+      .expect(200);
+
+    await request(app.getHttpServer())
+      .put('/finance/setup/expense-accounting-mappings')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: expenseCategory.id,
+        expenseAccountId: expenseAccount.id,
+        payableAccountId: payable.id,
+      })
+      .expect(200);
+
+    const income = await request(app.getHttpServer())
+      .post('/finance/income')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: incomeCategory.id,
+        transactionDate: '2198-03-10T12:00:00.000Z',
+        grossAmount: 1000,
+        netAmount: 1000,
+        taxAmount: 0,
+        currency: 'TRY',
+        exchangeRate: 1,
+        description: 'Kısmi tahsilat kabul testi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer()).post(`/finance/income/${income.body.id}/submit`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/income/${income.body.id}/approve`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/income/${income.body.id}/accounting/post`).set('Authorization', authorization).expect(201);
+
+    const collection1 = await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/collections`)
+      .set('Authorization', authorization)
+      .send({ amount: 400, collectionAccountId: bank.id, method: 'TRANSFER', collectedAt: '2198-03-11T12:00:00.000Z' })
+      .expect(201);
+    expect(collection1.body.collectionStatus).toBe('PARTIALLY_COLLECTED');
+    expect(collection1.body.remainingAmount).toBeCloseTo(600, 2);
+
+    const collection2 = await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/collections`)
+      .set('Authorization', authorization)
+      .send({ amount: 600, collectionAccountId: bank.id, method: 'TRANSFER', collectedAt: '2198-03-12T12:00:00.000Z' })
+      .expect(201);
+    expect(collection2.body.collectionStatus).toBe('COLLECTED');
+    expect(collection2.body.remainingAmount).toBeCloseTo(0, 2);
+
+    const reverseCollection2 = await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/collections/${collection2.body.id}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'İkinci kısmi tahsilatı geri al' })
+      .expect(201);
+    expect(reverseCollection2.body.collectionStatus).toBe('PARTIALLY_COLLECTED');
+    expect(reverseCollection2.body.remainingAmount).toBeCloseTo(600, 2);
+
+    const reverseCollection1 = await request(app.getHttpServer())
+      .post(`/finance/income/${income.body.id}/collections/${collection1.body.id}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'İlk kısmi tahsilatı geri al' })
+      .expect(201);
+    expect(reverseCollection1.body.collectionStatus).toBe('UNCOLLECTED');
+    expect(reverseCollection1.body.remainingAmount).toBeCloseTo(1000, 2);
+
+    const expense = await request(app.getHttpServer())
+      .post('/finance/expenses')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: expenseCategory.id,
+        transactionDate: '2198-03-10T12:00:00.000Z',
+        grossAmount: 1000,
+        netAmount: 1000,
+        taxAmount: 0,
+        withholdingAmount: 0,
+        currency: 'TRY',
+        exchangeRate: 1,
+        description: 'Kısmi ödeme kabul testi',
+      })
+      .expect(201);
+
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/submit`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/approve`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/accounting/prepare`).set('Authorization', authorization).expect(201);
+    await request(app.getHttpServer()).post(`/finance/expenses/${expense.body.id}/accounting/post`).set('Authorization', authorization).expect(201);
+
+    const payment1 = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({ amount: 400, paymentAccountId: bank.id, method: 'TRANSFER', paidAt: '2198-03-11T12:00:00.000Z' })
+      .expect(201);
+    expect(payment1.body.paymentStatus).toBe('PARTIALLY_PAID');
+    expect(payment1.body.remainingAmount).toBeCloseTo(600, 2);
+
+    const payment2 = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({ amount: 600, paymentAccountId: bank.id, method: 'TRANSFER', paidAt: '2198-03-12T12:00:00.000Z' })
+      .expect(201);
+    expect(payment2.body.paymentStatus).toBe('PAID');
+    expect(payment2.body.remainingAmount).toBeCloseTo(0, 2);
+
+    const reversePayment2 = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments/${payment2.body.id}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'İkinci kısmi ödemeyi geri al' })
+      .expect(201);
+    expect(reversePayment2.body.paymentStatus).toBe('PARTIALLY_PAID');
+    expect(reversePayment2.body.remainingAmount).toBeCloseTo(600, 2);
+
+    const reversePayment1 = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments/${payment1.body.id}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'İlk kısmi ödemeyi geri al' })
+      .expect(201);
+    expect(reversePayment1.body.paymentStatus).toBe('UNPAID');
+    expect(reversePayment1.body.remainingAmount).toBeCloseTo(1000, 2);
+  });
+
 });
