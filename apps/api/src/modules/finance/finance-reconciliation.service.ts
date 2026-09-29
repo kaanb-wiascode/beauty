@@ -85,17 +85,40 @@ export class FinanceReconciliationService {
       const allocationAmount = Math.min(targetRemaining, bankRemaining);
       const exactResidual = Math.abs(bankRemaining - targetRemaining) <= MONEY_TOLERANCE;
       const description = String(row.description ?? '').toLowerCase();
+      const varianceAmount = Math.round((bankRemaining - targetRemaining + Number.EPSILON) * 100) / 100;
+      const reasons: string[] = [];
       let confidence = exactResidual ? 70 : 55;
-      if (dayDistance <= 0.5) confidence += 20;
-      else if (dayDistance <= 1) confidence += 15;
-      else if (dayDistance <= 2) confidence += 10;
-      if (normalizedReference && description.includes(normalizedReference)) confidence += 10;
+      if (exactResidual) reasons.push('Banka hareketinin kalan tutarı finans kaydıyla birebir eşleşiyor.');
+      else reasons.push(`Kalan tutar farkı ${Math.abs(varianceAmount).toFixed(2)} ${target.currency}.`);
+      if (dayDistance <= 0.5) {
+        confidence += 20;
+        reasons.push('İşlem tarihleri aynı güne çok yakın.');
+      } else if (dayDistance <= 1) {
+        confidence += 15;
+        reasons.push('İşlem tarihleri bir gün içinde.');
+      } else if (dayDistance <= 2) {
+        confidence += 10;
+        reasons.push('İşlem tarihleri iki gün içinde.');
+      } else {
+        reasons.push(`Tarih farkı yaklaşık ${dayDistance.toFixed(1)} gün.`);
+      }
+      const referenceMatch = Boolean(normalizedReference && description.includes(normalizedReference));
+      if (referenceMatch) {
+        confidence += 10;
+        reasons.push('Referans/dekont bilgisi banka açıklamasında eşleşiyor.');
+      } else if (normalizedReference) {
+        reasons.push('Referans bilgisi banka açıklamasında bulunamadı.');
+      }
       return {
         ...row,
         remainingAmount: bankRemaining,
         allocationAmount,
         exactResidual,
+        varianceAmount,
+        referenceMatch,
         confidence: Math.min(confidence, 100),
+        reasons,
+        explanation: reasons.join(' '),
       };
     });
 
