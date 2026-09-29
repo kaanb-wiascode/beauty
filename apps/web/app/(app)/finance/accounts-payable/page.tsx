@@ -115,12 +115,12 @@ export default function AccountsPayablePage() {
     <div className="grid gap-5 xl:grid-cols-[.72fr_1.28fr]">
       <FinancePanel title="Borç Yaşlandırma" description="Vadesine ve gecikme süresine göre açık bakiye">
         <div className="space-y-2">
-          <AgingRow label="Vadesi Gelmemiş" value={aging?.notDue} />
-          <AgingRow label="0–30 Gün Gecikmiş" value={aging?.days0to30} danger />
-          <AgingRow label="31–60 Gün Gecikmiş" value={aging?.days31to60} danger />
-          <AgingRow label="61–90 Gün Gecikmiş" value={aging?.days61to90} danger />
-          <AgingRow label="90+ Gün Gecikmiş" value={aging?.days90Plus} danger />
-          <AgingRow label="Toplam Açık" value={aging?.total} strong />
+          <AgingRow label="Vadesi Gelmemiş" value={aging?.notDue} currency={baseCurrency} />
+          <AgingRow label="0–30 Gün Gecikmiş" value={aging?.days0to30} currency={baseCurrency} danger />
+          <AgingRow label="31–60 Gün Gecikmiş" value={aging?.days31to60} currency={baseCurrency} danger />
+          <AgingRow label="61–90 Gün Gecikmiş" value={aging?.days61to90} currency={baseCurrency} danger />
+          <AgingRow label="90+ Gün Gecikmiş" value={aging?.days90Plus} currency={baseCurrency} danger />
+          <AgingRow label="Toplam Açık" value={aging?.total} currency={baseCurrency} strong />
         </div>
       </FinancePanel>
 
@@ -154,6 +154,7 @@ export default function AccountsPayablePage() {
   </div>;
 }
 
-function AgingRow({ label, value, danger, strong }: { label: string; value?: number; danger?: boolean; strong?: boolean }) {
-  return <div className={`flex items-center justify-between rounded-[12px] px-4 py-3 ${strong ? "border border-[var(--line)] bg-[var(--surface)]" : "bg-[var(--surface-2)]/55"}`}><span className="text-[11px] text-[var(--muted)]">{label}</span><strong className={`text-[12px] ${danger && Number(value ?? 0) > 0 ? "text-red-700" : "text-[var(--ink)]"}`}>{money.format(Number(value ?? 0))}</strong></div>;
+function AgingRow({ label, value, currency, danger, strong }: { label: string; value?: number; currency: string; danger?: boolean; strong?: boolean }) {
+  const formatted=new Intl.NumberFormat("tr-TR",{style:"currency",currency,maximumFractionDigits:2}).format(Number(value??0));
+  return <div className={`flex items-center justify-between rounded-[12px] px-4 py-3 ${strong ? "border border-[var(--line)] bg-[var(--surface)]" : "bg-[var(--surface-2)]/55"}`}><span className="text-[11px] text-[var(--muted)]">{label}</span><strong className={`text-[12px] ${danger && Number(value ?? 0) > 0 ? "text-red-700" : "text-[var(--ink)]"}`}>{formatted}</strong></div>;
 }
