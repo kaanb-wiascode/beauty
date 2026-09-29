@@ -10,7 +10,6 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 
 import { TenantContext } from '../../common/tenant/tenant-context';
-import { AccountingService } from '../accounting/accounting.service';
 import { DomainEventsService } from '../../infrastructure/domain-events/domain-events.service';
 import type {
   CompleteServiceExecutionInput,
@@ -50,8 +49,6 @@ export class ServiceExecutionsService {
     private readonly tenantContext: TenantContext,
     @Optional()
     private readonly domainEvents?: DomainEventsService,
-    @Optional()
-    private readonly accountingService?: AccountingService,
   ) {}
 
   private context() {
@@ -540,33 +537,6 @@ export class ServiceExecutionsService {
             `Randevu ${appointment.id} hizmet icrası üzerinden tamamlandı.`,
           );
         }
-
-        const consumptionCostRows = await tx.$queryRawUnsafe<
-          Array<{ amount: Prisma.Decimal }>
-        >(
-          `SELECT COALESCE(SUM(m.quantity * s.cost_per_unit),0)::numeric AS amount
-           FROM inventory_movements m
-           JOIN inventory_stock s
-             ON s.product_id=m.product_id AND s.warehouse_id=m.warehouse_id
-           WHERE m.tenant_id=$1::text AND m.company_id=$2::text
-             AND m.type='SERVICE_CONSUMPTION'
-             AND m.reference_type='APPOINTMENT'
-             AND m.reference_id=$3::text`,
-          tenantId,
-          companyId,
-          appointment.id,
-        );
-        const consumptionCost = Number(consumptionCostRows[0]?.amount ?? 0);
-        await this.accountingService?.recordServiceConsumptionCost(
-          tx,
-          appointment.id,
-          {
-            tenantId,
-            branchId,
-            entryDate: new Date(),
-            amount: consumptionCost,
-          },
-        );
 
         let consumedSessionId: string | null = null;
         if (appointment.session?.id && appointment.session.status === 'RESERVED') {
