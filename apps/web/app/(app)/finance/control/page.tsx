@@ -174,7 +174,7 @@ export default function FinanceControlPage(){
     <FinancePanel title="Bütünlük Bulguları" description="Muhasebeleştirilmiş görünüp karşılığı bulunmayan veya zinciri kopmuş finansal kayıtlar">
       <div className="space-y-2">
         {(integrity?.issues??[]).map((issue,index)=><div key={issue.code+"-"+index} className="rounded-[14px] border border-[var(--line)] p-4">
-          <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">{issue.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{issue.domain} · {issue.detail}</p></div><div className="flex items-center gap-2"><FinanceStatus status={issue.severity==="CRITICAL"?"FAILED":"RETRY_PENDING"} label={issue.severity==="CRITICAL"?"Kritik":"Kontrol"}/><Link href={issueHref(issue.code)} className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Kaydı İncele</Link></div></div>
+          <div className="flex items-start justify-between gap-3"><div><p className="text-[12px] font-semibold text-[var(--ink)]">{issue.title}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{domainLabel(issue.domain)} · {issue.detail}</p></div><div className="flex items-center gap-2"><FinanceStatus status={issue.severity==="CRITICAL"?"FAILED":"RETRY_PENDING"} label={issue.severity==="CRITICAL"?"Kritik":"Kontrol"}/><Link href={issueHref(issue.code)} className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Kaydı İncele</Link></div></div>
         </div>)}
         {integrity?.healthy?<FinanceEmpty title="Finansal kayıt zincirinde kritik tutarsızlık bulunmadı."/>:null}
       </div>
