@@ -175,6 +175,7 @@ export default function CfoCockpitPage() {
   const workingCapital = cockpit?.workingCapital;
   const actionSummary = cockpit?.actions?.summary;
   const sla = cockpit?.actions?.sla;
+  const baseCurrency = cockpit?.baseCurrency ?? cashFlow?.baseCurrency ?? "TRY";
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
@@ -218,7 +219,7 @@ export default function CfoCockpitPage() {
         />
         <FinanceMetric
           label="Net Çalışma Sermayesi"
-          value={formatCfoMoney(workingCapital?.netWorkingCapital)}
+          value={formatCfoMoney(workingCapital?.netWorkingCapital, baseCurrency)}
           detail="Alacak + Stok − Borç"
           tone={(workingCapital?.netWorkingCapital ?? 0) < 0 ? "danger" : "neutral"}
         />
@@ -249,8 +250,8 @@ export default function CfoCockpitPage() {
         <FinanceTab active={tab === "risk"} onClick={() => setTab("risk")}>Risk Ve Olağan Dışı Durumlar</FinanceTab>
       </FinanceTabs>
 
-      {tab === "overview" ? <Overview cockpit={cockpit} benchmark={benchmark} actions={openActions} /> : null}
-      {tab === "trends" ? <TrendCenter history={history} cashFlow={cashFlow} /> : null}
+      {tab === "overview" ? <Overview cockpit={cockpit} benchmark={benchmark} actions={openActions} currency={baseCurrency} /> : null}
+      {tab === "trends" ? <TrendCenter history={history} cashFlow={cashFlow} currency={baseCurrency} /> : null}
       {tab === "branches" ? <BranchComparison benchmark={benchmark} /> : null}
       {tab === "actions" ? <ActionCenter actions={actions} sla={sla} busy={busy} onStatus={setActionStatus} /> : null}
       {tab === "risk" ? <RiskCenter cockpit={cockpit} anomalies={anomalies} /> : null}
@@ -258,7 +259,7 @@ export default function CfoCockpitPage() {
   );
 }
 
-function Overview({ cockpit, benchmark, actions }: { cockpit: CfoCockpit | null; benchmark: CfoBenchmark | null; actions: CfoActionItem[] }) {
+function Overview({ cockpit, benchmark, actions, currency }: { cockpit: CfoCockpit | null; benchmark: CfoBenchmark | null; actions: CfoActionItem[]; currency: string }) {
   const alerts = cockpit?.executiveAlerts ?? [];
   const priorities = cockpit?.priorities ?? [];
 
@@ -267,9 +268,9 @@ function Overview({ cockpit, benchmark, actions }: { cockpit: CfoCockpit | null;
       <section className="space-y-5">
         <FinancePanel title="13 Haftalık Likidite" description="Tahmini Nakit Pozisyonu Ve Minimum Seviye">
           <div className="grid gap-3 sm:grid-cols-3">
-            <Mini label="Açılış Likiditesi" value={formatCfoMoney(cockpit?.liquidity?.opening)} />
-            <Mini label="13. Hafta Kapanış" value={formatCfoMoney(cockpit?.liquidity?.thirteenWeekClosing)} />
-            <Mini label="En Düşük Likidite" value={formatCfoMoney(cockpit?.liquidity?.thirteenWeekLowest)} danger={(cockpit?.liquidity?.thirteenWeekLowest ?? 0) < 0} />
+            <Mini label="Açılış Likiditesi" value={formatCfoMoney(cockpit?.liquidity?.opening, currency)} />
+            <Mini label="13. Hafta Kapanış" value={formatCfoMoney(cockpit?.liquidity?.thirteenWeekClosing, currency)} />
+            <Mini label="En Düşük Likidite" value={formatCfoMoney(cockpit?.liquidity?.thirteenWeekLowest, currency)} danger={(cockpit?.liquidity?.thirteenWeekLowest ?? 0) < 0} />
           </div>
         </FinancePanel>
 
@@ -333,7 +334,7 @@ function Overview({ cockpit, benchmark, actions }: { cockpit: CfoCockpit | null;
   );
 }
 
-function TrendCenter({ history, cashFlow }: { history: CfoHealthHistoryItem[]; cashFlow: CfoCashFlow | null }) {
+function TrendCenter({ history, cashFlow, currency }: { history: CfoHealthHistoryItem[]; cashFlow: CfoCashFlow | null; currency: string }) {
   const healthPoints = history.slice(-90).map((item) => ({ label: shortDate(item.snapshotDate), value: Number(item.healthScore) }));
   const liquidityPoints = (cashFlow?.weeks ?? []).map((item) => ({ label: `H${item.week}`, value: Number(item.closingLiquidity) }));
 
@@ -344,25 +345,25 @@ function TrendCenter({ history, cashFlow }: { history: CfoHealthHistoryItem[]; c
           <LineChart points={healthPoints} minFloor={0} maxCeil={100} empty="Gelişim İçin Yeterli Dönem Kaydı Yok." />
         </FinancePanel>
         <FinancePanel title="13 Haftalık Likidite Eğrisi" description="Temel Senaryo · Haftalık Kapanış Likiditesi">
-          <LineChart points={liquidityPoints} empty="Nakit Akışı Tahmini Bulunamadı." moneyAxis />
+          <LineChart points={liquidityPoints} empty="Nakit Akışı Tahmini Bulunamadı." moneyAxis currency={currency} />
         </FinancePanel>
       </div>
 
       <FinancePanel title="Haftalık Nakit Giriş / Çıkış" description="Öngörülen Tahsilat Ve Tedarikçi Ödeme Yükü">
-        <CashBars weeks={cashFlow?.weeks ?? []} />
+        <CashBars weeks={cashFlow?.weeks ?? []} currency={currency} />
       </FinancePanel>
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <MiniCard label="Toplam Beklenen Giriş" value={formatCfoMoney(cashFlow?.projectedInflows)} />
-        <MiniCard label="Toplam Beklenen Çıkış" value={formatCfoMoney(cashFlow?.projectedOutflows)} />
-        <MiniCard label="13 Haftalık Net Nakit" value={formatCfoMoney(cashFlow?.projectedNetCashFlow)} danger={(cashFlow?.projectedNetCashFlow ?? 0) < 0} />
-        <MiniCard label="En Düşük Likidite" value={formatCfoMoney(cashFlow?.lowestLiquidity)} danger={(cashFlow?.lowestLiquidity ?? 0) < 0} />
+        <MiniCard label="Toplam Beklenen Giriş" value={formatCfoMoney(cashFlow?.projectedInflows, currency)} />
+        <MiniCard label="Toplam Beklenen Çıkış" value={formatCfoMoney(cashFlow?.projectedOutflows, currency)} />
+        <MiniCard label="13 Haftalık Net Nakit" value={formatCfoMoney(cashFlow?.projectedNetCashFlow, currency)} danger={(cashFlow?.projectedNetCashFlow ?? 0) < 0} />
+        <MiniCard label="En Düşük Likidite" value={formatCfoMoney(cashFlow?.lowestLiquidity, currency)} danger={(cashFlow?.lowestLiquidity ?? 0) < 0} />
       </div>
     </div>
   );
 }
 
-function LineChart({ points, minFloor, maxCeil, empty, moneyAxis = false }: { points: Array<{ label: string; value: number }>; minFloor?: number; maxCeil?: number; empty: string; moneyAxis?: boolean }) {
+function LineChart({ points, minFloor, maxCeil, empty, moneyAxis = false, currency = "TRY" }: { points: Array<{ label: string; value: number }>; minFloor?: number; maxCeil?: number; empty: string; moneyAxis?: boolean; currency?: string }) {
   if (points.length < 2) return <FinanceEmpty title={empty} />;
   const width = 720;
   const height = 230;
@@ -392,14 +393,14 @@ function LineChart({ points, minFloor, maxCeil, empty, moneyAxis = false }: { po
       </div>
       <div className="mt-2 flex items-center justify-between text-[9px] text-[var(--muted-soft)]">
         <span>{points[0]?.label}</span>
-        <span>{moneyAxis ? `${formatCfoMoney(min)} → ${formatCfoMoney(max)}` : `${formatCfoNumber(min)} → ${formatCfoNumber(max)}`}</span>
+        <span>{moneyAxis ? `${formatCfoMoney(min, currency)} → ${formatCfoMoney(max, currency)}` : `${formatCfoNumber(min)} → ${formatCfoNumber(max)}`}</span>
         <span>{points[points.length - 1]?.label}</span>
       </div>
     </div>
   );
 }
 
-function CashBars({ weeks }: { weeks: CfoCashFlowWeek[] }) {
+function CashBars({ weeks, currency }: { weeks: CfoCashFlowWeek[]; currency: string }) {
   if (!weeks.length) return <FinanceEmpty title="Nakit Akışı Haftaları Bulunamadı." />;
   const max = Math.max(1, ...weeks.flatMap((week) => [Number(week.projectedInflows), Number(week.projectedOutflows)]));
 
@@ -409,8 +410,8 @@ function CashBars({ weeks }: { weeks: CfoCashFlowWeek[] }) {
         {weeks.map((week) => (
           <div key={week.week} className="flex flex-col items-center gap-2">
             <div className="flex h-[180px] w-full items-end justify-center gap-1 rounded-[12px] bg-[var(--surface-2)]/55 px-1.5 py-2">
-              <div title={`Giriş ${formatCfoMoney(week.projectedInflows)}`} className="w-3 rounded-t bg-[var(--accent)]" style={{ height: `${Math.max(3, (Number(week.projectedInflows) / max) * 155)}px` }} />
-              <div title={`Çıkış ${formatCfoMoney(week.projectedOutflows)}`} className="w-3 rounded-t bg-[var(--warning)]" style={{ height: `${Math.max(3, (Number(week.projectedOutflows) / max) * 155)}px` }} />
+              <div title={`Giriş ${formatCfoMoney(week.projectedInflows, currency)}`} className="w-3 rounded-t bg-[var(--accent)]" style={{ height: `${Math.max(3, (Number(week.projectedInflows) / max) * 155)}px` }} />
+              <div title={`Çıkış ${formatCfoMoney(week.projectedOutflows, currency)}`} className="w-3 rounded-t bg-[var(--warning)]" style={{ height: `${Math.max(3, (Number(week.projectedOutflows) / max) * 155)}px` }} />
             </div>
             <span className="text-[9px] font-semibold text-[var(--muted-soft)]">H{week.week}</span>
           </div>
