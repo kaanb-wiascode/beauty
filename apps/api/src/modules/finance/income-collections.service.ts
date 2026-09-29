@@ -3,6 +3,7 @@ import { BadRequestException, Injectable, NotFoundException } from '@nestjs/comm
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { validateJournalLines } from '../accounting/domain/journal-policy';
+import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 
 interface RecordIncomeCollectionInput {
   amount: number;
@@ -174,6 +175,12 @@ export class IncomeCollectionsService {
 
       const collectionId = randomUUID();
       const collectedAt = input.collectedAt ?? new Date();
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: income.tenantId,
+        companyId: income.companyId,
+        branchId: income.branchId,
+        date: collectedAt,
+      });
       const rows = await tx.$queryRawUnsafe<Array<{ id: string; amount: Prisma.Decimal; collectedAt: Date }>>(
         `INSERT INTO income_collections(
            id,tenant_id,company_id,branch_id,income_record_id,collection_account_id,amount,method,reference,note,
