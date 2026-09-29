@@ -543,7 +543,6 @@ const SYSTEM_WORD_LABELS: Record<string, string> = {
   OVERDUE: "Gecikmiş",
   RECEIVABLES: "Alacaklar",
   ALERTS: "Uyarılar",
-  LIQUIDITY: "Likidite",
 };
 
 function humanizeSystemValue(value: string): string {
