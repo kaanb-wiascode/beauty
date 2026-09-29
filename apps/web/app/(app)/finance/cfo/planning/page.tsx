@@ -1,6 +1,7 @@
 "use client";
 
 import { EnterpriseDataPage } from "@/components/enterprise-data-page";
+import { FinancePlanningActions } from "@/components/finance-planning-actions";
 
 export default function CfoPlanningPage() {
   const now = new Date();
@@ -10,7 +11,9 @@ export default function CfoPlanningPage() {
   const asOf = now.toISOString().slice(0, 10);
 
   return (
-    <EnterpriseDataPage
+    <div className="space-y-6">
+      <FinancePlanningActions />
+      <EnterpriseDataPage
       eyebrow="Finans Yönetimi · Planlama ve Kârlılık"
       title="Finans Planlama ve Kârlılık"
       description="Bütçe, maliyet merkezi, kârlılık, nakit senaryoları ve finansal sağlık göstergelerini tek merkezden yönetin."
@@ -103,6 +106,7 @@ export default function CfoPlanningPage() {
         },
 
       ]}
-    />
+      />
+    </div>
   );
 }
