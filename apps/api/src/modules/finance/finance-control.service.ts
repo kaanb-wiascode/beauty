@@ -444,6 +444,20 @@ export class FinanceControlService {
          WHERE rm.tenant_id=$1::text AND rm.company_id=$2::text
            AND ($3::text IS NULL OR rm.branch_id=$3::text)
            AND rm.reversed_at IS NOT NULL
+         UNION ALL
+         SELECT ps.id||':bank-match',ps.reconciled_at,'RECONCILIATION','POS_SETTLEMENT_BANK_MATCHED',ps.id,NULL::text,ps.reconciliation_note,
+                jsonb_build_object('status','UNMATCHED'),
+                jsonb_build_object(
+                  'status','MATCHED',
+                  'bankTransactionId',ps.matched_bank_transaction_id,
+                  'netAmount',ps.net_amount,
+                  'currency',ps.currency,
+                  'confidence',ps.reconciliation_confidence
+                )
+         FROM pos_settlements ps
+         WHERE ps.tenant_id=$1::text AND ps.company_id=$2::text
+           AND ($3::text IS NULL OR ps.branch_id=$3::text)
+           AND ps.reconciled_at IS NOT NULL
        ) events
        ORDER BY "createdAt" DESC,id DESC
        LIMIT $4`,
