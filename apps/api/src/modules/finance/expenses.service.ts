@@ -325,7 +325,12 @@ export class ExpensesService {
               COALESCE(counterparty_name,'') ILIKE '%'||$9||'%' OR
               COALESCE(document_number,'') ILIKE '%'||$9||'%' OR
               COALESCE(description,'') ILIKE '%'||$9||'%' OR
-              COALESCE(source_type,'') ILIKE '%'||$9||'%')
+              COALESCE(source_type,'') ILIKE '%'||$9||'%' OR
+              EXISTS (
+                SELECT 1 FROM expense_categories category
+                WHERE category.id=expenses.category_id
+                  AND category.name ILIKE '%'||$9||'%'
+              ))
          AND ($10::timestamp IS NULL OR transaction_date >= $10)
          AND ($11::timestamp IS NULL OR transaction_date <= $11)`;
 
