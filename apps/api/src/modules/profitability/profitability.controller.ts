@@ -53,6 +53,8 @@ export class ProfitabilityController {
     private readonly financialHealth: FinancialHealthService,
   ) {}
 
+  @Get('planning-options') planningOptions() { return this.config.planningOptions(); }
+
   @Get('summary') summary(@Query() query: unknown) { return this.service.summary(filterSchema.parse(query)); }
   @Get('branches') byBranch(@Query() query: unknown) { return this.service.byBranch(filterSchema.parse(query)); }
   @Get('services') byService(@Query() query: unknown) { return this.service.byService(filterSchema.parse(query)); }
