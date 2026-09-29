@@ -37,8 +37,11 @@ interface ListIncomeInput {
   categoryId?: string;
   costCenterId?: string;
   sourceType?: string;
+  search?: string;
   from?: Date;
   to?: Date;
+  sortBy: 'transactionDate' | 'grossAmount' | 'createdAt';
+  sortDir: 'asc' | 'desc';
   page?: number;
   limit: number;
 }
@@ -259,7 +262,16 @@ export class IncomeRecordsService {
     const { tenantId, companyId, branchId } = this.context();
     const page = input.page ?? 1;
     const offset = (page - 1) * input.limit;
-    const params = [
+    const orderColumn =
+      input.sortBy === 'grossAmount'
+        ? 'gross_amount'
+        : input.sortBy === 'createdAt'
+          ? 'created_at'
+          : 'transaction_date';
+    const orderDirection = input.sortDir === 'asc' ? 'ASC' : 'DESC';
+    const search = input.search?.trim() || null;
+
+    const args = [
       tenantId,
       companyId,
       branchId,
@@ -270,56 +282,45 @@ export class IncomeRecordsService {
       input.categoryId ?? null,
       input.costCenterId ?? null,
       input.sourceType ?? null,
+      search,
       input.from ?? null,
       input.to ?? null,
-      input.limit,
-      offset,
     ] as const;
+
+    const where = `
+       WHERE tenant_id=$1::text AND company_id=$2::text
+         AND ($3::text IS NULL OR branch_id=$3::text)
+         AND ($4::text IS NULL OR approval_status::text=$4)
+         AND ($5::text IS NULL OR collection_status::text=$5)
+         AND ($6::text IS NULL OR accounting_status::text=$6)
+         AND ($7::text IS NULL OR reconciliation_status::text=$7)
+         AND ($8::text IS NULL OR category_id=$8::text)
+         AND ($9::text IS NULL OR cost_center_id=$9::text)
+         AND ($10::text IS NULL OR source_type=$10)
+         AND ($11::text IS NULL OR
+              COALESCE(counterparty_name,'') ILIKE '%'||$11||'%' OR
+              COALESCE(document_number,'') ILIKE '%'||$11||'%' OR
+              COALESCE(description,'') ILIKE '%'||$11||'%' OR
+              COALESCE(source_type,'') ILIKE '%'||$11||'%')
+         AND ($12::timestamp IS NULL OR transaction_date >= $12)
+         AND ($13::timestamp IS NULL OR transaction_date <= $13)`;
+
     const [rows, countRows] = await Promise.all([
       this.prisma.$queryRawUnsafe<IncomeRow[]>(
         `SELECT ${INCOME_SELECT} FROM income_records
-         WHERE tenant_id=$1::text AND company_id=$2::text
-           AND ($3::text IS NULL OR branch_id=$3::text)
-           AND ($4::text IS NULL OR approval_status::text=$4)
-           AND ($5::text IS NULL OR collection_status::text=$5)
-           AND ($6::text IS NULL OR accounting_status::text=$6)
-           AND ($7::text IS NULL OR reconciliation_status::text=$7)
-           AND ($8::text IS NULL OR category_id=$8::text)
-           AND ($9::text IS NULL OR cost_center_id=$9::text)
-           AND ($10::text IS NULL OR source_type=$10)
-           AND ($11::timestamp IS NULL OR transaction_date >= $11)
-           AND ($12::timestamp IS NULL OR transaction_date <= $12)
-         ORDER BY transaction_date DESC,created_at DESC
-         LIMIT $13 OFFSET $14`,
-        ...params,
+         ${where}
+         ORDER BY ${orderColumn} ${orderDirection},created_at DESC
+         LIMIT $14 OFFSET $15`,
+        ...args,
+        input.limit,
+        offset,
       ),
       this.prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
-        `SELECT COUNT(*)::bigint AS total FROM income_records
-         WHERE tenant_id=$1::text AND company_id=$2::text
-           AND ($3::text IS NULL OR branch_id=$3::text)
-           AND ($4::text IS NULL OR approval_status::text=$4)
-           AND ($5::text IS NULL OR collection_status::text=$5)
-           AND ($6::text IS NULL OR accounting_status::text=$6)
-           AND ($7::text IS NULL OR reconciliation_status::text=$7)
-           AND ($8::text IS NULL OR category_id=$8::text)
-           AND ($9::text IS NULL OR cost_center_id=$9::text)
-           AND ($10::text IS NULL OR source_type=$10)
-           AND ($11::timestamp IS NULL OR transaction_date >= $11)
-           AND ($12::timestamp IS NULL OR transaction_date <= $12)`,
-        tenantId,
-        companyId,
-        branchId,
-        input.approvalStatus ?? null,
-        input.collectionStatus ?? null,
-        input.accountingStatus ?? null,
-        input.reconciliationStatus ?? null,
-        input.categoryId ?? null,
-        input.costCenterId ?? null,
-        input.sourceType ?? null,
-        input.from ?? null,
-        input.to ?? null,
+        `SELECT COUNT(*)::bigint AS total FROM income_records ${where}`,
+        ...args,
       ),
     ]);
+
     const data = rows.map((row) => this.map(row));
     const total = Number(countRows[0]?.total ?? 0);
     if (input.page == null) return data;
