@@ -479,7 +479,7 @@ export class ExpensePaymentsService {
     const { tenantId, companyId, branchId } = this.context();
     const rows = await tx.$queryRawUnsafe<ExpensePaymentContextRow[]>(
       `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",category_id AS "categoryId",
-              gross_amount AS "grossAmount",withholding_amount AS "withholdingAmount",approval_status AS "approvalStatus",
+              gross_amount AS "grossAmount",withholding_amount AS "withholdingAmount",exchange_rate AS "exchangeRate",currency,approval_status AS "approvalStatus",
               accounting_status AS "accountingStatus",payment_status AS "paymentStatus"
        FROM expenses
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
