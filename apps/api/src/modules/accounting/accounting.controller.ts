@@ -1,6 +1,8 @@
 import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
 import { z } from 'zod';
+import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
+import type { JwtPayload } from '../../common/auth/jwt.strategy';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
@@ -76,8 +78,8 @@ export class AccountingController {
 
   @Post('journal-entries')
   @RequirePermission('accounting', 'manage')
-  createJournalEntry(@Body() body: unknown) {
-    return this.accountingService.createJournalEntry(createJournalEntrySchema.parse(body));
+  createJournalEntry(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
+    return this.accountingService.createJournalEntry(createJournalEntrySchema.parse(body), user.sub);
   }
 
   @Get('journal-entries')
@@ -90,9 +92,21 @@ export class AccountingController {
     return this.accountingService.getJournalEntry(id);
   }
 
+  @Post('journal-entries/:id/submit')
+  @RequirePermission('accounting', 'manage')
+  submitJournalEntry(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
+    return this.accountingService.submitJournalEntry(id, user.sub);
+  }
+
+  @Post('journal-entries/:id/approve')
+  @RequirePermission('accounting', 'manage')
+  approveJournalEntry(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
+    return this.accountingService.approveJournalEntry(id, user.sub);
+  }
+
   @Post('journal-entries/:id/post')
   @RequirePermission('accounting', 'manage')
-  postJournalEntry(@Param('id', new ParseUUIDPipe()) id: string) {
-    return this.accountingService.postJournalEntry(id);
+  postJournalEntry(@Param('id', new ParseUUIDPipe()) id: string, @CurrentUser() user: JwtPayload) {
+    return this.accountingService.postJournalEntry(id, user.sub);
   }
 }
