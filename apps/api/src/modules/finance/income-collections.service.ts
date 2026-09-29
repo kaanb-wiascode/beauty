@@ -28,6 +28,7 @@ interface IncomeCollectionContextRow {
   branchId: string | null;
   categoryId: string;
   grossAmount: Prisma.Decimal;
+  exchangeRate: Prisma.Decimal;
   approvalStatus: string;
   accountingStatus: string;
   collectionStatus: string;
@@ -195,9 +196,10 @@ export class IncomeCollectionsService {
         actorId,
       );
 
+      const baseAmount = input.amount * Number(income.exchangeRate);
       const lines = [
-        { accountId: collectionAccount.id, debit: input.amount, credit: 0, memo: 'Gelir tahsilatı' },
-        { accountId: mappingRows[0].receivableAccountId, debit: 0, credit: input.amount, memo: 'Gelir alacağı kapama' },
+        { accountId: collectionAccount.id, debit: baseAmount, credit: 0, memo: 'Gelir tahsilatı' },
+        { accountId: mappingRows[0].receivableAccountId, debit: 0, credit: baseAmount, memo: 'Gelir alacağı kapama' },
       ];
       try {
         validateJournalLines(lines);
@@ -319,9 +321,10 @@ export class IncomeCollectionsService {
       }
 
       const amount = Number(collection.amount);
+      const baseAmount = amount * Number(income.exchangeRate);
       const lines = [
-        { accountId: mappingRows[0].receivableAccountId, debit: amount, credit: 0, memo: 'Tahsilat ters kaydı - alacağı yeniden aç' },
-        { accountId: collection.collectionAccountId, debit: 0, credit: amount, memo: 'Tahsilat ters kaydı - varlık hesabını azalt' },
+        { accountId: mappingRows[0].receivableAccountId, debit: baseAmount, credit: 0, memo: 'Tahsilat ters kaydı - alacağı yeniden aç' },
+        { accountId: collection.collectionAccountId, debit: 0, credit: baseAmount, memo: 'Tahsilat ters kaydı - varlık hesabını azalt' },
       ];
       try {
         validateJournalLines(lines);
@@ -433,7 +436,7 @@ export class IncomeCollectionsService {
     const { tenantId, companyId, branchId } = this.context();
     const rows = await tx.$queryRawUnsafe<IncomeCollectionContextRow[]>(
       `SELECT id,tenant_id AS "tenantId",company_id AS "companyId",branch_id AS "branchId",category_id AS "categoryId",
-              gross_amount AS "grossAmount",approval_status AS "approvalStatus",accounting_status AS "accountingStatus",
+              gross_amount AS "grossAmount",exchange_rate AS "exchangeRate",approval_status AS "approvalStatus",accounting_status AS "accountingStatus",
               collection_status AS "collectionStatus"
        FROM income_records
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND ($4::text IS NULL OR branch_id=$4::text) LIMIT 1`,
