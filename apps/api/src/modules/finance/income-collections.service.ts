@@ -385,6 +385,12 @@ export class IncomeCollectionsService {
 
       const reversalId = randomUUID();
       const reversedAt = new Date();
+      await assertFinancialPeriodOpen(tx, {
+        tenantId: income.tenantId,
+        companyId: income.companyId,
+        branchId: income.branchId,
+        date: reversedAt,
+      });
       const journal = await tx.journalEntry.create({
         data: {
           tenantId: income.tenantId,
