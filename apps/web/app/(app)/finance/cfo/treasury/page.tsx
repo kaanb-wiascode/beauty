@@ -43,20 +43,32 @@ type LiquidityPosition = {
     totalLiquidPosition: number;
   };
   provider: { bankBalancesByCurrency: ProviderBalance[] };
-  bankVariance: {
-    comparable: boolean;
-    currency: string | null;
-    bookBankBalance: number;
-    providerCurrentBalance: number | null;
-    providerAvailableBalance: number | null;
-    currentVariance: number | null;
-    availableVariance: number | null;
-    balanceAsOf: string | null;
+  reconciliation: {
+    bankVariance: {
+      comparable: boolean;
+      currency: string | null;
+      bookBalance: number;
+      providerCurrentBalance: number | null;
+      variance: number | null;
+      providerBalanceAsOf: string | null;
+      reason?: string | null;
+    };
   };
   posSettlementForecast: {
-    scheduled: SettlementDay[];
-    totalsByCurrency: SettlementCurrencyTotal[];
-    unknownTiming: SettlementCurrencyTotal[];
+    scheduled: Array<{
+      settlementDate: string;
+      currency: string;
+      transactionCount: number;
+      grossAmount: number;
+      feeAmount: number;
+      expectedNetCash: number;
+      overdue: boolean;
+    }>;
+    unknownTiming: Array<{
+      currency: string;
+      transactionCount: number;
+      expectedNetCash: number;
+    }>;
   };
 };
 type Reconciliation = {
@@ -110,12 +122,49 @@ export default function TreasuryCockpitPage() {
 
   const reportingCurrency = position?.reportingCurrency ?? "TRY";
   const book = position?.book;
-  const bankVariance = position?.bankVariance;
+  const bankVariance = position?.reconciliation?.bankVariance;
   const providerBalances = position?.provider?.bankBalancesByCurrency ?? [];
   const settlementForecast = position?.posSettlementForecast;
-  const settlementTotals = settlementForecast?.totalsByCurrency ?? [];
-  const settlementSchedule = useMemo(() => settlementForecast?.scheduled ?? [], [settlementForecast]);
-  const settlementUnknownTiming = settlementForecast?.unknownTiming ?? [];
+  const settlementSchedule = useMemo<SettlementDay[]>(
+    () => (settlementForecast?.scheduled ?? []).map((item) => ({
+      date: item.settlementDate,
+      currency: item.currency,
+      transactionCount: item.transactionCount,
+      grossAmount: item.grossAmount,
+      feeAmount: item.feeAmount,
+      netAmount: item.expectedNetCash,
+      overdue: item.overdue,
+    })),
+    [settlementForecast],
+  );
+  const settlementUnknownTiming = useMemo<SettlementCurrencyTotal[]>(
+    () => (settlementForecast?.unknownTiming ?? []).map((item) => ({
+      currency: item.currency,
+      grossAmount: item.expectedNetCash,
+      feeAmount: 0,
+      netAmount: item.expectedNetCash,
+      transactionCount: item.transactionCount,
+    })),
+    [settlementForecast],
+  );
+  const settlementTotals = useMemo<SettlementCurrencyTotal[]>(() => {
+    const totals = new Map<string, SettlementCurrencyTotal>();
+    for (const item of settlementSchedule) {
+      const current = totals.get(item.currency) ?? {
+        currency: item.currency,
+        grossAmount: 0,
+        feeAmount: 0,
+        netAmount: 0,
+        transactionCount: 0,
+      };
+      current.grossAmount += Number(item.grossAmount ?? 0);
+      current.feeAmount += Number(item.feeAmount ?? 0);
+      current.netAmount += Number(item.netAmount ?? 0);
+      current.transactionCount += Number(item.transactionCount ?? 0);
+      totals.set(item.currency, current);
+    }
+    return [...totals.values()];
+  }, [settlementSchedule]);
 
   const providerBalance = providerBalances.find(
     (item) => item.currency === position?.reportingCurrency,
@@ -164,7 +213,7 @@ export default function TreasuryCockpitPage() {
         <FinanceMetric label="Hesaba Geçmeyi Bekleyen" value={money(book?.nearCash)} detail="POS Alacakları" />
         <FinanceMetric label="Toplam Likit Pozisyon" value={money(book?.totalLiquidPosition)} detail="Mevcut Nakit Ve Bekleyen POS" tone="success" />
         <FinanceMetric label="Canlı Banka Bakiyesi" value={bankVariance?.comparable ? money(bankVariance?.providerCurrentBalance, reportingCurrency) : "—"} detail={bankVariance?.comparable ? `${reportingCurrency} Güncel Banka Bakiyesi` : "Raporlama Para Birimi Ayarlanmalı"} />
-        <FinanceMetric label="Banka Bakiye Farkı" value={bankVariance?.comparable ? signedMoney(bankVariance?.currentVariance, reportingCurrency) : "—"} detail="Canlı Banka Bakiyesi İle Muhasebe Bakiyesi Farkı" tone={varianceTone(bankVariance?.currentVariance)} />
+        <FinanceMetric label="Banka Bakiye Farkı" value={bankVariance?.comparable ? signedMoney(bankVariance?.variance, reportingCurrency) : "—"} detail="Canlı Banka Bakiyesi İle Muhasebe Bakiyesi Farkı" tone={varianceTone(bankVariance?.variance)} />
         <FinanceMetric label="Beklenen POS Geçişi" value={money(forecastTotal?.netAmount, reportingCurrency)} detail={`${forecastTotal?.transactionCount ?? 0} İşlem`} />
       </section>
 
