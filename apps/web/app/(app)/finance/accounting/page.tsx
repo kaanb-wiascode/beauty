@@ -17,7 +17,6 @@ type JournalLine = { id: string; debit: number | string; credit: number | string
 type JournalEntry = { id: string; number: string; entryDate: string; description: string; status: string; postedAt?: string | null; referenceType?: string | null; referenceId?: string | null; branch?: { name?: string } | null; lines: JournalLine[] };
 type Tab = "overview" | "trial" | "journals" | "accounts";
 
-const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 2 });
 const typeLabel: Record<string, string> = { ASSET: "Varlık", LIABILITY: "Yükümlülük", EQUITY: "Özkaynak", REVENUE: "Gelir", EXPENSE: "Gider" };
 const journalStatusLabel: Record<string, string> = {
   DRAFT: "Taslak",
@@ -29,7 +28,11 @@ const journalStatusLabel: Record<string, string> = {
 
 export default function AccountingPage() {
   const { showToast } = useToast();
-  const canManage = hasPermission("accounting", "manage");
+  const canSubmitJournal = hasPermission("accounting_journal", "create");
+  const canApproveJournal = hasPermission("accounting_journal", "approve");
+  const canPostJournal = hasPermission("accounting_journal", "post");
+  const [baseCurrency,setBaseCurrency]=useState("TRY");
+  const money = useMemo(() => new Intl.NumberFormat("tr-TR", { style: "currency", currency: baseCurrency, maximumFractionDigits: 2 }), [baseCurrency]);
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [trial, setTrial] = useState<TrialBalance | null>(null);
   const [income, setIncome] = useState<IncomeSummary | null>(null);
@@ -43,16 +46,18 @@ export default function AccountingPage() {
     setLoading(true);
     setError("");
     try {
-      const [accountRows, trialBalance, incomeSummary, journalRows] = await Promise.all([
+      const [accountRows, trialBalance, incomeSummary, journalRows, financeSettings] = await Promise.all([
         api<Account[]>("/accounting/accounts"),
         api<TrialBalance>("/accounting/reports/trial-balance"),
         api<IncomeSummary>("/accounting/reports/income-summary"),
         api<JournalEntry[]>("/accounting/journal-entries"),
+        api<{baseCurrency:string}>("/finance/control/settings"),
       ]);
       setAccounts(accountRows);
       setTrial(trialBalance);
       setIncome(incomeSummary);
       setJournals(journalRows);
+      setBaseCurrency(financeSettings.baseCurrency||"TRY");
     } catch (requestError) {
       setError(requestError instanceof ApiError ? requestError.message : "Muhasebe verileri yüklenemedi.");
     } finally {
@@ -68,7 +73,8 @@ export default function AccountingPage() {
   const balanced = Math.abs(Number(trial?.totals.debit ?? 0) - Number(trial?.totals.credit ?? 0)) < 0.01;
 
   async function journalAction(id: string, action: "submit" | "approve" | "post") {
-    if (!canManage || busy) return;
+    const allowed = action === "submit" ? canSubmitJournal : action === "approve" ? canApproveJournal : canPostJournal;
+    if (!allowed || busy) return;
     setBusy(true);
     setError("");
     try {
@@ -137,10 +143,10 @@ export default function AccountingPage() {
     </FinancePanel> : null}
 
     {tab === "journals" ? <FinancePanel title="Yevmiye Kayıtları" description="Taslak ve muhasebeleştirilmiş fişler">
-      <div className="space-y-3">{journals.map((entry) => <article key={entry.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px] text-[var(--ink)]">{entry.number}</strong><span className="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{journalStatusLabel[entry.status] ?? userLabel(entry.status)}</span></div><p className="mt-1 text-[12px] text-[var(--muted)]">{entry.description}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(entry.entryDate))} · {entry.lines.length} satır</p></div>{canManage ? <div className="flex flex-wrap gap-2">
-  {entry.status === "DRAFT" ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "submit")}>Onaya Gönder</Button> : null}
-  {entry.status === "SUBMITTED" ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "approve")}>Onayla</Button> : null}
-  {entry.status === "APPROVED" ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "post")}>Muhasebeleştir</Button> : null}
+      <div className="space-y-3">{journals.map((entry) => <article key={entry.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-4"><div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between"><div><div className="flex flex-wrap items-center gap-2"><strong className="text-[13px] text-[var(--ink)]">{entry.number}</strong><span className="rounded-full bg-white px-2 py-1 text-[9px] font-semibold text-[var(--muted)]">{journalStatusLabel[entry.status] ?? userLabel(entry.status)}</span></div><p className="mt-1 text-[12px] text-[var(--muted)]">{entry.description}</p><p className="mt-1 text-[10px] text-[var(--muted-soft)]">{new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(entry.entryDate))} · {entry.lines.length} satır</p></div>{(canSubmitJournal||canApproveJournal||canPostJournal) ? <div className="flex flex-wrap gap-2">
+  {entry.status === "DRAFT" && canSubmitJournal ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "submit")}>Onaya Gönder</Button> : null}
+  {entry.status === "SUBMITTED" && canApproveJournal ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "approve")}>Onayla</Button> : null}
+  {entry.status === "APPROVED" && canPostJournal ? <Button disabled={busy} onClick={() => void journalAction(entry.id, "post")}>Muhasebeleştir</Button> : null}
 </div> : null}</div><div className="mt-3 grid gap-2 sm:grid-cols-2">{entry.lines.map((line) => <div key={line.id} className="flex justify-between gap-3 rounded-[10px] bg-white/70 px-3 py-2 text-[10px]"><span className="truncate text-[var(--muted)]">{line.account.code} · {line.account.name}</span><span className="shrink-0 font-semibold text-[var(--ink)]">{Number(line.debit) > 0 ? `B ${money.format(Number(line.debit))}` : `A ${money.format(Number(line.credit))}`}</span></div>)}</div></article>)}{!journals.length ? <EmptyState title="Yevmiye kaydı yok" description="Aktif kapsamda yevmiye kaydı bulunmuyor." /> : null}</div>
     </FinancePanel> : null}
 
