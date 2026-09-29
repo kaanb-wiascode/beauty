@@ -129,6 +129,12 @@ export class AccountingService {
       lines: AutomaticJournalLine[];
     },
   ) {
+    await assertFinancialPeriodOpen(tx, {
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      branchId: input.branchId,
+      date: input.entryDate,
+    });
     await this.acquireTransactionLock(
       tx,
       `journal:${input.companyId}`,
