@@ -30,7 +30,10 @@ describe('TreasuryRiskService liquidity position', () => {
       .mockResolvedValueOnce([
         { minimumLiquidity: '1000', warningBufferPercent: '20', reportingCurrency: 'TRY' },
       ]);
-    const service = new TreasuryRiskService({ $queryRawUnsafe: query } as never, tenant(), {} as never);
+    const service = new TreasuryRiskService({
+      $queryRawUnsafe: query,
+      company: { findFirst: jest.fn().mockResolvedValue({ baseCurrency: 'TRY' }) },
+    } as never, tenant(), {} as never);
     const asOf = new Date('2026-09-11T09:00:00.000Z');
 
     const result = await service.liquidityPosition(asOf);
@@ -64,21 +67,27 @@ describe('TreasuryRiskService liquidity position', () => {
     expect(String(query.mock.calls[4][0])).toContain('reporting_currency AS "reportingCurrency"');
   });
 
-  it('does not invent a bank variance without a configured reporting currency', async () => {
+  it('uses company base currency when reporting currency is not configured', async () => {
     const query = jest.fn()
       .mockResolvedValueOnce([{ code: '102', amount: '5000' }])
       .mockResolvedValueOnce([{ currency: 'TRY', currentBalance: '4900', availableBalance: '4900', accountCount: 1 }])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    const service = new TreasuryRiskService({ $queryRawUnsafe: query } as never, tenant(null), {} as never);
+    const service = new TreasuryRiskService({
+      $queryRawUnsafe: query,
+      company: { findFirst: jest.fn().mockResolvedValue({ baseCurrency: 'TRY' }) },
+    } as never, tenant(null), {} as never);
 
     const result = await service.liquidityPosition(new Date('2026-09-11T09:00:00.000Z'));
 
+    expect(result.baseCurrency).toBe('TRY');
+    expect(result.reportingCurrency).toBe('TRY');
     expect(result.reconciliation.bankVariance).toEqual(expect.objectContaining({
-      comparable: false,
-      variance: null,
-      reason: 'REPORTING_CURRENCY_NOT_CONFIGURED',
+      comparable: true,
+      currency: 'TRY',
+      variance: -100,
+      reason: null,
     }));
   });
 
@@ -89,9 +98,13 @@ describe('TreasuryRiskService liquidity position', () => {
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([])
       .mockResolvedValueOnce([]);
-    const service = new TreasuryRiskService({ $queryRawUnsafe: query } as never, tenant(null), {} as never);
+    const service = new TreasuryRiskService({
+      $queryRawUnsafe: query,
+      company: { findFirst: jest.fn().mockResolvedValue({ baseCurrency: 'EUR' }) },
+    } as never, tenant(null), {} as never);
 
     const result = await service.liquidityPosition(new Date('2026-09-11T09:00:00.000Z'));
+    expect(result.baseCurrency).toBe('EUR');
     expect(result.book.actualCash).toBe(0);
     expect(result.book.nearCash).toBe(0);
     expect(result.book.totalLiquidPosition).toBe(0);
