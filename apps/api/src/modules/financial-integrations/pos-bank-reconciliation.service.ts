@@ -29,7 +29,8 @@ export class PosBankReconciliationService {
 
   async suggestInScope(ctx: PosReconciliationScope, settlementId: string, days = 3) {
     const settlements = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,bank_account_id AS "bankAccountId",net_amount AS "netAmount",currency,settled_at AS "settledAt",reconciliation_status AS "reconciliationStatus"
+      `SELECT id,bank_account_id AS "bankAccountId",gross_amount AS "grossAmount",fee_amount AS "feeAmount",
+              net_amount AS "netAmount",currency,settled_at AS "settledAt",reconciliation_status AS "reconciliationStatus"
        FROM pos_settlements
        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
          AND ($4::text IS NULL OR branch_id=$4::text)
@@ -54,7 +55,7 @@ export class PosBankReconciliationService {
          AND t.reconciliation_status='UNMATCHED'
          AND t.currency=$6
          AND t.amount>0
-         AND ABS(t.amount-$7::numeric)<=0.01
+         AND ABS(t.amount-$7::numeric)<=GREATEST(50::numeric,ABS($7::numeric)*0.03,$9::numeric+0.01)
          AND t.booked_at BETWEEN $2::timestamptz-($8::text||' days')::interval
                              AND $2::timestamptz+($8::text||' days')::interval
          AND ($1::text IS NULL OR t.bank_account_id=$1::text)
@@ -68,16 +69,47 @@ export class PosBankReconciliationService {
       settlement.currency,
       Number(settlement.netAmount),
       Math.min(Math.max(days, 1), 14),
+      Number(settlement.feeAmount ?? 0),
     );
 
     const suggestions = rows.map((row) => {
       const dayDistance = Number(row.dayDistance ?? 99);
       const sameAccount = !settlement.bankAccountId || row.bankAccountId === settlement.bankAccountId;
-      let confidence = 70;
-      if (dayDistance <= 1) confidence += 20;
-      else if (dayDistance <= 2) confidence += 10;
-      if (sameAccount) confidence += 10;
-      return { ...row, confidence: Math.min(confidence, 100) };
+      const bankAmount = Number(row.amount ?? 0);
+      const netAmount = Number(settlement.netAmount ?? 0);
+      const feeAmount = Number(settlement.feeAmount ?? 0);
+      const varianceAmount = Math.round((bankAmount - netAmount + Number.EPSILON) * 100) / 100;
+      const exactAmount = Math.abs(varianceAmount) <= 0.01;
+      const feeLikeVariance = !exactAmount && Math.abs(Math.abs(varianceAmount) - feeAmount) <= 0.01;
+      let confidence = exactAmount ? 70 : feeLikeVariance ? 50 : 35;
+      const reasons: string[] = [];
+      if (exactAmount) reasons.push('Banka tutarı POS net tahsilat tutarıyla birebir eşleşiyor.');
+      else if (feeLikeVariance) reasons.push('Tutar farkı POS kesintisi/komisyon tutarıyla uyumlu görünüyor.');
+      else reasons.push(`Tutar farkı ${Math.abs(varianceAmount).toFixed(2)} ${settlement.currency}.`);
+      if (dayDistance <= 1) {
+        confidence += 20;
+        reasons.push('İşlem tarihleri bir gün içinde.');
+      } else if (dayDistance <= 2) {
+        confidence += 10;
+        reasons.push('İşlem tarihleri iki gün içinde.');
+      } else {
+        reasons.push(`Tarih farkı yaklaşık ${dayDistance.toFixed(1)} gün.`);
+      }
+      if (sameAccount) {
+        confidence += 10;
+        reasons.push('Banka hesabı eşleşiyor.');
+      } else if (settlement.bankAccountId) {
+        reasons.push('Banka hesabı farklı.');
+      }
+      return {
+        ...row,
+        confidence: Math.min(confidence, 100),
+        varianceAmount,
+        exactAmount,
+        feeLikeVariance,
+        reasons,
+        explanation: reasons.join(' '),
+      };
     });
     return { settlementId, suggestions };
   }
@@ -182,7 +214,7 @@ export class PosBankReconciliationService {
       const result = await this.suggestInScope(ctx, settlement.id, 3);
       const best = result.suggestions[0];
       const second = result.suggestions[1];
-      if (!best || best.confidence < 90 || (second && second.confidence === best.confidence)) {
+      if (!best || !best.exactAmount || best.confidence < 90 || (second && second.confidence === best.confidence)) {
         skipped.push(settlement.id);
         continue;
       }
