@@ -27,6 +27,20 @@ interface CreateIncomeInput {
 
 type UpdateIncomeInput = Partial<CreateIncomeInput> & { version: number };
 
+interface ListIncomeInput {
+  approvalStatus?: string;
+  collectionStatus?: string;
+  accountingStatus?: string;
+  reconciliationStatus?: string;
+  categoryId?: string;
+  costCenterId?: string;
+  sourceType?: string;
+  from?: Date;
+  to?: Date;
+  page?: number;
+  limit: number;
+}
+
 interface IncomeRow {
   id: string;
   tenantId: string;
@@ -236,18 +250,83 @@ export class IncomeRecordsService {
     });
   }
 
-  async list(limit = 50) {
+  async list(input: ListIncomeInput) {
     const { tenantId, companyId, branchId } = this.context();
-    const rows = await this.prisma.$queryRawUnsafe<IncomeRow[]>(
-      `SELECT ${INCOME_SELECT} FROM income_records
-       WHERE tenant_id=$1::text AND company_id=$2::text AND ($3::text IS NULL OR branch_id=$3::text)
-       ORDER BY transaction_date DESC,created_at DESC LIMIT $4`,
+    const page = input.page ?? 1;
+    const offset = (page - 1) * input.limit;
+    const params = [
       tenantId,
       companyId,
       branchId,
-      limit,
-    );
-    return rows.map((row) => this.map(row));
+      input.approvalStatus ?? null,
+      input.collectionStatus ?? null,
+      input.accountingStatus ?? null,
+      input.reconciliationStatus ?? null,
+      input.categoryId ?? null,
+      input.costCenterId ?? null,
+      input.sourceType ?? null,
+      input.from ?? null,
+      input.to ?? null,
+      input.limit,
+      offset,
+    ] as const;
+    const [rows, countRows] = await Promise.all([
+      this.prisma.$queryRawUnsafe<IncomeRow[]>(
+        `SELECT ${INCOME_SELECT} FROM income_records
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND ($4::text IS NULL OR approval_status::text=$4)
+           AND ($5::text IS NULL OR collection_status::text=$5)
+           AND ($6::text IS NULL OR accounting_status::text=$6)
+           AND ($7::text IS NULL OR reconciliation_status::text=$7)
+           AND ($8::text IS NULL OR category_id=$8::text)
+           AND ($9::text IS NULL OR cost_center_id=$9::text)
+           AND ($10::text IS NULL OR source_type=$10)
+           AND ($11::timestamp IS NULL OR transaction_date >= $11)
+           AND ($12::timestamp IS NULL OR transaction_date <= $12)
+         ORDER BY transaction_date DESC,created_at DESC
+         LIMIT $13 OFFSET $14`,
+        ...params,
+      ),
+      this.prisma.$queryRawUnsafe<Array<{ total: bigint }>>(
+        `SELECT COUNT(*)::bigint AS total FROM income_records
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND ($3::text IS NULL OR branch_id=$3::text)
+           AND ($4::text IS NULL OR approval_status::text=$4)
+           AND ($5::text IS NULL OR collection_status::text=$5)
+           AND ($6::text IS NULL OR accounting_status::text=$6)
+           AND ($7::text IS NULL OR reconciliation_status::text=$7)
+           AND ($8::text IS NULL OR category_id=$8::text)
+           AND ($9::text IS NULL OR cost_center_id=$9::text)
+           AND ($10::text IS NULL OR source_type=$10)
+           AND ($11::timestamp IS NULL OR transaction_date >= $11)
+           AND ($12::timestamp IS NULL OR transaction_date <= $12)`,
+        tenantId,
+        companyId,
+        branchId,
+        input.approvalStatus ?? null,
+        input.collectionStatus ?? null,
+        input.accountingStatus ?? null,
+        input.reconciliationStatus ?? null,
+        input.categoryId ?? null,
+        input.costCenterId ?? null,
+        input.sourceType ?? null,
+        input.from ?? null,
+        input.to ?? null,
+      ),
+    ]);
+    const data = rows.map((row) => this.map(row));
+    const total = Number(countRows[0]?.total ?? 0);
+    if (input.page == null) return data;
+    return {
+      data,
+      meta: {
+        page,
+        limit: input.limit,
+        total,
+        totalPages: Math.max(1, Math.ceil(total / input.limit)),
+      },
+    };
   }
 
   async get(id: string) {
