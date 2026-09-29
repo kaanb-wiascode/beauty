@@ -52,6 +52,7 @@ export type CfoSla = {
 
 export type CfoCockpit = {
   asOf?: string;
+  baseCurrency?: string;
   health?: CfoHealth;
   covenants?: {
     total: number;
@@ -159,6 +160,7 @@ export type CfoCashFlowWeek = {
 };
 
 export type CfoCashFlow = {
+  baseCurrency?: string;
   openingLiquidity: number;
   projectedInflows: number;
   projectedOutflows: number;
@@ -186,11 +188,11 @@ export const CFO_STATUS_LABEL: Record<string, string> = {
   CANCELLED: "İptal Edildi",
 };
 
-export function formatCfoMoney(value: unknown) {
+export function formatCfoMoney(value: unknown, currency = "TRY") {
   const numeric = Number(value ?? 0);
   return new Intl.NumberFormat("tr-TR", {
     style: "currency",
-    currency: "TRY",
+    currency,
     maximumFractionDigits: 0,
   }).format(Number.isFinite(numeric) ? numeric : 0);
 }
