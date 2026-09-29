@@ -162,10 +162,15 @@ export class CashFlowForecastService {
     const start = this.startOfDay(startInput);
     const end = this.addDays(start, 13 * 7);
     const assumptions = this.assumptions(scenario);
-    const [openingLiquidity, receivables, payables] = await Promise.all([
+    const { tenantId, companyId } = this.context();
+    const [openingLiquidity, receivables, payables, company] = await Promise.all([
       this.openingLiquidity(start),
       this.receivables(start, end),
       this.payables(start, end),
+      this.prisma.company.findFirst({
+        where: { id: companyId, tenantId },
+        select: { baseCurrency: true },
+      }),
     ]);
 
     const weeks = Array.from({ length: 13 }, (_, index) => {
@@ -228,6 +233,7 @@ export class CashFlowForecastService {
 
     return {
       scenario,
+      baseCurrency: company?.baseCurrency ?? 'TRY',
       assumptions,
       start,
       end: this.addDays(end, -1),
@@ -251,6 +257,7 @@ export class CashFlowForecastService {
     return {
       start: this.startOfDay(startInput),
       horizonWeeks: 13,
+      baseCurrency: base.baseCurrency,
       scenarios: [base, best, worst].map((item) => ({
         scenario: item.scenario,
         assumptions: item.assumptions,
