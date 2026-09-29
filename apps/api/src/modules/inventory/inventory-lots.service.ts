@@ -83,13 +83,13 @@ export class InventoryLotsService {
     const lotNumber = input.lotNumber.trim();
 
     if (!lotNumber) {
-      throw new BadRequestException('Lot number is required.');
+      throw new BadRequestException('Parti / lot numarası zorunludur.');
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      throw new BadRequestException('Lot quantity must be greater than zero.');
+      throw new BadRequestException('Lot miktarı sıfırdan büyük olmalıdır.');
     }
     if (!Number.isFinite(unitCost) || unitCost < 0) {
-      throw new BadRequestException('Lot unit cost cannot be negative.');
+      throw new BadRequestException('Lot birim maliyeti negatif olamaz.');
     }
     if (
       input.manufacturedAt &&
@@ -134,7 +134,7 @@ export class InventoryLotsService {
           companyId,
         );
         if (!products.length) {
-          throw new NotFoundException('Product not found');
+          throw new NotFoundException('Ürün bulunamadı.');
         }
 
         const lots = await tx.$queryRawUnsafe<any[]>(
