@@ -266,7 +266,7 @@ function Overview({ cockpit, benchmark, actions, currency }: { cockpit: CfoCockp
   return (
     <div className="grid gap-5 xl:grid-cols-[1.25fr_.75fr]">
       <section className="space-y-5">
-        <FinancePanel title="13 Haftalık Likidite" description="Tahmini Nakit Pozisyonu Ve Minimum Seviye">
+        <FinancePanel title="13 Haftalık Likidite" description="Tahmini nakit pozisyonu ve minimum seviye">
           <div className="grid gap-3 sm:grid-cols-3">
             <Mini label="Açılış Likiditesi" value={formatCfoMoney(cockpit?.liquidity?.opening, currency)} />
             <Mini label="13. Hafta Kapanış" value={formatCfoMoney(cockpit?.liquidity?.thirteenWeekClosing, currency)} />
@@ -274,7 +274,7 @@ function Overview({ cockpit, benchmark, actions, currency }: { cockpit: CfoCockp
           </div>
         </FinancePanel>
 
-        <FinancePanel title="Şube Sağlık Dağılımı" description={`${benchmark?.scoredBranchCount ?? benchmark?.branches.length ?? 0} Şube Değerlendirildi`}>
+        <FinancePanel title="Şube Sağlık Dağılımı" description={`${benchmark?.scoredBranchCount ?? benchmark?.branches.length ?? 0} şube değerlendirildi`}>
           <div className="grid gap-3 sm:grid-cols-4">
             <Mini label="Ortalama" value={formatCfoNumber(benchmark?.averageHealthScore)} />
             <Mini label="Ortanca" value={formatCfoNumber(benchmark?.medianHealthScore)} />
@@ -297,7 +297,7 @@ function Overview({ cockpit, benchmark, actions, currency }: { cockpit: CfoCockp
       </section>
 
       <aside className="space-y-5">
-        <FinancePanel title="Yönetim Öncelikleri" description="Finansal Değerlendirme Sisteminin Önerileri">
+        <FinancePanel title="Yönetim Öncelikleri" description="Finansal değerlendirme sisteminin önerileri">
           <div className="space-y-2">
             {priorities.length ? priorities.slice(0, 6).map((priority, index) => (
               <PriorityNotice key={`${priority.code}-${index}`} priority={priority} />
@@ -456,7 +456,7 @@ function ActionCenter({ actions, sla, busy, onStatus }: { actions: CfoActionItem
         <MiniCard label="24 Saat İçinde" value={sla?.dueNext24Hours ?? 0} />
       </div>
 
-      <FinancePanel title="Yönetim Görevleri" description="Finansal Risklerden Doğan Yapılacak İşler">
+      <FinancePanel title="Yönetim Görevleri" description="Finansal risklerden doğan yapılacak işler">
         <div className="space-y-3">
           {actions.map((action) => (
             <div key={action.id} className="grid gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 lg:grid-cols-[1fr_auto] lg:items-center">
@@ -490,12 +490,12 @@ function RiskCenter({ cockpit, anomalies }: { cockpit: CfoCockpit | null; anomal
   const alerts = cockpit?.executiveAlerts ?? [];
   return (
     <div className="grid gap-5 xl:grid-cols-2">
-      <FinancePanel title="Risk Haritası" description="Yönetim İçin Kritik Eşik İhlalleri">
+      <FinancePanel title="Risk Haritası" description="Yönetim için kritik eşik ihlalleri">
         <div className="grid gap-3 sm:grid-cols-2">
           {alerts.map((alert, index) => (
             <div key={`${alert.code}-${index}`} className={`rounded-[16px] border p-4 ${alert.severity === "CRITICAL" ? "border-[rgba(214,78,60,.18)] bg-[var(--danger-soft)]" : "border-[rgba(184,123,32,.18)] bg-[var(--warning-soft)]"}`}>
               <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">{userLabel(alert.severity)}</p>
-              <p className="mt-2 text-[13px] font-semibold text-[var(--ink)]">{alert.title ?? "Finansal Uyarı"}</p>
+              <p className="mt-2 text-[13px] font-semibold text-[var(--ink)]">{CFO_ALERT_LABELS[alert.code]??alert.title??"Finansal Uyarı"}</p>
               <p className="mt-2 text-[11px] text-[var(--muted)]">Gerçekleşen: {String(alert.actual ?? "—")} · Eşik: {String(alert.threshold ?? "—")}</p>
             </div>
           ))}
@@ -503,7 +503,7 @@ function RiskCenter({ cockpit, anomalies }: { cockpit: CfoCockpit | null; anomal
         </div>
       </FinancePanel>
 
-      <FinancePanel title="Finansal Olağan Dışı Durumlar" description={`Son 60 Gün · ${anomalies?.anomalyCount ?? 0} Tespit`}>
+      <FinancePanel title="Finansal Olağan Dışı Durumlar" description={`Son 60 gün · ${anomalies?.anomalyCount ?? 0} Tespit`}>
         <div className="space-y-2">
           {anomalies?.anomalies.slice(0, 12).map((anomaly, index) => (
             <Notice key={`${anomaly.snapshotDate}-${index}`} severity={anomaly.severity} title={anomaly.branchName ?? "Şirket Geneli"} text={`${formatDate(anomaly.snapshotDate)} · Puan ${formatCfoNumber(anomaly.healthScore)} · Değişim ${formatCfoSigned(anomaly.scoreDelta)}`} />
@@ -515,12 +515,33 @@ function RiskCenter({ cockpit, anomalies }: { cockpit: CfoCockpit | null; anomal
   );
 }
 
+const CFO_ACTION_LABELS:Record<string,string>={
+  FINANCIAL_RECOVERY_PLAN:"Finansal Toparlanma Planı",
+  EXTEND_RUNWAY:"Nakit Dayanma Süresini Uzat",
+  RESOLVE_LIQUIDITY_GAP:"Likidite Açığını Gider",
+  ACCELERATE_COLLECTIONS:"Tahsilatları Hızlandır",
+  IMPROVE_WORKING_CAPITAL:"İşletme Sermayesini İyileştir",
+  REDUCE_OVERDUE_RECEIVABLES:"Gecikmiş Alacakları Azalt",
+  REVIEW:"Finansal Eşiği İncele",
+};
+
+const CFO_ALERT_LABELS:Record<string,string>={
+  HEALTH_SCORE:"Minimum Finansal Sağlık Puanı",
+  RUNWAY_WEEKS:"Minimum Nakit Dayanma Süresi",
+  DSO_DAYS:"En Yüksek Tahsilat Süresi",
+  NET_WORKING_CAPITAL:"Minimum Net İşletme Sermayesi",
+  OVERDUE_RECEIVABLE_RATIO:"En Yüksek Vadesi Geçmiş Alacak Oranı",
+  LIQUIDITY_ALERTS:"13 Haftalık Likidite Uyarı Sınırı",
+};
+
 function PriorityNotice({ priority }: { priority: CfoPriorityItem }) {
-  return <Notice severity={priority.priority === "CRITICAL" ? "CRITICAL" : "WARNING"} title={priority.action ?? "Yönetim Önceliği"} text={priority.recommendation ?? "Yönetim Görevi Gerekli."} />;
+  const title=CFO_ACTION_LABELS[priority.action??""]??userLabel(priority.action??"")??"Yönetim Önceliği";
+  return <Notice severity={priority.priority === "CRITICAL" ? "CRITICAL" : "WARNING"} title={title} text={priority.recommendation ?? "Yönetim görevi gerekli."} />;
 }
 
 function AlertNotice({ alert }: { alert: CfoExecutiveAlert }) {
-  return <Notice severity={alert.severity} title={alert.title ?? "Finansal Uyarı"} text={`Gerçekleşen: ${String(alert.actual ?? "—")} · Eşik: ${String(alert.threshold ?? "—")}`} />;
+  const title=CFO_ALERT_LABELS[alert.code]??alert.title??"Finansal Uyarı";
+  return <Notice severity={alert.severity} title={title} text={`Gerçekleşen: ${String(alert.actual ?? "—")} · Eşik: ${String(alert.threshold ?? "—")}`} />;
 }
 
 function Mini({ label, value, danger = false }: { label: string; value: ReactNode; danger?: boolean }) {
