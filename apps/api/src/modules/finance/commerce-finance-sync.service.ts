@@ -332,6 +332,7 @@ export class CommerceFinanceSyncService {
       input.branchId,
       collection.id,
       refundJournal.id,
+      input.amount,
       input.reason,
       input.paymentId,
       input.actorId,
@@ -606,6 +607,7 @@ export class CommerceFinanceSyncService {
       input.branchId,
       collection.id,
       refundJournal.id,
+      input.amount,
       input.reason,
       input.paymentId,
       input.actorId,
@@ -647,10 +649,11 @@ export class CommerceFinanceSyncService {
       Array<{ gross: Prisma.Decimal; collected: Prisma.Decimal }>
     >(
       `SELECT i.gross_amount AS gross,
-              COALESCE(SUM(CASE WHEN r.id IS NULL THEN c.amount ELSE 0 END),0) AS collected
+              COALESCE(SUM(c.amount-COALESCE((
+                SELECT SUM(r.amount) FROM income_collection_reversals r WHERE r.income_collection_id=c.id
+              ),0)),0) AS collected
        FROM income_records i
        LEFT JOIN income_collections c ON c.income_record_id=i.id
-       LEFT JOIN income_collection_reversals r ON r.income_collection_id=c.id
        WHERE i.id=$1::text AND i.tenant_id=$2::text AND i.company_id=$3::text
        GROUP BY i.gross_amount`,
       input.incomeId,
