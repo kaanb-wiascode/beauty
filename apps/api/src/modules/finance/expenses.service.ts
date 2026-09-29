@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { assertExchangeRateForCurrency, getCompanyBaseCurrency } from './domain/currency-policy';
 import { assertFinancialPeriodOpen } from './domain/financial-period-lock';
 import {
   assertExpenseAmounts,
@@ -204,6 +205,8 @@ export class ExpensesService {
 
     return this.prisma.$transaction(async (tx) => {
       await assertFinancialPeriodOpen(tx, { tenantId, companyId, branchId, date: input.transactionDate });
+      const baseCurrency = await getCompanyBaseCurrency(tx, { tenantId, companyId });
+      assertExchangeRateForCurrency({ currency: input.currency, exchangeRate: input.exchangeRate, baseCurrency });
       await this.validateDimensions(tx, input);
 
       if (input.sourceType && input.sourceId) {
@@ -373,6 +376,8 @@ export class ExpensesService {
         exchangeRate: input.exchangeRate ?? Number(current.exchangeRate),
       };
       this.validateAmounts(amounts);
+      const baseCurrency = await getCompanyBaseCurrency(tx, { tenantId: current.tenantId, companyId: current.companyId });
+      assertExchangeRateForCurrency({ currency: input.currency ?? current.currency, exchangeRate: amounts.exchangeRate, baseCurrency });
 
       const rows = await tx.$queryRawUnsafe<ExpenseRow[]>(
         `UPDATE expenses SET
