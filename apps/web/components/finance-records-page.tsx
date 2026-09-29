@@ -9,6 +9,7 @@ import { Modal } from "@/components/modal";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userLabel } from "@/lib/user-language";
 
 type Mode = "expense" | "income";
 type Category = { id:string; code:string; name:string; parentId:string|null; active:boolean };
@@ -44,7 +45,7 @@ const labels:Record<string,string>={
   UNCOLLECTED:"Tahsil Edilmedi",PARTIALLY_COLLECTED:"Kısmen Tahsil Edildi",COLLECTED:"Tahsil Edildi",
   UNPOSTED:"Muhasebeleştirilmedi",READY_TO_POST:"Muhasebeleştirmeye Hazır",POSTED:"Muhasebeleştirildi",REVERSED:"Ters Kayıt",
 };
-const statusLabel=(value:string|undefined)=>value?(labels[value]??value):"—";
+const statusLabel=(value:string|undefined)=>value?(labels[value]??userLabel(value)):"—";
 function pill(value:string|undefined){
   const positive=["APPROVED","PAID","COLLECTED","POSTED"].includes(value??"");
   const negative=["REJECTED","CANCELLED","REVERSED"].includes(value??"");
@@ -255,8 +256,8 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
     <Modal open={createOpen} onClose={()=>setCreateOpen(false)} size="lg" title={`Yeni ${expense?"Gider":"Gelir"}`} description="Finansal olayı kaydedin. Ödeme veya tahsilat ayrı bir nakit hareketi olarak işlenir.">
       <form onSubmit={createRecord} className="space-y-5">
         <FormSection title="Kayıt Bilgileri"><FormGrid>
-          <Field label="Kategori" required><ValooSelect value={form.categoryId} onChange={(categoryId)=>setForm({...form,categoryId})} placeholder="Kategori seçin" searchPlaceholder="Kategori ara…" emptyLabel="Kategori bulunamadı." options={categories.map(x=>({value:x.id,label:`${x.code} · ${x.name}`}))} createAction={canManage?{label:`Yeni ${expense?"gider":"gelir"} kategorisi oluştur`,onClick:(query)=>setQuickCreate({kind:expense?"expense-category":"income-category",name:query})}:undefined}/></Field>
-          <Field label="Masraf / Maliyet Merkezi"><ValooSelect value={form.costCenterId} onChange={(costCenterId)=>setForm({...form,costCenterId})} placeholder="Seçilmedi" searchPlaceholder="Maliyet merkezi ara…" emptyLabel="Maliyet merkezi bulunamadı." options={costCenters.map(x=>({value:x.id,label:`${x.code} · ${x.name}`}))} createAction={canManage?{label:"Yeni maliyet merkezi oluştur",onClick:(query)=>setQuickCreate({kind:"cost-center",name:query})}:undefined}/></Field>
+          <Field label="Kategori" required><ValooSelect value={form.categoryId} onChange={(categoryId)=>setForm({...form,categoryId})} placeholder="Kategori seçin" searchPlaceholder="Kategori ara…" emptyLabel="Kategori bulunamadı." options={categories.map(x=>({value:x.id,label:x.name}))} createAction={canManage?{label:`Yeni ${expense?"gider":"gelir"} kategorisi oluştur`,onClick:(query)=>setQuickCreate({kind:expense?"expense-category":"income-category",name:query})}:undefined}/></Field>
+          <Field label="Masraf / Maliyet Merkezi"><ValooSelect value={form.costCenterId} onChange={(costCenterId)=>setForm({...form,costCenterId})} placeholder="Seçilmedi" searchPlaceholder="Maliyet merkezi ara…" emptyLabel="Maliyet merkezi bulunamadı." options={costCenters.map(x=>({value:x.id,label:x.name}))} createAction={canManage?{label:"Yeni maliyet merkezi oluştur",onClick:(query)=>setQuickCreate({kind:"cost-center",name:query})}:undefined}/></Field>
           <Field label="Karşı Taraf"><TextInput value={form.counterpartyName} onChange={e=>setForm({...form,counterpartyName:e.target.value})} placeholder="Firma, kişi veya kurum"/></Field>
           <Field label="Vergi / Kimlik No"><TextInput value={form.counterpartyTaxNumber} onChange={e=>setForm({...form,counterpartyTaxNumber:e.target.value})}/></Field>
         </FormGrid></FormSection>
@@ -273,7 +274,7 @@ export function FinanceRecordsPage({mode}:{mode:Mode}){
           <Field label="Vergi"><TextInput type="number" min="0" step="0.01" value={form.taxAmount} onChange={e=>setForm({...form,taxAmount:e.target.value})}/></Field>
           {expense?<Field label="Stopaj"><TextInput type="number" min="0" step="0.01" value={form.withholdingAmount} onChange={e=>setForm({...form,withholdingAmount:e.target.value})}/></Field>:null}
           <Field label="Para Birimi"><TextInput maxLength={3} value={form.currency} onChange={e=>{const currency=e.target.value.toUpperCase();setForm({...form,currency,exchangeRate:currency===baseCurrency?"1":form.exchangeRate})}}/></Field>
-          <Field label="Kur"><TextInput type="number" min="0.000001" step="0.000001" value={form.exchangeRate} onChange={e=>setForm({...form,exchangeRate:e.target.value})}/></Field>
+          <Field label={form.currency===baseCurrency?"Kur (Baz Para Biriminde 1)":"Döviz Kuru"}><TextInput type="number" min="0.000001" step="0.000001" value={form.exchangeRate} onChange={e=>setForm({...form,exchangeRate:e.target.value})}/></Field>
         </FormGrid><Field label="Açıklama"><TextArea rows={3} value={form.description} onChange={e=>setForm({...form,description:e.target.value})} placeholder="Kaydın nedenini ve gerekli notları yazın."/></Field></FormSection>
         <FormActions sticky><Button variant="secondary" onClick={()=>setCreateOpen(false)} disabled={working}>Vazgeç</Button><Button type="submit" disabled={working}>{working?"Kaydediliyor...":"Taslak Olarak Kaydet"}</Button></FormActions>
       </form>
