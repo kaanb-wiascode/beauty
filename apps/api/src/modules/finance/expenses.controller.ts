@@ -51,9 +51,15 @@ const listExpensesSchema = z.object({
   accountingStatus: z.enum(['UNPOSTED', 'READY_TO_POST', 'POSTED', 'REVERSED']).optional(),
   categoryId: z.string().uuid().optional(),
   costCenterId: z.string().uuid().optional(),
+  search: z.string().trim().max(200).optional(),
   from: z.coerce.date().optional(),
   to: z.coerce.date().optional(),
+  sortBy: z.enum(['transactionDate', 'grossAmount', 'createdAt']).default('transactionDate'),
+  sortDir: z.enum(['asc', 'desc']).default('desc'),
+  page: z.coerce.number().int().min(1).optional(),
   limit: z.coerce.number().int().min(1).max(200).default(50),
+}).refine((value) => !value.from || !value.to || value.from <= value.to, {
+  message: 'from must be before or equal to to',
 });
 
 const reasonSchema = z.object({
