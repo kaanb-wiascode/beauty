@@ -23,6 +23,7 @@ import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { getActiveBranchId } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
+import { userErrorMessage } from "@/lib/user-language";
 import {
   INVENTORY_UNITS,
   formatInventoryMoney,
