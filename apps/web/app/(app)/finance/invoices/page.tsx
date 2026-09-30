@@ -94,10 +94,9 @@ export default function InvoicesPage() {
         }),
       );
       setRows(data);
-      if (selected) {
-        const refreshed = data.find((item) => item.id === selected.id) ?? null;
-        setSelected(refreshed);
-      }
+      setSelected((current) =>
+        current ? data.find((item) => item.id === current.id) ?? null : null,
+      );
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
@@ -107,7 +106,7 @@ export default function InvoicesPage() {
     } finally {
       setLoading(false);
     }
-  }, [direction, status, selected]);
+  }, [direction, status]);
 
   useEffect(() => {
     void load();
