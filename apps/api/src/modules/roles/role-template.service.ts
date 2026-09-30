@@ -61,6 +61,67 @@ export class RoleTemplateService {
     return TEMPLATES.map((template) => ({ ...template, permissionCount: template.permissions.length }));
   }
 
+  async ensureDefaults() {
+    const context = this.tenantContext.getContext();
+    const existingRoles = await this.prisma.role.findMany({
+      where: {
+        tenantId: context.tenantId,
+        companyId: context.companyId,
+      },
+      select: { id: true, slug: true, name: true },
+    });
+    const existingSlugs = new Set(existingRoles.map((role) => role.slug));
+    const existingNames = new Set(existingRoles.map((role) => role.name));
+    let createdCount = 0;
+
+    for (const template of TEMPLATES) {
+      if (existingSlugs.has(template.key) || existingNames.has(template.name)) continue;
+
+      const permissionPairs = template.permissions.map((value) => {
+        const [resource, action] = value.split('.');
+        return { resource, action };
+      });
+      const permissions = permissionPairs.length
+        ? await this.prisma.permission.findMany({
+            where: { OR: permissionPairs },
+            select: { id: true },
+          })
+        : [];
+
+      await this.prisma.$transaction(async (tx) => {
+        const role = await tx.role.create({
+          data: {
+            tenantId: context.tenantId,
+            companyId: context.companyId,
+            name: template.name,
+            slug: template.key,
+            description: template.description,
+            scope: template.scope,
+          },
+          select: { id: true },
+        });
+        if (permissions.length) {
+          await tx.rolePermission.createMany({
+            data: permissions.map((permission) => ({
+              roleId: role.id,
+              permissionId: permission.id,
+            })),
+            skipDuplicates: true,
+          });
+        }
+      });
+      existingSlugs.add(template.key);
+      existingNames.add(template.name);
+      createdCount += 1;
+    }
+
+    return {
+      createdCount,
+      totalTemplateCount: TEMPLATES.length,
+    };
+  }
+
+
   async instantiate(templateKey: string, input: { name?: string; description?: string }) {
     const context = this.tenantContext.getContext();
     const template = TEMPLATES.find((item) => item.key === templateKey);
