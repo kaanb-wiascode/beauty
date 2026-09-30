@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -28,13 +28,6 @@ export class CustomerLedgerService {
     private readonly tenantContext: TenantContext,
   ) {}
 
-  private requireBranchId(): string {
-    const branchId = this.tenantContext.getBranchId();
-    if (!branchId) {
-      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
-    }
-    return branchId;
-  }
 
   async getCustomerLedger(customerId: string) {
     const tenantId = this.tenantContext.getTenantId();
