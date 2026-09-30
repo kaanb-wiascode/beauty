@@ -120,7 +120,7 @@ export default function SkillSchedulingPage(){
 
   return <div className="mx-auto max-w-[1400px] space-y-6 pb-12">
     <PageHeader title="Yetkinliğe Göre Personel Planlama" description="Hizmet ve zaman aralığına göre uygun çalışanları; vardiya, izin, randevu, sertifika ve yetkinlik koşullarıyla birlikte değerlendirin."/>
-    <Alert tone="info">Uygunluk kontrolünde çalışanın seçilen saatlerde yayınlanmış bir vardiyası olması gerekir. Vardiya henüz taslaksa önce Haftalık Vardiya Planı ekranından onaylayıp yayınlayın.</Alert>
+    <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/55 px-4 py-3 text-xs leading-5 text-[var(--muted)]">Uygunluk kontrolünde çalışanın seçilen saatlerde yayınlanmış bir vardiyası olması gerekir. Vardiya henüz taslaksa önce Haftalık Vardiya Planı ekranından onaylayıp yayınlayın.</div>
 
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
