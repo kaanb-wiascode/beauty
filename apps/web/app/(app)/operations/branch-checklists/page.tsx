@@ -8,6 +8,7 @@ import { Alert, Button, Field, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { userText } from "@/lib/user-language";
 
 type Category = "OPENING" | "CLOSING";
 type TemplateItem = {
@@ -251,7 +252,7 @@ export default function BranchChecklistsPage() {
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <p className="text-xs font-semibold uppercase tracking-[0.12em] text-[var(--muted-soft)]">{categoryLabel[category]}</p>
-                  <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">{run?.templateName ?? `${categoryLabel[category]} kontrol listesi`}</h2>
+                  <h2 className="mt-1 text-lg font-semibold text-[var(--ink)]">{userText(run?.templateName ?? `${categoryLabel[category]} kontrol listesi`)}</h2>
                   {run ? <p className="mt-1 text-xs text-[var(--muted)]">v{run.templateVersion} · Zorunlu {completedRequired}/{required.length}</p> : <p className="mt-1 text-xs text-[var(--muted)]">Bu gün için kontrol süreci henüz başlamadı.</p>}
                 </div>
                 {run ? <span className="rounded-full bg-[var(--surface-2)] px-3 py-1 text-xs font-semibold text-[var(--ink)]">{run.status === "COMPLETED" ? "Tamamlandı" : "Açık"}</span> : null}
@@ -264,7 +265,7 @@ export default function BranchChecklistsPage() {
                   {run.items.map((item) => (
                     <div key={item.id} className="flex flex-col gap-3 rounded-[14px] bg-[var(--surface-2)] p-3 sm:flex-row sm:items-center sm:justify-between">
                       <div>
-                        <p className="text-sm font-medium text-[var(--ink)]">{item.title}</p>
+                        <p className="text-sm font-medium text-[var(--ink)]">{userText(item.title,"Kontrol Maddesi")}</p>
                         <p className="mt-1 text-[11px] text-[var(--muted)]">{item.isRequired ? "Zorunlu" : "Opsiyonel"} · {item.status === "PENDING" ? "Bekliyor" : item.status === "COMPLETED" ? "Tamamlandı" : "Uygulanamaz"}</p>
                       </div>
                       {run.status === "OPEN" && item.status === "PENDING" && canUpdate ? (
