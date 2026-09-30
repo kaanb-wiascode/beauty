@@ -58,8 +58,8 @@ export class RecruitmentController {
 
   @Post('applications/:id/hire')
   @RequirePermissions({ resource: 'hr', action: 'manage' })
-  hire(@Param('id') id: string, @Body() body: any) {
-    return this.recruitment.hire(id, body);
+  hire(@Param('id') id: string, @Body() body: any, @Req() req: any) {
+    return this.recruitment.hire(id, body, this.actor(req));
   }
 
   @Get('interviews')
