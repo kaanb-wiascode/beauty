@@ -1,4 +1,6 @@
-import { Body,Controller,Get,Param,Patch,Post,Query,Req,UnauthorizedException,UseGuards } from '@nestjs/common';
+import { BadRequestException,Body,Controller,Get,Param,Patch,Post,Query,Req,Res,UnauthorizedException,UploadedFile,UseGuards,UseInterceptors } from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import type { Response } from 'express';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission,RequirePermissions } from '../../common/auth/permissions.decorator';
@@ -30,6 +32,26 @@ export class PersonnelDocumentController {
   @Post('employees/:id/documents')
   @RequirePermissions({resource:'hr',action:'manage'},{resource:'hr_sensitive',action:'read'})
   createDocument(@Param('id')id:string,@Body()b:any,@Req()r:any){return this.documents.create(id,b,this.userId(r))}
+
+  @Post('employees/:id/documents/upload')
+  @RequirePermissions({resource:'hr',action:'manage'},{resource:'hr_sensitive',action:'read'})
+  @UseInterceptors(FileInterceptor('file',{limits:{fileSize:10*1024*1024}}))
+  uploadDocument(@Param('id')id:string,@UploadedFile()file:any,@Body()b:any,@Req()r:any){
+    if(!file)throw new BadRequestException('Yüklenecek dosyayı seçin.');
+    const allowed=new Set(['application/pdf','image/jpeg','image/png','application/msword','application/vnd.openxmlformats-officedocument.wordprocessingml.document','application/vnd.ms-excel','application/vnd.openxmlformats-officedocument.spreadsheetml.sheet']);
+    if(!allowed.has(String(file.mimetype||'')))throw new BadRequestException('PDF, JPG, PNG, Word veya Excel dosyası yükleyebilirsiniz.');
+    return this.documents.create(id,{...b,fileName:file.originalname,mimeType:file.mimetype,fileSize:file.size,fileKey:null,restricted:String(b.restricted??'true')!=='false'},this.userId(r),file.buffer);
+  }
+
+  @Get('employees/:id/documents/:documentId/download')
+  @RequirePermissions({resource:'hr_sensitive',action:'read'})
+  async downloadDocument(@Param('id')id:string,@Param('documentId')documentId:string,@Res()res:Response){
+    const file=await this.documents.download(id,documentId);
+    res.setHeader('content-type',file.mimeType||'application/octet-stream');
+    res.setHeader('content-disposition',`attachment; filename*=UTF-8''${encodeURIComponent(file.fileName||'belge')}`);
+    res.setHeader('cache-control','private, no-store');
+    res.send(file.fileData);
+  }
 
   @Patch('employees/:id/documents/:documentId/verify')
   @RequirePermissions({resource:'hr',action:'manage'},{resource:'hr_sensitive',action:'read'})
