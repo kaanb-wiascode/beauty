@@ -50,29 +50,32 @@ export class CounterpartiesService {
                AND ($3::text IS NULL OR sp."branchId"=$3::text)
              GROUP BY s."customerId"
            )
-           SELECT c.id,
+           SELECT cp.id,
+                  cp.source_id AS "sourceId",
                   'CUSTOMER'::text AS kind,
-                  CONCAT_WS(' ',c."firstName",c."lastName") AS name,
-                  c.phone,
-                  c.email,
-                  NULL::text AS "taxNumber",
+                  cp.display_name AS name,
+                  cp.phone,
+                  cp.email,
+                  cp.tax_number AS "taxNumber",
                   GREATEST(
                     COALESCE(st.total_sales,0)
                     - (COALESCE(pt.gross_paid,0)-COALESCE(pt.refunded,0)),
                     0
                   )::numeric AS balance
-           FROM customers c
-           JOIN branches b ON b.id=c."branchId"
+           FROM counterparties cp
+           JOIN customers c ON c.id=cp.source_id
            LEFT JOIN sale_totals st ON st.customer_id=c.id
            LEFT JOIN payment_totals pt ON pt.customer_id=c.id
-           WHERE c."tenantId"=$1::text
-             AND b."companyId"=$2::text
+           WHERE cp.tenant_id=$1::text
+             AND cp.company_id=$2::text
+             AND cp.kind='CUSTOMER'
+             AND cp.status='ACTIVE'
              AND ($3::text IS NULL OR c."branchId"=$3::text)
              AND (
                $4::text IS NULL
-               OR CONCAT_WS(' ',c."firstName",c."lastName") ILIKE '%' || $4 || '%'
-               OR COALESCE(c.phone,'') ILIKE '%' || $4 || '%'
-               OR COALESCE(c.email,'') ILIKE '%' || $4 || '%'
+               OR cp.display_name ILIKE '%' || $4 || '%'
+               OR COALESCE(cp.phone,'') ILIKE '%' || $4 || '%'
+               OR COALESCE(cp.email,'') ILIKE '%' || $4 || '%'
              )`,
           tenantId,
           companyId,
@@ -97,23 +100,25 @@ export class CounterpartiesService {
                AND ($2::text IS NULL OR b.branch_id=$2::text)
              GROUP BY b.supplier_id
            )
-           SELECT s.id,
+           SELECT cp.id,
+                  cp.source_id AS "sourceId",
                   'SUPPLIER'::text AS kind,
-                  s.name,
-                  s.phone,
-                  s.email,
-                  s.tax_number AS "taxNumber",
+                  cp.display_name AS name,
+                  cp.phone,
+                  cp.email,
+                  cp.tax_number AS "taxNumber",
                   COALESCE(sb.balance,0)::numeric AS balance
-           FROM inventory_suppliers s
-           LEFT JOIN supplier_balances sb ON sb.supplier_id=s.id
-           WHERE s.company_id=$1::text
-             AND s.status='ACTIVE'
+           FROM counterparties cp
+           LEFT JOIN supplier_balances sb ON sb.supplier_id=cp.source_id
+           WHERE cp.company_id=$1::text
+             AND cp.kind='SUPPLIER'
+             AND cp.status='ACTIVE'
              AND (
                $3::text IS NULL
-               OR s.name ILIKE '%' || $3 || '%'
-               OR COALESCE(s.phone,'') ILIKE '%' || $3 || '%'
-               OR COALESCE(s.email,'') ILIKE '%' || $3 || '%'
-               OR COALESCE(s.tax_number,'') ILIKE '%' || $3 || '%'
+               OR cp.display_name ILIKE '%' || $3 || '%'
+               OR COALESCE(cp.phone,'') ILIKE '%' || $3 || '%'
+               OR COALESCE(cp.email,'') ILIKE '%' || $3 || '%'
+               OR COALESCE(cp.tax_number,'') ILIKE '%' || $3 || '%'
              )`,
           companyId,
           branchId,
@@ -125,6 +130,7 @@ export class CounterpartiesService {
         const balance = this.round(Number(item.balance ?? 0));
         return {
           id: item.id,
+          sourceId: item.sourceId,
           kind: item.kind as CounterpartyKind,
           name: item.name,
           phone: item.phone ?? null,
@@ -138,16 +144,36 @@ export class CounterpartiesService {
   }
 
   async detail(kind: CounterpartyKind, id: string) {
+    const { companyId } = {
+      companyId: this.tenantContext.getCompanyId(),
+    };
+    const rows = await this.prisma.$queryRawUnsafe<Array<{ sourceId: string }>>(
+      `SELECT source_id AS "sourceId"
+       FROM counterparties
+       WHERE id=$1::text
+         AND company_id=$2::text
+         AND kind=$3::text
+         AND status='ACTIVE'
+       LIMIT 1`,
+      id,
+      companyId,
+      kind,
+    );
+    const sourceId = rows[0]?.sourceId;
+    if (!sourceId) {
+      throw new NotFoundException('Cari hesap bulunamadı.');
+    }
+
     if (kind === 'CUSTOMER') {
       return {
         kind,
-        ...(await this.customerLedger.getCustomerLedger(id)),
+        ...(await this.customerLedger.getCustomerLedger(sourceId)),
       };
     }
     if (kind === 'SUPPLIER') {
       return {
         kind,
-        ...(await this.supplierLedger.supplierLedger(id)),
+        ...(await this.supplierLedger.supplierLedger(sourceId)),
       };
     }
     throw new NotFoundException('Cari hesap bulunamadı.');
