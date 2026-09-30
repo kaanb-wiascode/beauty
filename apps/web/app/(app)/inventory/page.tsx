@@ -177,7 +177,7 @@ export default function InventoryPage() {
       setProductTab("Genel");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Ürün Oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Ürün oluşturulamadı.") : "Ürün oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -202,7 +202,7 @@ export default function InventoryPage() {
       setAssetTab("Genel");
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Envanter Oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Envanter kaydı oluşturulamadı.") : "Envanter kaydı oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -237,7 +237,7 @@ export default function InventoryPage() {
       setQuickCreateTarget(null);
       setQuickCreateName("");
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Kategori Oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Kategori oluşturulamadı.") : "Kategori oluşturulamadı.");
     } finally {
       setSaving(false);
     }
@@ -274,7 +274,7 @@ export default function InventoryPage() {
       setQuickCreateTarget(null);
       setQuickCreateName("");
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Tedarikçi Oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Tedarikçi oluşturulamadı.") : "Tedarikçi oluşturulamadı.");
     } finally {
       setSaving(false);
     }
