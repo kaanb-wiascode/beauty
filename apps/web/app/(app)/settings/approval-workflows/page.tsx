@@ -25,7 +25,8 @@ type Workflow = {
 
 type RoleOption={id:string;name:string;slug:string};
 type PermissionOption={id:string;resource:string;action:string};
-type ApproverType="DIRECT_MANAGER"|"BRANCH_MANAGER"|"REGIONAL_MANAGER"|"DEPARTMENT_MANAGER"|"ORGANIZATION_MANAGER"|"ROLE"|"PERMISSION";
+type MembershipOption={id:string;status:string;user:{id:string;email:string;firstName:string;lastName:string};role:{id:string;name:string;slug:string}};
+type ApproverType="DIRECT_MANAGER"|"BRANCH_MANAGER"|"REGIONAL_MANAGER"|"DEPARTMENT_MANAGER"|"ORGANIZATION_MANAGER"|"ROLE"|"PERMISSION"|"USER";
 type TimeoutAction="ESCALATE"|"AUTO_APPROVE"|"AUTO_REJECT"|"NOTIFY";
 type StepDraft={key:string;name:string;approverType:ApproverType;approverValue:string;slaMinutes:string;timeoutAction:TimeoutAction;escalationApproverType:ApproverType;escalationApproverValue:string};
 
@@ -37,6 +38,7 @@ const APPROVER_OPTIONS=[
   {value:"ORGANIZATION_MANAGER",label:"Organizasyon Yöneticisi Seviyesi"},
   {value:"ROLE",label:"Belirli Kullanıcı Tipi / Rol"},
   {value:"PERMISSION",label:"Belirli Yetkiye Sahip Kullanıcı"},
+  {value:"USER",label:"Belirli Kullanıcı"},
 ] as const;
 const TIMEOUT_OPTIONS=[
   {value:"ESCALATE",label:"Üst Onaylayana Aktar"},
@@ -45,7 +47,8 @@ const TIMEOUT_OPTIONS=[
   {value:"AUTO_REJECT",label:"Otomatik Reddet"},
 ] as const;
 const newStep=(index:number):StepDraft=>({key:"step-"+index,name:index===1?"Yönetici Onayı":"Onay Adımı "+index,approverType:"DIRECT_MANAGER",approverValue:"",slaMinutes:"",timeoutAction:"ESCALATE",escalationApproverType:"BRANCH_MANAGER",escalationApproverValue:""});
-const needsValue=(type:ApproverType)=>["ROLE","PERMISSION","ORGANIZATION_MANAGER"].includes(type);
+const needsValue=(type:ApproverType)=>["ROLE","PERMISSION","ORGANIZATION_MANAGER","USER"].includes(type);
+const escalationIsValid=(step:StepDraft)=>step.timeoutAction!=="ESCALATE"||(!needsValue(step.escalationApproverType)||Boolean(step.escalationApproverValue.trim()));
 
 export default function ApprovalWorkflowsPage() {
   const { showToast } = useToast();
@@ -60,19 +63,22 @@ export default function ApprovalWorkflowsPage() {
   const [description, setDescription] = useState("");
   const [roles,setRoles]=useState<RoleOption[]>([]);
   const [permissions,setPermissions]=useState<PermissionOption[]>([]);
+  const [memberships,setMemberships]=useState<MembershipOption[]>([]);
   const [steps,setSteps]=useState<StepDraft[]>([newStep(1)]);
   const [publishId,setPublishId]=useState<string|null>(null);
 
   async function load() {
     try {
-      const [data,roleRows,permissionRows]=await Promise.all([
+      const [data,roleRows,permissionRows,membershipRows]=await Promise.all([
         api<Workflow[]>("/admin/approval-workflows"),
         api<RoleOption[]>("/roles"),
         api<PermissionOption[]>("/roles/permissions"),
+        api<MembershipOption[]>("/memberships"),
       ]);
       setItems(data);
       setRoles(Array.isArray(roleRows)?roleRows:[]);
       setPermissions(Array.isArray(permissionRows)?permissionRows:[]);
+      setMemberships(Array.isArray(membershipRows)?membershipRows.filter(item=>item.status==="ACTIVE"):[]);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "Onay akışları yüklenemedi.");
     } finally {
@@ -164,17 +170,19 @@ export default function ApprovalWorkflowsPage() {
               <Field label="Onaylayan" required><ValooSelect value={step.approverType} onChange={value=>updateStep(index,{approverType:value as ApproverType,approverValue:""})} searchable={false} options={[...APPROVER_OPTIONS]}/></Field>
               {step.approverType==="ROLE"?<Field label="Kullanıcı Tipi / Rol" required><ValooSelect value={step.approverValue} onChange={approverValue=>updateStep(index,{approverValue})} searchPlaceholder="Rol ara…" options={roles.filter(r=>r.slug!=="owner").map(r=>({value:r.slug,label:r.name}))}/></Field>:null}
               {step.approverType==="PERMISSION"?<Field label="Gerekli Yetki" required><ValooSelect value={step.approverValue} onChange={approverValue=>updateStep(index,{approverValue})} searchPlaceholder="Yetki ara…" options={permissions.map(p=>({value:p.resource+"."+p.action,label:userDomainLabel(p.resource)+" · "+userLabel(p.action)}))}/></Field>:null}
+              {step.approverType==="USER"?<Field label="Belirli Kullanıcı" required><ValooSelect value={step.approverValue} onChange={approverValue=>updateStep(index,{approverValue})} searchPlaceholder="Kullanıcı ara…" options={memberships.map(m=>({value:m.user.id,label:(m.user.firstName+" "+m.user.lastName).trim()+" · "+m.role.name+" · "+m.user.email}))}/></Field>:null}
               {step.approverType==="ORGANIZATION_MANAGER"?<Field label="Yönetici Seviyesi" required><ValooSelect value={step.approverValue||"1"} onChange={approverValue=>updateStep(index,{approverValue})} searchable={false} options={Array.from({length:5},(_,i)=>({value:String(i+1),label:(i+1)+". seviye yönetici"}))}/></Field>:null}
               <Field label="Karar Süresi (dakika)"><TextInput type="number" min={1} value={step.slaMinutes} onChange={e=>updateStep(index,{slaMinutes:e.target.value})} placeholder="Örn. 15"/></Field>
               <Field label="Süre Aşımı Davranışı"><ValooSelect value={step.timeoutAction} onChange={value=>updateStep(index,{timeoutAction:value as TimeoutAction})} searchable={false} options={[...TIMEOUT_OPTIONS]}/></Field>
               {step.timeoutAction==="ESCALATE"?<Field label="Süre Dolunca Aktarılacak Onaylayan"><ValooSelect value={step.escalationApproverType} onChange={value=>updateStep(index,{escalationApproverType:value as ApproverType,escalationApproverValue:""})} searchable={false} options={[...APPROVER_OPTIONS]}/></Field>:null}
               {step.timeoutAction==="ESCALATE"&&step.escalationApproverType==="ROLE"?<Field label="Escalation Rolü"><ValooSelect value={step.escalationApproverValue} onChange={escalationApproverValue=>updateStep(index,{escalationApproverValue})} options={roles.filter(r=>r.slug!=="owner").map(r=>({value:r.slug,label:r.name}))}/></Field>:null}
               {step.timeoutAction==="ESCALATE"&&step.escalationApproverType==="PERMISSION"?<Field label="Escalation Yetkisi"><ValooSelect value={step.escalationApproverValue} onChange={escalationApproverValue=>updateStep(index,{escalationApproverValue})} options={permissions.map(p=>({value:p.resource+"."+p.action,label:userDomainLabel(p.resource)+" · "+userLabel(p.action)}))}/></Field>:null}
+              {step.timeoutAction==="ESCALATE"&&step.escalationApproverType==="USER"?<Field label="Süre Aşımında Belirli Kullanıcı" required><ValooSelect value={step.escalationApproverValue} onChange={escalationApproverValue=>updateStep(index,{escalationApproverValue})} searchPlaceholder="Kullanıcı ara…" options={memberships.map(m=>({value:m.user.id,label:(m.user.firstName+" "+m.user.lastName).trim()+" · "+m.role.name+" · "+m.user.email}))}/></Field>:null}
               {step.timeoutAction==="ESCALATE"&&step.escalationApproverType==="ORGANIZATION_MANAGER"?<Field label="Escalation Yönetici Seviyesi"><ValooSelect value={step.escalationApproverValue||"1"} onChange={escalationApproverValue=>updateStep(index,{escalationApproverValue})} searchable={false} options={Array.from({length:5},(_,i)=>({value:String(i+1),label:(i+1)+". seviye yönetici"}))}/></Field>:null}
             </div>
           </section>)}
         </div>
-        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4"><Button variant="secondary" disabled={saving} onClick={()=>setOpen(false)}>Vazgeç</Button><Button disabled={saving||workflowKey.trim().length<2||name.trim().length<2||!steps.every(step=>step.name.trim()&&(!needsValue(step.approverType)||step.approverValue.trim()))} onClick={()=>void createWorkflow()}>{saving?"Oluşturuluyor…":"Taslak Oluştur"}</Button></div>
+        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4"><Button variant="secondary" disabled={saving} onClick={()=>setOpen(false)}>Vazgeç</Button><Button disabled={saving||workflowKey.trim().length<2||name.trim().length<2||!steps.every(step=>step.name.trim()&&(!needsValue(step.approverType)||step.approverValue.trim())&&escalationIsValid(step))} onClick={()=>void createWorkflow()}>{saving?"Oluşturuluyor…":"Taslak Oluştur"}</Button></div>
       </div>
     </Modal>
 
