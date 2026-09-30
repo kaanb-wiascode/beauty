@@ -114,6 +114,12 @@ export class PlatformControlPlaneController {
     return this.iamRead.getOverview();
   }
 
+  @Get('iam/candidates')
+  @RequirePlatformPermission('platform_iam', 'manage')
+  listIamCandidates(@Query('search') search?: string) {
+    return this.iamRead.listCandidateUsers(search);
+  }
+
   @Post('iam/admins')
   @RequirePlatformPermission('platform_iam', 'manage')
   provisionAdmin(
