@@ -150,23 +150,23 @@ export class Employee360Service {
         staffId,
       ),
       this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT COUNT(*)::int AS "totalAppointments",COUNT(*) FILTER(WHERE a.status='COMPLETED')::int AS "completedAppointments",COUNT(*) FILTER(WHERE a.status='CANCELLED')::int AS "cancelledAppointments",COALESCE(SUM(p.amount) FILTER(WHERE p.status='COMPLETED'),0) AS "collectedRevenue",MAX(a.start_at) AS "lastAppointmentAt"
+        `SELECT COUNT(*)::int AS "totalAppointments",COUNT(*) FILTER(WHERE a.status='COMPLETED')::int AS "completedAppointments",COUNT(*) FILTER(WHERE a.status='CANCELLED')::int AS "cancelledAppointments",COALESCE(SUM(p.amount) FILTER(WHERE p.status='COMPLETED'),0) AS "collectedRevenue",MAX(a."startAt") AS "lastAppointmentAt"
          FROM appointments a
-         LEFT JOIN payments p ON p.appointment_id=a.id AND p.tenant_id=a.tenant_id
-         WHERE a.tenant_id=$1 AND a.staff_id=$2
-           AND ($3::text[] IS NULL OR a.branch_id=ANY($3::text[]))`,
+         LEFT JOIN payments p ON p."appointmentId"=a.id AND p."tenantId"=a."tenantId"
+         WHERE a."tenantId"=$1 AND a."staffId"=$2
+           AND ($3::text[] IS NULL OR a."branchId"=ANY($3::text[]))`,
         tenantId,
         staffId,
         branchIds,
       ),
       this.prisma.$queryRawUnsafe<any[]>(
-        `SELECT a.id,a.start_at AS "startAt",a.end_at AS "endAt",a.status,s.name AS "serviceName",c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName"
+        `SELECT a.id,a."startAt" AS "startAt",a."endAt" AS "endAt",a.status,s.name AS "serviceName",c."firstName" AS "customerFirstName",c."lastName" AS "customerLastName"
          FROM appointments a
-         JOIN services s ON s.id=a.service_id
-         JOIN customers c ON c.id=a.customer_id
-         WHERE a.tenant_id=$1 AND a.staff_id=$2
-           AND ($3::text[] IS NULL OR a.branch_id=ANY($3::text[]))
-         ORDER BY a.start_at DESC LIMIT 10`,
+         JOIN services s ON s.id=a."serviceId"
+         JOIN customers c ON c.id=a."customerId"
+         WHERE a."tenantId"=$1 AND a."staffId"=$2
+           AND ($3::text[] IS NULL OR a."branchId"=ANY($3::text[]))
+         ORDER BY a."startAt" DESC LIMIT 10`,
         tenantId,
         staffId,
         branchIds,
