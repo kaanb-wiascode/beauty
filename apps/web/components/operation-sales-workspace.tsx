@@ -43,6 +43,7 @@ export default function SalesPage(){
  const canCancelSale=hasPermission("sales","cancel");
  const canCollect=hasPermission("sales","collect");
  const canRefund=hasPermission("sales","refund");
+ const canManageFinance=hasPermission("finance","manage");
  const[sales,setSales]=useState<Sale[]>([]),[customers,setCustomers]=useState<Customer[]>([]),[services,setServices]=useState<Service[]>([]),[packages,setPackages]=useState<Package[]>([]),[products,setProducts]=useState<Product[]>([]);
  const[loading,setLoading]=useState(true),[working,setWorking]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState("");
  const[createOpen,setCreateOpen]=useState(false),[selectedId,setSelectedId]=useState(""),[selected,setSelected]=useState<Sale|null>(null),[summary,setSummary]=useState<PaymentSummary|null>(null);
@@ -106,6 +107,10 @@ export default function SalesPage(){
    await api(`/sales/${selected.id}/payments/${payment.id}/refund`,{method:"POST",body:{reason:reason.trim()}});
    setNotice("Ödeme iadesi işlendi.");await load();await openDetail(selected.id);
  }catch(e){setError(e instanceof ApiError?e.message:"İade işlemi tamamlanamadı.")}finally{setWorking(false)}}
+ async function createInvoiceDraft(){if(!selected||selected.status!=="CONFIRMED")return;setWorking(true);setError("");try{
+   await api(`/invoices/from-sale/${selected.id}`,{method:"POST"});
+   setNotice("Fatura taslağı oluşturuldu. Finans > Faturalar ekranından görüntüleyebilirsiniz.");
+ }catch(e){setError(e instanceof ApiError?e.message:"Fatura taslağı oluşturulamadı.")}finally{setWorking(false)}}
  async function createInstallment(event:FormEvent){event.preventDefault();if(!selected)return;setWorking(true);setError("");try{
    await api(`/sales/${selected.id}/installment-plan`,{method:"POST",body:{installmentCount:Number(installmentCount),firstDueAt,intervalMonths:Number(intervalMonths)}});
    setNotice("Taksit planı oluşturuldu.");await openDetail(selected.id);
@@ -157,7 +162,7 @@ export default function SalesPage(){
    {working&&!selected?<Spinner label="Satış yükleniyor..."/>:selected?<div className="space-y-5">
     <section className="grid gap-3 sm:grid-cols-4"><Metric label="Toplam" value={money(selected.total)}/><Metric label="Ödenen" value={money(summary?.paid)}/><Metric label="Kalan" value={money(summary?.balance)}/><Metric label="Ödeme Durumu" value={statusLabels[summary?.paymentStatus??""]??summary?.paymentStatus??"—"}/></section>
     <section className="rounded-[16px] border border-[var(--line)]"><div className="border-b border-[var(--line)] px-4 py-3 text-sm font-semibold">Satış Kalemleri</div>{selected.items.map(item=><div key={item.id} className="grid grid-cols-[1fr_auto_auto] gap-3 border-b border-[var(--line)] px-4 py-3 last:border-0"><span>{item.description}</span><span className="text-[var(--muted)]">{item.quantity} adet</span><strong>{money(item.lineTotal)}</strong></div>)}</section>
-    <div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "SALE", id: selected.id, title: money(selected.total), subtitle: selected.customer ? `${selected.customer.firstName} ${selected.customer.lastName}` : "Satış", meta: [statusLabels[selected.status] ?? selected.status, `${selected.items?.length ?? 0} kalem`, date(selected.createdAt)], href: "/operations/sales" }} />{selected.status==="DRAFT"&&canConfirmSale?<Button onClick={()=>void saleAction("confirm")} disabled={working}>Satışı Onayla</Button>:null}{selected.status==="DRAFT"&&canCancelSale?<Button variant="danger" onClick={()=>void saleAction("cancel")} disabled={working}>İptal Et</Button>:null}</div>
+    <div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "SALE", id: selected.id, title: money(selected.total), subtitle: selected.customer ? `${selected.customer.firstName} ${selected.customer.lastName}` : "Satış", meta: [statusLabels[selected.status] ?? selected.status, `${selected.items?.length ?? 0} kalem`, date(selected.createdAt)], href: "/operations/sales" }} />{selected.status==="DRAFT"&&canConfirmSale?<Button onClick={()=>void saleAction("confirm")} disabled={working}>Satışı Onayla</Button>:null}{selected.status==="DRAFT"&&canCancelSale?<Button variant="danger" onClick={()=>void saleAction("cancel")} disabled={working}>İptal Et</Button>:null}{selected.status==="CONFIRMED"&&canManageFinance?<Button variant="secondary" onClick={()=>void createInvoiceDraft()} disabled={working}>{working?"İşleniyor...":"Fatura Taslağı Oluştur"}</Button>:null}</div>
 
     {selected.status==="CONFIRMED"&&Number(summary?.balance??0)>0&&canCollect?<form onSubmit={addPayment} className="grid gap-3 rounded-[16px] border border-[var(--line)] p-4 md:grid-cols-4">
       <Field label="Ödeme Tutarı"><TextInput type="number" min="0.01" step="0.01" value={paymentAmount} onChange={e=>setPaymentAmount(e.target.value)}/></Field>
