@@ -9,6 +9,7 @@ import { DataView, DataViewMeta } from "@/components/data-view";
 import { DatePicker } from "@/components/date-picker";
 import { FormActions, FormGrid, FormSection, FormSubmitButton } from "@/components/form-system";
 import { Alert, Button, EmptyState, Modal, Spinner } from "@/components/ui";
+import { ConfirmDialog } from "@/components/modal";
 import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { getActiveBranchId, hasPermission } from "@/lib/auth";
@@ -77,6 +78,7 @@ export default function HRSection() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
   const [canReadSensitive, setCanReadSensitive] = useState(false);
 
   useEffect(() => {
@@ -281,13 +283,17 @@ export default function HRSection() {
   }
 
   async function remove(id: string) {
-    if (!config || !id || !window.confirm("Bu kaydı kaldırmak istediğinize emin misiniz? Çalışan kayıtları kalıcı olarak silinmez, arşive alınır.")) return;
+    if (!config || !id) return;
+    setSaving(true);
     try {
       await api(`${config.get}/${id}`, { method: "DELETE" });
-      setNotice("Kayıt kaldırıldı.");
+      setPendingRemoveId(null);
+      setNotice(section === "employees" ? "Çalışan kaydı arşivlendi." : "Kayıt kaldırıldı.");
       await load();
     } catch (e) {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "Kayıt kaldırılamadı.") : "Silme işlemi tamamlanamadı.");
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -392,7 +398,7 @@ export default function HRSection() {
             <td className="p-4"><div className="flex justify-end gap-1.5">
               {section === "employees" && row.id ? <Link className="inline-flex h-8 items-center rounded-lg px-2.5 text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--accent-soft)]" href={`/hr/employees/${row.id}`}>360° Görünüm</Link> : null}
               {editable && row.id ? <Button size="sm" variant="ghost" onClick={() => startEdit(row)}>Düzenle</Button> : null}
-              {(section === "employees" || section === "leaves") && row.id ? <Button size="sm" variant="ghost" onClick={() => void remove(row.id!)}>Kaldır</Button> : null}
+              {(section === "employees" || section === "leaves") && row.id ? <Button size="sm" variant="danger" onClick={() => setPendingRemoveId(row.id!)}>Kaldır</Button> : null}
             </div></td>
           </tr>)}</tbody>
         </table></div> : <div className="p-8">
@@ -405,6 +411,17 @@ export default function HRSection() {
         </DataViewMeta>
       </DataView>
     )}
+
+    <ConfirmDialog
+      open={Boolean(pendingRemoveId)}
+      title={section === "employees" ? "Çalışan Kaydını Arşivle" : "Kaydı Kaldır"}
+      description={section === "employees"
+        ? "Çalışan kaydı kalıcı olarak silinmez; geçmiş bilgiler korunarak arşive alınır. Devam edilsin mi?"
+        : "Bu kayıt kaldırılacak. Devam edilsin mi?"}
+      loading={saving}
+      onClose={() => { if (!saving) setPendingRemoveId(null); }}
+      onConfirm={() => { if (pendingRemoveId) void remove(pendingRemoveId); }}
+    />
   </div>;
 }
 
