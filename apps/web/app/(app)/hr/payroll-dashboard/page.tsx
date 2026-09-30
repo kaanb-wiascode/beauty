@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type PayrollDashboard = {
@@ -54,9 +56,9 @@ const STATUS_LABELS: Record<string, string> = {
   DRAFT: "Taslak",
   SUBMITTED: "Onay Bekliyor",
   APPROVED: "Onaylandı",
-  POSTED: "Muhasebeleşti",
+  POSTED: "Tamamlandı",
   CANCELLED: "İptal",
-  REVERSED: "Ters Kayıt",
+  REVERSED: "Geri Alındı",
 };
 
 export default function PayrollDashboardPage() {
@@ -97,11 +99,9 @@ export default function PayrollDashboardPage() {
           <p className="text-[11px] font-semibold uppercase tracking-[.15em] text-[var(--muted-soft)]">
             İnsan Kaynakları / Bordro
           </p>
-          <h1 className="mt-1 text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">
-            Bordro Kontrol Merkezi
-          </h1>
+          <div className="mt-1 flex items-center gap-2"><h1 className="text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Bordro Kontrol Merkezi</h1><CardInfo help={getCardHelp("Bordro Kontrol Merkezi")} /></div>
           <p className="mt-1 max-w-2xl text-[13px] leading-6 text-[var(--muted)]">
-            Tahakkuk, ödeme, yükümlülük ve maliyet merkezi dağılımını tek ekrandan izleyin.
+            Çalışan ücretlerini, yapılan ödemeleri, kalan ödeme tutarlarını ve toplam işveren maliyetini tek ekrandan izleyin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -142,7 +142,7 @@ export default function PayrollDashboardPage() {
         <div className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6">
           <Alert>{error}</Alert>
           <p className="mt-4 max-w-2xl text-[12px] leading-5 text-[var(--muted)]">
-            Bordro verileri doğrulanamadığı için ücret, yükümlülük ve maliyet merkezi tutarları sıfır olarak gösterilmiyor.
+            Bordro bilgileri doğrulanamadığı için hatalı bir tutar göstermiyoruz. Lütfen tekrar deneyin.
           </p>
           <Button className="mt-4" onClick={() => void load()}>Tekrar Dene</Button>
         </div>
@@ -164,21 +164,21 @@ export default function PayrollDashboardPage() {
             <FinanceMetric
               label="Kalan Maaş Borcu"
               value={money(data?.settlements.salaryRemaining)}
-              detail="Personel borçları (335 hesap)"
+              detail="Henüz ödenmemiş çalışan maaşları"
               tone={Number(data?.settlements.salaryRemaining ?? 0) > 0 ? "warning" : "success"}
             />
             <FinanceMetric
               label="Vergi + SGK Kalan"
               value={money(totalTaxAndSocialRemaining)}
-              detail="Vergi ve SGK yükümlülük hesapları (360 / 361 / 369)"
+              detail="Henüz ödenmemiş vergi ve sosyal güvenlik tutarları"
               tone={totalTaxAndSocialRemaining > 0 ? "warning" : "success"}
             />
           </section>
 
           <div className="grid gap-5 xl:grid-cols-[1.1fr_.9fr]">
             <FinancePanel
-              title="Yükümlülük Durumu"
-              description="Bordro tahakkuku ile gerçekleşen ödeme karşılaştırması."
+              title="Ödeme Durumu"
+              description="Hesaplanan tutarlarla yapılan ödemeleri karşılaştırın."
             >
               <div className="space-y-4">
                 <Liability
@@ -209,8 +209,8 @@ export default function PayrollDashboardPage() {
             </FinancePanel>
 
             <FinancePanel
-              title="Maliyet Merkezi Dağılımı"
-              description="İşveren maliyetinin maliyet merkezi dağılımı."
+              title="Çalışan Maliyeti Dağılımı"
+              description="Toplam çalışan maliyetinin ekip veya maliyet alanlarına nasıl dağıldığını görün."
             >
               <div className="space-y-3">
                 {costCenters.map((costCenter) => {
@@ -239,7 +239,7 @@ export default function PayrollDashboardPage() {
                   );
                 })}
                 {!costCenters.length ? (
-                  <FinanceEmpty title="Maliyet merkezi dağılımı yok" description="Bu dönem için maliyet merkezi dağılımı bulunamadı." />
+                  <FinanceEmpty title="Çalışan maliyeti dağılımı bulunamadı" description="Bu dönem için çalışan maliyetinin dağılımı henüz oluşmamış." />
                 ) : null}
               </div>
             </FinancePanel>
@@ -247,8 +247,8 @@ export default function PayrollDashboardPage() {
 
           <DataView>
             <div className="border-b border-[var(--line)] px-5 py-4">
-              <h2 className="text-[15px] font-semibold text-[var(--ink)]">Son Bordro Dönemleri</h2>
-              <p className="mt-1 text-[10px] text-[var(--muted)]">Bordro sürecinin onay, muhasebeleştirme ve kapanış durumu.</p>
+              <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Son Bordro Dönemleri</h2><CardInfo help={getCardHelp("Son Bordro Dönemleri")} /></div>
+              <p className="mt-1 text-[10px] text-[var(--muted)]">Bordro dönemlerinin hazırlanma, onaylanma ve tamamlanma durumunu izleyin.</p>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full min-w-[920px] text-left text-[11px]">
@@ -258,8 +258,8 @@ export default function PayrollDashboardPage() {
                     <th className="p-4">Şube</th>
                     <th className="p-4">Durum</th>
                     <th className="p-4">Onay</th>
-                    <th className="p-4">Muhasebe</th>
-                    <th className="p-4">İptal / Ters</th>
+                    <th className="p-4">Tamamlanma</th>
+                    <th className="p-4">Son İşlem</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -276,7 +276,7 @@ export default function PayrollDashboardPage() {
                       <td className="p-4 text-[var(--muted)]">{dateTime(period.postedAt)}</td>
                       <td className="p-4 text-[var(--muted)]">
                         {period.reversedAt
-                          ? `Ters: ${dateTime(period.reversedAt)}`
+                          ? `Geri alındı: ${dateTime(period.reversedAt)}`
                           : period.cancelledAt
                             ? `İptal: ${dateTime(period.cancelledAt)}`
                             : "—"}
