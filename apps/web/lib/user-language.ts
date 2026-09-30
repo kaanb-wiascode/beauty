@@ -686,7 +686,9 @@ export function userText(value: string | null | undefined, fallback?: string): s
 
   const hasTurkishCharacters=/[çğıöşüÇĞİÖŞÜ]/.test(normalized);
   const commonTurkishWords=/\b(?:bir|bu|için|ile|ve|veya|değil|görev|işlem|kullanıcı|müşteri|ödeme|tahsilat|finans|şube|sağlık|uyarı|durum|kayıt|yönetim)\b/i.test(normalized);
-  if (!hasTurkishCharacters && !commonTurkishWords && ENGLISH_UI_PATTERN.test(normalized)) {
+  const wordCount=normalized.split(/\s+/).filter(Boolean).length;
+  const looksLikeEnglishSentence=wordCount>=3 || normalized.length>=32 || /[.!?:;]$/.test(normalized);
+  if (!hasTurkishCharacters && !commonTurkishWords && looksLikeEnglishSentence && ENGLISH_UI_PATTERN.test(normalized)) {
     return fallback ?? "Bilgi mevcut.";
   }
 
