@@ -28,14 +28,19 @@ export class PayrollPeriodService {
       branchId=activeBranchId;
     }
 
-    const rows=await this.prisma.$queryRawUnsafe<any[]>(
-      `INSERT INTO payroll_periods(tenant_id,company_id,branch_id,year,month,status)
-       VALUES($1::text,$2::text,$3::text,$4,$5,'DRAFT')
-       ON CONFLICT(tenant_id,year,month)
-       DO UPDATE SET company_id=COALESCE(payroll_periods.company_id,EXCLUDED.company_id),
-                     branch_id=CASE WHEN payroll_periods.branch_id IS NULL THEN EXCLUDED.branch_id ELSE payroll_periods.branch_id END,
-                     updated_at=NOW()
-       RETURNING *`,tenantId,companyId,branchId,year,month);
+    const rows=branchId
+      ?await this.prisma.$queryRawUnsafe<any[]>(
+        `INSERT INTO payroll_periods(tenant_id,company_id,branch_id,year,month,status)
+         VALUES($1::text,$2::text,$3::text,$4,$5,'DRAFT')
+         ON CONFLICT(tenant_id,company_id,branch_id,year,month) WHERE branch_id IS NOT NULL
+         DO UPDATE SET updated_at=NOW()
+         RETURNING *`,tenantId,companyId,branchId,year,month)
+      :await this.prisma.$queryRawUnsafe<any[]>(
+        `INSERT INTO payroll_periods(tenant_id,company_id,branch_id,year,month,status)
+         VALUES($1::text,$2::text,NULL,$3,$4,'DRAFT')
+         ON CONFLICT(tenant_id,company_id,year,month) WHERE branch_id IS NULL
+         DO UPDATE SET updated_at=NOW()
+         RETURNING *`,tenantId,companyId,year,month);
     const period=rows[0];
     if(period.company_id&&period.company_id!==companyId) throw new BadRequestException('Payroll period belongs to another company.');
     if(branchId&&period.branch_id!==branchId) throw new BadRequestException('Payroll period belongs to another branch.');
