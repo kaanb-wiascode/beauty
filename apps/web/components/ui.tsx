@@ -67,7 +67,7 @@ export function Spinner({
         aria-hidden="true"
         className="h-7 w-7 animate-spin rounded-full border-[1.5px] border-[rgba(28,25,23,0.12)] border-t-[var(--accent)]"
       />
-      <p className="text-sm">{label}</p>
+      <p className="text-sm">{userText(label)}</p>
     </div>
   );
 }
@@ -180,7 +180,7 @@ export function Field({
   return (
     <label className="block">
       <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">
-        {label}
+        {userText(label)}
         {required ? (
           <span className="ml-1 text-[var(--accent)]" aria-hidden="true">
             *
@@ -190,11 +190,11 @@ export function Field({
       {children}
       {error ? (
         <span className="mt-1.5 block text-[12px] leading-5 text-[var(--danger)]">
-          {error}
+          {typeof error === "string" ? userErrorMessage(error) : error}
         </span>
       ) : hint ? (
         <span className="mt-1.5 block text-[12px] leading-5 text-[var(--muted)]">
-          {hint}
+          {typeof hint === "string" ? userText(hint) : hint}
         </span>
       ) : null}
     </label>
@@ -439,7 +439,7 @@ export function Tooltip({
         role="tooltip"
         className="pointer-events-none absolute bottom-[calc(100%+8px)] left-1/2 z-20 -translate-x-1/2 whitespace-nowrap rounded-lg bg-[var(--ink)] px-2.5 py-1.5 text-[11px] font-medium text-white opacity-0 shadow-lg transition-opacity duration-[180ms] group-hover:opacity-100 group-focus-within:opacity-100"
       >
-        {label}
+        {userText(label)}
       </span>
     </span>
   );
