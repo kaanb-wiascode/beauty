@@ -124,6 +124,8 @@ export function EnterpriseDataPage({
   const [notice, setNotice] = useState("");
   const [activeForm, setActiveForm] = useState<EnterpriseMutationForm | null>(null);
   const [moreActionsOpen, setMoreActionsOpen] = useState(false);
+  const [remoteRefresh, setRemoteRefresh] = useState(0);
+  const [createContext, setCreateContext] = useState<{ parentFormTitle: string; fieldName: string; targetFormTitle: string } | null>(null);
   const [remoteOptions, setRemoteOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>(() =>
     Object.fromEntries(forms.map((form) => [form.title, Object.fromEntries(form.fields.map((field) => [field.name, field.defaultValue ?? ""]))])),
@@ -207,7 +209,7 @@ export function EnterpriseDataPage({
       if (active) setRemoteOptions((current) => ({ ...current, ...Object.fromEntries(entries) }));
     });
     return () => { active = false; };
-  }, [forms, formValues]);
+  }, [forms, formValues, remoteRefresh]);
 
 
   async function run(action: EnterpriseAction) {
@@ -262,9 +264,25 @@ export function EnterpriseDataPage({
     setError("");
     setNotice("");
     try {
-      await api(path, { method: form.method ?? "POST", body });
+      const result = await api<Record<string, unknown>>(path, { method: form.method ?? "POST", body });
       setNotice(form.success ?? `${form.title} tamamlandı.`);
-      setActiveForm(null);
+      if (createContext && createContext.targetFormTitle === form.title) {
+        const createdId = typeof result?.id === "string" ? result.id : "";
+        setFormValues((current) => ({
+          ...current,
+          [createContext.parentFormTitle]: {
+            ...(current[createContext.parentFormTitle] ?? {}),
+            ...(createdId ? { [createContext.fieldName]: createdId } : {}),
+          },
+        }));
+        const parent = forms.find((item) => item.title === createContext.parentFormTitle) ?? null;
+        setCreateContext(null);
+        setRemoteRefresh((value) => value + 1);
+        setActiveForm(parent);
+      } else {
+        setActiveForm(null);
+        setRemoteRefresh((value) => value + 1);
+      }
       setFormValues((current) => ({
         ...current,
         [form.title]: Object.fromEntries(form.fields.map((field) => [field.name, field.defaultValue ?? ""])),
@@ -308,7 +326,10 @@ export function EnterpriseDataPage({
     <Modal
       open={Boolean(activeForm)}
       onClose={() => {
-        if (!working) setActiveForm(null);
+        if (!working) {
+          setActiveForm(null);
+          setCreateContext(null);
+        }
       }}
       title={activeForm ? userText(activeForm.title) : ""}
       description={activeForm?.description ? userText(activeForm.description) : undefined}
@@ -327,10 +348,13 @@ export function EnterpriseDataPage({
                 searchPlaceholder={field.label + " ara…"}
                 emptyLabel="Kayıt bulunamadı."
                 createAction={field.createFormTitle ? {
-                  label: "+ Yeni ekle",
+                  label: userText(field.createFormTitle),
                   onClick: () => {
                     const target = forms.find((item) => item.title === field.createFormTitle);
-                    if (target) setActiveForm(target);
+                    if (target) {
+                      setCreateContext({ parentFormTitle: form.title, fieldName: field.name, targetFormTitle: target.title });
+                      setActiveForm(target);
+                    }
                   },
                 } : undefined}
               /> : field.type === "select" || field.type === "boolean" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
@@ -339,7 +363,7 @@ export function EnterpriseDataPage({
             </Field>)}
           </div>
           <div className="mt-6 flex justify-end gap-2 border-t border-[var(--line)] pt-4">
-            <Button variant="secondary" onClick={() => setActiveForm(null)} disabled={Boolean(working)}>Vazgeç</Button>
+            <Button variant="secondary" onClick={() => { setActiveForm(null); setCreateContext(null); }} disabled={Boolean(working)}>Vazgeç</Button>
             <Button onClick={() => void submitForm(form)} disabled={Boolean(working)}>{working === form.title ? "Kaydediliyor..." : "Kaydet"}</Button>
           </div>
         </div>;
