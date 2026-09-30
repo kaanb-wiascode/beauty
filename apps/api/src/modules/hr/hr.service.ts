@@ -620,7 +620,7 @@ export class HrService {
     const y = year ?? now.getFullYear();
     const m = month ?? now.getMonth() + 1;
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT sl.id,sl.staff_id AS "staffId",s."firstName",s."lastName",sl.year,sl.month,sl.employee_amount AS "employeeAmount",sl.employer_amount AS "employerAmount",sl.status,sl.due_date AS "dueDate",sl.paid_at AS "paidAt",sl.note FROM sgk_liabilities sl JOIN staff s ON s.id=sl.staff_id WHERE sl.tenant_id=$1 AND ($2::text[] IS NULL OR sl.branch_id=ANY($2::text[])) AND sl.year=$3 AND sl.month=$4 ORDER BY s."firstName"`,
+      `SELECT sl.id,sl.staff_id AS "staffId",s."firstName",s."lastName",sl.period_year AS "year",sl.period_month AS "month",sl.employee_amount AS "employeeAmount",sl.employer_amount AS "employerAmount",sl.status,sl.due_date AS "dueDate",sl.paid_at AS "paidAt",sl.note FROM sgk_records sl JOIN staff s ON s.id=sl.staff_id WHERE sl.tenant_id=$1 AND ($2::text[] IS NULL OR sl.branch_id=ANY($2::text[])) AND sl.period_year=$3 AND sl.period_month=$4 ORDER BY s."firstName"`,
       scope.tenantId,
       scope.branchIds,
       y,
@@ -636,7 +636,7 @@ export class HrService {
     }
     await this.assertStaffInBranch(scope.tenantId, body.staffId, branchId);
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO sgk_liabilities(id,tenant_id,branch_id,staff_id,year,month,employee_amount,employer_amount,status,due_date,note,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11,CURRENT_TIMESTAMP) ON CONFLICT(tenant_id,staff_id,year,month) DO UPDATE SET branch_id=EXCLUDED.branch_id,employee_amount=EXCLUDED.employee_amount,employer_amount=EXCLUDED.employer_amount,status=EXCLUDED.status,due_date=EXCLUDED.due_date,note=EXCLUDED.note,updated_at=CURRENT_TIMESTAMP`,
+      `INSERT INTO sgk_records(id,tenant_id,branch_id,staff_id,period_year,period_month,employee_amount,employer_amount,status,due_date,note,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11,CURRENT_TIMESTAMP) ON CONFLICT(tenant_id,staff_id,period_year,period_month) DO UPDATE SET branch_id=EXCLUDED.branch_id,employee_amount=EXCLUDED.employee_amount,employer_amount=EXCLUDED.employer_amount,status=EXCLUDED.status,due_date=EXCLUDED.due_date,note=EXCLUDED.note,updated_at=CURRENT_TIMESTAMP`,
       body.id ?? `sgk_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
       scope.tenantId,
       branchId,
