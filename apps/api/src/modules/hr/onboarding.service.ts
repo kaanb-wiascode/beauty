@@ -4,7 +4,7 @@ import { OrganizationScopeService } from '../../common/tenant/organization-scope
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { randomUUID } from 'node:crypto';
 
-const DEFAULT_TASKS = ['Employment contract','Identity document','Bank details','SGK registration','KVKK documents','Uniform assignment','User account creation','Branch assignment','Device training','Service training','Occupational safety training','Mentor assignment','30-day evaluation'];
+const DEFAULT_TASKS = ['İş sözleşmesini tamamla','Kimlik belgesini kontrol et','Banka bilgilerini kaydet','Sosyal güvenlik işe girişini tamamla','KVKK belgelerini tamamla','Kıyafet ve zimmet teslimini yap','Kullanıcı hesabını oluştur','Şube atamasını doğrula','Cihaz kullanım eğitimini tamamla','Hizmet eğitimini tamamla','İş sağlığı ve güvenliği eğitimini tamamla','Mentor veya sorumlu çalışanı belirle','30 günlük değerlendirmeyi planla'];
 
 @Injectable()
 export class OnboardingService {
@@ -80,7 +80,7 @@ export class OnboardingService {
   async create(staffId: string, body: any, userId: string) {
     const { staff, tenantId, branchIds } = await this.staff(staffId);
     const id = randomUUID();
-    const name = String(body.name ?? 'Employee Onboarding').trim();
+    const name = String(body.name ?? 'İşe Başlangıç Planı').trim();
     if (!name) throw new BadRequestException('name is required.');
     if (staff.status !== 'ACTIVE') throw new BadRequestException('Onboarding can only be started for active staff.');
     const startedAt = this.date(body.startedAt, 'startedAt');
