@@ -9,11 +9,13 @@ import { userLabel, userPermissionKeyLabel, userPermissionLabel } from "@/lib/us
 import {
   assignPlatformRole,
   getPlatformIamOverview,
+  listPlatformIamCandidates,
   grantPlatformRolePermission,
   provisionPlatformAdmin,
   removePlatformRole,
   revokePlatformRolePermission,
   setPlatformAdminStatus,
+  type PlatformIamCandidate,
   type PlatformIamOverview,
 } from "@/lib/platform-api";
 
@@ -26,6 +28,7 @@ export default function PlatformIamPage() {
   const [reason, setReason] = useState("");
   const [busy, setBusy] = useState("");
   const [newUserId, setNewUserId] = useState("");
+  const [candidates,setCandidates]=useState<PlatformIamCandidate[]>([]);
   const [newRole, setNewRole] = useState("PLATFORM_ADMIN");
   const [roleDrafts, setRoleDrafts] = useState<Record<string, string>>({});
   const [permissionDrafts, setPermissionDrafts] = useState<Record<string, string>>({});
@@ -33,12 +36,24 @@ export default function PlatformIamPage() {
   const load = async () => {
     const value = await getPlatformIamOverview();
     setData(value);
+    const subject=decodeSubject(getAccessToken());
+    const owner=value.admins.some((admin)=>admin.userId===subject&&admin.roles.some((role)=>role.slug==="PLATFORM_OWNER"));
+    setCandidates(owner?await listPlatformIamCandidates():[]);
   };
 
   useEffect(() => {
     let active = true;
     getPlatformIamOverview()
-      .then((value) => active && setData(value))
+      .then(async (value) => {
+        if (!active) return;
+        setData(value);
+        const subject=decodeSubject(getAccessToken());
+        const owner=value.admins.some((admin)=>admin.userId===subject&&admin.roles.some((role)=>role.slug==="PLATFORM_OWNER"));
+        if(owner){
+          const rows=await listPlatformIamCandidates().catch(()=>[]);
+          if(active)setCandidates(rows);
+        }
+      })
       .catch((reasonValue: unknown) => {
         if (!active) return;
         setError(reasonValue instanceof ApiError ? reasonValue.message : "Platform erişim yönetimi verileri yüklenemedi.");
@@ -112,7 +127,7 @@ export default function PlatformIamPage() {
       {canManage ? (
         <Panel title="Platform Yöneticisi Ekle" eyebrow="Yönetici Yetkilendirmesi">
           <div className="grid gap-3 lg:grid-cols-[1.5fr_1fr_auto] lg:items-end">
-            <Field label="Kullanıcı Kayıt Numarası"><input value={newUserId} onChange={(event) => setNewUserId(event.target.value)} placeholder="Kullanıcı kayıt numarasını girin" className="input" /></Field>
+            <Field label="Kullanıcı"><Select value={newUserId} onChange={(event) => setNewUserId(event.target.value)} className="input"><option value="">Kullanıcı seçin</option>{candidates.map((candidate)=><option key={candidate.userId} value={candidate.userId}>{[candidate.firstName,candidate.lastName].filter(Boolean).join(" ") || candidate.email} · {candidate.email}</option>)}</Select></Field>
             <Field label="Başlangıç rolü"><Select value={newRole} onChange={(event) => setNewRole(event.target.value)} className="input">{data.roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}</Select></Field>
             <button type="button" disabled={!reasonValid || !newUserId.trim() || busy === "provision"} onClick={() => run("provision", () => provisionPlatformAdmin({ userId: newUserId.trim(), roleSlug: newRole, reason: reason.trim() }), "Platform yöneticisi erişimi tanımlandı.")} className="action-button">{busy === "provision" ? "İşleniyor…" : "Yönetici Ekle"}</button>
           </div>
@@ -122,7 +137,7 @@ export default function PlatformIamPage() {
       <Panel title="Platform Yöneticileri" eyebrow="Atanmış Yöneticiler">
         <div className="overflow-x-auto">
           <table className="w-full min-w-[1120px] text-left text-xs">
-            <thead><tr className="border-b border-white/[.07] text-[9px] uppercase tracking-[.13em] text-white/30"><th className="py-3 pr-4">Yönetici</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3">Roller</th>{canManage ? <th className="px-4 py-3">Rol ata</th> : null}<th className="pl-4 py-3">Kullanıcı Kaydı</th>{canManage ? <th className="pl-4 py-3 text-right">Durum işlemi</th> : null}</tr></thead>
+            <thead><tr className="border-b border-white/[.07] text-[9px] uppercase tracking-[.13em] text-white/30"><th className="py-3 pr-4">Yönetici</th><th className="px-4 py-3">Durum</th><th className="px-4 py-3">Roller</th>{canManage ? <th className="px-4 py-3">Rol ata</th> : null}{canManage ? <th className="pl-4 py-3 text-right">Durum işlemi</th> : null}</tr></thead>
             <tbody className="divide-y divide-white/[.06]">
               {data.admins.map((admin) => (
                 <tr key={admin.userId}>
@@ -130,7 +145,6 @@ export default function PlatformIamPage() {
                   <td className="px-4 py-4"><Status value={admin.status} /></td>
                   <td className="px-4 py-4"><div className="flex flex-wrap gap-1.5">{admin.roles.map((role) => <span key={role.slug} className="inline-flex items-center gap-1 rounded-full border border-violet-400/20 bg-violet-400/[.08] px-2.5 py-1 text-[9px] font-semibold text-violet-200">{role.name}{canManage && admin.userId !== actorUserId ? <button type="button" disabled={!reasonValid || busy === `remove-${admin.userId}-${role.slug}`} onClick={() => run(`remove-${admin.userId}-${role.slug}`, () => removePlatformRole(admin.userId, role.slug, reason.trim()), `${role.name} rolü kaldırıldı.`)} className="ml-1 text-violet-200/50 hover:text-white">×</button> : null}</span>)}{!admin.roles.length ? <span className="text-white/30">Rol atanmamış</span> : null}</div></td>
                   {canManage ? <td className="px-4 py-4"><div className="flex gap-2"><Select value={roleDrafts[admin.userId] ?? data.roles[0]?.slug ?? ""} onChange={(event) => setRoleDrafts((current) => ({ ...current, [admin.userId]: event.target.value }))} className="input min-w-[160px]"><option value="">Rol seç</option>{data.roles.map((role) => <option key={role.slug} value={role.slug}>{role.name}</option>)}</Select><button type="button" disabled={!reasonValid || !roleDrafts[admin.userId] || busy === `assign-${admin.userId}`} onClick={() => run(`assign-${admin.userId}`, () => assignPlatformRole(admin.userId, { roleSlug: roleDrafts[admin.userId], reason: reason.trim() }), "Platform rolü atandı.")} className="small-button">Ata</button></div></td> : null}
-                  <td className="pl-4 py-4 text-[10px] text-white/35">Kayıtlı kullanıcı</td>
                   {canManage ? <td className="pl-4 py-4 text-right"><button type="button" disabled={!reasonValid || admin.userId === actorUserId || busy === `status-${admin.userId}`} onClick={() => run(`status-${admin.userId}`, () => setPlatformAdminStatus(admin.userId, { status: admin.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE", reason: reason.trim() }), admin.status === "ACTIVE" ? "Platform yöneticisi askıya alındı." : "Platform yöneticisi yeniden aktifleştirildi.")} className="small-button">{admin.status === "ACTIVE" ? "Askıya Al" : "Aktifleştir"}</button></td> : null}
                 </tr>
               ))}
