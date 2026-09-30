@@ -100,7 +100,57 @@ export class ApprovalRuntimeService {
     }
   }
 
-  private async assertApprover(actor:string,r:RequestRow,s:{approverPermission:string|null;approverRoleSlug:string|null},tx:Prisma.TransactionClient){const m=await tx.membership.findFirst({where:{userId:actor,tenantId:r.tenantId,companyId:r.companyId,status:'ACTIVE'},include:{role:true}});if(!m) throw new BadRequestException('Approver is not active in request company');let ok=!!(s.approverRoleSlug&&m.role.slug===s.approverRoleSlug);if(s.approverPermission){const [resource,action]=s.approverPermission.split('.');if(resource&&action&&(await tx.rolePermission.count({where:{roleId:m.roleId,permission:{resource,action}}}))>0) ok=true;}if(ok)return;const d=await tx.$queryRaw<Array<{id:string}>>`SELECT d.id FROM approval_delegations d JOIN memberships dm ON dm."userId"=d."delegatorUserId" JOIN roles dr ON dr.id=dm."roleId" WHERE d."tenantId"=${r.tenantId} AND d."companyId"=${r.companyId} AND d."delegateUserId"=${actor} AND d."revokedAt" IS NULL AND d."startsAt"<=CURRENT_TIMESTAMP AND d."endsAt">CURRENT_TIMESTAMP AND (d.domain IS NULL OR d.domain=${r.domain}) AND dm."tenantId"=d."tenantId" AND dm."companyId"=d."companyId" AND dm.status='ACTIVE' AND ((${s.approverRoleSlug??null}::text IS NOT NULL AND dr.slug=${s.approverRoleSlug??null}) OR EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp."permissionId" WHERE rp."roleId"=dm."roleId" AND (${s.approverPermission??null}::text IS NOT NULL) AND (p.resource||'.'||p.action)=${s.approverPermission??null})) LIMIT 1`;if(!d.length) throw new BadRequestException('User is not authorized for current approval step');}
+  private async assertApprover(actor:string,r:RequestRow,s:{approverPermission:string|null;approverRoleSlug:string|null;approverType:string|null;approverValue:string|null;slaMinutes:number|null;escalationApproverType:string|null;escalationApproverValue:string|null;timeoutAction:string;startedAt:Date|null;stepOrder:number},tx:Prisma.TransactionClient){
+    const requestDelegation=await tx.$queryRaw<Array<{delegateToUserId:string|null}>>`SELECT "delegateToUserId" FROM approval_request_actions WHERE "requestId"=${r.id} AND "stepOrder"=${s.stepOrder} AND action='DELEGATE' ORDER BY "createdAt" DESC LIMIT 1`;
+    if(requestDelegation[0]?.delegateToUserId===actor)return;
+    const type=s.approverType??(s.approverPermission?'PERMISSION':s.approverRoleSlug?'ROLE':null);
+    const value=s.approverValue??s.approverPermission??s.approverRoleSlug??null;
+    if(type&&await this.authorizedByType(actor,r,type,value,tx))return;
+    const overdue=s.slaMinutes!=null&&s.startedAt!=null&&Date.now()>=s.startedAt.getTime()+s.slaMinutes*60_000;
+    if(overdue&&s.timeoutAction==='ESCALATE'&&s.escalationApproverType&&await this.authorizedByType(actor,r,s.escalationApproverType,s.escalationApproverValue,tx))return;
+    if(await this.authorizedByGlobalDelegation(actor,r,s,tx))return;
+    throw new BadRequestException('Bu onay adımı için yetkiniz bulunmuyor.');
+  }
+
+  private async authorizedByType(actor:string,r:RequestRow,type:string,value:string|null,tx:Prisma.TransactionClient){
+    if(type==='USER')return value===actor;
+    const membership=await tx.membership.findFirst({where:{userId:actor,tenantId:r.tenantId,companyId:r.companyId,status:'ACTIVE'},include:{role:true,branchAccesses:true}});
+    if(!membership)return false;
+    if(type==='ROLE')return membership.role.id===value||membership.role.slug===value;
+    if(type==='PERMISSION'){const raw=String(value??'');const separator=raw.includes(':')?':':'.';const [resource,action]=raw.split(separator);if(!resource||!action)return false;return(await tx.rolePermission.count({where:{roleId:membership.roleId,permission:{resource,action}}}))>0;}
+    if(type==='MANAGER'||type==='DIRECT_MANAGER')return this.directManagerAuthorized(actor,r,tx);
+    if(type==='ORGANIZATION_MANAGER')return this.organizationManagerAuthorized(actor,r,value,tx);
+    if(type==='BRANCH_MANAGER')return membership.role.slug==='branch-manager'&&this.membershipCoversBranch(membership,r.branchId);
+    if(type==='REGIONAL_MANAGER')return membership.role.slug==='regional-manager'&&this.membershipCoversBranch(membership,r.branchId);
+    if(type==='DEPARTMENT_MANAGER')return membership.role.slug==='department-manager'&&await this.sameDepartmentAsRequester(actor,r,tx);
+    return false;
+  }
+
+  private membershipCoversBranch(m:{role:{scope:string};branchAccesses:Array<{branchId:string}>},branchId:string|null){if(!branchId)return m.role.scope!=='BRANCH';if(m.role.scope==='CENTRAL')return true;return m.branchAccesses.some(x=>x.branchId===branchId);}
+
+  private async directManagerAuthorized(actor:string,r:RequestRow,tx:Prisma.TransactionClient){
+    const rows=await tx.$queryRaw<Array<{ok:number}>>`SELECT 1 AS ok FROM hr_employee_user_links requester JOIN hr_employee_assignments a ON a.staff_id=requester.staff_id AND a.tenant_id=requester.tenant_id AND a.effective_from<=CURRENT_DATE AND(a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE) JOIN hr_employee_user_links manager ON manager.staff_id=a.manager_staff_id AND manager.tenant_id=a.tenant_id AND manager.active=TRUE WHERE requester.user_id=${r.requestedByUserId} AND requester.tenant_id=${r.tenantId} AND requester.active=TRUE AND manager.user_id=${actor} LIMIT 1`;
+    return rows.length>0;
+  }
+
+  private async organizationManagerAuthorized(actor:string,r:RequestRow,value:string|null,tx:Prisma.TransactionClient){
+    const level=Number(value);if(!Number.isInteger(level)||level<1||level>10)return false;
+    const rows=await tx.$queryRaw<Array<{ok:number}>>`WITH RECURSIVE manager_chain AS (SELECT a.manager_staff_id AS staff_id,1 AS depth FROM hr_employee_user_links requester JOIN hr_employee_assignments a ON a.staff_id=requester.staff_id AND a.tenant_id=requester.tenant_id AND a.effective_from<=CURRENT_DATE AND(a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE) WHERE requester.user_id=${r.requestedByUserId} AND requester.tenant_id=${r.tenantId} AND requester.active=TRUE UNION ALL SELECT next_assignment.manager_staff_id,manager_chain.depth+1 FROM manager_chain JOIN hr_employee_assignments next_assignment ON next_assignment.staff_id=manager_chain.staff_id AND next_assignment.tenant_id=${r.tenantId} AND next_assignment.effective_from<=CURRENT_DATE AND(next_assignment.effective_to IS NULL OR next_assignment.effective_to>=CURRENT_DATE) WHERE manager_chain.staff_id IS NOT NULL AND manager_chain.depth<${level}) SELECT 1 AS ok FROM manager_chain JOIN hr_employee_user_links manager ON manager.staff_id=manager_chain.staff_id AND manager.tenant_id=${r.tenantId} AND manager.active=TRUE WHERE manager_chain.depth=${level} AND manager.user_id=${actor} LIMIT 1`;
+    return rows.length>0;
+  }
+
+  private async sameDepartmentAsRequester(actor:string,r:RequestRow,tx:Prisma.TransactionClient){
+    const rows=await tx.$queryRaw<Array<{ok:number}>>`SELECT 1 AS ok FROM hr_employee_user_links requester_link JOIN hr_employee_assignments requester_assignment ON requester_assignment.staff_id=requester_link.staff_id AND requester_assignment.tenant_id=requester_link.tenant_id AND requester_assignment.effective_from<=CURRENT_DATE AND(requester_assignment.effective_to IS NULL OR requester_assignment.effective_to>=CURRENT_DATE) JOIN hr_employee_user_links actor_link ON actor_link.user_id=${actor} AND actor_link.tenant_id=requester_link.tenant_id AND actor_link.active=TRUE JOIN hr_employee_assignments actor_assignment ON actor_assignment.staff_id=actor_link.staff_id AND actor_assignment.tenant_id=actor_link.tenant_id AND actor_assignment.effective_from<=CURRENT_DATE AND(actor_assignment.effective_to IS NULL OR actor_assignment.effective_to>=CURRENT_DATE) WHERE requester_link.user_id=${r.requestedByUserId} AND requester_link.tenant_id=${r.tenantId} AND requester_link.active=TRUE AND requester_assignment.department_id IS NOT NULL AND actor_assignment.department_id=requester_assignment.department_id LIMIT 1`;
+    return rows.length>0;
+  }
+
+  private async authorizedByGlobalDelegation(actor:string,r:RequestRow,s:{approverPermission:string|null;approverRoleSlug:string|null;approverType:string|null;approverValue:string|null},tx:Prisma.TransactionClient){
+    const roleValue=s.approverType==='ROLE'?s.approverValue:s.approverRoleSlug;
+    const permissionValue=s.approverType==='PERMISSION'?s.approverValue:s.approverPermission;
+    if(!roleValue&&!permissionValue)return false;
+    const rows=await tx.$queryRaw<Array<{id:string}>>`SELECT d.id FROM approval_delegations d JOIN memberships dm ON dm."userId"=d."delegatorUserId" JOIN roles dr ON dr.id=dm."roleId" WHERE d."tenantId"=${r.tenantId} AND d."companyId"=${r.companyId} AND d."delegateUserId"=${actor} AND d."revokedAt" IS NULL AND d."startsAt"<=CURRENT_TIMESTAMP AND d."endsAt">CURRENT_TIMESTAMP AND(d.domain IS NULL OR d.domain=${r.domain}) AND dm."tenantId"=d."tenantId" AND dm."companyId"=d."companyId" AND dm.status='ACTIVE' AND((${roleValue??null}::text IS NOT NULL AND(dr.slug=${roleValue??null} OR dr.id=${roleValue??null})) OR EXISTS(SELECT 1 FROM role_permissions rp JOIN permissions p ON p.id=rp."permissionId" WHERE rp."roleId"=dm."roleId" AND(${permissionValue??null}::text IS NOT NULL) AND(p.resource||'.'||p.action)=${permissionValue??null})) LIMIT 1`;
+    return rows.length>0;
+  }
   private normalizeStep(s:StepDef):StepDef{let type=String(s.approverType??'').toUpperCase()||undefined;let value=s.approverValue??null;if(!type&&s.approverPermission){type='PERMISSION';value=s.approverPermission}else if(!type&&s.approverRoleSlug){type='ROLE';value=s.approverRoleSlug}if(!type)throw new BadRequestException(`${s.name} adımında onaylayan tipi eksik.`);const noValue=['MANAGER','DIRECT_MANAGER','BRANCH_MANAGER','REGIONAL_MANAGER','DEPARTMENT_MANAGER'];if(!noValue.includes(type)&&!String(value??'').trim())throw new BadRequestException(`${s.name} adımında onaylayan değeri eksik.`);return{...s,approverType:type,approverValue:String(value??'').trim()||null,slaMinutes:s.slaMinutes==null?null:Math.max(1,Math.trunc(Number(s.slaMinutes))),escalationApproverType:s.escalationApproverType?String(s.escalationApproverType).toUpperCase():null,escalationApproverValue:String(s.escalationApproverValue??'').trim()||null,timeoutAction:String(s.timeoutAction??'ESCALATE').toUpperCase()}}
   private steps(v:unknown):StepDef[]{return Array.isArray(v)?v.filter((x):x is StepDef=>!!x&&typeof x==='object'&&typeof (x as StepDef).key==='string'&&typeof (x as StepDef).name==='string'):[]}
   private async actor(){const c=this.tenantContext.getContext();const m=await this.prisma.membership.findFirst({where:{id:c.membershipId,tenantId:c.tenantId,companyId:c.companyId,status:'ACTIVE'},select:{userId:true}});if(!m)throw new BadRequestException('Active membership is required');return m.userId;}
