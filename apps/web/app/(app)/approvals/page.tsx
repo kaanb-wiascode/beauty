@@ -32,6 +32,23 @@ type MembershipOption={
   user:{id:string;email:string;firstName:string;lastName:string};
   role:{id:string;name:string;slug:string};
 };
+type CorrectionItem={
+  id:string;
+  workflowKey:string;
+  workflowVersion:number;
+  domain:string;
+  entityType:string;
+  entityId:string;
+  status:string;
+  currentStepOrder:number;
+  currentStepName?:string|null;
+  currentStepStatus?:string|null;
+  reason?:string|null;
+  correctionReason?:string|null;
+  correctionRequestedAt?:string|null;
+  createdAt:string;
+  updatedAt:string;
+};
 type ActionKind="APPROVE"|"REJECT"|"RETURN"|"DELEGATE";
 
 const ACTION_LABELS:Record<ActionKind,string>={
@@ -58,6 +75,7 @@ function remainingLabel(dueAt?:string|null,overdue?:boolean){
 export default function ApprovalQueuePage(){
   const[items,setItems]=useState<ApprovalItem[]>([]);
   const[memberships,setMemberships]=useState<MembershipOption[]>([]);
+  const[corrections,setCorrections]=useState<CorrectionItem[]>([]);
   const[loading,setLoading]=useState(true);
   const[busy,setBusy]=useState(false);
   const[error,setError]=useState("");
@@ -66,13 +84,19 @@ export default function ApprovalQueuePage(){
   const[actionKind,setActionKind]=useState<ActionKind|null>(null);
   const[comment,setComment]=useState("");
   const[delegateToUserId,setDelegateToUserId]=useState("");
+  const[correctionItem,setCorrectionItem]=useState<CorrectionItem|null>(null);
+  const[resubmitComment,setResubmitComment]=useState("");
   const[,setClock]=useState(0);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
     try{
-      const inbox=await api<ApprovalItem[]>("/admin/approval-workflows/runtime/inbox?status=PENDING");
+      const [inbox,correctionRows]=await Promise.all([
+        api<ApprovalItem[]>("/admin/approval-workflows/runtime/inbox?status=PENDING"),
+        api<CorrectionItem[]>("/admin/approval-workflows/runtime/my-requests?status=RETURNED"),
+      ]);
       setItems(Array.isArray(inbox)?inbox:[]);
+      setCorrections(Array.isArray(correctionRows)?correctionRows:[]);
       try{
         const memberRows=await api<MembershipOption[]>("/memberships");
         setMemberships(Array.isArray(memberRows)?memberRows.filter(row=>row.status==="ACTIVE"):[]);
@@ -105,6 +129,40 @@ export default function ApprovalQueuePage(){
   function closeAction(){
     if(busy)return;
     setSelected(null);setActionKind(null);setComment("");setDelegateToUserId("");
+  }
+
+  function openResubmit(item:CorrectionItem){
+    setCorrectionItem(item);
+    setResubmitComment("");
+    setError("");
+  }
+
+  function closeResubmit(){
+    if(busy)return;
+    setCorrectionItem(null);
+    setResubmitComment("");
+  }
+
+  async function resubmitCorrection(){
+    if(!correctionItem)return;
+    if(!resubmitComment.trim()){
+      setError("Yeniden gönderme açıklaması zorunludur.");
+      return;
+    }
+    setBusy(true);setError("");setNotice("");
+    try{
+      await api("/admin/approval-workflows/runtime/requests/"+correctionItem.id+"/resubmit",{
+        method:"POST",
+        body:{comment:resubmitComment.trim()},
+      });
+      setNotice("Düzeltme tamamlandı ve talep yeniden onaya gönderildi.");
+      closeResubmit();
+      await load();
+    }catch(e){
+      setError(e instanceof ApiError?userErrorMessage(e.message,"Talep yeniden gönderilemedi."):"Talep yeniden gönderilemedi.");
+    }finally{
+      setBusy(false);
+    }
   }
 
   async function submitAction(){
@@ -155,10 +213,11 @@ export default function ApprovalQueuePage(){
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
 
-    <section className="grid gap-3 sm:grid-cols-3">
+    <section className="grid gap-3 sm:grid-cols-4">
       <Metric label="Bekleyen Onay" value={items.length}/>
       <Metric label="Süresi Aşan" value={overdueCount}/>
       <Metric label="Süre İçinde" value={Math.max(0,items.length-overdueCount)}/>
+      <Metric label="Düzeltme Bekleyen" value={corrections.length}/>
     </section>
 
     {items.length?<section className="space-y-3">
@@ -194,6 +253,62 @@ export default function ApprovalQueuePage(){
         </article>;
       })}
     </section>:<EmptyState title="Bekleyen onay yok" description="Şu anda size atanmış bir onay görevi bulunmuyor."/>}
+
+    <section className="space-y-3">
+      <div>
+        <h2 className="text-base font-semibold text-[var(--ink)]">Düzeltme Gereken Taleplerim</h2>
+        <p className="mt-1 text-xs text-[var(--muted)]">Onaylayan tarafından düzeltmeye gönderilen kendi taleplerinizi buradan yeniden onaya iletebilirsiniz.</p>
+      </div>
+      {corrections.length?corrections.map(item=><article key={item.id} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <div className="min-w-0 space-y-3">
+            <div>
+              <div className="flex flex-wrap items-center gap-2">
+                <h3 className="text-sm font-semibold text-[var(--ink)]">{item.currentStepName||"Düzeltme Bekleyen Talep"}</h3>
+                <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{userDomainLabel(item.domain)}</span>
+                <span className="rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[10px] font-semibold text-[var(--muted)]">Düzeltme Bekliyor</span>
+              </div>
+              <p className="mt-1 text-xs text-[var(--muted)]">{userLabel(item.entityType)} · {item.entityId}</p>
+            </div>
+            {item.correctionReason?<div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)]/55 px-3 py-2 text-xs text-[var(--muted)]"><strong className="text-[var(--ink)]">Düzeltme nedeni:</strong> {item.correctionReason}</div>:null}
+            {item.reason?<div className="text-[11px] text-[var(--muted)]"><strong className="text-[var(--ink)]">İlk talep nedeni:</strong> {item.reason}</div>:null}
+            <div className="flex flex-wrap gap-x-5 gap-y-2 text-[11px] text-[var(--muted)]">
+              <span>Adım {item.currentStepOrder}</span>
+              {item.correctionRequestedAt?<span>Düzeltme talebi: {new Date(item.correctionRequestedAt).toLocaleString("tr-TR")}</span>:null}
+              <span>Son güncelleme: {new Date(item.updatedAt).toLocaleString("tr-TR")}</span>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" onClick={()=>openResubmit(item)}>Düzelttim, Yeniden Gönder</Button>
+          </div>
+        </div>
+      </article>):<EmptyState title="Düzeltme gereken talep yok" description="Şu anda size geri gönderilmiş bir talep bulunmuyor."/>}
+    </section>
+
+    <Modal
+      open={Boolean(correctionItem)}
+      onClose={closeResubmit}
+      title="Düzeltmeyi Yeniden Gönder"
+      description={correctionItem?((correctionItem.currentStepName||"Onay talebi")+" yeniden aynı onay adımına gönderilecek."):undefined}
+    >
+      <div className="space-y-4">
+        {correctionItem?.correctionReason?<div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)]/55 px-3 py-2 text-xs text-[var(--muted)]"><strong className="text-[var(--ink)]">İstenen düzeltme:</strong> {correctionItem.correctionReason}</div>:null}
+        <Field label="Yapılan Düzeltme Açıklaması" required>
+          <TextArea
+            rows={4}
+            value={resubmitComment}
+            onChange={event=>setResubmitComment(event.target.value)}
+            placeholder="Hangi bilgiyi nasıl düzelttiğinizi açıklayın…"
+          />
+        </Field>
+        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+          <Button variant="secondary" disabled={busy} onClick={closeResubmit}>Vazgeç</Button>
+          <Button disabled={busy||!resubmitComment.trim()} onClick={()=>void resubmitCorrection()}>
+            {busy?"Gönderiliyor…":"Yeniden Onaya Gönder"}
+          </Button>
+        </div>
+      </div>
+    </Modal>
 
     <Modal
       open={Boolean(selected&&actionKind)}
