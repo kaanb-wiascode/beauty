@@ -578,6 +578,33 @@ export class CorporateCommunicationsService {
     return { id, status: 'DISCONNECTED' };
   }
 
+  async routingOptions() {
+    const { tenantId, companyId, branchId } = this.context();
+    const [branches, users] = await Promise.all([
+      this.prisma.branch.findMany({
+        where: {
+          companyId,
+          status: 'ACTIVE',
+          ...(branchId ? { id: branchId } : {}),
+        },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      }),
+      this.prisma.$queryRawUnsafe<Array<{ id: string; firstName: string; lastName: string; email: string }>>(
+        `SELECT DISTINCT u.id,u."firstName",u."lastName",u.email
+         FROM users u
+         JOIN memberships m ON m."userId"=u.id
+         WHERE m."tenantId"=$1::text AND m."companyId"=$2::text
+           AND m.status='ACTIVE'
+         ORDER BY u."firstName",u."lastName",u.email
+         LIMIT 500`,
+        tenantId,
+        companyId,
+      ),
+    ]);
+    return { branches, users };
+  }
+
   async listRoutingRules() {
     const { tenantId, companyId } = this.context();
     return this.prisma.$queryRawUnsafe<Row[]>(
