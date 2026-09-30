@@ -169,6 +169,37 @@ const HELP_BY_TITLE: Record<string, Omit<CardHelpContent, "title">> = {
     interpretation: "Dönem kayıtlarının hazırlanma ve tamamlanma durumunu kontrol etmek için kullanılır.",
     source: "Sosyal güvenlik kayıtları",
   },
+  "İzin Yönetimi": {
+    description: "İzin türlerini, yıllık hak kurallarını ve çalışan izin taleplerini tek merkezden yönetmenizi sağlar.",
+    interpretation: "İzin haklarının doğru uygulanması ve taleplerin zamanında sonuçlandırılması için kullanılır.",
+    source: "İzin türleri, izin kuralları ve izin talepleri",
+  },
+  "Puantaj Kontrolü": {
+    description: "Vardiya planı ile gerçekleşen giriş-çıkış kayıtlarını karşılaştırarak kontrol gerektiren durumları gösterir.",
+    calculation: "Planlanan vardiya ile giriş, çıkış ve devamsızlık kayıtları karşılaştırılır.",
+    interpretation: "Geç kalma, erken çıkış, eksik giriş-çıkış veya devamsızlık görülen kayıtlar öncelikli kontrol edilmelidir.",
+    source: "Vardiya ve puantaj kayıtları",
+  },
+  "Haftalık Vardiya Planı": {
+    description: "Haftalık vardiyaları ve çalışan atamalarını gün bazında planlamanızı sağlar.",
+    interpretation: "İzinli veya çakışan vardiyası olan çalışanlar uygun listede gösterilmez; böylece hatalı atamaların önüne geçilir.",
+    source: "Vardiya, izin ve çalışan kayıtları",
+  },
+  "Yeni Vardiya": {
+    description: "Seçili şube için yeni bir çalışma vardiyası oluşturmanızı sağlar.",
+    interpretation: "Başlangıç, bitiş ve görev ihtiyacını belirleyerek vardiyayı oluşturabilir, ardından uygun çalışanları atayabilirsiniz.",
+    source: "Vardiya planlama kayıtları",
+  },
+  "Bordro Kontrol Merkezi": {
+    description: "Çalışan ücretleri, yapılan ödemeler ve kalan yükümlülükleri dönem bazında birlikte gösterir.",
+    interpretation: "Bordro döneminin ödeme ve tamamlanma durumunu tek ekrandan kontrol etmek için kullanılır.",
+    source: "Bordro ve ödeme kayıtları",
+  },
+  "Son Bordro Dönemleri": {
+    description: "Son bordro dönemlerinin hazırlanma, onaylanma, tamamlanma veya geri alınma durumunu gösterir.",
+    interpretation: "Hangi dönemin hangi aşamada olduğunu hızlıca görmek için kullanılır.",
+    source: "Bordro dönem kayıtları",
+  },
 };
 
 function sentenceCase(value: string) {
