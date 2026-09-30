@@ -14,18 +14,21 @@ export default function HROrganizationPage() {
           description: "Şirket içindeki ana çalışma alanlarını görüntüleyin.",
           path: "/hr/organization",
           dataKey: "departments",
+          emptyActionFormTitle: "Yeni Departman Ekle",
         },
         {
           title: "Ekipler",
           description: "Departmanlara bağlı çalışma ekiplerini görüntüleyin.",
           path: "/hr/organization",
           dataKey: "teams",
+          emptyActionFormTitle: "Yeni Ekip Ekle",
         },
         {
           title: "Pozisyonlar",
           description: "Görev ve sorumluluk yapılarını görüntüleyin.",
           path: "/hr/organization",
           dataKey: "positions",
+          emptyActionFormTitle: "Yeni Pozisyon Ekle",
         },
       ]}
       forms={[
@@ -59,6 +62,7 @@ export default function HROrganizationPage() {
               type: "remote-select",
               optionsPath: "/hr/organization",
               optionLabelKeys: ["name"],
+              createFormTitle: "Yeni Departman Ekle",
               required: true,
             },
             { name: "code", label: "Kısa Kod", placeholder: "Örn. SAT-01", required: true },
@@ -86,6 +90,7 @@ export default function HROrganizationPage() {
               type: "remote-select",
               optionsPath: "/hr/organization",
               optionLabelKeys: ["name"],
+              createFormTitle: "Yeni Departman Ekle",
             },
             { name: "code", label: "Kısa Kod", placeholder: "Örn. SAT-MDR", required: true },
             { name: "name", label: "Pozisyon Adı", placeholder: "Örn. Satış Müdürü", required: true },
