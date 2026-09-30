@@ -38,6 +38,42 @@ export class HrOrganizationService {
     return normalized;
   }
 
+  async branches() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.branch.findMany({
+      where: { companyId, company: { tenantId }, status: 'ACTIVE' },
+      select: { id: true, name: true, code: true },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  async departments() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,code,name,status FROM hr_departments WHERE tenant_id=$1 AND company_id=$2 ORDER BY name`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async teams() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT t.id,t.code,t.name,t.status,t.department_id AS "departmentId" FROM hr_teams t JOIN hr_departments d ON d.id=t.department_id WHERE t.tenant_id=$1 AND d.company_id=$2 ORDER BY t.name`,
+      tenantId,
+      companyId,
+    );
+  }
+
+  async positions() {
+    const { tenantId, companyId } = this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,code,name,status,department_id AS "departmentId",parent_position_id AS "parentPositionId" FROM hr_positions WHERE tenant_id=$1 AND company_id=$2 ORDER BY name`,
+      tenantId,
+      companyId,
+    );
+  }
+
   async structure() {
     const { tenantId, companyId } = this.scope();
     const [branches, departments, teams, positions] = await Promise.all([
