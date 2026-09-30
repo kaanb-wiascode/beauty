@@ -3,7 +3,7 @@
 import { DatePicker } from "@/components/date-picker";
 import { useCallback, useEffect, useState } from "react";
 
-import { ApiError } from "@/lib/api";
+import { api, ApiError } from "@/lib/api";
 import { userErrorMessage } from "@/lib/user-language";
 import {
   addPlatformCustomerNote,
@@ -20,8 +20,12 @@ const dateTime = new Intl.DateTimeFormat("tr-TR", {
   minute: "2-digit",
 });
 
+type PlatformAdmin={userId:string;email:string;firstName:string;lastName:string;status:string};
+type IamOverview={admins:PlatformAdmin[]};
+
 export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
   const [data, setData] = useState<PlatformCustomerContext | null>(null);
+  const [admins,setAdmins]=useState<PlatformAdmin[]>([]);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState("");
@@ -32,8 +36,12 @@ export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
   const [renewalAt, setRenewalAt] = useState("");
 
   const refresh = useCallback(async () => {
-    const value = await getPlatformCustomerContext(tenantId);
+    const [value,iam]=await Promise.all([
+      getPlatformCustomerContext(tenantId),
+      api<IamOverview>("/platform/iam"),
+    ]);
     setData(value);
+    setAdmins(iam.admins.filter((item)=>item.status==="ACTIVE"));
     setLegalName(value.account?.legalName ?? "");
     setAccountOwnerUserId(value.account?.accountOwnerUserId ?? "");
     setCustomerSuccessOwnerUserId(value.account?.customerSuccessOwnerUserId ?? "");
@@ -91,8 +99,8 @@ export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
         <div className="space-y-3 rounded-2xl border border-white/[.07] bg-black/15 p-4">
           <Field label="Resmî müşteri adı" value={legalName} onChange={setLegalName} />
-          <Field label="Hesap sorumlusu kullanıcı kayıt no." value={accountOwnerUserId} onChange={setAccountOwnerUserId} />
-          <Field label="Müşteri başarı sorumlusu kullanıcı kayıt no." value={customerSuccessOwnerUserId} onChange={setCustomerSuccessOwnerUserId} />
+          <UserSelect label="Hesap sorumlusu" value={accountOwnerUserId} onChange={setAccountOwnerUserId} admins={admins} />
+          <UserSelect label="Müşteri başarı sorumlusu" value={customerSuccessOwnerUserId} onChange={setCustomerSuccessOwnerUserId} admins={admins} />
           <div className="grid gap-3 sm:grid-cols-2">
             <DateField label="Canlı kullanım başlangıcı" value={goLiveAt} onChange={setGoLiveAt} />
             <DateField label="Yenileme" value={renewalAt} onChange={setRenewalAt} />
@@ -138,7 +146,7 @@ export function CustomerContextPanel({ tenantId }: { tenantId: string }) {
               <article key={item.id} className="rounded-xl border border-white/[.06] bg-white/[.025] p-3">
                 <p className="whitespace-pre-wrap text-xs leading-5 text-white/70">{item.body}</p>
                 <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[9px] text-white/25">
-                  <span>{item.authorEmail ?? item.authorUserId}</span>
+                  <span>{item.authorEmail ?? "Platform kullanıcısı"}</span>
                   <span>{dateTime.format(new Date(item.createdAt))}</span>
                 </div>
               </article>
@@ -162,6 +170,16 @@ function Field({ label, value, onChange }: { label: string; value: string; onCha
       />
     </label>
   );
+}
+
+function UserSelect({label,value,onChange,admins}:{label:string;value:string;onChange:(value:string)=>void;admins:PlatformAdmin[]}) {
+  return <label className="block">
+    <span className="text-[9px] font-semibold uppercase tracking-[.12em] text-white/25">{label}</span>
+    <select value={value} onChange={(event)=>onChange(event.target.value)} className="mt-1.5 w-full rounded-xl border border-white/10 bg-black/20 px-3 py-2.5 text-xs text-white outline-none focus:border-violet-400/40">
+      <option value="">Sorumlu seçilmedi</option>
+      {admins.map((admin)=><option key={admin.userId} value={admin.userId}>{[admin.firstName,admin.lastName].filter(Boolean).join(" ") || admin.email} · {admin.email}</option>)}
+    </select>
+  </label>;
 }
 
 function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
