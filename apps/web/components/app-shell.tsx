@@ -21,6 +21,7 @@ const NAV_SECTIONS = [
   { label: "Genel", items: [
     { href: "/dashboard", label: "Bugün", icon: "home" },
     { href: "/dashboard/management", label: "Yönetim Özeti", icon: "trend" },
+    { href: "/approvals", label: "Onay Kuyruğu", icon: "shield" },
   ]},
   { label: "Müşteri İlişkileri", items: [
     { href: "/crm", permission: "crm.read", label: "Genel Bakış", icon: "trend" },
