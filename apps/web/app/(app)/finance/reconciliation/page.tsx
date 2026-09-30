@@ -13,6 +13,7 @@ import {
 } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { userText } from "@/lib/user-language";
 
 type Settlement = {
   id: string;
@@ -343,7 +344,7 @@ export default function ReconciliationPage() {
                           <p className="text-[13px] font-semibold text-[var(--ink)]">{money(suggestion.amount, suggestion.currency)}</p>
                           <p className="mt-1 text-[10px] text-[var(--muted)]">{dt(suggestion.bookedAt)}</p>
                           <p className="mt-1 truncate text-[10px] text-[var(--muted-soft)]">{suggestion.description || "Açıklama Yok"}</p>
-                          {suggestion.explanation ? <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">{suggestion.explanation}</p> : null}
+                          {suggestion.explanation ? <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">{userText(suggestion.explanation,"Eşleşme gerekçesi mevcut.")}</p> : null}
                           {typeof suggestion.varianceAmount === "number" && Math.abs(suggestion.varianceAmount) > 0.01 ? (
                             <p className="mt-1 text-[10px] font-semibold text-[var(--warning)]">
                               Tutar farkı: {money(Math.abs(suggestion.varianceAmount), suggestion.currency)}
