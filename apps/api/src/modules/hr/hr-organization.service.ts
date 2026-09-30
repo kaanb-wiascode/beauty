@@ -65,12 +65,13 @@ export class HrOrganizationService {
     );
   }
 
-  async positions() {
+  async positions(departmentId?: string | null) {
     const { tenantId, companyId } = this.scope();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,code,name,status,department_id AS "departmentId",parent_position_id AS "parentPositionId" FROM hr_positions WHERE tenant_id=$1 AND company_id=$2 ORDER BY name`,
+      `SELECT id,code,name,status,department_id AS "departmentId",parent_position_id AS "parentPositionId" FROM hr_positions WHERE tenant_id=$1 AND company_id=$2 AND ($3::text IS NULL OR department_id=$3 OR department_id IS NULL) ORDER BY name`,
       tenantId,
       companyId,
+      departmentId ?? null,
     );
   }
 
