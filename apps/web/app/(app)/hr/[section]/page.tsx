@@ -22,10 +22,12 @@ type DataRow = Record<string, unknown> & { id?: string };
 type StaffRow = DataRow & { id: string; firstName?: string; lastName?: string; departmentId?: string | null; positionId?: string | null };
 type OrgItem = { id: string; name: string; code?: string; department_id?: string | null };
 type OrganizationData = { branches: OrgItem[]; departments: OrgItem[]; teams: OrgItem[]; positions: OrgItem[] };
+type EmployeeRole = { id: string; name: string; slug: string; scope: "CENTRAL" | "COMPANY" | "BRANCH"; description?: string | null };
+type EmployeeCreateResponse = DataRow & { accountProvisioning?: { activationToken?: string; expiresAt?: string; roleName?: string; status?: string } };
 type FormState = Record<string, string | number | undefined>;
 
 const SECTION_CONFIG: Record<SectionKey, SectionConfig> = {
-  employees: { title: "Çalışan Kayıtları", get: "/hr/employees", post: "/hr/employees", fields: ["firstName","lastName","phone","email","personnelNumber","department","position","employmentType","hireDate","grossSalary","iban","bankName"] },
+  employees: { title: "Çalışan Kayıtları", get: "/hr/employees", post: "/hr/employees", fields: ["firstName","lastName","phone","email","roleId","personnelNumber","department","position","employmentType","hireDate","grossSalary","iban","bankName"] },
   "personnel-files": { title: "Özlük Dosyaları", get: "/hr/personnel-files", fields: ["firstName","lastName","identityNumber","department","position","hireDate","salary","iban","bankName"] },
   attendance: { title: "Puantaj", get: "/hr/attendance", post: "/hr/attendance", fields: ["staffId","workDate","checkIn","checkOut","breakMinutes","workedMinutes","overtimeMinutes","status","note"] },
   leaves: { title: "İzinler", get: "/hr/leaves", post: "/hr/leaves", fields: ["staffId","type","startDate","endDate","days","status","reason"] },
@@ -42,7 +44,7 @@ const FIELD_LABELS: Record<string, string> = {
   workedMinutes: "Çalışma süresi", overtimeMinutes: "Fazla mesai süresi", status: "Durum", note: "Not",
   type: "İzin türü", startDate: "Başlangıç", endDate: "Bitiş", days: "Gün", reason: "Açıklama",
   year: "Yıl", month: "Ay", amount: "Tutar", method: "Ödeme şekli", paidAt: "Ödeme tarihi",
-  documentNo: "Belge no", recordDate: "Kayıt tarihi", branchId: "Şube", departmentId: "Departman", teamId: "Ekip", positionId: "Pozisyon", managerStaffId: "Yönetici",
+  documentNo: "Belge no", recordDate: "Kayıt tarihi", branchId: "Şube", departmentId: "Departman", teamId: "Ekip", positionId: "Pozisyon", managerStaffId: "Yönetici", roleId: "Kullanıcı Tipi",
 };
 
 const DATE_FIELDS = new Set(["hireDate","workDate","startDate","endDate","paidAt","recordDate"]);
@@ -68,6 +70,7 @@ export default function HRSection() {
   const [rows, setRows] = useState<DataRow[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
   const [organization, setOrganization] = useState<OrganizationData>({ branches: [], departments: [], teams: [], positions: [] });
+  const [employeeRoles, setEmployeeRoles] = useState<EmployeeRole[]>([]);
   const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [edit, setEdit] = useState<DataRow | null>(null);
@@ -79,6 +82,9 @@ export default function HRSection() {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [pendingRemoveId, setPendingRemoveId] = useState<string | null>(null);
+  const [activationLink, setActivationLink] = useState("");
+  const [activationEmail, setActivationEmail] = useState("");
+  const [activationExpiresAt, setActivationExpiresAt] = useState("");
   const [canReadSensitive, setCanReadSensitive] = useState(false);
 
   useEffect(() => {
@@ -105,7 +111,10 @@ export default function HRSection() {
         setStaff(nextRows.filter(isStaffRow));
       }
       if (section === "employees") {
-        const org = await api<OrganizationData>("/hr/organization");
+        const [org, roles] = await Promise.all([
+          api<OrganizationData>("/hr/organization"),
+          api<EmployeeRole[]>("/hr/employee-provisioning/roles"),
+        ]);
         const branches = Array.isArray(org.branches) ? org.branches : [];
         setOrganization({
           branches,
@@ -113,6 +122,7 @@ export default function HRSection() {
           teams: Array.isArray(org.teams) ? org.teams : [],
           positions: Array.isArray(org.positions) ? org.positions : [],
         });
+        setEmployeeRoles(Array.isArray(roles) ? roles : []);
         if (!activeBranchId && branches.length === 1) {
           setForm((current) => ({ ...current, branchId: branches[0].id }));
         }
@@ -134,7 +144,8 @@ export default function HRSection() {
     if (!config) return [];
     const fields = config.fields.filter((field) => canReadSensitive || !SENSITIVE_EMPLOYEE_FIELDS.has(field));
     if (section !== "employees") return fields;
-    const mapped = fields.flatMap((field) =>
+    const employeeFields = edit ? fields.filter((field) => field !== "roleId") : fields;
+    const mapped = employeeFields.flatMap((field) =>
       field === "department"
         ? ["departmentId", "teamId"]
         : field === "position"
@@ -142,7 +153,7 @@ export default function HRSection() {
           : [field],
     );
     return activeBranchId ? mapped : ["branchId", ...mapped];
-  }, [config, canReadSensitive, section, activeBranchId]);
+  }, [config, canReadSensitive, section, activeBranchId, edit]);
   const editable = section ? EDITABLE_SECTIONS.has(section) : false;
 
   function updateField(field: string, value: string) {
@@ -243,6 +254,25 @@ export default function HRSection() {
 
   async function save() {
     if (!section || !config?.post) return;
+    if (section === "employees" && !edit) {
+      const branchId = activeBranchId || String(form.branchId ?? "");
+      if (!String(form.firstName ?? "").trim() || !String(form.lastName ?? "").trim()) {
+        setError("Personelin adı ve soyadı zorunludur.");
+        return;
+      }
+      if (!String(form.email ?? "").trim()) {
+        setError("Otomatik kullanıcı hesabı için personelin e-posta adresini girin.");
+        return;
+      }
+      if (!branchId) {
+        setError("Personelin bağlı olacağı şubeyi personel kayıt formundan seçin.");
+        return;
+      }
+      if (!String(form.roleId ?? "").trim()) {
+        setError("Personelin kullanıcı tipini seçin.");
+        return;
+      }
+    }
     if (SENSITIVE_SECTIONS.has(section) && !canReadSensitive) {
       setError("Bu bilgileri değiştirmek için yetkiniz bulunmuyor.");
       return;
@@ -252,7 +282,14 @@ export default function HRSection() {
       const patch = Boolean(edit && section !== "attendance");
       const endpoint = patch && edit?.id ? `${config.get}/${edit.id}` : config.post;
       const body = normalizeForm(section, form, canReadSensitive);
-      await api(endpoint, { method: patch ? "PATCH" : "POST", body });
+      const result = await api<EmployeeCreateResponse>(endpoint, { method: patch ? "PATCH" : "POST", body });
+      if (section === "employees" && !edit && result?.accountProvisioning?.activationToken) {
+        const token = result.accountProvisioning.activationToken;
+        const origin = typeof window !== "undefined" ? window.location.origin : "";
+        setActivationLink(`${origin}/accept-invitation?token=${encodeURIComponent(token)}`);
+        setActivationEmail(String(form.email ?? ""));
+        setActivationExpiresAt(result.accountProvisioning.expiresAt ?? "");
+      }
       if (section === "employees" && edit?.id) {
         const departmentId = typeof form.departmentId === "string" ? form.departmentId : "";
         const positionId = typeof form.positionId === "string" ? form.positionId : "";
@@ -336,7 +373,7 @@ export default function HRSection() {
       <div>
         <FormSection title={edit ? "Kayıt Bilgileri" : "Yeni Kayıt"} description="Yalnızca gerekli bilgileri girin; mevcut kayıtları seçim alanlarından kullanın.">
           <FormGrid columns={2} className="xl:grid-cols-2">
-            {formFields.map((field) => <DynamicField key={field} field={field} value={form[field] ?? ""} staff={staff} organization={organization} form={form} activeBranchId={activeBranchId} onChange={(value) => { updateField(field, value); if (field === "branchId") { updateField("managerStaffId", ""); } if (field === "departmentId") { updateField("teamId", ""); updateField("positionId", ""); } }} onCreateDepartment={() => openOrganizationCreate("department")} onCreateTeam={() => openOrganizationCreate("team")} onCreatePosition={() => openOrganizationCreate("position")} />)}
+            {formFields.map((field) => <DynamicField key={field} field={field} value={form[field] ?? ""} staff={staff} organization={organization} employeeRoles={employeeRoles} form={form} activeBranchId={activeBranchId} onChange={(value) => { updateField(field, value); if (field === "branchId") { updateField("managerStaffId", ""); } if (field === "departmentId") { updateField("teamId", ""); updateField("positionId", ""); } }} onCreateDepartment={() => openOrganizationCreate("department")} onCreateTeam={() => openOrganizationCreate("team")} onCreatePosition={() => openOrganizationCreate("position")} />)}
           </FormGrid>
         </FormSection>
         <FormActions>
@@ -412,6 +449,26 @@ export default function HRSection() {
       </DataView>
     )}
 
+    <Modal
+      open={Boolean(activationLink)}
+      onClose={() => { setActivationLink(""); setActivationEmail(""); setActivationExpiresAt(""); }}
+      title="Personel ve Kullanıcı Hesabı Oluşturuldu"
+      description="Personel kaydı, şube erişimi ve kullanıcı hesabı otomatik hazırlandı. Personel aşağıdaki tek kullanımlık bağlantıdan kendi parolasını belirleyebilir."
+    >
+      <div className="space-y-4">
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
+          <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">Kullanıcı</p>
+          <p className="mt-1 text-sm font-semibold text-[var(--ink)]">{activationEmail}</p>
+          {activationExpiresAt ? <p className="mt-1 text-[11px] text-[var(--muted)]">Aktivasyon bağlantısı: {new Date(activationExpiresAt).toLocaleString("tr-TR")} tarihine kadar geçerli.</p> : null}
+        </div>
+        <div className="break-all rounded-[14px] border border-[var(--line)] bg-white p-3 text-xs text-[var(--muted)]">{activationLink}</div>
+        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+          <Button variant="secondary" onClick={() => { setActivationLink(""); setActivationEmail(""); setActivationExpiresAt(""); }}>Kapat</Button>
+          <Button onClick={() => void navigator.clipboard.writeText(activationLink)}>Aktivasyon Bağlantısını Kopyala</Button>
+        </div>
+      </div>
+    </Modal>
+
     <ConfirmDialog
       open={Boolean(pendingRemoveId)}
       title={section === "employees" ? "Çalışan Kaydını Arşivle" : "Kaydı Kaldır"}
@@ -430,6 +487,7 @@ function DynamicField({
   value,
   staff,
   organization,
+  employeeRoles,
   form,
   activeBranchId,
   onChange,
@@ -441,6 +499,7 @@ function DynamicField({
   value: string | number;
   staff: StaffRow[];
   organization: OrganizationData;
+  employeeRoles: EmployeeRole[];
   form: FormState;
   activeBranchId: string | null;
   onChange: (value: string) => void;
@@ -464,7 +523,15 @@ function DynamicField({
 
   return <label className="block">
     <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">{label}</span>
-    {field === "branchId" ? <ValooSelect
+    {field === "roleId" ? <ValooSelect
+      value={normalized}
+      onChange={onChange}
+      placeholder="Kullanıcı tipini seçin"
+      searchPlaceholder="Rol ara…"
+      emptyLabel="Atanabilir kullanıcı tipi bulunamadı."
+      options={employeeRoles.map((role) => ({ value: role.id, label: `${role.name} · ${role.scope === "BRANCH" ? "Şube" : role.scope === "COMPANY" ? "Şirket" : "Merkez"}` }))}
+    /> :
+    field === "branchId" ? <ValooSelect
       value={normalized}
       onChange={onChange}
       placeholder="Şube seçin"
@@ -533,6 +600,7 @@ function normalizeForm(section: SectionKey, raw: FormState, canReadSensitive: bo
       position: body.position || undefined,
       department: body.department || undefined,
       branchId: body.branchId || undefined,
+      roleId: body.roleId || undefined,
       departmentId: body.departmentId || undefined,
       teamId: body.teamId || undefined,
       positionId: body.positionId || undefined,
