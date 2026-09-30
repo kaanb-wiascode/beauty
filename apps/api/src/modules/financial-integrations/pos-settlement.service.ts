@@ -43,7 +43,7 @@ export class PosSettlementService {
     name: string,
     type: 'ASSET' | 'LIABILITY' | 'EQUITY' | 'REVENUE' | 'EXPENSE',
   ) {
-    await tx.$queryRawUnsafe(
+    await tx.$executeRawUnsafe(
       'SELECT pg_advisory_xact_lock(hashtext($1), hashtext($2))',
       `account:${companyId}`,
       code,
