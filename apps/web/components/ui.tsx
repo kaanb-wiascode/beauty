@@ -6,7 +6,7 @@ import type {
   TextareaHTMLAttributes,
 } from "react";
 import { cx } from "@/lib/format";
-import { userErrorMessage, userLabel, userNoticeMessage } from "@/lib/user-language";
+import { userErrorMessage, userLabel, userNoticeMessage, userText } from "@/lib/user-language";
 import { ValooNativeSelectAdapter } from "@/components/valoo-controls";
 
 export function Alert({
@@ -85,12 +85,12 @@ export function PageHeader({
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between sm:gap-5">
       <div className="min-w-0 max-w-xl">
         <h1 className="text-[27px] font-semibold leading-[1.08] tracking-[-0.035em] text-[var(--ink)] sm:text-[32px]">
-          {title}
+          {userText(title)}
         </h1>
 
         {description ? (
           <p className="mt-1.5 text-[13px] leading-5 text-[var(--muted)] sm:mt-2 sm:text-[15px] sm:leading-7">
-            {description}
+            {userText(description)}
           </p>
         ) : null}
 
@@ -301,11 +301,11 @@ export function EmptyState({
       </div>
 
       <h3 className="text-[15px] font-semibold tracking-[-0.02em] text-[var(--ink)] sm:text-[17px]">
-        {title}
+        {userText(title)}
       </h3>
 
       <p className="mx-auto mt-1.5 max-w-sm text-[12px] leading-5 text-[var(--muted)] sm:mt-2 sm:text-sm sm:leading-6">
-        {description}
+        {userText(description)}
       </p>
 
       {action ? <div className="mt-5">{action}</div> : null}
@@ -491,12 +491,12 @@ export function Modal({
         <div className="mb-4 flex items-start justify-between gap-4 sm:mb-6">
           <div>
             <h2 className="text-[20px] font-semibold tracking-[-0.03em] text-[var(--ink)]">
-              {title}
+              {userText(title)}
             </h2>
 
             {description ? (
               <p className="mt-1.5 text-[13px] leading-5 text-[var(--muted)]">
-                {description}
+                {userText(description)}
               </p>
             ) : null}
           </div>
