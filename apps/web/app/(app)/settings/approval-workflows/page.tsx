@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { Button, Field, Modal, TextArea, TextInput } from "@/components/ui";
+import { Button, Field, Modal, TextInput } from "@/components/ui";
 import { ConfirmDialog } from "@/components/modal";
 import { ValooSelect } from "@/components/valoo-controls";
 
@@ -21,9 +21,7 @@ type Workflow = {
   steps: Array<Record<string, unknown>>;
   publishedAt: string | null;
   createdAt: string;
-function needsValue(type:ApproverType){return ["ROLE","PERMISSION","ORGANIZATION_MANAGER"].includes(type)}
-}
-;
+};
 
 type RoleOption={id:string;name:string;slug:string};
 type PermissionOption={id:string;resource:string;action:string};
@@ -47,6 +45,7 @@ const TIMEOUT_OPTIONS=[
   {value:"AUTO_REJECT",label:"Otomatik Reddet"},
 ] as const;
 const newStep=(index:number):StepDraft=>({key:"step-"+index,name:index===1?"Yönetici Onayı":"Onay Adımı "+index,approverType:"DIRECT_MANAGER",approverValue:"",slaMinutes:"",timeoutAction:"ESCALATE",escalationApproverType:"BRANCH_MANAGER",escalationApproverValue:""});
+const needsValue=(type:ApproverType)=>["ROLE","PERMISSION","ORGANIZATION_MANAGER"].includes(type);
 
 export default function ApprovalWorkflowsPage() {
   const { showToast } = useToast();
