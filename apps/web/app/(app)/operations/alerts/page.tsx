@@ -8,6 +8,7 @@ import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch } from "@/lib/auth";
 import { useOperationRealtime } from "@/lib/use-operation-realtime";
+import { userLabel, userText } from "@/lib/user-language";
 
 type AlertSeverity = "INFO" | "WARNING" | "HIGH" | "CRITICAL";
 type OperationsAlert = {
@@ -149,18 +150,18 @@ export default function OperationsAlertsPage() {
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[10px] font-semibold uppercase tracking-[0.08em] text-[var(--muted)]">{severityLabel[item.severity]}</span>
-                      <span className="text-xs font-medium text-[var(--muted)]">{typeLabel[item.type] ?? item.type}</span>
+                      <span className="text-xs font-medium text-[var(--muted)]">{typeLabel[item.type] ?? userLabel(item.type)}</span>
                       <span className="text-xs text-[var(--muted-soft)]">{ageLabel(item.ageMinutes)}</span>
                     </div>
-                    <h3 className="mt-2 text-sm font-semibold text-[var(--ink)]">{item.title}</h3>
-                    <p className="mt-1 text-sm text-[var(--muted)]">{item.message}</p>
+                    <h3 className="mt-2 text-sm font-semibold text-[var(--ink)]">{userText(item.title,"Operasyon Uyarısı")}</h3>
+                    <p className="mt-1 text-sm text-[var(--muted)]">{userText(item.message,"Operasyon kaydı inceleme gerektiriyor.")}</p>
                     <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-[var(--muted-soft)]">
                       {item.customerName ? <span>Müşteri: {item.customerName}</span> : null}
                       {item.staffName ? <span>Personel: {item.staffName}</span> : null}
                       {item.resourceName ? <span>İlgili kaynak: {item.resourceName}</span> : null}
                       
                     </div>
-                    <p className="mt-3 rounded-[12px] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--ink)]"><span className="font-semibold">Önerilen aksiyon:</span> {item.suggestedAction}</p>
+                    <p className="mt-3 rounded-[12px] bg-[var(--surface-2)] px-3 py-2 text-xs text-[var(--ink)]"><span className="font-semibold">Önerilen aksiyon:</span> {userText(item.suggestedAction,"İlgili kaydı inceleyin.")}</p>
                   </div>
                 </div>
               </article>
