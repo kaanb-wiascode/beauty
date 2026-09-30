@@ -99,6 +99,76 @@ const HELP_BY_TITLE: Record<string, Omit<CardHelpContent, "title">> = {
     interpretation: "Varlıkların konum, zimmet, garanti ve bakım durumlarını takip etmek için kullanılır.",
     source: "Envanter varlık kayıtları",
   },
+  "Toplam Çalışan": {
+    description: "Erişim yetkiniz kapsamındaki tüm çalışan kayıtlarının toplamını gösterir.",
+    calculation: "Aktif ve arşivlenmiş çalışan kayıtları birlikte sayılır.",
+    interpretation: "İnsan kaynağının toplam büyüklüğünü görmek için kullanılır.",
+    source: "Çalışan kayıtları",
+  },
+  "Aktif Çalışan": {
+    description: "Halen işletmede aktif olarak çalışan personel sayısını gösterir.",
+    calculation: "Durumu aktif olan çalışan kayıtları sayılır.",
+    interpretation: "Güncel çalışan kapasitesini izlemek için kullanılır.",
+    source: "Çalışan kayıtları",
+  },
+  "Bugünkü Randevular": {
+    description: "Bugün çalışanlara atanmış toplam randevu sayısını gösterir.",
+    calculation: "Bugünün başlangıç ve bitiş saatleri arasındaki randevular sayılır.",
+    interpretation: "Günlük iş yükünü ve ekip yoğunluğunu görmek için kullanılır.",
+    source: "Randevu kayıtları",
+  },
+  "Bugünkü Tahsilat": {
+    description: "Bugün çalışanlarla ilişkilendirilen tamamlanmış tahsilatların toplamını gösterir.",
+    calculation: "Bugün tamamlanan ödeme kayıtlarının tutarları toplanır.",
+    interpretation: "Ekip tarafından oluşturulan günlük tahsilat hacmini izlemek için kullanılır.",
+    source: "Ödeme ve çalışan performans kayıtları",
+  },
+  "İK Modülleri": {
+    description: "Çalışan, özlük, çalışma süresi, izin ve ücret süreçlerine tek noktadan erişmenizi sağlar.",
+    interpretation: "Yapmak istediğiniz işleme göre ilgili karta girerek süreci doğrudan başlatabilirsiniz.",
+    source: "İnsan Kaynakları modülü",
+  },
+  "Personel Performansı": {
+    description: "Çalışanların bugünkü randevu ve tahsilat sonuçlarını birlikte gösterir.",
+    calculation: "Randevu sayıları ve tamamlanan tahsilatlar çalışan bazında bir araya getirilir.",
+    interpretation: "Günlük iş yükünü ve sonuçları birlikte değerlendirmek için kullanılır; tek başına çalışan değerlendirmesi için kullanılmamalıdır.",
+    source: "Randevu ve ödeme kayıtları",
+  },
+  "Çalışan Kayıtları": {
+    description: "Çalışanların temel görev, iletişim ve çalışma bilgilerini yönetmenizi sağlar.",
+    interpretation: "Yeni çalışan eklemek veya mevcut çalışan bilgilerini güncellemek için kullanılır.",
+    source: "İnsan Kaynakları çalışan kayıtları",
+  },
+  "Özlük Dosyaları": {
+    description: "Çalışanın kimlik, işe giriş, görev ve banka gibi korunması gereken özlük bilgilerini gösterir.",
+    interpretation: "Bu bölüm yalnızca yetkili kullanıcılar tarafından görüntülenmelidir.",
+    source: "Çalışan özlük kayıtları",
+  },
+  "Puantaj": {
+    description: "Çalışanların işe giriş, çıkış, mola, toplam çalışma ve fazla mesai kayıtlarını gösterir.",
+    interpretation: "Çalışma sürelerini kontrol etmek ve bordroya gidecek zaman kayıtlarını hazırlamak için kullanılır.",
+    source: "Çalışma ve devam kayıtları",
+  },
+  "İzinler": {
+    description: "Çalışanların izin taleplerini, izin türlerini, tarihlerini ve onay durumlarını gösterir.",
+    interpretation: "İzin planını takip etmek ve bekleyen talepleri yönetmek için kullanılır.",
+    source: "İzin kayıtları",
+  },
+  "Bordro": {
+    description: "Seçilen dönem için çalışan ücret hesaplama sürecini ve bordro kayıtlarını yönetmenizi sağlar.",
+    interpretation: "Puantaj, izin ve ücret bilgileri kontrol edildikten sonra bordro dönemini hazırlamak için kullanılır.",
+    source: "Bordro ve çalışma kayıtları",
+  },
+  "Maaş Ödemeleri": {
+    description: "Çalışanlara yapılan maaş ödemelerini dönem ve ödeme tarihiyle birlikte gösterir.",
+    interpretation: "Hangi ödemenin yapıldığını ve dönemsel ödeme durumunu takip etmek için kullanılır.",
+    source: "Maaş ödeme kayıtları",
+  },
+  "SGK İşlemleri": {
+    description: "Çalışanların dönemsel sosyal güvenlik kayıtlarını ve belge durumlarını takip etmenizi sağlar.",
+    interpretation: "Dönem kayıtlarının hazırlanma ve tamamlanma durumunu kontrol etmek için kullanılır.",
+    source: "Sosyal güvenlik kayıtları",
+  },
 };
 
 function sentenceCase(value: string) {
