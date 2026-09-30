@@ -23,7 +23,7 @@ const days=(v?:string|null)=>v?Math.ceil((new Date(`${v}T00:00:00`).getTime()-ne
 
 export default function EmployeeCertificationsPage(){
  const{id}=useParams<{id:string}>();
- const[allowed,setAllowed]=useState(false),[manage,setManage]=useState(false),[rows,setRows]=useState<Row[]>([]),[types,setTypes]=useState<Type[]>([]),[docs,setDocs]=useState<Doc[]>([]),[form,setForm]=useState<Form>(EMPTY),[typeForm,setTypeForm]=useState<TypeForm>(EMPTY_TYPE),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[createOpen,setCreateOpen]=useState(false),[typeOpen,setTypeOpen]=useState(false);
+ const[allowed,setAllowed]=useState(false),[manage,setManage]=useState(false),[rows,setRows]=useState<Row[]>([]),[types,setTypes]=useState<Type[]>([]),[docs,setDocs]=useState<Doc[]>([]),[form,setForm]=useState<Form>(EMPTY),[typeForm,setTypeForm]=useState<TypeForm>(EMPTY_TYPE),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[createOpen,setCreateOpen]=useState(false),[typeOpen,setTypeOpen]=useState(false),[actionRow,setActionRow]=useState<Row|null>(null),[actionKind,setActionKind]=useState<"VERIFY"|"REJECT"|"REVOKE"|null>(null),[actionNote,setActionNote]=useState("");
 
  useEffect(()=>{const sensitive=hasPermission("hr_sensitive","read");setAllowed(sensitive);setManage(sensitive&&hasPermission("hr","manage"))},[]);
  const load=useCallback(async()=>{if(!allowed)return;setLoading(true);setError("");try{const[data,typeData,docData]=await Promise.all([api<Row[]>(`/hr/employees/${id}/certifications`),api<Type[]>("/hr/certification-types"),api<Doc[]>(`/hr/employees/${id}/documents/sensitive`)]);setRows(data);setTypes(typeData);setDocs(docData)}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika kayıtları yüklenemedi."):"Sertifika kayıtları yüklenemedi.")}finally{setLoading(false)}},[allowed,id]);
@@ -53,8 +53,25 @@ export default function EmployeeCertificationsPage(){
   finally{setBusy(false)}
  }
 
- async function verify(row:Row,status:"VERIFIED"|"REJECTED"){const note=status==="REJECTED"?window.prompt("Reddetme gerekçesi:"):window.prompt("Doğrulama notu (opsiyonel):");if(status==="REJECTED"&&!note)return;setBusy(true);try{await api(`/hr/employees/${id}/certifications/${row.id}/verify`,{method:"PATCH",body:{status,note:note||undefined}});await load()}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika durumu güncellenemedi."):"Sertifika durumu güncellenemedi.")}finally{setBusy(false)}}
- async function revoke(row:Row){const note=window.prompt("Yetkinliğin geri alınma gerekçesi:");if(!note)return;setBusy(true);try{await api(`/hr/employees/${id}/certifications/${row.id}/revoke`,{method:"POST",body:{note}});await load()}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika iptal edilemedi."):"Sertifika iptal edilemedi.")}finally{setBusy(false)}}
+ function openAction(row:Row,kind:"VERIFY"|"REJECT"|"REVOKE"){setActionRow(row);setActionKind(kind);setActionNote("");}
+
+ async function submitAction(){
+  if(!actionRow||!actionKind)return;
+  if((actionKind==="REJECT"||actionKind==="REVOKE")&&!actionNote.trim()){setError("Bu işlem için açıklama girin.");return}
+  setBusy(true);setError("");setNotice("");
+  try{
+   if(actionKind==="REVOKE"){
+    await api(`/hr/employees/${id}/certifications/${actionRow.id}/revoke`,{method:"POST",body:{note:actionNote.trim()}});
+    setNotice("Sertifika yetkisi geri alındı.");
+   }else{
+    const status=actionKind==="VERIFY"?"VERIFIED":"REJECTED";
+    await api(`/hr/employees/${id}/certifications/${actionRow.id}/verify`,{method:"PATCH",body:{status,note:actionNote.trim()||undefined}});
+    setNotice(status==="VERIFIED"?"Sertifika doğrulandı.":"Sertifika reddedildi.");
+   }
+   setActionRow(null);setActionKind(null);setActionNote("");await load();
+  }catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika durumu güncellenemedi."):"Sertifika durumu güncellenemedi.")}
+  finally{setBusy(false)}
+ }
 
  const verifiedDocs=useMemo(()=>docs.filter(d=>d.status!=="ARCHIVED"&&d.status!=="REJECTED"),[docs]);
 
@@ -71,7 +88,7 @@ export default function EmployeeCertificationsPage(){
 
   <section className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5">
    <div className="flex items-center justify-between"><h2 className="text-sm font-semibold">Sertifika Kayıtları</h2><span className="text-xs text-[var(--muted)]">{rows.length} kayıt</span></div>
-   {loading?<div className="flex h-40 items-center justify-center"><Spinner/></div>:!rows.length?<div className="py-8"><EmptyState title="Henüz sertifika kaydı yok" description="İlk sertifikayı ekleyerek çalışanın yetkinlik kaydını oluşturun."/>{manage?<div className="mt-4 flex justify-center"><Button onClick={()=>setCreateOpen(true)}>+ İlk Sertifikayı Ekle</Button></div>:null}</div>:<div className="mt-4 overflow-x-auto"><table className="w-full min-w-[900px] text-left text-xs"><thead className="text-[10px] uppercase text-[var(--muted-soft)]"><tr><th className="pb-3">Sertifika</th><th className="pb-3">Belge numarası</th><th className="pb-3">Kurum / Yeterlilik</th><th className="pb-3">Geçerlilik</th><th className="pb-3">Durum</th><th className="pb-3 text-right">İşlem</th></tr></thead><tbody>{rows.map(r=>{const left=days(r.expiresAt),risk=r.status==="VERIFIED"&&left!==null&&left>=0&&left<=r.warningDays;return <tr key={r.id} className="border-t border-[var(--line)]"><td className="py-3"><p className="font-medium">{r.name}</p><p className="text-[10px] text-[var(--muted)]">{r.code}{r.category?` · ${userLabel(r.category)}`:""}</p></td><td className="py-3">{r.credentialNumber||"—"}</td><td className="py-3"><p>{r.issuingOrganization||"—"}</p><p className="text-[10px] text-[var(--muted)]">{r.qualification||""}</p></td><td className="py-3"><p>{date(r.issuedAt)} → {date(r.expiresAt)}</p>{left!==null?<p className={`text-[10px] ${left<0||risk?"text-[var(--danger)]":"text-[var(--muted)]"}`}>{left<0?`${Math.abs(left)} gün önce doldu`:`${left} gün kaldı`}</p>:null}</td><td className="py-3"><p>{statusLabel(r.status)}</p>{r.verificationNote?<p className="max-w-[220px] truncate text-[10px] text-[var(--muted)]">{r.verificationNote}</p>:null}</td><td className="py-3 text-right">{manage&&r.status==="PENDING"?<div className="flex justify-end gap-2"><button disabled={busy} onClick={()=>void verify(r,"VERIFIED")} className="text-[10px] font-semibold text-[var(--accent)]">Doğrula</button><button disabled={busy} onClick={()=>void verify(r,"REJECTED")} className="text-[10px] font-semibold text-[var(--danger)]">Reddet</button></div>:manage&&r.status==="VERIFIED"?<button disabled={busy} onClick={()=>void revoke(r)} className="text-[10px] font-semibold text-[var(--danger)]">Yetkiyi geri al</button>:<span className="text-[10px] text-[var(--muted)]">—</span>}</td></tr>})}</tbody></table></div>}
+   {loading?<div className="flex h-40 items-center justify-center"><Spinner/></div>:!rows.length?<div className="py-8"><EmptyState title="Henüz sertifika kaydı yok" description="İlk sertifikayı ekleyerek çalışanın yetkinlik kaydını oluşturun."/>{manage?<div className="mt-4 flex justify-center"><Button onClick={()=>setCreateOpen(true)}>+ İlk Sertifikayı Ekle</Button></div>:null}</div>:<div className="mt-4 overflow-x-auto"><table className="w-full min-w-[900px] text-left text-xs"><thead className="text-[10px] uppercase text-[var(--muted-soft)]"><tr><th className="pb-3">Sertifika</th><th className="pb-3">Belge numarası</th><th className="pb-3">Kurum / Yeterlilik</th><th className="pb-3">Geçerlilik</th><th className="pb-3">Durum</th><th className="pb-3 text-right">İşlem</th></tr></thead><tbody>{rows.map(r=>{const left=days(r.expiresAt),risk=r.status==="VERIFIED"&&left!==null&&left>=0&&left<=r.warningDays;return <tr key={r.id} className="border-t border-[var(--line)]"><td className="py-3"><p className="font-medium">{r.name}</p><p className="text-[10px] text-[var(--muted)]">{r.code}{r.category?` · ${userLabel(r.category)}`:""}</p></td><td className="py-3">{r.credentialNumber||"—"}</td><td className="py-3"><p>{r.issuingOrganization||"—"}</p><p className="text-[10px] text-[var(--muted)]">{r.qualification||""}</p></td><td className="py-3"><p>{date(r.issuedAt)} → {date(r.expiresAt)}</p>{left!==null?<p className={`text-[10px] ${left<0||risk?"text-[var(--danger)]":"text-[var(--muted)]"}`}>{left<0?`${Math.abs(left)} gün önce doldu`:`${left} gün kaldı`}</p>:null}</td><td className="py-3"><p>{statusLabel(r.status)}</p>{r.verificationNote?<p className="max-w-[220px] truncate text-[10px] text-[var(--muted)]">{r.verificationNote}</p>:null}</td><td className="py-3 text-right">{manage&&r.status==="PENDING"?<div className="flex justify-end gap-2"><Button size="sm" variant="secondary" disabled={busy} onClick={()=>openAction(r,"VERIFY")}>Doğrula</Button><Button size="sm" variant="danger" disabled={busy} onClick={()=>openAction(r,"REJECT")}>Reddet</Button></div>:manage&&r.status==="VERIFIED"?<Button size="sm" variant="danger" disabled={busy} onClick={()=>openAction(r,"REVOKE")}>Yetkiyi Geri Al</Button>:<span className="text-[10px] text-[var(--muted)]">—</span>}</td></tr>})}</tbody></table></div>}
   </section>
 
   {!manage?<div className="rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4 text-xs text-[var(--muted)]">Kayıtları görüntüleyebilirsiniz; değişiklik yapmak için İK yönetim yetkisi gerekir.</div>:null}
@@ -105,6 +122,17 @@ export default function EmployeeCertificationsPage(){
     <label className="flex items-center gap-3 rounded-xl border border-[var(--line)] p-3 text-xs"><input type="checkbox" checked={typeForm.requiresExpiry} onChange={e=>setTypeForm(x=>({...x,requiresExpiry:e.target.checked}))}/>Geçerlilik tarihi zorunlu olsun</label>
     <label className="flex items-center gap-3 rounded-xl border border-[var(--line)] p-3 text-xs"><input type="checkbox" checked={typeForm.serviceEligibilityRequired} onChange={e=>setTypeForm(x=>({...x,serviceEligibilityRequired:e.target.checked}))}/>Hizmet uygunluğu kontrolünde kullanılsın</label>
     <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4"><Button variant="secondary" onClick={()=>{setTypeOpen(false);setCreateOpen(true)}} disabled={busy}>Vazgeç</Button><Button onClick={()=>void createType()} disabled={busy}>{busy?"Kaydediliyor…":"Türü Oluştur"}</Button></div>
+   </div>
+  </Modal>
+  <Modal open={Boolean(actionRow&&actionKind)} onClose={()=>{if(!busy){setActionRow(null);setActionKind(null);setActionNote("")}}} title={actionKind==="VERIFY"?"Sertifikayı Doğrula":actionKind==="REJECT"?"Sertifikayı Reddet":"Sertifika Yetkisini Geri Al"} description={actionRow?`${actionRow.name} için işlemi tamamlayın.`:undefined}>
+   <div className="space-y-4">
+    <Field label={actionKind==="VERIFY"?"Doğrulama Notu":"Açıklama"} required={actionKind!=="VERIFY"}>
+     <TextArea rows={4} value={actionNote} placeholder={actionKind==="VERIFY"?"İsteğe bağlı doğrulama notu…":"İşlemin gerekçesini yazın…"} onChange={e=>setActionNote(e.target.value)}/>
+    </Field>
+    <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+     <Button variant="secondary" disabled={busy} onClick={()=>{setActionRow(null);setActionKind(null);setActionNote("")}}>Vazgeç</Button>
+     <Button variant={actionKind==="VERIFY"?"primary":"danger"} disabled={busy||(actionKind!=="VERIFY"&&!actionNote.trim())} onClick={()=>void submitAction()}>{busy?"İşleniyor…":actionKind==="VERIFY"?"Doğrula":actionKind==="REJECT"?"Reddet":"Yetkiyi Geri Al"}</Button>
+    </div>
    </div>
   </Modal>
  </main>
