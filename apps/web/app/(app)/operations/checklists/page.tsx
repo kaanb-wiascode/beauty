@@ -127,9 +127,9 @@ export default function OperationsChecklistsPage() {
     }));
     if (
       !normalizedItems.length ||
-      normalizedItems.some((item) => !item.code || !item.title)
+      normalizedItems.some((item) => !item.title)
     ) {
-      setError("Her kontrol listesi maddesi için kod ve başlık zorunludur.");
+      setError("Her kontrol listesi maddesi için bir adım adı girilmelidir.");
       return;
     }
 
@@ -229,15 +229,7 @@ export default function OperationsChecklistsPage() {
                 key={`${item.id ?? "new"}:${index}`}
                 className="rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)] p-4"
               >
-                <div className="grid gap-3 lg:grid-cols-[160px_minmax(0,1fr)_minmax(0,1fr)_120px_auto] lg:items-end">
-                  <Field label="Kod">
-                    <TextInput
-                      value={item.code}
-                      onChange={(event) =>
-                        updateItem(index, { code: event.target.value.toUpperCase() })
-                      }
-                    />
-                  </Field>
+                <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_120px_auto] lg:items-end">
                   <Field label="Adım">
                     <TextInput
                       value={item.title}
