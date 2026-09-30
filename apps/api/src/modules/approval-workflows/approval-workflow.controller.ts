@@ -50,8 +50,9 @@ export class ApprovalWorkflowController {
   @Patch(':id') @RequirePermission('roles','update') update(@Param('id') id:string,@Body() body:unknown){return this.service.updateDraft(id,updateSchema.parse(body))}
   @Post(':id/publish') @RequirePermission('roles','update') publish(@Param('id') id:string){return this.service.publish(id)}
   @Get('runtime/requests') @RequirePermission('roles','read') requests(@Query('status') status?:string){return this.runtime.list(status?.trim()||undefined)}
+  @Get('runtime/inbox') inbox(@Query('status') status?:string){return this.runtime.inbox(status?.trim()||'PENDING')}
   @Post('runtime/requests') @RequirePermission('roles','update') createRequest(@Body() body:unknown){return this.runtime.create(requestSchema.parse(body))}
-  @Post('runtime/requests/:id/act') @RequirePermission('roles','update') act(@Param('id') id:string,@Body() body:unknown){const x=actSchema.parse(body);return this.runtime.act(id,x.decision,x.comment,x.delegateToUserId)}
+  @Post('runtime/requests/:id/act') act(@Param('id') id:string,@Body() body:unknown){const x=actSchema.parse(body);return this.runtime.act(id,x.decision,x.comment,x.delegateToUserId)}
   @Post('runtime/requests/:id/resubmit') resubmit(@Param('id') id:string,@Body() body:unknown){const x=resubmitSchema.parse(body);return this.runtime.resubmit(id,x.comment)}
   @Get('runtime/delegations') @RequirePermission('roles','read') delegationList(){return this.delegations.list()}
   @Post('runtime/delegations') @RequirePermission('roles','update') createDelegation(@Body() body:unknown){return this.delegations.create(delegationSchema.parse(body))}
