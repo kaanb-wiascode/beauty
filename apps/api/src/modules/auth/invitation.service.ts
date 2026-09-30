@@ -38,6 +38,8 @@ type InvitationRow = {
   revokedAt: Date | null;
   acceptedAt: Date | null;
   createdAt: Date;
+  provisionedUserId?: string | null;
+  staffId?: string | null;
 };
 
 const hashToken = (token: string) =>
@@ -349,32 +351,71 @@ export class InvitationService {
 
         const existingUser = await tx.user.findUnique({
           where: { email: invitation.email },
-          select: { id: true },
-        });
-        if (existingUser) throw new ConflictException('Email is already registered');
-
-        const user = await tx.user.create({
-          data: {
-            email: invitation.email,
-            passwordHash,
-            firstName: input.firstName.trim(),
-            lastName: input.lastName.trim(),
-          },
           select: { id: true, email: true, firstName: true, lastName: true },
         });
-        const membership = await tx.membership.create({
-          data: {
-            userId: user.id,
-            tenantId: invitation.tenantId,
-            companyId: invitation.companyId,
-            roleId: role.id,
-          },
-          select: { id: true, status: true, roleId: true, companyId: true },
-        });
-        for (const branchId of branchIds) {
-          await tx.membershipBranchAccess.create({
-            data: { membershipId: membership.id, branchId },
+
+        let user: { id: string; email: string; firstName: string; lastName: string };
+        let membership: { id: string; status: string; roleId: string; companyId: string | null };
+
+        if (invitation.provisionedUserId) {
+          if (!existingUser || existingUser.id !== invitation.provisionedUserId) {
+            throw new ConflictException('Provisioned employee account is no longer available');
+          }
+
+          user = await tx.user.update({
+            where: { id: invitation.provisionedUserId },
+            data: {
+              passwordHash,
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+            },
+            select: { id: true, email: true, firstName: true, lastName: true },
           });
+
+          const provisionedMembership = await tx.membership.findFirst({
+            where: {
+              userId: user.id,
+              tenantId: invitation.tenantId,
+              companyId: invitation.companyId,
+              roleId: role.id,
+            },
+            select: { id: true, status: true, roleId: true, companyId: true },
+          });
+          if (!provisionedMembership) {
+            throw new BadRequestException('Provisioned employee membership is missing');
+          }
+
+          membership = await tx.membership.update({
+            where: { id: provisionedMembership.id },
+            data: { status: 'ACTIVE' },
+            select: { id: true, status: true, roleId: true, companyId: true },
+          });
+        } else {
+          if (existingUser) throw new ConflictException('Email is already registered');
+
+          user = await tx.user.create({
+            data: {
+              email: invitation.email,
+              passwordHash,
+              firstName: input.firstName.trim(),
+              lastName: input.lastName.trim(),
+            },
+            select: { id: true, email: true, firstName: true, lastName: true },
+          });
+          membership = await tx.membership.create({
+            data: {
+              userId: user.id,
+              tenantId: invitation.tenantId,
+              companyId: invitation.companyId,
+              roleId: role.id,
+            },
+            select: { id: true, status: true, roleId: true, companyId: true },
+          });
+          for (const branchId of branchIds) {
+            await tx.membershipBranchAccess.create({
+              data: { membershipId: membership.id, branchId },
+            });
+          }
         }
 
         await tx.$executeRaw`
