@@ -286,7 +286,9 @@ export class SalesService {
     });
     if (!sale) throw new NotFoundException('Satış kaydı bulunamadı.');
 
-    const paidRows = await this.prisma.$queryRawUnsafe<Array<{ paid: Prisma.Decimal }>>(
+    const paidRows = await this.prisma.$queryRawUnsafe<
+      Array<{ paid: Prisma.Decimal }>
+    >(
       `SELECT COALESCE(SUM(
                sp.amount-COALESCE((
                  SELECT SUM(pfe.amount)
@@ -548,7 +550,9 @@ export class SalesService {
           );
         }
 
-        const paidRows = await tx.$queryRawUnsafe<Array<{ paid: Prisma.Decimal }>>(
+        const paidRows = await tx.$queryRawUnsafe<
+          Array<{ paid: Prisma.Decimal }>
+        >(
           `SELECT COALESCE(SUM(
                    sp.amount-COALESCE((
                      SELECT SUM(pfe.amount)
@@ -944,12 +948,13 @@ export class SalesService {
             }
 
             const unitCost = Number(stock.costPerUnit ?? 0);
-            const lineCost = Math.round(
-              (unitCost * line.quantity + Number.EPSILON) * 100,
-            ) / 100;
-            productCostTotal = Math.round(
-              (productCostTotal + lineCost + Number.EPSILON) * 100,
-            ) / 100;
+            const lineCost =
+              Math.round((unitCost * line.quantity + Number.EPSILON) * 100) /
+              100;
+            productCostTotal =
+              Math.round(
+                (productCostTotal + lineCost + Number.EPSILON) * 100,
+              ) / 100;
 
             await tx.$executeRawUnsafe(
               `UPDATE inventory_stock
@@ -986,16 +991,12 @@ export class SalesService {
           amount: Number(sale.total),
         });
 
-        await this.accountingService.recordProductCostOfGoodsSold(
-          tx,
-          sale.id,
-          {
-            tenantId: sale.tenantId,
-            branchId: sale.branchId,
-            entryDate: confirmedAt,
-            amount: productCostTotal,
-          },
-        );
+        await this.accountingService.recordProductCostOfGoodsSold(tx, sale.id, {
+          tenantId: sale.tenantId,
+          branchId: sale.branchId,
+          entryDate: confirmedAt,
+          amount: productCostTotal,
+        });
 
         const actorId = await this.currentUserId(tx);
         await this.commerceFinanceSync.syncSaleConfirmed(tx, {
