@@ -1,4 +1,5 @@
 import {
+  Body,
   Controller,
   Get,
   Param,
@@ -53,18 +54,18 @@ export class InvoicesController {
   @RequirePermission('finance', 'manage')
   issue(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query() query: unknown,
+    @Body() body: unknown,
   ) {
-    return this.service.issue(id, issueSchema.parse(query));
+    return this.service.issue(id, issueSchema.parse(body ?? {}));
   }
 
   @Post(':id/cancel')
   @RequirePermission('finance', 'manage')
   cancel(
     @Param('id', new ParseUUIDPipe()) id: string,
-    @Query() query: unknown,
+    @Body() body: unknown,
   ) {
-    return this.service.cancel(id, cancelSchema.parse(query).reason);
+    return this.service.cancel(id, cancelSchema.parse(body).reason);
   }
 
   @Post('from-supplier-bill/:supplierBillId')
