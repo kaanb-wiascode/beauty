@@ -102,7 +102,7 @@ export default function RecruitmentPage() {
         },
         {
           title: "Başvuru Aşamasını Güncelle",
-          description: "Adayın işe alım sürecindeki mevcut aşamasını güncelleyin.",
+          description: "Adayın değerlendirme aşamasını güncelleyin. İşe alımı tamamlamak için aşağıdaki “Adayı Çalışan Olarak Başlat” işlemini kullanın.",
           path: "/hr/recruitment/applications/{id}/stage",
           method: "PATCH",
           fields: [
@@ -117,7 +117,6 @@ export default function RecruitmentPage() {
                 { value: "SCREENING", label: "Ön Değerlendirme" },
                 { value: "INTERVIEW", label: "Görüşme" },
                 { value: "OFFER", label: "Teklif" },
-                { value: "HIRED", label: "İşe Alındı" },
                 { value: "REJECTED", label: "Olumsuz Sonuçlandı" },
               ],
             },
