@@ -107,11 +107,21 @@ export class RecruitmentService {
     const { tenantId, companyId } = this.scope();
     const firstName = String(body.firstName ?? '').trim();
     const lastName = String(body.lastName ?? '').trim();
-    if (!firstName || !lastName) throw new BadRequestException('Candidate name is required.');
+    const email = String(body.email ?? '').trim().toLowerCase() || null;
+    if (!firstName || !lastName) throw new BadRequestException('Aday adı ve soyadı zorunludur.');
+    if (email) {
+      const duplicate = await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id FROM hr_candidates WHERE tenant_id=$1 AND company_id=$2 AND LOWER(email)=LOWER($3) LIMIT 1`,
+        tenantId,
+        companyId,
+        email,
+      );
+      if (duplicate.length) throw new BadRequestException('Bu e-posta adresiyle kayıtlı bir aday zaten bulunuyor.');
+    }
     const id = randomUUID();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO hr_candidates(id,tenant_id,company_id,first_name,last_name,email,phone,city,source,current_title,cv_url,notes) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
-      id, tenantId, companyId, firstName, lastName, body.email ?? null, body.phone ?? null, body.city ?? null, body.source ?? null, body.currentTitle ?? null, body.cvUrl ?? null, body.notes ?? null,
+      id, tenantId, companyId, firstName, lastName, email, body.phone ?? null, body.city ?? null, body.source ?? null, body.currentTitle ?? null, body.cvUrl ?? null, body.notes ?? null,
     );
     return { id };
   }
@@ -140,12 +150,17 @@ export class RecruitmentService {
   async updateStage(id: string, body: any) {
     const { tenantId, companyId } = this.scope();
     const stage = String(body.stage ?? '').toUpperCase();
-    if (!['APPLIED','SCREENING','INTERVIEW','OFFER','HIRED','REJECTED'].includes(stage)) throw new BadRequestException('Invalid application stage.');
+    if (stage === 'HIRED') {
+      throw new BadRequestException('İşe alım tamamlamak için “İşe Al” işlemini kullanın. Bu işlem çalışan kaydı ve işe başlangıç planını birlikte oluşturur.');
+    }
+    if (!['APPLIED','SCREENING','INTERVIEW','OFFER','REJECTED'].includes(stage)) {
+      throw new BadRequestException('Geçersiz başvuru aşaması.');
+    }
     const changed = await this.prisma.$executeRawUnsafe(
-      `UPDATE hr_job_applications SET stage=$1,rating=COALESCE($2,rating),rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $3 ELSE rejection_reason END,hired_at=CASE WHEN $1='HIRED' THEN CURRENT_TIMESTAMP ELSE hired_at END,updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND tenant_id=$5 AND company_id=$6`,
+      `UPDATE hr_job_applications SET stage=$1,rating=COALESCE($2,rating),rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $3 ELSE rejection_reason END,updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND tenant_id=$5 AND company_id=$6 AND hired_staff_id IS NULL`,
       stage, body.rating ?? null, body.rejectionReason ?? null, id, tenantId, companyId,
     );
-    if (!changed) throw new NotFoundException('Application not found.');
+    if (!changed) throw new NotFoundException('Başvuru bulunamadı veya başvuru daha önce işe alımla tamamlandı.');
     return { id, stage };
   }
 
@@ -199,15 +214,19 @@ export class RecruitmentService {
 
   async createOffer(body: any) {
     const { tenantId, companyId } = this.scope();
-    if (!body.applicationId) throw new BadRequestException('Application is required.');
+    if (!body.applicationId) throw new BadRequestException('Başvuru seçimi zorunludur.');
     await this.assertApplication(String(body.applicationId));
+    const status = String(body.status ?? 'DRAFT').toUpperCase();
+    if (!['DRAFT','SENT'].includes(status)) throw new BadRequestException('Yeni teklif yalnız taslak veya gönderildi durumunda oluşturulabilir.');
+    const grossSalary = body.grossSalary === '' || body.grossSalary == null ? null : Number(body.grossSalary);
+    if (grossSalary != null && (!Number.isFinite(grossSalary) || grossSalary < 0)) throw new BadRequestException('Brüt ücret 0 veya daha büyük olmalıdır.');
     const id = randomUUID();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO hr_job_offers(id,tenant_id,company_id,application_id,offered_title,gross_salary,currency,start_date,expires_at,status,notes,sent_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::date,$9::timestamptz,$10,$11,CASE WHEN $10='SENT' THEN CURRENT_TIMESTAMP ELSE NULL END)`,
-      id, tenantId, companyId, body.applicationId, body.offeredTitle ?? null, body.grossSalary ?? null, body.currency ?? 'TRY', body.startDate ?? null, body.expiresAt ?? null, body.status ?? 'DRAFT', body.notes ?? null,
+      id, tenantId, companyId, body.applicationId, body.offeredTitle ?? null, grossSalary, body.currency ?? 'TRY', body.startDate ?? null, body.expiresAt ?? null, status, body.notes ?? null,
     );
     await this.prisma.$executeRawUnsafe(
-      `UPDATE hr_job_applications SET stage='OFFER',updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2 AND company_id=$3`,
+      `UPDATE hr_job_applications SET stage='OFFER',updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND hired_staff_id IS NULL`,
       body.applicationId, tenantId, companyId,
     );
     return { id };
@@ -216,15 +235,32 @@ export class RecruitmentService {
   async respondOffer(id: string, body: any) {
     const { tenantId, companyId } = this.scope();
     const status = String(body.status ?? '').toUpperCase();
-    if (!['ACCEPTED','REJECTED'].includes(status)) throw new BadRequestException('Offer response is invalid.');
+    if (!['ACCEPTED','REJECTED'].includes(status)) throw new BadRequestException('Teklif sonucu kabul veya ret olmalıdır.');
+
+    const currentRows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT application_id AS "applicationId",status FROM hr_job_offers WHERE id=$1 AND tenant_id=$2 AND company_id=$3 LIMIT 1`,
+      id, tenantId, companyId,
+    );
+    const current = currentRows[0];
+    if (!current) throw new NotFoundException('Teklif bulunamadı.');
+    if (current.status === status) {
+      return { id, status, applicationId: current.applicationId, idempotent: true };
+    }
+    if (['ACCEPTED','REJECTED','CANCELLED','EXPIRED'].includes(String(current.status))) {
+      throw new BadRequestException('Sonuçlanmış bir teklif yeniden değiştirilemez.');
+    }
+    if (current.status !== 'SENT') {
+      throw new BadRequestException('Aday yanıtı kaydedilmeden önce teklif gönderilmiş olmalıdır.');
+    }
+
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `UPDATE hr_job_offers SET status=$1,responded_at=CURRENT_TIMESTAMP,notes=COALESCE($2,notes),updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5 RETURNING application_id AS "applicationId"`,
+      `UPDATE hr_job_offers SET status=$1,responded_at=CURRENT_TIMESTAMP,notes=COALESCE($2,notes),updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5 AND status='SENT' RETURNING application_id AS "applicationId"`,
       status, body.note ?? null, id, tenantId, companyId,
     );
     const offer = rows[0];
-    if (!offer) throw new NotFoundException('Offer not found.');
+    if (!offer) throw new BadRequestException('Teklif durumu değişti. Güncel veriyi yenileyip tekrar deneyin.');
     await this.prisma.$executeRawUnsafe(
-      `UPDATE hr_job_applications SET stage=$1,rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $2 ELSE rejection_reason END,updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5`,
+      `UPDATE hr_job_applications SET stage=$1,rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $2 ELSE rejection_reason END,updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5 AND hired_staff_id IS NULL`,
       status === 'ACCEPTED' ? 'OFFER' : 'REJECTED', body.note ?? null, offer.applicationId, tenantId, companyId,
     );
     return { id, status, applicationId: offer.applicationId };
