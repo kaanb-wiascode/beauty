@@ -144,8 +144,28 @@ export default function RecruitmentPage() {
           ],
         },
         {
+          title: "İş Teklifini Sonuçlandır",
+          description: "Adayın iş teklifine verdiği kabul veya red yanıtını kaydedin.",
+          path: "/hr/recruitment/offers/{id}/respond",
+          method: "PATCH",
+          fields: [
+            { name: "id", label: "İş Teklifi", type: "remote-select", optionsPath: "/hr/recruitment/offers", optionLabelKeys: ["firstName", "lastName", "jobTitle"], required: true },
+            {
+              name: "status",
+              label: "Adayın Yanıtı",
+              type: "select",
+              required: true,
+              options: [
+                { value: "ACCEPTED", label: "Teklifi Kabul Etti" },
+                { value: "REJECTED", label: "Teklifi Reddetti" },
+              ],
+            },
+            { name: "note", label: "Açıklama", type: "textarea" },
+          ],
+        },
+        {
           title: "Adayı Çalışan Olarak Başlat",
-          description: "İşe alımı tamamlanan adayı çalışan kaydına dönüştürün. Pozisyon ve teklif bilgileri mümkün olduğunda otomatik aktarılır.",
+          description: "İşe alımı tamamlanan adayı çalışan kaydına dönüştürün. Pozisyon ve teklif bilgileri mümkün olduğunda otomatik aktarılır ve işe başlangıç planı otomatik oluşturulur.",
           path: "/hr/recruitment/applications/{id}/hire",
           fields: [
             { name: "id", label: "İşe Alınacak Aday", type: "remote-select", optionsPath: "/hr/recruitment/applications", optionLabelKeys: ["firstName", "lastName", "jobTitle"], required: true },
