@@ -18,7 +18,7 @@ export class InstallmentsService {
 
   private requireBranchId(): string {
     const branchId = this.tenantContext.getBranchId();
-    if (!branchId) throw new BadRequestException('A branch must be selected for this operation.');
+    if (!branchId) throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     return branchId;
   }
 
@@ -95,14 +95,14 @@ export class InstallmentsService {
         tenantId,
         branchId,
       );
-      if (!sales.length) throw new NotFoundException('Sale not found');
+      if (!sales.length) throw new NotFoundException('Satış bulunamadı.');
       const sale = sales[0];
       if (sale.status !== 'CONFIRMED') {
-        throw new BadRequestException('Installment plans can only be created for confirmed sales.');
+        throw new BadRequestException('Taksit planı yalnızca onaylanmış satışlar için oluşturulabilir.');
       }
 
       const existing = await tx.installmentPlan.findUnique({ where: { saleId } });
-      if (existing) throw new BadRequestException('Sale already has an installment plan.');
+      if (existing) throw new BadRequestException('Bu satış için zaten bir taksit planı bulunuyor.');
 
       const schedule = createInstallmentSchedule(
         Number(sale.total),
@@ -162,8 +162,8 @@ export class InstallmentsService {
         },
       },
     });
-    if (!sale) throw new NotFoundException('Sale not found');
-    if (!sale.installmentPlan) throw new NotFoundException('Installment plan not found');
+    if (!sale) throw new NotFoundException('Satış bulunamadı.');
+    if (!sale.installmentPlan) throw new NotFoundException('Taksit planı bulunamadı.');
 
     const now = new Date();
     const installments = sale.installmentPlan.installments.map((installment) => {
