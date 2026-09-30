@@ -760,28 +760,10 @@ export class HrService {
     );
   }
 
-  async upsertAttendance(body: any) {
-    const scope = await this.scope();
-    const branchId = await this.writableBranch(scope, body.branchId);
-    if (!body.staffId || !body.date) {
-      throw new BadRequestException('staffId and date are required');
-    }
-    await this.assertStaffInBranch(scope.tenantId, body.staffId, branchId);
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO attendance_records(id,tenant_id,branch_id,staff_id,work_date,status,check_in,check_out,worked_minutes,overtime_minutes,note,updated_at) VALUES($1,$2,$3,$4,$5::date,$6,$7::time,$8::time,$9,$10,$11,CURRENT_TIMESTAMP) ON CONFLICT(tenant_id,staff_id,work_date) DO UPDATE SET branch_id=EXCLUDED.branch_id,status=EXCLUDED.status,check_in=EXCLUDED.check_in,check_out=EXCLUDED.check_out,worked_minutes=EXCLUDED.worked_minutes,overtime_minutes=EXCLUDED.overtime_minutes,note=EXCLUDED.note,updated_at=CURRENT_TIMESTAMP`,
-      body.id ?? `att_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      scope.tenantId,
-      branchId,
-      body.staffId,
-      body.date,
-      body.status ?? 'PRESENT',
-      body.checkIn ?? null,
-      body.checkOut ?? null,
-      Number(body.workedMinutes ?? 0),
-      Number(body.overtimeMinutes ?? 0),
-      body.note ?? null,
+  async upsertAttendance(_body: any) {
+    throw new BadRequestException(
+      'Puantaj kayıtları doğrudan değiştirilemez. Düzeltme talebi oluşturun; değişiklik onay süreci tamamlandıktan sonra uygulanacaktır.',
     );
-    return { success: true };
   }
 
   async leaves() {
