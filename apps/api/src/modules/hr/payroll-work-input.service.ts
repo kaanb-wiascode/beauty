@@ -109,10 +109,8 @@ export class PayrollWorkInputService {
       const periods=await tx.$queryRawUnsafe<any[]>(
         `INSERT INTO payroll_periods(tenant_id,company_id,branch_id,year,month,status)
          VALUES($1::text,$2::text,$3::text,$4,$5,'DRAFT')
-         ON CONFLICT(tenant_id,year,month)
-         DO UPDATE SET company_id=COALESCE(payroll_periods.company_id,EXCLUDED.company_id),
-                       branch_id=CASE WHEN payroll_periods.branch_id IS NULL THEN EXCLUDED.branch_id ELSE payroll_periods.branch_id END,
-                       updated_at=NOW()
+         ON CONFLICT(tenant_id,company_id,branch_id,year,month) WHERE branch_id IS NOT NULL
+         DO UPDATE SET updated_at=NOW()
          RETURNING id,branch_id AS "branchId",status`,
         tenantId,companyId,activeBranchId,year,month,
       );
