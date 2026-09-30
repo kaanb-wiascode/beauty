@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { randomUUID } from 'node:crypto';
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -101,10 +101,10 @@ export class ApprovalRuntimeService {
     const policy=rows[0];
     const requesterCannotApprove=policy?.enabled===false?false:(policy?.requesterCannotApprove??true);
     const requireDistinctApprovers=policy?.enabled===true&&(policy.requireDistinctApprovers??false);
-    if(requesterCannotApprove&&r.requestedByUserId===actor) throw new BadRequestException('Separation of duties: requester cannot act on own request');
+    if(requesterCannotApprove&&r.requestedByUserId===actor) throw new ForbiddenException('Talep sahibi kendi talebini onaylayamaz.');
     if(requireDistinctApprovers){
       const prior=await tx.$queryRaw<Array<{id:string}>>`SELECT id FROM approval_request_steps WHERE "requestId"=${r.id} AND "stepOrder"<${r.currentStepOrder} AND "actedByUserId"=${actor} AND status='APPROVED' LIMIT 1`;
-      if(prior.length) throw new BadRequestException('Separation of duties: the same approver cannot approve multiple steps');
+      if(prior.length) throw new ForbiddenException('Aynı kullanıcı birden fazla onay adımını onaylayamaz.');
     }
   }
 
@@ -117,7 +117,7 @@ export class ApprovalRuntimeService {
     const overdue=s.slaMinutes!=null&&s.startedAt!=null&&Date.now()>=s.startedAt.getTime()+s.slaMinutes*60_000;
     if(overdue&&s.timeoutAction==='ESCALATE'&&s.escalationApproverType&&await this.authorizedByType(actor,r,s.escalationApproverType,s.escalationApproverValue,tx))return;
     if(await this.authorizedByGlobalDelegation(actor,r,s,tx))return;
-    throw new BadRequestException('Bu onay adımı için yetkiniz bulunmuyor.');
+    throw new ForbiddenException('Bu onay adımı için yetkiniz bulunmuyor.');
   }
 
   private async authorizedByType(actor:string,r:RequestRow,type:string,value:string|null,tx:Prisma.TransactionClient){
