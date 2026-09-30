@@ -1,4 +1,4 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
@@ -38,17 +38,28 @@ export class CustomerLedgerService {
 
   async getCustomerLedger(customerId: string) {
     const tenantId = this.tenantContext.getTenantId();
-    const branchId = this.requireBranchId();
+    const companyId = this.tenantContext.getCompanyId();
+    const branchId = this.tenantContext.getBranchId();
 
     const customer = await this.prisma.customer.findFirst({
-      where: { id: customerId, tenantId, branchId },
+      where: {
+        id: customerId,
+        tenantId,
+        ...(branchId ? { branchId } : {}),
+        branch: { companyId },
+      },
       select: { id: true, firstName: true, lastName: true, phone: true, email: true },
     });
 
     if (!customer) throw new NotFoundException('Müşteri bulunamadı.');
 
     const sales = await this.prisma.sale.findMany({
-      where: { tenantId, branchId, customerId, status: 'CONFIRMED' },
+      where: {
+        tenantId,
+        customerId,
+        status: 'CONFIRMED',
+        ...(branchId ? { branchId } : {}),
+      },
       include: { payments: true },
       orderBy: { confirmedAt: 'asc' },
     });
