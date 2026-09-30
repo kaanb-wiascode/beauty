@@ -12,6 +12,7 @@ export type EnterpriseSection = {
   title: string;
   description?: string;
   path: string;
+  dataKey?: string;
 };
 
 export type EnterpriseAction = {
@@ -130,8 +131,14 @@ export function EnterpriseDataPage({
     const next: Record<string, unknown> = {};
     const failures: string[] = [];
     settled.forEach((result, index) => {
-      if (result.status === "fulfilled") next[sections[index].title] = result.value;
-      else failures.push(result.reason instanceof ApiError ? userErrorMessage(result.reason.message, `${sections[index].title} yüklenemedi.`) : `${sections[index].title} yüklenemedi.`);
+      const section = sections[index];
+      if (result.status === "fulfilled") {
+        if (section.dataKey && result.value && typeof result.value === "object" && !Array.isArray(result.value)) {
+          next[section.title] = (result.value as Record<string, unknown>)[section.dataKey] ?? [];
+        } else {
+          next[section.title] = result.value;
+        }
+      } else failures.push(result.reason instanceof ApiError ? userErrorMessage(result.reason.message, `${section.title} yüklenemedi.`) : `${section.title} yüklenemedi.`);
     });
     setData(next);
     if (failures.length) setError(failures.join(" "));
