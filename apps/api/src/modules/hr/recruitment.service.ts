@@ -16,6 +16,29 @@ export class RecruitmentService {
     return { tenantId, companyId };
   }
 
+  private async assertBranch(branchId?: string | null) {
+    if (!branchId) return null;
+    const { tenantId, companyId } = this.scope();
+    const branch = await this.prisma.branch.findFirst({
+      where: { id: branchId, companyId, company: { tenantId } },
+      select: { id: true },
+    });
+    if (!branch) throw new BadRequestException('Branch is outside organization scope.');
+    return branch.id;
+  }
+
+  private async assertApplication(applicationId: string) {
+    const { tenantId, companyId } = this.scope();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id FROM hr_job_applications WHERE id=$1 AND tenant_id=$2 AND company_id=$3 LIMIT 1`,
+      applicationId,
+      tenantId,
+      companyId,
+    );
+    if (!rows.length) throw new NotFoundException('Application not found.');
+    return rows[0];
+  }
+
   async jobs() {
     const { tenantId, companyId } = this.scope();
     return this.prisma.$queryRawUnsafe<any[]>(
@@ -30,9 +53,10 @@ export class RecruitmentService {
     const title = String(body.title ?? '').trim();
     if (!title) throw new BadRequestException('title is required.');
     const id = randomUUID();
+    const branchId = await this.assertBranch(body.branchId ?? null);
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO hr_job_postings(id,tenant_id,company_id,branch_id,title,department_name,position_name,employment_type,location,description,requirements,status,published_at,closes_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::timestamptz,$14::timestamptz,$15)`,
-      id, tenantId, companyId, body.branchId ?? null, title, body.departmentName ?? null, body.positionName ?? null, body.employmentType ?? null, body.location ?? null, body.description ?? null, body.requirements ?? null, body.status ?? 'DRAFT', body.publishedAt ?? null, body.closesAt ?? null, actorId ?? null,
+      id, tenantId, companyId, branchId, title, body.departmentName ?? null, body.positionName ?? null, body.employmentType ?? null, body.location ?? null, body.description ?? null, body.requirements ?? null, body.status ?? 'DRAFT', body.publishedAt ?? null, body.closesAt ?? null, actorId ?? null,
     );
     return { id };
   }
@@ -72,10 +96,11 @@ export class RecruitmentService {
     const { tenantId, companyId } = this.scope();
     if (!body.jobPostingId || !body.candidateId) throw new BadRequestException('Job posting and candidate are required.');
     const id = randomUUID();
-    await this.prisma.$executeRawUnsafe(
-      `INSERT INTO hr_job_applications(id,tenant_id,company_id,branch_id,job_posting_id,candidate_id,stage,rating,owner_staff_id) SELECT $1,$2,$3,j.branch_id,j.id,c.id,$6,$7,$8 FROM hr_job_postings j,hr_candidates c WHERE j.id=$4 AND c.id=$5 AND j.tenant_id=$2 AND j.company_id=$3 AND c.tenant_id=$2 AND c.company_id=$3`,
+    const inserted = await this.prisma.$queryRawUnsafe<any[]>(
+      `INSERT INTO hr_job_applications(id,tenant_id,company_id,branch_id,job_posting_id,candidate_id,stage,rating,owner_staff_id) SELECT $1,$2,$3,j.branch_id,j.id,c.id,$6,$7,$8 FROM hr_job_postings j,hr_candidates c WHERE j.id=$4 AND c.id=$5 AND j.tenant_id=$2 AND j.company_id=$3 AND c.tenant_id=$2 AND c.company_id=$3 RETURNING id`,
       id, tenantId, companyId, body.jobPostingId, body.candidateId, body.stage ?? 'APPLIED', body.rating ?? null, body.ownerStaffId ?? null,
     );
+    if (!inserted.length) throw new NotFoundException('Job posting or candidate not found.');
     return { id };
   }
 
@@ -103,6 +128,7 @@ export class RecruitmentService {
   async createInterview(body: any) {
     const { tenantId, companyId } = this.scope();
     if (!body.applicationId || !body.scheduledAt) throw new BadRequestException('Application and interview time are required.');
+    await this.assertApplication(String(body.applicationId));
     const id = randomUUID();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO hr_interviews(id,tenant_id,company_id,application_id,interview_type,scheduled_at,interviewer_staff_id,location,notes,status) VALUES($1,$2,$3,$4,$5,$6::timestamptz,$7,$8,$9,$10)`,
@@ -141,6 +167,7 @@ export class RecruitmentService {
   async createOffer(body: any) {
     const { tenantId, companyId } = this.scope();
     if (!body.applicationId) throw new BadRequestException('Application is required.');
+    await this.assertApplication(String(body.applicationId));
     const id = randomUUID();
     await this.prisma.$executeRawUnsafe(
       `INSERT INTO hr_job_offers(id,tenant_id,company_id,application_id,offered_title,gross_salary,currency,start_date,expires_at,status,notes,sent_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8::date,$9::timestamptz,$10,$11,CASE WHEN $10='SENT' THEN CURRENT_TIMESTAMP ELSE NULL END)`,
