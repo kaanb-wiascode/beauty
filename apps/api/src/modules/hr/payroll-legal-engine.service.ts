@@ -213,6 +213,24 @@ export class PayrollLegalEngineService {
     };
   }
 
+  calculateWithParameters(input: {
+    targetNet: number;
+    parameters: unknown;
+    cumulativeTaxBaseBefore?: number;
+    otherDeductions?: number;
+  }) {
+    const params = this.validateParameters(input.parameters);
+    return {
+      ...this.netToGross(
+        Number(input.targetNet),
+        params,
+        Number(input.cumulativeTaxBaseBefore ?? 0),
+        Number(input.otherDeductions ?? 0),
+      ),
+      legalParameterSnapshot: params,
+    };
+  }
+
   async createVersion(input: any, userId: string) {
     const { tenantId, companyId } = this.context();
     const versionLabel = String(input?.versionLabel ?? '').trim();
