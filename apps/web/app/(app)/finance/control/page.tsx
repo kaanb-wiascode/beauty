@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 
 import { FinanceEmpty, FinanceMetric, FinancePanel, FinanceStatus } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
@@ -40,6 +40,7 @@ export default function FinanceControlPage(){
   const[periodFrom,setPeriodFrom]=useState("");
   const[periodTo,setPeriodTo]=useState("");
   const[periodBusy,setPeriodBusy]=useState(false);
+  const[currentPeriod,setCurrentPeriod]=useState<Period|null>(null);
   const canCreatePeriod=hasPermission("accounting","manage");
   const canClosePeriod=hasPermission("finance_period","close");
   const canReopenPeriod=hasPermission("finance_period","reopen");
@@ -116,9 +117,12 @@ export default function FinanceControlPage(){
     finally{setPeriodBusy(false);}
   }
 
-  const currentPeriod=useMemo(()=>periods.find((period)=>{
-    const now=Date.now();return new Date(period.startsAt).getTime()<=now&&new Date(period.endsAt).getTime()>=now;
-  })??null,[periods]);
+  useEffect(()=>{
+    const now=Date.now();
+    setCurrentPeriod(periods.find((period)=>
+      new Date(period.startsAt).getTime()<=now&&new Date(period.endsAt).getTime()>=now
+    )??null);
+  },[periods]);
 
   if(loading&&!projection)return <div className="mx-auto max-w-[1500px] py-20"><Spinner label="Finans Kontrol Merkezi hazırlanıyor..."/></div>;
 
