@@ -14,6 +14,7 @@ import {
   Th,
 } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 
 type Direction = "SALES" | "PURCHASE";
 type Status = "DRAFT" | "ISSUED" | "CANCELLED";
@@ -77,6 +78,7 @@ const lineKindLabel: Record<LineKind, string> = {
 
 export default function InvoicesPage() {
   const [rows, setRows] = useState<Invoice[]>([]);
+  const canManageFinance = hasPermission("finance", "manage");
   const [direction, setDirection] = useState<"" | Direction>("");
   const [status, setStatus] = useState<"" | Status>("");
   const [selected, setSelected] = useState<Invoice | null>(null);
@@ -314,7 +316,7 @@ export default function InvoicesPage() {
             </div>
             <div className="flex flex-wrap items-center gap-2">
               <StatusBadge status={selected.status} />
-              {selected.status === "DRAFT" ? (
+              {canManageFinance && selected.status === "DRAFT" ? (
                 <Button
                   size="sm"
                   disabled={actionBusy}
@@ -323,7 +325,7 @@ export default function InvoicesPage() {
                   {actionBusy ? "Düzenleniyor..." : "Faturayı Düzenle"}
                 </Button>
               ) : null}
-              {selected.status === "ISSUED" ? (
+              {canManageFinance && selected.status === "ISSUED" ? (
                 <Button
                   size="sm"
                   variant="secondary"
