@@ -3,10 +3,16 @@ import { PrismaService } from '@beauty-erp/database';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { randomUUID } from 'crypto';
+import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.service';
 
 @Injectable()
 export class AttendanceHardeningService {
-  constructor(private readonly prisma: PrismaService, private readonly tenantContext: TenantContext, private readonly organizationScope: OrganizationScopeService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
+    private readonly approvalRuntime: ApprovalRuntimeService,
+  ) {}
 
   private async scope() {
     const tenantId = this.tenantContext.getTenantId();
@@ -134,8 +140,36 @@ export class AttendanceHardeningService {
       return {
         id: correctionId,
         attendanceRecordId: id,
+        branchId: current.branch_id,
+        staffId: current.staff_id,
+        requestedValue: {
+          ...requested,
+          lateMinutes: late,
+          earlyDepartureMinutes: early,
+          missingPunch: missing,
+          absence,
+        },
+      };
+    }).then(async (correction) => {
+      const approval = await this.approvalRuntime.create({
+        workflowKey: 'hr.attendance-correction',
+        entityType: 'hr_attendance_correction',
+        entityId: correction.id,
+        branchId: correction.branchId,
+        reason,
+        payload: {
+          attendanceRecordId: correction.attendanceRecordId,
+          staffId: correction.staffId,
+          requestedValue: correction.requestedValue,
+        },
+      });
+
+      return {
+        id: correction.id,
+        attendanceRecordId: correction.attendanceRecordId,
+        approvalRequestId: approval.id,
         approvalRequired: true,
-        message: 'Düzeltme talebi oluşturuldu. Puantaj kaydı onay tamamlanmadan değiştirilmedi.',
+        message: 'Düzeltme talebi oluşturuldu ve onay akışına gönderildi. Puantaj kaydı onay tamamlanmadan değiştirilmedi.',
       };
     });
   }
