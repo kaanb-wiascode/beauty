@@ -148,14 +148,38 @@ export function EnterpriseDataPage({
 
   useEffect(() => { void load(); }, [load]);
 
+  function resolvedOptionsPath(form: EnterpriseMutationForm, field: EnterpriseFormField) {
+    if (!field.optionsPath) return "";
+    let path = field.optionsPath;
+    const values = formValues[form.title] ?? {};
+    for (const token of path.matchAll(/\{([^}]+)\}/g)) {
+      const key = token[1];
+      const value = values[key];
+      if (!value) return "";
+      path = path.replaceAll(`{${key}}`, encodeURIComponent(value));
+    }
+    return path;
+  }
+
+  function remoteOptionsKey(form: EnterpriseMutationForm, field: EnterpriseFormField) {
+    const path = resolvedOptionsPath(form, field);
+    return path ? `${form.title}::${field.name}::${path}` : "";
+  }
+
   useEffect(() => {
-    const fields = forms.flatMap((form) => form.fields.filter((field) => field.type === "remote-select" && field.optionsPath));
-    const unique = [...new Map(fields.map((field) => [field.optionsPath!, field])).values()];
+    const requests = forms.flatMap((form) =>
+      form.fields
+        .filter((field) => field.type === "remote-select" && field.optionsPath)
+        .map((field) => ({ form, field, path: resolvedOptionsPath(form, field) }))
+        .filter((item) => Boolean(item.path)),
+    );
+    const unique = [...new Map(requests.map((item) => [`${item.form.title}::${item.field.name}::${item.path}`, item])).values()];
     if (!unique.length) return;
     let active = true;
-    void Promise.all(unique.map(async (field) => {
+    void Promise.all(unique.map(async ({ form, field, path }) => {
+      const key = `${form.title}::${field.name}::${path}`;
       try {
-        const response = await api<unknown>(field.optionsPath!);
+        const response = await api<unknown>(path);
         const rows = rowsFrom(response);
         const valueKey = field.optionValueKey ?? "id";
         const labelKeys = field.optionLabelKeys?.length ? field.optionLabelKeys : ["name", "title"];
@@ -163,19 +187,23 @@ export function EnterpriseDataPage({
           .map((row) => {
             const value = row[valueKey];
             if (typeof value !== "string" || !value) return null;
-            const label = labelKeys.map((key) => row[key]).filter((item) => typeof item === "string" && item.trim()).join(" ").trim();
+            const label = labelKeys
+              .map((labelKey) => row[labelKey])
+              .filter((item) => typeof item === "string" && item.trim())
+              .join(" · ")
+              .trim();
             return { value, label: label || "Kayıt" };
           })
           .filter((option): option is { value: string; label: string } => Boolean(option));
-        return [field.optionsPath!, options] as const;
+        return [key, options] as const;
       } catch {
-        return [field.optionsPath!, []] as const;
+        return [key, []] as const;
       }
     })).then((entries) => {
-      if (active) setRemoteOptions(Object.fromEntries(entries));
+      if (active) setRemoteOptions((current) => ({ ...current, ...Object.fromEntries(entries) }));
     });
     return () => { active = false; };
-  }, [forms]);
+  }, [forms, formValues]);
 
 
   async function run(action: EnterpriseAction) {
@@ -289,7 +317,7 @@ export function EnterpriseDataPage({
           <div className="grid gap-4">
             {form.fields.map((field) => field.type === "hidden" ? null : <Field key={field.name} label={field.label} required={field.required}>
               {field.type === "select" || field.type === "boolean" || field.type === "remote-select" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
-                {field.type === "boolean" ? <><option value="true">Evet</option><option value="false">Hayır</option></> : <><option value="">Seçin</option>{(field.type === "remote-select" ? remoteOptions[field.optionsPath ?? ""] ?? [] : field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</>}
+                {field.type === "boolean" ? <><option value="true">Evet</option><option value="false">Hayır</option></> : <><option value="">Seçin</option>{(field.type === "remote-select" ? remoteOptions[remoteOptionsKey(form, field)] ?? [] : field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</>}
               </Select> : field.type === "textarea" || field.type === "json" ? <TextArea rows={field.type === "json" ? 5 : 3} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/> : <TextInput type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime-local" ? "datetime-local" : "text"} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/>}
             </Field>)}
           </div>
