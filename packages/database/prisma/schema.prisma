@@ -542,6 +542,7 @@ model Sale {
   tenantId      String
   branchId      String
   customerId    String
+  counterpartyId String?
   status        SaleStatus @default(DRAFT)
   subtotal      Decimal    @db.Decimal(10, 2)
   discountTotal Decimal    @default(0) @db.Decimal(10, 2)
@@ -561,6 +562,7 @@ model Sale {
 
   @@index([tenantId, branchId, createdAt])
   @@index([tenantId, customerId])
+  @@index([tenantId, counterpartyId])
   @@index([tenantId, status])
   @@map("sales")
 }
