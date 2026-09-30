@@ -11,6 +11,7 @@ import { LeavePolicyService } from './leave-policy.service';
 export class LeavePolicyController {
   constructor(private readonly leave: LeavePolicyService) {}
   @Get('types') leaveTypes(){return this.leave.leaveTypes();}
+  @Post('types') @RequirePermissions({resource:'hr',action:'manage'}) createLeaveType(@Body() body:any){return this.leave.createLeaveType(body);}
   @Get('policies') policies(){return this.leave.policies();}
   @Post('policies') @RequirePermissions({resource:'hr',action:'manage'}) createPolicy(@Body() body:any){return this.leave.createPolicy(body);}
   @Get('employees/:staffId/balances/:leaveTypeId') balance(@Param('staffId') staffId:string,@Param('leaveTypeId') leaveTypeId:string,@Query('year',ParseIntPipe) year:number){return this.leave.balance(staffId,leaveTypeId,year);}
