@@ -52,7 +52,7 @@ export class Employee360Service {
     });
     if (!staff) throw new NotFoundException('Staff not found');
 
-    const [masterRows, assignments, employment, attendance, leaves, payroll, payments, appointmentStats, recentAppointments] = await Promise.all([
+    const [masterRows, assignments, employment, attendance, leaves, payroll, payments, performanceGoals, performanceReviews, appointmentStats, recentAppointments] = await Promise.all([
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT employee_number AS "personnelNumber",national_identity_number AS "identityNumber",date_of_birth AS "dateOfBirth",personal_email AS "personalEmail",address,employment_type AS "employmentType",hire_date AS "hireDate",termination_date AS "terminationDate",bank_name AS "bankName",iban,gross_salary AS "grossSalary",salary_type AS "salaryType"
          FROM employee_master_records
@@ -133,6 +133,23 @@ export class Employee360Service {
           )
         : Promise.resolve([]),
       this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name,target_value::text AS "target",actual_value::text AS "actual",unit,weight::text,status,starts_on::text AS "startsOn",ends_on::text AS "endsOn"
+         FROM hr_goals
+         WHERE tenant_id=$1 AND staff_id=$2
+         ORDER BY starts_on DESC LIMIT 12`,
+        tenantId,
+        staffId,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT r.id,c.name AS "cycle",r.self_score::text AS "selfScore",r.manager_score::text AS "managerScore",r.final_score::text AS "finalScore",r.achievements,r.development_areas AS "developmentAreas",r.development_plan AS "developmentPlan",r.status,r.created_at AS "createdAt"
+         FROM hr_performance_reviews r
+         JOIN hr_performance_review_cycles c ON c.id=r.cycle_id
+         WHERE r.tenant_id=$1 AND r.staff_id=$2
+         ORDER BY r.created_at DESC LIMIT 12`,
+        tenantId,
+        staffId,
+      ),
+      this.prisma.$queryRawUnsafe<any[]>(
         `SELECT COUNT(*)::int AS "totalAppointments",COUNT(*) FILTER(WHERE a.status='COMPLETED')::int AS "completedAppointments",COUNT(*) FILTER(WHERE a.status='CANCELLED')::int AS "cancelledAppointments",COALESCE(SUM(p.amount) FILTER(WHERE p.status='COMPLETED'),0) AS "collectedRevenue",MAX(a.start_at) AS "lastAppointmentAt"
          FROM appointments a
          LEFT JOIN payments p ON p.appointment_id=a.id AND p.tenant_id=a.tenant_id
@@ -204,7 +221,7 @@ export class Employee360Service {
       attendance: attendance[0] ?? {},
       leave: leaves[0] ?? {},
       payroll: compensationAllowed ? { recentPeriods: payroll, recentPayments: payments } : undefined,
-      performance: { appointments: appointmentStats[0] ?? {}, recentAppointments },
+      performance: { goals: performanceGoals, reviews: performanceReviews, appointments: appointmentStats[0] ?? {}, recentAppointments },
       fieldAccess: {
         identityBanking: identityAllowed,
         compensationPayroll: compensationAllowed,
