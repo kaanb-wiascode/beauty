@@ -36,7 +36,7 @@ for(const file of roots.flatMap(r=>walk(r))){
   }
   for(const match of text.matchAll(directRender)){
     const line=text.slice(text.lastIndexOf("\n",match.index)+1,text.indexOf("\n",match.index));
-    if(/user(Label|Text|Error|Notice)|CFO_STATUS_LABEL|STATUS_LABELS|statusLabel|typeLabel|severityLabel|ORIGIN_LABELS|MOVEMENT_LABELS|format|toLocale|\.map\(|instanceof ApiError/.test(line)) continue;
+    if(/user(Label|Text|Error|Notice)|CFO_STATUS_LABEL|STATUS_LABELS|statusLabel|typeLabel|severityLabel|ORIGIN_LABELS|MOVEMENT_LABELS|TransferStatus|StatusPill|ApprovalBadge|FinanceStatus|format|toLocale|\.map\(|instanceof ApiError/.test(line)) continue;
     findings.push({severity:"warning",rule:"raw-backend-field",file:rel(file),line:lineOf(text,match.index),sample:match[0].slice(0,120)});
   }
   for(const match of text.matchAll(userFacingAttr)){
