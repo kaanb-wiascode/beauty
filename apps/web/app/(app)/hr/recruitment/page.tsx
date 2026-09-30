@@ -11,7 +11,7 @@ export default function RecruitmentPage() {
       title="İşe Alım Merkezi"
       description="Açık pozisyonları, adayları, başvuruları, görüşmeleri ve iş tekliflerini tek merkezden yönetin."
       sections={[
-        { title: "Açık Pozisyonlar", description: "Yayınlanan veya hazırlanan iş ilanlarını görüntüleyin.", path: "/hr/recruitment/jobs", emptyActionFormTitle: "Yeni Pozisyon Aç" },
+        { title: "Açık Pozisyonlar", description: "Yayınlanan veya hazırlanan iş ilanlarını görüntüleyin.", path: "/hr/recruitment/jobs", emptyActionFormTitle: "Yeni İş İlanı Aç" },
         { title: "Adaylar", description: "İşe alım sürecindeki aday kayıtlarını görüntüleyin.", path: "/hr/recruitment/candidates", emptyActionFormTitle: "Yeni Aday Ekle" },
         { title: "Başvurular", description: "Adayların hangi pozisyon için hangi aşamada olduğunu görüntüleyin.", path: "/hr/recruitment/applications" },
         { title: "Görüşmeler", description: "Planlanan ve tamamlanan görüşmeleri görüntüleyin.", path: "/hr/recruitment/interviews" },
@@ -19,14 +19,25 @@ export default function RecruitmentPage() {
       ]}
       forms={[
         {
-          title: "Yeni Pozisyon Aç",
+          title: "Yeni İş İlanı Aç",
           description: "İşe alım yapılacak pozisyon için yeni ilan kaydı oluşturun.",
           path: "/hr/recruitment/jobs",
           fields: [
             { name: "title", label: "İlan Başlığı", placeholder: "Örn. Şube Müdürü", required: true },
-            { name: "departmentName", label: "Departman" },
-            { name: "positionName", label: "Pozisyon" },
-            { name: "employmentType", label: "Çalışma Şekli", placeholder: "Örn. Tam zamanlı" },
+            { name: "departmentId", label: "Departman", type: "remote-select", optionsPath: "/hr/organization/departments", optionLabelKeys: ["name"], createFormTitle: "Yeni Departman Ekle" },
+            { name: "positionId", label: "Pozisyon", type: "remote-select", optionsPath: "/hr/organization/positions?departmentId={departmentId}", optionLabelKeys: ["name"], createFormTitle: "Yeni Organizasyon Pozisyonu Ekle" },
+            {
+              name: "employmentType",
+              label: "Çalışma Şekli",
+              type: "select",
+              options: [
+                { value: "FULL_TIME", label: "Tam Zamanlı" },
+                { value: "PART_TIME", label: "Yarı Zamanlı" },
+                { value: "HOURLY", label: "Saatlik" },
+                { value: "SEASONAL", label: "Dönemsel" },
+                { value: "INTERN", label: "Stajyer" },
+              ],
+            },
             { name: "location", label: "Çalışma Yeri" },
             { name: "description", label: "Pozisyon Açıklaması", type: "textarea" },
             { name: "requirements", label: "Aranan Özellikler", type: "textarea" },
@@ -42,6 +53,25 @@ export default function RecruitmentPage() {
               ],
             },
             { name: "closesAt", label: "Başvuru Bitişi", type: "datetime-local" },
+          ],
+        },
+        {
+          title: "Yeni Departman Ekle",
+          description: "Listede olmayan departmanı oluşturun. Yeni kayıt iş ilanı formunda otomatik seçilir.",
+          path: "/hr/organization/departments",
+          fields: [
+            { name: "code", label: "Kısa Kod", required: true, placeholder: "Örn. SAT" },
+            { name: "name", label: "Departman Adı", required: true },
+          ],
+        },
+        {
+          title: "Yeni Organizasyon Pozisyonu Ekle",
+          description: "Seçili departmana yeni pozisyon ekleyin. Yeni kayıt iş ilanı formunda otomatik seçilir.",
+          path: "/hr/organization/positions",
+          fields: [
+            { name: "departmentId", label: "Departman", type: "remote-select", optionsPath: "/hr/organization/departments", optionLabelKeys: ["name"], createFormTitle: "Yeni Departman Ekle", required: true },
+            { name: "code", label: "Kısa Kod", required: true, placeholder: "Örn. SAT-UZM" },
+            { name: "name", label: "Pozisyon Adı", required: true },
           ],
         },
         {
@@ -65,7 +95,7 @@ export default function RecruitmentPage() {
           description: "Bir adayı açık pozisyona bağlayarak işe alım sürecini başlatın.",
           path: "/hr/recruitment/applications",
           fields: [
-            { name: "jobPostingId", label: "Pozisyon", type: "remote-select", optionsPath: "/hr/recruitment/jobs", optionLabelKeys: ["title"], createFormTitle: "Yeni Pozisyon Aç", required: true },
+            { name: "jobPostingId", label: "Pozisyon", type: "remote-select", optionsPath: "/hr/recruitment/jobs", optionLabelKeys: ["title"], createFormTitle: "Yeni İş İlanı Aç", required: true },
             { name: "candidateId", label: "Aday", type: "remote-select", optionsPath: "/hr/recruitment/candidates", optionLabelKeys: ["firstName", "lastName"], createFormTitle: "Yeni Aday Ekle", required: true },
             { name: "ownerStaffId", label: "Süreci Yürüten Çalışan", type: "remote-select", optionsPath: "/hr/employees", optionLabelKeys: ["firstName", "lastName"] },
           ],
