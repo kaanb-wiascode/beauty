@@ -140,5 +140,70 @@ export class PayrollWorkInputService {
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
-  async attachToDraft(periodId:string,staffId:string){const {tenantId,companyId,branchIds}=await this.context();return this.prisma.$transaction(async tx=>{const periods=await tx.$queryRawUnsafe<any[]>(`SELECT id,year,month,status,branch_id AS "branchId" FROM payroll_periods WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT' FOR UPDATE`,periodId,tenantId,companyId);if(!periods.length)throw new BadRequestException('Draft payroll period is required.');const period=periods[0];if(branchIds!==null&&period.branchId!==null&&!branchIds.includes(period.branchId))throw new NotFoundException('Draft payroll period not found.');const items=await tx.$queryRawUnsafe<any[]>(`SELECT id,branch_id AS "branchId",calculation_snapshot AS "calculationSnapshot" FROM payroll_items WHERE period_id=$1::text AND staff_id=$2::text AND tenant_id=$3::text AND company_id=$4::text AND ($5::text[] IS NULL OR branch_id=ANY($5::text[])) FOR UPDATE`,periodId,staffId,tenantId,companyId,branchIds);if(!items.length)throw new NotFoundException('Draft payroll item not found.');const {start,end}=this.bounds(Number(period.year),Number(period.month));const stats=await tx.$queryRawUnsafe<any[]>(`SELECT COALESCE(SUM(ar.worked_minutes),0)::int AS "workedMinutes",COALESCE(SUM(ar.overtime_minutes),0)::int AS "overtimeMinutes",COALESCE(SUM(ar.approved_overtime_minutes),0)::int AS "approvedOvertimeMinutes",COUNT(*) FILTER(WHERE ar.status='PRESENT')::int AS "presentDays",COUNT(*) FILTER(WHERE ar.status='ABSENT')::int AS "absentDays",(SELECT COUNT(*)::int FROM leave_requests lr WHERE lr.staff_id=$1::text AND lr.tenant_id=$2::text AND lr.status='APPROVED' AND lr.start_date <= $4::date AND lr.end_date >= $3::date AND ($5::text[] IS NULL OR lr.branch_id=ANY($5::text[]))) AS "approvedLeaveRecords",(SELECT COALESCE(SUM(lr.days),0)::numeric FROM leave_requests lr WHERE lr.staff_id=$1::text AND lr.tenant_id=$2::text AND lr.status='APPROVED' AND lr.start_date <= $4::date AND lr.end_date >= $3::date AND ($5::text[] IS NULL OR lr.branch_id=ANY($5::text[]))) AS "declaredLeaveDays" FROM attendance_records ar WHERE ar.staff_id=$1::text AND ar.tenant_id=$2::text AND ar.work_date BETWEEN $3::date AND $4::date AND ($5::text[] IS NULL OR ar.branch_id=ANY($5::text[]))`,staffId,tenantId,start,end,branchIds);const existing=items[0].calculationSnapshot&&typeof items[0].calculationSnapshot==='object'?items[0].calculationSnapshot:{};const snapshot={...existing,workInputs:{source:'ATTENDANCE_LEAVE_OVERTIME',periodStart:start,periodEnd:end,capturedAt:new Date().toISOString(),...stats[0]}};await tx.$executeRawUnsafe(`UPDATE payroll_items SET calculation_snapshot=$2::jsonb,updated_at=NOW() WHERE id=$1::text`,items[0].id,JSON.stringify(snapshot));return{periodId,staffId,workInputs:snapshot.workInputs}}, {isolationLevel:Prisma.TransactionIsolationLevel.Serializable})}
+  async attachToDraft(periodId:string,staffId:string){
+    const {tenantId,companyId,branchIds}=await this.context();
+    return this.prisma.$transaction(async tx=>{
+      const periods=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,year,month,status,branch_id AS "branchId"
+         FROM payroll_periods
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+         FOR UPDATE`,
+        periodId,tenantId,companyId,
+      );
+      if(!periods.length) throw new BadRequestException('Draft payroll period is required.');
+      const period=periods[0];
+      if(!period.branchId) throw new BadRequestException('Puantaj girdileri için şubeye bağlı bordro dönemi gereklidir.');
+      if(branchIds!==null&&!branchIds.includes(period.branchId)) throw new NotFoundException('Draft payroll period not found.');
+
+      const items=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,branch_id AS "branchId",calculation_snapshot AS "calculationSnapshot"
+         FROM payroll_items
+         WHERE period_id=$1::text AND staff_id=$2::text AND tenant_id=$3::text AND company_id=$4::text
+           AND branch_id=$5::text
+         FOR UPDATE`,
+        periodId,staffId,tenantId,companyId,period.branchId,
+      );
+      if(!items.length) throw new NotFoundException('Draft payroll item not found.');
+
+      const closures=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,period_start AS "periodStart",period_end AS "periodEnd",snapshot,closed_at AS "closedAt"
+         FROM hr_attendance_period_closures
+         WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+           AND payroll_period_id=$4::text AND year=$5 AND month=$6 AND status='CLOSED'
+         LIMIT 1`,
+        tenantId,companyId,period.branchId,periodId,Number(period.year),Number(period.month),
+      );
+      if(!closures.length) throw new BadRequestException('Bordro girdileri için önce ilgili ayın puantaj kapanışı tamamlanmalıdır.');
+
+      const closure=closures[0];
+      const closureSnapshot=closure.snapshot&&typeof closure.snapshot==='object'?closure.snapshot:{};
+      const staffRows=Array.isArray(closureSnapshot.staff)?closureSnapshot.staff:[];
+      const staffSnapshot=staffRows.find((row:any)=>String(row?.staffId??'')===staffId);
+      if(!staffSnapshot) throw new NotFoundException('Personel, kapanmış puantaj snapshotında bulunamadı.');
+
+      const existing=items[0].calculationSnapshot&&typeof items[0].calculationSnapshot==='object'?items[0].calculationSnapshot:{};
+      const workInputs={
+        source:'ATTENDANCE_PERIOD_CLOSE',
+        closureId:closure.id,
+        closedAt:closure.closedAt,
+        periodStart:closure.periodStart,
+        periodEnd:closure.periodEnd,
+        capturedAt:new Date().toISOString(),
+        workedMinutes:Number(staffSnapshot.workedMinutes??0),
+        overtimeMinutes:Number(staffSnapshot.overtimeMinutes??0),
+        approvedOvertimeMinutes:Number(staffSnapshot.approvedOvertimeMinutes??0),
+        presentDays:Number(staffSnapshot.presentDays??0),
+        absentDays:Number(staffSnapshot.absentDays??0),
+        approvedLeaveRecords:Number(staffSnapshot.approvedLeaveRecords??0),
+        declaredLeaveDays:Number(staffSnapshot.declaredLeaveDays??0),
+        unpaidLeaveRecords:Number(staffSnapshot.unpaidLeaveRecords??0),
+      };
+      const snapshot={...existing,workInputs};
+      await tx.$executeRawUnsafe(
+        `UPDATE payroll_items SET calculation_snapshot=$2::jsonb,updated_at=NOW() WHERE id=$1::text AND branch_id=$3::text`,
+        items[0].id,JSON.stringify(snapshot),period.branchId,
+      );
+      return{periodId,staffId,workInputs};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
 }
