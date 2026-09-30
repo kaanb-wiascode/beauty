@@ -144,6 +144,28 @@ export default function RecruitmentPage() {
           ],
         },
         {
+          title: "Görüşme Sonucunu Kaydet",
+          description: "Tamamlanan görüşmenin puanını, sonucunu ve değerlendirme notunu kaydedin.",
+          path: "/hr/recruitment/interviews/{id}",
+          method: "PATCH",
+          fields: [
+            { name: "id", label: "Görüşme", type: "remote-select", optionsPath: "/hr/recruitment/interviews", optionLabelKeys: ["firstName", "lastName", "jobTitle", "scheduledAt"], required: true },
+            { name: "score", label: "Görüşme Puanı (0-100)", type: "number" },
+            {
+              name: "status",
+              label: "Görüşme Sonucu",
+              type: "select",
+              options: [
+                { value: "COMPLETED", label: "Tamamlandı" },
+                { value: "NO_SHOW", label: "Aday Katılmadı" },
+                { value: "CANCELLED", label: "İptal Edildi" },
+                { value: "SCHEDULED", label: "Planlandı" },
+              ],
+            },
+            { name: "notes", label: "Değerlendirme Notu", type: "textarea" },
+          ],
+        },
+        {
           title: "İş Teklifini Sonuçlandır",
           description: "Adayın iş teklifine verdiği kabul veya red yanıtını kaydedin.",
           path: "/hr/recruitment/offers/{id}/respond",
