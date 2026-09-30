@@ -1,0 +1,42 @@
+name: Lockfile refresh preview
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  preview:
+    if: "!contains(github.event.head_commit.message, 'chore(ci): remove lockfile preview')"
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Refresh lockfile
+        run: pnpm install --lockfile-only --no-frozen-lockfile
+
+      - name: Show lockfile diff
+        shell: bash
+        run: |
+          echo '---LOCKFILE-DIFF-BEGIN---'
+          git diff -- pnpm-lock.yaml
+          echo '---LOCKFILE-DIFF-END---'
