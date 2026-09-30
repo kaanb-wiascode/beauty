@@ -42,7 +42,7 @@ export class RecruitmentService {
   async jobs() {
     const { tenantId, companyId } = this.scope();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,title,department_name AS "departmentName",position_name AS "positionName",employment_type AS "employmentType",location,status,published_at AS "publishedAt",closes_at AS "closesAt",created_at AS "createdAt" FROM hr_job_postings WHERE tenant_id=$1 AND company_id=$2 ORDER BY created_at DESC`,
+      `SELECT id,title,department_id AS "departmentId",department_name AS "departmentName",position_id AS "positionId",position_name AS "positionName",employment_type AS "employmentType",location,status,published_at AS "publishedAt",closes_at AS "closesAt",created_at AS "createdAt" FROM hr_job_postings WHERE tenant_id=$1 AND company_id=$2 ORDER BY created_at DESC`,
       tenantId,
       companyId,
     );
@@ -54,9 +54,42 @@ export class RecruitmentService {
     if (!title) throw new BadRequestException('title is required.');
     const id = randomUUID();
     const branchId = await this.assertBranch(body.branchId ?? null);
+
+    let department: any = null;
+    let position: any = null;
+    if (body.departmentId) {
+      department = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name FROM hr_departments WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.departmentId, tenantId, companyId,
+      ))[0];
+      if (!department) throw new BadRequestException('Department is not available in the active company.');
+    }
+    if (body.positionId) {
+      position = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name,department_id FROM hr_positions WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.positionId, tenantId, companyId,
+      ))[0];
+      if (!position) throw new BadRequestException('Position is not available in the active company.');
+      if (body.departmentId && position.department_id && position.department_id !== body.departmentId) {
+        throw new BadRequestException('Position does not belong to the selected department.');
+      }
+    }
+
     await this.prisma.$executeRawUnsafe(
-      `INSERT INTO hr_job_postings(id,tenant_id,company_id,branch_id,title,department_name,position_name,employment_type,location,description,requirements,status,published_at,closes_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13::timestamptz,$14::timestamptz,$15)`,
-      id, tenantId, companyId, branchId, title, body.departmentName ?? null, body.positionName ?? null, body.employmentType ?? null, body.location ?? null, body.description ?? null, body.requirements ?? null, body.status ?? 'DRAFT', body.publishedAt ?? null, body.closesAt ?? null, actorId ?? null,
+      `INSERT INTO hr_job_postings(id,tenant_id,company_id,branch_id,title,department_id,department_name,position_id,position_name,employment_type,location,description,requirements,status,published_at,closes_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15::timestamptz,$16::timestamptz,$17)`,
+      id, tenantId, companyId, branchId, title,
+      department?.id ?? null,
+      department?.name ?? body.departmentName ?? null,
+      position?.id ?? null,
+      position?.name ?? body.positionName ?? null,
+      body.employmentType ?? null,
+      body.location ?? null,
+      body.description ?? null,
+      body.requirements ?? null,
+      body.status ?? 'DRAFT',
+      body.publishedAt ?? null,
+      body.closesAt ?? null,
+      actorId ?? null,
     );
     return { id };
   }
@@ -200,7 +233,7 @@ export class RecruitmentService {
   async hire(id: string, body: any, actorId: string) {
     const { tenantId, companyId } = this.scope();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT a.id,a.stage,a.hired_staff_id AS "hiredStaffId",c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone,j.branch_id AS "branchId",j.department_name AS "department",COALESCE(j.position_name,j.title) AS "position",j.employment_type AS "employmentType",(SELECT o.start_date::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStartDate",(SELECT o.gross_salary::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerGrossSalary",(SELECT o.status FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStatus" FROM hr_job_applications a JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 LIMIT 1`,
+      `SELECT a.id,a.stage,a.hired_staff_id AS "hiredStaffId",c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone,j.branch_id AS "branchId",j.department_id AS "departmentId",j.department_name AS "department",j.position_id AS "positionId",COALESCE(j.position_name,j.title) AS "position",j.employment_type AS "employmentType",(SELECT o.start_date::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStartDate",(SELECT o.gross_salary::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerGrossSalary",(SELECT o.status FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStatus" FROM hr_job_applications a JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 LIMIT 1`,
       id, tenantId, companyId,
     );
     const application = rows[0];
@@ -224,6 +257,8 @@ export class RecruitmentService {
       lastName: application.lastName,
       email: application.email ?? undefined,
       phone: application.phone ?? undefined,
+      departmentId: application.departmentId ?? undefined,
+      positionId: application.positionId ?? undefined,
       department: application.department ?? undefined,
       position: application.position ?? undefined,
       employmentType: application.employmentType ?? body.employmentType ?? undefined,
