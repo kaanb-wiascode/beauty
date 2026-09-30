@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "next build",
+    "build": "node scripts/user-language-audit.mjs && next build",
     "typecheck": "tsc --noEmit",
     "start": "mkdir -p .next/standalone/apps/web/.next && cp -R .next/static .next/standalone/apps/web/.next/static && cp -R public .next/standalone/apps/web/public && HOSTNAME=0.0.0.0 PORT=${PORT:-10000} node .next/standalone/apps/web/server.js",
     "lint": "eslint",
