@@ -234,7 +234,8 @@ export class PayrollCalculationService {
           `SELECT id,staff_id AS "staffId",salary_basis AS "salaryBasis",net_amount AS "netAmount",
                   currency,effective_from AS "effectiveFrom",effective_to AS "effectiveTo"
            FROM hr_salary_contracts
-           WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text AND status='ACTIVE'
+           WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+             AND status IN('ACTIVE','ENDED')
              AND effective_from <= $4::date AND (effective_to IS NULL OR effective_to >= $4::date)
            ORDER BY staff_id,effective_from DESC`,
           tenantId,
