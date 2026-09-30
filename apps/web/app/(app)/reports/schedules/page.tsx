@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { userErrorMessage, userFieldLabel } from "@/lib/user-language";
 import {
   getReportCatalog,
   type ReportCatalogItem,
@@ -41,7 +42,7 @@ export default function ReportSchedulesPage() {
         if (!active) return;
         setCatalog([]);
         setReportKey(null);
-        setError(cause instanceof ApiError ? cause.message : "Rapor kataloğu yüklenemedi.");
+        setError(cause instanceof ApiError ? userErrorMessage(cause.message,"Rapor kataloğu yüklenemedi.") : "Rapor kataloğu yüklenemedi.");
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -97,18 +98,18 @@ export default function ReportSchedulesPage() {
               </div>
               <div>
                 <div className="flex items-center justify-between gap-3">
-                  <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Dışa Aktarım Kolonları</label>
+                  <label className="block text-[11px] font-medium uppercase tracking-[0.08em] text-[var(--muted-soft)]">Dışa Aktarım Alanları</label>
                   <button type="button" onClick={() => setColumns(selected.exportableColumns)} className="text-[10px] font-semibold text-[var(--accent)]">Tümüne izin ver</button>
                 </div>
                 <div className="mt-2 flex flex-wrap gap-2">
                   {selected.exportableColumns.map((column) => (
                     <label key={column} className="flex items-center gap-2 rounded-xl border border-[var(--line)] bg-white px-3 py-2 text-[10px] text-[var(--muted)]">
                       <input type="checkbox" checked={columns.includes(column)} onChange={() => toggleColumn(column)} />
-                      {column}
+                      {userFieldLabel(column)}
                     </label>
                   ))}
                 </div>
-                {columns.length === 0 ? <p className="mt-2 text-[10px] text-red-600">En az bir kolon seçmelisiniz.</p> : null}
+                {columns.length === 0 ? <p className="mt-2 text-[10px] text-red-600">En az bir alan seçmelisiniz.</p> : null}
               </div>
             </div>
           </section>
