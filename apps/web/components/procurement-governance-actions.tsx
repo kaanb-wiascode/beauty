@@ -122,6 +122,10 @@ export function ProcurementGovernanceActions(){
         <Field label="Sipariş"><Select value={orderId} onChange={e=>setOrderId(e.target.value)}><option value="">Sipariş seçin</option>{orderOptions.map(x=><option key={x.value} value={x.value}>{x.label}</option>)}</Select></Field>
         {detail?<>
           <div className="grid gap-2 sm:grid-cols-3"><Mini label="Durum" value={userLabel(detail.order.status)}/><Mini label="Tedarikçi" value={detail.order.supplierOrganizationName||detail.order.supplierName||"—"}/><Mini label="Tutar" value={money(detail.order.totalAmount)}/></div>
+          <div className="flex flex-wrap gap-2">
+            {detail.order.status==="DRAFT"?<Button size="sm" disabled={Boolean(busy)} onClick={()=>void mutate(`/procurement/purchase-orders/${orderId}/submit-approval`,undefined,"Sipariş onaya gönderildi.")}>Onaya Gönder</Button>:null}
+            {detail.order.status==="APPROVED"?<Button size="sm" disabled={Boolean(busy)} onClick={()=>void mutate(`/procurement/purchase-orders/${orderId}/order`,undefined,"Sipariş verildi.")}>Siparişi Ver</Button>:null}
+          </div>
           {approval?.approvals?.length?<div className="space-y-2"><p className="text-[10px] font-semibold text-[var(--muted)]">Onay Kademeleri</p>{approval.approvals.map(a=><div key={a.id} className="flex flex-wrap items-center justify-between gap-2 rounded-[12px] bg-[var(--surface-2)] px-3 py-2"><div><p className="text-[11px] font-semibold text-[var(--ink)]">Seviye {a.level} · {roleLabel(a.requiredRole)}</p><p className="text-[9px] text-[var(--muted)]">{userLabel(a.status)}{a.approvedAt?` · ${date(a.approvedAt)}`:""}</p></div>{a.status==="PENDING"?<div className="flex gap-2"><Button size="sm" disabled={Boolean(busy)} onClick={()=>void mutate(`/procurement/purchase-orders/${orderId}/approvals/${a.level}/approve`,undefined,"Onay kademesi onaylandı.")}>Onayla</Button><Button size="sm" variant="secondary" disabled={Boolean(busy)} onClick={()=>void mutate(`/procurement/purchase-orders/${orderId}/approvals/${a.level}/reject`,undefined,"Onay kademesi reddedildi.")}>Reddet</Button></div>:null}</div>)}</div>:null}
         </>:null}
       </Panel>
@@ -130,7 +134,7 @@ export function ProcurementGovernanceActions(){
         {detail?.items?.length?<div className="space-y-2">{detail.items.map(item=><div key={item.id} className="grid gap-2 rounded-[12px] border border-[var(--line)] p-3 sm:grid-cols-[1fr_130px] sm:items-center"><div><p className="text-[11px] font-semibold text-[var(--ink)]">{item.productName}</p><p className="text-[9px] text-[var(--muted)]">Kalan: {Number(item.remainingQuantity).toLocaleString("tr-TR")} · Birim maliyet: {money(item.unitCost)}</p></div><TextInput type="number" min="0" max={String(item.remainingQuantity)} step="0.001" value={receiveQty[item.id]??""} onChange={e=>setReceiveQty(x=>({...x,[item.id]:e.target.value}))} disabled={Number(item.remainingQuantity)<=0}/></div>)}</div>:<p className="text-[11px] text-[var(--muted)]">Teslim alınabilecek sipariş kalemi bulunmuyor.</p>}
         <div className="grid gap-3 sm:grid-cols-2"><Field label="Fatura Numarası"><TextInput value={invoiceNumber} onChange={e=>setInvoiceNumber(e.target.value)}/></Field><Field label="Vade Tarihi"><TextInput type="date" value={dueAt} onChange={e=>setDueAt(e.target.value)}/></Field></div>
         <Field label="Not"><TextArea rows={2} value={note} onChange={e=>setNote(e.target.value)}/></Field>
-        <Button disabled={Boolean(busy)||!detail||!detail.items.some(x=>Number(x.remainingQuantity)>0)} onClick={()=>void receive()}>Mal Kabulü Oluştur</Button>
+        <Button disabled={Boolean(busy)||!detail||detail.order.status!=="ORDERED"||!detail.items.some(x=>Number(x.remainingQuantity)>0)} onClick={()=>void receive()}>Mal Kabulü Oluştur</Button>
       </Panel>
 
       <Panel title="Mal Kabul ve İade İşlemleri">
