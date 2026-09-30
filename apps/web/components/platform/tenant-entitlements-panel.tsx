@@ -5,7 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Select } from "@/components/ui";
 
 import { ApiError } from "@/lib/api";
-import { userErrorMessage, userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel, userText } from "@/lib/user-language";
 import {
   createPlatformEntitlementOverride,
   getPlatformTenantEntitlements,
@@ -111,8 +111,8 @@ export function TenantEntitlementsPanel({ tenantId }: { tenantId: string }) {
             <div key={item.key} className="rounded-2xl border border-white/[.08] bg-black/15 p-4">
               <div className="flex items-start justify-between gap-3">
                 <div className="min-w-0">
-                  <p className="truncate text-xs font-semibold text-white">{item.name}</p>
-                  {item.description ? <p className="mt-1 text-[10px] leading-4 text-white/30">{item.description}</p> : null}
+                  <p className="truncate text-xs font-semibold text-white">{userText(item.name)}</p>
+                  {item.description ? <p className="mt-1 text-[10px] leading-4 text-white/30">{userText(item.description)}</p> : null}
                 </div>
                 <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${sourceClass(item.source)}`}>{userLabel(item.source)}</span>
               </div>
@@ -137,7 +137,7 @@ export function TenantEntitlementsPanel({ tenantId }: { tenantId: string }) {
         <p className="text-xs font-semibold text-white">Geçici işletme ayarı</p>
         <div className="mt-4 grid gap-3 xl:grid-cols-[1.25fr_1fr_1fr_1.5fr_auto]">
           <Select value={selectedKey} onChange={(event) => setSelectedKey(event.target.value)} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none">
-            {items.map((item) => <option key={item.key} value={item.key}>{item.name}</option>)}
+            {items.map((item) => <option key={item.key} value={item.key}>{userText(item.name)}</option>)}
           </Select>
           <input value={rawValue} onChange={(event) => setRawValue(event.target.value)} placeholder={selected?.valueType === "BOOLEAN" ? "Evet / Hayır" : "Değer"} className="rounded-xl border border-white/10 bg-black/30 px-3 py-2 text-xs text-white outline-none" />
           <DateTimePicker value={endsAt} onChange={setEndsAt} ariaLabel="Özel ayar bitiş tarihi" />
@@ -171,8 +171,9 @@ function parseValue(type: PlatformTenantEntitlement["valueType"], raw: string): 
 
 function formatValue(value: unknown) {
   if (typeof value === "boolean") return value ? "Etkin" : "Devre dışı";
-  if (typeof value === "string" || typeof value === "number") return String(value);
-  return JSON.stringify(value);
+  if (typeof value === "string") return userText(value);
+  if (typeof value === "number") return String(value);
+  return "Yapılandırılmış değer";
 }
 
 function sourceClass(source: PlatformTenantEntitlement["source"]) {
