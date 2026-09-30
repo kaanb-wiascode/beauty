@@ -50,6 +50,20 @@ for(const file of roots.flatMap(r=>walk(r))){
 const critical=findings.filter(x=>x.severity==="critical");
 const warnings=findings.filter(x=>x.severity==="warning");
 console.log(`Kullanıcı dili denetimi: ${critical.length} kritik, ${warnings.length} uyarı.`);
+
+const moduleStats=new Map();
+for(const item of findings){
+  const match=item.file.match(/^app\/(?:\(app\)\/)?([^/]+)/);
+  const moduleName=match?.[1] ?? (item.file.startsWith("components/") ? "ortak-bileşenler" : "diğer");
+  const current=moduleStats.get(moduleName)??{critical:0,warning:0,total:0};
+  current[item.severity==="critical"?"critical":"warning"]+=1;
+  current.total+=1;
+  moduleStats.set(moduleName,current);
+}
+console.log("Modül özeti:");
+for(const [moduleName,stats] of [...moduleStats.entries()].sort((a,b)=>b[1].total-a[1].total).slice(0,30)){
+  console.log(`- ${moduleName}: ${stats.critical} kritik, ${stats.warning} uyarı`);
+}
 for(const item of findings.slice(0,250)){
   console.log(`[${item.severity.toUpperCase()}] ${item.rule} ${item.file}:${item.line} — ${item.sample}`);
 }
