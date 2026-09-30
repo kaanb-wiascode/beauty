@@ -41,7 +41,102 @@ export class AttendanceHardeningService {
   }
 
   async correct(id: string, body: any, actorId: string) {
-    const reason=String(body.reason??'').trim(); if(!reason)throw new BadRequestException('Correction reason is required.'); const s=await this.scope();
-    return this.prisma.$transaction(async tx=>{const rows=await tx.$queryRawUnsafe<any[]>(`SELECT a.* FROM attendance_records a JOIN branches b ON b.id=a.branch_id WHERE a.id=$1 AND a.tenant_id=$2 AND b."companyId"=$3 AND ($4::text[] IS NULL OR a.branch_id=ANY($4::text[])) FOR UPDATE`,id,s.tenantId,s.companyId,s.branchIds);const current=rows[0];if(!current)throw new NotFoundException('Attendance record not found.');const next={checkIn:body.checkIn??current.check_in,checkOut:body.checkOut??current.check_out,status:body.status??current.status,note:body.note??current.note};let late=current.late_minutes??0,early=current.early_departure_minutes??0,missing=!next.checkIn||!next.checkOut,absence=!next.checkIn&&!next.checkOut;if(current.scheduled_shift_id){const m=await tx.$queryRawUnsafe<any[]>(`SELECT CASE WHEN $1::timestamp IS NULL THEN 0 ELSE GREATEST(0,FLOOR(EXTRACT(EPOCH FROM ($1::timestamp-starts_at))/60))::int END AS late,CASE WHEN $2::timestamp IS NULL THEN 0 ELSE GREATEST(0,FLOOR(EXTRACT(EPOCH FROM (ends_at-$2::timestamp))/60))::int END AS early FROM hr_scheduled_shifts WHERE id=$3 AND tenant_id=$4`,next.checkIn,next.checkOut,current.scheduled_shift_id,s.tenantId);if(m.length){late=Number(m[0].late);early=Number(m[0].early)}}await tx.$executeRawUnsafe(`UPDATE attendance_records SET check_in=$1,check_out=$2,status=$3,note=$4,late_minutes=$5,early_departure_minutes=$6,missing_punch=$7,absence=$8,exception_status='CORRECTED',updated_at=CURRENT_TIMESTAMP WHERE id=$9`,next.checkIn,next.checkOut,next.status,next.note,late,early,missing,absence,id);await tx.$executeRawUnsafe(`INSERT INTO hr_attendance_corrections(id,tenant_id,company_id,branch_id,attendance_record_id,staff_id,reason,previous_value,new_value,actor_id) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10)`,randomUUID(),s.tenantId,s.companyId,current.branch_id,id,current.staff_id,reason,JSON.stringify({checkIn:current.check_in,checkOut:current.check_out,status:current.status,note:current.note,lateMinutes:current.late_minutes,earlyDepartureMinutes:current.early_departure_minutes,missingPunch:current.missing_punch,absence:current.absence}),JSON.stringify({...next,lateMinutes:late,earlyDepartureMinutes:early,missingPunch:missing,absence}),actorId);return{id,exceptionStatus:'CORRECTED',lateMinutes:late,earlyDepartureMinutes:early,missingPunch:missing,absence}});
+    const reason = String(body.reason ?? '').trim();
+    if (!reason) throw new BadRequestException('Düzeltme nedeni zorunludur.');
+
+    const s = await this.scope();
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT a.*
+         FROM attendance_records a
+         JOIN branches b ON b.id = a.branch_id
+         WHERE a.id = $1
+           AND a.tenant_id = $2
+           AND b."companyId" = $3
+           AND ($4::text[] IS NULL OR a.branch_id = ANY($4::text[]))
+         FOR UPDATE`,
+        id,
+        s.tenantId,
+        s.companyId,
+        s.branchIds,
+      );
+
+      const current = rows[0];
+      if (!current) throw new NotFoundException('Puantaj kaydı bulunamadı.');
+
+      const requested = {
+        checkIn: body.checkIn ?? current.check_in,
+        checkOut: body.checkOut ?? current.check_out,
+        status: body.status ?? current.status,
+        note: body.note ?? current.note,
+      };
+
+      let late = current.late_minutes ?? 0;
+      let early = current.early_departure_minutes ?? 0;
+      const missing = !requested.checkIn || !requested.checkOut;
+      const absence = !requested.checkIn && !requested.checkOut;
+
+      if (current.scheduled_shift_id) {
+        const metrics = await tx.$queryRawUnsafe<any[]>(
+          `SELECT
+             CASE WHEN $1::timestamp IS NULL THEN 0
+               ELSE GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ($1::timestamp - starts_at)) / 60))::int
+             END AS late,
+             CASE WHEN $2::timestamp IS NULL THEN 0
+               ELSE GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (ends_at - $2::timestamp)) / 60))::int
+             END AS early
+           FROM hr_scheduled_shifts
+           WHERE id = $3 AND tenant_id = $4`,
+          requested.checkIn,
+          requested.checkOut,
+          current.scheduled_shift_id,
+          s.tenantId,
+        );
+        if (metrics.length) {
+          late = Number(metrics[0].late);
+          early = Number(metrics[0].early);
+        }
+      }
+
+      const correctionId = randomUUID();
+      await tx.$executeRawUnsafe(
+        `INSERT INTO hr_attendance_corrections(
+           id, tenant_id, company_id, branch_id, attendance_record_id, staff_id,
+           reason, previous_value, new_value, actor_id
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10)`,
+        correctionId,
+        s.tenantId,
+        s.companyId,
+        current.branch_id,
+        id,
+        current.staff_id,
+        reason,
+        JSON.stringify({
+          checkIn: current.check_in,
+          checkOut: current.check_out,
+          status: current.status,
+          note: current.note,
+          lateMinutes: current.late_minutes,
+          earlyDepartureMinutes: current.early_departure_minutes,
+          missingPunch: current.missing_punch,
+          absence: current.absence,
+        }),
+        JSON.stringify({
+          ...requested,
+          lateMinutes: late,
+          earlyDepartureMinutes: early,
+          missingPunch: missing,
+          absence,
+        }),
+        actorId,
+      );
+
+      return {
+        id: correctionId,
+        attendanceRecordId: id,
+        approvalRequired: true,
+        message: 'Düzeltme talebi oluşturuldu. Puantaj kaydı onay tamamlanmadan değiştirilmedi.',
+      };
+    });
   }
 }
