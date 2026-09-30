@@ -33,6 +33,22 @@ type PlatformPermissionRow = {
 export class PlatformIamReadService {
   constructor(private readonly prisma: PrismaService) {}
 
+  async listCandidateUsers(search?: string) {
+    const normalized=(search??'').trim();
+    const pattern=`%${normalized}%`;
+    return this.prisma.$queryRawUnsafe<Array<{ userId: string; email: string; firstName: string; lastName: string }>>(
+      `SELECT u.id AS "userId",u.email,u."firstName",u."lastName"
+       FROM users u
+       LEFT JOIN platform_admin_users pau ON pau.user_id=u.id
+       WHERE pau.user_id IS NULL
+         AND ($1::text='' OR u.email ILIKE $2 OR u."firstName" ILIKE $2 OR u."lastName" ILIKE $2)
+       ORDER BY u."firstName",u."lastName",u.email
+       LIMIT 100`,
+      normalized,
+      pattern,
+    );
+  }
+
   async getOverview() {
     const admins = await this.prisma.$queryRaw<PlatformAdminRow[]>`
       SELECT
