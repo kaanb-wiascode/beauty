@@ -73,6 +73,12 @@ export class RecruitmentController {
     return this.recruitment.createInterview(body);
   }
 
+  @Patch('interviews/:id')
+  @RequirePermissions({ resource: 'hr', action: 'manage' })
+  updateInterview(@Param('id') id: string, @Body() body: any) {
+    return this.recruitment.updateInterview(id, body);
+  }
+
   @Get('offers')
   offers() {
     return this.recruitment.offers();
