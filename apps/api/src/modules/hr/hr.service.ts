@@ -3,6 +3,7 @@ import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import * as argon2 from 'argon2';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { RoleTemplateService } from '../roles/role-template.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 
 type StaffProfile = Record<string, unknown>;
@@ -40,6 +41,7 @@ export class HrService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly organizationScope: OrganizationScopeService,
+    private readonly roleTemplateService: RoleTemplateService,
   ) {}
 
   private async scope(): Promise<HrScope> {
@@ -376,6 +378,7 @@ export class HrService {
 
   async employeeProvisioningRoles() {
     const scope = await this.scope();
+    await this.roleTemplateService.ensureDefaults();
     return this.prisma.role.findMany({
       where: {
         tenantId: scope.tenantId,
