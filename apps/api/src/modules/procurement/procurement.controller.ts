@@ -160,6 +160,9 @@ export class ProcurementController {
     return this.replacements.receive(id, this.userId(req), receiveReplacementSchema.parse(body ?? {}).note);
   }
 
+  @Get('goods-receipts/:id')
+  getGoodsReceipt(@Param('id') id: string) { return this.service.getGoodsReceiptDetail(id); }
+
   @Get('goods-receipts')
   listGoodsReceipts(@Query() query: unknown) { const parsed = receiptListSchema.parse(query); return this.service.listGoodsReceipts(parsed.purchaseOrderId); }
 
