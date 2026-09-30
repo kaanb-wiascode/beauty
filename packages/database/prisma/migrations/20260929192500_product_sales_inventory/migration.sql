@@ -21,3 +21,5 @@ END $$;
 
 CREATE INDEX IF NOT EXISTS "sale_items_productId_idx"
   ON "sale_items"("productId");
+
+-- Ürün satışları stok ve muhasebe akışına bağlanır.
