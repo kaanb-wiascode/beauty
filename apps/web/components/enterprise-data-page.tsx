@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CardInfo } from "@/components/card-info";
-import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, Modal, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage, userFieldLabel, userLabel, userText } from "@/lib/user-language";
@@ -119,6 +119,7 @@ export function EnterpriseDataPage({
   const [working, setWorking] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [activeForm, setActiveForm] = useState<EnterpriseMutationForm | null>(null);
   const [remoteOptions, setRemoteOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>(() =>
     Object.fromEntries(forms.map((form) => [form.title, Object.fromEntries(form.fields.map((field) => [field.name, field.defaultValue ?? ""]))])),
@@ -231,6 +232,11 @@ export function EnterpriseDataPage({
     try {
       await api(path, { method: form.method ?? "POST", body });
       setNotice(form.success ?? `${form.title} tamamlandı.`);
+      setActiveForm(null);
+      setFormValues((current) => ({
+        ...current,
+        [form.title]: Object.fromEntries(form.fields.map((field) => [field.name, field.defaultValue ?? ""])),
+      }));
       await load();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? userErrorMessage(requestError.message) : "İşlem tamamlanamadı.");
@@ -254,23 +260,46 @@ export function EnterpriseDataPage({
       {actions.map((action) => <Button key={action.label} variant="secondary" disabled={Boolean(working)} onClick={() => void run(action)}>{working === action.label ? "İşleniyor..." : action.label}</Button>)}
     </section> : null}
 
-    {forms.length ? <section className="grid gap-5 xl:grid-cols-2">
-      {forms.map((form) => {
+    {forms.length ? <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+        <div>
+          <h2 className="text-[14px] font-semibold text-[var(--ink)]">Hızlı İşlemler</h2>
+          <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Yeni kayıt ve güncelleme işlemlerini sayfadan ayrılmadan başlatın.</p>
+        </div>
+        <div className="flex flex-wrap gap-2">
+          {forms.map((form, index) => <Button key={form.title} variant={index === 0 ? "primary" : "secondary"} size="sm" onClick={() => setActiveForm(form)}>
+            {index === 0 ? "+ " : ""}{userText(form.title)}
+          </Button>)}
+        </div>
+      </div>
+    </section> : null}
+
+    <Modal
+      open={Boolean(activeForm)}
+      onClose={() => {
+        if (!working) setActiveForm(null);
+      }}
+      title={activeForm ? userText(activeForm.title) : ""}
+      description={activeForm?.description ? userText(activeForm.description) : undefined}
+    >
+      {activeForm ? (() => {
+        const form = activeForm;
         const values = formValues[form.title] ?? {};
-        return <div key={form.title} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <div className="flex items-start gap-2"><h2 className="min-w-0 text-[14px] font-semibold text-[var(--ink)]">{userText(form.title)}</h2><CardInfo help={getCardHelp(userText(form.title), form.description)} className="ml-auto" /></div>
-          {form.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{userText(form.description)}</p> : null}
-          <div className="mt-4 grid gap-4">
+        return <div>
+          <div className="grid gap-4">
             {form.fields.map((field) => field.type === "hidden" ? null : <Field key={field.name} label={field.label} required={field.required}>
               {field.type === "select" || field.type === "boolean" || field.type === "remote-select" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
                 {field.type === "boolean" ? <><option value="true">Evet</option><option value="false">Hayır</option></> : <><option value="">Seçin</option>{(field.type === "remote-select" ? remoteOptions[field.optionsPath ?? ""] ?? [] : field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</>}
               </Select> : field.type === "textarea" || field.type === "json" ? <TextArea rows={field.type === "json" ? 5 : 3} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/> : <TextInput type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime-local" ? "datetime-local" : "text"} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/>}
             </Field>)}
           </div>
-          <Button className="mt-5" onClick={() => void submitForm(form)} disabled={Boolean(working)}>{working === form.title ? "İşleniyor..." : form.title}</Button>
+          <div className="mt-6 flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+            <Button variant="secondary" onClick={() => setActiveForm(null)} disabled={Boolean(working)}>Vazgeç</Button>
+            <Button onClick={() => void submitForm(form)} disabled={Boolean(working)}>{working === form.title ? "Kaydediliyor..." : "Kaydet"}</Button>
+          </div>
         </div>;
-      })}
-    </section> : null}
+      })() : null}
+    </Modal>
 
     <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
       <Metric label="Bağlı Modül" value={sections.length} />
