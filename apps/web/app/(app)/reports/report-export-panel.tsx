@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import type { ReportCatalogKey } from "./report-catalog-client";
 import type { ReportDateRange } from "./report-filter-bar";
 import { getReportRangeError, reportRangeToQuery } from "./report-filter-bar";
@@ -73,7 +74,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
       setTotalPages(result.meta.totalPages);
       setError("");
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Dışa Aktarım Geçmişi Yüklenemedi.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message,"Dışa aktarım geçmişi yüklenemedi.") : "Dışa aktarım geçmişi yüklenemedi.");
     } finally {
       setLoading(false);
     }
@@ -116,7 +117,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
       await refresh();
       onExportCreated?.();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : `${format} Dışa Aktarım Başlatılamadı.`);
+      setError(err instanceof ApiError ? userErrorMessage(err.message,`${format} dışa aktarımı başlatılamadı.`) : `${format} dışa aktarımı başlatılamadı.`);
     } finally {
       setCreating(false);
     }
@@ -128,7 +129,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
     try {
       await downloadReportExport(job);
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Rapor Dosyası İndirilemedi.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message,"Rapor dosyası indirilemedi.") : "Rapor dosyası indirilemedi.");
     } finally {
       setDownloadingId(null);
     }
@@ -212,7 +213,7 @@ export function ReportExportPanel({ reportKey, range, columns, sort, onExportCre
                     {job.rowCount !== null ? <span className="text-[10px] text-[var(--muted-soft)]">{job.rowCount.toLocaleString("tr-TR")} satır</span> : null}
                   </div>
                   <p className="mt-1 text-[10px] text-[var(--muted-soft)]">{formatDateTime(job.requestedAt)}</p>
-                  {job.errorSummary ? <p className="mt-1 text-[10px] text-red-600">{job.errorSummary}</p> : null}
+                  {job.errorSummary ? <p className="mt-1 text-[10px] text-red-600">{userErrorMessage(job.errorSummary,"Dışa aktarım hazırlanırken bir sorun oluştu.")}</p> : null}
                 </div>
                 {job.status === "READY" ? (
                   <button
