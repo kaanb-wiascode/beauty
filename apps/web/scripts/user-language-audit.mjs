@@ -9,7 +9,8 @@ const ignore=new Set([
   path.join(root,"lib","card-help.ts"),
 ]);
 const extensions=new Set([".ts",".tsx"]);
-const technicalLiteral=/["'`]([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)["'`]/g;
+const visibleTechnical=/>\s*([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)\s*</g;
+const technicalAttr=/(?:title|description|label|placeholder|aria-label)=["'`]([A-Z][A-Z0-9]+(?:_[A-Z0-9]+)+)["'`]/g;
 const directRender=/{[^}\n]*\.(status|type|code|action|title|description|message|recommendation)[^}\n]*}/g;
 const englishHint=/\b(?:review|maximum|minimum|resolve|failed|success|warning|critical|pending|approved|rejected|created|updated|deleted|branch|customer|payment|financial|liquidity|account|status|required|not found|invalid|please|select|save|cancel|close|open)\b/i;
 const userFacingAttr=/(?:title|description|label|placeholder|aria-label)=["'`]([^"'`]+)["'`]/g;
@@ -29,10 +30,11 @@ const findings=[];
 for(const file of roots.flatMap(r=>walk(r))){
   if(ignore.has(file)) continue;
   const text=fs.readFileSync(file,"utf8");
-  for(const match of text.matchAll(technicalLiteral)){
-    const line=text.slice(text.lastIndexOf("\n",match.index)+1,text.indexOf("\n",match.index));
-    if(/(?:value\s*:|case\s|===|!==|includes\(|Record<|type\s|interface\s|const\s|enum\s|method\s*:|status\s*:|kind\s*:|code\s*:|new Set\(|\|\s*["'`][A-Z0-9_\-]+["'`]|body\s*:|note\s*=|sourceType\s*:|source_type)/.test(line)) continue;
-    findings.push({severity:"critical",rule:"technical-code",file:rel(file),line:lineOf(text,match.index),sample:match[1]});
+  for(const match of text.matchAll(visibleTechnical)){
+    findings.push({severity:"critical",rule:"visible-technical-code",file:rel(file),line:lineOf(text,match.index),sample:match[1]});
+  }
+  for(const match of text.matchAll(technicalAttr)){
+    findings.push({severity:"critical",rule:"technical-ui-attribute",file:rel(file),line:lineOf(text,match.index),sample:match[1]});
   }
   for(const match of text.matchAll(directRender)){
     const line=text.slice(text.lastIndexOf("\n",match.index)+1,text.indexOf("\n",match.index));
