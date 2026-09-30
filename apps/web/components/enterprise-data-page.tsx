@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { CardInfo } from "@/components/card-info";
 import { Alert, Button, EmptyState, Field, Modal, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage, userFieldLabel, userLabel, userText } from "@/lib/user-language";
@@ -13,6 +14,7 @@ export type EnterpriseSection = {
   description?: string;
   path: string;
   dataKey?: string;
+  emptyActionFormTitle?: string;
 };
 
 export type EnterpriseAction = {
@@ -34,6 +36,7 @@ export type EnterpriseFormField = {
   optionsPath?: string;
   optionValueKey?: string;
   optionLabelKeys?: string[];
+  createFormTitle?: string;
 };
 
 export type EnterpriseMutationForm = {
@@ -316,8 +319,22 @@ export function EnterpriseDataPage({
         return <div>
           <div className="grid gap-4">
             {form.fields.map((field) => field.type === "hidden" ? null : <Field key={field.name} label={field.label} required={field.required}>
-              {field.type === "select" || field.type === "boolean" || field.type === "remote-select" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
-                {field.type === "boolean" ? <><option value="true">Evet</option><option value="false">Hayır</option></> : <><option value="">Seçin</option>{(field.type === "remote-select" ? remoteOptions[remoteOptionsKey(form, field)] ?? [] : field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</>}
+              {field.type === "remote-select" ? <ValooSelect
+                value={values[field.name] ?? ""}
+                onChange={(value) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:value}}))}
+                options={remoteOptions[remoteOptionsKey(form, field)] ?? []}
+                placeholder="Seçin"
+                searchPlaceholder={field.label + " ara…"}
+                emptyLabel="Kayıt bulunamadı."
+                createAction={field.createFormTitle ? {
+                  label: "+ Yeni ekle",
+                  onClick: () => {
+                    const target = forms.find((item) => item.title === field.createFormTitle);
+                    if (target) setActiveForm(target);
+                  },
+                } : undefined}
+              /> : field.type === "select" || field.type === "boolean" ? <Select value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}>
+                {field.type === "boolean" ? <><option value="true">Evet</option><option value="false">Hayır</option></> : <><option value="">Seçin</option>{(field.options ?? []).map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</>}
               </Select> : field.type === "textarea" || field.type === "json" ? <TextArea rows={field.type === "json" ? 5 : 3} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/> : <TextInput type={field.type === "number" ? "number" : field.type === "date" ? "date" : field.type === "datetime-local" ? "datetime-local" : "text"} placeholder={field.placeholder} value={values[field.name] ?? ""} onChange={(event) => setFormValues((current) => ({...current,[form.title]:{...(current[form.title]??{}),[field.name]:event.target.value}}))}/>}
             </Field>)}
           </div>
@@ -353,7 +370,15 @@ export function EnterpriseDataPage({
               <tbody>{rows.slice(0,100).map((row,index) => <tr key={String(row.id ?? row.staffId ?? row.tenantId ?? index)} className="border-b border-[var(--line)] last:border-0">
                 {keys.map((key) => <td key={key} className="max-w-[320px] truncate px-4 py-4 text-[var(--muted)]" title={display(row[key])}>{display(row[key])}</td>)}
               </tr>)}</tbody>
-            </table></div> : <EmptyState title="Kayıt bulunamadı" description="Bu modülde henüz görüntülenecek kayıt bulunmuyor." />}
+            </table></div> : <div className="p-5 sm:p-7">
+              <EmptyState title="Kayıt bulunamadı" description="Bu modülde henüz görüntülenecek kayıt bulunmuyor." />
+              {section.emptyActionFormTitle ? <div className="mt-4 flex justify-center">
+                <Button onClick={() => {
+                  const target = forms.find((item) => item.title === section.emptyActionFormTitle);
+                  if (target) setActiveForm(target);
+                }}>+ Yeni kayıt ekle</Button>
+              </div> : null}
+            </div>}
           </section>;
         })}
       </div>
