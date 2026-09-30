@@ -5,5 +5,6 @@ import { CustomerLedgerService } from './customer-ledger.service';
 @Module({
   controllers: [CustomerLedgerController],
   providers: [CustomerLedgerService],
+  exports: [CustomerLedgerService],
 })
 export class CustomerLedgerModule {}
