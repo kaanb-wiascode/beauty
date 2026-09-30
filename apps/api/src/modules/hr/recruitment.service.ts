@@ -2,10 +2,11 @@ import { randomUUID } from 'node:crypto';
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { HrService } from './hr.service';
 
 @Injectable()
 export class RecruitmentService {
-  constructor(private readonly prisma: PrismaService, private readonly ctx: TenantContext) {}
+  constructor(private readonly prisma: PrismaService, private readonly ctx: TenantContext, private readonly hr: HrService) {}
 
   private scope() {
     const tenantId = this.ctx.getTenantId();
@@ -135,5 +136,33 @@ export class RecruitmentService {
       body.applicationId, tenantId, companyId,
     );
     return { id };
+  }
+
+  async hire(id: string, body: any) {
+    const { tenantId, companyId } = this.scope();
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT a.id,a.stage,c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone,j.branch_id AS "branchId",j.department_name AS "department",COALESCE(j.position_name,j.title) AS "position",j.employment_type AS "employmentType",(SELECT o.start_date::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStartDate",(SELECT o.gross_salary::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerGrossSalary" FROM hr_job_applications a JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 LIMIT 1`,
+      id, tenantId, companyId,
+    );
+    const application = rows[0];
+    if (!application) throw new NotFoundException('Application not found.');
+    const employee = await this.hr.createEmployee({
+      branchId: application.branchId ?? body.branchId,
+      firstName: application.firstName,
+      lastName: application.lastName,
+      email: application.email ?? undefined,
+      phone: application.phone ?? undefined,
+      department: application.department ?? undefined,
+      position: application.position ?? undefined,
+      employmentType: application.employmentType ?? body.employmentType ?? undefined,
+      hireDate: body.hireDate ?? application.offerStartDate ?? new Date().toISOString().slice(0, 10),
+      grossSalary: body.grossSalary ?? application.offerGrossSalary ?? undefined,
+      status: 'ACTIVE',
+    });
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage='HIRED',hired_at=CURRENT_TIMESTAMP,updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2 AND company_id=$3`,
+      id, tenantId, companyId,
+    );
+    return { applicationId: id, employeeId: employee.id, stage: 'HIRED' };
   }
 }
