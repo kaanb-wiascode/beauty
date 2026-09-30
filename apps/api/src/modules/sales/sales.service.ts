@@ -952,9 +952,8 @@ export class SalesService {
               Math.round((unitCost * line.quantity + Number.EPSILON) * 100) /
               100;
             productCostTotal =
-              Math.round(
-                (productCostTotal + lineCost + Number.EPSILON) * 100,
-              ) / 100;
+              Math.round((productCostTotal + lineCost + Number.EPSILON) * 100) /
+              100;
 
             await tx.$executeRawUnsafe(
               `UPDATE inventory_stock
