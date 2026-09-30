@@ -63,6 +63,61 @@ export class HrSelfServiceService {
     JSON.stringify(deviceContext??{}),
    );
 
+   const dayEvents=await tx.$queryRawUnsafe<Array<{eventType:string;occurredAt:Date}>>(
+    `SELECT event_type AS "eventType",occurred_at AS "occurredAt"
+     FROM hr_attendance_events
+     WHERE tenant_id=$1
+       AND company_id=$2
+       AND staff_id=$3
+       AND occurred_at::date=CURRENT_DATE
+     ORDER BY occurred_at,id`,
+    tenantId,
+    companyId,
+    employee.id,
+   );
+
+   const checkIn=dayEvents.find((item)=>item.eventType==='CLOCK_IN')?.occurredAt??null;
+   const checkOut=[...dayEvents].reverse().find((item)=>item.eventType==='CLOCK_OUT')?.occurredAt??null;
+   let breakStartedAt:Date|null=null;
+   let breakMinutes=0;
+   for(const item of dayEvents){
+    if(item.eventType==='BREAK_START'){
+     breakStartedAt=item.occurredAt;
+    }else if(item.eventType==='BREAK_END'&&breakStartedAt){
+     breakMinutes+=Math.max(0,Math.floor((item.occurredAt.getTime()-breakStartedAt.getTime())/60000));
+     breakStartedAt=null;
+    }
+   }
+
+   const projectionEnd=checkOut??dayEvents.at(-1)?.occurredAt??checkIn;
+   const workedMinutes=checkIn&&projectionEnd
+    ?Math.max(0,Math.floor((projectionEnd.getTime()-checkIn.getTime())/60000)-breakMinutes)
+    :0;
+
+   if(checkIn){
+    await tx.$executeRawUnsafe(
+     `INSERT INTO attendance_records(
+        tenant_id,branch_id,staff_id,work_date,check_in,check_out,break_minutes,worked_minutes,overtime_minutes,status
+      ) VALUES($1,$2,$3,CURRENT_DATE,$4,$5,$6,$7,0,'PRESENT')
+      ON CONFLICT(staff_id,work_date) DO UPDATE
+      SET branch_id=EXCLUDED.branch_id,
+          check_in=EXCLUDED.check_in,
+          check_out=EXCLUDED.check_out,
+          break_minutes=EXCLUDED.break_minutes,
+          worked_minutes=EXCLUDED.worked_minutes,
+          status='PRESENT',
+          updated_at=CURRENT_TIMESTAMP
+      WHERE COALESCE(attendance_records.exception_status,'')<>'CORRECTED'`,
+     tenantId,
+     employee.branchId,
+     employee.id,
+     checkIn,
+     checkOut,
+     breakMinutes,
+     workedMinutes,
+    );
+   }
+
    const event=rows[0];
    return{
     id:event.id,
@@ -71,6 +126,13 @@ export class HrSelfServiceService {
     source:event.source,
     staffId:employee.id,
     branchId:employee.branchId,
+    attendance:{
+     workDate:new Date(event.occurredAt).toISOString().slice(0,10),
+     checkIn,
+     checkOut,
+     breakMinutes,
+     workedMinutes,
+    },
    };
   });
  }
