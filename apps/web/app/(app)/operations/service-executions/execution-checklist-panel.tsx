@@ -6,6 +6,7 @@ import { Alert, Button, Spinner, TextInput } from "@/components/ui";
 import { CardInfo } from "@/components/card-info";
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
+import { userErrorMessage, userText } from "@/lib/user-language";
 
 type ChecklistItem = {
   id: string;
@@ -65,7 +66,7 @@ export function ExecutionChecklistPanel({
       onChanged?.(result.completionBlocked);
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Hizmet kontrol listesi yüklenemedi.",
+        err instanceof ApiError ? userErrorMessage(err.message,"Hizmet kontrol listesi yüklenemedi.") : "Hizmet kontrol listesi yüklenemedi.",
       );
     } finally {
       setLoading(false);
@@ -97,7 +98,7 @@ export function ExecutionChecklistPanel({
       await load();
     } catch (err) {
       setError(
-        err instanceof ApiError ? err.message : "Kontrol listesi maddesi güncellenemedi.",
+        err instanceof ApiError ? userErrorMessage(err.message,"Kontrol listesi maddesi güncellenemedi.") : "Kontrol listesi maddesi güncellenemedi.",
       );
     } finally {
       setBusyItemId(null);
@@ -160,7 +161,7 @@ export function ExecutionChecklistPanel({
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-center gap-2">
                   <p className="text-xs font-semibold text-[var(--ink)]">
-                    {item.title}
+                    {userText(item.title,"Kontrol Maddesi")}
                   </p>
                   <span className="rounded-full border border-[var(--line)] px-2 py-0.5 text-[10px] font-semibold text-[var(--muted)]">
                     {item.isRequired ? "Zorunlu" : "Opsiyonel"}
@@ -173,7 +174,7 @@ export function ExecutionChecklistPanel({
                 </div>
                 {item.description ? (
                   <p className="mt-1 text-[11px] text-[var(--muted)]">
-                    {item.description}
+                    {userText(item.description)}
                   </p>
                 ) : null}
                 <div className="mt-2 max-w-xl">
