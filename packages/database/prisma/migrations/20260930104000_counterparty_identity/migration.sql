@@ -145,7 +145,7 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS customers_counterparty_sync_trigger ON "customers";
 CREATE TRIGGER customers_counterparty_sync_trigger
-AFTER INSERT OR UPDATE OF "firstName","lastName","phone","email","branchId" OR DELETE
+AFTER INSERT OR UPDATE OR DELETE
 ON "customers"
 FOR EACH ROW
 EXECUTE FUNCTION sync_customer_counterparty();
@@ -189,7 +189,7 @@ $$ LANGUAGE plpgsql;
 
 DROP TRIGGER IF EXISTS suppliers_counterparty_sync_trigger ON "inventory_suppliers";
 CREATE TRIGGER suppliers_counterparty_sync_trigger
-AFTER INSERT OR UPDATE OF name,phone,email,tax_number,status OR DELETE
+AFTER INSERT OR UPDATE OR DELETE
 ON "inventory_suppliers"
 FOR EACH ROW
 EXECUTE FUNCTION sync_supplier_counterparty();
