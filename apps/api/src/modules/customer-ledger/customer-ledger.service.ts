@@ -31,7 +31,7 @@ export class CustomerLedgerService {
   private requireBranchId(): string {
     const branchId = this.tenantContext.getBranchId();
     if (!branchId) {
-      throw new BadRequestException('A branch must be selected for this operation.');
+      throw new BadRequestException('Bu işlem için önce aktif bir şube seçmelisiniz.');
     }
     return branchId;
   }
@@ -45,7 +45,7 @@ export class CustomerLedgerService {
       select: { id: true, firstName: true, lastName: true, phone: true, email: true },
     });
 
-    if (!customer) throw new NotFoundException('Customer not found');
+    if (!customer) throw new NotFoundException('Müşteri bulunamadı.');
 
     const sales = await this.prisma.sale.findMany({
       where: { tenantId, branchId, customerId, status: 'CONFIRMED' },
