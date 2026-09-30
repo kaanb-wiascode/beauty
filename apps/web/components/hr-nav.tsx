@@ -3,10 +3,14 @@ import Link from "next/link";
 const HR_ITEMS = [
   ["/hr", "İK Merkezi"],
   ["/hr/employees", "Çalışanlar"],
+  ["/hr/organization", "Organizasyon"],
   ["/hr/personnel-files", "Özlük Bilgileri"],
+  ["/hr/self-service", "Çalışan İşlemleri"],
   ["/hr/attendance", "Puantaj"],
   ["/hr/leaves", "İzinler"],
-  ["/hr/payroll", "Bordro"],
+  ["/hr/talent", "Yetenek ve Performans"],
+  ["/hr/payroll-dashboard", "Bordro Kontrolü"],
+  ["/hr/payroll", "Bordro Kayıtları"],
   ["/hr/payments", "Maaş Ödemeleri"],
   ["/hr/sgk", "Sosyal Güvenlik"],
 ] as const;
@@ -25,7 +29,7 @@ export function HrNav() {
             className="flex h-11 items-center gap-3 rounded-[14px] px-3 text-[13px] font-medium text-[#626276] transition-colors hover:bg-[#f8f7fb] hover:text-[#242332]"
           >
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px] text-[#777688]">
-              {label === "İK Merkezi" ? "⌂" : label === "Çalışanlar" ? "♙" : label === "Özlük Bilgileri" ? "▤" : label === "Puantaj" ? "◷" : label === "İzinler" ? "✓" : label === "Bordro" ? "₺" : label === "Maaş Ödemeleri" ? "▣" : "◈"}
+              {label === "İK Merkezi" ? "⌂" : label === "Çalışanlar" ? "♙" : label === "Organizasyon" ? "◇" : label === "Özlük Bilgileri" ? "▤" : label === "Çalışan İşlemleri" ? "◎" : label === "Puantaj" ? "◷" : label === "İzinler" ? "✓" : label === "Yetenek ve Performans" ? "☆" : label.includes("Bordro") ? "₺" : label === "Maaş Ödemeleri" ? "▣" : "◈"}
             </span>
             <span className="truncate">{label}</span>
           </Link>
