@@ -2,7 +2,7 @@
 "use client";
 
 import Link from "next/link";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, EmptyState, Field, Modal, PageHeader, Spinner, TextArea } from "@/components/ui";
 import { ConfirmDialog } from "@/components/modal";
@@ -20,6 +20,7 @@ const assetLabel=(asset:Asset)=>[asset.name,asset.assetCode?"#"+asset.assetCode:
 
 export default function EmployeeAssetsPage(){
   const{id}=useParams<{id:string}>();
+  const router=useRouter();
   const canManage=hasPermission("hr","manage");
   const[data,setData]=useState<Response|null>(null);
   const[available,setAvailable]=useState<Asset[]>([]);
@@ -122,7 +123,7 @@ export default function EmployeeAssetsPage(){
             <Info label="Not" value={asset.note||"—"}/>
           </dl>
         </article>)}
-      </div>:<EmptyState title="Aktif zimmet yok" description="Bu çalışana henüz bir envanter varlığı zimmetlenmemiş." action={canManage?<Button onClick={()=>setAssignOpen(true)}>+ İlk Zimmeti Ekle</Button>:undefined}/>}
+      </div>:<EmptyState title="Aktif zimmet yok" description="Bu çalışana henüz bir envanter varlığı zimmetlenmemiş." action={canManage?<div className="flex flex-wrap justify-center gap-2"><Button onClick={()=>setAssignOpen(true)}>+ İlk Zimmeti Ekle</Button>{available.length===0?<Button variant="secondary" onClick={()=>router.push("/inventory?tab=Varlıklar&newAsset=1")}>+ Envantere Varlık Ekle</Button>:null}</div>:undefined}/>}
     </section>
 
     <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)]">
@@ -139,7 +140,7 @@ export default function EmployeeAssetsPage(){
     <Modal open={assignOpen} onClose={()=>{if(!busy){setAssignOpen(false);setSelectedAssetId("");setNote("")}}} title="Çalışana Zimmet Ekle" description="Envanterde kayıtlı ve çalışanın şubesine uygun bir varlık seçin. Seri numarası, marka, model ve şube otomatik gelir.">
       <div className="space-y-5">
         <Field label="Envanter Varlığı" required>
-          <ValooSelect value={selectedAssetId} onChange={setSelectedAssetId} options={available.map(asset=>({value:asset.id,label:assetLabel(asset)}))} placeholder="Zimmetlenecek varlığı seçin" searchPlaceholder="Varlık, kod veya seri no ara…" emptyLabel="Bu çalışan için zimmetlenebilir varlık bulunmuyor."/>
+          <ValooSelect value={selectedAssetId} onChange={setSelectedAssetId} options={available.map(asset=>({value:asset.id,label:assetLabel(asset)}))} placeholder="Zimmetlenecek varlığı seçin" searchPlaceholder="Varlık, kod veya seri no ara…" emptyLabel="Bu çalışan için zimmetlenebilir varlık bulunmuyor." createAction={{label:"Envantere varlık ekle",onClick:()=>router.push("/inventory?tab=Varlıklar&newAsset=1")}}/>
         </Field>
         {selectedAsset?<div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/55 p-4"><div className="grid gap-3 sm:grid-cols-2">
           <Info label="Varlık" value={selectedAsset.name}/><Info label="Kod" value={selectedAsset.assetCode}/><Info label="Marka / Model" value={[selectedAsset.brand,selectedAsset.model].filter(Boolean).join(" · ")||"—"}/><Info label="Seri No" value={selectedAsset.serialNumber||"—"}/><Info label="Şube" value={selectedAsset.branchName||"Atamada çalışanın şubesi kullanılacak"}/><Info label="Durum" value={selectedAsset.condition||"—"}/>
