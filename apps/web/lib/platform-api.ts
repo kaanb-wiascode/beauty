@@ -138,6 +138,7 @@ export type PlatformIamOverview = {
   }>;
 };
 
+export type PlatformIamCandidate = { userId: string; email: string; firstName: string; lastName: string };
 export type PlatformAdminMutationResult = { userId: string; status: string; roles: string[] };
 export type PlatformApprovalRequestResult = {
   id: string;
@@ -220,6 +221,9 @@ export function requestPlatformCustomerLifecycle(
 }
 export function getPlatformIamOverview() {
   return api<PlatformIamOverview>("/platform/iam");
+}
+export function listPlatformIamCandidates(search = "") {
+  return api<PlatformIamCandidate[]>(withQuery("/platform/iam/candidates", { search: search || undefined }));
 }
 
 export function provisionPlatformAdmin(input: { userId: string; roleSlug?: string; reason: string }) {
