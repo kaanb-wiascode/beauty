@@ -11,7 +11,7 @@ import { FormActions, FormGrid, FormSection, FormSubmitButton } from "@/componen
 import { Alert, Button, EmptyState, Modal, Spinner } from "@/components/ui";
 import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
-import { hasPermission } from "@/lib/auth";
+import { getActiveBranchId, hasPermission } from "@/lib/auth";
 import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
@@ -20,7 +20,7 @@ type SectionConfig = { title: string; get: string; post?: string; fields: readon
 type DataRow = Record<string, unknown> & { id?: string };
 type StaffRow = DataRow & { id: string; firstName?: string; lastName?: string; departmentId?: string | null; positionId?: string | null };
 type OrgItem = { id: string; name: string; code?: string; department_id?: string | null };
-type OrganizationData = { departments: OrgItem[]; positions: OrgItem[] };
+type OrganizationData = { branches: OrgItem[]; departments: OrgItem[]; teams: OrgItem[]; positions: OrgItem[] };
 type FormState = Record<string, string | number | undefined>;
 
 const SECTION_CONFIG: Record<SectionKey, SectionConfig> = {
@@ -41,7 +41,7 @@ const FIELD_LABELS: Record<string, string> = {
   workedMinutes: "Çalışma süresi", overtimeMinutes: "Fazla mesai süresi", status: "Durum", note: "Not",
   type: "İzin türü", startDate: "Başlangıç", endDate: "Bitiş", days: "Gün", reason: "Açıklama",
   year: "Yıl", month: "Ay", amount: "Tutar", method: "Ödeme şekli", paidAt: "Ödeme tarihi",
-  documentNo: "Belge no", recordDate: "Kayıt tarihi",
+  documentNo: "Belge no", recordDate: "Kayıt tarihi", branchId: "Şube", departmentId: "Departman", teamId: "Ekip", positionId: "Pozisyon", managerStaffId: "Yönetici",
 };
 
 const DATE_FIELDS = new Set(["hireDate","workDate","startDate","endDate","paidAt","recordDate"]);
@@ -66,7 +66,8 @@ export default function HRSection() {
   const [month, setMonth] = useState(now.getMonth() + 1);
   const [rows, setRows] = useState<DataRow[]>([]);
   const [staff, setStaff] = useState<StaffRow[]>([]);
-  const [organization, setOrganization] = useState<OrganizationData>({ departments: [], positions: [] });
+  const [organization, setOrganization] = useState<OrganizationData>({ branches: [], departments: [], teams: [], positions: [] });
+  const [activeBranchId, setActiveBranchId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [edit, setEdit] = useState<DataRow | null>(null);
   const [formOpen, setFormOpen] = useState(false);
@@ -78,7 +79,10 @@ export default function HRSection() {
   const [notice, setNotice] = useState("");
   const [canReadSensitive, setCanReadSensitive] = useState(false);
 
-  useEffect(() => { setCanReadSensitive(hasPermission("hr_sensitive", "read")); }, []);
+  useEffect(() => {
+    setCanReadSensitive(hasPermission("hr_sensitive", "read"));
+    setActiveBranchId(getActiveBranchId());
+  }, []);
 
   async function load() {
     if (!section) return;
@@ -100,10 +104,16 @@ export default function HRSection() {
       }
       if (section === "employees") {
         const org = await api<OrganizationData>("/hr/organization");
+        const branches = Array.isArray(org.branches) ? org.branches : [];
         setOrganization({
+          branches,
           departments: Array.isArray(org.departments) ? org.departments : [],
+          teams: Array.isArray(org.teams) ? org.teams : [],
           positions: Array.isArray(org.positions) ? org.positions : [],
         });
+        if (!activeBranchId && branches.length === 1) {
+          setForm((current) => ({ ...current, branchId: branches[0].id }));
+        }
       }
     } catch (e) {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "İnsan kaynakları bilgileri yüklenemedi.") : "İK verileri yüklenemedi.");
@@ -122,8 +132,15 @@ export default function HRSection() {
     if (!config) return [];
     const fields = config.fields.filter((field) => canReadSensitive || !SENSITIVE_EMPLOYEE_FIELDS.has(field));
     if (section !== "employees") return fields;
-    return fields.flatMap((field) => field === "department" ? ["departmentId"] : field === "position" ? ["positionId"] : [field]);
-  }, [config, canReadSensitive, section]);
+    const mapped = fields.flatMap((field) =>
+      field === "department"
+        ? ["departmentId", "teamId"]
+        : field === "position"
+          ? ["positionId", "managerStaffId"]
+          : [field],
+    );
+    return activeBranchId ? mapped : ["branchId", ...mapped];
+  }, [config, canReadSensitive, section, activeBranchId]);
   const editable = section ? EDITABLE_SECTIONS.has(section) : false;
 
   function updateField(field: string, value: string) {
@@ -132,7 +149,7 @@ export default function HRSection() {
 
   function openCreate() {
     setEdit(null);
-    setForm({ year, month });
+    setForm({ year, month, ...(activeBranchId ? { branchId: activeBranchId } : organization.branches.length === 1 ? { branchId: organization.branches[0].id } : {}) });
     setError("");
     setFormOpen(true);
   }
@@ -152,7 +169,7 @@ export default function HRSection() {
   function closeForm() {
     if (saving) return;
     setEdit(null);
-    setForm({ year, month });
+    setForm({ year, month, ...(activeBranchId ? { branchId: activeBranchId } : organization.branches.length === 1 ? { branchId: organization.branches[0].id } : {}) });
     setFormOpen(false);
   }
 
@@ -305,7 +322,7 @@ export default function HRSection() {
       <div>
         <FormSection title={edit ? "Kayıt Bilgileri" : "Yeni Kayıt"} description="Yalnızca gerekli bilgileri girin; mevcut kayıtları seçim alanlarından kullanın.">
           <FormGrid columns={2} className="xl:grid-cols-2">
-            {formFields.map((field) => <DynamicField key={field} field={field} value={form[field] ?? ""} staff={staff} organization={organization} form={form} onChange={(value) => { updateField(field, value); if (field === "departmentId") updateField("positionId", ""); }} onCreateDepartment={() => openOrganizationCreate("department")} onCreatePosition={() => openOrganizationCreate("position")} />)}
+            {formFields.map((field) => <DynamicField key={field} field={field} value={form[field] ?? ""} staff={staff} organization={organization} form={form} activeBranchId={activeBranchId} onChange={(value) => { updateField(field, value); if (field === "branchId") { updateField("managerStaffId", ""); } if (field === "departmentId") { updateField("teamId", ""); updateField("positionId", ""); } }} onCreateDepartment={() => openOrganizationCreate("department")} onCreatePosition={() => openOrganizationCreate("position")} />)}
           </FormGrid>
         </FormSection>
         <FormActions>
@@ -389,6 +406,7 @@ function DynamicField({
   staff,
   organization,
   form,
+  activeBranchId,
   onChange,
   onCreateDepartment,
   onCreatePosition,
@@ -398,48 +416,80 @@ function DynamicField({
   staff: StaffRow[];
   organization: OrganizationData;
   form: FormState;
+  activeBranchId: string | null;
   onChange: (value: string) => void;
   onCreateDepartment: () => void;
   onCreatePosition: () => void;
 }) {
-  const label = FIELD_LABELS[field] ?? ({ departmentId: "Departman", positionId: "Pozisyon" }[field] ?? field);
+  const label = FIELD_LABELS[field] ?? field;
   const normalized = String(value ?? "");
+  const selectedBranchId = activeBranchId || (typeof form.branchId === "string" ? form.branchId : "");
   const selectedDepartmentId = typeof form.departmentId === "string" ? form.departmentId : "";
+  const teams = selectedDepartmentId
+    ? organization.teams.filter((item) => item.department_id === selectedDepartmentId)
+    : organization.teams;
   const positions = selectedDepartmentId
     ? organization.positions.filter((item) => !item.department_id || item.department_id === selectedDepartmentId)
     : organization.positions;
+  const managers = selectedBranchId
+    ? staff.filter((item) => String(item.branchId ?? "") === selectedBranchId)
+    : staff;
 
   return <label className="block">
     <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">{label}</span>
-    {field === "staffId" ? <ValooSelect value={normalized} onChange={onChange} placeholder="Çalışan seçin" searchPlaceholder="Çalışan ara…" emptyLabel="Çalışan bulunamadı." options={staff.map((item) => ({ value: item.id, label: `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim() }))} /> :
-      field === "departmentId" ? <ValooSelect
-        value={normalized}
-        onChange={onChange}
-        placeholder="Departman seçin"
-        searchPlaceholder="Departman ara…"
-        emptyLabel="Henüz departman bulunmuyor."
-        options={organization.departments.map((item) => ({ value: item.id, label: item.name }))}
-        createAction={{ label: "Yeni departman ekle", onClick: onCreateDepartment }}
-      /> :
-      field === "positionId" ? <ValooSelect
-        value={normalized}
-        onChange={onChange}
-        placeholder="Pozisyon seçin"
-        searchPlaceholder="Pozisyon ara…"
-        emptyLabel={selectedDepartmentId ? "Bu departman için pozisyon bulunmuyor." : "Henüz pozisyon bulunmuyor."}
-        options={positions.map((item) => ({ value: item.id, label: item.name }))}
-        createAction={{ label: "Yeni pozisyon ekle", onClick: onCreatePosition }}
-      /> :
-      field === "employmentType" ? <ValooSelect value={normalized} onChange={onChange} searchable={false} placeholder="Çalışma şeklini seçin" options={[
-        { value: "FULL_TIME", label: "Tam Zamanlı" },
-        { value: "PART_TIME", label: "Yarı Zamanlı" },
-        { value: "HOURLY", label: "Saatlik" },
-        { value: "SEASONAL", label: "Sezonluk" },
-        { value: "INTERN", label: "Stajyer" },
-      ]} /> :
-      SELECT_VALUES[field] ? <ValooSelect value={normalized} onChange={onChange} searchable={false} placeholder="Seçin" options={SELECT_VALUES[field].map((option) => ({ value: option, label: userLabel(option) }))} /> :
-      DATE_FIELDS.has(field) ? <DatePicker value={normalized} onChange={onChange} ariaLabel={label} /> :
-      <input className="control h-11 w-full" type={NUMBER_FIELDS.has(field) ? "number" : "text"} value={value} onChange={(event) => onChange(event.target.value)} />}
+    {field === "branchId" ? <ValooSelect
+      value={normalized}
+      onChange={onChange}
+      placeholder="Şube seçin"
+      searchPlaceholder="Şube ara…"
+      emptyLabel="Aktif şube bulunamadı."
+      options={organization.branches.map((item) => ({ value: item.id, label: item.name }))}
+    /> :
+    field === "staffId" ? <ValooSelect value={normalized} onChange={onChange} placeholder="Çalışan seçin" searchPlaceholder="Çalışan ara…" emptyLabel="Çalışan bulunamadı." options={staff.map((item) => ({ value: item.id, label: `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim() }))} /> :
+    field === "departmentId" ? <ValooSelect
+      value={normalized}
+      onChange={onChange}
+      placeholder="Departman seçin"
+      searchPlaceholder="Departman ara…"
+      emptyLabel="Henüz departman bulunmuyor."
+      options={organization.departments.map((item) => ({ value: item.id, label: item.name }))}
+      createAction={{ label: "Yeni departman ekle", onClick: onCreateDepartment }}
+    /> :
+    field === "teamId" ? <ValooSelect
+      value={normalized}
+      onChange={onChange}
+      placeholder={selectedDepartmentId ? "Ekip seçin" : "Önce departman seçin"}
+      searchPlaceholder="Ekip ara…"
+      emptyLabel={selectedDepartmentId ? "Bu departman için ekip bulunmuyor." : "Önce departman seçin."}
+      options={teams.map((item) => ({ value: item.id, label: item.name }))}
+    /> :
+    field === "positionId" ? <ValooSelect
+      value={normalized}
+      onChange={onChange}
+      placeholder="Pozisyon seçin"
+      searchPlaceholder="Pozisyon ara…"
+      emptyLabel={selectedDepartmentId ? "Bu departman için pozisyon bulunmuyor." : "Henüz pozisyon bulunmuyor."}
+      options={positions.map((item) => ({ value: item.id, label: item.name }))}
+      createAction={{ label: "Yeni pozisyon ekle", onClick: onCreatePosition }}
+    /> :
+    field === "managerStaffId" ? <ValooSelect
+      value={normalized}
+      onChange={onChange}
+      placeholder="Yönetici seçin"
+      searchPlaceholder="Yönetici ara…"
+      emptyLabel="Uygun yönetici bulunamadı."
+      options={managers.map((item) => ({ value: item.id, label: `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim() }))}
+    /> :
+    field === "employmentType" ? <ValooSelect value={normalized} onChange={onChange} searchable={false} placeholder="Çalışma şeklini seçin" options={[
+      { value: "FULL_TIME", label: "Tam Zamanlı" },
+      { value: "PART_TIME", label: "Yarı Zamanlı" },
+      { value: "HOURLY", label: "Saatlik" },
+      { value: "SEASONAL", label: "Sezonluk" },
+      { value: "INTERN", label: "Stajyer" },
+    ]} /> :
+    SELECT_VALUES[field] ? <ValooSelect value={normalized} onChange={onChange} searchable={false} placeholder="Seçin" options={SELECT_VALUES[field].map((option) => ({ value: option, label: userLabel(option) }))} /> :
+    DATE_FIELDS.has(field) ? <DatePicker value={normalized} onChange={onChange} ariaLabel={label} /> :
+    <input className="control h-11 w-full" type={NUMBER_FIELDS.has(field) ? "number" : "text"} value={value} onChange={(event) => onChange(event.target.value)} />}
   </label>;
 }
 
@@ -454,8 +504,11 @@ function normalizeForm(section: SectionKey, raw: FormState, canReadSensitive: bo
       personnelNumber: body.personnelNumber || undefined,
       position: body.position || undefined,
       department: body.department || undefined,
+      branchId: body.branchId || undefined,
       departmentId: body.departmentId || undefined,
+      teamId: body.teamId || undefined,
       positionId: body.positionId || undefined,
+      managerStaffId: body.managerStaffId || undefined,
       employmentType: body.employmentType || undefined,
       hireDate: body.hireDate || undefined,
       ...(canReadSensitive ? {
