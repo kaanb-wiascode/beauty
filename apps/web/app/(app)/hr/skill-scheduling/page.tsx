@@ -120,6 +120,7 @@ export default function SkillSchedulingPage(){
 
   return <div className="mx-auto max-w-[1400px] space-y-6 pb-12">
     <PageHeader title="Yetkinliğe Göre Personel Planlama" description="Hizmet ve zaman aralığına göre uygun çalışanları; vardiya, izin, randevu, sertifika ve yetkinlik koşullarıyla birlikte değerlendirin."/>
+    <Alert tone="info">Uygunluk kontrolünde çalışanın seçilen saatlerde yayınlanmış bir vardiyası olması gerekir. Vardiya henüz taslaksa önce Haftalık Vardiya Planı ekranından onaylayıp yayınlayın.</Alert>
 
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
     {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
@@ -178,7 +179,7 @@ export default function SkillSchedulingPage(){
       <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-6">
         <EmptyState
           title={services.length?"Henüz uygunluk kontrolü yapılmadı":"Henüz hizmet bulunmuyor"}
-          description={services.length?"Bir hizmet ve zaman aralığı seçip uygun personeli kontrol edin.":"Planlama yapabilmek için önce bir hizmet oluşturun."}
+          description={services.length?"Bir hizmet ve zaman aralığı seçip uygun personeli kontrol edin. Sonuçlarda vardiya, izin, randevu, sertifika ve yetkinlik nedenleri ayrı ayrı gösterilir.":"Planlama yapabilmek için önce bir hizmet oluşturun."}
         />
         {!services.length?<div className="mt-4 flex justify-center"><Button onClick={()=>setCreateOpen(true)}>+ Yeni Hizmet Ekle</Button></div>:null}
       </section>
