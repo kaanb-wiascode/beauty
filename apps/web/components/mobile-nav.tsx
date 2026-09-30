@@ -48,6 +48,7 @@ const MOBILE_SECTIONS: readonly MobileNavSection[] = [
     items: [
       { href: "/dashboard", label: "Bugün", icon: "home" },
       { href: "/dashboard/management", label: "Yönetim Özeti", icon: "trend" },
+      { href: "/approvals", label: "Onay Kuyruğu", icon: "shield" },
     ],
   },
   {
