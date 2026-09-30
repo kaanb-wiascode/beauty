@@ -8,6 +8,7 @@ import { AppModule } from './../src/app.module';
 import { PrismaExceptionFilter } from './../src/common/database/prisma-exception.filter';
 import { ZodExceptionFilter } from './../src/common/validation/zod-exception.filter';
 import { PosFinancialEventsService } from './../src/modules/financial-integrations/pos-financial-events.service';
+import { PosSettlementService } from './../src/modules/financial-integrations/pos-settlement.service';
 
 jest.setTimeout(120_000);
 
@@ -15,6 +16,7 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
   let app: INestApplication;
   let prisma: PrismaService;
   let posFinancialEvents: PosFinancialEventsService;
+  let posSettlements: PosSettlementService;
   let tenantId: string | null = null;
   let companyId = '';
   let branchId = '';
@@ -32,6 +34,7 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
     await app.init();
     prisma = moduleFixture.get(PrismaService);
     posFinancialEvents = await moduleFixture.resolve(PosFinancialEventsService);
+    posSettlements = await moduleFixture.resolve(PosSettlementService);
 
     const registered = await request(app.getHttpServer())
       .post('/auth/register')
@@ -266,22 +269,19 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
       });
 
     if (settlement.status !== 201) {
-      const auditRows = await prisma.$queryRawUnsafe<
-        Array<{ errorMessage: string | null }>
-      >(
-        `SELECT error_message AS "errorMessage"
-         FROM finance_integration_audit_logs
-         WHERE tenant_id=$1::text AND company_id=$2::text
-           AND action='settlement.record' AND outcome='FAILED'
-         ORDER BY created_at DESC
-         LIMIT 1`,
-        tenantId,
-        companyId,
-      );
+      let directError = '';
+      try {
+        await posSettlements.record(posIntegrationId, {
+          providerSettlementId: `settlement-debug-${suffix}`,
+          bankAccountId,
+          transactionIds: [posTransactionId],
+          settledAt: new Date(),
+        });
+      } catch (error) {
+        directError = error instanceof Error ? error.message : String(error);
+      }
       throw new Error(
-        `POS mutabakatı oluşturulamadı (${settlement.status}): ${
-          auditRows[0]?.errorMessage ?? JSON.stringify(settlement.body)
-        }`,
+        `POS mutabakatı oluşturulamadı (${settlement.status}): ${directError || JSON.stringify(settlement.body)}`,
       );
     }
 
