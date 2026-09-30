@@ -380,6 +380,26 @@ const USER_TEXT_LABELS: Record<string, string> = {
     "Vadesi geçmiş bakiyeleri yaşlandırma ve müşteri riskine göre ayırın; yüksek tutarlı ve 90 günü aşan alacaklara tahsilatta öncelik verin.",
   "Review the breached financial threshold and assign a corrective action owner.":
     "Aşılan finansal eşiği inceleyin ve düzeltici aksiyon için sorumlu atayın.",
+  "Dashboard": "Genel Bakış",
+  "Management Dashboard": "Yönetim Genel Bakışı",
+  "Pipeline": "Satış Süreci",
+  "Sales Pipeline": "Satış Süreci",
+  "Timeline": "Zaman Akışı",
+  "Global Timeline": "Genel Zaman Akışı",
+  "Workflow": "İş Akışı",
+  "Workflow Management": "İş Akışı Yönetimi",
+  "Lead Score": "Potansiyel Müşteri Puanı",
+  "Lead Scoring": "Potansiyel Müşteri Puanlama",
+  "Lead Assignment": "Potansiyel Müşteri Atama",
+  "Customer 360": "Müşteri 360°",
+  "Customer 360 View": "Müşteri 360° Görünümü",
+  "SLA": "Hizmet Süresi",
+  "SLA & Escalation": "Hizmet Süresi ve Üst Yönetime Aktarma",
+  "Escalation": "Üst Yönetime Aktarma",
+  "Intelligence": "Analiz",
+  "Business Intelligence": "İş Analizi",
+  "Talent Intelligence": "Yetenek Analizi",
+  "Skill Gap": "Yetkinlik Açığı",
 };
 
 const USER_ERROR_MESSAGES: Record<string, string> = {
