@@ -507,7 +507,7 @@ describe('Core Business Flow (e2e)', () => {
           },
         ],
       })
-      .expect(400);
+      .expect(404);
 
     await request(app.getHttpServer())
       .post('/inventory/purchase-orders')
