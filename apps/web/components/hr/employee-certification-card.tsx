@@ -4,16 +4,17 @@ import Link from "next/link";
 import { useEffect,useMemo,useState } from "react";
 import { api,ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Certification={id:string;name:string;code:string;category?:string|null;credentialNumber?:string|null;issuingOrganization?:string|null;qualification?:string|null;issuedAt?:string|null;expiresAt?:string|null;status:string;warningDays:number;serviceEligibilityRequired:boolean};
-const label=(v:string)=>({PENDING:"Doğrulama Bekliyor",VERIFIED:"Doğrulandı",REJECTED:"Reddedildi",EXPIRED:"Süresi Doldu",REVOKED:"İptal Edildi"}[v]??v);
+const label=(v:string)=>({PENDING:"Doğrulama Bekliyor",VERIFIED:"Doğrulandı",REJECTED:"Reddedildi",EXPIRED:"Süresi Doldu",REVOKED:"İptal Edildi"}[v]??userLabel(v));
 const date=(v?:string|null)=>v?new Date(`${v}T00:00:00`).toLocaleDateString("tr-TR"):"—";
 const remaining=(v?:string|null)=>v?Math.ceil((new Date(`${v}T00:00:00`).getTime()-new Date().setHours(0,0,0,0))/86400000):null;
 
 export function EmployeeCertificationCard({employeeId}:{employeeId:string}){
  const[allowed,setAllowed]=useState(false),[rows,setRows]=useState<Certification[]>([]),[loading,setLoading]=useState(true),[error,setError]=useState("");
  useEffect(()=>{setAllowed(hasPermission("hr_sensitive","read"))},[]);
- useEffect(()=>{if(!allowed){setLoading(false);return}let active=true;setLoading(true);setError("");api<Certification[]>(`/hr/employees/${employeeId}/certifications`).then(x=>{if(active)setRows(x)}).catch(e=>{if(active)setError(e instanceof ApiError?e.message:"Sertifika bilgileri yüklenemedi.")}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[allowed,employeeId]);
+ useEffect(()=>{if(!allowed){setLoading(false);return}let active=true;setLoading(true);setError("");api<Certification[]>(`/hr/employees/${employeeId}/certifications`).then(x=>{if(active)setRows(x)}).catch(e=>{if(active)setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika bilgileri yüklenemedi."):"Sertifika bilgileri yüklenemedi.")}).finally(()=>{if(active)setLoading(false)});return()=>{active=false}},[allowed,employeeId]);
  const summary=useMemo(()=>{let valid=0,risk=0,action=0;for(const row of rows){const days=remaining(row.expiresAt);if(row.status==="VERIFIED"&&(days===null||days>row.warningDays))valid++;else if(row.status==="VERIFIED"&&days!==null&&days>=0)risk++;else action++}return{valid,risk,action}},[rows]);
  if(!allowed)return <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><h2 className="text-sm font-semibold">Sertifikalar ve Yetkinlik</h2><p className="mt-2 text-xs text-[var(--muted)]">Sertifika ve mesleki yetkinlik bilgileri hassas İK verisi olarak korunuyor.</p></section>;
  if(loading)return <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5"><p className="text-xs text-[var(--muted)]">Sertifikalar yükleniyor…</p></section>;
