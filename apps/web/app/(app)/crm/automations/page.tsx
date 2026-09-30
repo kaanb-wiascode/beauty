@@ -15,6 +15,7 @@ import {
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { userErrorMessage } from "@/lib/user-language";
 
 type AutomationResult = {
   scanned: number;
@@ -78,21 +79,21 @@ const CHANNELS: Array<{ value: Channel; label: string }> = [
 
 const RULE_META: Record<RuleKey, { title: string; trigger: string; description: string; keyPattern: string }> = {
   LEAD_FIRST_TOUCH: {
-    title: "Yeni Lead → İlk Temas",
-    trigger: "LEAD_CREATED",
-    description: "Yeni lead owner'ına otomatik ilk temas görevi oluşturur.",
+    title: "Yeni Potansiyel Müşteri → İlk Temas",
+    trigger: "Potansiyel müşteri oluşturuldu",
+    description: "Yeni potansiyel müşteri oluşturulduğunda sorumlu personele otomatik ilk temas görevi oluşturur.",
     keyPattern: "LEAD_FIRST_TOUCH:{leadId}",
   },
   OPPORTUNITY_STAGE_FOLLOW_UP: {
     title: "Aşama Değişimi → Takip",
-    trigger: "OPPORTUNITY_STAGE_CHANGED",
-    description: "Açık fırsat yeni aşamaya geçtiğinde owner için takip oluşturur. WON/LOST terminaldir.",
+    trigger: "Satış fırsatının aşaması değişti",
+    description: "Açık satış fırsatı yeni aşamaya geçtiğinde sorumlu personele otomatik takip görevi oluşturur. Kazanılan veya kaybedilen fırsatlarda yeni görev oluşturulmaz.",
     keyPattern: "OPPORTUNITY_STAGE:{opportunityId}:{stage}:v{version}",
   },
   STALE_OPPORTUNITY_FOLLOW_UP: {
     title: "Durağan Fırsat → Görev",
-    trigger: "STALE_OPPORTUNITY",
-    description: "Belirlenen süredir güncellenmemiş açık fırsatlara owner bazlı görev oluşturur.",
+    trigger: "Satış fırsatı uzun süredir güncellenmedi",
+    description: "Belirlenen süredir güncellenmemiş açık satış fırsatları için sorumlu personele takip görevi oluşturur.",
     keyPattern: "STALE_OPPORTUNITY:{opportunityId}:{updatedAt}",
   },
 };
@@ -189,7 +190,7 @@ export default function CrmAutomationsPage() {
       setSuccess(`${RULE_META[rule.ruleKey].title} kuralı kaydedildi.`);
       await loadHistory();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Otomasyon kuralı kaydedilemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message,"Otomasyon kuralı kaydedilemedi.") : "Otomasyon kuralı kaydedilemedi.");
       await loadRules();
     } finally {
       setSavingRule(null);
@@ -207,12 +208,12 @@ export default function CrmAutomationsPage() {
         : "/crm/operations/automations/stale-sweep";
       const result = await api<AutomationResult>(endpoint, { method: "POST" });
       setLastResult({
-        label: kind === "events" ? "CRM event otomasyonları" : "Durağan fırsat sweep'i",
+        label: kind === "events" ? "Yeni CRM olayları" : "Durağan satış fırsatları",
         result,
       });
       await loadHistory();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Otomasyon çalıştırılamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message,"Otomasyon çalıştırılamadı.") : "Otomasyon çalıştırılamadı.");
       await loadHistory();
     } finally {
       setRunning(null);
@@ -222,12 +223,12 @@ export default function CrmAutomationsPage() {
   return <div className="space-y-6">
     <PageHeader
       title="CRM Otomasyonları"
-      description="Branch bazlı otomasyon kurallarını yönetin ve scheduler/manual execution geçmişini aynı ekrandan izleyin."
-      action={canManage && activeBranch ? <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={Boolean(running)} onClick={() => void run("events")}>{running === "events" ? "İşleniyor..." : "Event Kuyruğunu Şimdi İşle"}</Button><Button disabled={Boolean(running)} onClick={() => void run("stale")}>{running === "stale" ? "Taranıyor..." : "Durağanları Şimdi İşle"}</Button></div> : undefined}
+      description="Şube bazlı otomasyon kurallarını yönetin, otomatik takiplerin ne zaman çalıştığını ve sonuçlarını tek ekrandan izleyin."
+      action={canManage && activeBranch ? <div className="flex flex-wrap gap-2"><Button variant="secondary" disabled={Boolean(running)} onClick={() => void run("events")}>{running === "events" ? "İşleniyor..." : "Yeni Olayları Şimdi İşle"}</Button><Button disabled={Boolean(running)} onClick={() => void run("stale")}>{running === "stale" ? "Taranıyor..." : "Durağan Fırsatları Kontrol Et"}</Button></div> : undefined}
     />
 
     {!activeBranch ? <Alert>Otomasyon kurallarını yönetmek ve geçmişi görmek için aktif bir şube seçin.</Alert> : null}
-    {activeBranch && !canManage ? <Alert>Kuralları ve execution geçmişini görüntüleyebilirsiniz; değiştirmek veya manuel çalıştırmak için crm.manage yetkisi gerekir.</Alert> : null}
+    {activeBranch && !canManage ? <Alert>Kuralları ve çalışma geçmişini görüntüleyebilirsiniz; değiştirmek veya elle çalıştırmak için otomasyon yönetme yetkisi gerekir.</Alert> : null}
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {success ? <Alert tone="success" onClose={() => setSuccess("")}>{success}</Alert> : null}
     {lastResult ? <Alert tone="success">{lastResult.label}: {lastResult.result.scanned} kayıt tarandı, {lastResult.result.created} takip oluşturuldu, {lastResult.result.skipped} kayıt atlandı.</Alert> : null}
@@ -252,13 +253,11 @@ export default function CrmAutomationsPage() {
     {activeBranch ? <ExecutionHistory history={history} loading={loadingHistory} /> : null}
 
     <GlassCard>
-      <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Çalışma Modeli</p>
-      <h2 className="mt-1 text-[18px] font-semibold">Dağıtık, event-driven ve gözlemlenebilir</h2>
+      <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Nasıl Çalışır?</p>
+      <h2 className="mt-1 text-[18px] font-semibold">Otomatik takip süreci</h2>
       <div className="mt-4 grid gap-3 text-[12px] leading-5 text-[var(--muted)] md:grid-cols-2">
-        <p>Her otomatik takip normal <strong className="text-[var(--ink)]">crm_follow_ups</strong> kaydıdır; ayrı ve görünmez bir görev sistemi oluşmaz.</p>
-        <p>Kural değişiklikleri <strong className="text-[var(--ink)]">AUTOMATION_RULE_UPDATED</strong>, execution&apos;lar <strong className="text-[var(--ink)]">AUTOMATION_EXECUTED</strong> olayı bırakır.</p>
-        <p>Her manual/scheduler processor çalışması ayrıca <strong className="text-[var(--ink)]">crm_automation_runs</strong> kaydı oluşturur; success/failure ve aggregate metrikler kalıcıdır.</p>
-        <p>Tenant/company/branch izolasyonu, distributed lease, transaction advisory lock ve unique automation key index&apos;i birlikte duplicate üretimi engeller.</p>
+        <p>Yeni potansiyel müşteri ve satış fırsatı hareketleri otomatik olarak değerlendirilir; uygun olduğunda sorumlu personele takip görevi oluşturulur.</p>
+        <p>Aynı işlem için tekrar tekrar görev üretilmez. Kurallarda yapılan değişiklikler ve otomasyon sonuçları çalışma geçmişinde saklanır.</p>
       </div>
     </GlassCard>
   </div>;
@@ -295,12 +294,12 @@ function ExecutionHistory({ history, loading }: { history: AutomationHistory | n
         {loading ? <span className="text-[11px] text-[var(--muted)]">Yenileniyor...</span> : null}
       </div>
       <div className="mt-4 space-y-3">
-        {!history?.latestRuns.length ? <p className="text-[12px] text-[var(--muted)]">Henüz kayıtlı execution yok.</p> : history.latestRuns.map((run) => <div key={run.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3">
+        {!history?.latestRuns.length ? <p className="text-[12px] text-[var(--muted)]">Henüz kayıtlı çalışma geçmişi yok.</p> : history.latestRuns.map((run) => <div key={run.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3">
           <div className="flex flex-wrap items-center justify-between gap-2">
             <div className="flex items-center gap-2">
               <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${run.status === "SUCCEEDED" ? "bg-[rgba(47,122,86,0.10)] text-[#2d5c45]" : "bg-[rgba(143,61,61,0.08)] text-[#7a3333]"}`}>{run.status === "SUCCEEDED" ? "BAŞARILI" : "HATALI"}</span>
-              <span className="text-[11px] font-semibold text-[var(--ink)]">{run.operation === "EVENT_PROCESSOR" ? "Event Processor" : "Stale Sweep"}</span>
-              <span className="text-[10px] text-[var(--muted)]">{run.origin === "SCHEDULER" ? "Scheduler" : "Manuel"}</span>
+              <span className="text-[11px] font-semibold text-[var(--ink)]">{run.operation === "EVENT_PROCESSOR" ? "Yeni Olayları İşleme" : "Durağan Fırsat Kontrolü"}</span>
+              <span className="text-[10px] text-[var(--muted)]">{run.origin === "SCHEDULER" ? "Otomatik" : "Manuel"}</span>
             </div>
             <span className="text-[10px] text-[var(--muted)]">{formatDate(run.startedAt)}</span>
           </div>
@@ -310,7 +309,7 @@ function ExecutionHistory({ history, loading }: { history: AutomationHistory | n
             <span>Atlanan <strong className="text-[var(--ink)]">{run.skipped}</strong></span>
             {run.failed ? <span>Hata <strong className="text-[#8f3d3d]">{run.failed}</strong></span> : null}
           </div>
-          {run.errorMessage ? <p className="mt-2 text-[10px] leading-4 text-[#8f3d3d]">{run.errorMessage}</p> : null}
+          {run.errorMessage ? <p className="mt-2 text-[10px] leading-4 text-[#8f3d3d]">{userErrorMessage(run.errorMessage,"Otomasyon çalışması sırasında bir hata oluştu.")}</p> : null}
         </div>)}
       </div>
     </GlassCard>
@@ -319,7 +318,7 @@ function ExecutionHistory({ history, loading }: { history: AutomationHistory | n
       <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Rule Changes</p>
       <h2 className="mt-1 text-[18px] font-semibold">Değişiklik Geçmişi</h2>
       <div className="mt-4 space-y-3">
-        {!history?.ruleChanges.length ? <p className="text-[12px] text-[var(--muted)]">Henüz rule değişikliği yok.</p> : history.ruleChanges.map((change) => <div key={change.eventId} className="border-b border-[var(--line)] pb-3 last:border-0 last:pb-0">
+        {!history?.ruleChanges.length ? <p className="text-[12px] text-[var(--muted)]">Henüz kural değişikliği yok.</p> : history.ruleChanges.map((change) => <div key={change.eventId} className="border-b border-[var(--line)] pb-3 last:border-0 last:pb-0">
           <p className="text-[11px] font-semibold text-[var(--ink)]">{RULE_META[change.ruleKey]?.title ?? change.ruleKey}</p>
           <p className="mt-1 text-[10px] text-[var(--muted)]">{formatDate(change.createdAt)} · v{String(change.metadata.version ?? "—")} · {change.metadata.enabled === false ? "Kapalı" : "Aktif"}</p>
         </div>)}
@@ -366,8 +365,8 @@ function RuleEditor({
 
     <p className="mt-3 text-[12px] leading-5 text-[var(--muted)]">{meta.description}</p>
     <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[10px] text-[var(--muted-soft)]">
-      <span>{rule.overridden ? `Branch override · v${rule.version}` : "Sistem varsayılanı"}</span>
-      <span>7g execution: {activity?.executions7d ?? 0}</span>
+      <span>{rule.overridden ? `Şubeye özel ayar · v${rule.version}` : "Sistem varsayılanı"}</span>
+      <span>Son 7 gün çalışma: {activity?.executions7d ?? 0}</span>
       <span>Son aktivite: {formatDate(activity?.lastActivityAt)}</span>
     </div>
 
@@ -379,7 +378,7 @@ function RuleEditor({
 
       {rule.ruleKey === "OPPORTUNITY_STAGE_FOLLOW_UP" ? <>
         <NumberField label="Standart aşama gecikmesi (gün)" value={numeric(rule.config, "defaultDelayDays", 2)} disabled={!canManage || saving} min={1} max={90} onChange={(value) => onConfig("defaultDelayDays", value)} />
-        <NumberField label="Negotiation gecikmesi (gün)" value={numeric(rule.config, "negotiationDelayDays", 1)} disabled={!canManage || saving} min={1} max={90} onChange={(value) => onConfig("negotiationDelayDays", value)} />
+        <NumberField label="Müzakere aşaması gecikmesi (gün)" value={numeric(rule.config, "negotiationDelayDays", 1)} disabled={!canManage || saving} min={1} max={90} onChange={(value) => onConfig("negotiationDelayDays", value)} />
         <ChannelField value={channelOf(rule.config)} disabled={!canManage || saving} onChange={(value) => onConfig("channel", value)} />
       </> : null}
 
@@ -391,10 +390,7 @@ function RuleEditor({
     </div>
 
     <div className="mt-5 flex items-center justify-between gap-3">
-      <div className="min-w-0 rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/40 px-3 py-2.5">
-        <p className="text-[9px] uppercase tracking-[.08em] text-[var(--muted-soft)]">Idempotency key</p>
-        <code className="mt-1 block break-all text-[10px] text-[var(--ink)]">{meta.keyPattern}</code>
-      </div>
+      <p className="text-[10px] text-[var(--muted-soft)]">Son aktivite: {formatDate(activity?.lastActivityAt)}</p>
       {canManage ? <Button disabled={saving} onClick={onSave}>{saving ? "Kaydediliyor..." : "Kaydet"}</Button> : null}
     </div>
   </GlassCard>;
