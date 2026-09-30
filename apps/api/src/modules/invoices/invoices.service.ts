@@ -5,6 +5,7 @@ import {
 } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { DocumentSequenceService } from '../document-sequences/document-sequence.service';
 
 type InvoiceDirectionFilter = 'SALES' | 'PURCHASE';
 type InvoiceStatusFilter = 'DRAFT' | 'ISSUED' | 'CANCELLED';
@@ -14,6 +15,7 @@ export class InvoicesService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
+    private readonly documentSequences: DocumentSequenceService,
   ) {}
 
   private context() {
@@ -233,6 +235,123 @@ export class InvoicesService {
                 ),
               })),
             },
+          },
+          include: {
+            lines: {
+              orderBy: { lineNo: 'asc' },
+            },
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async issue(
+    id: string,
+    input: { issueDate?: Date },
+  ) {
+    const { tenantId, companyId, branchId } = this.context();
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const invoice = await tx.invoice.findFirst({
+          where: {
+            id,
+            tenantId,
+            companyId,
+            ...(branchId ? { branchId } : {}),
+          },
+          include: { lines: true },
+        });
+        if (!invoice) {
+          throw new NotFoundException('Fatura bulunamadı.');
+        }
+        if (invoice.status !== 'DRAFT') {
+          throw new BadRequestException(
+            invoice.status === 'ISSUED'
+              ? 'Bu fatura zaten düzenlenmiş.'
+              : 'İptal edilmiş fatura yeniden düzenlenemez.',
+          );
+        }
+        if (!invoice.lines.length) {
+          throw new BadRequestException(
+            'Fatura düzenlemek için en az bir belge kalemi olmalıdır.',
+          );
+        }
+        if (Number(invoice.total) <= 0) {
+          throw new BadRequestException(
+            'Fatura toplamı sıfırdan büyük olmalıdır.',
+          );
+        }
+
+        const issuedAt = new Date();
+        const issueDate = input.issueDate ?? issuedAt;
+        const number = await this.documentSequences.next(tx, {
+          documentType:
+            invoice.direction === 'SALES'
+              ? 'sales-invoice'
+              : 'purchase-invoice',
+          prefix: invoice.direction === 'SALES' ? 'SF' : 'AF',
+          date: issueDate,
+          branchId: invoice.branchId,
+          padding: 6,
+        });
+
+        return tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: 'ISSUED',
+            number,
+            issueDate,
+            issuedAt,
+          },
+          include: {
+            lines: {
+              orderBy: { lineNo: 'asc' },
+            },
+          },
+        });
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
+  async cancel(id: string, reason: string) {
+    const { tenantId, companyId, branchId } = this.context();
+    const cancellationReason = reason.trim();
+    if (!cancellationReason) {
+      throw new BadRequestException('İptal nedeni zorunludur.');
+    }
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const invoice = await tx.invoice.findFirst({
+          where: {
+            id,
+            tenantId,
+            companyId,
+            ...(branchId ? { branchId } : {}),
+          },
+        });
+        if (!invoice) {
+          throw new NotFoundException('Fatura bulunamadı.');
+        }
+        if (invoice.status === 'CANCELLED') {
+          throw new BadRequestException('Bu fatura zaten iptal edilmiş.');
+        }
+        if (invoice.status !== 'ISSUED') {
+          throw new BadRequestException(
+            'Yalnızca düzenlenmiş faturalar iptal edilebilir.',
+          );
+        }
+
+        return tx.invoice.update({
+          where: { id: invoice.id },
+          data: {
+            status: 'CANCELLED',
+            cancelledAt: new Date(),
+            cancellationReason,
           },
           include: {
             lines: {
