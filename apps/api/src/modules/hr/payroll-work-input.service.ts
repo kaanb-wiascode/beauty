@@ -140,6 +140,99 @@ export class PayrollWorkInputService {
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
+  async attachAllToDraft(periodId:string){
+    const {tenantId,companyId,branchIds}=await this.context();
+    return this.prisma.$transaction(async tx=>{
+      const periods=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,year,month,status,branch_id AS "branchId"
+         FROM payroll_periods
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+         FOR UPDATE`,
+        periodId,tenantId,companyId,
+      );
+      if(!periods.length) throw new BadRequestException('Taslak bordro dönemi gereklidir.');
+      const period=periods[0];
+      if(!period.branchId) throw new BadRequestException('Toplu puantaj aktarımı için şubeye bağlı bordro dönemi gereklidir.');
+      if(branchIds!==null&&!branchIds.includes(period.branchId)) throw new NotFoundException('Taslak bordro dönemi bulunamadı.');
+
+      const closures=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,period_start AS "periodStart",period_end AS "periodEnd",snapshot,closed_at AS "closedAt"
+         FROM hr_attendance_period_closures
+         WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+           AND payroll_period_id=$4::text AND year=$5 AND month=$6 AND status='CLOSED'
+         LIMIT 1`,
+        tenantId,companyId,period.branchId,periodId,Number(period.year),Number(period.month),
+      );
+      if(!closures.length) throw new BadRequestException('Toplu bordro girdisi için önce ilgili ayın puantaj kapanışı tamamlanmalıdır.');
+
+      const closure=closures[0];
+      const closureSnapshot=closure.snapshot&&typeof closure.snapshot==='object'?closure.snapshot:{};
+      const staffRows=Array.isArray(closureSnapshot.staff)?closureSnapshot.staff:[];
+      const staffById=new Map<string,any>(staffRows.map((row:any)=>[String(row?.staffId??''),row]));
+
+      const items=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,staff_id AS "staffId",calculation_snapshot AS "calculationSnapshot"
+         FROM payroll_items
+         WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text
+         ORDER BY staff_id
+         FOR UPDATE`,
+        periodId,tenantId,companyId,period.branchId,
+      );
+
+      let attached=0;
+      const unmatchedItems:string[]=[];
+      for(const item of items){
+        const staffSnapshot=staffById.get(String(item.staffId));
+        if(!staffSnapshot){unmatchedItems.push(String(item.staffId));continue;}
+        const existing=item.calculationSnapshot&&typeof item.calculationSnapshot==='object'?item.calculationSnapshot:{};
+        const workInputs={
+          source:'ATTENDANCE_PERIOD_CLOSE',
+          closureId:closure.id,
+          closedAt:closure.closedAt,
+          periodStart:closure.periodStart,
+          periodEnd:closure.periodEnd,
+          capturedAt:new Date().toISOString(),
+          workedMinutes:Number(staffSnapshot.workedMinutes??0),
+          overtimeMinutes:Number(staffSnapshot.overtimeMinutes??0),
+          approvedOvertimeMinutes:Number(staffSnapshot.approvedOvertimeMinutes??0),
+          presentDays:Number(staffSnapshot.presentDays??0),
+          absentDays:Number(staffSnapshot.absentDays??0),
+          approvedLeaveRecords:Number(staffSnapshot.approvedLeaveRecords??0),
+          declaredLeaveDays:Number(staffSnapshot.declaredLeaveDays??0),
+          unpaidLeaveRecords:Number(staffSnapshot.unpaidLeaveRecords??0),
+        };
+        await tx.$executeRawUnsafe(
+          `UPDATE payroll_items SET calculation_snapshot=$2::jsonb,updated_at=NOW() WHERE id=$1::text AND branch_id=$3::text`,
+          item.id,JSON.stringify({...existing,workInputs}),period.branchId,
+        );
+        attached++;
+      }
+
+      const itemStaffIds=new Set(items.map((item:any)=>String(item.staffId)));
+      const missingPayrollItems=staffRows
+        .filter((row:any)=>!itemStaffIds.has(String(row?.staffId??'')))
+        .map((row:any)=>({
+          staffId:String(row?.staffId??''),
+          firstName:row?.firstName??null,
+          lastName:row?.lastName??null,
+        }));
+
+      return{
+        periodId,
+        closureId:closure.id,
+        closedAt:closure.closedAt,
+        closureStaffCount:staffRows.length,
+        payrollItemCount:items.length,
+        attached,
+        missingPayrollItemCount:missingPayrollItems.length,
+        missingPayrollItems,
+        unmatchedPayrollItemCount:unmatchedItems.length,
+        unmatchedPayrollItemStaffIds:unmatchedItems,
+        financialAmountsMutated:false,
+      };
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+
   async attachToDraft(periodId:string,staffId:string){
     const {tenantId,companyId,branchIds}=await this.context();
     return this.prisma.$transaction(async tx=>{
