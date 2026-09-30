@@ -9,17 +9,36 @@ import { ApprovalDelegationService } from './approval-delegation.service';
 import { ApprovalRuntimeService } from './approval-runtime.service';
 import { ApprovalWorkflowService } from './approval-workflow.service';
 
+const approverTypeSchema = z.enum([
+  'ROLE',
+  'USER',
+  'PERMISSION',
+  'MANAGER',
+  'DIRECT_MANAGER',
+  'BRANCH_MANAGER',
+  'REGIONAL_MANAGER',
+  'DEPARTMENT_MANAGER',
+  'ORGANIZATION_MANAGER',
+]);
+
 const stepSchema = z.object({
   key: z.string().trim().min(1).max(80),
   name: z.string().trim().min(1).max(120),
+  approverType: approverTypeSchema.optional(),
+  approverValue: z.string().trim().max(160).nullable().optional(),
   approverPermission: z.string().trim().min(3).max(120).optional(),
   approverRoleSlug: z.string().trim().min(1).max(80).optional(),
+  slaMinutes: z.number().int().min(1).max(43200).nullable().optional(),
+  escalationApproverType: approverTypeSchema.nullable().optional(),
+  escalationApproverValue: z.string().trim().max(160).nullable().optional(),
+  timeoutAction: z.enum(['ESCALATE','AUTO_APPROVE','AUTO_REJECT','NOTIFY']).default('ESCALATE'),
   mode: z.enum(['SEQUENTIAL', 'PARALLEL']).default('SEQUENTIAL'),
 }).passthrough();
 const createSchema = z.object({workflowKey:z.string().trim().min(2).max(100),name:z.string().trim().min(2).max(120),domain:z.string().trim().min(2).max(80),description:z.string().trim().max(500).optional(),conditions:z.record(z.string(),z.unknown()).default({}),steps:z.array(stepSchema).min(1).max(20)});
 const updateSchema = z.object({name:z.string().trim().min(2).max(120).optional(),description:z.string().trim().max(500).nullable().optional(),conditions:z.record(z.string(),z.unknown()).optional(),steps:z.array(stepSchema).min(1).max(20).optional()});
 const requestSchema=z.object({workflowKey:z.string().trim().min(2).max(100),entityType:z.string().trim().min(1).max(100),entityId:z.string().trim().min(1).max(200),branchId:z.string().uuid().nullable().optional(),payload:z.record(z.string(),z.unknown()).optional(),reason:z.string().trim().max(500).optional()});
-const actSchema=z.object({decision:z.enum(['APPROVE','REJECT']),comment:z.string().trim().max(500).optional()});
+const actSchema=z.object({decision:z.enum(['APPROVE','REJECT','RETURN','DELEGATE','CANCEL']),comment:z.string().trim().max(500).optional(),delegateToUserId:z.string().uuid().optional()});
+const resubmitSchema=z.object({comment:z.string().trim().min(1).max(500)});
 const delegationSchema=z.object({delegatorUserId:z.string().uuid(),delegateUserId:z.string().uuid(),domain:z.string().trim().min(2).max(80).nullable().optional(),startsAt:z.string().datetime({offset:true}),endsAt:z.string().datetime({offset:true}),reason:z.string().trim().min(3).max(500)});
 
 @Controller('admin/approval-workflows')
@@ -32,7 +51,8 @@ export class ApprovalWorkflowController {
   @Post(':id/publish') @RequirePermission('roles','update') publish(@Param('id') id:string){return this.service.publish(id)}
   @Get('runtime/requests') @RequirePermission('roles','read') requests(@Query('status') status?:string){return this.runtime.list(status?.trim()||undefined)}
   @Post('runtime/requests') @RequirePermission('roles','update') createRequest(@Body() body:unknown){return this.runtime.create(requestSchema.parse(body))}
-  @Post('runtime/requests/:id/act') @RequirePermission('roles','update') act(@Param('id') id:string,@Body() body:unknown){const x=actSchema.parse(body);return this.runtime.act(id,x.decision,x.comment)}
+  @Post('runtime/requests/:id/act') @RequirePermission('roles','update') act(@Param('id') id:string,@Body() body:unknown){const x=actSchema.parse(body);return this.runtime.act(id,x.decision,x.comment,x.delegateToUserId)}
+  @Post('runtime/requests/:id/resubmit') resubmit(@Param('id') id:string,@Body() body:unknown){const x=resubmitSchema.parse(body);return this.runtime.resubmit(id,x.comment)}
   @Get('runtime/delegations') @RequirePermission('roles','read') delegationList(){return this.delegations.list()}
   @Post('runtime/delegations') @RequirePermission('roles','update') createDelegation(@Body() body:unknown){return this.delegations.create(delegationSchema.parse(body))}
   @Post('runtime/delegations/:id/revoke') @RequirePermission('roles','update') revokeDelegation(@Param('id') id:string){return this.delegations.revoke(id)}
