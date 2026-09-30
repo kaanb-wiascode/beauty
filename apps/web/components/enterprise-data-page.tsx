@@ -123,6 +123,7 @@ export function EnterpriseDataPage({
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [activeForm, setActiveForm] = useState<EnterpriseMutationForm | null>(null);
+  const [moreActionsOpen, setMoreActionsOpen] = useState(false);
   const [remoteOptions, setRemoteOptions] = useState<Record<string, Array<{ value: string; label: string }>>>({});
   const [formValues, setFormValues] = useState<Record<string, Record<string, string>>>(() =>
     Object.fromEntries(forms.map((form) => [form.title, Object.fromEntries(form.fields.map((field) => [field.name, field.defaultValue ?? ""]))])),
@@ -287,21 +288,20 @@ export function EnterpriseDataPage({
     {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
     {notice ? <Alert tone="success" onClose={() => setNotice("")}>{notice}</Alert> : null}
 
-    {actions.length ? <section className="flex flex-wrap gap-2 rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-      {actions.map((action) => <Button key={action.label} variant="secondary" disabled={Boolean(working)} onClick={() => void run(action)}>{working === action.label ? "İşleniyor..." : action.label}</Button>)}
-    </section> : null}
-
-    {forms.length ? <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-4 sm:p-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-        <div>
-          <h2 className="text-[14px] font-semibold text-[var(--ink)]">Hızlı İşlemler</h2>
-          <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">Yeni kayıt ve güncelleme işlemlerini sayfadan ayrılmadan başlatın.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {forms.map((form, index) => <Button key={form.title} variant={index === 0 ? "primary" : "secondary"} size="sm" onClick={() => setActiveForm(form)}>
-            {index === 0 ? "+ " : ""}{userText(form.title)}
-          </Button>)}
-        </div>
+    {forms.length || actions.length ? <section className="flex flex-col gap-3 border-b border-[var(--line)] pb-4 sm:flex-row sm:items-center sm:justify-between">
+      <div>
+        <p className="text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">İşlemler</p>
+        <p className="mt-1 text-[11px] text-[var(--muted)]">İşlemleri sayfadan ayrılmadan gerçekleştirin.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        {forms[0] ? <Button onClick={() => setActiveForm(forms[0])}>+ {userText(forms[0].title)}</Button> : null}
+        {forms.length + actions.length > 1 ? <div className="relative">
+          <Button variant="secondary" onClick={() => setMoreActionsOpen((open) => !open)} aria-expanded={moreActionsOpen}>Diğer İşlemler ▾</Button>
+          {moreActionsOpen ? <div className="absolute right-0 top-[calc(100%+8px)] z-[180] min-w-[260px] overflow-hidden rounded-[14px] border border-[var(--line)] bg-white p-1.5 shadow-[0_18px_55px_rgba(31,69,94,.18)]">
+            {forms.slice(1).map((form) => <button key={form.title} type="button" onClick={() => { setMoreActionsOpen(false); setActiveForm(form); }} className="flex min-h-10 w-full items-center rounded-[10px] px-3 text-left text-[12px] font-medium text-[var(--ink)] transition hover:bg-[var(--surface-2)]">{userText(form.title)}</button>)}
+            {actions.map((action) => <button key={action.label} type="button" disabled={Boolean(working)} onClick={() => { setMoreActionsOpen(false); void run(action); }} className="flex min-h-10 w-full items-center rounded-[10px] px-3 text-left text-[12px] font-medium text-[var(--ink)] transition hover:bg-[var(--surface-2)] disabled:opacity-50">{working === action.label ? "İşleniyor..." : userText(action.label)}</button>)}
+          </div> : null}
+        </div> : actions[0] ? <Button variant="secondary" disabled={Boolean(working)} onClick={() => void run(actions[0])}>{working === actions[0].label ? "İşleniyor..." : userText(actions[0].label)}</Button> : null}
       </div>
     </section> : null}
 
