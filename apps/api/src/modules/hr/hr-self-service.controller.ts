@@ -6,7 +6,7 @@ import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { HrSelfServiceService } from './hr-self-service.service';
 @Controller('hr/self-service')
 @UseGuards(JwtAuthGuard,TenantAuthGuard,PermissionsGuard)
-@RequirePermission('hr','read')
+@RequirePermission('hr_self_service','read')
 export class HrSelfServiceController {
  constructor(private readonly selfService:HrSelfServiceService){}
  private userId(r:any){const id=r.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id;}
