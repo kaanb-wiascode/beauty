@@ -3,6 +3,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { Button } from "./ui";
 import { cx } from "@/lib/format";
+import { userText } from "@/lib/user-language";
 
 function getFocusableElements(container: HTMLElement) {
   return Array.from(container.querySelectorAll<HTMLElement>(["a[href]","button:not([disabled])","input:not([disabled])","select:not([disabled])","textarea:not([disabled])","[tabindex]:not([tabindex='-1'])"].join(",")));
@@ -82,8 +83,8 @@ export function Modal({
         <div className={cx("shrink-0 border-b border-[var(--line)] px-4 py-4 sm:px-7 sm:py-6", (isCustomerForm || isStaffForm || size === "lg" || size === "xl") && "sm:px-8")}>
           <div className="flex items-start justify-between gap-5">
             <div className="min-w-0">
-              <h2 id={titleId} className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{title}</h2>
-              {description ? <p id={descriptionId} className="mt-1 max-w-[760px] text-[12px] leading-5 text-[var(--muted)] sm:mt-1.5 sm:text-sm sm:leading-6">{description}</p> : null}
+              <h2 id={titleId} className="text-[18px] font-semibold tracking-[-0.03em] text-[var(--ink)] sm:text-[22px]">{userText(title)}</h2>
+              {description ? <p id={descriptionId} className="mt-1 max-w-[760px] text-[12px] leading-5 text-[var(--muted)] sm:mt-1.5 sm:text-sm sm:leading-6">{userText(description)}</p> : null}
             </div>
             <button type="button" onClick={onClose} aria-label="Kapat" className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[10px] sm:h-[42px] sm:w-[42px] sm:rounded-[12px] border border-[var(--line)] bg-white text-[20px] leading-none text-[var(--muted)] transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">×</button>
           </div>
@@ -114,7 +115,7 @@ export function ConfirmDialog({ open, title, description, confirmLabel = "Sil", 
   return <Modal open={open} onClose={handleClose} title={title} description={description}>
     <div className="flex justify-end gap-3">
       <Button variant="secondary" onClick={handleClose} disabled={loading}>Vazgeç</Button>
-      <Button variant="danger" disabled={loading} aria-busy={loading} onClick={onConfirm}>{loading ? "İşleniyor..." : confirmLabel}</Button>
+      <Button variant="danger" disabled={loading} aria-busy={loading} onClick={onConfirm}>{loading ? "İşleniyor..." : userText(confirmLabel)}</Button>
     </div>
   </Modal>;
 }
