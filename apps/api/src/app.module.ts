@@ -25,6 +25,7 @@ import { CounterpartiesModule } from './modules/counterparties/counterparties.mo
 import { InstallmentsModule } from './modules/installments/installments.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { AccountsPayableModule } from './modules/accounts-payable/accounts-payable.module';
+import { AccountsReceivableModule } from './modules/accounts-receivable/accounts-receivable.module';
 import { ProcurementModule } from './modules/procurement/procurement.module';
 import { ProfitabilityModule } from './modules/profitability/profitability.module';
 import { FinancialIntegrationsModule } from './modules/financial-integrations/financial-integrations.module';
@@ -91,6 +92,7 @@ import { TeamModule } from './modules/team/team.module';
     InstallmentsModule,
     AccountingModule,
     AccountsPayableModule,
+    AccountsReceivableModule,
     ProcurementModule,
     ProfitabilityModule,
     FinancialIntegrationsModule,
