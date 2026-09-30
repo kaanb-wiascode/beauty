@@ -589,6 +589,65 @@ model SaleItem {
   @@map("sale_items")
 }
 
+model Invoice {
+  id                     String            @id @default(uuid())
+  tenantId               String            @map("tenant_id")
+  companyId              String            @map("company_id")
+  branchId               String?           @map("branch_id")
+  counterpartyId         String            @map("counterparty_id")
+  direction              InvoiceDirection
+  status                 InvoiceStatus     @default(DRAFT)
+  sourceType             InvoiceSourceType @map("source_type")
+  saleId                 String?           @map("sale_id")
+  supplierBillId         String?           @map("supplier_bill_id")
+  number                 String?
+  issueDate              DateTime?         @db.Date @map("issue_date")
+  dueAt                  DateTime?         @map("due_at")
+  currency               String            @default("TRY")
+  subtotal               Decimal           @default(0) @db.Decimal(14, 2)
+  discountTotal          Decimal           @default(0) @db.Decimal(14, 2) @map("discount_total")
+  taxTotal               Decimal           @default(0) @db.Decimal(14, 2) @map("tax_total")
+  total                  Decimal           @default(0) @db.Decimal(14, 2)
+  counterpartyName       String            @map("counterparty_name")
+  counterpartyTaxNumber  String?           @map("counterparty_tax_number")
+  counterpartyAddress    String?           @map("counterparty_address")
+  note                   String?
+  issuedAt               DateTime?         @map("issued_at")
+  cancelledAt            DateTime?         @map("cancelled_at")
+  cancellationReason     String?           @map("cancellation_reason")
+  createdAt              DateTime          @default(now()) @map("created_at")
+  updatedAt              DateTime          @updatedAt @map("updated_at")
+  lines                  InvoiceLine[]
+
+  @@index([companyId, direction, status, issueDate])
+  @@index([counterpartyId, issueDate])
+  @@index([tenantId, saleId])
+  @@index([tenantId, supplierBillId])
+  @@map("invoices")
+}
+
+model InvoiceLine {
+  id             String          @id @default(uuid())
+  invoiceId      String          @map("invoice_id")
+  lineNo         Int             @map("line_no")
+  kind           InvoiceLineKind @default(OTHER)
+  referenceId    String?         @map("reference_id")
+  description    String
+  quantity       Decimal         @default(1) @db.Decimal(14, 3)
+  unit           String?
+  unitPrice      Decimal         @default(0) @db.Decimal(14, 4) @map("unit_price")
+  discountAmount Decimal         @default(0) @db.Decimal(14, 2) @map("discount_amount")
+  taxRate        Decimal         @default(0) @db.Decimal(7, 4) @map("tax_rate")
+  taxAmount      Decimal         @default(0) @db.Decimal(14, 2) @map("tax_amount")
+  lineTotal      Decimal         @default(0) @db.Decimal(14, 2) @map("line_total")
+  createdAt      DateTime        @default(now()) @map("created_at")
+  invoice        Invoice         @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+
+  @@unique([invoiceId, lineNo])
+  @@index([kind, referenceId])
+  @@map("invoice_lines")
+}
+
 model SalePayment {
   id           String        @id @default(uuid())
   tenantId     String
@@ -875,6 +934,31 @@ enum SaleItemType {
   SERVICE
   PACKAGE
   PRODUCT
+}
+
+enum InvoiceDirection {
+  SALES
+  PURCHASE
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  CANCELLED
+}
+
+enum InvoiceSourceType {
+  SALE
+  SUPPLIER_BILL
+  MANUAL
+}
+
+enum InvoiceLineKind {
+  SERVICE
+  PACKAGE
+  PRODUCT
+  EXPENSE
+  OTHER
 }
 
 enum CustomerPackageStatus {
