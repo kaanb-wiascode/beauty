@@ -19,6 +19,14 @@ const listSchema = z.object({
   status: z.enum(['DRAFT', 'ISSUED', 'CANCELLED']).optional(),
 });
 
+const issueSchema = z.object({
+  issueDate: z.coerce.date().optional(),
+});
+
+const cancelSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 @Controller('invoices')
 @UseGuards(JwtAuthGuard, TenantAuthGuard, PermissionsGuard)
 @RequirePermission('finance', 'read')
@@ -39,6 +47,24 @@ export class InvoicesController {
   @RequirePermission('finance', 'manage')
   fromSale(@Param('saleId', new ParseUUIDPipe()) saleId: string) {
     return this.service.createDraftFromSale(saleId);
+  }
+
+  @Post(':id/issue')
+  @RequirePermission('finance', 'manage')
+  issue(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: unknown,
+  ) {
+    return this.service.issue(id, issueSchema.parse(query));
+  }
+
+  @Post(':id/cancel')
+  @RequirePermission('finance', 'manage')
+  cancel(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Query() query: unknown,
+  ) {
+    return this.service.cancel(id, cancelSchema.parse(query).reason);
   }
 
   @Post('from-supplier-bill/:supplierBillId')
