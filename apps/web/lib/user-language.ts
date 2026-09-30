@@ -561,6 +561,7 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   "Event key and audience are required": "Bildirim olayı ve hedef kitlesi seçilmelidir.",
   "At least one supported notification channel is required": "En az bir bildirim kanalı seçilmelidir.",
   "Active membership is required": "Bu işlem için aktif işletme üyeliği gereklidir.",
+  "The latest job offer must be accepted before hiring.": "Adayı çalışan olarak başlatmadan önce son iş teklifinin kabul edilmiş olması gerekir.",
 };
 
 const USER_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
