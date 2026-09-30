@@ -65,6 +65,19 @@ export default function AccountsPayablePage() {
     setReference("");
   }
 
+  async function createInvoiceDraft(bill: Bill) {
+    if (!canManage || busy) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api(`/invoices/from-supplier-bill/${bill.id}`, { method: "POST" });
+      showToast("Alış faturası taslağı oluşturuldu. Finans > Faturalar ekranından görüntüleyebilirsiniz.");
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? requestError.message : "Fatura taslağı oluşturulamadı.");
+    } finally {
+      setBusy(false);
+    }
+  }
   async function pay() {
     if (!paymentBill || busy) return;
     const numeric = Number(amount);
@@ -134,7 +147,7 @@ export default function AccountsPayablePage() {
                 <p className="mt-1 truncate text-[11px] text-[var(--muted)]">{bill.invoiceNumber || "Fatura no yok"} · {bill.description}</p>
                 <p className="mt-1 text-[10px] text-[var(--muted-soft)]">Vade: {bill.dueAt ? new Intl.DateTimeFormat("tr-TR", { dateStyle: "medium" }).format(new Date(bill.dueAt)) : "Belirtilmedi"} · Toplam {money.format(Number(bill.amount))}</p>
               </div>
-              <div className="flex shrink-0 items-center gap-3"><div className="text-right"><p className="text-[10px] text-[var(--muted)]">Kalan</p><strong className="text-[14px] text-[var(--ink)]">{money.format(Number(bill.balance))}</strong></div>{canManage ? <Button disabled={busy} onClick={() => startPayment(bill)}>Ödeme Yap</Button> : null}</div>
+              <div className="flex shrink-0 flex-wrap items-center justify-end gap-2"><div className="mr-1 text-right"><p className="text-[10px] text-[var(--muted)]">Kalan</p><strong className="text-[14px] text-[var(--ink)]">{money.format(Number(bill.balance))}</strong></div>{canManage ? <Button variant="secondary" disabled={busy} onClick={() => void createInvoiceDraft(bill)}>Fatura Taslağı</Button> : null}{canManage ? <Button disabled={busy} onClick={() => startPayment(bill)}>Ödeme Yap</Button> : null}</div>
             </article>;
           })}
           {!open.length ? <EmptyState title="Açık tedarikçi borcu yok" description="Aktif kapsamda ödenmemiş tedarikçi faturası bulunmuyor." /> : null}
