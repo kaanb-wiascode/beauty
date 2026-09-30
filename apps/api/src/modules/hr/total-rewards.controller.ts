@@ -9,6 +9,7 @@ import { TotalRewardsService } from './total-rewards.service';
 @RequirePermission('hr','read')
 export class TotalRewardsController {
  constructor(private readonly rewards:TotalRewardsService){}
+ @Get('cost-centers') costCenters(){return this.rewards.costCenters();}
  @Get('employees/:id/total') total(@Param('id')id:string){return this.rewards.totalReward(id);}
  @Get('employees/:id/compensation') compensation(@Param('id')id:string){return this.rewards.compensation(id);}
  @Post('employees/:id/compensation') @RequirePermissions({resource:'hr',action:'manage'}) addCompensation(@Param('id')id:string,@Body()b:any){return this.rewards.addCompensation(id,b);}
