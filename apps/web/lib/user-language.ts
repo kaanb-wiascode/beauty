@@ -213,6 +213,16 @@ const USER_LABELS: Record<string, string> = {
   COLLECTED: "Tahsil Edildi",
   CHARGEBACK: "Ters İbraz",
   REFUND: "İade",
+  MAINTENANCE: "Bakımda",
+  EQUIPMENT: "Cihaz / Ekipman",
+  FURNITURE: "Mobilya",
+  IT: "Bilgi Teknolojileri",
+  VEHICLE: "Araç",
+  GOOD: "İyi",
+  FAIR: "Orta",
+  POOR: "Zayıf",
+  BROKEN: "Arızalı",
+  EXPIRING: "Süresi Yaklaşıyor",
 };
 
 const USER_RESOURCE_LABELS: Record<string, string> = {
