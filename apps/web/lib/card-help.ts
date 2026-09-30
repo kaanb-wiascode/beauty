@@ -200,6 +200,46 @@ const HELP_BY_TITLE: Record<string, Omit<CardHelpContent, "title">> = {
     interpretation: "Hangi dönemin hangi aşamada olduğunu hızlıca görmek için kullanılır.",
     source: "Bordro dönem kayıtları",
   },
+  "İşe Alım Merkezi": {
+    description: "Açık pozisyonlardan iş teklifine kadar işe alım sürecinin tamamını tek merkezden yönetmenizi sağlar.",
+    interpretation: "Her adayın hangi pozisyon için hangi aşamada olduğunu izlemek ve süreci düzenli yürütmek için kullanılır.",
+    source: "İlan, aday, başvuru, görüşme ve teklif kayıtları",
+  },
+  "Açık Pozisyonlar": {
+    description: "Hazırlanan, başvuruya açık veya kapatılmış iş ilanlarını gösterir.",
+    interpretation: "Hangi pozisyonlarda aktif işe alım yapıldığını hızlıca görmek için kullanılır.",
+    source: "İşe alım ilan kayıtları",
+  },
+  "Adaylar": {
+    description: "İşe alım sürecine eklenen adayların temel iletişim ve kariyer bilgilerini gösterir.",
+    interpretation: "Aday havuzunu takip etmek ve doğru pozisyonlarla eşleştirmek için kullanılır.",
+    source: "Aday kayıtları",
+  },
+  "Başvurular": {
+    description: "Adayların hangi pozisyona başvurduğunu ve sürecin hangi aşamasında olduğunu gösterir.",
+    interpretation: "Bekleyen, görüşmeye geçen, teklif alan veya sonuçlanan başvuruları takip etmek için kullanılır.",
+    source: "İşe alım başvuru kayıtları",
+  },
+  "Görüşmeler": {
+    description: "Adaylarla planlanan görüşmelerin tarihini, türünü ve durumunu gösterir.",
+    interpretation: "Görüşme takvimini ve değerlendirme akışını düzenli yürütmek için kullanılır.",
+    source: "Görüşme kayıtları",
+  },
+  "İş Teklifleri": {
+    description: "Adaylara hazırlanan ücret ve işe başlangıç tekliflerini gösterir.",
+    interpretation: "Tekliflerin hazırlanma ve gönderilme durumunu takip etmek için kullanılır.",
+    source: "İş teklifi kayıtları",
+  },
+  "İK Analizi": {
+    description: "Çalışan sayısı, çalışma süreleri, izinler ve bordro sonuçlarını aynı dönem için birlikte gösterir.",
+    interpretation: "Ekip büyüklüğü, çalışma yoğunluğu, izin kullanımı ve çalışan maliyetini birlikte değerlendirmek için kullanılır.",
+    source: "Çalışan, puantaj, izin ve bordro kayıtları",
+  },
+  "Performans Değerlendirmeleri": {
+    description: "Çalışanların değerlendirme dönemlerini, puanlarını, başarılarını ve gelişim alanlarını gösterir.",
+    interpretation: "Değerlendirme sonucunu tek bir puana göre değil, hedefler ve gelişim planıyla birlikte değerlendirmek için kullanılır.",
+    source: "Performans değerlendirme kayıtları",
+  },
 };
 
 function sentenceCase(value: string) {
