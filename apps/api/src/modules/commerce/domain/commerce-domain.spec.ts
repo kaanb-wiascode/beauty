@@ -30,7 +30,7 @@ describe('core commerce domain', () => {
     it('rejects discounts larger than subtotal', () => {
       expect(() =>
         calculateSaleTotals([{ quantity: 1, unitPrice: 100 }], 101),
-      ).toThrow('Discount cannot exceed subtotal.');
+      ).toThrow('İndirim tutarı ara toplamı aşamaz.');
     });
   });
 
