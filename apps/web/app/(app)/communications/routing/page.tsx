@@ -24,6 +24,10 @@ type Rule = {
   } | null;
 };
 type Campaign = { id: string; name: string };
+type RoutingOptions = {
+  branches: Array<{ id: string; name: string; code: string }>;
+  users: Array<{ id: string; firstName: string; lastName: string; email: string }>;
+};
 const strategyLabels: Record<string, string> = { FIXED: "Sabit Atama", ROUND_ROBIN: "Sırayla Dağıtım", LEAST_LOADED: "En Az Yoğun Personele" };
 const contactChannelLabels: Record<string, string> = { CALL: "Telefon", WHATSAPP: "WhatsApp", SMS: "SMS", EMAIL: "E-posta", IN_PERSON: "Yüz Yüze", OTHER: "Diğer" };
 
@@ -33,6 +37,7 @@ const fieldClass =
 export default function RoutingPage() {
   const [rules, setRules] = useState<Rule[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
+  const [routingOptions,setRoutingOptions]=useState<RoutingOptions>({branches:[],users:[]});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -51,12 +56,14 @@ export default function RoutingPage() {
     setLoading(true);
     setError("");
     try {
-      const [ruleRows, campaignRows] = await Promise.all([
+      const [ruleRows, campaignRows, options] = await Promise.all([
         api<Rule[]>("/corporate-communications/routing-rules"),
         api<Campaign[]>("/corporate-communications/campaigns?limit=200"),
+        api<RoutingOptions>("/corporate-communications/routing-options"),
       ]);
       setRules(ruleRows);
       setCampaigns(campaignRows);
+      setRoutingOptions(options);
     } catch (e) {
       setError(e instanceof ApiError ? userErrorMessage(e.message, "Talep dağıtım kuralları yüklenemedi.") : "Talep dağıtım kuralları yüklenemedi.");
     } finally {
@@ -172,12 +179,21 @@ export default function RoutingPage() {
             </Select>
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Hedef Şube Kodu
-            <input className={fieldClass} value={targetBranchId} onChange={(e) => setTargetBranchId(e.target.value)} placeholder="Şube kodunu girin" />
+            Hedef Şube
+            <Select className={fieldClass} value={targetBranchId} onChange={(e) => { setTargetBranchId(e.target.value); setTargetUserId(""); }}>
+              <option value="">Dinamik / Şube seçilmedi</option>
+              {routingOptions.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+            </Select>
           </label>
           <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Hedef Sorumlu Kodu
-            <input className={fieldClass} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)} placeholder="İsteğe bağlı" />
+            Hedef Sorumlu
+            <Select className={fieldClass} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
+              <option value="">Dinamik / Sorumlu seçilmedi</option>
+              {routingOptions.users.map((user) => {
+                const name=[user.firstName,user.lastName].filter(Boolean).join(" ").trim();
+                return <option key={user.id} value={user.id}>{name || user.email} · {user.email}</option>;
+              })}
+            </Select>
           </label>
 
           <div className="mt-5 rounded-[16px] border border-[var(--line)] bg-[var(--surface-soft)] p-4">
