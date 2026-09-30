@@ -11,7 +11,7 @@ import { ShiftExchangeService } from './shift-exchange.service';
 export class ShiftExchangeController {
  constructor(private readonly exchange:ShiftExchangeService){}
  private userId(req:{user?:{sub?:string}}){const id=req.user?.sub;if(!id)throw new UnauthorizedException('Authenticated user id is missing.');return id}
- @Get('swaps') swaps(){return this.exchange.swaps()}
+ @Get('swaps') swaps(){return this.exchange.swaps()} @Get('assignments') assignments(){return this.exchange.assignments()}
  @Post('assignments/:assignmentId/swaps') @RequirePermissions({resource:'hr',action:'manage'}) requestSwap(@Param('assignmentId') assignmentId:string,@Body() body:any,@Req() req:any){return this.exchange.requestSwap(assignmentId,body.targetStaffId?String(body.targetStaffId):null,String(body.note??''),this.userId(req))}
  @Post('swaps/:id/accept') @RequirePermissions({resource:'hr',action:'manage'}) acceptSwap(@Param('id') id:string,@Body() body:any,@Req() req:any){return this.exchange.acceptSwap(id,body.targetAssignmentId?String(body.targetAssignmentId):null,String(body.note??''),this.userId(req))}
  @Post('swaps/:id/review') @RequirePermissions({resource:'hr',action:'manage'}) reviewSwap(@Param('id') id:string,@Body() body:any,@Req() req:any){return this.exchange.reviewSwap(id,body.approve===true,String(body.note??''),this.userId(req))}
