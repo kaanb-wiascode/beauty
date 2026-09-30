@@ -70,6 +70,8 @@ export default function HRSection() {
   const [form, setForm] = useState<FormState>({ year: now.getFullYear(), month: now.getMonth() + 1 });
   const [edit, setEdit] = useState<DataRow | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  const [orgCreate, setOrgCreate] = useState<"department" | "position" | null>(null);
+  const [orgDraft, setOrgDraft] = useState({ code: "", name: "", departmentId: "" });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -152,6 +154,64 @@ export default function HRSection() {
     setEdit(null);
     setForm({ year, month });
     setFormOpen(false);
+  }
+
+  function openOrganizationCreate(kind: "department" | "position") {
+    setFormOpen(false);
+    setOrgDraft({
+      code: "",
+      name: "",
+      departmentId: kind === "position" && typeof form.departmentId === "string" ? form.departmentId : "",
+    });
+    setOrgCreate(kind);
+  }
+
+  function cancelOrganizationCreate() {
+    if (saving) return;
+    setOrgCreate(null);
+    setFormOpen(true);
+  }
+
+  async function createOrganizationItem() {
+    if (!orgCreate) return;
+    const code = orgDraft.code.trim();
+    const name = orgDraft.name.trim();
+    if (!code || !name) {
+      setError("Kısa kod ve ad zorunludur.");
+      return;
+    }
+    if (orgCreate === "position" && !orgDraft.departmentId) {
+      setError("Pozisyon için departman seçin.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const path = orgCreate === "department" ? "/hr/organization/departments" : "/hr/organization/positions";
+      const created = await api<OrgItem>(path, {
+        method: "POST",
+        body: orgCreate === "department"
+          ? { code, name, status: "ACTIVE" }
+          : { code, name, departmentId: orgDraft.departmentId, status: "ACTIVE" },
+      });
+      const org = await api<OrganizationData>("/hr/organization");
+      setOrganization({
+        departments: Array.isArray(org.departments) ? org.departments : [],
+        positions: Array.isArray(org.positions) ? org.positions : [],
+      });
+      if (orgCreate === "department") {
+        setForm((current) => ({ ...current, departmentId: created.id, positionId: "" }));
+      } else {
+        setForm((current) => ({ ...current, departmentId: orgDraft.departmentId, positionId: created.id }));
+      }
+      setNotice(orgCreate === "department" ? "Yeni departman oluşturuldu." : "Yeni pozisyon oluşturuldu.");
+      setOrgCreate(null);
+      setFormOpen(true);
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Organizasyon kaydı oluşturulamadı.") : "Organizasyon kaydı oluşturulamadı.");
+    } finally {
+      setSaving(false);
+    }
   }
 
   async function save() {
@@ -245,13 +305,53 @@ export default function HRSection() {
       <div>
         <FormSection title={edit ? "Kayıt Bilgileri" : "Yeni Kayıt"} description="Yalnızca gerekli bilgileri girin; mevcut kayıtları seçim alanlarından kullanın.">
           <FormGrid columns={2} className="xl:grid-cols-2">
-            {formFields.map((field) => <DynamicField key={field} field={field} value={form[field] ?? ""} staff={staff} organization={organization} form={form} onChange={(value) => updateField(field, value)} />)}
+            {formFields.map((field) => <DynamicField key={field} field={field} value={form[field] ?? ""} staff={staff} organization={organization} form={form} onChange={(value) => { updateField(field, value); if (field === "departmentId") updateField("positionId", ""); }} onCreateDepartment={() => openOrganizationCreate("department")} onCreatePosition={() => openOrganizationCreate("position")} />)}
           </FormGrid>
         </FormSection>
         <FormActions>
           <Button type="button" variant="secondary" onClick={closeForm} disabled={saving}>Vazgeç</Button>
           <FormSubmitButton type="button" saving={saving} idleLabel={edit ? "Değişiklikleri Kaydet" : "Kaydı Oluştur"} savingLabel="Kaydediliyor…" onClick={() => void save()} />
         </FormActions>
+      </div>
+    </Modal>
+
+    <Modal
+      open={Boolean(orgCreate)}
+      onClose={cancelOrganizationCreate}
+      title={orgCreate === "department" ? "Yeni Departman Ekle" : "Yeni Pozisyon Ekle"}
+      description="Yeni kaydı burada oluşturun; çalışan formuna geri döndüğünüzde otomatik seçilmiş olacak."
+    >
+      <div className="space-y-4">
+        {orgCreate === "position" ? <label className="block">
+          <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">Departman</span>
+          <ValooSelect
+            value={orgDraft.departmentId}
+            onChange={(departmentId) => setOrgDraft((current) => ({ ...current, departmentId }))}
+            options={organization.departments.map((item) => ({ value: item.id, label: item.name }))}
+            placeholder="Departman seçin"
+            searchPlaceholder="Departman ara…"
+            emptyLabel="Henüz departman yok."
+            createAction={{
+              label: "Yeni departman ekle",
+              onClick: () => {
+                setOrgCreate("department");
+                setOrgDraft({ code: "", name: "", departmentId: "" });
+              },
+            }}
+          />
+        </label> : null}
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">Kısa Kod</span>
+          <input className="control h-11 w-full" value={orgDraft.code} onChange={(event) => setOrgDraft((current) => ({ ...current, code: event.target.value }))} placeholder={orgCreate === "department" ? "Örn. SAT" : "Örn. SAT-UZM"} />
+        </label>
+        <label className="block">
+          <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">{orgCreate === "department" ? "Departman Adı" : "Pozisyon Adı"}</span>
+          <input className="control h-11 w-full" value={orgDraft.name} onChange={(event) => setOrgDraft((current) => ({ ...current, name: event.target.value }))} />
+        </label>
+        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+          <Button variant="secondary" onClick={cancelOrganizationCreate} disabled={saving}>Vazgeç</Button>
+          <Button onClick={() => void createOrganizationItem()} disabled={saving}>{saving ? "Kaydediliyor…" : "Oluştur ve Seç"}</Button>
+        </div>
       </div>
     </Modal>
 
@@ -283,7 +383,25 @@ export default function HRSection() {
   </div>;
 }
 
-function DynamicField({ field, value, staff, organization, form, onChange }: { field: string; value: string | number; staff: StaffRow[]; organization: OrganizationData; form: FormState; onChange: (value: string) => void }) {
+function DynamicField({
+  field,
+  value,
+  staff,
+  organization,
+  form,
+  onChange,
+  onCreateDepartment,
+  onCreatePosition,
+}: {
+  field: string;
+  value: string | number;
+  staff: StaffRow[];
+  organization: OrganizationData;
+  form: FormState;
+  onChange: (value: string) => void;
+  onCreateDepartment: () => void;
+  onCreatePosition: () => void;
+}) {
   const label = FIELD_LABELS[field] ?? ({ departmentId: "Departman", positionId: "Pozisyon" }[field] ?? field);
   const normalized = String(value ?? "");
   const selectedDepartmentId = typeof form.departmentId === "string" ? form.departmentId : "";
@@ -294,8 +412,24 @@ function DynamicField({ field, value, staff, organization, form, onChange }: { f
   return <label className="block">
     <span className="mb-2 block text-[13px] font-medium text-[var(--ink)]">{label}</span>
     {field === "staffId" ? <ValooSelect value={normalized} onChange={onChange} placeholder="Çalışan seçin" searchPlaceholder="Çalışan ara…" emptyLabel="Çalışan bulunamadı." options={staff.map((item) => ({ value: item.id, label: `${item.firstName ?? ""} ${item.lastName ?? ""}`.trim() }))} /> :
-      field === "departmentId" ? <ValooSelect value={normalized} onChange={onChange} placeholder="Departman seçin" searchPlaceholder="Departman ara…" emptyLabel="Henüz departman bulunmuyor." options={organization.departments.map((item) => ({ value: item.id, label: item.name }))} /> :
-      field === "positionId" ? <ValooSelect value={normalized} onChange={onChange} placeholder={selectedDepartmentId ? "Pozisyon seçin" : "Pozisyon seçin"} searchPlaceholder="Pozisyon ara…" emptyLabel="Seçime uygun pozisyon bulunmuyor." options={positions.map((item) => ({ value: item.id, label: item.name }))} /> :
+      field === "departmentId" ? <ValooSelect
+        value={normalized}
+        onChange={onChange}
+        placeholder="Departman seçin"
+        searchPlaceholder="Departman ara…"
+        emptyLabel="Henüz departman bulunmuyor."
+        options={organization.departments.map((item) => ({ value: item.id, label: item.name }))}
+        createAction={{ label: "Yeni departman ekle", onClick: onCreateDepartment }}
+      /> :
+      field === "positionId" ? <ValooSelect
+        value={normalized}
+        onChange={onChange}
+        placeholder="Pozisyon seçin"
+        searchPlaceholder="Pozisyon ara…"
+        emptyLabel={selectedDepartmentId ? "Bu departman için pozisyon bulunmuyor." : "Henüz pozisyon bulunmuyor."}
+        options={positions.map((item) => ({ value: item.id, label: item.name }))}
+        createAction={{ label: "Yeni pozisyon ekle", onClick: onCreatePosition }}
+      /> :
       field === "employmentType" ? <ValooSelect value={normalized} onChange={onChange} searchable={false} placeholder="Çalışma şeklini seçin" options={[
         { value: "FULL_TIME", label: "Tam Zamanlı" },
         { value: "PART_TIME", label: "Yarı Zamanlı" },
