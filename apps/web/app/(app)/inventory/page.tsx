@@ -117,7 +117,7 @@ export default function InventoryPage() {
       setSuppliers(supplierRows);
       setAssets(assetRows);
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Envanter Yüklenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message,"Envanter yüklenemedi.") : "Envanter yüklenemedi.");
     } finally {
       setLoading(false);
     }
