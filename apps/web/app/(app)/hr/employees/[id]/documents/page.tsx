@@ -5,6 +5,7 @@ import { useParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { DatePicker } from "@/components/date-picker";
 import { Alert, Button, EmptyState, Field, Modal, Spinner, TextArea, TextInput } from "@/components/ui";
+import { ConfirmDialog } from "@/components/modal";
 import { ValooSelect } from "@/components/valoo-controls";
 import { api, apiFormData, apiResponse, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -39,6 +40,9 @@ export default function EmployeeDocumentsPage(){
   const[uploadOpen,setUploadOpen]=useState(false);
   const[form,setForm]=useState<FormState>(EMPTY);
   const[file,setFile]=useState<File|null>(null);
+  const[pendingReject,setPendingReject]=useState<DocumentRow|null>(null);
+  const[pendingArchive,setPendingArchive]=useState<DocumentRow|null>(null);
+  const[rejectNote,setRejectNote]=useState("");
   const canSensitive=hasPermission("hr_sensitive","read");
   const canManage=hasPermission("hr","manage")&&canSensitive;
 
@@ -96,18 +100,16 @@ export default function EmployeeDocumentsPage(){
     }catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Belge indirilemedi."):"Belge indirilemedi.")}
   }
 
-  async function verify(row:DocumentRow,status:"VERIFIED"|"REJECTED"){
-    let note="";
-    if(status==="REJECTED"){note=window.prompt("Belgenin reddedilme gerekçesini yazın.")?.trim()||"";if(!note)return}
+  async function verify(row:DocumentRow,status:"VERIFIED"|"REJECTED",note?:string){
     try{
-      await api(`/hr/employees/${id}/documents/${row.id}/verify`,{method:"PATCH",body:{status,note:note||undefined}});
-      setNotice(status==="VERIFIED"?"Belge doğrulandı.":"Belge reddedildi.");await load();
+      await api(`/hr/employees/${id}/documents/${row.id}/verify`,{method:"PATCH",body:{status,note:note?.trim()||undefined}});
+      setNotice(status==="VERIFIED"?"Belge doğrulandı.":"Belge reddedildi.");
+      setPendingReject(null);setRejectNote("");await load();
     }catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Belge doğrulanamadı."):"Belge doğrulanamadı.")}
   }
 
   async function archive(row:DocumentRow){
-    if(!window.confirm(`${row.title} arşivlensin mi?`))return;
-    try{await api(`/hr/employees/${id}/documents/${row.id}/archive`,{method:"POST"});setNotice("Belge arşivlendi.");await load()}
+    try{await api(`/hr/employees/${id}/documents/${row.id}/archive`,{method:"POST"});setPendingArchive(null);setNotice("Belge arşivlendi.");await load()}
     catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Belge arşivlenemedi."):"Belge arşivlenemedi.")}
   }
 
@@ -149,8 +151,8 @@ export default function EmployeeDocumentsPage(){
             <td className="p-4 text-[var(--muted)]">{r.restricted?"Kısıtlı":"Standart"}</td>
             <td className="p-4"><div className="flex justify-end gap-2">
               {r.fileName?<Button size="sm" variant="secondary" onClick={()=>void download(r)}>İndir</Button>:null}
-              {canManage&&r.status==="PENDING"?<><Button size="sm" variant="secondary" onClick={()=>void verify(r,"VERIFIED")}>Doğrula</Button><Button size="sm" variant="secondary" onClick={()=>void verify(r,"REJECTED")}>Reddet</Button></>:null}
-              {canManage&&r.status!=="ARCHIVED"?<Button size="sm" variant="ghost" onClick={()=>void archive(r)}>Arşivle</Button>:null}
+              {canManage&&r.status==="PENDING"?<><Button size="sm" variant="secondary" onClick={()=>void verify(r,"VERIFIED")}>Doğrula</Button><Button size="sm" variant="secondary" onClick={()=>{setPendingReject(r);setRejectNote("")}}>Reddet</Button></>:null}
+              {canManage&&r.status!=="ARCHIVED"?<Button size="sm" variant="ghost" onClick={()=>setPendingArchive(r)}>Arşivle</Button>:null}
             </div></td>
           </tr>})}</tbody>
         </table></div>:
@@ -187,6 +189,26 @@ export default function EmployeeDocumentsPage(){
         </div>
       </div>
     </Modal>
+
+    <Modal open={Boolean(pendingReject)} onClose={()=>{setPendingReject(null);setRejectNote("")}} title="Belgeyi Reddet" description={pendingReject ? `${pendingReject.title} için reddetme gerekçesini yazın.` : undefined}>
+      <div className="space-y-4">
+        <Field label="Reddetme Gerekçesi" required>
+          <TextArea rows={4} value={rejectNote} placeholder="Belgenin neden kabul edilmediğini açıklayın…" onChange={e=>setRejectNote(e.target.value)}/>
+        </Field>
+        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+          <Button variant="secondary" onClick={()=>{setPendingReject(null);setRejectNote("")}}>Vazgeç</Button>
+          <Button disabled={!rejectNote.trim()} onClick={()=>{if(pendingReject&&rejectNote.trim())void verify(pendingReject,"REJECTED",rejectNote)}}>Belgeyi Reddet</Button>
+        </div>
+      </div>
+    </Modal>
+
+    <ConfirmDialog
+      open={Boolean(pendingArchive)}
+      title="Belgeyi Arşivle"
+      description={pendingArchive ? `${pendingArchive.title} arşivlenecek. Belge geçmişte korunmaya devam eder.` : ""}
+      onClose={()=>setPendingArchive(null)}
+      onConfirm={()=>{if(pendingArchive)void archive(pendingArchive)}}
+    />
   </div>
 }
 
