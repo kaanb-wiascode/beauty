@@ -11,8 +11,8 @@ export default function RecruitmentPage() {
       title="İşe Alım Merkezi"
       description="Açık pozisyonları, adayları, başvuruları, görüşmeleri ve iş tekliflerini tek merkezden yönetin."
       sections={[
-        { title: "Açık Pozisyonlar", description: "Yayınlanan veya hazırlanan iş ilanlarını görüntüleyin.", path: "/hr/recruitment/jobs" },
-        { title: "Adaylar", description: "İşe alım sürecindeki aday kayıtlarını görüntüleyin.", path: "/hr/recruitment/candidates" },
+        { title: "Açık Pozisyonlar", description: "Yayınlanan veya hazırlanan iş ilanlarını görüntüleyin.", path: "/hr/recruitment/jobs", emptyActionFormTitle: "Yeni Pozisyon Aç" },
+        { title: "Adaylar", description: "İşe alım sürecindeki aday kayıtlarını görüntüleyin.", path: "/hr/recruitment/candidates", emptyActionFormTitle: "Yeni Aday Ekle" },
         { title: "Başvurular", description: "Adayların hangi pozisyon için hangi aşamada olduğunu görüntüleyin.", path: "/hr/recruitment/applications" },
         { title: "Görüşmeler", description: "Planlanan ve tamamlanan görüşmeleri görüntüleyin.", path: "/hr/recruitment/interviews" },
         { title: "İş Teklifleri", description: "Adaylara hazırlanan ve gönderilen teklifleri görüntüleyin.", path: "/hr/recruitment/offers" },
@@ -65,8 +65,8 @@ export default function RecruitmentPage() {
           description: "Bir adayı açık pozisyona bağlayarak işe alım sürecini başlatın.",
           path: "/hr/recruitment/applications",
           fields: [
-            { name: "jobPostingId", label: "Pozisyon", type: "remote-select", optionsPath: "/hr/recruitment/jobs", optionLabelKeys: ["title"], required: true },
-            { name: "candidateId", label: "Aday", type: "remote-select", optionsPath: "/hr/recruitment/candidates", optionLabelKeys: ["firstName", "lastName"], required: true },
+            { name: "jobPostingId", label: "Pozisyon", type: "remote-select", optionsPath: "/hr/recruitment/jobs", optionLabelKeys: ["title"], createFormTitle: "Yeni Pozisyon Aç", required: true },
+            { name: "candidateId", label: "Aday", type: "remote-select", optionsPath: "/hr/recruitment/candidates", optionLabelKeys: ["firstName", "lastName"], createFormTitle: "Yeni Aday Ekle", required: true },
             { name: "ownerStaffId", label: "Süreci Yürüten Çalışan", type: "remote-select", optionsPath: "/hr/employees", optionLabelKeys: ["firstName", "lastName"] },
           ],
         },
