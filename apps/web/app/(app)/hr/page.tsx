@@ -3,10 +3,12 @@
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage } from "@/lib/user-language";
 import type { Paginated, Staff } from "@/lib/types";
 
@@ -26,14 +28,14 @@ type ModuleLink = {
 };
 
 const MODULES: readonly ModuleLink[] = [
-  { href: "/staff", title: "Personel Yönetimi", description: "Çalışan kartları, yetkiler ve performans görünümü.", badge: "Personel" },
-  { href: "/hr/employees", title: "Çalışan Kayıtları", description: "İK çalışan profilleri ve özlük alanları.", badge: "İK" },
-  { href: "/hr/personnel-files", title: "Özlük Dosyaları", description: "Kimlik, görev, banka ve işe giriş kayıtları.", badge: "Özlük" },
-  { href: "/hr/attendance", title: "Puantaj", description: "Çalışma, mola, fazla mesai ve devam kayıtları.", badge: "Operasyon" },
-  { href: "/hr/leaves", title: "İzinler", description: "Yıllık, sağlık, mazeret ve diğer izin kayıtları.", badge: "İzin" },
-  { href: "/hr/payroll-dashboard", title: "Bordro Kontrol Merkezi", description: "Tahakkuk, ödeme, yükümlülük ve maliyet merkezi görünümü.", badge: "Bordro" },
-  { href: "/hr/payments", title: "Maaş Ödemeleri", description: "Dönemsel personel ödeme kayıtları.", badge: "Ödeme" },
-  { href: "/hr/sgk", title: "SGK İşlemleri", description: "Dönem, belge ve durum bazlı SGK kayıtları.", badge: "SGK" },
+  { href: "/staff", title: "Personel Yönetimi", description: "Çalışanların temel bilgilerini, görevlerini ve çalışma durumlarını yönetin.", badge: "Personel" },
+  { href: "/hr/employees", title: "Çalışan Kayıtları", description: "Çalışanların iletişim, görev ve çalışma bilgilerini görüntüleyin ve güncelleyin.", badge: "İK" },
+  { href: "/hr/personnel-files", title: "Özlük Dosyaları", description: "Kimlik, işe giriş, görev ve banka gibi korunması gereken çalışan bilgilerini yönetin.", badge: "Özlük" },
+  { href: "/hr/attendance", title: "Puantaj", description: "Giriş, çıkış, mola, çalışma süresi ve fazla mesai kayıtlarını takip edin.", badge: "Operasyon" },
+  { href: "/hr/leaves", title: "İzinler", description: "İzin taleplerini, tarihlerini, türlerini ve onay durumlarını takip edin.", badge: "İzin" },
+  { href: "/hr/payroll-dashboard", title: "Bordro Kontrol Merkezi", description: "Bordro hazırlığını, ödemeleri ve çalışan maliyetlerini tek ekrandan kontrol edin.", badge: "Bordro" },
+  { href: "/hr/payments", title: "Maaş Ödemeleri", description: "Çalışanlara yapılan maaş ödemelerini dönem ve ödeme tarihiyle takip edin.", badge: "Ödeme" },
+  { href: "/hr/sgk", title: "SGK İşlemleri", description: "Dönemsel sosyal güvenlik kayıtlarını ve belge durumlarını takip edin.", badge: "SGK" },
 ];
 
 function money(value: number) {
@@ -112,16 +114,16 @@ export default function HRDashboardPage() {
       <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <p className="text-[11px] font-semibold uppercase tracking-[0.15em] text-[var(--muted-soft)]">
-            İnsan Kaynakları & Özlük Yönetimi
+            İnsan Kaynakları
           </p>
           <h1 className="mt-1 text-[32px] font-semibold tracking-[-0.045em] text-[var(--ink)]">İK Kontrol Merkezi</h1>
           <p className="mt-2 max-w-[760px] text-[13px] leading-6 text-[var(--muted)]">
-            Personel, özlük, puantaj, izin, bordro, ödeme ve SGK operasyonlarını gerçek modül ekranlarından yönetin.
+            Çalışanların işe girişinden çalışma süresine, izinlerinden ücret süreçlerine kadar tüm insan kaynakları işlemlerini tek merkezden yönetin.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Button variant="secondary" onClick={() => void load()} disabled={loading}>Yenile</Button>
-          <Link href="/staff"><Button>Personel Yönetimi</Button></Link>
+          <Link href="/staff"><Button>Çalışanları Aç</Button></Link>
         </div>
       </header>
 
@@ -142,7 +144,8 @@ export default function HRDashboardPage() {
 
           <FinancePanel
             title="İK Modülleri"
-            description="İnsan kaynakları işlemlerini doğrudan ilgili kayıt ve yönetim ekranlarından yürütün."
+            description="Yapmak istediğiniz işleme göre ilgili bölümü seçin."
+            actions={<CardInfo help={getCardHelp("İK Modülleri")} />}
           >
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               {MODULES.map((module) => (
@@ -157,7 +160,7 @@ export default function HRDashboardPage() {
                     </span>
                     <span aria-hidden="true" className="text-[var(--muted-soft)] transition group-hover:translate-x-0.5 group-hover:text-[var(--accent)]">→</span>
                   </div>
-                  <h3 className="mt-4 text-[13px] font-semibold text-[var(--ink)]">{module.title}</h3>
+                  <div className="mt-4 flex items-start gap-2"><h3 className="min-w-0 text-[13px] font-semibold text-[var(--ink)]">{module.title}</h3><CardInfo help={getCardHelp(module.title, module.description)} className="ml-auto" /></div>
                   <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">{module.description}</p>
                 </Link>
               ))}
@@ -166,8 +169,8 @@ export default function HRDashboardPage() {
 
           <FinancePanel
             title="Personel Performansı"
-            description="Bugünkü randevu ve tahsilat performansı; en yüksek tahsilata göre ilk 5 aktif çalışan."
-            actions={<Link href="/staff" className="text-[11px] font-semibold text-[var(--accent)]">Tüm personeli aç</Link>}
+            description="Bugünkü randevu ve tahsilat sonuçlarını çalışan bazında birlikte görüntüleyin."
+            actions={<div className="flex items-center gap-2"><CardInfo help={getCardHelp("Personel Performansı")} /><Link href="/staff" className="text-[11px] font-semibold text-[var(--accent)]">Tüm çalışanları aç</Link></div>}
           >
             <DataView>
               <div className="divide-y divide-[var(--line)]">
@@ -192,7 +195,7 @@ export default function HRDashboardPage() {
                 })}
               </div>
               {!ranking.length ? (
-                <div className="px-5 py-10 text-center text-[11px] text-[var(--muted)]">Performans verisi bulunamadı.</div>
+                <div className="px-5 py-10 text-center text-[11px] text-[var(--muted)]">Bugün için çalışan sonucu bulunmuyor.</div>
               ) : null}
               <DataViewMeta>
                 <span>{totalAppointments} randevu</span>
