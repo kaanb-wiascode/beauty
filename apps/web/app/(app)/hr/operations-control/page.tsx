@@ -107,8 +107,8 @@ export default function HROperationsControlPage() {
           ],
         },
         {
-          title: "Yapılacak İş Ekle",
-          description: "İnsan kaynakları ekibinin takip edeceği işi kontrollü işlem türleriyle oluşturun.",
+          title: "Çalışan İçin Yapılacak İş Ekle",
+          description: "İnsan kaynakları ekibinin bir çalışan için takip edeceği işi oluşturun. Teknik kayıt türleri ve kimlikleri sistem tarafından belirlenir.",
           path: "/hr/operations/inbox",
           fields: [
             {
@@ -126,22 +126,10 @@ export default function HROperationsControlPage() {
                 { value: "OTHER", label: "Diğer" },
               ],
             },
-            {
-              name: "entityType",
-              label: "İlgili Kayıt Türü",
-              type: "select",
-              required: true,
-              options: [
-                { value: "STAFF", label: "Çalışan" },
-                { value: "ASSET", label: "Zimmet" },
-                { value: "POLICY", label: "Politika" },
-                { value: "BRANCH", label: "Şube" },
-                { value: "DEPARTMENT", label: "Departman" },
-              ],
-            },
+            { name: "entityType", label: "Kayıt Türü", type: "hidden", defaultValue: "STAFF" },
             {
               name: "entityId",
-              label: "İlgili Çalışan",
+              label: "Çalışan",
               type: "remote-select",
               optionsPath: "/hr/employees",
               optionLabelKeys: ["firstName", "lastName"],
