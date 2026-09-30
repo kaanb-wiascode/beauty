@@ -10,5 +10,6 @@ import { RolesService } from './roles.service';
   imports: [PlatformAuditModule],
   controllers: [RolesController],
   providers: [RolesService, RoleCloneService, RoleTemplateService],
+  exports: [RoleTemplateService],
 })
 export class RolesModule {}
