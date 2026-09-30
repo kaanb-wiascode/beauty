@@ -2,8 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 
+import { CardInfo } from "@/components/card-info";
 import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
 import { userErrorMessage, userFieldLabel, userLabel, userText } from "@/lib/user-language";
 
 export type EnterpriseSection = {
@@ -249,7 +251,7 @@ export function EnterpriseDataPage({
       {forms.map((form) => {
         const values = formValues[form.title] ?? {};
         return <div key={form.title} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <h2 className="text-[14px] font-semibold text-[var(--ink)]">{userText(form.title)}</h2>
+          <div className="flex items-start gap-2"><h2 className="min-w-0 text-[14px] font-semibold text-[var(--ink)]">{userText(form.title)}</h2><CardInfo help={getCardHelp(userText(form.title), form.description)} className="ml-auto" /></div>
           {form.description ? <p className="mt-1 text-[11px] leading-5 text-[var(--muted)]">{userText(form.description)}</p> : null}
           <div className="mt-4 grid gap-4">
             {form.fields.map((field) => field.type === "hidden" ? null : <Field key={field.name} label={field.label} required={field.required}>
@@ -277,7 +279,7 @@ export function EnterpriseDataPage({
           const keys = visibleKeys(rows);
           return <section key={userText(section.title)} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)]">
             <div className="border-b border-[var(--line)] px-5 py-4">
-              <h2 className="text-[14px] font-semibold text-[var(--ink)]">{section.title}</h2>
+              <div className="flex items-start gap-2"><h2 className="min-w-0 text-[14px] font-semibold text-[var(--ink)]">{userText(section.title)}</h2><CardInfo help={getCardHelp(userText(section.title), section.description)} className="ml-auto" /></div>
               {section.description ? <p className="mt-1 text-[11px] text-[var(--muted)]">{userText(section.description)}</p> : null}
             </div>
             {rows.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-xs">
@@ -297,7 +299,7 @@ export function EnterpriseDataPage({
 
 function Metric({label,value}:{label:string;value:string|number}) {
   return <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-    <p className="text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p>
+    <div className="flex items-start gap-2"><p className="min-w-0 text-[10px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{userText(label)}</p><CardInfo help={getCardHelp(userText(label))} className="ml-auto" /></div>
     <p className="mt-2 text-[21px] font-semibold tracking-[-.03em] text-[var(--ink)]">{value}</p>
   </div>;
 }
