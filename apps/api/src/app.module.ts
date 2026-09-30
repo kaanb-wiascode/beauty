@@ -21,6 +21,7 @@ import { PackagesModule } from './modules/packages/packages.module';
 import { SalesModule } from './modules/sales/sales.module';
 import { SessionsModule } from './modules/sessions/sessions.module';
 import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.module';
+import { CounterpartiesModule } from './modules/counterparties/counterparties.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { AccountsPayableModule } from './modules/accounts-payable/accounts-payable.module';
@@ -86,6 +87,7 @@ import { TeamModule } from './modules/team/team.module';
     SalesModule,
     SessionsModule,
     CustomerLedgerModule,
+    CounterpartiesModule,
     InstallmentsModule,
     AccountingModule,
     AccountsPayableModule,
