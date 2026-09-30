@@ -36,14 +36,58 @@ export class ApprovalRuntimeService {
       return req[0];},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
-  async act(id:string,decision:'APPROVE'|'REJECT',comment?:string){const c=this.tenantContext.getContext(),actor=await this.actor();
-    return this.prisma.$transaction(async tx=>{const rs=await tx.$queryRaw<RequestRow[]>`SELECT * FROM approval_requests WHERE id=${id} AND "tenantId"=${c.tenantId} AND "companyId"=${c.companyId} FOR UPDATE`;const r=rs[0];if(!r) throw new NotFoundException('Approval request not found');if(r.status!=='PENDING') throw new BadRequestException('Approval request is completed');
-      await this.assertSeparationOfDuties(actor,r,tx);
-      const ss=await tx.$queryRaw<Array<{id:string;stepOrder:number;approverPermission:string|null;approverRoleSlug:string|null;status:string}>>`SELECT id,"stepOrder","approverPermission","approverRoleSlug",status FROM approval_request_steps WHERE "requestId"=${r.id} AND "stepOrder"=${r.currentStepOrder} FOR UPDATE`;const s=ss[0];if(!s||s.status!=='PENDING') throw new BadRequestException('Current step is not actionable');await this.assertApprover(actor,r,s,tx);
-      if(decision==='REJECT'){await tx.$executeRaw`UPDATE approval_request_steps SET status='REJECTED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${comment?.trim()||null},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${s.id}`;await tx.$executeRaw`UPDATE approval_requests SET status='REJECTED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${r.id}`;}
-      else {await tx.$executeRaw`UPDATE approval_request_steps SET status='APPROVED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${comment?.trim()||null},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${s.id}`;const next=await tx.$queryRaw<Array<{id:string;stepOrder:number}>>`SELECT id,"stepOrder" FROM approval_request_steps WHERE "requestId"=${r.id} AND "stepOrder">${s.stepOrder} ORDER BY "stepOrder" LIMIT 1 FOR UPDATE`;if(next[0]){await tx.$executeRaw`UPDATE approval_request_steps SET status='PENDING',"updatedAt"=CURRENT_TIMESTAMP WHERE id=${next[0].id}`;await tx.$executeRaw`UPDATE approval_requests SET "currentStepOrder"=${next[0].stepOrder},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${r.id}`;}else await tx.$executeRaw`UPDATE approval_requests SET status='APPROVED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${r.id}`;}
-      await this.audit.record({actorUserId:actor,resource:'approval_requests',action:decision.toLowerCase(),targetTenantId:c.tenantId,targetEntityType:r.entityType,targetEntityId:r.entityId,beforeState:{status:r.status,stepOrder:r.currentStepOrder},afterState:{decision,actedByUserId:actor},metadata:{companyId:c.companyId,requestId:r.id,workflowKey:r.workflowKey}},tx);return{id:r.id,decision,success:true};},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});}
+  async act(id:string,decision:'APPROVE'|'REJECT'|'RETURN'|'DELEGATE'|'CANCEL',comment?:string,delegateToUserId?:string){
+    const context=this.tenantContext.getContext(),actor=await this.actor(),note=String(comment??'').trim();
+    if(['REJECT','RETURN'].includes(decision)&&!note)throw new BadRequestException(decision==='REJECT'?'Ret nedeni zorunludur.':'Düzeltmeye gönderme nedeni zorunludur.');
+    if(decision==='DELEGATE'&&!delegateToUserId)throw new BadRequestException('Delegasyon yapılacak kullanıcı zorunludur.');
+    return this.prisma.$transaction(async tx=>{
+      const rows=await tx.$queryRaw<RequestRow[]>`SELECT * FROM approval_requests WHERE id=${id} AND "tenantId"=${context.tenantId} AND "companyId"=${context.companyId} FOR UPDATE`;
+      const request=rows[0];if(!request)throw new NotFoundException('Onay talebi bulunamadı.');
+      if(decision==='CANCEL'){if(!['PENDING','RETURNED'].includes(request.status))throw new BadRequestException('Tamamlanmış onay talebi iptal edilemez.');if(request.requestedByUserId!==actor)throw new BadRequestException('Talebi yalnız talep sahibi iptal edebilir.');await tx.$executeRaw`UPDATE approval_requests SET status='CANCELLED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;await this.recordAction(tx,context.tenantId,context.companyId,request.id,request.currentStepOrder,'CANCEL',actor,null,note||null);return{id:request.id,decision,success:true};}
+      if(request.status!=='PENDING')throw new BadRequestException(request.status==='RETURNED'?'Bu kayıt düzeltme için talep sahibini bekliyor.':'Onay talebi daha önce tamamlanmış.');
+      await this.assertSeparationOfDuties(actor,request,tx);
+      const steps=await tx.$queryRaw<Array<{id:string;stepOrder:number;approverPermission:string|null;approverRoleSlug:string|null;approverType:string|null;approverValue:string|null;slaMinutes:number|null;escalationApproverType:string|null;escalationApproverValue:string|null;timeoutAction:string;startedAt:Date|null;status:string}>>`SELECT id,"stepOrder","approverPermission","approverRoleSlug","approverType","approverValue","slaMinutes","escalationApproverType","escalationApproverValue","timeoutAction","startedAt",status FROM approval_request_steps WHERE "requestId"=${request.id} AND "stepOrder"=${request.currentStepOrder} FOR UPDATE`;
+      const step=steps[0];if(!step||step.status!=='PENDING')throw new BadRequestException('Mevcut onay adımı işleme uygun değil.');
+      await this.assertApprover(actor,request,step,tx);
+      if(decision==='DELEGATE'){const target=await tx.user.findUnique({where:{id:delegateToUserId!},select:{id:true}});if(!target)throw new BadRequestException('Delegasyon kullanıcısı bulunamadı.');await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'DELEGATE',actor,delegateToUserId!,note||null);return{id:request.id,decision,success:true};}
+      if(decision==='REJECT'){
+        await tx.$executeRaw`UPDATE approval_request_steps SET status='REJECTED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
+        await tx.$executeRaw`UPDATE approval_requests SET status='REJECTED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+        await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'REJECT',actor,null,note);
+      }else if(decision==='RETURN'){
+        await tx.$executeRaw`UPDATE approval_request_steps SET status='RETURNED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
+        await tx.$executeRaw`UPDATE approval_requests SET status='RETURNED',"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+        await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'RETURN',actor,null,note);
+      }else{
+        await tx.$executeRaw`UPDATE approval_request_steps SET status='APPROVED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note||null},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
+        const next=await tx.$queryRaw<Array<{id:string;stepOrder:number}>>`SELECT id,"stepOrder" FROM approval_request_steps WHERE "requestId"=${request.id} AND "stepOrder">${step.stepOrder} ORDER BY "stepOrder" LIMIT 1 FOR UPDATE`;
+        if(next[0]){await tx.$executeRaw`UPDATE approval_request_steps SET status='PENDING',"startedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${next[0].id}`;await tx.$executeRaw`UPDATE approval_requests SET "currentStepOrder"=${next[0].stepOrder},"stepStartedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;}else{await tx.$executeRaw`UPDATE approval_requests SET status='APPROVED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;}
+        await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'APPROVE',actor,null,note||null);
+      }
+      await this.audit.record({actorUserId:actor,resource:'approval_requests',action:decision.toLowerCase(),targetTenantId:context.tenantId,targetEntityType:request.entityType,targetEntityId:request.entityId,beforeState:{status:request.status,stepOrder:request.currentStepOrder},afterState:{decision,actedByUserId:actor,comment:note||null},metadata:{companyId:context.companyId,requestId:request.id,workflowKey:request.workflowKey}},tx);
+      return{id:request.id,decision,success:true};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
 
+  async resubmit(id:string,comment:string){
+    const context=this.tenantContext.getContext(),actor=await this.actor(),note=String(comment??'').trim();
+    if(!note)throw new BadRequestException('Düzeltme açıklaması zorunludur.');
+    return this.prisma.$transaction(async tx=>{
+      const rows=await tx.$queryRaw<RequestRow[]>`SELECT * FROM approval_requests WHERE id=${id} AND "tenantId"=${context.tenantId} AND "companyId"=${context.companyId} FOR UPDATE`;
+      const request=rows[0];if(!request)throw new NotFoundException('Onay talebi bulunamadı.');
+      if(request.requestedByUserId!==actor)throw new BadRequestException('Yalnız talep sahibi düzeltme sonrası yeniden gönderebilir.');
+      if(request.status!=='RETURNED')throw new BadRequestException('Yalnız düzeltmeye gönderilmiş kayıt yeniden gönderilebilir.');
+      await tx.$executeRaw`UPDATE approval_request_steps SET status='PENDING',"actedByUserId"=NULL,"actedAt"=NULL,comment=NULL,"startedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "requestId"=${request.id} AND "stepOrder"=${request.currentStepOrder}`;
+      await tx.$executeRaw`UPDATE approval_requests SET status='PENDING',"stepStartedAt"=CURRENT_TIMESTAMP,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+      await this.recordAction(tx,context.tenantId,context.companyId,request.id,request.currentStepOrder,'RESUBMIT',actor,null,note);
+      await this.audit.record({actorUserId:actor,resource:'approval_requests',action:'resubmit',targetTenantId:context.tenantId,targetEntityType:request.entityType,targetEntityId:request.entityId,beforeState:{status:'RETURNED'},afterState:{status:'PENDING',comment:note},metadata:{companyId:context.companyId,requestId:request.id,workflowKey:request.workflowKey}},tx);
+      return{id:request.id,status:'PENDING',currentStepOrder:request.currentStepOrder};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+
+  private async recordAction(tx:Prisma.TransactionClient,tenantId:string,companyId:string,requestId:string,stepOrder:number,action:string,actorUserId:string|null,delegateToUserId:string|null,comment:string|null){
+    await tx.$executeRaw`INSERT INTO approval_request_actions(id,"tenantId","companyId","requestId","stepOrder",action,"actorUserId","delegateToUserId",comment,"createdAt") VALUES(${randomUUID()},${tenantId},${companyId},${requestId},${stepOrder},${action},${actorUserId},${delegateToUserId},${comment},CURRENT_TIMESTAMP)`;
+  }
   private async assertSeparationOfDuties(actor:string,r:RequestRow,tx:Prisma.TransactionClient){
     const rows=await tx.$queryRaw<SodPolicyRow[]>`SELECT "requesterCannotApprove","requireDistinctApprovers",enabled FROM sod_policy_definitions WHERE "tenantId"=${r.tenantId} AND "companyId"=${r.companyId} AND domain=${r.domain} LIMIT 1`;
     const policy=rows[0];
