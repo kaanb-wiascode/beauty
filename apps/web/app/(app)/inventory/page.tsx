@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import {
   Children,
   isValidElement,
@@ -77,6 +78,7 @@ function Icon({ name }: { name: IconName }) {
 
 export default function InventoryPage() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
   const activeBranchId = getActiveBranchId();
   const [data, setData] = useState<InventoryOverview | null>(null);
   const [products, setProducts] = useState<InventoryProduct[]>([]);
@@ -100,6 +102,16 @@ export default function InventoryPage() {
   const [saving, setSaving] = useState(false);
   const [form, setForm] = useState<ProductFormState>(emptyProduct);
   const [asset, setAsset] = useState<AssetFormState>(emptyAsset);
+
+  useEffect(() => {
+    const requestedTab = searchParams.get("tab");
+    if (requestedTab === "Varlıklar") setTab("Varlıklar");
+    if (searchParams.get("newAsset") === "1") {
+      setTab("Varlıklar");
+      setAssetTab("Genel");
+      setAssetOpen(true);
+    }
+  }, [searchParams]);
 
   const load = useCallback(async () => {
     setLoading(true);
