@@ -8,6 +8,7 @@ import { Alert, Button, Field, Spinner, TextInput, Select } from "@/components/u
 import { api, ApiError } from "@/lib/api";
 import { getCardHelp } from "@/lib/card-help";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { userErrorMessage, userText } from "@/lib/user-language";
 
 type Room = { id: string; name: string; code: string; status: string };
 type Asset = { id: string; name: string; assetCode: string; assetType: string };
@@ -84,11 +85,11 @@ export default function OperationsIncidentsPage() {
     ]);
     const errors: string[] = [];
     if (incidentResult.status === "fulfilled") setIncidents(incidentResult.value);
-    else { setIncidents([]); errors.push(incidentResult.reason instanceof ApiError ? incidentResult.reason.message : "Operasyon olayları yüklenemedi."); }
+    else { setIncidents([]); errors.push(incidentResult.reason instanceof ApiError ? userErrorMessage(incidentResult.reason.message,"Operasyon olayları yüklenemedi.") : "Operasyon olayları yüklenemedi."); }
     if (roomResult.status === "fulfilled") setRooms(roomResult.value);
-    else { setRooms([]); errors.push(roomResult.reason instanceof ApiError ? roomResult.reason.message : "Odalar yüklenemedi."); }
+    else { setRooms([]); errors.push(roomResult.reason instanceof ApiError ? userErrorMessage(roomResult.reason.message,"Odalar yüklenemedi.") : "Odalar yüklenemedi."); }
     if (assetResult.status === "fulfilled") setAssets(assetResult.value);
-    else { setAssets([]); errors.push(assetResult.reason instanceof ApiError ? assetResult.reason.message : "Ekipmanlar yüklenemedi."); }
+    else { setAssets([]); errors.push(assetResult.reason instanceof ApiError ? userErrorMessage(assetResult.reason.message,"Ekipmanlar yüklenemedi.") : "Ekipmanlar yüklenemedi."); }
     if (errors.length) setError(Array.from(new Set(errors)).join(" "));
     setLoading(false);
   }
@@ -123,7 +124,7 @@ export default function OperationsIncidentsPage() {
       setForm((current) => ({ ...current, title: "", description: "", resourceKind: "NONE", resourceId: "" }));
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Operasyon olayı oluşturulamadı.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message,"Operasyon olayı oluşturulamadı.") : "Operasyon olayı oluşturulamadı.");
     } finally {
       setBusy("");
     }
@@ -138,7 +139,7 @@ export default function OperationsIncidentsPage() {
       );
       setAffected((current) => ({ ...current, [incident.id]: rows }));
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Etkilenen randevular yüklenemedi.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message,"Etkilenen randevular yüklenemedi.") : "Etkilenen randevular yüklenemedi.");
     } finally {
       setBusy("");
     }
@@ -157,7 +158,7 @@ export default function OperationsIncidentsPage() {
       });
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? err.message : "Operasyon olayı çözülemedi.");
+      setError(err instanceof ApiError ? userErrorMessage(err.message,"Operasyon olayı çözülemedi.") : "Operasyon olayı çözülemedi.");
     } finally {
       setBusy("");
     }
@@ -195,12 +196,12 @@ export default function OperationsIncidentsPage() {
         {incidents.length ? <div className="divide-y divide-[var(--line)]">{incidents.map((incident) => (
           <div key={incident.id} className="px-6 py-4">
             <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-              <div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{incident.title}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)]">{severityLabel[incident.severity]}</span><span className="text-xs text-[var(--muted)]">{incident.status === "OPEN" ? "Açık" : "Çözüldü"}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{incident.roomName ?? incident.assetName ?? "Genel şube olayı"} · {new Date(incident.openedAt).toLocaleString("tr-TR")}</p></div>
+              <div><div className="flex flex-wrap items-center gap-2"><p className="text-sm font-semibold text-[var(--ink)]">{userText(incident.title,"Operasyon Olayı")}</p><span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[11px] font-semibold text-[var(--ink)]">{severityLabel[incident.severity]}</span><span className="text-xs text-[var(--muted)]">{incident.status === "OPEN" ? "Açık" : "Çözüldü"}</span></div><p className="mt-1 text-xs text-[var(--muted)]">{incident.roomName ?? incident.assetName ?? "Genel şube olayı"} · {new Date(incident.openedAt).toLocaleString("tr-TR")}</p></div>
               <div className="flex flex-wrap gap-2">{incident.resourceBlockId ? <Button variant="secondary" disabled={busy === `affected:${incident.id}`} onClick={() => void loadAffected(incident)}>Etkilenen Randevular</Button> : null}{incident.status === "OPEN" && canUpdate ? <Button disabled={busy === `resolve:${incident.id}`} onClick={() => void resolve(incident)}>Çözüldü Olarak İşaretle</Button> : null}</div>
             </div>
             {affected[incident.id] ? <div className="mt-3 rounded-[14px] bg-[var(--surface-2)] p-3"><p className="text-xs font-semibold text-[var(--ink)]">Etkilenen {affected[incident.id].length} randevu</p>{affected[incident.id].map((appointment) => <p key={appointment.id} className="mt-2 text-xs text-[var(--muted)]">{appointment.customerName} · {appointment.serviceName} · {new Date(appointment.startAt).toLocaleString("tr-TR")}</p>)}</div> : null}
           </div>
-        ))}</div> : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Incident kaydı yok.</div>}
+        ))}</div> : <div className="px-6 py-10 text-center text-sm text-[var(--muted)]">Operasyon olayı kaydı yok.</div>}
       </section>
     </div>
   );
