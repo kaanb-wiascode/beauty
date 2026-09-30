@@ -44,6 +44,51 @@ export class ApprovalRuntimeService {
     const candidates=await this.prisma.$queryRaw<any[]>`SELECT r.*,s.id AS "currentStepId",s."stepName" AS "currentStepName",s."approverPermission",s."approverRoleSlug",s."approverType",s."approverValue",s."slaMinutes",s."escalationApproverType",s."escalationApproverValue",s."timeoutAction",s."startedAt" AS "currentStepStartedAt",CASE WHEN s."slaMinutes" IS NULL OR s."startedAt" IS NULL THEN NULL ELSE s."startedAt"+(s."slaMinutes"*INTERVAL '1 minute') END AS "dueAt",CASE WHEN s."slaMinutes" IS NULL OR s."startedAt" IS NULL THEN FALSE ELSE CURRENT_TIMESTAMP>=s."startedAt"+(s."slaMinutes"*INTERVAL '1 minute') END AS overdue FROM approval_requests r JOIN approval_request_steps s ON s."requestId"=r.id AND s."stepOrder"=r."currentStepOrder" WHERE r."tenantId"=${context.tenantId} AND r."companyId"=${context.companyId} AND r.status='PENDING' ORDER BY overdue DESC,r."createdAt" DESC LIMIT 300`;
     return this.prisma.$transaction(async tx=>{const visible:any[]=[];for(const row of candidates){try{await this.assertSeparationOfDuties(actor,row as RequestRow,tx);await this.assertApprover(actor,row as RequestRow,{approverPermission:row.approverPermission??null,approverRoleSlug:row.approverRoleSlug??null,approverType:row.approverType??null,approverValue:row.approverValue??null,slaMinutes:row.slaMinutes??null,escalationApproverType:row.escalationApproverType??null,escalationApproverValue:row.escalationApproverValue??null,timeoutAction:row.timeoutAction??'ESCALATE',startedAt:row.currentStepStartedAt?new Date(row.currentStepStartedAt):null,stepOrder:Number(row.currentStepOrder)},tx);visible.push(row)}catch{}}return visible;});
   }
+  async myRequests(status='RETURNED'){
+    const context=this.tenantContext.getContext(),actor=await this.actor();
+    const allowed=new Set(['PENDING','APPROVED','REJECTED','RETURNED','CANCELLED']);
+    const normalized=String(status??'RETURNED').trim().toUpperCase();
+    if(!allowed.has(normalized))throw new BadRequestException('Geçersiz onay talebi durumu.');
+
+    return this.prisma.$queryRaw<any[]>`
+      SELECT
+        r.id,
+        r."workflowKey",
+        r."workflowVersion",
+        r.domain,
+        r."entityType",
+        r."entityId",
+        r.status,
+        r."currentStepOrder",
+        r.reason,
+        r.payload,
+        r."createdAt",
+        r."updatedAt",
+        s."stepName" AS "currentStepName",
+        s.status AS "currentStepStatus",
+        latest_return.comment AS "correctionReason",
+        latest_return."createdAt" AS "correctionRequestedAt"
+      FROM approval_requests r
+      LEFT JOIN approval_request_steps s
+        ON s."requestId"=r.id
+       AND s."stepOrder"=r."currentStepOrder"
+      LEFT JOIN LATERAL (
+        SELECT a.comment,a."createdAt"
+        FROM approval_request_actions a
+        WHERE a."requestId"=r.id
+          AND a.action='RETURN'
+        ORDER BY a."createdAt" DESC
+        LIMIT 1
+      ) latest_return ON TRUE
+      WHERE r."tenantId"=${context.tenantId}
+        AND r."companyId"=${context.companyId}
+        AND r."requestedByUserId"=${actor}
+        AND r.status=${normalized}
+      ORDER BY r."updatedAt" DESC
+      LIMIT 500
+    `;
+  }
+
   async act(id:string,decision:'APPROVE'|'REJECT'|'RETURN'|'DELEGATE'|'CANCEL',comment?:string,delegateToUserId?:string){
     const context=this.tenantContext.getContext(),actor=await this.actor(),note=String(comment??'').trim();
     if(['REJECT','RETURN'].includes(decision)&&!note)throw new BadRequestException(decision==='REJECT'?'Ret nedeni zorunludur.':'Düzeltmeye gönderme nedeni zorunludur.');
