@@ -16,7 +16,42 @@ export class HrSelfServiceService {
  async recordAttendanceEvent(userId:string,eventType:'CLOCK_IN'|'BREAK_START'|'BREAK_END'|'CLOCK_OUT',deviceContext?:Record<string,unknown>){
   const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
   const storedType=eventType==='CLOCK_IN'?'DAY_START':eventType==='CLOCK_OUT'?'DAY_END':eventType;
-  const rows=await this.prisma.$queryRawUnsafe<any[]>(
+
+  return this.prisma.$transaction(async(tx)=>{
+   await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`${tenantId}:${employee.id}:attendance`);
+
+   const today=await tx.$queryRawUnsafe<Array<{eventType:string;occurredAt:Date}>>(
+    `SELECT event_type AS "eventType",occurred_at AS "occurredAt"
+     FROM hr_attendance_events
+     WHERE tenant_id=$1
+       AND company_id=$2
+       AND staff_id=$3
+       AND occurred_at::date=CURRENT_DATE
+     ORDER BY occurred_at,id`,
+    tenantId,
+    companyId,
+    employee.id,
+   );
+
+   const last=today.at(-1)?.eventType??null;
+   if(today.some((event)=>event.eventType==='DAY_END')){
+    throw new BadRequestException('Bugünkü çalışma günü zaten tamamlanmış.');
+   }
+
+   if(eventType==='CLOCK_IN'&&today.length>0){
+    throw new BadRequestException('Bugünkü çalışma günü zaten başlatılmış.');
+   }
+   if(eventType==='BREAK_START'&&!['DAY_START','BREAK_END'].includes(String(last))){
+    throw new BadRequestException(last==='BREAK_START'?'Zaten moladasınız.':'Molaya çıkmadan önce güne başlamalısınız.');
+   }
+   if(eventType==='BREAK_END'&&last!=='BREAK_START'){
+    throw new BadRequestException('Moladan dönmek için önce aktif bir mola başlatmalısınız.');
+   }
+   if(eventType==='CLOCK_OUT'&&!['DAY_START','BREAK_END'].includes(String(last))){
+    throw new BadRequestException(last==='BREAK_START'?'Günü bitirmeden önce moladan dönmelisiniz.':'Günü bitirmeden önce güne başlamalısınız.');
+   }
+
+   const rows=await tx.$queryRawUnsafe<any[]>(
     `INSERT INTO hr_attendance_events(
        tenant_id,company_id,branch_id,staff_id,actor_user_id,event_type,source,device_context
      ) VALUES($1,$2,$3,$4,$5,$6,'SELF_SERVICE',$7::jsonb)
@@ -28,16 +63,18 @@ export class HrSelfServiceService {
     userId,
     storedType,
     JSON.stringify(deviceContext??{}),
-  );
-  const event=rows[0];
-  return{
+   );
+
+   const event=rows[0];
+   return{
     id:event.id,
     type:eventType,
     occurredAt:event.occurredAt,
     source:event.source,
     staffId:employee.id,
     branchId:employee.branchId,
-  };
+   };
+  });
  }
  async managerHome(userId:string){const manager=await this.employee(userId),{tenantId,companyId}=this.scope();const team=await this.prisma.$queryRawUnsafe<any[]>(`SELECT s.id,s."firstName" AS "firstName",s."lastName" AS "lastName",s.email,s.status,a.position_id AS "positionId",a.department_id AS "departmentId",a.team_id AS "teamId" FROM hr_employee_assignments a JOIN staff s ON s.id=a.staff_id JOIN branches b ON b.id=s."branchId" WHERE a.tenant_id=$1 AND a.company_id=$2 AND a.manager_staff_id=$3 AND b."companyId"=$2 AND a.effective_from<=CURRENT_DATE AND(a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE) ORDER BY s."firstName",s."lastName"`,tenantId,companyId,manager.id);const ids=team.map((x:any)=>x.id);const pendingLeaves=ids.length?await this.prisma.$queryRawUnsafe<any[]>(`SELECT r.id,r.staff_id AS "staffId",r.start_date::text AS "startDate",r.end_date::text AS "endDate",r.days::text,r.status,t.name AS "leaveType" FROM leave_requests r LEFT JOIN hr_leave_types t ON t.id=r.leave_type_id WHERE r.tenant_id=$1 AND r.staff_id=ANY($2::text[]) AND r.status='PENDING' ORDER BY r.created_at`,tenantId,ids):[];const leaveIds=new Set(pendingLeaves.map((x:any)=>x.id));const approvalQueue=(await this.approvals.queue('PENDING')).filter((x:any)=>x.entityType==='LEAVE'&&leaveIds.has(x.entityId));return{manager,team,pendingLeaves,approvalQueue};}
 }
