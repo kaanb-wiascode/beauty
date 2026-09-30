@@ -69,7 +69,7 @@ export class SalaryContractService {
        FROM hr_salary_contracts c
        JOIN branches b ON b.id=c.branch_id
        WHERE c.tenant_id=$1::text AND c.company_id=$2::text AND c.staff_id=$3::text
-         AND c.status='ACTIVE'
+         AND c.status IN('ACTIVE','ENDED')
          AND c.effective_from <= $4::date
          AND (c.effective_to IS NULL OR c.effective_to >= $4::date)
          AND b."companyId"=$2::text
@@ -119,7 +119,7 @@ export class SalaryContractService {
         `SELECT id,effective_from AS "effectiveFrom",effective_to AS "effectiveTo"
          FROM hr_salary_contracts
          WHERE tenant_id=$1::text AND company_id=$2::text AND staff_id=$3::text
-           AND status='ACTIVE'
+           AND status IN('ACTIVE','ENDED')
            AND effective_from <= COALESCE($5::date,'9999-12-31'::date)
            AND COALESCE(effective_to,'9999-12-31'::date) >= $4::date
          LIMIT 1`,
