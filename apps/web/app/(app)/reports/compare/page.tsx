@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import { PageHeader, Select } from "@/components/ui";
 import { ApiError } from "@/lib/api";
+import { userErrorMessage, userFieldLabel } from "@/lib/user-language";
 import {
   getReportCatalog,
   type ReportCatalogItem,
@@ -58,7 +59,7 @@ export default function ReportComparePage() {
         if (!active) return;
         setCatalog([]);
         setReportKey(null);
-        setError(reason instanceof ApiError ? reason.message : "Rapor kataloğu yüklenemedi.");
+        setError(reason instanceof ApiError ? userErrorMessage(reason.message,"Rapor kataloğu yüklenemedi.") : "Rapor kataloğu yüklenemedi.");
       })
       .finally(() => {
         if (active) setLoadingCatalog(false);
@@ -87,7 +88,7 @@ export default function ReportComparePage() {
       setResult(await compareReportPeriods({ reportKey, filters }));
     } catch (reason) {
       setResult(null);
-      setError(reason instanceof ApiError ? reason.message : "Dönem karşılaştırması hazırlanamadı.");
+      setError(reason instanceof ApiError ? userErrorMessage(reason.message,"Dönem karşılaştırması hazırlanamadı.") : "Dönem karşılaştırması hazırlanamadı.");
     } finally {
       setLoading(false);
     }
@@ -140,7 +141,7 @@ export default function ReportComparePage() {
             <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
               <div className="flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <h2 className="text-[14px] font-semibold text-[var(--ink)]">KPI Karşılaştırması</h2>
+                  <h2 className="text-[14px] font-semibold text-[var(--ink)]">Gösterge Karşılaştırması</h2>
                   <p className="mt-1 text-[10px] text-[var(--muted)]">Mevcut: {formatPeriod(result.currentPeriod)}</p>
                   <p className="text-[10px] text-[var(--muted-soft)]">Önceki: {formatPeriod(result.previousPeriod)}</p>
                 </div>
@@ -150,7 +151,7 @@ export default function ReportComparePage() {
               <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
                 {result.metrics.map((metric) => (
                   <article key={metric.key} className="rounded-xl border border-[var(--line)] bg-white p-3">
-                    <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted-soft)]">{metric.key}</p>
+                    <p className="text-[10px] font-medium uppercase tracking-[0.06em] text-[var(--muted-soft)]">{userFieldLabel(metric.key)}</p>
                     <p className="mt-2 text-[18px] font-semibold text-[var(--ink)]">{formatNumber(metric.current)}</p>
                     <div className="mt-2 flex items-center justify-between text-[10px]">
                       <span className="text-[var(--muted)]">Önceki {formatNumber(metric.previous)}</span>
