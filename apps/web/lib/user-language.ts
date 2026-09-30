@@ -495,6 +495,32 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   "Network Error": "Sunucuya Bağlanılamadı. Lütfen Tekrar Deneyin.",
 };
 
+const USER_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
+  { pattern: /^Purchase order not found/i, message: "Satın alma siparişi bulunamadı." },
+  { pattern: /^Purchase order cannot be ordered from status/i, message: "Bu sipariş henüz sipariş verme aşamasına uygun değil. Önce gerekli onayları tamamlayın." },
+  { pattern: /^At least one receipt item is required/i, message: "Teslim alınacak en az bir ürün seçin." },
+  { pattern: /^A purchase order item can only appear once in a receipt/i, message: "Aynı ürün teslim alma listesine yalnızca bir kez eklenebilir." },
+  { pattern: /^Only ordered purchase orders can be received/i, message: "Yalnızca sipariş verilmiş kayıtlar teslim alınabilir." },
+  { pattern: /^A supplier is required before receiving a purchase order/i, message: "Teslim alma işlemi için siparişte bir tedarikçi seçilmiş olmalıdır." },
+  { pattern: /^One or more receipt items do not belong to this purchase order/i, message: "Seçilen ürünlerden biri bu satın alma siparişine ait değil." },
+  { pattern: /^Receipt quantities must be greater than zero/i, message: "Teslim alınan miktar sıfırdan büyük olmalıdır." },
+  { pattern: /^Receipt quantity exceeds outstanding quantity/i, message: "Teslim alınan miktar siparişte kalan miktarı aşamaz." },
+  { pattern: /^Goods receipt total must be greater than zero/i, message: "Mal kabul toplamı sıfırdan büyük olmalıdır. Ürün maliyetlerini kontrol edin." },
+  { pattern: /^Goods receipt not found/i, message: "Mal kabul kaydı bulunamadı." },
+  { pattern: /^Goods receipt is already reversed/i, message: "Bu mal kabul kaydı daha önce geri alınmış." },
+  { pattern: /^Goods receipt has no supplier bill to reverse/i, message: "Bu mal kabul kaydına bağlı geri alınabilir bir tedarikçi borcu bulunmuyor." },
+  { pattern: /^Linked supplier bill not found/i, message: "Bağlı tedarikçi borç kaydı bulunamadı." },
+  { pattern: /^Linked supplier bill is already cancelled/i, message: "Bağlı tedarikçi borç kaydı zaten iptal edilmiş." },
+  { pattern: /^Paid goods receipts cannot be reversed/i, message: "Ödemesi yapılmış mal kabul geri alınamaz. Önce bağlı tedarikçi ödemesini geri alın." },
+  { pattern: /^Goods receipt has no items/i, message: "Mal kabul kaydında ürün bulunmuyor." },
+  { pattern: /^Insufficient stock to return product/i, message: "İade için yeterli stok bulunmuyor." },
+  { pattern: /^Internal note must contain between 1 and 4000 characters/i, message: "İç not 1 ile 4000 karakter arasında olmalıdır." },
+  { pattern: /^Platform customer tenant was not found/i, message: "İşletme müşteri kaydı bulunamadı." },
+  { pattern: /^Assigned owner must be an active platform administrator/i, message: "Seçilen sorumlu aktif bir platform yöneticisi olmalıdır." },
+  { pattern: /^Value must not exceed/i, message: "Girilen değer izin verilen uzunluğu aşıyor." },
+  { pattern: /^Invalid date value/i, message: "Geçerli bir tarih seçin." },
+];
+
 const TECHNICAL_ERROR_PATTERN = /\b(?:backend|frontend|api|endpoint|prisma|postgres|postgresql|sql|constraint|stack|trace|exception|uuid|jwt|token|payload|runtime|undefined|null|database|db|foreign key|unique key|validation failed|internal server error|syntax error|query failed)\b/i;
 const ENGLISH_UI_PATTERN = /\b(?:review|maximum|minimum|resolve|failed|success|warning|critical|pending|approved|rejected|created|updated|deleted|branch|customer|payment|financial|liquidity|account|status|required|invalid|please|select|save|cancel|close|open|forecast|receivable|supplier|collection|working capital|runway)\b/i;
 
@@ -684,6 +710,9 @@ export function userErrorMessage(
 
   const mapped = USER_ERROR_MESSAGES[normalized];
   if (mapped) return mapped;
+
+  const patternMatch = USER_ERROR_PATTERNS.find((item) => item.pattern.test(normalized));
+  if (patternMatch) return patternMatch.message;
 
   if (looksTechnical(normalized)) return fallback;
 
