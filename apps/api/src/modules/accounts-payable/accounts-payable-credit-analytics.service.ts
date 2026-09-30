@@ -90,7 +90,7 @@ export class AccountsPayableCreditAnalyticsService {
       supplierId,
       companyId,
     );
-    if (!suppliers.length) throw new NotFoundException('Supplier not found');
+    if (!suppliers.length) throw new NotFoundException('Tedarikçi bulunamadı.');
 
     const entries = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT * FROM (
