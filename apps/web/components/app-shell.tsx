@@ -69,7 +69,7 @@ const NAV_SECTIONS = [
   { label: "İnsan Kaynakları", items: [
     { href: "/hr", label: "İK Merkezi", icon: "briefcase" },
     { href: "/hr/employees", label: "Çalışanlar", icon: "users" },
-    { href: "/hr/organization", permission: "hr.read", label: "Organizasyon", icon: "building" },
+    { href: "/hr/organization", permission: "hr.read", label: "Organizasyon", icon: "users" },
     { href: "/hr/personnel-files", label: "Özlük Bilgileri", icon: "file" },
     { href: "/hr/attendance", label: "Puantaj", icon: "clock" },
     { href: "/hr/leaves", label: "İzinler", icon: "calendar" },
