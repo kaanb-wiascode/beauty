@@ -82,7 +82,7 @@ export class ShiftExchangeService {
     ignoreAssignmentId?: string,
   ) {
     const staff = await tx.$queryRawUnsafe<Array<{ id: string }>>(
-      `SELECT s.id FROM staff s JOIN branches b ON b.id=s.branch_id WHERE s.id=$1 AND s.tenant_id=$2 AND s.branch_id=$3 AND s.status='ACTIVE' AND b.company_id=$4 FOR UPDATE OF s`,
+      `SELECT s.id FROM staff s JOIN branches b ON b.id=s."branchId" WHERE s.id=$1 AND s."tenantId"=$2 AND s."branchId"=$3 AND s.status='ACTIVE' AND b."companyId"=$4 FOR UPDATE OF s`,
       staffId,
       tenantId,
       branchId,
@@ -371,7 +371,7 @@ export class ShiftExchangeService {
     const branches = await this.branches();
     return this.prisma.$transaction(async (tx) => {
       const rows = await tx.$queryRawUnsafe<OpenBidRow[]>(
-        `SELECT b.*,sh.starts_at AS "startsAt",sh.ends_at AS "endsAt",sh.open_slots AS "openSlots",sh.status AS "shiftStatus" FROM hr_open_shift_bids b JOIN hr_scheduled_shifts sh ON sh.id=b.scheduled_shift_id WHERE b.id=$1 AND b.tenant_id=$2 AND b.company_id=$3 AND b.status='PENDING' AND ($4::text[] IS NULL OR b.branch_id=ANY($4::text[])) FOR UPDATE OF b,sh`,
+        `SELECT b.*,sh.starts_at AS "startsAt",sh.ends_at AS "endsAt",sh.open_slots AS "openSlots",sh.status AS "shiftStatus" FROM hr_open_shift_bids b JOIN hr_scheduled_shifts sh ON sh.id=b.scheduled_shift_id WHERE b.id=$1 AND b.tenant_id=$2 AND b."companyId"=$3 AND b.status='PENDING' AND ($4::text[] IS NULL OR b.branch_id=ANY($4::text[])) FOR UPDATE OF b,sh`,
         id,
         tenantId,
         companyId,
