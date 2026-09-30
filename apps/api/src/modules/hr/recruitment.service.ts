@@ -173,13 +173,23 @@ export class RecruitmentService {
   async hire(id: string, body: any, actorId: string) {
     const { tenantId, companyId } = this.scope();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT a.id,a.stage,a.hired_staff_id AS "hiredStaffId",c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone,j.branch_id AS "branchId",j.department_name AS "department",COALESCE(j.position_name,j.title) AS "position",j.employment_type AS "employmentType",(SELECT o.start_date::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStartDate",(SELECT o.gross_salary::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerGrossSalary" FROM hr_job_applications a JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 LIMIT 1`,
+      `SELECT a.id,a.stage,a.hired_staff_id AS "hiredStaffId",c.first_name AS "firstName",c.last_name AS "lastName",c.email,c.phone,j.branch_id AS "branchId",j.department_name AS "department",COALESCE(j.position_name,j.title) AS "position",j.employment_type AS "employmentType",(SELECT o.start_date::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStartDate",(SELECT o.gross_salary::text FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerGrossSalary",(SELECT o.status FROM hr_job_offers o WHERE o.application_id=a.id ORDER BY o.created_at DESC LIMIT 1) AS "offerStatus" FROM hr_job_applications a JOIN hr_candidates c ON c.id=a.candidate_id JOIN hr_job_postings j ON j.id=a.job_posting_id WHERE a.id=$1 AND a.tenant_id=$2 AND a.company_id=$3 LIMIT 1`,
       id, tenantId, companyId,
     );
     const application = rows[0];
     if (!application) throw new NotFoundException('Application not found.');
     if (application.hiredStaffId) {
-      return { applicationId: id, employeeId: application.hiredStaffId, stage: 'HIRED', onboardingStarted: true, idempotent: true };
+      const existingOnboarding = await this.onboarding.get(application.hiredStaffId);
+      return {
+        applicationId: id,
+        employeeId: application.hiredStaffId,
+        stage: 'HIRED',
+        onboardingStarted: Boolean(existingOnboarding.current || existingOnboarding.plans?.length),
+        idempotent: true,
+      };
+    }
+    if (application.offerStatus && application.offerStatus !== 'ACCEPTED') {
+      throw new BadRequestException('The latest job offer must be accepted before hiring.');
     }
     const employee = await this.hr.createEmployee({
       branchId: application.branchId ?? body.branchId,
