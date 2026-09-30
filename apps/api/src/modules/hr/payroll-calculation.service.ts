@@ -75,6 +75,80 @@ export class PayrollCalculationService {
     };
   }
 
+  async openingBalances(taxYear?: number) {
+    const { tenantId, companyId, branchIds } = await this.context();
+    const year = taxYear == null ? null : Number(taxYear);
+    if (year !== null && (!Number.isInteger(year) || year < 2000 || year > 2200)) {
+      throw new BadRequestException('Geçerli bir vergi yılı gereklidir.');
+    }
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT b.id,b.staff_id AS "staffId",s."firstName",s."lastName",b.branch_id AS "branchId",
+              b.tax_year AS "taxYear",b.cumulative_tax_base AS "cumulativeTaxBase",
+              b.source_reference AS "sourceReference",b.note,b.recorded_at AS "recordedAt",b.updated_at AS "updatedAt"
+       FROM payroll_tax_base_opening_balances b
+       JOIN staff s ON s.id=b.staff_id
+       WHERE b.tenant_id=$1::text AND b.company_id=$2::text
+         AND ($3::text[] IS NULL OR b.branch_id=ANY($3::text[]))
+         AND ($4::int IS NULL OR b.tax_year=$4)
+       ORDER BY b.tax_year DESC,s."firstName",s."lastName"`,
+      tenantId,
+      companyId,
+      branchIds,
+      year,
+    );
+  }
+
+  async upsertOpeningBalance(staffId: string, input: any, userId: string) {
+    const { tenantId, companyId, branchIds } = await this.context();
+    const taxYear = Number(input?.taxYear);
+    const cumulativeTaxBase = this.round(Number(input?.cumulativeTaxBase));
+    if (!Number.isInteger(taxYear) || taxYear < 2000 || taxYear > 2200) {
+      throw new BadRequestException('Geçerli bir vergi yılı gereklidir.');
+    }
+    if (!Number.isFinite(cumulativeTaxBase) || cumulativeTaxBase < 0) {
+      throw new BadRequestException('Kümülatif vergi matrahı sıfır veya daha büyük olmalıdır.');
+    }
+
+    return this.prisma.$transaction(async (tx) => {
+      const staff = await tx.$queryRawUnsafe<any[]>(
+        `SELECT s.id,s."branchId" AS "branchId"
+         FROM staff s JOIN branches br ON br.id=s."branchId"
+         WHERE s.id=$1::text AND s."tenantId"=$2::text AND br."companyId"=$3::text
+           AND ($4::text[] IS NULL OR s."branchId"=ANY($4::text[]))
+         LIMIT 1`,
+        staffId,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if (!staff.length) throw new NotFoundException('Personel bulunamadı.');
+
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `INSERT INTO payroll_tax_base_opening_balances(
+           tenant_id,company_id,branch_id,staff_id,tax_year,cumulative_tax_base,
+           source_reference,note,recorded_by_user_id
+         ) VALUES($1::text,$2::text,$3::text,$4::text,$5,$6,$7,$8,$9::text)
+         ON CONFLICT(tenant_id,company_id,staff_id,tax_year)
+         DO UPDATE SET branch_id=EXCLUDED.branch_id,cumulative_tax_base=EXCLUDED.cumulative_tax_base,
+                       source_reference=EXCLUDED.source_reference,note=EXCLUDED.note,
+                       recorded_by_user_id=EXCLUDED.recorded_by_user_id,updated_at=NOW()
+         RETURNING id,staff_id AS "staffId",branch_id AS "branchId",tax_year AS "taxYear",
+                   cumulative_tax_base AS "cumulativeTaxBase",source_reference AS "sourceReference",
+                   note,recorded_at AS "recordedAt",updated_at AS "updatedAt"`,
+        tenantId,
+        companyId,
+        staff[0].branchId,
+        staffId,
+        taxYear,
+        cumulativeTaxBase,
+        input?.sourceReference ? String(input.sourceReference).trim() : null,
+        input?.note ? String(input.note).trim() : null,
+        userId,
+      );
+      return rows[0];
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
   async prepare(periodId: string) {
     const { tenantId, companyId, branchIds } = await this.context();
 
