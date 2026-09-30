@@ -1,8 +1,10 @@
 "use client";
 
 import { EnterpriseDataPage } from "@/components/enterprise-data-page";
+import { getActiveBranchId } from "@/lib/auth";
 
 export default function RecruitmentPage() {
+  const activeBranchId = getActiveBranchId() ?? "";
   return (
     <EnterpriseDataPage
       eyebrow="İnsan Kaynakları"
@@ -139,6 +141,29 @@ export default function RecruitmentPage() {
               ],
             },
             { name: "notes", label: "Teklif Notu", type: "textarea" },
+          ],
+        },
+        {
+          title: "Adayı Çalışan Olarak Başlat",
+          description: "İşe alımı tamamlanan adayı çalışan kaydına dönüştürün. Pozisyon ve teklif bilgileri mümkün olduğunda otomatik aktarılır.",
+          path: "/hr/recruitment/applications/{id}/hire",
+          fields: [
+            { name: "id", label: "İşe Alınacak Aday", type: "remote-select", optionsPath: "/hr/recruitment/applications", optionLabelKeys: ["firstName", "lastName", "jobTitle"], required: true },
+            { name: "branchId", label: "Aktif Şube", type: "hidden", defaultValue: activeBranchId },
+            { name: "hireDate", label: "İşe Başlangıç Tarihi", type: "date" },
+            { name: "grossSalary", label: "Brüt Ücret", type: "number" },
+            {
+              name: "employmentType",
+              label: "Çalışma Şekli",
+              type: "select",
+              options: [
+                { value: "FULL_TIME", label: "Tam Zamanlı" },
+                { value: "PART_TIME", label: "Yarı Zamanlı" },
+                { value: "HOURLY", label: "Saatlik" },
+                { value: "SEASONAL", label: "Dönemsel" },
+                { value: "INTERN", label: "Stajyer" },
+              ],
+            },
           ],
         },
       ]}
