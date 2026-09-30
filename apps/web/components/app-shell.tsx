@@ -58,6 +58,7 @@ const NAV_SECTIONS = [
     { href: "/finance/receivables", permission: "finance.read", label: "Müşteri Alacakları", icon: "wallet" },
     { href: "/finance/expenses", permission: "finance.read", label: "Gider ve Ödeme", icon: "receipt" },
     { href: "/finance/cari-accounts", permission: "finance.read", label: "Cari Hesaplar", icon: "users" },
+    { href: "/finance/invoices", permission: "finance.read", label: "Faturalar", icon: "file" },
     { href: "/finance/cfo/treasury", permission: "finance.read", label: "Nakit ve Banka", icon: "wallet" },
     { href: "/finance/obligations", permission: "finance.read", label: "Borç ve Yükümlülükler", icon: "calendar" },
     { href: "/finance/reconciliation", permission: "finance.read", label: "Mutabakat", icon: "arrows" },
