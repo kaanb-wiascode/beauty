@@ -56,6 +56,12 @@ export class RecruitmentController {
     return this.recruitment.updateStage(id, body);
   }
 
+  @Post('applications/:id/hire')
+  @RequirePermissions({ resource: 'hr', action: 'manage' })
+  hire(@Param('id') id: string, @Body() body: any) {
+    return this.recruitment.hire(id, body);
+  }
+
   @Get('interviews')
   interviews() {
     return this.recruitment.interviews();
