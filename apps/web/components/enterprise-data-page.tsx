@@ -70,7 +70,7 @@ function rowsFrom(value: unknown): Array<Record<string, unknown>> {
   if (Array.isArray(value)) return value.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object");
   if (!value || typeof value !== "object") return [];
   const record = value as Record<string, unknown>;
-  for (const key of ["data", "items", "rows", "results", "entries", "employees", "branches", "scores", "policies", "tickets", "runs"]) {
+  for (const key of ["data", "items", "rows", "results", "entries", "employees", "departments", "teams", "positions", "branches", "scores", "policies", "tickets", "runs"]) {
     const nested = record[key];
     if (Array.isArray(nested)) return nested.filter((item): item is Record<string, unknown> => Boolean(item) && typeof item === "object");
   }
