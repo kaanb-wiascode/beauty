@@ -113,6 +113,26 @@ export class ShiftExchangeService {
     }
   }
 
+  async assignments() {
+    const { tenantId, companyId } = this.scope();
+    const branches = await this.branches();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT a.id,a.staff_id AS "staffId",s."firstName",s."lastName",a.status,sh.starts_at AS "startsAt",sh.ends_at AS "endsAt",b.name AS "branchName"
+       FROM hr_shift_assignments a
+       JOIN hr_scheduled_shifts sh ON sh.id=a.scheduled_shift_id
+       JOIN staff s ON s.id=a.staff_id
+       LEFT JOIN branches b ON b.id=a.branch_id
+       WHERE a.tenant_id=$1 AND a.company_id=$2
+         AND a.status IN('ASSIGNED','CONFIRMED')
+         AND sh.status IN('DRAFT','PUBLISHED')
+         AND ($3::text[] IS NULL OR a.branch_id=ANY($3::text[]))
+       ORDER BY sh.starts_at DESC`,
+      tenantId,
+      companyId,
+      branches,
+    );
+  }
+
   async swaps() {
     const { tenantId, companyId } = this.scope();
     const branches = await this.branches();
