@@ -223,26 +223,107 @@ export class PayrollAccountingService {
   async submit(periodId: string) {
     const { tenantId, companyId } = this.context();
     const branchIds = await this.branchIds();
-    const updated = await this.prisma.$executeRawUnsafe(
-      `UPDATE payroll_periods pp
-       SET status='SUBMITTED',updated_at=NOW()
-       WHERE pp.id=$1::text AND pp.tenant_id=$2::text AND pp.company_id=$3::text AND pp.status='DRAFT'
-         AND ($4::text[] IS NULL OR pp.branch_id=ANY($4::text[]))
-         AND EXISTS(
-           SELECT 1 FROM payroll_items pi
-           WHERE pi.period_id=pp.id AND pi.tenant_id=pp.tenant_id AND pi.company_id=pp.company_id
-             AND pi.branch_id=pp.branch_id
-             AND ($4::text[] IS NULL OR pi.branch_id=ANY($4::text[]))
-         )`,
-      periodId,
-      tenantId,
-      companyId,
-      branchIds,
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const periods = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,year,month,status,branch_id AS "branchId"
+           FROM payroll_periods
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+             AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
+           FOR UPDATE`,
+          periodId,
+          tenantId,
+          companyId,
+          branchIds,
+        );
+        if (!periods.length) throw new BadRequestException('Taslak bordro dönemi bulunamadı.');
+        const period = periods[0];
+        if (!period.branchId) throw new BadRequestException('Bordro gönderimi için şubeye bağlı dönem gereklidir.');
+
+        const closures = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,staff_count AS "staffCount"
+           FROM hr_attendance_period_closures
+           WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+             AND payroll_period_id=$4::text AND year=$5 AND month=$6 AND status='CLOSED'
+           LIMIT 1`,
+          tenantId,
+          companyId,
+          period.branchId,
+          periodId,
+          Number(period.year),
+          Number(period.month),
+        );
+        if (!closures.length) {
+          throw new BadRequestException('Bordro gönderilemez: ilgili ayın puantaj kapanışı tamamlanmamış.');
+        }
+        const closure = closures[0];
+
+        const counts = await tx.$queryRawUnsafe<any[]>(
+          `SELECT
+             COUNT(*)::int AS "itemCount",
+             COUNT(*) FILTER(
+               WHERE calculation_snapshot->'workInputs'->>'source'='ATTENDANCE_PERIOD_CLOSE'
+                 AND calculation_snapshot->'workInputs'->>'closureId'=$5::text
+             )::int AS "workInputCount",
+             COUNT(*) FILTER(
+               WHERE calculation_snapshot ? 'grossAmount'
+                 AND calculation_snapshot ? 'netAmount'
+                 AND calculation_snapshot ? 'employerCost'
+             )::int AS "financialSnapshotCount"
+           FROM payroll_items
+           WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+          closure.id,
+        );
+        const summary = counts[0] ?? {};
+        const itemCount = Number(summary.itemCount ?? 0);
+        const staffCount = Number(closure.staffCount ?? 0);
+        const workInputCount = Number(summary.workInputCount ?? 0);
+        const financialSnapshotCount = Number(summary.financialSnapshotCount ?? 0);
+
+        if (itemCount !== staffCount) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: kapanışta ${staffCount} personel var, taslak bordroda ${itemCount} personel kalemi bulunuyor.`,
+          );
+        }
+        if (workInputCount !== itemCount) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: ${itemCount - workInputCount} personelin kapanmış puantaj girdisi bordroya bağlanmamış.`,
+          );
+        }
+        if (financialSnapshotCount !== itemCount) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: ${itemCount - financialSnapshotCount} personelin parasal bordro hesabı tamamlanmamış.`,
+          );
+        }
+
+        const updated = await tx.$executeRawUnsafe(
+          `UPDATE payroll_periods
+           SET status='SUBMITTED',updated_at=NOW()
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
+             AND branch_id=$4::text`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+        );
+        if (updated !== 1) throw new BadRequestException('Bordro dönemi eşzamanlı olarak değiştirildi.');
+
+        return {
+          periodId,
+          status: 'SUBMITTED',
+          staffCount,
+          payrollItemCount: itemCount,
+          closedAttendanceInputCount: workInputCount,
+          calculatedPayrollItemCount: financialSnapshotCount,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
-    if (updated !== 1) {
-      throw new BadRequestException('Draft payroll period with at least one scoped item is required.');
-    }
-    return { periodId, status: 'SUBMITTED' };
   }
 
   async approve(periodId: string, userId: string) {
