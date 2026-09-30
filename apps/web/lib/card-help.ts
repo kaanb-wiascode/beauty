@@ -240,6 +240,31 @@ const HELP_BY_TITLE: Record<string, Omit<CardHelpContent, "title">> = {
     interpretation: "Değerlendirme sonucunu tek bir puana göre değil, hedefler ve gelişim planıyla birlikte değerlendirmek için kullanılır.",
     source: "Performans değerlendirme kayıtları",
   },
+  "İzin Bakiyelerim": {
+    description: "Her izin türü için toplam hakkınızı, kullandığınız günleri, bekleyen talepleri ve kalan günlerinizi gösterir.",
+    interpretation: "Yeni izin talebi oluşturmadan önce kullanılabilir izin hakkınızı buradan kontrol edebilirsiniz.",
+    source: "İzin hakkı ve izin talebi kayıtları",
+  },
+  "İzin Taleplerim": {
+    description: "Oluşturduğunuz izin taleplerini ve mevcut durumlarını gösterir.",
+    interpretation: "Bekleyen, onaylanan veya reddedilen taleplerinizi takip etmek için kullanılır.",
+    source: "Çalışan izin talepleri",
+  },
+  "Yaklaşan Vardiyalarım": {
+    description: "Size atanmış yaklaşan çalışma vardiyalarını tarih ve saat bilgileriyle gösterir.",
+    interpretation: "Yaklaşan çalışma planınızı kontrol etmek için kullanılır.",
+    source: "Vardiya planlama kayıtları",
+  },
+  "Ekibim": {
+    description: "Yönetici olarak sorumlu olduğunuz çalışanları gösterir.",
+    interpretation: "Ekibinizin temel durumunu ve bekleyen insan kaynakları işlemlerini takip etmek için kullanılır.",
+    source: "Organizasyon ve çalışan atama kayıtları",
+  },
+  "Ekibimin Bekleyen İzinleri": {
+    description: "Ekibinizde henüz sonuçlandırılmamış izin taleplerini gösterir.",
+    interpretation: "Ekip planlamasını aksatmadan izin taleplerini zamanında değerlendirmek için kullanılır.",
+    source: "Ekip izin talepleri",
+  },
 };
 
 function sentenceCase(value: string) {
