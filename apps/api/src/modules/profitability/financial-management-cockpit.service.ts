@@ -26,6 +26,7 @@ export class FinancialManagementCockpitService {
 
     return {
       asOf: executive.asOf,
+      baseCurrency: executive.baseCurrency,
       health: executive.health,
       covenants: executive.covenants,
       liquidity: executive.liquidity,
