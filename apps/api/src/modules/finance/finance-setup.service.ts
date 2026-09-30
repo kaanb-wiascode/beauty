@@ -77,13 +77,79 @@ export class FinanceSetupService {
         tenantId,
         companyId,
       );
+      const accounts = await this.bootstrapSystemAccounts(
+        tx,
+        tenantId,
+        companyId,
+      );
 
       return {
         expense,
         income,
-        idempotent: expense.created === 0 && income.created === 0,
+        accounts,
+        idempotent:
+          expense.created === 0 &&
+          income.created === 0 &&
+          accounts.created === 0,
       };
     });
+  }
+
+  private async bootstrapSystemAccounts(
+    tx: Prisma.TransactionClient,
+    tenantId: string,
+    companyId: string,
+  ) {
+    const accounts = [
+      ['100', 'Kasa', 'ASSET'],
+      ['102', 'Bankalar', 'ASSET'],
+      ['108', 'POS Alacakları', 'ASSET'],
+      ['120', 'Alıcılar', 'ASSET'],
+      ['150', 'İlk Madde ve Malzeme', 'ASSET'],
+      ['320', 'Satıcılar', 'LIABILITY'],
+      ['600', 'Yurt İçi Satışlar', 'REVENUE'],
+      ['621', 'Satılan Ticari Mallar Maliyeti', 'EXPENSE'],
+      ['646', 'Kambiyo Kârları', 'REVENUE'],
+      ['656', 'Kambiyo Zararları', 'EXPENSE'],
+      ['740', 'Hizmet Üretim Maliyeti', 'EXPENSE'],
+      ['770', 'Genel Yönetim Giderleri', 'EXPENSE'],
+      ['780', 'Finansman Giderleri', 'EXPENSE'],
+    ] as const;
+
+    let created = 0;
+    let existing = 0;
+
+    for (const [code, name, type] of accounts) {
+      const current = await tx.chartOfAccount.findFirst({
+        where: { tenantId, companyId, code },
+        select: { id: true, active: true },
+      });
+
+      if (current) {
+        existing += 1;
+        if (!current.active) {
+          await tx.chartOfAccount.update({
+            where: { id: current.id },
+            data: { active: true, name, type },
+          });
+        }
+        continue;
+      }
+
+      await tx.chartOfAccount.create({
+        data: {
+          tenantId,
+          companyId,
+          code,
+          name,
+          type,
+          active: true,
+        },
+      });
+      created += 1;
+    }
+
+    return { created, existing, total: created + existing };
   }
 
   private async bootstrapCategoryTable(
