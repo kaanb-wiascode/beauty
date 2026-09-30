@@ -265,6 +265,16 @@ const HELP_BY_TITLE: Record<string, Omit<CardHelpContent, "title">> = {
     interpretation: "Ekip planlamasını aksatmadan izin taleplerini zamanında değerlendirmek için kullanılır.",
     source: "Ekip izin talepleri",
   },
+  "Performans ve Gelişim": {
+    description: "Çalışanın hedeflerini, değerlendirme sonuçlarını ve gelişim planlarını birlikte gösterir.",
+    interpretation: "Performansı yalnızca tek bir puana göre değil, hedefler, geri bildirimler ve gelişim planıyla birlikte değerlendirmek için kullanılır.",
+    source: "Hedef ve performans değerlendirme kayıtları",
+  },
+  "Operasyon Sonuçları": {
+    description: "Çalışanın hizmet üretimiyle ilgili randevu ve tahsilat sonuçlarını ayrı bir operasyon görünümünde gösterir.",
+    interpretation: "Bu bilgiler performans değerlendirmesinin tek başına belirleyicisi değildir; operasyonel sonuçları izlemek için kullanılır.",
+    source: "Randevu ve ödeme kayıtları",
+  },
 };
 
 function sentenceCase(value: string) {
