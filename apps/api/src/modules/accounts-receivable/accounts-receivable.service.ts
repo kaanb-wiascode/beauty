@@ -141,28 +141,51 @@ export class AccountsReceivableService {
   async aging() {
     const { tenantId, companyId, branchId } = this.context();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `WITH completed_payments AS (
+      `WITH installment_paid AS (
+         SELECT ia."installmentId" AS installment_id,
+                COALESCE(SUM(ia.amount) FILTER (WHERE sp.status='COMPLETED'),0)::numeric AS paid
+         FROM installment_allocations ia
+         JOIN sale_payments sp ON sp.id=ia."salePaymentId"
+         GROUP BY ia."installmentId"
+       ), installment_open AS (
+         SELECT i.id,
+                GREATEST(i.amount-COALESCE(ipaid.paid,0),0)::numeric AS balance,
+                i."dueAt" AS due_at
+         FROM installments i
+         JOIN installment_plans ip ON ip.id=i."installmentPlanId"
+         JOIN sales s ON s.id=ip."saleId"
+         JOIN branches b ON b.id=s."branchId"
+         LEFT JOIN installment_paid ipaid ON ipaid.installment_id=i.id
+         WHERE s."tenantId"=$1::text
+           AND b."companyId"=$2::text
+           AND s.status='CONFIRMED'
+           AND ($3::text IS NULL OR s."branchId"=$3::text)
+           AND GREATEST(i.amount-COALESCE(ipaid.paid,0),0)>0
+       ), completed_payments AS (
          SELECT "saleId" AS sale_id,
                 COALESCE(SUM(amount) FILTER (WHERE status='COMPLETED'),0)::numeric AS paid
          FROM sale_payments
          WHERE "tenantId"=$1::text
            AND ($3::text IS NULL OR "branchId"=$3::text)
          GROUP BY "saleId"
-       ), open_sales AS (
+       ), non_installment_open AS (
          SELECT s.id,
                 GREATEST(s.total-COALESCE(p.paid,0),0)::numeric AS balance,
-                COALESCE(MIN(i."dueAt"),s."confirmedAt") AS due_at
+                s."confirmedAt" AS due_at
          FROM sales s
          JOIN branches b ON b.id=s."branchId"
          LEFT JOIN completed_payments p ON p.sale_id=s.id
          LEFT JOIN installment_plans ip ON ip."saleId"=s.id
-         LEFT JOIN installments i ON i."installmentPlanId"=ip.id
          WHERE s."tenantId"=$1::text
            AND b."companyId"=$2::text
            AND s.status='CONFIRMED'
+           AND ip.id IS NULL
            AND ($3::text IS NULL OR s."branchId"=$3::text)
-         GROUP BY s.id,p.paid
-         HAVING GREATEST(s.total-COALESCE(p.paid,0),0)>0
+           AND GREATEST(s.total-COALESCE(p.paid,0),0)>0
+       ), open_items AS (
+         SELECT balance,due_at FROM installment_open
+         UNION ALL
+         SELECT balance,due_at FROM non_installment_open
        )
        SELECT
          COALESCE(SUM(balance) FILTER (WHERE due_at::date>=CURRENT_DATE),0)::numeric AS "notDue",
@@ -182,7 +205,7 @@ export class AccountsReceivableService {
            WHERE due_at::date<CURRENT_DATE-INTERVAL '90 days'
          ),0)::numeric AS "days90Plus",
          COALESCE(SUM(balance),0)::numeric AS total
-       FROM open_sales`,
+       FROM open_items`,
       tenantId,
       companyId,
       branchId,
@@ -197,5 +220,4 @@ export class AccountsReceivableService {
       days90Plus: this.round(Number(row.days90Plus ?? 0)),
       total: this.round(Number(row.total ?? 0)),
     };
-  }
-}
+  }}
