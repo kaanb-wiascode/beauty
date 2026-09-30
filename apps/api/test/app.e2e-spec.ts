@@ -478,26 +478,34 @@ describe('Core Business Flow (e2e)', () => {
     expect(branchBWarehouse).toBeDefined();
 
     await request(app.getHttpServer())
-      .post('/inventory/movements')
+      .post('/inventory/accounting/adjustments')
       .set('Authorization', `Bearer ${branchBToken}`)
       .send({
-        productId: inventoryProduct.body.id,
         warehouseId: branchBWarehouse.id,
-        quantity: 3,
         type: 'ADJUSTMENT_IN',
-        note: 'E2E Şube B Stok Girişi',
+        reason: 'E2E Şube B Stok Girişi',
+        items: [
+          {
+            productId: inventoryProduct.body.id,
+            quantity: 3,
+          },
+        ],
       })
       .expect(201);
 
     await request(app.getHttpServer())
-      .post('/inventory/movements')
+      .post('/inventory/accounting/adjustments')
       .set('Authorization', `Bearer ${branchAToken}`)
       .send({
-        productId: inventoryProduct.body.id,
         warehouseId: branchBWarehouse.id,
-        quantity: 1,
         type: 'ADJUSTMENT_IN',
-        note: 'Şube Dışı Hareket Engellenmeli',
+        reason: 'Şube Dışı Hareket Engellenmeli',
+        items: [
+          {
+            productId: inventoryProduct.body.id,
+            quantity: 1,
+          },
+        ],
       })
       .expect(400);
 
