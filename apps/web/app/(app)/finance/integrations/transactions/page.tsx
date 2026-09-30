@@ -33,7 +33,7 @@ export default function PosTransactionOperationsPage() {
       <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5">
         <h2 className="text-[14px] font-semibold text-[var(--ink)]">İstisna Yönetimi</h2>
         <p className="mt-2 max-w-3xl text-[11px] leading-5 text-[var(--muted)]">
-          Otomatik eşleşmeyen POS veya banka hareketlerini kayıt kodu girmek yerine Mutabakat Merkezi'nden seçerek yönetin. Bağlantı kimlik bilgileri ve sağlayıcı senkronizasyonları Finans Bağlantıları ekranından yönetilir.
+          Otomatik eşleşmeyen POS veya banka hareketlerini kayıt kodu girmek yerine Mutabakat Merkezi&apos;nden seçerek yönetin. Bağlantı kimlik bilgileri ve sağlayıcı senkronizasyonları Finans Bağlantıları ekranından yönetilir.
         </p>
         <div className="mt-4 flex flex-wrap gap-2">
           <Link href="/finance/reconciliation" className="inline-flex rounded-[12px] bg-[var(--accent)] px-4 py-2.5 text-[11px] font-semibold text-white">
