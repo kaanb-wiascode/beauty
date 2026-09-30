@@ -1,9 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, EmptyState, Field, Modal, PageHeader, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, Modal, PageHeader, Spinner, TextArea, TextInput } from "@/components/ui";
 import { ValooSelect } from "@/components/valoo-controls";
+import { CheckboxField, FormActions, FormGrid, FormSection } from "@/components/form-system";
 import { api, ApiError } from "@/lib/api";
+import { hasActiveBranch } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Service={id:string;name:string};
@@ -31,9 +33,10 @@ export default function SkillSchedulingPage(){
   const[loading,setLoading]=useState(false);
   const[loadingServices,setLoadingServices]=useState(true);
   const[error,setError]=useState("");
+  const[notice,setNotice]=useState("");
   const[createOpen,setCreateOpen]=useState(false);
   const[savingService,setSavingService]=useState(false);
-  const[serviceForm,setServiceForm]=useState({name:"",category:"",durationMinutes:"60",price:"0"});
+  const[serviceForm,setServiceForm]=useState({name:"",category:"",description:"",durationMinutes:"60",preparationMinutes:"0",cleanupMinutes:"0",price:"",cost:"",taxRate:"20",currency:"TRY",requiresConsultation:false});
 
   const loadServices=useCallback(async()=>{
     setLoadingServices(true);
@@ -73,28 +76,41 @@ export default function SkillSchedulingPage(){
   async function createService(){
     const name=serviceForm.name.trim();
     const durationMinutes=Number(serviceForm.durationMinutes);
+    const preparationMinutes=Number(serviceForm.preparationMinutes);
+    const cleanupMinutes=Number(serviceForm.cleanupMinutes);
     const price=Number(serviceForm.price);
+    const cost=serviceForm.cost.trim()?Number(serviceForm.cost):undefined;
+    const taxRate=Number(serviceForm.taxRate);
+    if(!hasActiveBranch())return setError("Yeni hizmet oluşturmak için önce çalışma kapsamından bir şube seçin.");
     if(!name)return setError("Hizmet adı zorunludur.");
-    if(!Number.isFinite(durationMinutes)||durationMinutes<=0)return setError("Hizmet süresi sıfırdan büyük olmalıdır.");
-    if(!Number.isFinite(price)||price<0)return setError("Hizmet fiyatı geçerli olmalıdır.");
+    if(!Number.isInteger(durationMinutes)||durationMinutes<1||durationMinutes>1440)return setError("Hizmet süresi 1 ile 1440 dakika arasında olmalıdır.");
+    if(!Number.isInteger(preparationMinutes)||preparationMinutes<0||preparationMinutes>240)return setError("Hazırlık süresi 0 ile 240 dakika arasında olmalıdır.");
+    if(!Number.isInteger(cleanupMinutes)||cleanupMinutes<0||cleanupMinutes>240)return setError("Kapanış / temizlik süresi 0 ile 240 dakika arasında olmalıdır.");
+    if(!Number.isFinite(price)||price<0)return setError("Satış fiyatı 0 veya daha büyük olmalıdır.");
+    if(cost!==undefined&&(!Number.isFinite(cost)||cost<0))return setError("Maliyet 0 veya daha büyük olmalıdır.");
+    if(!Number.isFinite(taxRate)||taxRate<0||taxRate>100)return setError("KDV oranı 0 ile 100 arasında olmalıdır.");
     setSavingService(true);
     setError("");
+    setNotice("");
     try{
       const created=await api<Service>("/services",{method:"POST",body:{
         name,
         category:serviceForm.category.trim()||undefined,
+        description:serviceForm.description.trim()||undefined,
         durationMinutes,
-        preparationMinutes:0,
-        cleanupMinutes:0,
+        preparationMinutes,
+        cleanupMinutes,
         price,
-        taxRate:20,
-        currency:"TRY",
-        requiresConsultation:false,
+        cost,
+        taxRate,
+        currency:serviceForm.currency,
+        requiresConsultation:serviceForm.requiresConsultation,
       }});
       setCreateOpen(false);
-      setServiceForm({name:"",category:"",durationMinutes:"60",price:"0"});
+      setServiceForm({name:"",category:"",description:"",durationMinutes:"60",preparationMinutes:"0",cleanupMinutes:"0",price:"",cost:"",taxRate:"20",currency:"TRY",requiresConsultation:false});
       await loadServices();
       setServiceId(created.id);
+      setNotice("Yeni hizmet oluşturuldu ve planlama için seçildi.");
     }catch(e){
       setError(e instanceof ApiError?userErrorMessage(e.message,"Hizmet oluşturulamadı."):"Hizmet oluşturulamadı.");
     }finally{
@@ -106,6 +122,7 @@ export default function SkillSchedulingPage(){
     <PageHeader title="Yetkinliğe Göre Personel Planlama" description="Hizmet ve zaman aralığına göre uygun çalışanları; vardiya, izin, randevu, sertifika ve yetkinlik koşullarıyla birlikte değerlendirin."/>
 
     {error?<Alert onClose={()=>setError("")}>{error}</Alert>:null}
+    {notice?<Alert tone="success" onClose={()=>setNotice("")}>{notice}</Alert>:null}
 
     <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[0_8px_30px_rgba(31,69,94,.035)]">
       <div className="grid gap-4 lg:grid-cols-[1.35fr_1fr_1fr_auto] lg:items-end">
@@ -167,18 +184,38 @@ export default function SkillSchedulingPage(){
       </section>
     }
 
-    <Modal open={createOpen} onClose={()=>{if(!savingService)setCreateOpen(false)}} title="Yeni Hizmet Ekle" description="Planlamada kullanılacak temel hizmet kaydını oluşturun.">
-      <div className="space-y-4">
-        <Field label="Hizmet Adı" required><TextInput value={serviceForm.name} onChange={e=>setServiceForm(x=>({...x,name:e.target.value}))}/></Field>
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Kategori"><TextInput value={serviceForm.category} onChange={e=>setServiceForm(x=>({...x,category:e.target.value}))}/></Field>
-          <Field label="Süre (Dakika)" required><TextInput type="number" min={1} value={serviceForm.durationMinutes} onChange={e=>setServiceForm(x=>({...x,durationMinutes:e.target.value}))}/></Field>
-        </div>
-        <Field label="Satış Fiyatı"><TextInput type="number" min={0} step="0.01" value={serviceForm.price} onChange={e=>setServiceForm(x=>({...x,price:e.target.value}))}/></Field>
-        <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+    <Modal open={createOpen} onClose={()=>{if(!savingService)setCreateOpen(false)}} title="Yeni Hizmet Ekle" description="Planlamada kullanılacak hizmeti, ana Hizmetler modülüyle aynı veri standardında oluşturun.">
+      <div className="space-y-5">
+        <FormSection title="Hizmet Bilgileri" description="Hizmetin temel tanımını oluşturun.">
+          <FormGrid>
+            <Field label="Hizmet Adı" required><TextInput value={serviceForm.name} onChange={e=>setServiceForm(x=>({...x,name:e.target.value}))}/></Field>
+            <Field label="Kategori"><TextInput value={serviceForm.category} placeholder="Örn. Bakım, Danışmanlık" onChange={e=>setServiceForm(x=>({...x,category:e.target.value}))}/></Field>
+          </FormGrid>
+          <Field label="Açıklama"><TextArea rows={3} value={serviceForm.description} onChange={e=>setServiceForm(x=>({...x,description:e.target.value}))}/></Field>
+        </FormSection>
+
+        <FormSection title="Süre ve Operasyon" description="Randevu ve kaynak planlamasında kullanılacak süreleri belirleyin.">
+          <FormGrid columns={3}>
+            <Field label="Hizmet Süresi (dk)" required><TextInput type="number" min={1} max={1440} value={serviceForm.durationMinutes} onChange={e=>setServiceForm(x=>({...x,durationMinutes:e.target.value}))}/></Field>
+            <Field label="Hazırlık Süresi (dk)"><TextInput type="number" min={0} max={240} value={serviceForm.preparationMinutes} onChange={e=>setServiceForm(x=>({...x,preparationMinutes:e.target.value}))}/></Field>
+            <Field label="Kapanış / Temizlik (dk)"><TextInput type="number" min={0} max={240} value={serviceForm.cleanupMinutes} onChange={e=>setServiceForm(x=>({...x,cleanupMinutes:e.target.value}))}/></Field>
+          </FormGrid>
+          <CheckboxField checked={serviceForm.requiresConsultation} onChange={requiresConsultation=>setServiceForm(x=>({...x,requiresConsultation}))} label="Ön danışmanlık gerekli" description="Bu hizmetten önce değerlendirme veya danışmanlık gerektiğinde işaretleyin."/>
+        </FormSection>
+
+        <FormSection title="Fiyatlandırma" description="Satış fiyatı, maliyet, vergi ve para birimini belirleyin.">
+          <FormGrid>
+            <Field label="Satış Fiyatı" required><TextInput type="number" min={0} step="0.01" value={serviceForm.price} onChange={e=>setServiceForm(x=>({...x,price:e.target.value}))}/></Field>
+            <Field label="Tahmini Maliyet"><TextInput type="number" min={0} step="0.01" value={serviceForm.cost} onChange={e=>setServiceForm(x=>({...x,cost:e.target.value}))}/></Field>
+            <Field label="KDV (%)"><TextInput type="number" min={0} max={100} step="0.01" value={serviceForm.taxRate} onChange={e=>setServiceForm(x=>({...x,taxRate:e.target.value}))}/></Field>
+            <Field label="Para Birimi"><ValooSelect value={serviceForm.currency} onChange={currency=>setServiceForm(x=>({...x,currency}))} searchable={false} options={[{value:"TRY",label:"TRY · Türk Lirası"},{value:"EUR",label:"EUR · Euro"},{value:"USD",label:"USD · ABD Doları"}]}/></Field>
+          </FormGrid>
+        </FormSection>
+
+        <FormActions sticky>
           <Button variant="secondary" onClick={()=>setCreateOpen(false)} disabled={savingService}>Vazgeç</Button>
           <Button onClick={()=>void createService()} disabled={savingService}>{savingService?"Kaydediliyor…":"Hizmeti Oluştur"}</Button>
-        </div>
+        </FormActions>
       </div>
     </Modal>
   </div>
