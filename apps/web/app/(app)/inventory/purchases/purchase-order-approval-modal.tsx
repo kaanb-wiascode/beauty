@@ -6,6 +6,7 @@ import { Modal } from "@/components/modal";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
+import { userLabel } from "@/lib/user-language";
 
 type PurchaseOrderSummary = {
   id: string;
@@ -173,7 +174,7 @@ export function PurchaseOrderApprovalModal({
                           Seviye {approval.level}
                         </p>
                         <p className="mt-1 text-[14px] font-semibold text-[var(--ink)]">
-                          {ROLE_LABELS[approval.requiredRole] ?? approval.requiredRole}
+                          {ROLE_LABELS[approval.requiredRole] ?? userLabel(approval.requiredRole)}
                         </p>
                       </div>
                       <ApprovalBadge status={approval.status} />
