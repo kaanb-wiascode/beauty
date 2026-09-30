@@ -307,11 +307,29 @@ export class HrService {
         profile: true,
       },
     });
-    const masters = await this.employeeMasterRows(scope.tenantId, scope.branchIds);
+    const [masters, assignments] = await Promise.all([
+      this.employeeMasterRows(scope.tenantId, scope.branchIds),
+      this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT DISTINCT ON (a.staff_id) a.staff_id AS "staffId",a.department_id AS "departmentId",d.name AS department,a.team_id AS "teamId",t.name AS team,a.position_id AS "positionId",p.name AS position,a.manager_staff_id AS "managerStaffId"
+         FROM hr_employee_assignments a
+         LEFT JOIN hr_departments d ON d.id=a.department_id
+         LEFT JOIN hr_teams t ON t.id=a.team_id
+         LEFT JOIN hr_positions p ON p.id=a.position_id
+         WHERE a.tenant_id=$1
+           AND ($2::text[] IS NULL OR a.branch_id=ANY($2::text[]))
+           AND a.effective_from<=CURRENT_DATE
+           AND (a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE)
+         ORDER BY a.staff_id,a.effective_from DESC,a.created_at DESC`,
+        scope.tenantId,
+        scope.branchIds,
+      ),
+    ]);
     const masterByStaffId = new Map(masters.map((item) => [item.staffId, item]));
+    const assignmentByStaffId = new Map(assignments.map((item) => [item.staffId, item]));
     return rows.map((staff) => {
       const profile = this.profile(staff.profile);
       const master = masterByStaffId.get(staff.id);
+      const assignment = assignmentByStaffId.get(staff.id);
       const base = {
         id: staff.id,
         firstName: staff.firstName,
@@ -321,8 +339,13 @@ export class HrService {
         status: staff.status,
         branchId: staff.branchId,
         personnelNumber: master?.employeeNumber ?? profile.personnelNumber ?? null,
-        department: profile.department ?? null,
-        position: profile.position ?? null,
+        departmentId: assignment?.departmentId ?? null,
+        department: assignment?.department ?? profile.department ?? null,
+        teamId: assignment?.teamId ?? null,
+        team: assignment?.team ?? null,
+        positionId: assignment?.positionId ?? null,
+        position: assignment?.position ?? profile.position ?? null,
+        managerStaffId: assignment?.managerStaffId ?? null,
         employmentType: master?.employmentType ?? profile.employmentType ?? null,
         hireDate: master?.hireDate ?? profile.hireDate ?? null,
         terminationDate: master?.terminationDate ?? profile.terminationDate ?? null,
@@ -363,7 +386,47 @@ export class HrService {
         throw new BadRequestException('A staff member with this email already exists.');
       }
     }
-    const profile = this.legacyProfile(body);
+    let department: any = null;
+    let position: any = null;
+    let team: any = null;
+    if (body.departmentId) {
+      department = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name FROM hr_departments WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.departmentId,
+        scope.tenantId,
+        scope.companyId,
+      ))[0];
+      if (!department) throw new BadRequestException('Department is not available in the active company.');
+    }
+    if (body.teamId) {
+      team = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT t.id,t.name,t.department_id FROM hr_teams t JOIN hr_departments d ON d.id=t.department_id WHERE t.id=$1 AND t.tenant_id=$2 AND d.company_id=$3 AND t.status='ACTIVE' LIMIT 1`,
+        body.teamId,
+        scope.tenantId,
+        scope.companyId,
+      ))[0];
+      if (!team) throw new BadRequestException('Team is not available in the active company.');
+      if (body.departmentId && team.department_id !== body.departmentId) {
+        throw new BadRequestException('Team does not belong to the selected department.');
+      }
+    }
+    if (body.positionId) {
+      position = (await this.prisma.$queryRawUnsafe<any[]>(
+        `SELECT id,name,department_id FROM hr_positions WHERE id=$1 AND tenant_id=$2 AND company_id=$3 AND status='ACTIVE' LIMIT 1`,
+        body.positionId,
+        scope.tenantId,
+        scope.companyId,
+      ))[0];
+      if (!position) throw new BadRequestException('Position is not available in the active company.');
+      if (body.departmentId && position.department_id && position.department_id !== body.departmentId) {
+        throw new BadRequestException('Position does not belong to the selected department.');
+      }
+    }
+    const profile = this.legacyProfile({
+      ...body,
+      department: department?.name ?? body.department,
+      position: position?.name ?? body.position,
+    });
     const master = this.masterValues(body, null, {});
     await this.assertMasterUnique(
       scope.tenantId,
@@ -390,6 +453,39 @@ export class HrService {
         created.id,
         master,
       );
+      if (body.departmentId || body.teamId || body.positionId || body.managerStaffId) {
+        if (body.managerStaffId === created.id) {
+          throw new BadRequestException('An employee cannot be their own manager.');
+        }
+        if (body.managerStaffId) {
+          const manager = await tx.staff.findFirst({
+            where: {
+              id: body.managerStaffId,
+              tenantId: scope.tenantId,
+              status: 'ACTIVE',
+              branch: { companyId: scope.companyId },
+            },
+            select: { id: true },
+          });
+          if (!manager) throw new BadRequestException('Manager is outside the active organization scope.');
+        }
+        const effectiveFrom = master.hireDate ?? new Date().toISOString().slice(0, 10);
+        await tx.$executeRawUnsafe(
+          `INSERT INTO hr_employee_assignments(id,tenant_id,company_id,branch_id,staff_id,department_id,team_id,position_id,manager_staff_id,effective_from,reason)
+           VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10::date,$11)`,
+          `asg_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`,
+          scope.tenantId,
+          scope.companyId,
+          targetBranchId,
+          created.id,
+          body.departmentId ?? position?.department_id ?? team?.department_id ?? null,
+          body.teamId ?? null,
+          body.positionId ?? null,
+          body.managerStaffId ?? null,
+          effectiveFrom,
+          'INITIAL_ASSIGNMENT',
+        );
+      }
       return {
         ...created,
         personnelNumber: master.employeeNumber,
