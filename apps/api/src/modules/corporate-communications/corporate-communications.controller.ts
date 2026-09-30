@@ -218,6 +218,11 @@ export class CorporateCommunicationsController {
     return this.service.disconnectProviderConnection(id);
   }
 
+  @Get('routing-options')
+  routingOptions() {
+    return this.service.routingOptions();
+  }
+
   @Get('routing-rules')
   routingRules() {
     return this.service.listRoutingRules();
