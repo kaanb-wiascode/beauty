@@ -562,6 +562,13 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   "At least one supported notification channel is required": "En az bir bildirim kanalı seçilmelidir.",
   "Active membership is required": "Bu işlem için aktif işletme üyeliği gereklidir.",
   "The latest job offer must be accepted before hiring.": "Adayı çalışan olarak başlatmadan önce son iş teklifinin kabul edilmiş olması gerekir.",
+  "Job posting or candidate not found.": "Seçilen pozisyon veya aday bulunamadı.",
+  "Application not found.": "Başvuru kaydı bulunamadı.",
+  "Offer not found.": "İş teklifi bulunamadı.",
+  "Interview not found.": "Görüşme kaydı bulunamadı.",
+  "Interview score must be between 0 and 100.": "Görüşme puanı 0 ile 100 arasında olmalıdır.",
+  "Offer response is invalid.": "İş teklifi yanıtı geçerli değil.",
+  "Branch is outside organization scope.": "Seçilen şube yetkili olduğunuz organizasyon kapsamının dışında.",
 };
 
 const USER_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
