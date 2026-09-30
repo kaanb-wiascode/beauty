@@ -17,6 +17,7 @@ const EMPTY:FormState={documentType:"",documentNumber:"",title:"",issuedAt:"",ex
 const date=(v?:string|null)=>v?new Date(v).toLocaleDateString("tr-TR"):"—";
 const daysLeft=(v?:string|null)=>v?Math.ceil((new Date(v).getTime()-Date.now())/86400000):null;
 const fileSize=(v?:string|null)=>{const n=Number(v??0);if(!n)return "";if(n<1024*1024)return `${Math.round(n/1024)} KB`;return `${(n/1024/1024).toFixed(1)} MB`};
+const MAX_FILE_BYTES=10*1024*1024;
 
 const DOCUMENT_TYPES=[
   {value:"IDENTITY",label:"Kimlik Belgesi"},
@@ -43,6 +44,7 @@ export default function EmployeeDocumentsPage(){
   const[pendingReject,setPendingReject]=useState<DocumentRow|null>(null);
   const[pendingArchive,setPendingArchive]=useState<DocumentRow|null>(null);
   const[rejectNote,setRejectNote]=useState("");
+  const[activeMenuId,setActiveMenuId]=useState<string|null>(null);
   const canSensitive=hasPermission("hr_sensitive","read");
   const canManage=hasPermission("hr","manage")&&canSensitive;
 
@@ -64,6 +66,21 @@ export default function EmployeeDocumentsPage(){
     verified:rows.filter(x=>x.status==="VERIFIED").length,
     expiring:rows.filter(x=>{const left=daysLeft(x.expiresAt);return left!==null&&left>=0&&left<=30}).length,
   }),[rows]);
+
+  function chooseFile(next:File|null){
+    if(!next){setFile(null);return}
+    if(next.size>MAX_FILE_BYTES){
+      setFile(null);
+      setError("Dosya boyutu 10 MB sınırını aşamaz.");
+      return;
+    }
+    setError("");
+    setFile(next);
+    setForm(current=>({
+      ...current,
+      title:current.title.trim()?current.title:next.name.replace(/\.[^.]+$/,""),
+    }));
+  }
 
   async function upload(){
     if(!canManage)return;
@@ -149,11 +166,17 @@ export default function EmployeeDocumentsPage(){
             <td className="p-4"><span className="rounded-full border border-[var(--line)] px-2.5 py-1 text-[10px] font-semibold">{userLabel(r.status)}</span>{r.verificationNote?<p className="mt-2 max-w-52 text-[10px] text-[var(--muted)]">{r.verificationNote}</p>:null}</td>
             <td className="p-4">{date(r.expiresAt)}<p className={`mt-1 text-[10px] ${left!==null&&left<=30?"text-[var(--danger)]":"text-[var(--muted)]"}`}>{left===null?"Süresiz":left<0?`${Math.abs(left)} gün önce doldu`:`${left} gün kaldı`}</p></td>
             <td className="p-4 text-[var(--muted)]">{r.restricted?"Kısıtlı":"Standart"}</td>
-            <td className="p-4"><div className="flex justify-end gap-2">
-              {r.fileName?<Button size="sm" variant="secondary" onClick={()=>void download(r)}>İndir</Button>:null}
-              {canManage&&r.status==="PENDING"?<><Button size="sm" variant="secondary" onClick={()=>void verify(r,"VERIFIED")}>Doğrula</Button><Button size="sm" variant="secondary" onClick={()=>{setPendingReject(r);setRejectNote("")}}>Reddet</Button></>:null}
-              {canManage&&r.status!=="ARCHIVED"?<Button size="sm" variant="ghost" onClick={()=>setPendingArchive(r)}>Arşivle</Button>:null}
-            </div></td>
+            <td className="p-4">
+              <div className="relative flex justify-end">
+                <Button size="sm" variant="secondary" onClick={()=>setActiveMenuId(current=>current===r.id?null:r.id)} aria-expanded={activeMenuId===r.id}>İşlemler ▾</Button>
+                {activeMenuId===r.id?<div className="absolute right-0 top-[calc(100%+6px)] z-40 min-w-[190px] overflow-hidden rounded-[12px] border border-[var(--line)] bg-white p-1.5 shadow-[0_14px_40px_rgba(31,69,94,.16)]">
+                  {r.fileName?<button type="button" onClick={()=>{setActiveMenuId(null);void download(r)}} className="flex min-h-9 w-full items-center rounded-[9px] px-3 text-left text-[11px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Belgeyi İndir</button>:null}
+                  {canManage&&r.status==="PENDING"?<button type="button" onClick={()=>{setActiveMenuId(null);void verify(r,"VERIFIED")}} className="flex min-h-9 w-full items-center rounded-[9px] px-3 text-left text-[11px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Doğrula</button>:null}
+                  {canManage&&r.status==="PENDING"?<button type="button" onClick={()=>{setActiveMenuId(null);setPendingReject(r);setRejectNote("")}} className="flex min-h-9 w-full items-center rounded-[9px] px-3 text-left text-[11px] font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)]">Reddet</button>:null}
+                  {canManage&&r.status!=="ARCHIVED"?<button type="button" onClick={()=>{setActiveMenuId(null);setPendingArchive(r)}} className="flex min-h-9 w-full items-center rounded-[9px] px-3 text-left text-[11px] font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]">Arşivle</button>:null}
+                </div>:null}
+              </div>
+            </td>
           </tr>})}</tbody>
         </table></div>:
         <div className="p-8"><EmptyState title="Henüz belge yok" description="Personel için ilk belgeyi bilgisayarınızdan yükleyerek başlayın." />{canManage?<div className="mt-4 flex justify-center"><Button onClick={()=>setUploadOpen(true)}>+ İlk Belgeyi Yükle</Button></div>:null}</div>}
@@ -164,7 +187,7 @@ export default function EmployeeDocumentsPage(){
     <Modal open={uploadOpen} onClose={()=>{if(!saving)setUploadOpen(false)}} title="Belge Yükle" description="Bilgisayarınızdan belge seçin. Dosya adı, türü ve boyutu otomatik kaydedilir.">
       <div className="space-y-5">
         <label className="block cursor-pointer rounded-[18px] border border-dashed border-[var(--line-strong)] bg-[var(--surface-2)]/45 p-6 text-center transition hover:bg-[var(--accent-soft)]/35">
-          <input className="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onChange={e=>setFile(e.target.files?.[0]??null)}/>
+          <input className="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx" onChange={e=>chooseFile(e.target.files?.[0]??null)}/>
           <span className="block text-sm font-semibold text-[var(--ink)]">{file?file.name:"Dosya seçmek için tıklayın"}</span>
           <span className="mt-1 block text-[11px] text-[var(--muted)]">{file?`${fileSize(String(file.size))} · ${file.type||"Dosya"}`:"PDF, JPG, PNG, Word veya Excel · En fazla 10 MB"}</span>
         </label>
