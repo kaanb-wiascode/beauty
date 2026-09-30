@@ -33,7 +33,7 @@ describe('InventoryGovernanceService', () => {
     };
     const prisma = { $transaction: jest.fn((fn: any) => fn(tx)) } as never;
     const service = new InventoryGovernanceService(prisma, tenant());
-    await expect(service.postCycleCount('count-a', 'user-a')).rejects.toThrow('Recount is required');
+    await expect(service.postCycleCount('count-a', 'user-a')).rejects.toThrow('Yeniden sayım yapmanız gerekiyor');
     expect(tx.$executeRawUnsafe).not.toHaveBeenCalled();
   });
 
