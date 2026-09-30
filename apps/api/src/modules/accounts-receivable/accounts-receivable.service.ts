@@ -220,4 +220,5 @@ export class AccountsReceivableService {
       days90Plus: this.round(Number(row.days90Plus ?? 0)),
       total: this.round(Number(row.total ?? 0)),
     };
-  }}
+  }
+}
