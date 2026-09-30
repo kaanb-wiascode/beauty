@@ -56,8 +56,8 @@ const STATUS_LABELS: Record<string, string> = {
 };
 
 const ORIGIN_LABELS: Record<string, string> = {
-  SUPPLIER_OFFER: "SupplierOffer",
-  SUPPLIER_QUOTE: "RFQ / SupplierQuote",
+  SUPPLIER_OFFER: "Tedarikçi Teklifi",
+  SUPPLIER_QUOTE: "Fiyat Teklifi",
 };
 
 export default function PurchaseOrderOriginsPage() {
@@ -112,8 +112,8 @@ export default function PurchaseOrderOriginsPage() {
         order.supplierOrganizationName ?? "",
         order.warehouseName,
         order.id,
-        STATUS_LABELS[order.status] ?? order.status,
-        order.originType ? ORIGIN_LABELS[order.originType] ?? order.originType : "Manuel / legacy",
+        STATUS_LABELS[order.status] ?? userLabel(order.status),
+        order.originType ? ORIGIN_LABELS[order.originType] ?? order.originType : "Manuel / Eski Kayıt",
       ].some((value) => value.toLocaleLowerCase("tr-TR").includes(query));
     });
   }, [orders, search, sourceFilter]);
@@ -138,25 +138,25 @@ export default function PurchaseOrderOriginsPage() {
       <header>
         <p className="text-[11px] font-semibold uppercase tracking-[.14em] text-[var(--muted-soft)]">SATIN ALMA DENETİM İZİ</p>
         <h1 className="mt-2 text-[30px] font-semibold tracking-[-.035em] text-[var(--ink)]">Ticari Kaynak İzleri</h1>
-        <p className="mt-1 max-w-3xl text-[14px] text-[var(--muted)]">SupplierOffer ve RFQ kazanan tekliflerinden oluşan satın alma siparişlerinin kaynak sürümünü, platform tedarikçisini ve immutable ticari snapshot&apos;ını inceleyin.</p>
+        <p className="mt-1 max-w-3xl text-[14px] text-[var(--muted)]">Tedarikçi ve fiyat tekliflerinden oluşturulan satın alma siparişlerinin kaynak sürümünü, tedarikçi bağlantısını ve sipariş oluşturma anındaki ticari koşulları inceleyin.</p>
       </header>
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Metric label="Toplam PO" value={String(orders.length)} />
-        <Metric label="Kaynak izli PO" value={String(sourcedCount)} />
-        <Metric label="SupplierOffer" value={String(offerCount)} />
-        <Metric label="RFQ / Quote" value={String(quoteCount)} />
+        <Metric label="Toplam Sipariş" value={String(orders.length)} />
+        <Metric label="Kaynağı İzlenen Sipariş" value={String(sourcedCount)} />
+        <Metric label="Tedarikçi Teklifi" value={String(offerCount)} />
+        <Metric label="Fiyat Teklifi" value={String(quoteCount)} />
       </section>
 
       <div className="flex flex-col gap-3 rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-3 sm:flex-row">
-        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="PO, tedarikçi, depo veya kaynak ara..." className="min-h-10 flex-1 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)] outline-none focus:border-[var(--accent)]" />
+        <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Sipariş, tedarikçi, depo veya kaynak ara..." className="min-h-10 flex-1 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)] outline-none focus:border-[var(--accent)]" />
         <Select value={sourceFilter} onChange={(event) => setSourceFilter(event.target.value)} className="min-h-10 rounded-[12px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[12px] text-[var(--ink)]">
           <option value="">Tüm kaynaklar</option>
-          <option value="SUPPLIER_OFFER">SupplierOffer</option>
-          <option value="SUPPLIER_QUOTE">RFQ / SupplierQuote</option>
-          <option value="LEGACY">Manuel / legacy</option>
+          <option value="SUPPLIER_OFFER">Tedarikçi Teklifi</option>
+          <option value="SUPPLIER_QUOTE">Fiyat Teklifi</option>
+          <option value="LEGACY">Manuel / Eski Kayıt</option>
         </Select>
       </div>
 
@@ -227,7 +227,7 @@ function Metric({ label, value }: { label: string; value: string }) {
 }
 
 function SourceBadge({ source, version }: { source: string | null; version: number | null }) {
-  const label = source ? ORIGIN_LABELS[source] ?? source : "Manuel / legacy";
+  const label = source ? ORIGIN_LABELS[source] ?? source : "Manuel / Eski Kayıt";
   return <span className={`inline-flex w-fit rounded-full px-2.5 py-1 text-[9px] font-semibold ${source ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--surface-2)] text-[var(--muted)]"}`}>{label}{version ? ` · Sürüm ${version}` : ""}</span>;
 }
 
