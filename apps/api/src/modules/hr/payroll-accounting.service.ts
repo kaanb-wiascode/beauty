@@ -270,6 +270,9 @@ export class PayrollAccountingService {
                WHERE calculation_snapshot ? 'grossAmount'
                  AND calculation_snapshot ? 'netAmount'
                  AND calculation_snapshot ? 'employerCost'
+                 AND calculation_snapshot->'salaryContract'->>'salaryBasis'='MONTHLY_NET'
+                 AND calculation_snapshot->'legalCalculation'->>'source'='NET_CONTRACT_LEGAL_ENGINE'
+                 AND calculation_snapshot->'netCompensationAdjustment'->>'source'='NET_CONTRACT_POLICY'
              )::int AS "financialSnapshotCount"
            FROM payroll_items
            WHERE period_id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND branch_id=$4::text`,
