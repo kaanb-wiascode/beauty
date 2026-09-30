@@ -33,6 +33,20 @@ export class AttendanceHardeningService {
   async reconcile(from: string, to: string) {
     this.validateRange(from,to); const s=await this.scope();
     return this.prisma.$transaction(async tx=>{
+      const closed=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,branch_id AS "branchId",year,month
+         FROM hr_attendance_period_closures
+         WHERE tenant_id=$1::text AND company_id=$2::text AND status='CLOSED'
+           AND period_start <= $5::date AND period_end >= $4::date
+           AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))
+         LIMIT 1`,
+        s.tenantId,s.companyId,s.branchIds,from,to,
+      );
+      if(closed.length){
+        throw new BadRequestException(
+          `Puantaj uzlaştırması yapılamadı: ${closed[0].year}/${String(closed[0].month).padStart(2,'0')} dönemi kapatılmış.`,
+        );
+      }
       const scheduled=await tx.$queryRawUnsafe<any[]>(`SELECT sh.id AS "shiftId",sh.branch_id AS "branchId",sh.shift_date::text AS "workDate",sh.starts_at AS "startsAt",sh.ends_at AS "endsAt",sa.staff_id AS "staffId",a.id AS "attendanceId",a.check_in AS "checkIn",a.check_out AS "checkOut",a.exception_status AS "exceptionStatus" FROM hr_scheduled_shifts sh JOIN hr_shift_assignments sa ON sa.scheduled_shift_id=sh.id AND sa.status IN('ASSIGNED','CONFIRMED','COMPLETED') JOIN branches b ON b.id=sh.branch_id LEFT JOIN attendance_records a ON a.tenant_id=sh.tenant_id AND a.branch_id=sh.branch_id AND a.staff_id=sa.staff_id AND a.work_date=sh.shift_date WHERE sh.tenant_id=$1 AND sh.company_id=$2 AND b."companyId"=$2 AND sh.status IN('PUBLISHED','COMPLETED') AND sh.shift_date BETWEEN $4::date AND $5::date AND ($3::text[] IS NULL OR sh.branch_id=ANY($3::text[])) ORDER BY sh.shift_date,sa.staff_id,sh.starts_at`,s.tenantId,s.companyId,s.branchIds,from,to);
       const grouped=new Map<string,any[]>();for(const r of scheduled){const key=`${r.staffId}:${r.workDate}`;const list=grouped.get(key)??[];list.push(r);grouped.set(key,list)}
       let inserted=0,updated=0,ambiguous=0;
@@ -69,6 +83,20 @@ export class AttendanceHardeningService {
 
       const current = rows[0];
       if (!current) throw new NotFoundException('Puantaj kaydı bulunamadı.');
+
+      const closed=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,year,month
+         FROM hr_attendance_period_closures
+         WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+           AND status='CLOSED' AND $4::date BETWEEN period_start AND period_end
+         LIMIT 1`,
+        s.tenantId,s.companyId,current.branch_id,current.work_date,
+      );
+      if(closed.length){
+        throw new BadRequestException(
+          `Puantaj düzeltme talebi oluşturulamaz: ${closed[0].year}/${String(closed[0].month).padStart(2,'0')} dönemi kapatılmış.`,
+        );
+      }
 
       const requested = {
         checkIn: body.checkIn ?? current.check_in,
