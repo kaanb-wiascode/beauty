@@ -138,6 +138,23 @@ export class RecruitmentService {
     return { id };
   }
 
+  async respondOffer(id: string, body: any) {
+    const { tenantId, companyId } = this.scope();
+    const status = String(body.status ?? '').toUpperCase();
+    if (!['ACCEPTED','REJECTED'].includes(status)) throw new BadRequestException('Offer response is invalid.');
+    const rows = await this.prisma.$queryRawUnsafe<any[]>(
+      `UPDATE hr_job_offers SET status=$1,responded_at=CURRENT_TIMESTAMP,notes=COALESCE($2,notes),updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5 RETURNING application_id AS "applicationId"`,
+      status, body.note ?? null, id, tenantId, companyId,
+    );
+    const offer = rows[0];
+    if (!offer) throw new NotFoundException('Offer not found.');
+    await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_job_applications SET stage=$1,rejected_at=CASE WHEN $1='REJECTED' THEN CURRENT_TIMESTAMP ELSE rejected_at END,rejection_reason=CASE WHEN $1='REJECTED' THEN $2 ELSE rejection_reason END,updated_at=CURRENT_TIMESTAMP WHERE id=$3 AND tenant_id=$4 AND company_id=$5`,
+      status === 'ACCEPTED' ? 'OFFER' : 'REJECTED', body.note ?? null, offer.applicationId, tenantId, companyId,
+    );
+    return { id, status, applicationId: offer.applicationId };
+  }
+
   async hire(id: string, body: any) {
     const { tenantId, companyId } = this.scope();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
