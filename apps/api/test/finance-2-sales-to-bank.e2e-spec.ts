@@ -263,8 +263,27 @@ describe('Finance 2.0 sales to bank acceptance (e2e)', () => {
         bankAccountId,
         transactionIds: [posTransactionId],
         settledAt: new Date().toISOString(),
-      })
-      .expect(201);
+      });
+
+    if (settlement.status !== 201) {
+      const auditRows = await prisma.$queryRawUnsafe<
+        Array<{ errorMessage: string | null }>
+      >(
+        `SELECT error_message AS "errorMessage"
+         FROM finance_integration_audit_logs
+         WHERE tenant_id=$1::text AND company_id=$2::text
+           AND action='settlement.record' AND outcome='FAILED'
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        tenantId,
+        companyId,
+      );
+      throw new Error(
+        `POS mutabakatı oluşturulamadı (${settlement.status}): ${
+          auditRows[0]?.errorMessage ?? JSON.stringify(settlement.body)
+        }`,
+      );
+    }
 
     expect(Number(settlement.body.netAmount)).toBe(980);
 
