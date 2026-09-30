@@ -4,9 +4,9 @@
   "private": true,
   "scripts": {
     "dev": "next dev",
-    "build": "node scripts/user-language-audit.mjs && next build",
+    "build": "node scripts/user-language-audit.mjs && next build && mkdir -p .next/standalone/apps/web/.next && cp -R .next/static .next/standalone/apps/web/.next/static && cp -R public .next/standalone/apps/web/public",
     "typecheck": "tsc --noEmit",
-    "start": "mkdir -p .next/standalone/apps/web/.next && cp -R .next/static .next/standalone/apps/web/.next/static && cp -R public .next/standalone/apps/web/public && HOSTNAME=0.0.0.0 PORT=${PORT:-10000} node .next/standalone/apps/web/server.js",
+    "start": "HOSTNAME=0.0.0.0 PORT=${PORT:-10000} node .next/standalone/apps/web/server.js",
     "lint": "eslint",
     "language:audit": "node scripts/user-language-audit.mjs",
     "language:audit:strict": "node scripts/user-language-audit.mjs --strict"
