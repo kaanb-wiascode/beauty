@@ -115,6 +115,20 @@ export class RecruitmentService {
     return { id };
   }
 
+  async updateInterview(id: string, body: any) {
+    const { tenantId, companyId } = this.scope();
+    const status = body.status ? String(body.status).toUpperCase() : null;
+    if (status && !['SCHEDULED','COMPLETED','CANCELLED','NO_SHOW'].includes(status)) throw new BadRequestException('Invalid interview status.');
+    const score = body.score === '' || body.score == null ? null : Number(body.score);
+    if (score != null && (!Number.isFinite(score) || score < 0 || score > 100)) throw new BadRequestException('Interview score must be between 0 and 100.');
+    const changed = await this.prisma.$executeRawUnsafe(
+      `UPDATE hr_interviews SET score=COALESCE($1,score),notes=COALESCE($2,notes),status=COALESCE($3,status),updated_at=CURRENT_TIMESTAMP WHERE id=$4 AND tenant_id=$5 AND company_id=$6`,
+      score, body.notes ?? null, status, id, tenantId, companyId,
+    );
+    if (!changed) throw new NotFoundException('Interview not found.');
+    return { id, status: status ?? undefined, score: score ?? undefined };
+  }
+
   async offers() {
     const { tenantId, companyId } = this.scope();
     return this.prisma.$queryRawUnsafe<any[]>(
