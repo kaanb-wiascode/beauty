@@ -51,6 +51,7 @@ export class ApprovalWorkflowController {
   @Post(':id/publish') @RequirePermission('roles','update') publish(@Param('id') id:string){return this.service.publish(id)}
   @Get('runtime/requests') @RequirePermission('roles','read') requests(@Query('status') status?:string){return this.runtime.list(status?.trim()||undefined)}
   @Get('runtime/inbox') inbox(@Query('status') status?:string){return this.runtime.inbox(status?.trim()||'PENDING')}
+  @Get('runtime/my-requests') myRequests(@Query('status') status?:string){return this.runtime.myRequests(status?.trim()||'RETURNED')}
   @Post('runtime/requests') @RequirePermission('roles','update') createRequest(@Body() body:unknown){return this.runtime.create(requestSchema.parse(body))}
   @Post('runtime/requests/:id/act') act(@Param('id') id:string,@Body() body:unknown){const x=actSchema.parse(body);return this.runtime.act(id,x.decision,x.comment,x.delegateToUserId)}
   @Post('runtime/requests/:id/resubmit') resubmit(@Param('id') id:string,@Body() body:unknown){const x=resubmitSchema.parse(body);return this.runtime.resubmit(id,x.comment)}
