@@ -114,7 +114,15 @@ export class ApprovalRuntimeService {
       }else{
         await tx.$executeRaw`UPDATE approval_request_steps SET status='APPROVED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note||null},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
         const next=await tx.$queryRaw<Array<{id:string;stepOrder:number}>>`SELECT id,"stepOrder" FROM approval_request_steps WHERE "requestId"=${request.id} AND "stepOrder">${step.stepOrder} ORDER BY "stepOrder" LIMIT 1 FOR UPDATE`;
-        if(next[0]){await tx.$executeRaw`UPDATE approval_request_steps SET status='PENDING',"startedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${next[0].id}`;await tx.$executeRaw`UPDATE approval_requests SET "currentStepOrder"=${next[0].stepOrder},"stepStartedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;}else{await tx.$executeRaw`UPDATE approval_requests SET status='APPROVED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;}
+        if(next[0]){
+          await tx.$executeRaw`UPDATE approval_request_steps SET status='PENDING',"startedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${next[0].id}`;
+          await tx.$executeRaw`UPDATE approval_requests SET "currentStepOrder"=${next[0].stepOrder},"stepStartedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+        }else{
+          await tx.$executeRaw`UPDATE approval_requests SET status='APPROVED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+          if(request.entityType==='hr_attendance_correction'){
+            await this.applyApprovedAttendanceCorrection(request.entityId,request.tenantId,request.companyId,tx);
+          }
+        }
         await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'APPROVE',actor,null,note||null);
       }
       await this.audit.record({actorUserId:actor,resource:'approval_requests',action:decision.toLowerCase(),targetTenantId:context.tenantId,targetEntityType:request.entityType,targetEntityId:request.entityId,beforeState:{status:request.status,stepOrder:request.currentStepOrder},afterState:{decision,actedByUserId:actor,comment:note||null},metadata:{companyId:context.companyId,requestId:request.id,workflowKey:request.workflowKey}},tx);
@@ -136,6 +144,36 @@ export class ApprovalRuntimeService {
       await this.audit.record({actorUserId:actor,resource:'approval_requests',action:'resubmit',targetTenantId:context.tenantId,targetEntityType:request.entityType,targetEntityId:request.entityId,beforeState:{status:'RETURNED'},afterState:{status:'PENDING',comment:note},metadata:{companyId:context.companyId,requestId:request.id,workflowKey:request.workflowKey}},tx);
       return{id:request.id,status:'PENDING',currentStepOrder:request.currentStepOrder};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+
+  private async applyApprovedAttendanceCorrection(correctionId:string,tenantId:string,companyId:string,tx:Prisma.TransactionClient){
+    const rows=await tx.$queryRaw<Array<{attendanceRecordId:string;newValue:any}>>`
+      SELECT attendance_record_id AS "attendanceRecordId",new_value AS "newValue"
+      FROM hr_attendance_corrections
+      WHERE id=${correctionId}
+        AND tenant_id=${tenantId}
+        AND company_id=${companyId}
+      FOR UPDATE
+    `;
+    const correction=rows[0];
+    if(!correction)throw new NotFoundException('Onaylanan puantaj düzeltme talebi bulunamadı.');
+
+    const requested=correction.newValue??{};
+    await tx.$executeRaw`
+      UPDATE attendance_records
+      SET check_in=${requested.checkIn??null},
+          check_out=${requested.checkOut??null},
+          status=${requested.status??'PRESENT'},
+          note=${requested.note??null},
+          late_minutes=${Number(requested.lateMinutes??0)},
+          early_departure_minutes=${Number(requested.earlyDepartureMinutes??0)},
+          missing_punch=${Boolean(requested.missingPunch)},
+          absence=${Boolean(requested.absence)},
+          exception_status='CORRECTED',
+          updated_at=CURRENT_TIMESTAMP
+      WHERE id=${correction.attendanceRecordId}
+        AND tenant_id=${tenantId}
+    `;
   }
 
   private async recordAction(tx:Prisma.TransactionClient,tenantId:string,companyId:string,requestId:string,stepOrder:number,action:string,actorUserId:string|null,delegateToUserId:string|null,comment:string|null){
