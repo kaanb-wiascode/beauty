@@ -294,9 +294,8 @@ export default function BranchChecklistsPage() {
         <div className="mt-4"><Field label="Kontrol listesi adı"><TextInput value={draftName} onChange={(event) => setDraftName(event.target.value)} /></Field></div>
         <div className="mt-4 space-y-2">
           {draftItems.map((item, index) => (
-            <div key={`${item.code}:${index}`} className="grid gap-2 rounded-[14px] bg-[var(--surface-2)] p-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center">
-              <TextInput value={item.code} onChange={(event) => setDraftItems((items) => items.map((current, i) => i === index ? { ...current, code: event.target.value } : current))} />
-              <TextInput value={item.title} onChange={(event) => setDraftItems((items) => items.map((current, i) => i === index ? { ...current, title: event.target.value } : current))} />
+            <div key={`${item.code}:${index}`} className="grid gap-2 rounded-[14px] bg-[var(--surface-2)] p-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-center">
+              <TextInput aria-label="Kontrol maddesi" placeholder="Kontrol maddesi" value={item.title} onChange={(event) => setDraftItems((items) => items.map((current, i) => i === index ? { ...current, title: event.target.value } : current))} />
               <label className="flex items-center gap-2 text-xs font-medium text-[var(--muted)]"><input type="checkbox" checked={item.isRequired} onChange={(event) => setDraftItems((items) => items.map((current, i) => i === index ? { ...current, isRequired: event.target.checked } : current))} /> Zorunlu</label>
             </div>
           ))}
