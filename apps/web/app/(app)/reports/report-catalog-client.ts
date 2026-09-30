@@ -1,4 +1,5 @@
 import { api } from "@/lib/api";
+import { userText } from "@/lib/user-language";
 
 export type ReportCatalogKey =
   | "staff.performance"
@@ -43,6 +44,11 @@ export type ReportCatalogItem = {
   pagination: boolean;
 };
 
-export function getReportCatalog() {
-  return api<ReportCatalogItem[]>("/reports/catalog");
+export async function getReportCatalog() {
+  const items=await api<ReportCatalogItem[]>("/reports/catalog");
+  return items.map((item)=>({
+    ...item,
+    title:userText(item.title,"Rapor"),
+    description:userText(item.description,"Rapor ayrıntıları"),
+  }));
 }
