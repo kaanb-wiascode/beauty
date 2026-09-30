@@ -6,7 +6,7 @@ import { Alert, Button, EmptyState, Field, Modal, Spinner, TextArea, TextInput }
 import { ValooSelect } from "@/components/valoo-controls";
 import { useParams } from "next/navigation";
 import { useCallback,useEffect,useMemo,useState } from "react";
-import { api,ApiError } from "@/lib/api";
+import { api,apiFormData,ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
@@ -23,7 +23,7 @@ const days=(v?:string|null)=>v?Math.ceil((new Date(`${v}T00:00:00`).getTime()-ne
 
 export default function EmployeeCertificationsPage(){
  const{id}=useParams<{id:string}>();
- const[allowed,setAllowed]=useState(false),[manage,setManage]=useState(false),[rows,setRows]=useState<Row[]>([]),[types,setTypes]=useState<Type[]>([]),[docs,setDocs]=useState<Doc[]>([]),[form,setForm]=useState<Form>(EMPTY),[typeForm,setTypeForm]=useState<TypeForm>(EMPTY_TYPE),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[createOpen,setCreateOpen]=useState(false),[typeOpen,setTypeOpen]=useState(false),[actionRow,setActionRow]=useState<Row|null>(null),[actionKind,setActionKind]=useState<"VERIFY"|"REJECT"|"REVOKE"|null>(null),[actionNote,setActionNote]=useState("");
+ const[allowed,setAllowed]=useState(false),[manage,setManage]=useState(false),[rows,setRows]=useState<Row[]>([]),[types,setTypes]=useState<Type[]>([]),[docs,setDocs]=useState<Doc[]>([]),[form,setForm]=useState<Form>(EMPTY),[typeForm,setTypeForm]=useState<TypeForm>(EMPTY_TYPE),[loading,setLoading]=useState(true),[busy,setBusy]=useState(false),[error,setError]=useState(""),[notice,setNotice]=useState(""),[createOpen,setCreateOpen]=useState(false),[typeOpen,setTypeOpen]=useState(false),[actionRow,setActionRow]=useState<Row|null>(null),[actionKind,setActionKind]=useState<"VERIFY"|"REJECT"|"REVOKE"|null>(null),[actionNote,setActionNote]=useState(""),[evidenceOpen,setEvidenceOpen]=useState(false),[evidenceFile,setEvidenceFile]=useState<File|null>(null),[evidenceTitle,setEvidenceTitle]=useState("");
 
  useEffect(()=>{const sensitive=hasPermission("hr_sensitive","read");setAllowed(sensitive);setManage(sensitive&&hasPermission("hr","manage"))},[]);
  const load=useCallback(async()=>{if(!allowed)return;setLoading(true);setError("");try{const[data,typeData,docData]=await Promise.all([api<Row[]>(`/hr/employees/${id}/certifications`),api<Type[]>("/hr/certification-types"),api<Doc[]>(`/hr/employees/${id}/documents/sensitive`)]);setRows(data);setTypes(typeData);setDocs(docData)}catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika kayıtları yüklenemedi."):"Sertifika kayıtları yüklenemedi.")}finally{setLoading(false)}},[allowed,id]);
@@ -72,6 +72,24 @@ export default function EmployeeCertificationsPage(){
   }catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Sertifika durumu güncellenemedi."):"Sertifika durumu güncellenemedi.")}
   finally{setBusy(false)}
  }
+ async function uploadEvidence(){
+  if(!evidenceFile){setError("Yüklenecek dosyayı seçin.");return}
+  const title=evidenceTitle.trim()||evidenceFile.name;
+  setBusy(true);setError("");setNotice("");
+  try{
+   const data=new FormData();
+   data.append("file",evidenceFile);
+   data.append("documentType","CERTIFICATE");
+   data.append("title",title);
+   data.append("restricted","true");
+   const created=await apiFormData<Doc>(`/hr/employees/${id}/documents/upload`,data);
+   await load();
+   if(created?.id)setForm(x=>({...x,evidenceDocumentId:created.id}));
+   setEvidenceOpen(false);setEvidenceFile(null);setEvidenceTitle("");setCreateOpen(true);setNotice("Kanıt belgesi yüklendi ve sertifika kaydına seçildi.");
+  }catch(e){setError(e instanceof ApiError?userErrorMessage(e.message,"Kanıt belgesi yüklenemedi."):"Kanıt belgesi yüklenemedi.")}
+  finally{setBusy(false)}
+ }
+
 
  const verifiedDocs=useMemo(()=>docs.filter(d=>d.status!=="ARCHIVED"&&d.status!=="REJECTED"),[docs]);
 
@@ -108,7 +126,7 @@ export default function EmployeeCertificationsPage(){
      <Field label="Son Geçerlilik"><DatePicker value={form.expiresAt} min={form.issuedAt||undefined} onChange={expiresAt=>setForm(x=>({...x,expiresAt}))} ariaLabel="Son geçerlilik tarihi"/></Field>
     </div>
     <Field label="Kanıt Belgesi">
-     <ValooSelect value={form.evidenceDocumentId} onChange={evidenceDocumentId=>setForm(x=>({...x,evidenceDocumentId}))} options={verifiedDocs.map(d=>({value:d.id,label:`${d.title}${d.fileName?` · ${d.fileName}`:""}`}))} placeholder="İsteğe bağlı belge seçin" searchPlaceholder="Belge ara…" emptyLabel="Bu personel için uygun belge bulunmuyor."/>
+     <ValooSelect value={form.evidenceDocumentId} onChange={evidenceDocumentId=>setForm(x=>({...x,evidenceDocumentId}))} options={verifiedDocs.map(d=>({value:d.id,label:`${d.title}${d.fileName?` · ${d.fileName}`:""}`}))} placeholder="İsteğe bağlı belge seçin" searchPlaceholder="Belge ara…" emptyLabel="Bu personel için uygun belge bulunmuyor." createAction={{label:"Yeni belge yükle",onClick:()=>{setCreateOpen(false);setEvidenceOpen(true)}}}/>
     </Field>
     <Field label="Not"><TextArea rows={3} value={form.notes} onChange={e=>setForm(x=>({...x,notes:e.target.value}))}/></Field>
     <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4"><Button variant="secondary" onClick={()=>setCreateOpen(false)} disabled={busy}>Vazgeç</Button><Button onClick={()=>void create()} disabled={busy||!form.certificationTypeId}>{busy?"Kaydediliyor…":"Sertifikayı Kaydet"}</Button></div>
@@ -132,6 +150,20 @@ export default function EmployeeCertificationsPage(){
     <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
      <Button variant="secondary" disabled={busy} onClick={()=>{setActionRow(null);setActionKind(null);setActionNote("")}}>Vazgeç</Button>
      <Button variant={actionKind==="VERIFY"?"primary":"danger"} disabled={busy||(actionKind!=="VERIFY"&&!actionNote.trim())} onClick={()=>void submitAction()}>{busy?"İşleniyor…":actionKind==="VERIFY"?"Doğrula":actionKind==="REJECT"?"Reddet":"Yetkiyi Geri Al"}</Button>
+    </div>
+   </div>
+  </Modal>
+  <Modal open={evidenceOpen} onClose={()=>{if(!busy){setEvidenceOpen(false);setCreateOpen(true)}}} title="Kanıt Belgesi Yükle" description="Bilgisayarınızdan sertifika veya kanıt dosyasını seçin; yüklenen belge otomatik seçilir.">
+   <div className="space-y-4">
+    <label className="block cursor-pointer rounded-[18px] border border-dashed border-[var(--line-strong)] bg-[var(--surface-2)]/45 p-6 text-center transition hover:bg-[var(--accent-soft)]/35">
+     <input className="sr-only" type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={e=>{const next=e.target.files?.[0]??null;setEvidenceFile(next);if(next&&!evidenceTitle)setEvidenceTitle(next.name.replace(/\.[^.]+$/,""))}}/>
+     <span className="block text-sm font-semibold text-[var(--ink)]">{evidenceFile?evidenceFile.name:"Dosya seçmek için tıklayın"}</span>
+     <span className="mt-1 block text-[11px] text-[var(--muted)]">PDF, JPG, PNG veya Word belgesi</span>
+    </label>
+    <Field label="Belge Başlığı" required><TextInput value={evidenceTitle} onChange={e=>setEvidenceTitle(e.target.value)} placeholder="Örn. Ustalık Belgesi"/></Field>
+    <div className="flex justify-end gap-2 border-t border-[var(--line)] pt-4">
+     <Button variant="secondary" disabled={busy} onClick={()=>{setEvidenceOpen(false);setCreateOpen(true)}}>Vazgeç</Button>
+     <Button disabled={busy||!evidenceFile} onClick={()=>void uploadEvidence()}>{busy?"Yükleniyor…":"Belgeyi Yükle"}</Button>
     </div>
    </div>
   </Modal>
