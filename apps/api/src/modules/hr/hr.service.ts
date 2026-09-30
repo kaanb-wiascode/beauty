@@ -1,4 +1,6 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
+import * as argon2 from 'argon2';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
@@ -372,20 +374,86 @@ export class HrService {
     return this.employees(includeSensitive);
   }
 
+  async employeeProvisioningRoles() {
+    const scope = await this.scope();
+    return this.prisma.role.findMany({
+      where: {
+        tenantId: scope.tenantId,
+        companyId: scope.companyId,
+        slug: { not: 'owner' },
+      },
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+        scope: true,
+        description: true,
+      },
+      orderBy: [{ scope: 'asc' }, { name: 'asc' }],
+    });
+  }
+
   async createEmployee(body: any) {
     const scope = await this.scope();
     const targetBranchId = await this.writableBranch(scope, body.branchId);
-    if (!body.firstName || !body.lastName) {
-      throw new BadRequestException('firstName, lastName and branchId are required.');
+
+    const firstName = String(body.firstName ?? '').trim();
+    const lastName = String(body.lastName ?? '').trim();
+    const email = String(body.email ?? '').trim().toLowerCase();
+    const roleId = String(body.roleId ?? '').trim();
+
+    if (!firstName || !lastName) {
+      throw new BadRequestException('Ad ve soyad zorunludur.');
     }
-    if (body.email) {
-      const existing = await this.prisma.staff.findFirst({
-        where: { tenantId: scope.tenantId, email: body.email },
-      });
-      if (existing) {
-        throw new BadRequestException('A staff member with this email already exists.');
-      }
+    if (!email) {
+      throw new BadRequestException('Personel kullanıcı hesabı için e-posta adresi zorunludur.');
     }
+    if (!roleId) {
+      throw new BadRequestException('Personel için kullanıcı tipi / rol seçimi zorunludur.');
+    }
+
+    const [existingStaff, existingUser, role, actorMembership] = await Promise.all([
+      this.prisma.staff.findFirst({
+        where: { tenantId: scope.tenantId, email },
+        select: { id: true },
+      }),
+      this.prisma.user.findUnique({
+        where: { email },
+        select: { id: true },
+      }),
+      this.prisma.role.findFirst({
+        where: {
+          id: roleId,
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          slug: { not: 'owner' },
+        },
+        select: { id: true, name: true, slug: true, scope: true },
+      }),
+      this.prisma.membership.findFirst({
+        where: {
+          id: this.tenantContext.getMembershipId(),
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          status: 'ACTIVE',
+        },
+        select: { userId: true },
+      }),
+    ]);
+
+    if (existingStaff) {
+      throw new BadRequestException('Bu e-posta adresiyle kayıtlı bir personel zaten bulunuyor.');
+    }
+    if (existingUser) {
+      throw new BadRequestException('Bu e-posta adresi başka bir kullanıcı hesabında kayıtlı.');
+    }
+    if (!role) {
+      throw new BadRequestException('Seçilen kullanıcı tipi aktif şirkette bulunamadı.');
+    }
+    if (!actorMembership) {
+      throw new BadRequestException('Personel kaydı için aktif yönetici oturumu bulunamadı.');
+    }
+
     let department: any = null;
     let position: any = null;
     let team: any = null;
@@ -396,7 +464,7 @@ export class HrService {
         scope.tenantId,
         scope.companyId,
       ))[0];
-      if (!department) throw new BadRequestException('Department is not available in the active company.');
+      if (!department) throw new BadRequestException('Seçilen departman aktif şirkette bulunamadı.');
     }
     if (body.teamId) {
       team = (await this.prisma.$queryRawUnsafe<any[]>(
@@ -405,9 +473,9 @@ export class HrService {
         scope.tenantId,
         scope.companyId,
       ))[0];
-      if (!team) throw new BadRequestException('Team is not available in the active company.');
+      if (!team) throw new BadRequestException('Seçilen ekip aktif şirkette bulunamadı.');
       if (body.departmentId && team.department_id !== body.departmentId) {
-        throw new BadRequestException('Team does not belong to the selected department.');
+        throw new BadRequestException('Seçilen ekip seçili departmana bağlı değil.');
       }
     }
     if (body.positionId) {
@@ -417,11 +485,12 @@ export class HrService {
         scope.tenantId,
         scope.companyId,
       ))[0];
-      if (!position) throw new BadRequestException('Position is not available in the active company.');
+      if (!position) throw new BadRequestException('Seçilen pozisyon aktif şirkette bulunamadı.');
       if (body.departmentId && position.department_id && position.department_id !== body.departmentId) {
-        throw new BadRequestException('Position does not belong to the selected department.');
+        throw new BadRequestException('Seçilen pozisyon seçili departmana bağlı değil.');
       }
     }
+
     const profile = this.legacyProfile({
       ...body,
       department: department?.name ?? body.department,
@@ -433,19 +502,67 @@ export class HrService {
       master.employeeNumber,
       master.identityNumber,
     );
+
+    const rawActivationToken = randomBytes(32).toString('base64url');
+    const activationTokenHash = createHash('sha256').update(rawActivationToken).digest('hex');
+    const activationExpiresAt = new Date(Date.now() + 72 * 60 * 60 * 1000);
+    const placeholderPasswordHash = await argon2.hash(randomBytes(48).toString('base64url'));
+
     return this.prisma.$transaction(async (tx) => {
+      const user = await tx.user.create({
+        data: {
+          email,
+          passwordHash: placeholderPasswordHash,
+          firstName,
+          lastName,
+        },
+        select: { id: true, email: true },
+      });
+
+      const membership = await tx.membership.create({
+        data: {
+          userId: user.id,
+          tenantId: scope.tenantId,
+          companyId: scope.companyId,
+          roleId: role.id,
+          status: 'SUSPENDED',
+        },
+        select: { id: true, status: true },
+      });
+
+      if (role.scope !== 'CENTRAL') {
+        await tx.membershipBranchAccess.create({
+          data: {
+            membershipId: membership.id,
+            branchId: targetBranchId,
+          },
+        });
+      }
+
       const created = await tx.staff.create({
         data: {
           tenantId: scope.tenantId,
           branchId: targetBranchId,
-          firstName: body.firstName,
-          lastName: body.lastName,
+          userId: user.id,
+          firstName,
+          lastName,
           phone: body.phone ?? null,
-          email: body.email ?? null,
+          email,
           status: body.status ?? 'ACTIVE',
           profile: asJsonInput(profile),
         },
       });
+
+      await tx.$executeRawUnsafe(
+        `INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,active,linked_by)
+         VALUES($1,$2,$3,$4,TRUE,$5)`,
+        scope.tenantId,
+        scope.companyId,
+        created.id,
+        user.id,
+        actorMembership.userId,
+      );
+
       await this.upsertEmployeeMaster(
         tx,
         scope.tenantId,
@@ -453,9 +570,10 @@ export class HrService {
         created.id,
         master,
       );
+
       if (body.departmentId || body.teamId || body.positionId || body.managerStaffId) {
         if (body.managerStaffId === created.id) {
-          throw new BadRequestException('An employee cannot be their own manager.');
+          throw new BadRequestException('Personel kendi yöneticisi olamaz.');
         }
         if (body.managerStaffId) {
           const manager = await tx.staff.findFirst({
@@ -467,8 +585,9 @@ export class HrService {
             },
             select: { id: true },
           });
-          if (!manager) throw new BadRequestException('Manager is outside the active organization scope.');
+          if (!manager) throw new BadRequestException('Seçilen yönetici aktif organizasyon kapsamında değil.');
         }
+
         const effectiveFrom = master.hireDate ?? new Date().toISOString().slice(0, 10);
         await tx.$executeRawUnsafe(
           `INSERT INTO hr_employee_assignments(id,tenant_id,company_id,branch_id,staff_id,department_id,team_id,position_id,manager_staff_id,effective_from,reason)
@@ -486,6 +605,37 @@ export class HrService {
           'INITIAL_ASSIGNMENT',
         );
       }
+
+      await tx.$executeRawUnsafe(
+        `UPDATE user_invitations
+         SET "revokedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP
+         WHERE "tenantId"=$1 AND "companyId"=$2 AND email=$3
+           AND "acceptedAt" IS NULL AND "revokedAt" IS NULL`,
+        scope.tenantId,
+        scope.companyId,
+        email,
+      );
+
+      const invitationId = randomUUID();
+      const branchIds = role.scope === 'CENTRAL' ? [] : [targetBranchId];
+      await tx.$executeRawUnsafe(
+        `INSERT INTO user_invitations(
+          id,"tenantId","companyId",email,"roleId","branchIds","tokenHash",
+          "invitedByUserId","expiresAt","provisionedUserId","staffId","createdAt","updatedAt"
+        ) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9,$10,$11,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`,
+        invitationId,
+        scope.tenantId,
+        scope.companyId,
+        email,
+        role.id,
+        JSON.stringify(branchIds),
+        activationTokenHash,
+        actorMembership.userId,
+        activationExpiresAt,
+        user.id,
+        created.id,
+      );
+
       return {
         ...created,
         personnelNumber: master.employeeNumber,
@@ -500,6 +650,18 @@ export class HrService {
         bankName: master.bankName,
         grossSalary: master.grossSalary ?? 0,
         salaryType: master.salaryType,
+        accountProvisioning: {
+          userId: user.id,
+          membershipId: membership.id,
+          roleId: role.id,
+          roleName: role.name,
+          roleScope: role.scope,
+          branchId: targetBranchId,
+          status: 'ACTIVATION_REQUIRED',
+          invitationId,
+          activationToken: rawActivationToken,
+          expiresAt: activationExpiresAt,
+        },
       };
     });
   }
