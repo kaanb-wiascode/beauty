@@ -25,19 +25,19 @@ export default function HROperationsControlPage() {
           path: "/hr/operations/assets/{assetId}/assign",
           fields: [
             {
-              name: "assetId",
-              label: "Envanter Varlığı",
-              type: "remote-select",
-              optionsPath: "/hr/operations/assignable-assets",
-              optionLabelKeys: ["name", "brand", "model", "serialNumber", "branchName"],
-              required: true,
-            },
-            {
               name: "staffId",
               label: "Çalışan",
               type: "remote-select",
               optionsPath: "/hr/employees",
               optionLabelKeys: ["firstName", "lastName"],
+              required: true,
+            },
+            {
+              name: "assetId",
+              label: "Envanter Varlığı",
+              type: "remote-select",
+              optionsPath: "/hr/operations/assignable-assets?staffId={staffId}",
+              optionLabelKeys: ["name", "brand", "model", "serialNumber", "branchName"],
               required: true,
             },
             {
