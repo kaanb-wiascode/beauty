@@ -223,6 +223,17 @@ const USER_LABELS: Record<string, string> = {
   POOR: "Zayıf",
   BROKEN: "Arızalı",
   EXPIRING: "Süresi Yaklaşıyor",
+  IN_APP: "Uygulama İçi",
+  EXPENSE: "Gider",
+  INCOME: "Gelir",
+  SALE: "Satış",
+  APPOINTMENT: "Randevu",
+  CUSTOMER: "Müşteri",
+  LEAD: "Potansiyel Müşteri",
+  SUPPLIER: "Tedarikçi",
+  INVENTORY: "Envanter",
+  QUALITY: "Kalite",
+  NOTIFICATION: "Bildirim",
 };
 
 const USER_RESOURCE_LABELS: Record<string, string> = {
@@ -513,6 +524,9 @@ const USER_ERROR_MESSAGES: Record<string, string> = {
   Unauthorized: "Oturumunuz Geçerli Değil. Lütfen Tekrar Giriş Yapın.",
   "Not Found": "Aradığınız Kayıt Bulunamadı.",
   "Network Error": "Sunucuya Bağlanılamadı. Lütfen Tekrar Deneyin.",
+  "Event key and audience are required": "Bildirim olayı ve hedef kitlesi seçilmelidir.",
+  "At least one supported notification channel is required": "En az bir bildirim kanalı seçilmelidir.",
+  "Active membership is required": "Bu işlem için aktif işletme üyeliği gereklidir.",
 };
 
 const USER_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
@@ -687,6 +701,37 @@ export function userPermissionKeyLabel(value: string | null | undefined): string
   if (!resource || !action) return userLabel(value);
   return userPermissionLabel(resource, action);
 }
+export function userEventKeyLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value
+    .split(".")
+    .filter(Boolean)
+    .map((segment) => {
+      const lower=segment.toLocaleLowerCase("tr-TR");
+      return USER_DOMAIN_LABELS[lower]
+        ?? USER_RESOURCE_LABELS[lower]
+        ?? USER_ACTION_LABELS[lower]
+        ?? USER_LABELS[segment.toLocaleUpperCase("tr-TR")]
+        ?? humanizeSystemValue(segment);
+    })
+    .join(" · ");
+}
+
+export function userAudienceLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map((segment) => {
+      const lower=segment.toLocaleLowerCase("tr-TR");
+      return USER_DOMAIN_LABELS[lower]
+        ?? USER_RESOURCE_LABELS[lower]
+        ?? USER_LABELS[segment.toLocaleUpperCase("tr-TR")]
+        ?? humanizeSystemValue(segment);
+    })
+    .join(" · ");
+}
+
 
 export function userText(value: string | null | undefined, fallback?: string): string {
   if (!value) return fallback ?? "—";
