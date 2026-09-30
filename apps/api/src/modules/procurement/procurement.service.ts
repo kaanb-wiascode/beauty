@@ -106,6 +106,41 @@ export class ProcurementService {
     return { order: orders[0], items };
   }
 
+  async getGoodsReceiptDetail(id: string) {
+    const { companyId, branchId } = this.context();
+    const receipts = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT gr.id,gr.purchase_order_id AS "purchaseOrderId",gr.supplier_bill_id AS "supplierBillId",
+              gr.branch_id AS "branchId",gr.received_at AS "receivedAt",gr.reversed_at AS "reversedAt",
+              gr.reversal_reason AS "reversalReason",gr.note,
+              po.warehouse_id AS "warehouseId",w.name AS "warehouseName",
+              s.name AS "supplierName"
+       FROM inventory_goods_receipts gr
+       JOIN inventory_purchase_orders po ON po.id=gr.purchase_order_id AND po.company_id=gr.company_id
+       JOIN inventory_warehouses w ON w.id=po.warehouse_id AND w.company_id=po.company_id
+       LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id AND s.company_id=po.company_id
+       WHERE gr.id=$1::text AND gr.company_id=$2::text
+         AND ($3::text IS NULL OR gr.branch_id=$3::text)
+       LIMIT 1`,
+      id,
+      companyId,
+      branchId,
+    );
+    if (!receipts.length) throw new NotFoundException('Goods receipt not found');
+
+    const items = await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT gri.id,gri.purchase_order_item_id AS "purchaseOrderItemId",
+              gri.product_id AS "productId",p.name AS "productName",p.sku,
+              gri.quantity,gri.unit_cost AS "unitCost"
+       FROM inventory_goods_receipt_items gri
+       JOIN inventory_products p ON p.id=gri.product_id AND p.company_id=$2::text
+       WHERE gri.goods_receipt_id=$1::text
+       ORDER BY p.name,gri.id`,
+      id,
+      companyId,
+    );
+    return { receipt: receipts[0], items };
+  }
+
   async orderPurchaseOrder(id: string) {
     const { companyId, branchId } = this.context();
     const updated = await this.prisma.$executeRawUnsafe(
