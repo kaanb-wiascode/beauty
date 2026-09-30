@@ -27,7 +27,9 @@ export function calculateSaleTotals(
   const subtotal = toMoney(
     lines.reduce((sum, line) => {
       if (!Number.isInteger(line.quantity) || line.quantity <= 0) {
-        throw new Error('Satış kalemi miktarı sıfırdan büyük tam sayı olmalıdır.');
+        throw new Error(
+          'Satış kalemi miktarı sıfırdan büyük tam sayı olmalıdır.',
+        );
       }
 
       if (!Number.isFinite(line.unitPrice) || line.unitPrice < 0) {
