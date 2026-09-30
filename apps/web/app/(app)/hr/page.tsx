@@ -7,6 +7,7 @@ import { DataView, DataViewMeta } from "@/components/data-view";
 import { FinanceMetric, FinancePanel } from "@/components/finance-view";
 import { Alert, Button, Spinner } from "@/components/ui";
 import { api, ApiError, withQuery } from "@/lib/api";
+import { userErrorMessage } from "@/lib/user-language";
 import type { Paginated, Staff } from "@/lib/types";
 
 type Performance = {
@@ -77,7 +78,7 @@ export default function HRDashboardPage() {
         setPerformance({});
       }
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "İK verileri yüklenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message,"İK verileri yüklenemedi.") : "İK verileri yüklenemedi.");
     } finally {
       setLoading(false);
     }
