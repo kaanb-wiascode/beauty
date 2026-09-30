@@ -81,6 +81,7 @@ export default function InvoicesPage() {
   const [status, setStatus] = useState<"" | Status>("");
   const [selected, setSelected] = useState<Invoice | null>(null);
   const [loading, setLoading] = useState(true);
+  const [actionBusy, setActionBusy] = useState(false);
   const [error, setError] = useState("");
 
   const load = useCallback(async () => {
@@ -111,6 +112,53 @@ export default function InvoicesPage() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  async function issueSelected() {
+    if (!selected || selected.status !== "DRAFT") return;
+    setActionBusy(true);
+    setError("");
+    try {
+      const updated = await api<Invoice>(`/invoices/${selected.id}/issue`, {
+        method: "POST",
+        body: {},
+      });
+      setSelected(updated);
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Fatura düzenlenemedi.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
+
+  async function cancelSelected() {
+    if (!selected || selected.status !== "ISSUED") return;
+    const reason = window.prompt("Fatura iptal nedenini yazın.");
+    if (reason === null || !reason.trim()) return;
+
+    setActionBusy(true);
+    setError("");
+    try {
+      const updated = await api<Invoice>(`/invoices/${selected.id}/cancel`, {
+        method: "POST",
+        body: { reason: reason.trim() },
+      });
+      setSelected(updated);
+      await load();
+    } catch (requestError) {
+      setError(
+        requestError instanceof ApiError
+          ? requestError.message
+          : "Fatura iptal edilemedi.",
+      );
+    } finally {
+      setActionBusy(false);
+    }
+  }
 
   const totals = useMemo(
     () => ({
@@ -264,7 +312,28 @@ export default function InvoicesPage() {
                 {directionLabel[selected.direction]} · {selected.counterpartyName}
               </p>
             </div>
-            <StatusBadge status={selected.status} />
+            <div className="flex flex-wrap items-center gap-2">
+              <StatusBadge status={selected.status} />
+              {selected.status === "DRAFT" ? (
+                <Button
+                  size="sm"
+                  disabled={actionBusy}
+                  onClick={() => void issueSelected()}
+                >
+                  {actionBusy ? "Düzenleniyor..." : "Faturayı Düzenle"}
+                </Button>
+              ) : null}
+              {selected.status === "ISSUED" ? (
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  disabled={actionBusy}
+                  onClick={() => void cancelSelected()}
+                >
+                  {actionBusy ? "İşleniyor..." : "Faturayı İptal Et"}
+                </Button>
+              ) : null}
+            </div>
           </div>
 
           <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">
