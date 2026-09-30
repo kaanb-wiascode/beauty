@@ -23,6 +23,7 @@ import { SessionsModule } from './modules/sessions/sessions.module';
 import { CustomerLedgerModule } from './modules/customer-ledger/customer-ledger.module';
 import { CounterpartiesModule } from './modules/counterparties/counterparties.module';
 import { InstallmentsModule } from './modules/installments/installments.module';
+import { InvoicesModule } from './modules/invoices/invoices.module';
 import { AccountingModule } from './modules/accounting/accounting.module';
 import { AccountsPayableModule } from './modules/accounts-payable/accounts-payable.module';
 import { AccountsReceivableModule } from './modules/accounts-receivable/accounts-receivable.module';
@@ -90,6 +91,7 @@ import { TeamModule } from './modules/team/team.module';
     CustomerLedgerModule,
     CounterpartiesModule,
     InstallmentsModule,
+    InvoicesModule,
     AccountingModule,
     AccountsPayableModule,
     AccountsReceivableModule,
