@@ -217,7 +217,9 @@ export default function HRSection() {
       });
       const org = await api<OrganizationData>("/hr/organization");
       setOrganization({
+        branches: Array.isArray(org.branches) ? org.branches : [],
         departments: Array.isArray(org.departments) ? org.departments : [],
+        teams: Array.isArray(org.teams) ? org.teams : [],
         positions: Array.isArray(org.positions) ? org.positions : [],
       });
       if (orgCreate === "department") {
