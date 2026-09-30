@@ -15,8 +15,6 @@ export class HrSelfServiceService {
  async requestLeave(userId:string,body:any){const employee=await this.employee(userId),request=await this.leave.request(employee.id,body);try{await this.approvals.submit({entityType:'LEAVE',entityId:request.id,branchId:employee.branchId,requesterId:userId});}catch(error){if(!(error instanceof NotFoundException))throw error;}return request;}
  async recordAttendanceEvent(userId:string,eventType:'CLOCK_IN'|'BREAK_START'|'BREAK_END'|'CLOCK_OUT',deviceContext?:Record<string,unknown>){
   const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
-  const storedType=eventType==='CLOCK_IN'?'DAY_START':eventType==='CLOCK_OUT'?'DAY_END':eventType;
-
   return this.prisma.$transaction(async(tx)=>{
    await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`${tenantId}:${employee.id}:attendance`);
 
@@ -34,20 +32,20 @@ export class HrSelfServiceService {
    );
 
    const last=today.at(-1)?.eventType??null;
-   if(today.some((event)=>event.eventType==='DAY_END')){
+   if(today.some((event)=>event.eventType==='CLOCK_OUT')){
     throw new BadRequestException('Bugünkü çalışma günü zaten tamamlanmış.');
    }
 
    if(eventType==='CLOCK_IN'&&today.length>0){
     throw new BadRequestException('Bugünkü çalışma günü zaten başlatılmış.');
    }
-   if(eventType==='BREAK_START'&&!['DAY_START','BREAK_END'].includes(String(last))){
+   if(eventType==='BREAK_START'&&!['CLOCK_IN','BREAK_END'].includes(String(last))){
     throw new BadRequestException(last==='BREAK_START'?'Zaten moladasınız.':'Molaya çıkmadan önce güne başlamalısınız.');
    }
    if(eventType==='BREAK_END'&&last!=='BREAK_START'){
     throw new BadRequestException('Moladan dönmek için önce aktif bir mola başlatmalısınız.');
    }
-   if(eventType==='CLOCK_OUT'&&!['DAY_START','BREAK_END'].includes(String(last))){
+   if(eventType==='CLOCK_OUT'&&!['CLOCK_IN','BREAK_END'].includes(String(last))){
     throw new BadRequestException(last==='BREAK_START'?'Günü bitirmeden önce moladan dönmelisiniz.':'Günü bitirmeden önce güne başlamalısınız.');
    }
 
@@ -61,7 +59,7 @@ export class HrSelfServiceService {
     employee.branchId,
     employee.id,
     userId,
-    storedType,
+    eventType,
     JSON.stringify(deviceContext??{}),
    );
 
