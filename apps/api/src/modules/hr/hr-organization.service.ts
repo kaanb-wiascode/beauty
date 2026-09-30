@@ -40,7 +40,12 @@ export class HrOrganizationService {
 
   async structure() {
     const { tenantId, companyId } = this.scope();
-    const [departments, teams, positions] = await Promise.all([
+    const [branches, departments, teams, positions] = await Promise.all([
+      this.prisma.branch.findMany({
+        where: { companyId, company: { tenantId }, status: 'ACTIVE' },
+        select: { id: true, name: true, code: true },
+        orderBy: { name: 'asc' },
+      }),
       this.prisma.$queryRawUnsafe<any[]>(
         `SELECT d.* FROM hr_departments d WHERE d.tenant_id=$1 AND d.company_id=$2 ORDER BY d.name`,
         tenantId,
@@ -57,7 +62,7 @@ export class HrOrganizationService {
         companyId,
       ),
     ]);
-    return { departments, teams, positions };
+    return { branches, departments, teams, positions };
   }
 
   async createDepartment(body: any) {
