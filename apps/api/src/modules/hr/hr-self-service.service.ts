@@ -94,6 +94,27 @@ export class HrSelfServiceService {
    tenantId,companyId,employee.id,
   );
  }
+ async markNotificationRead(userId:string,notificationId:string){
+  const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
+  const updated=await this.prisma.$executeRawUnsafe(
+   `UPDATE hr_employee_notifications
+    SET read_at=COALESCE(read_at,CURRENT_TIMESTAMP)
+    WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND staff_id=$4::text`,
+   notificationId,tenantId,companyId,employee.id,
+  );
+  if(updated!==1)throw new NotFoundException('Bildirim bulunamadı.');
+  return{id:notificationId,read:true};
+ }
+ async markAllNotificationsRead(userId:string){
+  const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
+  const updated=await this.prisma.$executeRawUnsafe(
+   `UPDATE hr_employee_notifications
+    SET read_at=CURRENT_TIMESTAMP
+    WHERE tenant_id=$1::text AND company_id=$2::text AND staff_id=$3::text AND read_at IS NULL`,
+   tenantId,companyId,employee.id,
+  );
+  return{updated:Number(updated)};
+ }
  async requestLeave(userId:string,body:any){const employee=await this.employee(userId),request=await this.leave.request(employee.id,body);try{await this.approvals.submit({entityType:'LEAVE',entityId:request.id,branchId:employee.branchId,requesterId:userId});}catch(error){if(!(error instanceof NotFoundException))throw error;}return request;}
  private async ensureAttendanceApprovalWorkflow(
   tx:Prisma.TransactionClient,
