@@ -9,6 +9,7 @@ describe('PayrollAccountingService', () => {
     getRoleScope: () => 'COMPANY',
   } as never;
   const scope = { getAssignedActiveBranchIds: jest.fn().mockResolvedValue(['branch-a', 'branch-b']) } as never;
+  const approvalRuntime = { createWithinTransaction: jest.fn() } as never;
 
   const balanced = {
     staffId: 'staff-a',
@@ -27,7 +28,7 @@ describe('PayrollAccountingService', () => {
 
   it('rejects a payroll item when net pay does not reconcile', async () => {
     const prisma = { $transaction: jest.fn() } as never;
-    const service = new PayrollAccountingService(prisma, tenant, scope);
+    const service = new PayrollAccountingService(prisma, tenant, scope, approvalRuntime);
     await expect(service.upsertItem('period-a', { ...balanced, netAmount: 9000 })).rejects.toBeInstanceOf(
       BadRequestException,
     );
@@ -35,7 +36,7 @@ describe('PayrollAccountingService', () => {
 
   it('rejects an item branch outside assigned company branches', async () => {
     const prisma = { $transaction: jest.fn() } as never;
-    const service = new PayrollAccountingService(prisma, tenant, scope);
+    const service = new PayrollAccountingService(prisma, tenant, scope, approvalRuntime);
     await expect(
       service.upsertItem('period-a', { ...balanced, branchId: 'branch-c' }),
     ).rejects.toBeInstanceOf(ForbiddenException);
@@ -52,7 +53,7 @@ describe('PayrollAccountingService', () => {
       staff: { findFirst: jest.fn().mockResolvedValue({ id: 'staff-a' }) },
     };
     const prisma = { $transaction: jest.fn(async (fn: any) => fn(tx)) } as never;
-    const service = new PayrollAccountingService(prisma, tenant, scope);
+    const service = new PayrollAccountingService(prisma, tenant, scope, approvalRuntime);
 
     await expect(service.upsertItem('period-a', balanced)).resolves.toEqual({ id: 'item-a' });
     expect(String(query.mock.calls[0][0])).toContain('branch_id=ANY($4::text[])');
@@ -68,7 +69,7 @@ describe('PayrollAccountingService', () => {
     const query = jest.fn().mockResolvedValueOnce([]);
     const tx = { $queryRawUnsafe: query };
     const prisma = { $transaction: jest.fn(async (fn: any) => fn(tx)) } as never;
-    const service = new PayrollAccountingService(prisma, tenant, scope);
+    const service = new PayrollAccountingService(prisma, tenant, scope, approvalRuntime);
 
     await expect(service.post('period-global')).rejects.toThrow('Payroll period not found.');
     expect(String(query.mock.calls[0][0])).not.toContain('branch_id IS NULL');
