@@ -2,7 +2,7 @@ import { NotFoundException } from '@nestjs/common';
 import { PayrollWorkInputService } from './payroll-work-input.service';
 
 describe('PayrollWorkInputService organization scope', () => {
-  const tenant:any = { getTenantId:()=> 'tenant-1', getCompanyId:()=> 'company-1' };
+  const tenant:any = { getTenantId:()=> 'tenant-1', getCompanyId:()=> 'company-1', getBranchId:()=> null };
   const scope:any = { getBranchScopedWhere: jest.fn() };
 
   beforeEach(() => jest.clearAllMocks());
@@ -42,7 +42,7 @@ describe('PayrollWorkInputService organization scope', () => {
     const service = new PayrollWorkInputService(prisma, tenant, scope);
 
     await expect(service.attachToDraft('period-1','staff-2')).rejects.toBeInstanceOf(NotFoundException);
-    expect(tx.$queryRawUnsafe.mock.calls[1][0]).toContain('branch_id=ANY($5::text[])');
-    expect(tx.$queryRawUnsafe.mock.calls[1][5]).toEqual(['branch-1']);
+    expect(tx.$queryRawUnsafe.mock.calls[1][0]).toContain('branch_id=$5::text');
+    expect(tx.$queryRawUnsafe.mock.calls[1][5]).toBe('branch-1');
   });
 });
