@@ -360,8 +360,8 @@ export class HrService {
         grossSalary:
           master?.grossSalary != null
             ? Number(master.grossSalary)
-            : Number(profile.salary ?? 0),
-        salaryType: master?.salaryType ?? profile.salaryType ?? null,
+            : null,
+        salaryType: master?.salaryType ?? null,
       };
     });
   }
