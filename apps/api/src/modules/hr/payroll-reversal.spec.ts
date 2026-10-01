@@ -34,6 +34,49 @@ describe('PayrollReversalService', () => {
     expect(transactionQuery.mock.calls[0][4]).toEqual(['branch-a', 'branch-b']);
   });
 
+  it('restores applied compensation requests after payroll reversal', async () => {
+    const transactionQuery = jest
+      .fn()
+      .mockResolvedValueOnce([
+        { id: 'period-a', year: 2026, month: 10, status: 'POSTED', branchId: 'branch-a', journalEntryId: 'je-a' },
+      ])
+      .mockResolvedValueOnce([{ salary_count: 0, liability_count: 0 }]);
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx = {
+      $queryRawUnsafe: transactionQuery,
+      $executeRawUnsafe: execute,
+      journalEntry: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'je-a',
+          lines: [{ accountId: 'acc-a', debit: 1000, credit: 0, memo: 'bordro' }],
+        }),
+        create: jest.fn().mockResolvedValue({ id: 'je-reversal' }),
+      },
+    };
+    const prisma: any = {
+      $queryRawUnsafe: jest
+        .fn()
+        .mockResolvedValueOnce([{ id: 'period-a', status: 'POSTED', branchId: 'branch-a' }])
+        .mockResolvedValueOnce([{ roleSlug: 'owner', roleName: 'Owner' }]),
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const service = new PayrollReversalService(prisma, tenant, scope);
+
+    await expect(service.reverse('period-a', 'user-a', 'Bordro ters kayıt nedeni')).resolves.toEqual({
+      periodId: 'period-a',
+      status: 'REVERSED',
+      journalEntryId: 'je-reversal',
+      duplicate: false,
+    });
+
+    expect(
+      execute.mock.calls.some((call) =>
+        String(call[0]).includes("UPDATE hr_compensation_requests") &&
+        String(call[0]).includes("status='APPROVED'"),
+      ),
+    ).toBe(true);
+  });
+
   it('does not expose branchless periods to restricted company scope', async () => {
     const prisma: any = { $queryRawUnsafe: jest.fn().mockResolvedValue([]), $transaction: jest.fn() };
     const service = new PayrollReversalService(prisma, tenant, scope);
