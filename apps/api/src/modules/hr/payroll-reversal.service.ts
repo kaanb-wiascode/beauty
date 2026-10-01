@@ -284,6 +284,18 @@ export class PayrollReversalService {
           companyId,
           branchIds,
         );
+
+        await tx.$executeRawUnsafe(
+          `UPDATE hr_compensation_requests
+           SET status='APPROVED',applied_payroll_period_id=NULL,updated_at=NOW()
+           WHERE tenant_id=$1::text AND company_id=$2::text
+             AND applied_payroll_period_id=$3::text AND status='APPLIED'
+             AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))`,
+          tenantId,
+          companyId,
+          periodId,
+          branchIds,
+        );
         return { periodId, status: 'REVERSED', journalEntryId: reversal.id, duplicate: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
