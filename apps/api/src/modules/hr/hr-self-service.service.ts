@@ -4,10 +4,11 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { Employee360Service } from './employee-360.service';
 import { LeavePolicyService } from './leave-policy.service';
 import { ApprovalWorkflowService } from './approval-workflow.service';
+import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.service';
 
 @Injectable()
 export class HrSelfServiceService {
- constructor(private readonly prisma:PrismaService,private readonly ctx:TenantContext,private readonly employee360:Employee360Service,private readonly leave:LeavePolicyService,private readonly approvals:ApprovalWorkflowService){}
+ constructor(private readonly prisma:PrismaService,private readonly ctx:TenantContext,private readonly employee360:Employee360Service,private readonly leave:LeavePolicyService,private readonly approvals:ApprovalWorkflowService,private readonly approvalRuntime:ApprovalRuntimeService){}
  private scope(){const tenantId=this.ctx.getTenantId(),companyId=this.ctx.getCompanyId();if(!tenantId||!companyId)throw new BadRequestException('Tenant and company context are required.');return{tenantId,companyId};}
  private async employee(userId:string){const{tenantId,companyId}=this.scope();const rows=await this.prisma.$queryRawUnsafe<any[]>(`SELECT s.id,s."branchId" AS "branchId",s."firstName" AS "firstName",s."lastName" AS "lastName",s.email,s.status FROM hr_employee_user_links l JOIN staff s ON s.id=l.staff_id JOIN branches b ON b.id=s."branchId" WHERE l.tenant_id=$1 AND l.company_id=$2 AND l.user_id=$3 AND l.active=TRUE AND s."tenantId"=$1 AND b."companyId"=$2 LIMIT 1`,tenantId,companyId,userId);if(!rows.length)throw new NotFoundException('Employee identity is not linked to this user.');return rows[0];}
  async link(staffId:string,userId:string,actorId:string){const{tenantId,companyId}=this.scope();const staff=await this.prisma.staff.findFirst({where:{id:staffId,tenantId,branch:{companyId}},select:{id:true}});const user=await this.prisma.user.findFirst({where:{id:userId,memberships:{some:{tenantId,companyId,status:'ACTIVE'}}},select:{id:true}});if(!staff||!user)throw new NotFoundException('Staff or user not found in organization scope.');await this.prisma.$executeRawUnsafe(`INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,linked_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,staff_id) DO UPDATE SET user_id=EXCLUDED.user_id,company_id=EXCLUDED.company_id,active=TRUE,linked_at=CURRENT_TIMESTAMP,linked_by=EXCLUDED.linked_by`,tenantId,companyId,staffId,userId,actorId);return{staffId,userId,active:true};}
@@ -95,31 +96,29 @@ export class HrSelfServiceService {
     ?Math.max(0,Math.floor((projectionEnd.getTime()-checkIn.getTime())/60000)-breakMinutes)
     :0;
 
-   if(checkIn){
-    await tx.$executeRawUnsafe(
-     `INSERT INTO attendance_records(
-        tenant_id,branch_id,staff_id,work_date,check_in,check_out,break_minutes,worked_minutes,overtime_minutes,status
-      ) VALUES($1,$2,$3,CURRENT_DATE,$4,$5,$6,$7,0,'PRESENT')
-      ON CONFLICT(staff_id,work_date) DO UPDATE
-      SET branch_id=EXCLUDED.branch_id,
-          check_in=EXCLUDED.check_in,
-          check_out=EXCLUDED.check_out,
-          break_minutes=EXCLUDED.break_minutes,
-          worked_minutes=EXCLUDED.worked_minutes,
-          status='PRESENT',
-          updated_at=CURRENT_TIMESTAMP
-      WHERE COALESCE(attendance_records.exception_status,'')<>'CORRECTED'`,
-     tenantId,
-     employee.branchId,
-     employee.id,
-     checkIn,
-     checkOut,
-     breakMinutes,
-     workedMinutes,
-    );
-   }
-
    const event=rows[0];
+   const workflowKey=['DAY_START','DAY_END'].includes(storedType)?'hr.attendance-clock':'hr.attendance-break';
+   const approval=await this.approvalRuntime.createWithinTransaction({
+    workflowKey,
+    entityType:'hr_attendance_event',
+    entityId:event.id,
+    branchId:employee.branchId,
+    reason:eventType==='CLOCK_IN'
+     ?'Güne başlama kaydı'
+     :eventType==='CLOCK_OUT'
+      ?'Günü bitirme kaydı'
+      :eventType==='BREAK_START'
+       ?'Mola başlangıç kaydı'
+       :'Mola bitiş kaydı',
+    payload:{
+     eventType,
+     storedType,
+     occurredAt:event.occurredAt,
+     staffId:employee.id,
+     branchId:employee.branchId,
+    },
+   },tx);
+
    return{
     id:event.id,
     type:eventType,
@@ -127,6 +126,9 @@ export class HrSelfServiceService {
     source:event.source,
     staffId:employee.id,
     branchId:employee.branchId,
+    approvalRequestId:approval.id,
+    approvalStatus:'PENDING',
+    effective:false,
     attendance:{
      workDate:new Date(event.occurredAt).toISOString().slice(0,10),
      checkIn,
