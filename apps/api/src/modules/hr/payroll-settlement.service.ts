@@ -52,6 +52,24 @@ export class PayrollSettlementService {
     );
   }
 
+  async payQueueItem(queueId:string,amountInput:number,method:PayrollPaymentMethod,userId:string,note?:string){
+    const {tenantId,companyId,branchIds}=await this.context();
+    const rows=await this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT id,period_id AS "periodId",staff_id AS "staffId",branch_id AS "branchId",remaining_amount AS "remainingAmount",status
+       FROM hr_payroll_payment_queue
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+         AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
+       LIMIT 1`,
+      queueId,tenantId,companyId,branchIds,
+    );
+    if(!rows.length) throw new NotFoundException('Bordro ödeme kuyruğu kaydı bulunamadı.');
+    const queue=rows[0];
+    if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
+    const requested=Number(amountInput);
+    const amount=Number.isFinite(requested)&&requested>0?requested:Number(queue.remainingAmount);
+    return this.paySalary(queue.periodId,queue.staffId,amount,method,userId,note);
+  }
+
   async paySalary(periodId:string,staffId:string,amountInput:number,method:PayrollPaymentMethod,userId:string,note?:string){
     const {tenantId,companyId,branchIds}=await this.context(); const amount=this.round(Number(amountInput));
     if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Salary payment amount must be greater than zero.');
