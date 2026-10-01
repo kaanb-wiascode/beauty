@@ -8,6 +8,8 @@ describe('HrService organization scope', () => {
     getBranchId: jest.fn().mockReturnValue(null),
   } as any;
 
+  const roleTemplateService = {} as any;
+
   const organizationScope = {
     getBranchScopedWhere: jest.fn().mockResolvedValue({
       tenantId: 'tenant-a',
@@ -31,6 +33,7 @@ describe('HrService organization scope', () => {
       { staff: { findMany }, $queryRawUnsafe: query } as any,
       tenantContext,
       organizationScope,
+      roleTemplateService,
     );
 
     await service.employees();
@@ -59,6 +62,7 @@ describe('HrService organization scope', () => {
       { staff: { findFirst: staffFindFirst, update: staffUpdate } } as any,
       tenantContext,
       organizationScope,
+      roleTemplateService,
     );
 
     await expect(service.updateEmployee('staff-outside', {})).rejects.toBeInstanceOf(
@@ -83,6 +87,7 @@ describe('HrService organization scope', () => {
       { $executeRawUnsafe: execute } as any,
       tenantContext,
       organizationScope,
+      roleTemplateService,
     );
 
     await service.updateLeave('leave-a', { status: 'APPROVED' });
@@ -110,6 +115,7 @@ describe('HrService organization scope', () => {
       } as any,
       tenantContext,
       organizationScope,
+      roleTemplateService,
     );
 
     await expect(
@@ -138,6 +144,7 @@ describe('HrService organization scope', () => {
       { staff: { findMany }, $queryRawUnsafe: query } as any,
       tenantContext,
       organizationScope,
+      roleTemplateService,
     );
 
     await service.employees();
