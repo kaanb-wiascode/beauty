@@ -38,7 +38,12 @@ export class PayrollSettlementService {
       `SELECT q.id,q.period_id AS "periodId",q.staff_id AS "staffId",
               s."firstName",s."lastName",q.branch_id AS "branchId",b.name AS "branchName",
               pp.year,pp.month,q.amount_due AS "amountDue",q.amount_paid AS "amountPaid",
-              q.remaining_amount AS "remainingAmount",q.status,q.queued_at AS "queuedAt",q.paid_at AS "paidAt"
+              q.remaining_amount AS "remainingAmount",q.status,q.queued_at AS "queuedAt",q.paid_at AS "paidAt",
+              CONCAT(
+                s."firstName",' ',s."lastName",' · ',b.name,' · ',
+                CASE q.status WHEN 'PENDING' THEN 'Bekliyor' WHEN 'PARTIALLY_PAID' THEN 'Kısmi Ödendi' WHEN 'PAID' THEN 'Ödendi' ELSE q.status END,
+                ' · Kalan ',TO_CHAR(q.remaining_amount,'FM999G999G990D00'),' TL'
+              ) AS "displayLabel"
        FROM hr_payroll_payment_queue q
        JOIN payroll_periods pp ON pp.id=q.period_id
        JOIN staff s ON s.id=q.staff_id
@@ -72,7 +77,7 @@ export class PayrollSettlementService {
 
   async paySalary(periodId:string,staffId:string,amountInput:number,method:PayrollPaymentMethod,userId:string,note?:string){
     const {tenantId,companyId,branchIds}=await this.context(); const amount=this.round(Number(amountInput));
-    if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Salary payment amount must be greater than zero.');
+    if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Maaş ödeme tutarı sıfırdan büyük olmalıdır.');
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRawUnsafe<any[]>(
         `SELECT pp.id,pp.status,pi.branch_id AS "branchId",pi.net_amount AS "netAmount"
@@ -81,7 +86,7 @@ export class PayrollSettlementService {
            AND pp.status='POSTED' AND pi.staff_id=$4::text
            AND ($5::text[] IS NULL OR pi.branch_id=ANY($5::text[]))
          FOR UPDATE OF pp,pi`,periodId,tenantId,companyId,staffId,branchIds);
-      if(!rows.length) throw new NotFoundException('Posted payroll item not found.');
+      if(!rows.length) throw new NotFoundException('Kesinleşmiş bordro kaydı bulunamadı.');
       const item=rows[0];
       const queueRows=await tx.$queryRawUnsafe<any[]>(
         `SELECT id,amount_due AS "amountDue",amount_paid AS "amountPaid",remaining_amount AS "remainingAmount",status
@@ -96,7 +101,7 @@ export class PayrollSettlementService {
       const queue=queueRows[0];
       if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
       const remaining=this.round(Number(queue.remainingAmount));
-      if(amount>remaining+0.01) throw new BadRequestException(`Salary payment exceeds remaining payable amount ${remaining}.`);
+      if(amount>remaining+0.01) throw new BadRequestException(`Maaş ödeme tutarı kalan ödenebilir tutarı aşıyor: ${remaining}.`);
 
       const personnel=await this.ensureAccount(tx,tenantId,companyId,'335','Personele Borçlar','LIABILITY');
       const paymentCode=this.accountCode(method); const payment=await this.ensureAccount(tx,tenantId,companyId,paymentCode,paymentCode==='100'?'Kasa':'Bankalar','ASSET');
@@ -147,13 +152,13 @@ export class PayrollSettlementService {
 
   async settleLiability(periodId:string,type:PayrollLiabilityType,amountInput:number,method:PayrollPaymentMethod,userId:string,note?:string){
     const {tenantId,companyId,branchIds}=await this.context(); const amount=this.round(Number(amountInput));
-    if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Liability settlement amount must be greater than zero.');
+    if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Yükümlülük ödeme tutarı sıfırdan büyük olmalıdır.');
     return this.prisma.$transaction(async tx=>{
       const periods=await tx.$queryRawUnsafe<any[]>(
         `SELECT id,status,branch_id AS "branchId" FROM payroll_periods
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='POSTED'
            AND ($4::text[] IS NULL OR branch_id=ANY($4::text[])) FOR UPDATE`,periodId,tenantId,companyId,branchIds);
-      if(!periods.length) throw new NotFoundException('Posted payroll period not found.');
+      if(!periods.length) throw new NotFoundException('Kesinleşmiş bordro dönemi bulunamadı.');
       const periodBranchId=periods[0].branchId;
       const totals=await tx.$queryRawUnsafe<any[]>(
         `SELECT
@@ -168,7 +173,7 @@ export class PayrollSettlementService {
          WHERE tenant_id=$1::text AND company_id=$2::text AND period_id=$3::text AND type=$4
            AND branch_id=$5::text AND status='PAID'`,tenantId,companyId,periodId,type,periodBranchId);
       const prior=this.round(Number(priorRows[0]?.paid??0)); const remaining=this.round(due-prior);
-      if(amount>remaining+0.01) throw new BadRequestException(`Liability settlement exceeds remaining payable amount ${remaining}.`);
+      if(amount>remaining+0.01) throw new BadRequestException(`Yükümlülük ödeme tutarı kalan ödenebilir tutarı aşıyor: ${remaining}.`);
       const liabilityCode=type==='TAX'?'360':type==='SOCIAL_SECURITY'?'361':'369';
       const liabilityName=type==='TAX'?'Ödenecek Vergi ve Fonlar':type==='SOCIAL_SECURITY'?'Ödenecek Sosyal Güvenlik Kesintileri':'Ödenecek Diğer Yükümlülükler';
       const liability=await this.ensureAccount(tx,tenantId,companyId,liabilityCode,liabilityName,'LIABILITY');
