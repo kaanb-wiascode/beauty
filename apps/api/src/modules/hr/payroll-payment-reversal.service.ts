@@ -151,6 +151,50 @@ export class PayrollPaymentReversalService {
           companyId,
           branchIds,
         );
+
+        const queueRows=await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,amount_due AS "amountDue",amount_paid AS "amountPaid"
+           FROM hr_payroll_payment_queue
+           WHERE tenant_id=$1::text AND company_id=$2::text
+             AND branch_id=$3::text AND period_id=$4::text AND staff_id=$5::text
+           LIMIT 1 FOR UPDATE`,
+          tenantId,
+          companyId,
+          payment.branchId,
+          payment.periodId,
+          payment.staffId,
+        );
+        if(!queueRows.length){
+          throw new BadRequestException('Bordro ödeme kuyruğu kaydı bulunamadığı için ters kayıt tamamlanamadı.');
+        }
+        const queue=queueRows[0];
+        const nextPaid=Math.max(0,Number(queue.amountPaid)-Number(payment.amount));
+        const nextRemaining=Math.max(0,Number(queue.amountDue)-nextPaid);
+        const nextStatus=nextPaid<=0.01?'PENDING':'PARTIALLY_PAID';
+        await tx.$executeRawUnsafe(
+          `UPDATE hr_payroll_payment_queue
+           SET amount_paid=$2,
+               remaining_amount=$3,
+               status=$4,
+               paid_at=NULL,
+               updated_at=NOW()
+           WHERE id=$1::text`,
+          queue.id,
+          nextPaid,
+          nextRemaining,
+          nextStatus,
+        );
+
+        await tx.$executeRawUnsafe(
+          `DELETE FROM hr_employee_notifications
+           WHERE tenant_id=$1::text AND company_id=$2::text
+             AND staff_id=$3::text AND type='PAYROLL_PAID'
+             AND reference_type='PAYROLL_PERIOD' AND reference_id=$4::text`,
+          tenantId,
+          companyId,
+          payment.staffId,
+          payment.periodId,
+        );
         return { paymentId, status: 'REVERSED', journalEntryId: reversal.id, duplicate: false };
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
