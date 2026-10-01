@@ -42,7 +42,9 @@ describe('PayrollPeriodService organization scope', () => {
 
     await service.create(2026, 9);
 
-    expect(prisma.$queryRawUnsafe.mock.calls[0][3]).toBeNull();
+    const [sql,...args]=prisma.$queryRawUnsafe.mock.calls[0];
+    expect(String(sql)).toContain('VALUES($1::text,$2::text,NULL,$3,$4');
+    expect(args).toEqual(['tenant-1','company-1',2026,9]);
   });
 
   it('rejects an existing same-month period owned by another branch', async () => {
