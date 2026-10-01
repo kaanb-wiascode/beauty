@@ -12,7 +12,57 @@ export class HrSelfServiceService {
  private scope(){const tenantId=this.ctx.getTenantId(),companyId=this.ctx.getCompanyId();if(!tenantId||!companyId)throw new BadRequestException('Tenant and company context are required.');return{tenantId,companyId};}
  private async employee(userId:string){const{tenantId,companyId}=this.scope();const rows=await this.prisma.$queryRawUnsafe<any[]>(`SELECT s.id,s."branchId" AS "branchId",s."firstName" AS "firstName",s."lastName" AS "lastName",s.email,s.status FROM hr_employee_user_links l JOIN staff s ON s.id=l.staff_id JOIN branches b ON b.id=s."branchId" WHERE l.tenant_id=$1 AND l.company_id=$2 AND l.user_id=$3 AND l.active=TRUE AND s."tenantId"=$1 AND b."companyId"=$2 LIMIT 1`,tenantId,companyId,userId);if(!rows.length)throw new NotFoundException('Employee identity is not linked to this user.');return rows[0];}
  async link(staffId:string,userId:string,actorId:string){const{tenantId,companyId}=this.scope();const staff=await this.prisma.staff.findFirst({where:{id:staffId,tenantId,branch:{companyId}},select:{id:true}});const user=await this.prisma.user.findFirst({where:{id:userId,memberships:{some:{tenantId,companyId,status:'ACTIVE'}}},select:{id:true}});if(!staff||!user)throw new NotFoundException('Staff or user not found in organization scope.');await this.prisma.$executeRawUnsafe(`INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,linked_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,staff_id) DO UPDATE SET user_id=EXCLUDED.user_id,company_id=EXCLUDED.company_id,active=TRUE,linked_at=CURRENT_TIMESTAMP,linked_by=EXCLUDED.linked_by`,tenantId,companyId,staffId,userId,actorId);return{staffId,userId,active:true};}
- async employeeHome(userId:string){const employee=await this.employee(userId),year=new Date().getFullYear(),types=await this.leave.leaveTypes(),leaveBalances:any[]=[];for(const type of types.filter((x:any)=>x.active)){try{leaveBalances.push({...await this.leave.balance(employee.id,type.id,year),code:type.code,name:type.name});}catch{}}const{tenantId}=this.scope();const shifts=await this.prisma.$queryRawUnsafe<any[]>(`SELECT sh.id,sh.start_at AS "startAt",sh.end_at AS "endAt",sh.status FROM hr_shift_assignments a JOIN hr_scheduled_shifts sh ON sh.id=a.scheduled_shift_id WHERE a.tenant_id=$1 AND a.staff_id=$2 AND sh.start_at>=CURRENT_TIMESTAMP ORDER BY sh.start_at LIMIT 20`,tenantId,employee.id);return{employee,profile:await this.employee360.get(employee.id),leaveBalances,leaveRequests:await this.leave.requests(employee.id),upcomingShifts:shifts};}
+ async employeeHome(userId:string){
+  const employee=await this.employee(userId),year=new Date().getFullYear(),types=await this.leave.leaveTypes(),leaveBalances:any[]=[];
+  for(const type of types.filter((x:any)=>x.active)){try{leaveBalances.push({...await this.leave.balance(employee.id,type.id,year),code:type.code,name:type.name});}catch{}}
+  const{tenantId,companyId}=this.scope();
+  const shifts=await this.prisma.$queryRawUnsafe<any[]>(
+   `SELECT sh.id,sh.start_at AS "startAt",sh.end_at AS "endAt",sh.status
+    FROM hr_shift_assignments a
+    JOIN hr_scheduled_shifts sh ON sh.id=a.scheduled_shift_id
+    WHERE a.tenant_id=$1 AND a.staff_id=$2 AND sh.start_at>=CURRENT_TIMESTAMP
+    ORDER BY sh.start_at LIMIT 20`,
+   tenantId,employee.id,
+  );
+  const attendanceToday=await this.prisma.$queryRawUnsafe<any[]>(
+   `SELECT
+      e.id,
+      e.event_type AS "eventType",
+      e.occurred_at AS "occurredAt",
+      e.source,
+      r.id AS "approvalRequestId",
+      r.status AS "approvalStatus",
+      s."stepName" AS "currentStepName",
+      s."slaMinutes" AS "slaMinutes",
+      CASE
+        WHEN s."slaMinutes" IS NULL OR s."startedAt" IS NULL THEN NULL
+        ELSE s."startedAt"+(s."slaMinutes"*INTERVAL '1 minute')
+      END AS "dueAt"
+    FROM hr_attendance_events e
+    LEFT JOIN approval_requests r
+      ON r."tenantId"=e.tenant_id
+     AND r."companyId"=e.company_id
+     AND r."entityType"='hr_attendance_event'
+     AND r."entityId"=e.id
+    LEFT JOIN approval_request_steps s
+      ON s."requestId"=r.id
+     AND s."stepOrder"=r."currentStepOrder"
+    WHERE e.tenant_id=$1
+      AND e.company_id=$2
+      AND e.staff_id=$3
+      AND e.occurred_at::date=CURRENT_DATE
+    ORDER BY e.occurred_at DESC,e.id DESC`,
+   tenantId,companyId,employee.id,
+  );
+  return{
+   employee,
+   profile:await this.employee360.get(employee.id),
+   leaveBalances,
+   leaveRequests:await this.leave.requests(employee.id),
+   upcomingShifts:shifts,
+   attendanceToday,
+  };
+ }
  async requestLeave(userId:string,body:any){const employee=await this.employee(userId),request=await this.leave.request(employee.id,body);try{await this.approvals.submit({entityType:'LEAVE',entityId:request.id,branchId:employee.branchId,requesterId:userId});}catch(error){if(!(error instanceof NotFoundException))throw error;}return request;}
  private async ensureAttendanceApprovalWorkflow(
   tx:Prisma.TransactionClient,
