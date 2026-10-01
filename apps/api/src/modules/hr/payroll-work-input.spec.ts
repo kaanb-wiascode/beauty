@@ -15,7 +15,25 @@ describe('PayrollWorkInputService',()=>{
     const query=jest.fn()
       .mockResolvedValueOnce([{id:'period-a',year:2026,month:9,status:'DRAFT',branchId:'branch-a'}])
       .mockResolvedValueOnce([{id:'item-a',branchId:'branch-a',calculationSnapshot:{grossAmount:10000}}])
-      .mockResolvedValueOnce([{workedMinutes:9600,overtimeMinutes:120,presentDays:20,absentDays:1,approvedLeaveRecords:1,declaredLeaveDays:1}]);
+      .mockResolvedValueOnce([{
+        id:'closure-a',
+        periodStart:'2026-09-01',
+        periodEnd:'2026-09-30',
+        closedAt:'2026-10-01T00:00:00.000Z',
+        snapshot:{
+          staff:[{
+            staffId:'staff-a',
+            workedMinutes:9600,
+            overtimeMinutes:120,
+            approvedOvertimeMinutes:120,
+            presentDays:20,
+            absentDays:1,
+            approvedLeaveRecords:1,
+            declaredLeaveDays:1,
+            unpaidLeaveRecords:0,
+          }],
+        },
+      }]);
     const execute=jest.fn().mockResolvedValue(1);
     const tx={$queryRawUnsafe:query,$executeRawUnsafe:execute};
     const prisma={$transaction:jest.fn(async(fn:any)=>fn(tx))} as never;
