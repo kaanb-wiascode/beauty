@@ -655,6 +655,27 @@ export class PayrollAccountingService {
           branchIds,
         );
 
+        await tx.$executeRawUnsafe(
+          `UPDATE hr_compensation_requests r
+           SET status='APPLIED',applied_payroll_period_id=$1::text,updated_at=NOW()
+           WHERE r.tenant_id=$2::text AND r.company_id=$3::text AND r.status='APPROVED'
+             AND r.id IN (
+               SELECT compensation_item->>'id'
+               FROM payroll_items pi
+               CROSS JOIN LATERAL jsonb_array_elements(
+                 COALESCE(pi.calculation_snapshot->'approvedVariableCompensation'->'requests','[]'::jsonb)
+               ) compensation_item
+               WHERE pi.period_id=$1::text
+                 AND pi.tenant_id=$2::text
+                 AND pi.company_id=$3::text
+                 AND pi.branch_id=$4::text
+             )`,
+          periodId,
+          tenantId,
+          companyId,
+          period.branchId,
+        );
+
         for (const item of items) {
           const amountDue=this.round(Number(item.net_amount));
           await tx.$executeRawUnsafe(
