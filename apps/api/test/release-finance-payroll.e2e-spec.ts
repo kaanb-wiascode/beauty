@@ -194,14 +194,65 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       staff.body.id,
     );
 
-    await request(app.getHttpServer())
+    const submittedPayroll = await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/submit`)
       .set('Authorization', authorization)
       .expect(201);
+    expect(submittedPayroll.body.approvalRequestId).toBeTruthy();
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE approval_workflow_definitions
+       SET steps=$4::jsonb,"updatedAt"=NOW()
+       WHERE "tenantId"=$1::text AND "companyId"=$2::text
+         AND "workflowKey"='hr.payroll-period-approval' AND status='PUBLISHED'`,
+      currentTenantId,
+      companyId,
+      branchId,
+      JSON.stringify([
+        {
+          key: 'accounting-control',
+          name: 'Muhasebe Kontrolü',
+          approverType: 'ROLE',
+          approverValue: 'owner',
+          slaMinutes: 240,
+          timeoutAction: 'ESCALATE',
+        },
+        {
+          key: 'upper-management-approval',
+          name: 'Üst Yönetim Onayı',
+          approverType: 'ROLE',
+          approverValue: 'owner',
+          slaMinutes: 240,
+          timeoutAction: 'ESCALATE',
+        },
+      ]),
+    );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO sod_policy_definitions(
+         id,"tenantId","companyId",domain,"requesterCannotApprove","requireDistinctApprovers",enabled,
+         "createdByUserId","updatedByUserId","createdAt","updatedAt"
+       ) VALUES(
+         gen_random_uuid()::text,$1::text,$2::text,'hr',FALSE,FALSE,FALSE,$3::text,$3::text,NOW(),NOW()
+       )
+       ON CONFLICT("tenantId","companyId",domain)
+       DO UPDATE SET "requesterCannotApprove"=FALSE,"requireDistinctApprovers"=FALSE,enabled=FALSE,
+                     "updatedByUserId"=EXCLUDED."updatedByUserId","updatedAt"=NOW()`,
+      currentTenantId,
+      companyId,
+      registered.body.user.id,
+    );
 
     await request(app.getHttpServer())
-      .post(`/hr/payroll/periods/${period.body.id}/approve`)
+      .post(`/admin/approval-workflows/runtime/requests/${submittedPayroll.body.approvalRequestId}/act`)
       .set('Authorization', authorization)
+      .send({ decision: 'APPROVE', comment: 'Muhasebe kontrolü tamamlandı.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/admin/approval-workflows/runtime/requests/${submittedPayroll.body.approvalRequestId}/act`)
+      .set('Authorization', authorization)
+      .send({ decision: 'APPROVE', comment: 'Üst yönetim onayı tamamlandı.' })
       .expect(201);
 
     const postedPayroll = await request(app.getHttpServer())
