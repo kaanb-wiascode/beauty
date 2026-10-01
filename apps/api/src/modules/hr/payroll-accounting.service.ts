@@ -326,6 +326,36 @@ export class PayrollAccountingService {
           );
         }
 
+        const pendingCompensation = await tx.$queryRawUnsafe<any[]>(
+          `SELECT r.id,r.staff_id AS "staffId",r.type,r.amount
+           FROM hr_compensation_requests r
+           WHERE r.tenant_id=$1::text AND r.company_id=$2::text AND r.branch_id=$3::text
+             AND r.period_year=$4 AND r.period_month=$5 AND r.status='APPROVED'
+             AND NOT EXISTS (
+               SELECT 1
+               FROM payroll_items pi
+               CROSS JOIN LATERAL jsonb_array_elements(
+                 COALESCE(pi.calculation_snapshot->'approvedVariableCompensation'->'requests','[]'::jsonb)
+               ) compensation_item
+               WHERE pi.period_id=$6::text
+                 AND pi.tenant_id=$1::text
+                 AND pi.company_id=$2::text
+                 AND pi.branch_id=$3::text
+                 AND compensation_item->>'id'=r.id
+             )`,
+          tenantId,
+          companyId,
+          period.branchId,
+          Number(period.year),
+          Number(period.month),
+          periodId,
+        );
+        if (pendingCompensation.length) {
+          throw new BadRequestException(
+            `Bordro gönderilemez: ${pendingCompensation.length} onaylanmış prim/komisyon kaydı henüz bordro hesabına alınmamış. Bordroyu yeniden hesaplayın.`,
+          );
+        }
+
         const updated = await tx.$executeRawUnsafe(
           `UPDATE payroll_periods
            SET status='SUBMITTED',updated_at=NOW()
