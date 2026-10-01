@@ -16,7 +16,7 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
   let tenantId: string | null = null;
 
   const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
-  const password = 'ReleaseAcceptance!2026';
+  const password = `ReleaseAcceptance-${suffix}-A1!`;
 
   beforeAll(async () => {
     const moduleFixture: TestingModule = await Test.createTestingModule({
@@ -121,26 +121,6 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       .send({ year: 2199, month: 12 })
       .expect(201);
 
-    await request(app.getHttpServer())
-      .post(`/hr/payroll/periods/${period.body.id}/items`)
-      .set('Authorization', authorization)
-      .send({
-        staffId: staff.body.id,
-        branchId,
-        grossAmount: 1000,
-        netAmount: 770,
-        incomeTax: 100,
-        stampTax: 10,
-        employeeSocialSecurity: 100,
-        unemploymentEmployee: 20,
-        employerSocialSecurity: 150,
-        unemploymentEmployer: 20,
-        otherDeductions: 0,
-        employerCost: 1170,
-        note: 'Release acceptance payroll',
-      })
-      .expect(201);
-
     const closureId = randomUUID();
     await prisma.$executeRawUnsafe(
       `INSERT INTO hr_attendance_period_closures(
@@ -176,23 +156,71 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
     );
 
     await prisma.$executeRawUnsafe(
-      `UPDATE payroll_items
-       SET calculation_snapshot = calculation_snapshot || $2::jsonb, updated_at=NOW()
-       WHERE period_id=$1::text AND staff_id=$3::text`,
-      period.body.id,
-      JSON.stringify({
-        workInputs: {
-          source: 'ATTENDANCE_PERIOD_CLOSE',
-          closureId,
-          periodStart: '2199-12-01',
-          periodEnd: '2199-12-31',
-        },
-        salaryContract: { salaryBasis: 'MONTHLY_NET' },
-        legalCalculation: { source: 'NET_CONTRACT_LEGAL_ENGINE' },
-        netCompensationAdjustment: { source: 'NET_CONTRACT_POLICY' },
-      }),
+      `INSERT INTO hr_salary_contracts(
+         id,tenant_id,company_id,branch_id,staff_id,salary_basis,net_amount,currency,
+         effective_from,effective_to,status,note,created_by_user_id
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,'MONTHLY_NET',770,'TRY',
+         '2199-12-01'::date,'2199-12-31'::date,'ACTIVE','Release acceptance salary contract',$6::text
+       )`,
+      randomUUID(),
+      currentTenantId,
+      companyId,
+      branchId,
       staff.body.id,
+      registered.body.user.id,
     );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO payroll_legal_parameter_versions(
+         id,tenant_id,company_id,jurisdiction,version_label,effective_from,effective_to,status,
+         parameters,source_reference,note,created_by_user_id,published_by_user_id,published_at
+       ) VALUES(
+         $1::text,$2::text,$3::text,'TR','Release Acceptance 2199',
+         '2199-01-01'::date,'2199-12-31'::date,'PUBLISHED',$4::jsonb,
+         'release-acceptance','Release acceptance legal parameters',$5::text,$5::text,NOW()
+       )`,
+      randomUUID(),
+      currentTenantId,
+      companyId,
+      JSON.stringify({
+        employeeSocialSecurityRate: 0,
+        unemploymentEmployeeRate: 0,
+        employerSocialSecurityRate: 0,
+        unemploymentEmployerRate: 0,
+        stampTaxRate: 0,
+        incomeTaxBrackets: [{ upTo: null, rate: 0 }],
+        minimumWageIncomeTaxExemption: 0,
+        minimumWageStampTaxExemption: 0,
+        socialSecurityBaseFloor: null,
+        socialSecurityBaseCeiling: null,
+      }),
+      registered.body.user.id,
+    );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO payroll_tax_base_opening_balances(
+         id,tenant_id,company_id,branch_id,staff_id,tax_year,cumulative_tax_base,
+         source_reference,note,recorded_by_user_id
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,2199,0,
+         'release-acceptance','Release acceptance opening balance',$6::text
+       )`,
+      randomUUID(),
+      currentTenantId,
+      companyId,
+      branchId,
+      staff.body.id,
+      registered.body.user.id,
+    );
+
+    const preparedPayroll = await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/prepare`)
+      .set('Authorization', authorization)
+      .expect(201);
+    expect(preparedPayroll.body.status).toBe('PREPARED');
+    expect(preparedPayroll.body.preparedCount).toBe(1);
+    expect(preparedPayroll.body.totals.netAmount).toBe(770);
 
     const submittedPayroll = await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/submit`)
