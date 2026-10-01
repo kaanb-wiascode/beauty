@@ -1,4 +1,4 @@
-import { BadRequestException } from '@nestjs/common';
+import { ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
@@ -19,7 +19,7 @@ describe('ApprovalRuntimeService',()=>{
       .mockResolvedValueOnce([]);
     const prisma={membership:{findFirst:jest.fn().mockResolvedValue({userId:'user-1'})},$transaction:jest.fn(async(cb:any)=>cb({$queryRaw:queryRaw}))} as unknown as PrismaService;
     const service=new ApprovalRuntimeService(prisma,context,audit);
-    await expect(service.act('req-1','APPROVE')).rejects.toBeInstanceOf(BadRequestException);
+    await expect(service.act('req-1','APPROVE')).rejects.toBeInstanceOf(ForbiddenException);
     expect(audit.record).not.toHaveBeenCalled();
   });
 
@@ -30,7 +30,7 @@ describe('ApprovalRuntimeService',()=>{
       .mockResolvedValueOnce([{id:'step-1'}]);
     const prisma={membership:{findFirst:jest.fn().mockResolvedValue({userId:'user-2'})},$transaction:jest.fn(async(cb:any)=>cb({$queryRaw:queryRaw}))} as unknown as PrismaService;
     const service=new ApprovalRuntimeService(prisma,context,audit);
-    await expect(service.act('req-1','APPROVE')).rejects.toThrow('same approver');
+    await expect(service.act('req-1','APPROVE')).rejects.toThrow('Aynı kullanıcı birden fazla onay adımını onaylayamaz.');
     expect(queryRaw.mock.calls.length).toBe(3);
   });
 });
