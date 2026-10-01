@@ -5,7 +5,7 @@ import { TenantContext } from '../../common/tenant/tenant-context';
 import { PlatformAuditService } from '../platform-audit/platform-audit.service';
 
 type WorkflowRow={id:string;workflowKey:string;version:number;domain:string;steps:unknown};
-type RequestRow={id:string;tenantId:string;companyId:string;branchId:string|null;workflowKey:string;workflowVersion:number;domain:string;entityType:string;entityId:string;requestedByUserId:string;status:string;currentStepOrder:number;stepStartedAt?:Date};
+type RequestRow={id:string;tenantId:string;companyId:string;branchId:string|null;workflowKey:string;workflowVersion:number;domain:string;entityType:string;entityId:string;requestedByUserId:string;status:string;currentStepOrder:number;stepStartedAt?:Date;payload?:Record<string,unknown>|null};
 type StepDef={key:string;name:string;approverType?:string;approverValue?:string|null;approverPermission?:string;approverRoleSlug?:string;slaMinutes?:number|null;escalationApproverType?:string|null;escalationApproverValue?:string|null;timeoutAction?:string};
 type SodPolicyRow={requesterCannotApprove:boolean;requireDistinctApprovers:boolean;enabled:boolean};
 
@@ -317,6 +317,26 @@ export class ApprovalRuntimeService {
   private membershipCoversBranch(m:{role:{scope:string};branchAccesses:Array<{branchId:string}>},branchId:string|null){if(!branchId)return m.role.scope!=='BRANCH';if(m.role.scope==='CENTRAL')return true;return m.branchAccesses.some(x=>x.branchId===branchId);}
 
   private async directManagerAuthorized(actor:string,r:RequestRow,tx:Prisma.TransactionClient){
+    const payloadStaffId=typeof r.payload?.staffId==='string'&&r.payload.staffId.trim()?r.payload.staffId.trim():null;
+    if(payloadStaffId){
+      const rows=await tx.$queryRaw<Array<{ok:number}>>`
+        SELECT 1 AS ok
+        FROM hr_employee_assignments a
+        JOIN hr_employee_user_links manager
+          ON manager.staff_id=a.manager_staff_id
+         AND manager.tenant_id=a.tenant_id
+         AND manager.company_id=${r.companyId}
+         AND manager.active=TRUE
+        WHERE a.staff_id=${payloadStaffId}
+          AND a.tenant_id=${r.tenantId}
+          AND a.company_id=${r.companyId}
+          AND a.effective_from<=CURRENT_DATE
+          AND(a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE)
+          AND manager.user_id=${actor}
+        LIMIT 1
+      `;
+      return rows.length>0;
+    }
     const rows=await tx.$queryRaw<Array<{ok:number}>>`SELECT 1 AS ok FROM hr_employee_user_links requester JOIN hr_employee_assignments a ON a.staff_id=requester.staff_id AND a.tenant_id=requester.tenant_id AND a.effective_from<=CURRENT_DATE AND(a.effective_to IS NULL OR a.effective_to>=CURRENT_DATE) JOIN hr_employee_user_links manager ON manager.staff_id=a.manager_staff_id AND manager.tenant_id=a.tenant_id AND manager.active=TRUE WHERE requester.user_id=${r.requestedByUserId} AND requester.tenant_id=${r.tenantId} AND requester.active=TRUE AND manager.user_id=${actor} LIMIT 1`;
     return rows.length>0;
   }
