@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { randomUUID } from 'crypto';
@@ -65,7 +65,7 @@ export class AttendanceHardeningService {
     if (!reason) throw new BadRequestException('Düzeltme nedeni zorunludur.');
 
     const s = await this.scope();
-    return this.prisma.$transaction(async (tx) => {
+    return this.prisma.$transaction(async (tx:Prisma.TransactionClient) => {
       const rows = await tx.$queryRawUnsafe<any[]>(
         `SELECT a.*
          FROM attendance_records a
@@ -133,6 +133,14 @@ export class AttendanceHardeningService {
       }
 
       const correctionId = randomUUID();
+      const requestedValue = {
+        ...requested,
+        lateMinutes: late,
+        earlyDepartureMinutes: early,
+        missingPunch: missing,
+        absence,
+      };
+
       await tx.$executeRawUnsafe(
         `INSERT INTO hr_attendance_corrections(
            id, tenant_id, company_id, branch_id, attendance_record_id, staff_id,
@@ -155,50 +163,30 @@ export class AttendanceHardeningService {
           missingPunch: current.missing_punch,
           absence: current.absence,
         }),
-        JSON.stringify({
-          ...requested,
-          lateMinutes: late,
-          earlyDepartureMinutes: early,
-          missingPunch: missing,
-          absence,
-        }),
+        JSON.stringify(requestedValue),
         actorId,
       );
+
+      const approval = await this.approvalRuntime.createWithinTransaction({
+        workflowKey: 'hr.attendance-correction',
+        entityType: 'hr_attendance_correction',
+        entityId: correctionId,
+        branchId: current.branch_id,
+        reason,
+        payload: {
+          attendanceRecordId: id,
+          staffId: current.staff_id,
+          requestedValue,
+        },
+      },tx);
 
       return {
         id: correctionId,
         attendanceRecordId: id,
-        branchId: current.branch_id,
-        staffId: current.staff_id,
-        requestedValue: {
-          ...requested,
-          lateMinutes: late,
-          earlyDepartureMinutes: early,
-          missingPunch: missing,
-          absence,
-        },
-      };
-    }).then(async (correction) => {
-      const approval = await this.approvalRuntime.create({
-        workflowKey: 'hr.attendance-correction',
-        entityType: 'hr_attendance_correction',
-        entityId: correction.id,
-        branchId: correction.branchId,
-        reason,
-        payload: {
-          attendanceRecordId: correction.attendanceRecordId,
-          staffId: correction.staffId,
-          requestedValue: correction.requestedValue,
-        },
-      });
-
-      return {
-        id: correction.id,
-        attendanceRecordId: correction.attendanceRecordId,
         approvalRequestId: approval.id,
         approvalRequired: true,
         message: 'Düzeltme talebi oluşturuldu ve onay akışına gönderildi. Puantaj kaydı onay tamamlanmadan değiştirilmedi.',
       };
-    });
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 }
