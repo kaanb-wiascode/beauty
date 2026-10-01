@@ -64,6 +64,18 @@ export class HrSelfServiceService {
    attendanceToday,
   };
  }
+ async notifications(userId:string){
+  const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
+  return this.prisma.$queryRawUnsafe<any[]>(
+   `SELECT id,type,title,message,reference_type AS "referenceType",reference_id AS "referenceId",
+           read_at AS "readAt",created_at AS "createdAt"
+    FROM hr_employee_notifications
+    WHERE tenant_id=$1::text AND company_id=$2::text AND staff_id=$3::text
+    ORDER BY created_at DESC
+    LIMIT 50`,
+   tenantId,companyId,employee.id,
+  );
+ }
  async requestLeave(userId:string,body:any){const employee=await this.employee(userId),request=await this.leave.request(employee.id,body);try{await this.approvals.submit({entityType:'LEAVE',entityId:request.id,branchId:employee.branchId,requesterId:userId});}catch(error){if(!(error instanceof NotFoundException))throw error;}return request;}
  private async ensureAttendanceApprovalWorkflow(
   tx:Prisma.TransactionClient,
