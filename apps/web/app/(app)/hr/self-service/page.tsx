@@ -1,8 +1,11 @@
 import { EnterpriseDataPage } from "@/components/enterprise-data-page";
+import { AttendanceActionsPanel } from "./attendance-actions-panel";
 
 export default function HRSelfServicePage() {
   return (
-    <EnterpriseDataPage
+    <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
+      <AttendanceActionsPanel />
+      <EnterpriseDataPage
       eyebrow="Çalışan Deneyimi"
       title="Çalışan İşlemleri"
       description="Çalışanların kendi izinlerini, yaklaşan vardiyalarını ve temel insan kaynakları bilgilerini tek merkezden takip etmesini sağlar."
@@ -50,28 +53,6 @@ export default function HRSelfServicePage() {
           dataKey: "pendingLeaves",
         },
       ]}
-      actions={[
-        {
-          label: "Güne Başla",
-          path: "/hr/self-service/me/attendance/clock-in",
-          success: "Güne başlama hareketiniz kaydedildi ve yönetici onayına gönderildi.",
-        },
-        {
-          label: "Molaya Çık",
-          path: "/hr/self-service/me/attendance/break-start",
-          success: "Mola başlangıcınız kaydedildi ve yönetici onayına gönderildi.",
-        },
-        {
-          label: "Moladan Dön",
-          path: "/hr/self-service/me/attendance/break-end",
-          success: "Mola bitişiniz kaydedildi ve yönetici onayına gönderildi.",
-        },
-        {
-          label: "Günü Bitir",
-          path: "/hr/self-service/me/attendance/clock-out",
-          success: "Günü bitirme hareketiniz kaydedildi ve yönetici onayına gönderildi.",
-        },
-      ]}
       forms={[
         {
           title: "İzin Talebi Oluştur",
@@ -95,6 +76,7 @@ export default function HRSelfServicePage() {
           ],
         },
       ]}
-    />
+      />
+    </div>
   );
 }
