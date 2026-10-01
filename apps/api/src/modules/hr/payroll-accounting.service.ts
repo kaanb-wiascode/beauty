@@ -55,6 +55,68 @@ export class PayrollAccountingService {
     return `JE-${d.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  private async ensurePayrollApprovalWorkflow(tx:Prisma.TransactionClient,userId:string){
+    const {tenantId,companyId}=this.context();
+    const workflowKey='hr.payroll-period-approval';
+    const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
+    await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
+
+    const existing=await tx.$queryRaw<Array<{id:string}>>`
+      SELECT id
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+        AND status='PUBLISHED'
+      LIMIT 1
+    `;
+    if(existing.length)return;
+
+    const versions=await tx.$queryRaw<Array<{version:number}>>`
+      SELECT COALESCE(MAX(version),0)::int AS version
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+    `;
+    const version=Number(versions[0]?.version??0)+1;
+    const steps=[
+      {
+        key:'accounting-control',
+        name:'Muhasebe Kontrolü',
+        approverType:'ROLE',
+        approverValue:'accounting-manager',
+        slaMinutes:240,
+        timeoutAction:'ESCALATE',
+        escalationApproverType:'ROLE',
+        escalationApproverValue:'finance-manager',
+      },
+      {
+        key:'upper-management-approval',
+        name:'Üst Yönetim Onayı',
+        approverType:'ROLE',
+        approverValue:'general-manager',
+        slaMinutes:240,
+        timeoutAction:'ESCALATE',
+        escalationApproverType:'ROLE',
+        escalationApproverValue:'deputy-general-manager',
+      },
+    ];
+
+    await tx.$executeRaw`
+      INSERT INTO approval_workflow_definitions(
+        id,"tenantId","companyId","workflowKey",name,domain,description,
+        version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
+      ) VALUES(
+        gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},
+        'Bordro Onay Akışı','hr',
+        'Bordro dönemleri için muhasebe kontrolü ve üst yönetim onayı.',
+        ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,
+        ${userId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+      )
+    `;
+  }
+
   private validate(input: PayrollItemInput) {
     const nums = [
       'grossAmount',
