@@ -32,6 +32,12 @@ export default function HRSelfServicePage() {
           dataKey: "upcomingShifts",
         },
         {
+          title: "Bugünkü Puantaj Hareketlerim",
+          description: "Gün içindeki çalışma ve mola hareketlerinizin onay durumunu, yönetici adımını ve karar süresini gösterir.",
+          path: "/hr/self-service/me",
+          dataKey: "attendanceToday",
+        },
+        {
           title: "Ekibim",
           description: "Yöneticiyseniz sorumlu olduğunuz çalışanları gösterir.",
           path: "/hr/self-service/manager",
@@ -42,6 +48,28 @@ export default function HRSelfServicePage() {
           description: "Yöneticiyseniz ekibinizde sonuçlandırılmayı bekleyen izin taleplerini gösterir.",
           path: "/hr/self-service/manager",
           dataKey: "pendingLeaves",
+        },
+      ]}
+      actions={[
+        {
+          label: "Güne Başla",
+          path: "/hr/self-service/me/attendance/clock-in",
+          success: "Güne başlama hareketiniz kaydedildi ve yönetici onayına gönderildi.",
+        },
+        {
+          label: "Molaya Çık",
+          path: "/hr/self-service/me/attendance/break-start",
+          success: "Mola başlangıcınız kaydedildi ve yönetici onayına gönderildi.",
+        },
+        {
+          label: "Moladan Dön",
+          path: "/hr/self-service/me/attendance/break-end",
+          success: "Mola bitişiniz kaydedildi ve yönetici onayına gönderildi.",
+        },
+        {
+          label: "Günü Bitir",
+          path: "/hr/self-service/me/attendance/clock-out",
+          success: "Günü bitirme hareketiniz kaydedildi ve yönetici onayına gönderildi.",
         },
       ]}
       forms={[
