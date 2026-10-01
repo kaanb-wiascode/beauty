@@ -41,6 +41,11 @@ export default function HRSelfServicePage() {
           dataKey: "attendanceToday",
         },
         {
+          title: "Bildirimlerim",
+          description: "Bordro ödemesi gibi çalışan hesabınıza ait önemli insan kaynakları bildirimlerini gösterir.",
+          path: "/hr/self-service/me/notifications",
+        },
+        {
           title: "Ekibim",
           description: "Yöneticiyseniz sorumlu olduğunuz çalışanları gösterir.",
           path: "/hr/self-service/manager",
