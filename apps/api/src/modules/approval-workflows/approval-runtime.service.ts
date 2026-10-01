@@ -155,6 +155,9 @@ export class ApprovalRuntimeService {
           if(request.entityType==='hr_attendance_event'){
             await this.applyApprovedAttendanceEvent(request.entityId,request.tenantId,request.companyId,tx);
           }
+          if(request.entityType==='hr_payroll_period'){
+            await this.applyApprovedPayrollPeriod(request.entityId,request.tenantId,request.companyId,actor,tx);
+          }
         }
         await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'APPROVE',actor,null,note||null);
       }
@@ -177,6 +180,21 @@ export class ApprovalRuntimeService {
       await this.audit.record({actorUserId:actor,resource:'approval_requests',action:'resubmit',targetTenantId:context.tenantId,targetEntityType:request.entityType,targetEntityId:request.entityId,beforeState:{status:'RETURNED'},afterState:{status:'PENDING',comment:note},metadata:{companyId:context.companyId,requestId:request.id,workflowKey:request.workflowKey}},tx);
       return{id:request.id,status:'PENDING',currentStepOrder:request.currentStepOrder};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+
+  private async applyApprovedPayrollPeriod(periodId:string,tenantId:string,companyId:string,actorUserId:string,tx:Prisma.TransactionClient){
+    const updated=await tx.$executeRaw`
+      UPDATE payroll_periods
+      SET status='APPROVED',
+          approved_by_user_id=${actorUserId},
+          approved_at=CURRENT_TIMESTAMP,
+          updated_at=CURRENT_TIMESTAMP
+      WHERE id=${periodId}
+        AND tenant_id=${tenantId}
+        AND company_id=${companyId}
+        AND status='SUBMITTED'
+    `;
+    if(updated!==1)throw new BadRequestException('Bordro dönemi merkezi onay tamamlanırken beklenen durumda değildi.');
   }
 
   private async applyApprovedAttendanceEvent(eventId:string,tenantId:string,companyId:string,tx:Prisma.TransactionClient){
