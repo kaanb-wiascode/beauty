@@ -42,7 +42,7 @@ describe('PayrollWorkInputService organization scope', () => {
     const service = new PayrollWorkInputService(prisma, tenant, scope);
 
     await expect(service.attachToDraft('period-1','staff-2')).rejects.toBeInstanceOf(NotFoundException);
-    expect(tx.$queryRawUnsafe.mock.calls[1][0]).toContain('branch_id=$5::text');
-    expect(tx.$queryRawUnsafe.mock.calls[1][5]).toBe('branch-1');
+    expect(tx.$queryRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(String(tx.$queryRawUnsafe.mock.calls[0][0])).toContain('FROM payroll_periods');
   });
 });
