@@ -3,6 +3,7 @@ import { BadRequestException, ForbiddenException, Injectable, NotFoundException 
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.service';
 
 export type PayrollItemInput = {
   staffId: string;
@@ -27,6 +28,7 @@ export class PayrollAccountingService {
     private readonly prisma: PrismaService,
     private readonly tenant: TenantContext,
     private readonly organizationScope: OrganizationScopeService,
+    private readonly approvalRuntime: ApprovalRuntimeService,
   ) {}
 
   private context() {
@@ -93,6 +95,61 @@ export class PayrollAccountingService {
     if (!allowed.some((r) => ids.has(r))) {
       throw new ForbiddenException('Payroll approval requires HR, finance or management authority.');
     }
+  }
+
+  private async ensurePayrollApprovalWorkflow(tx:Prisma.TransactionClient,userId:string){
+    const {tenantId,companyId}=this.context();
+    const workflowKey='hr.payroll-period-approval';
+    const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
+    await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
+    const existing=await tx.$queryRaw<Array<{id:string}>>`
+      SELECT id FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId} AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey} AND status='PUBLISHED'
+      LIMIT 1
+    `;
+    if(existing.length)return;
+    const versions=await tx.$queryRaw<Array<{version:number}>>`
+      SELECT COALESCE(MAX(version),0)::int AS version
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId} AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+    `;
+    const version=Number(versions[0]?.version??0)+1;
+    const steps=[
+      {
+        key:'accounting-control',
+        name:'Muhasebe Kontrolü',
+        approverType:'ROLE',
+        approverValue:'accounting-manager',
+        slaMinutes:240,
+        timeoutAction:'ESCALATE',
+        escalationApproverType:'ROLE',
+        escalationApproverValue:'finance-manager',
+      },
+      {
+        key:'upper-management-approval',
+        name:'Üst Yönetim Onayı',
+        approverType:'ROLE',
+        approverValue:'general-manager',
+        slaMinutes:240,
+        timeoutAction:'ESCALATE',
+        escalationApproverType:'ROLE',
+        escalationApproverValue:'owner',
+      },
+    ];
+    await tx.$executeRaw`
+      INSERT INTO approval_workflow_definitions(
+        id,"tenantId","companyId","workflowKey",name,domain,description,
+        version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
+      ) VALUES(
+        gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},
+        'Bordro Onay Akışı','hr',
+        'Bordro dönemleri için muhasebe kontrolü ve üst yönetim onayı.',
+        ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,
+        ${userId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+      )
+    `;
   }
 
   private validate(input: PayrollItemInput) {
@@ -220,7 +277,7 @@ export class PayrollAccountingService {
     );
   }
 
-  async submit(periodId: string) {
+  async submit(periodId: string, userId?: string) {
     const { tenantId, companyId } = this.context();
     const branchIds = await this.branchIds();
 
@@ -316,9 +373,27 @@ export class PayrollAccountingService {
         );
         if (updated !== 1) throw new BadRequestException('Bordro dönemi eşzamanlı olarak değiştirildi.');
 
+        await this.ensurePayrollApprovalWorkflow(tx,userId??this.tenant.getContext().userId??'system');
+        const approval=await this.approvalRuntime.createWithinTransaction({
+          workflowKey:'hr.payroll-period-approval',
+          entityType:'hr_payroll_period',
+          entityId:periodId,
+          branchId:period.branchId,
+          reason:`Bordro ${period.year}/${String(period.month).padStart(2,'0')} onayı`,
+          payload:{
+            periodId,
+            year:Number(period.year),
+            month:Number(period.month),
+            branchId:period.branchId,
+            staffCount,
+            payrollItemCount:itemCount,
+          },
+        },tx);
+
         return {
           periodId,
           status: 'SUBMITTED',
+          approvalRequestId: approval.id,
           staffCount,
           payrollItemCount: itemCount,
           closedAttendanceInputCount: workInputCount,
