@@ -70,7 +70,7 @@ export class AttendanceHardeningService {
 
     const workflowKey='hr.attendance-correction';
     const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+    await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
 
     const published=await tx.$queryRaw<Array<{id:string}>>`
       SELECT id
