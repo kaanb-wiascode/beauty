@@ -654,6 +654,31 @@ export class PayrollAccountingService {
           period.branchId,
           branchIds,
         );
+
+        for (const item of items) {
+          const amountDue=this.round(Number(item.net_amount));
+          await tx.$executeRawUnsafe(
+            `INSERT INTO hr_payroll_payment_queue(
+               tenant_id,company_id,branch_id,period_id,staff_id,
+               amount_due,amount_paid,remaining_amount,status,queued_at,updated_at
+             ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,0,$6,'PENDING',NOW(),NOW())
+             ON CONFLICT(period_id,staff_id) DO UPDATE SET
+               amount_due=EXCLUDED.amount_due,
+               remaining_amount=GREATEST(0,EXCLUDED.amount_due-hr_payroll_payment_queue.amount_paid),
+               status=CASE
+                 WHEN hr_payroll_payment_queue.amount_paid>=EXCLUDED.amount_due THEN 'PAID'
+                 WHEN hr_payroll_payment_queue.amount_paid>0 THEN 'PARTIALLY_PAID'
+                 ELSE 'PENDING'
+               END,
+               updated_at=NOW()`,
+            tenantId,
+            companyId,
+            period.branchId,
+            periodId,
+            item.staff_id,
+            amountDue,
+          );
+        }
         return {
           periodId,
           status: 'POSTED',
