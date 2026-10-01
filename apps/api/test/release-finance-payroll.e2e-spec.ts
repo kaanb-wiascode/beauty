@@ -201,31 +201,13 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
     expect(submittedPayroll.body.approvalRequestId).toBeTruthy();
 
     await prisma.$executeRawUnsafe(
-      `UPDATE approval_workflow_definitions
-       SET steps=$4::jsonb,"updatedAt"=NOW()
-       WHERE "tenantId"=$1::text AND "companyId"=$2::text
-         AND "workflowKey"='hr.payroll-period-approval' AND status='PUBLISHED'`,
-      currentTenantId,
-      companyId,
-      branchId,
-      JSON.stringify([
-        {
-          key: 'accounting-control',
-          name: 'Muhasebe Kontrolü',
-          approverType: 'ROLE',
-          approverValue: 'owner',
-          slaMinutes: 240,
-          timeoutAction: 'ESCALATE',
-        },
-        {
-          key: 'upper-management-approval',
-          name: 'Üst Yönetim Onayı',
-          approverType: 'ROLE',
-          approverValue: 'owner',
-          slaMinutes: 240,
-          timeoutAction: 'ESCALATE',
-        },
-      ]),
+      `UPDATE approval_request_steps
+       SET "approverType"='ROLE',
+           "approverValue"='owner',
+           "approverRoleSlug"='owner',
+           "updatedAt"=NOW()
+       WHERE "requestId"=$1::text`,
+      submittedPayroll.body.approvalRequestId,
     );
 
     await prisma.$executeRawUnsafe(
