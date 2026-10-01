@@ -27,8 +27,8 @@ type EmployeeCreateResponse = DataRow & { accountProvisioning?: { activationToke
 type FormState = Record<string, string | number | undefined>;
 
 const SECTION_CONFIG: Record<SectionKey, SectionConfig> = {
-  employees: { title: "Çalışan Kayıtları", get: "/hr/employees", post: "/hr/employees", fields: ["firstName","lastName","phone","email","roleId","personnelNumber","department","position","employmentType","hireDate","grossSalary","iban","bankName"] },
-  "personnel-files": { title: "Özlük Dosyaları", get: "/hr/personnel-files", fields: ["firstName","lastName","identityNumber","department","position","hireDate","salary","iban","bankName"] },
+  employees: { title: "Çalışan Kayıtları", get: "/hr/employees", post: "/hr/employees", fields: ["firstName","lastName","phone","email","roleId","personnelNumber","department","position","employmentType","hireDate","iban","bankName"] },
+  "personnel-files": { title: "Özlük Dosyaları", get: "/hr/personnel-files", fields: ["firstName","lastName","identityNumber","department","position","hireDate","iban","bankName"] },
   attendance: { title: "Puantaj", get: "/hr/attendance", post: "/hr/attendance", fields: ["staffId","workDate","checkIn","checkOut","breakMinutes","workedMinutes","overtimeMinutes","status","note"] },
   leaves: { title: "İzinler", get: "/hr/leaves", post: "/hr/leaves", fields: ["staffId","type","startDate","endDate","days","status","reason"] },
   payroll: { title: "Bordro", get: "/hr/payroll", post: "/hr/payroll/periods", fields: ["year","month"] },
@@ -39,7 +39,7 @@ const SECTION_CONFIG: Record<SectionKey, SectionConfig> = {
 const FIELD_LABELS: Record<string, string> = {
   firstName: "Ad", lastName: "Soyad", phone: "Telefon", email: "E-posta", personnelNumber: "Sicil No",
   identityNumber: "T.C. Kimlik No", position: "Pozisyon", department: "Departman", employmentType: "Çalışma şekli",
-  hireDate: "İşe giriş", salary: "Brüt maaş", grossSalary: "Brüt maaş", iban: "IBAN", bankName: "Banka",
+  hireDate: "İşe giriş", iban: "IBAN", bankName: "Banka",
   staffId: "Personel", workDate: "Tarih", checkIn: "Giriş", checkOut: "Çıkış", breakMinutes: "Mola süresi",
   workedMinutes: "Çalışma süresi", overtimeMinutes: "Fazla mesai süresi", status: "Durum", note: "Not",
   type: "İzin türü", startDate: "Başlangıç", endDate: "Bitiş", days: "Gün", reason: "Açıklama",
@@ -48,7 +48,7 @@ const FIELD_LABELS: Record<string, string> = {
 };
 
 const DATE_FIELDS = new Set(["hireDate","workDate","startDate","endDate","paidAt","recordDate"]);
-const NUMBER_FIELDS = new Set(["salary","grossSalary","breakMinutes","workedMinutes","overtimeMinutes","days","year","month","amount"]);
+const NUMBER_FIELDS = new Set(["breakMinutes","workedMinutes","overtimeMinutes","days","year","month","amount"]);
 const SELECT_VALUES: Record<string, readonly string[]> = {
   status: ["PENDING","APPROVED","PAID","PRESENT","ABSENT","DRAFT"],
   type: ["ANNUAL","SICK","EXCUSE","UNPAID","OTHER"],
@@ -57,7 +57,7 @@ const SELECT_VALUES: Record<string, readonly string[]> = {
 const PERIOD_SECTIONS = new Set<SectionKey>(["attendance","payroll","payments","sgk"]);
 const EDITABLE_SECTIONS = new Set<SectionKey>(["employees","attendance","leaves"]);
 const SENSITIVE_SECTIONS = new Set<SectionKey>(["personnel-files","payroll","payments","sgk"]);
-const SENSITIVE_EMPLOYEE_FIELDS = new Set(["grossSalary","iban","bankName"]);
+const SENSITIVE_EMPLOYEE_FIELDS = new Set(["iban","bankName"]);
 
 export default function HRSection() {
   const params = useParams<{ section: string }>();
@@ -608,7 +608,6 @@ function normalizeForm(section: SectionKey, raw: FormState, canReadSensitive: bo
       employmentType: body.employmentType || undefined,
       hireDate: body.hireDate || undefined,
       ...(canReadSensitive ? {
-        grossSalary: body.grossSalary === "" ? undefined : Number(body.grossSalary),
         iban: body.iban || undefined,
         bankName: body.bankName || undefined,
       } : {}),
