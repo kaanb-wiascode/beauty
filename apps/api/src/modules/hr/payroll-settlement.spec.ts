@@ -12,7 +12,7 @@ describe('PayrollSettlementService',()=>{
     const tx:any={
       $queryRawUnsafe: jest.fn()
         .mockResolvedValueOnce([{id:'period-1',status:'POSTED',branchId:'branch-1',netAmount:'1000'}])
-        .mockResolvedValueOnce([{paid:'800'}]),
+        .mockResolvedValueOnce([{id:'queue-1',amountDue:'1000',amountPaid:'800',remainingAmount:'200',status:'PARTIALLY_PAID'}]),
       chartOfAccount:{findFirst:jest.fn()},
       journalEntry:{create:jest.fn()},
     };
