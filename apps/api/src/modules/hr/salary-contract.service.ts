@@ -27,7 +27,7 @@ export class SalaryContractService {
   private validDate(value: unknown, field: string) {
     const normalized = String(value ?? '').trim();
     if (!normalized || Number.isNaN(Date.parse(normalized))) {
-      throw new BadRequestException(`${field} must be a valid date.`);
+      throw new BadRequestException(`${field} geçerli bir tarih olmalıdır.`);
     }
     return normalized.slice(0, 10);
   }
@@ -35,7 +35,7 @@ export class SalaryContractService {
   private amount(value: unknown) {
     const n = Number(value);
     if (!Number.isFinite(n) || n < 0) {
-      throw new BadRequestException('netAmount must be a non-negative number.');
+      throw new BadRequestException('Net ücret sıfır veya daha büyük olmalıdır.');
     }
     return Math.round((n + Number.EPSILON) * 100) / 100;
   }
@@ -102,7 +102,7 @@ export class SalaryContractService {
       date,
       branchIds,
     );
-    if (!rows.length) throw new NotFoundException('No active net salary contract covers the requested date.');
+    if (!rows.length) throw new NotFoundException('İstenen tarihi kapsayan aktif net ücret sözleşmesi bulunamadı.');
     return rows[0];
   }
 
@@ -111,15 +111,15 @@ export class SalaryContractService {
     const effectiveFrom = this.validDate(input?.effectiveFrom, 'effectiveFrom');
     const effectiveTo = input?.effectiveTo ? this.validDate(input.effectiveTo, 'effectiveTo') : null;
     if (effectiveTo && effectiveTo < effectiveFrom) {
-      throw new BadRequestException('effectiveTo must be on or after effectiveFrom.');
+      throw new BadRequestException('Bitiş tarihi başlangıç tarihinden önce olamaz.');
     }
     const netAmount = this.amount(input?.netAmount);
     const salaryBasis = String(input?.salaryBasis ?? 'MONTHLY_NET').trim().toUpperCase();
-    if (!['MONTHLY_NET', 'DAILY_NET', 'HOURLY_NET'].includes(salaryBasis)) {
-      throw new BadRequestException('salaryBasis is invalid.');
+    if (salaryBasis !== 'MONTHLY_NET') {
+      throw new BadRequestException('Otomatik bordro entegrasyonu için yalnız aylık net ücret sözleşmesi oluşturulabilir.');
     }
     const currency = String(input?.currency ?? 'TRY').trim().toUpperCase();
-    if (currency.length !== 3) throw new BadRequestException('currency must be a 3-letter code.');
+    if (currency.length !== 3) throw new BadRequestException('Para birimi 3 harfli bir kod olmalıdır.');
 
     return this.prisma.$transaction(async (tx) => {
       const staff = await tx.$queryRawUnsafe<any[]>(
@@ -133,7 +133,7 @@ export class SalaryContractService {
         companyId,
         branchIds,
       );
-      if (!staff.length) throw new NotFoundException('Staff member not found.');
+      if (!staff.length) throw new NotFoundException('Personel bulunamadı.');
       const branchId = staff[0].branchId;
 
       const overlap = await tx.$queryRawUnsafe<any[]>(
@@ -151,7 +151,7 @@ export class SalaryContractService {
         effectiveTo,
       );
       if (overlap.length) {
-        throw new BadRequestException('The requested salary contract date range overlaps an active contract.');
+        throw new BadRequestException('Girilen ücret sözleşmesi tarih aralığı mevcut bir sözleşmeyle çakışıyor.');
       }
 
       const rows = await tx.$queryRawUnsafe<any[]>(
@@ -195,7 +195,7 @@ export class SalaryContractService {
       companyId,
       branchIds,
     );
-    if (!rows.length) throw new BadRequestException('Active salary contract not found or end date is invalid.');
+    if (!rows.length) throw new BadRequestException('Aktif ücret sözleşmesi bulunamadı veya bitiş tarihi geçersiz.');
     return rows[0];
   }
 }
