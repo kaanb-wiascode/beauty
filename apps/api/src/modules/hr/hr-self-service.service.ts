@@ -1,5 +1,5 @@
 import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
-import { PrismaService } from '@beauty-erp/database';
+import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { Employee360Service } from './employee-360.service';
 import { LeavePolicyService } from './leave-policy.service';
@@ -14,6 +14,60 @@ export class HrSelfServiceService {
  async link(staffId:string,userId:string,actorId:string){const{tenantId,companyId}=this.scope();const staff=await this.prisma.staff.findFirst({where:{id:staffId,tenantId,branch:{companyId}},select:{id:true}});const user=await this.prisma.user.findFirst({where:{id:userId,memberships:{some:{tenantId,companyId,status:'ACTIVE'}}},select:{id:true}});if(!staff||!user)throw new NotFoundException('Staff or user not found in organization scope.');await this.prisma.$executeRawUnsafe(`INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,linked_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,staff_id) DO UPDATE SET user_id=EXCLUDED.user_id,company_id=EXCLUDED.company_id,active=TRUE,linked_at=CURRENT_TIMESTAMP,linked_by=EXCLUDED.linked_by`,tenantId,companyId,staffId,userId,actorId);return{staffId,userId,active:true};}
  async employeeHome(userId:string){const employee=await this.employee(userId),year=new Date().getFullYear(),types=await this.leave.leaveTypes(),leaveBalances:any[]=[];for(const type of types.filter((x:any)=>x.active)){try{leaveBalances.push({...await this.leave.balance(employee.id,type.id,year),code:type.code,name:type.name});}catch{}}const{tenantId}=this.scope();const shifts=await this.prisma.$queryRawUnsafe<any[]>(`SELECT sh.id,sh.start_at AS "startAt",sh.end_at AS "endAt",sh.status FROM hr_shift_assignments a JOIN hr_scheduled_shifts sh ON sh.id=a.scheduled_shift_id WHERE a.tenant_id=$1 AND a.staff_id=$2 AND sh.start_at>=CURRENT_TIMESTAMP ORDER BY sh.start_at LIMIT 20`,tenantId,employee.id);return{employee,profile:await this.employee360.get(employee.id),leaveBalances,leaveRequests:await this.leave.requests(employee.id),upcomingShifts:shifts};}
  async requestLeave(userId:string,body:any){const employee=await this.employee(userId),request=await this.leave.request(employee.id,body);try{await this.approvals.submit({entityType:'LEAVE',entityId:request.id,branchId:employee.branchId,requesterId:userId});}catch(error){if(!(error instanceof NotFoundException))throw error;}return request;}
+ private async ensureAttendanceApprovalWorkflow(
+  tx:Prisma.TransactionClient,
+  userId:string,
+  workflowKey:'hr.attendance-clock'|'hr.attendance-break',
+ ){
+  const{tenantId,companyId}=this.scope();
+  const slaMinutes=workflowKey==='hr.attendance-clock'?15:2;
+  const name=workflowKey==='hr.attendance-clock'?'Puantaj Giriş/Çıkış Onayı':'Puantaj Mola Onayı';
+  const description=workflowKey==='hr.attendance-clock'
+   ?'Güne başlama ve günü bitirme hareketleri için varsayılan yönetici onayı.'
+   :'Mola başlangıç ve bitiş hareketleri için varsayılan yönetici onayı.';
+  const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
+  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+
+  const published=await tx.$queryRaw<Array<{id:string}>>`
+   SELECT id
+   FROM approval_workflow_definitions
+   WHERE "tenantId"=${tenantId}
+     AND "companyId"=${companyId}
+     AND "workflowKey"=${workflowKey}
+     AND status='PUBLISHED'
+   LIMIT 1
+  `;
+  if(published.length)return;
+
+  const versions=await tx.$queryRaw<Array<{version:number}>>`
+   SELECT COALESCE(MAX(version),0)::int AS version
+   FROM approval_workflow_definitions
+   WHERE "tenantId"=${tenantId}
+     AND "companyId"=${companyId}
+     AND "workflowKey"=${workflowKey}
+  `;
+  const version=Number(versions[0]?.version??0)+1;
+  const steps=[{
+   key:'manager-approval',
+   name:'Yönetici Onayı',
+   approverType:'DIRECT_MANAGER',
+   approverValue:null,
+   slaMinutes,
+   timeoutAction:'ESCALATE',
+   escalationApproverType:'BRANCH_MANAGER',
+   escalationApproverValue:null,
+  }];
+
+  await tx.$executeRaw`
+   INSERT INTO approval_workflow_definitions(
+    id,"tenantId","companyId","workflowKey",name,domain,description,
+    version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
+   ) VALUES(
+    gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},${name},'hr',${description},
+    ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,${userId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+   )
+  `;
+ }
  async recordAttendanceEvent(userId:string,eventType:'CLOCK_IN'|'BREAK_START'|'BREAK_END'|'CLOCK_OUT',deviceContext?:Record<string,unknown>){
   const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
   const storedType=eventType==='CLOCK_IN'?'DAY_START':eventType==='CLOCK_OUT'?'DAY_END':eventType;
@@ -97,7 +151,8 @@ export class HrSelfServiceService {
     :0;
 
    const event=rows[0];
-   const workflowKey=['DAY_START','DAY_END'].includes(storedType)?'hr.attendance-clock':'hr.attendance-break';
+   const workflowKey:'hr.attendance-clock'|'hr.attendance-break'=['DAY_START','DAY_END'].includes(storedType)?'hr.attendance-clock':'hr.attendance-break';
+   await this.ensureAttendanceApprovalWorkflow(tx,userId,workflowKey);
    const approval=await this.approvalRuntime.createWithinTransaction({
     workflowKey,
     entityType:'hr_attendance_event',
