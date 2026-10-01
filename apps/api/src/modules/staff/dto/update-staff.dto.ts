@@ -34,6 +34,6 @@ export const updateStaffSchema = z
     email: z.string().trim().email().max(255).optional(),
     profile: staffProfileSchema.optional(),
   })
-  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+  .refine((data) => Object.keys(data).length > 0, { message: 'En az bir alan gönderilmelidir.' });
 
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;
