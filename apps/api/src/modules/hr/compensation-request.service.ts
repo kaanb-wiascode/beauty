@@ -75,6 +75,27 @@ export class CompensationRequestService {
     );
   }
 
+  async updateReturned(id:string,input:any,userId:string){
+    const {tenantId,companyId,branchIds}=await this.context();
+    const amount=input?.amount==null?null:Math.round(Number(input.amount)*100)/100;
+    if(amount!==null&&(!Number.isFinite(amount)||amount<=0))throw new BadRequestException('Tutar sıfırdan büyük olmalıdır.');
+    const reason=input?.reason==null?null:String(input.reason).trim();
+    if(reason!==null&&reason.length<3)throw new BadRequestException('Talep açıklaması en az 3 karakter olmalıdır.');
+    const rows=await this.prisma.$queryRawUnsafe<any[]>(
+      `UPDATE hr_compensation_requests
+       SET amount=COALESCE($2,amount),
+           reason=COALESCE($3,reason),
+           updated_at=NOW()
+       WHERE id=$1::text AND tenant_id=$4::text AND company_id=$5::text
+         AND status='RETURNED' AND requested_by_user_id=$6::text
+         AND ($7::text[] IS NULL OR branch_id=ANY($7::text[]))
+       RETURNING id,approval_request_id AS "approvalRequestId",amount,reason,status`,
+      id,amount,reason,tenantId,companyId,userId,branchIds,
+    );
+    if(!rows.length)throw new BadRequestException('Yalnız düzeltmeye gönderilmiş kendi prim/komisyon talebiniz düzenlenebilir.');
+    return rows[0];
+  }
+
   async create(input:any,userId:string){
     const {tenantId,companyId,branchIds}=await this.context();
     const type=String(input?.type??'').toUpperCase();
