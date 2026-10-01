@@ -16,7 +16,7 @@ export default function SalaryContractsPage() {
       forms={[
         {
           title: "NET Ücret Sözleşmesi Oluştur",
-          description: "Personelin bordroda esas alınacak net ücretini ve geçerlilik dönemini tanımlayın.",
+          description: "Personelin bordroda esas alınacak aylık net ücretini ve geçerlilik dönemini tanımlayın. Günlük ve saatlik ücret tipleri otomatik bordro motoruna dahil edilene kadar yeni sözleşmelerde kullanılamaz.",
           path: "/hr/employees/{staffId}/salary-contracts",
           success: "NET ücret sözleşmesi oluşturuldu.",
           fields: [
@@ -36,8 +36,6 @@ export default function SalaryContractsPage() {
               defaultValue: "MONTHLY_NET",
               options: [
                 { value: "MONTHLY_NET", label: "Aylık Net Ücret" },
-                { value: "DAILY_NET", label: "Günlük Net Ücret" },
-                { value: "HOURLY_NET", label: "Saatlik Net Ücret" },
               ],
             },
             {
