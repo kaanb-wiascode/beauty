@@ -76,7 +76,7 @@ export class HrSelfServiceService {
    ?'Güne başlama ve günü bitirme hareketleri için varsayılan yönetici onayı.'
    :'Mola başlangıç ve bitiş hareketleri için varsayılan yönetici onayı.';
   const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
-  await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+  await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
 
   const published=await tx.$queryRaw<Array<{id:string}>>`
    SELECT id
@@ -122,7 +122,7 @@ export class HrSelfServiceService {
   const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
   const storedType=eventType==='CLOCK_IN'?'DAY_START':eventType==='CLOCK_OUT'?'DAY_END':eventType;
   return this.prisma.$transaction(async(tx)=>{
-   await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`${tenantId}:${employee.id}:attendance`);
+   await tx.$queryRawUnsafe(`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext($1))) SELECT 1 AS locked FROM lock_guard`,`${tenantId}:${employee.id}:attendance`);
 
    const today=await tx.$queryRawUnsafe<Array<{eventType:string;occurredAt:Date}>>(
     `SELECT e.event_type AS "eventType",e.occurred_at AS "occurredAt"
