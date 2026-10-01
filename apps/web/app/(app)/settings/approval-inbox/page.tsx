@@ -18,10 +18,10 @@ export default function ApprovalInboxPage(){
  const {showToast}=useToast();
  const [rows,setRows]=useState<ApprovalRequest[]>([]),[status,setStatus]=useState("PENDING"),[loading,setLoading]=useState(true),[busy,setBusy]=useState<string|null>(null),[error,setError]=useState("");
  const [actionRow,setActionRow]=useState<ApprovalRequest|null>(null),[decision,setDecision]=useState<Decision|null>(null),[comment,setComment]=useState("");
- const [now,setNow]=useState(Date.now());
+ const [now,setNow]=useState(0);
  const load=useCallback(async()=>{setLoading(true);setError("");try{const suffix=status?"?status="+encodeURIComponent(status):"";setRows(await api<ApprovalRequest[]>("/admin/approval-workflows/runtime/inbox"+suffix));}catch(e){setError(e instanceof ApiError?e.message:"Onay talepleri yüklenemedi.");}finally{setLoading(false)}},[status]);
  useEffect(()=>{void load()},[load]);
- useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[]);
+ useEffect(()=>{setNow(Date.now());const timer=setInterval(()=>setNow(Date.now()),1000);return()=>clearInterval(timer)},[]);
  const pending=useMemo(()=>rows.filter(x=>x.status==="PENDING").length,[rows]);
  const overdue=useMemo(()=>rows.filter(x=>x.status==="PENDING"&&x.overdue).length,[rows]);
 
