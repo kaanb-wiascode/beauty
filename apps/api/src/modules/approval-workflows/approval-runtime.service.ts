@@ -126,7 +126,7 @@ export class ApprovalRuntimeService {
     return this.prisma.$transaction(async tx=>{
       const rows=await tx.$queryRaw<RequestRow[]>`SELECT * FROM approval_requests WHERE id=${id} AND "tenantId"=${context.tenantId} AND "companyId"=${context.companyId} FOR UPDATE`;
       const request=rows[0];if(!request)throw new NotFoundException('Onay talebi bulunamadı.');
-      if(decision==='CANCEL'){if(!['PENDING','RETURNED'].includes(request.status))throw new BadRequestException('Tamamlanmış onay talebi iptal edilemez.');if(request.requestedByUserId!==actor)throw new BadRequestException('Talebi yalnız talep sahibi iptal edebilir.');await tx.$executeRaw`UPDATE approval_requests SET status='CANCELLED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;await this.recordAction(tx,context.tenantId,context.companyId,request.id,request.currentStepOrder,'CANCEL',actor,null,note||null);return{id:request.id,decision,success:true};}
+      if(decision==='CANCEL'){if(!['PENDING','RETURNED'].includes(request.status))throw new BadRequestException('Tamamlanmış onay talebi iptal edilemez.');if(request.requestedByUserId!==actor)throw new BadRequestException('Talebi yalnız talep sahibi iptal edebilir.');await tx.$executeRaw`UPDATE approval_requests SET status='CANCELLED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;await this.syncCompensationRequestStatus(request,'CANCELLED',tx);await this.recordAction(tx,context.tenantId,context.companyId,request.id,request.currentStepOrder,'CANCEL',actor,null,note||null);return{id:request.id,decision,success:true};}
       if(request.status!=='PENDING')throw new BadRequestException(request.status==='RETURNED'?'Bu kayıt düzeltme için talep sahibini bekliyor.':'Onay talebi daha önce tamamlanmış.');
       await this.assertSeparationOfDuties(actor,request,tx);
       const steps=await tx.$queryRaw<Array<{id:string;stepOrder:number;approverPermission:string|null;approverRoleSlug:string|null;approverType:string|null;approverValue:string|null;slaMinutes:number|null;escalationApproverType:string|null;escalationApproverValue:string|null;timeoutAction:string;startedAt:Date|null;status:string}>>`SELECT id,"stepOrder","approverPermission","approverRoleSlug","approverType","approverValue","slaMinutes","escalationApproverType","escalationApproverValue","timeoutAction","startedAt",status FROM approval_request_steps WHERE "requestId"=${request.id} AND "stepOrder"=${request.currentStepOrder} FOR UPDATE`;
@@ -135,11 +135,11 @@ export class ApprovalRuntimeService {
       if(decision==='DELEGATE'){const target=await tx.user.findUnique({where:{id:delegateToUserId!},select:{id:true}});if(!target)throw new BadRequestException('Delegasyon kullanıcısı bulunamadı.');await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'DELEGATE',actor,delegateToUserId!,note||null);return{id:request.id,decision,success:true};}
       if(decision==='REJECT'){
         await tx.$executeRaw`UPDATE approval_request_steps SET status='REJECTED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
-        await tx.$executeRaw`UPDATE approval_requests SET status='REJECTED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+        await tx.$executeRaw`UPDATE approval_requests SET status='REJECTED',"completedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;await this.syncCompensationRequestStatus(request,'REJECTED',tx);
         await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'REJECT',actor,null,note);
       }else if(decision==='RETURN'){
         await tx.$executeRaw`UPDATE approval_request_steps SET status='RETURNED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
-        await tx.$executeRaw`UPDATE approval_requests SET status='RETURNED',"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+        await tx.$executeRaw`UPDATE approval_requests SET status='RETURNED',"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;await this.syncCompensationRequestStatus(request,'RETURNED',tx);
         await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'RETURN',actor,null,note);
       }else{
         await tx.$executeRaw`UPDATE approval_request_steps SET status='APPROVED',"actedByUserId"=${actor},"actedAt"=CURRENT_TIMESTAMP,comment=${note||null},"updatedAt"=CURRENT_TIMESTAMP WHERE id=${step.id}`;
@@ -158,6 +158,9 @@ export class ApprovalRuntimeService {
           if(request.entityType==='hr_payroll_period'){
             await this.applyApprovedPayrollPeriod(request.entityId,request.tenantId,request.companyId,actor,tx);
           }
+          if(request.entityType==='hr_compensation_request'){
+            await this.syncCompensationRequestStatus(request,'APPROVED',tx);
+          }
         }
         await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'APPROVE',actor,null,note||null);
       }
@@ -175,11 +178,26 @@ export class ApprovalRuntimeService {
       if(request.requestedByUserId!==actor)throw new BadRequestException('Yalnız talep sahibi düzeltme sonrası yeniden gönderebilir.');
       if(request.status!=='RETURNED')throw new BadRequestException('Yalnız düzeltmeye gönderilmiş kayıt yeniden gönderilebilir.');
       await tx.$executeRaw`UPDATE approval_request_steps SET status='PENDING',"actedByUserId"=NULL,"actedAt"=NULL,comment=NULL,"startedAt"=CURRENT_TIMESTAMP,"updatedAt"=CURRENT_TIMESTAMP WHERE "requestId"=${request.id} AND "stepOrder"=${request.currentStepOrder}`;
-      await tx.$executeRaw`UPDATE approval_requests SET status='PENDING',"stepStartedAt"=CURRENT_TIMESTAMP,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;
+      await tx.$executeRaw`UPDATE approval_requests SET status='PENDING',"stepStartedAt"=CURRENT_TIMESTAMP,"completedAt"=NULL,"updatedAt"=CURRENT_TIMESTAMP WHERE id=${request.id}`;await this.syncCompensationRequestStatus(request,'PENDING',tx);
       await this.recordAction(tx,context.tenantId,context.companyId,request.id,request.currentStepOrder,'RESUBMIT',actor,null,note);
       await this.audit.record({actorUserId:actor,resource:'approval_requests',action:'resubmit',targetTenantId:context.tenantId,targetEntityType:request.entityType,targetEntityId:request.entityId,beforeState:{status:'RETURNED'},afterState:{status:'PENDING',comment:note},metadata:{companyId:context.companyId,requestId:request.id,workflowKey:request.workflowKey}},tx);
       return{id:request.id,status:'PENDING',currentStepOrder:request.currentStepOrder};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+
+
+  private async syncCompensationRequestStatus(request:RequestRow,status:'PENDING'|'RETURNED'|'APPROVED'|'REJECTED'|'CANCELLED',tx:Prisma.TransactionClient){
+    if(request.entityType!=='hr_compensation_request')return;
+    const updated=await tx.$executeRaw`
+      UPDATE hr_compensation_requests
+      SET status=${status},
+          approved_at=CASE WHEN ${status}='APPROVED' THEN CURRENT_TIMESTAMP ELSE approved_at END,
+          updated_at=CURRENT_TIMESTAMP
+      WHERE id=${request.entityId}
+        AND tenant_id=${request.tenantId}
+        AND company_id=${request.companyId}
+    `;
+    if(updated!==1)throw new BadRequestException('Prim/komisyon talebi onay durumu güncellenemedi.');
   }
 
   private async applyApprovedPayrollPeriod(periodId:string,tenantId:string,companyId:string,actorUserId:string,tx:Prisma.TransactionClient){
