@@ -75,13 +75,19 @@ export class HrSelfServiceService {
    await tx.$queryRawUnsafe(`SELECT pg_advisory_xact_lock(hashtext($1))`,`${tenantId}:${employee.id}:attendance`);
 
    const today=await tx.$queryRawUnsafe<Array<{eventType:string;occurredAt:Date}>>(
-    `SELECT event_type AS "eventType",occurred_at AS "occurredAt"
-     FROM hr_attendance_events
-     WHERE tenant_id=$1
-       AND company_id=$2
-       AND staff_id=$3
-       AND occurred_at::date=CURRENT_DATE
-     ORDER BY occurred_at,id`,
+    `SELECT e.event_type AS "eventType",e.occurred_at AS "occurredAt"
+     FROM hr_attendance_events e
+     JOIN approval_requests r
+       ON r."tenantId"=e.tenant_id
+      AND r."companyId"=e.company_id
+      AND r."entityType"='hr_attendance_event'
+      AND r."entityId"=e.id
+      AND r.status IN ('PENDING','APPROVED')
+     WHERE e.tenant_id=$1
+       AND e.company_id=$2
+       AND e.staff_id=$3
+       AND e.occurred_at::date=CURRENT_DATE
+     ORDER BY e.occurred_at,e.id`,
     tenantId,
     companyId,
     employee.id,
@@ -119,37 +125,6 @@ export class HrSelfServiceService {
     JSON.stringify(deviceContext??{}),
    );
 
-   const dayEvents=await tx.$queryRawUnsafe<Array<{eventType:string;occurredAt:Date}>>(
-    `SELECT event_type AS "eventType",occurred_at AS "occurredAt"
-     FROM hr_attendance_events
-     WHERE tenant_id=$1
-       AND company_id=$2
-       AND staff_id=$3
-       AND occurred_at::date=CURRENT_DATE
-     ORDER BY occurred_at,id`,
-    tenantId,
-    companyId,
-    employee.id,
-   );
-
-   const checkIn=dayEvents.find((item)=>item.eventType==='DAY_START')?.occurredAt??null;
-   const checkOut=[...dayEvents].reverse().find((item)=>item.eventType==='DAY_END')?.occurredAt??null;
-   let breakStartedAt:Date|null=null;
-   let breakMinutes=0;
-   for(const item of dayEvents){
-    if(item.eventType==='BREAK_START'){
-     breakStartedAt=item.occurredAt;
-    }else if(item.eventType==='BREAK_END'&&breakStartedAt){
-     breakMinutes+=Math.max(0,Math.floor((item.occurredAt.getTime()-breakStartedAt.getTime())/60000));
-     breakStartedAt=null;
-    }
-   }
-
-   const projectionEnd=checkOut??dayEvents.at(-1)?.occurredAt??checkIn;
-   const workedMinutes=checkIn&&projectionEnd
-    ?Math.max(0,Math.floor((projectionEnd.getTime()-checkIn.getTime())/60000)-breakMinutes)
-    :0;
-
    const event=rows[0];
    const workflowKey:'hr.attendance-clock'|'hr.attendance-break'=['DAY_START','DAY_END'].includes(storedType)?'hr.attendance-clock':'hr.attendance-break';
    await this.ensureAttendanceApprovalWorkflow(tx,userId,workflowKey);
@@ -173,6 +148,45 @@ export class HrSelfServiceService {
      branchId:employee.branchId,
     },
    },tx);
+
+   const dayEvents=await tx.$queryRawUnsafe<Array<{eventType:string;occurredAt:Date}>>(
+    `SELECT e.event_type AS "eventType",e.occurred_at AS "occurredAt"
+     FROM hr_attendance_events e
+     JOIN approval_requests r
+       ON r."tenantId"=e.tenant_id
+      AND r."companyId"=e.company_id
+      AND r."entityType"='hr_attendance_event'
+      AND r."entityId"=e.id
+      AND r.status IN ('PENDING','APPROVED')
+     WHERE e.tenant_id=$1
+       AND e.company_id=$2
+       AND e.staff_id=$3
+       AND e.occurred_at::date=CURRENT_DATE
+     ORDER BY e.occurred_at,e.id`,
+    tenantId,
+    companyId,
+    employee.id,
+   );
+
+   const checkIn=dayEvents.find((item)=>item.eventType==='DAY_START')?.occurredAt??null;
+   const checkOut=[...dayEvents].reverse().find((item)=>item.eventType==='DAY_END')?.occurredAt??null;
+   let breakStartedAt:Date|null=null;
+   let breakMinutes=0;
+   for(const item of dayEvents){
+    if(item.eventType==='BREAK_START'){
+     breakStartedAt=item.occurredAt;
+    }else if(item.eventType==='BREAK_END'&&breakStartedAt){
+     breakMinutes+=Math.max(0,Math.floor((item.occurredAt.getTime()-breakStartedAt.getTime())/60000));
+     breakStartedAt=null;
+    }
+   }
+
+   const projectionEnd=checkOut??dayEvents.at(-1)?.occurredAt??checkIn;
+   const workedMinutes=checkIn&&projectionEnd
+    ?Math.max(0,Math.floor((projectionEnd.getTime()-checkIn.getTime())/60000)-breakMinutes)
+    :0;
+
+
 
    return{
     id:event.id,
