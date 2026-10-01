@@ -46,6 +46,11 @@ export default function HRSelfServicePage() {
           path: "/hr/self-service/me/notifications",
         },
         {
+          title: "Bordro ve Ödeme Durumum",
+          description: "Son bordro dönemlerinizdeki net ücret, ödenen tutar, kalan tutar ve ödeme durumunu gösterir.",
+          path: "/hr/self-service/me/payroll-status",
+        },
+        {
           title: "Ekibim",
           description: "Yöneticiyseniz sorumlu olduğunuz çalışanları gösterir.",
           path: "/hr/self-service/manager",
