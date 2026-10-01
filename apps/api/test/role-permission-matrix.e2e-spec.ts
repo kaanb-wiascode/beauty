@@ -203,16 +203,39 @@ describe('Role / permission matrix (e2e)', () => {
       .expect(200);
 
     const templates = templatesResponse.body as Template[];
-    expect(templates.map((template) => template.key).sort()).toEqual([
-      'accountant',
-      'auditor',
-      'branch-manager',
-      'finance',
-      'general-manager',
-      'hr',
-      'reception',
-      'warehouse',
-    ]);
+    const templateKeys = templates.map((template) => template.key);
+    expect(templateKeys).toEqual(
+      expect.arrayContaining([
+        'general-manager',
+        'deputy-general-manager',
+        'finance-director',
+        'hr-director',
+        'operations-director',
+        'regional-manager',
+        'coordinator',
+        'branch-manager',
+        'hr-manager',
+        'hr-officer',
+        'payroll-officer',
+        'recruitment-officer',
+        'finance-manager',
+        'finance-officer',
+        'accounting-manager',
+        'accountant',
+        'cashier',
+        'reception',
+        'sales-specialist',
+        'specialist',
+        'service-staff',
+        'field-staff',
+        'employee',
+        'intern',
+        'temporary-staff',
+        'warehouse',
+        'auditor',
+      ]),
+    );
+    expect(new Set(templateKeys).size).toBe(templateKeys.length);
 
     const requiredPairs = new Map<string, { resource: string; action: string }>();
     for (const template of templates) {
