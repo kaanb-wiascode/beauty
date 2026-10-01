@@ -244,6 +244,8 @@ const USER_LABELS: Record<string, string> = {
   INTERN: "Stajyer",
   SELF_REVIEW: "Çalışan Değerlendirmesi",
   MANAGER_REVIEW: "Yönetici Değerlendirmesi",
+  hr_attendance_event: "Puantaj Hareketi",
+  hr_attendance_correction: "Puantaj Düzeltme Talebi",
 };
 
 const USER_RESOURCE_LABELS: Record<string, string> = {
