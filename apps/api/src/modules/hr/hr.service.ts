@@ -48,8 +48,8 @@ export class HrService {
     const tenantId = this.tenantContext.getTenantId();
     const companyId = this.tenantContext.getCompanyId();
     const selectedBranchId = this.tenantContext.getBranchId();
-    if (!tenantId) throw new BadRequestException('Tenant context is required.');
-    if (!companyId) throw new BadRequestException('Company context is required.');
+    if (!tenantId) throw new BadRequestException('Kiracı bağlamı bulunamadı.');
+    if (!companyId) throw new BadRequestException('Şirket bağlamı bulunamadı.');
 
     const scope = await this.organizationScope.getBranchScopedWhere();
     if ('branchId' in scope) {
@@ -80,11 +80,11 @@ export class HrService {
     const branchId = requestedBranchId ?? scope.selectedBranchId;
     if (!branchId) {
       throw new BadRequestException(
-        'A branch must be selected for this operation.',
+        'Bu işlem için bir şube seçilmelidir.',
       );
     }
     if (scope.branchIds !== null && !scope.branchIds.includes(branchId)) {
-      throw new BadRequestException('Branch is outside the active organization scope.');
+      throw new BadRequestException('Seçilen şube aktif organizasyon kapsamının dışında.');
     }
     const branch = await this.prisma.branch.findFirst({
       where: {
@@ -95,7 +95,7 @@ export class HrService {
       },
       select: { id: true },
     });
-    if (!branch) throw new BadRequestException('Branch is not available in this tenant.');
+    if (!branch) throw new BadRequestException('Seçilen şube bu işletme kapsamında kullanılamıyor.');
     return branchId;
   }
 
@@ -108,7 +108,7 @@ export class HrService {
       where: { id: staffId, tenantId, branchId },
       select: { id: true },
     });
-    if (!staff) throw new NotFoundException('Staff not found');
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
   }
 
   private profile(value: unknown): StaffProfile {
@@ -128,7 +128,7 @@ export class HrService {
     if (!normalized) return null;
     const date = new Date(normalized);
     if (Number.isNaN(date.getTime())) {
-      throw new BadRequestException(`${field} must be a valid date.`);
+      throw new BadRequestException(`${field} geçerli bir tarih olmalıdır.`);
     }
     return date.toISOString().slice(0, 10);
   }
@@ -137,7 +137,7 @@ export class HrService {
     if (value === undefined || value === null || value === '') return null;
     const amount = Number(String(value).replace(',', '.'));
     if (!Number.isFinite(amount) || amount < 0) {
-      throw new BadRequestException(`${field} must be a non-negative number.`);
+      throw new BadRequestException(`${field} sıfırdan küçük olamaz.`);
     }
     return amount;
   }
@@ -177,7 +177,7 @@ export class HrService {
       );
       if (rows.length) {
         throw new BadRequestException(
-          'An employee with this personnel number already exists.',
+          'Bu personel numarasıyla kayıtlı başka bir çalışan bulunuyor.',
         );
       }
     }
@@ -190,7 +190,7 @@ export class HrService {
       );
       if (rows.length) {
         throw new BadRequestException(
-          'An employee with this identity number already exists.',
+          'Bu T.C. kimlik numarasıyla kayıtlı başka bir çalışan bulunuyor.',
         );
       }
     }
@@ -668,10 +668,10 @@ export class HrService {
     const current = await this.prisma.staff.findFirst({
       where: { id, ...this.staffWhere(scope) },
     });
-    if (!current) throw new NotFoundException('Staff not found');
+    if (!current) throw new NotFoundException('Personel bulunamadı.');
     if (body.branchId && body.branchId !== current.branchId) {
       throw new BadRequestException(
-        'Employee branch changes must use the HR organization assignment workflow.',
+        'Personelin şube değişikliği İK organizasyon atama akışı üzerinden yapılmalıdır.',
       );
     }
     if (body.email && body.email !== current.email) {
@@ -680,7 +680,7 @@ export class HrService {
         select: { id: true },
       });
       if (emailOwner) {
-        throw new BadRequestException('A staff member with this email already exists.');
+        throw new BadRequestException('Bu e-posta adresiyle kayıtlı başka bir personel bulunuyor.');
       }
     }
     const currentProfile = this.profile(current.profile);
@@ -736,7 +736,7 @@ export class HrService {
       where: { id, ...this.staffWhere(scope) },
       select: { id: true },
     });
-    if (!staff) throw new NotFoundException('Staff not found');
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
     return this.prisma.staff.update({ where: { id }, data: { status: 'ARCHIVED' } });
   }
 
@@ -807,7 +807,7 @@ export class HrService {
       scope.tenantId,
       scope.branchIds,
     );
-    if (!result) throw new NotFoundException('Leave request not found');
+    if (!result) throw new NotFoundException('İzin talebi bulunamadı.');
     return { success: true };
   }
 
@@ -819,7 +819,7 @@ export class HrService {
       scope.tenantId,
       scope.branchIds,
     );
-    if (!result) throw new NotFoundException('Leave request not found');
+    if (!result) throw new NotFoundException('İzin talebi bulunamadı.');
     return { success: true };
   }
 
@@ -869,7 +869,7 @@ export class HrService {
     const scope = await this.scope();
     const branchId = await this.writableBranch(scope, body.branchId);
     if (!body.staffId || !body.year || !body.month) {
-      throw new BadRequestException('staffId, year and month are required');
+      throw new BadRequestException('Personel, yıl ve ay bilgileri zorunludur');
     }
     await this.assertStaffInBranch(scope.tenantId, body.staffId, branchId);
     await this.prisma.$executeRawUnsafe(
