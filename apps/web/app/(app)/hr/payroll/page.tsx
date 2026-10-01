@@ -20,6 +20,48 @@ export default function PayrollPage(){
           path: "/hr/payroll/payment-queue",
         },
       ]}
+      forms={[
+        {
+          title: "Maaş Ödemesi Yap",
+          description: "Ödeme kuyruğundaki personeli seçin. Tutarı boş bırakırsanız kalan net maaşın tamamı ödenir.",
+          path: "/hr/payroll/payment-queue/{queueId}/pay",
+          success: "Maaş ödemesi kaydedildi.",
+          fields: [
+            {
+              name: "queueId",
+              label: "Ödeme Kaydı",
+              type: "remote-select",
+              optionsPath: "/hr/payroll/payment-queue",
+              optionValueKey: "id",
+              optionLabelKeys: ["firstName", "lastName", "branchName", "status"],
+              required: true,
+            },
+            {
+              name: "amount",
+              label: "Ödenecek Tutar",
+              type: "number",
+              placeholder: "Boş bırakırsanız kalan tutarın tamamı",
+            },
+            {
+              name: "method",
+              label: "Ödeme Yöntemi",
+              type: "select",
+              required: true,
+              defaultValue: "BANK",
+              options: [
+                { value: "BANK", label: "Banka" },
+                { value: "CASH", label: "Kasa" },
+              ],
+            },
+            {
+              name: "note",
+              label: "Açıklama",
+              type: "textarea",
+              placeholder: "İsteğe bağlı ödeme açıklaması",
+            },
+          ],
+        },
+      ]}
     />
   </div>;
 }
