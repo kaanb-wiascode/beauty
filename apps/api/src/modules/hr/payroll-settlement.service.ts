@@ -45,11 +45,19 @@ export class PayrollSettlementService {
          FOR UPDATE OF pp,pi`,periodId,tenantId,companyId,staffId,branchIds);
       if(!rows.length) throw new NotFoundException('Posted payroll item not found.');
       const item=rows[0];
-      const paidRows=await tx.$queryRawUnsafe<any[]>(
-        `SELECT COALESCE(SUM(amount),0)::numeric AS paid FROM salary_payments
-         WHERE tenant_id=$1::text AND company_id=$2::text AND period_id=$3::text AND staff_id=$4::text
-           AND branch_id=$5::text AND status='PAID'`,tenantId,companyId,periodId,staffId,item.branchId);
-      const paid=this.round(Number(paidRows[0]?.paid??0)); const remaining=this.round(Number(item.netAmount)-paid);
+      const queueRows=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,amount_due AS "amountDue",amount_paid AS "amountPaid",remaining_amount AS "remainingAmount",status
+         FROM hr_payroll_payment_queue
+         WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+           AND period_id=$4::text AND staff_id=$5::text
+         LIMIT 1
+         FOR UPDATE`,
+        tenantId,companyId,item.branchId,periodId,staffId,
+      );
+      if(!queueRows.length) throw new BadRequestException('Muhasebe ödeme kuyruğunda bu personel için açık bordro ödemesi bulunamadı.');
+      const queue=queueRows[0];
+      if(queue.status==='PAID') throw new BadRequestException('Bu bordro ödemesi zaten tamamlanmış.');
+      const remaining=this.round(Number(queue.remainingAmount));
       if(amount>remaining+0.01) throw new BadRequestException(`Salary payment exceeds remaining payable amount ${remaining}.`);
 
       const personnel=await this.ensureAccount(tx,tenantId,companyId,'335','Personele Borçlar','LIABILITY');
@@ -59,7 +67,43 @@ export class PayrollSettlementService {
       await tx.$executeRawUnsafe(
         `INSERT INTO salary_payments(id,tenant_id,company_id,branch_id,period_id,staff_id,amount,method,status,paid_at,note,journal_entry_id,payment_account_code)
          VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,'PAID',NOW(),$9,$10::text,$11)`,paymentId,tenantId,companyId,item.branchId,periodId,staffId,amount,method,note??null,entry.id,paymentCode);
-      return {paymentId,periodId,staffId,amount,remaining:this.round(remaining-amount),journalEntryId:entry.id,status:'PAID'};
+
+      const remainingAfter=this.round(remaining-amount);
+      const queueStatus=remainingAfter<=0.01?'PAID':'PARTIALLY_PAID';
+      await tx.$executeRawUnsafe(
+        `UPDATE hr_payroll_payment_queue
+         SET amount_paid=amount_paid+$2,
+             remaining_amount=$3,
+             status=$4,
+             paid_at=CASE WHEN $4='PAID' THEN NOW() ELSE paid_at END,
+             updated_at=NOW()
+         WHERE id=$1::text`,
+        queue.id,amount,remainingAfter,queueStatus,
+      );
+
+      if(queueStatus==='PAID'){
+        const links=await tx.$queryRawUnsafe<any[]>(
+          `SELECT user_id AS "userId"
+           FROM hr_employee_user_links
+           WHERE tenant_id=$1::text AND company_id=$2::text AND staff_id=$3::text AND active=TRUE
+           ORDER BY created_at DESC
+           LIMIT 1`,
+          tenantId,companyId,staffId,
+        );
+        await tx.$executeRawUnsafe(
+          `INSERT INTO hr_employee_notifications(
+             tenant_id,company_id,branch_id,staff_id,user_id,type,title,message,reference_type,reference_id
+           ) VALUES(
+             $1::text,$2::text,$3::text,$4::text,$5::text,
+             'PAYROLL_PAID','Maaşınız ödendi',
+             'İlgili döneme ait net maaş ödemeniz muhasebe tarafından tamamlandı.',
+             'PAYROLL_PERIOD',$6::text
+           )`,
+          tenantId,companyId,item.branchId,staffId,links[0]?.userId??null,periodId,
+        );
+      }
+
+      return {paymentId,periodId,staffId,amount,remaining:remainingAfter,journalEntryId:entry.id,status:'PAID',queueStatus};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
