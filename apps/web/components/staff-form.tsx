@@ -46,7 +46,7 @@ type Props = {
 const steps = [
   { key: "personal", label: "Kişisel", description: "Kimlik Ve İletişim" },
   { key: "work", label: "İş Bilgileri", description: "Pozisyon Ve Çalışma" },
-  { key: "finance", label: "Özlük Ve Finans", description: "Sözleşme Ve Maaş" },
+  { key: "finance", label: "Özlük Ve Finans", description: "Sözleşme Ve Banka" },
   { key: "emergency", label: "Acil Durum", description: "Yakın Kişi Bilgileri" },
   { key: "notes", label: "Notlar", description: "Ek Bilgiler" },
 ] as const;
@@ -173,26 +173,15 @@ export function StaffEditorForm({
 
         {step === 2 ? (
           <FormSection title="Özlük Ve Finans" description="Sözleşme, Ücret Ve Banka Bilgileri.">
+            <FormHint title="NET Ücret Sözleşmesi" tone="info">
+              Bordroda kullanılacak ücret bu personel profilinde tutulmaz. Personeli kaydettikten sonra İK menüsündeki “NET Ücret Sözleşmeleri” alanından geçerlilik tarihleriyle birlikte tanımlayın.
+            </FormHint>
             <FormGrid>
-              <Field label="Maaş tipi">
-                <ValooSelect
-                  value={form.profile.salaryType ?? ""}
-                  onChange={(salaryType) => onProfileChange("salaryType", salaryType)}
-                  searchable={false}
-                  placeholder="Seçiniz"
-                  options={[
-                    { value: "Aylık", label: "Aylık" },
-                    { value: "Saatlik", label: "Saatlik" },
-                    { value: "Günlük", label: "Günlük" },
-                  ]}
-                />
-              </Field>
-              <Field label="Maaş"><TextInput type="number" min={0} value={form.profile.salary ?? ""} onChange={(event) => onProfileChange("salary", event.target.value === "" ? undefined : Number(event.target.value))} placeholder="0" /></Field>
               <Field label="Banka"><TextInput value={form.profile.bankName ?? ""} onChange={(event) => onProfileChange("bankName", event.target.value)} /></Field>
               <Field label="IBAN"><TextInput value={form.profile.iban ?? ""} onChange={(event) => { const normalized = event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 26); onProfileChange("iban", normalized.replace(/(.{4})/g, "$1 ").trim()); }} placeholder="TR00 0000 0000 0000 0000 0000 00" /></Field>
             </FormGrid>
             <FormHint title="Hassas Özlük Verileri" tone="warning">
-              Maaş Ve IBAN Gibi Finansal Personel Verilerine Erişim Yetkili Rollerle Sınırlandırılmalıdır. Bu Form İnternet Bankacılığı Kullanıcı Adı Veya Parola Toplamaz.
+              IBAN ve ücret sözleşmeleri hassas özlük verileridir. Erişim yetkili rollerle sınırlandırılmalıdır. Bu form internet bankacılığı kullanıcı adı veya parola toplamaz.
             </FormHint>
           </FormSection>
         ) : null}
