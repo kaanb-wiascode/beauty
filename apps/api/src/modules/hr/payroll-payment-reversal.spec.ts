@@ -35,7 +35,7 @@ describe('PayrollPaymentReversalService', () => {
         branchId: 'branch-a',
         periodId: 'period-a',
         staffId: 'staff-a',
-        amount: '300',
+        amount: '300.02',
         status: 'PAID',
         journalEntryId: 'je-paid',
         reversalJournalEntryId: null,
@@ -43,8 +43,8 @@ describe('PayrollPaymentReversalService', () => {
       .mockResolvedValueOnce([{ status: 'POSTED', branchId: 'branch-a' }])
       .mockResolvedValueOnce([{
         id: 'queue-a',
-        amountDue: '1000',
-        amountPaid: '1000',
+        amountDue: '1000.01',
+        amountPaid: '1000.01',
       }]);
     const execute = jest.fn().mockResolvedValue(1);
     const tx = {
@@ -53,7 +53,7 @@ describe('PayrollPaymentReversalService', () => {
       journalEntry: {
         findFirst: jest.fn().mockResolvedValue({
           id: 'je-paid',
-          lines: [{ accountId: 'acc-1', debit: 300, credit: 0, memo: 'payment' }],
+          lines: [{ accountId: 'acc-1', debit: 300.02, credit: 0, memo: 'payment' }],
         }),
         create: jest.fn().mockResolvedValue({ id: 'je-reversal' }),
       },
@@ -69,6 +69,9 @@ describe('PayrollPaymentReversalService', () => {
     });
 
     expect(query.mock.calls[2][0]).toContain('hr_payroll_payment_queue');
+    const queueUpdate=execute.mock.calls.find((call)=>String(call[0]).includes('UPDATE hr_payroll_payment_queue'));
+    expect(queueUpdate?.[2]).toBe(699.99);
+    expect(queueUpdate?.[3]).toBe(300.02);
     expect(execute.mock.calls.some((call) => String(call[0]).includes('UPDATE hr_payroll_payment_queue'))).toBe(true);
     expect(execute.mock.calls.some((call) => String(call[0]).includes('DELETE FROM hr_employee_notifications'))).toBe(true);
   });
@@ -80,7 +83,7 @@ describe('PayrollPaymentReversalService', () => {
     const service = new PayrollPaymentReversalService(prisma, tenant, scope);
 
     await expect(service.reverseLiabilityPayment('liab-a', 'user-a', 'duplicate reversal')).rejects.toThrow(
-      'Payroll liability payment not found.',
+      'Bordro yükümlülük ödemesi bulunamadı.',
     );
     expect(query.mock.calls[0][0]).not.toContain('branch_id IS NULL');
     expect(query.mock.calls[0][4]).toEqual(['branch-a', 'branch-b']);
