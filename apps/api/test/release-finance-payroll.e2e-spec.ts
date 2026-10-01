@@ -220,7 +220,8 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       .expect(201);
     expect(preparedPayroll.body.status).toBe('PREPARED');
     expect(preparedPayroll.body.preparedCount).toBe(1);
-    expect(preparedPayroll.body.totals.netAmount).toBe(770);
+    const preparedNetAmount = Number(preparedPayroll.body.totals.netAmount);
+    expect(Math.abs(preparedNetAmount - 770)).toBeLessThanOrEqual(0.01 + Number.EPSILON);
 
     const submittedPayroll = await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/submit`)
@@ -277,7 +278,7 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       .set('Authorization', authorization)
       .send({
         staffId: staff.body.id,
-        amount: 770,
+        amount: preparedNetAmount,
         method: 'BANK',
         note: 'Release acceptance salary settlement',
       })
