@@ -33,8 +33,8 @@ const TEMPLATES: TemplateDefinition[] = [
 
   { key: 'finance-manager', name: 'Finans Müdürü', description: 'Finans operasyonları ve ödeme kontrolleri.', scope: 'COMPANY', permissions: ['finance.read','finance.manage','payments.read','payments.create','reports.read','accounting.read'] },
   { key: 'finance-officer', name: 'Finans Yetkilisi', description: 'Günlük finans ve ödeme operasyonları.', scope: 'COMPANY', permissions: ['finance.read','payments.read','payments.create','reports.read'] },
-  { key: 'accounting-manager', name: 'Muhasebe Müdürü', description: 'Muhasebe kayıtları ve finansal onay süreçleri.', scope: 'COMPANY', permissions: ['accounting.read','accounting.manage','finance.read','payments.read','reports.read'] },
-  { key: 'accountant', name: 'Muhasebe Yetkilisi', description: 'Muhasebe ve raporlama işlemleri.', scope: 'COMPANY', permissions: ['accounting.read','accounting.manage','finance.read','payments.read','reports.read'] },
+  { key: 'accounting-manager', name: 'Muhasebe Müdürü', description: 'Muhasebe kayıtları, finansal onay ve ödeme süreçleri.', scope: 'COMPANY', permissions: ['accounting.read','accounting.manage','finance.read','payments.read','payments.create','reports.read'] },
+  { key: 'accountant', name: 'Muhasebe Yetkilisi', description: 'Muhasebe, ödeme ve raporlama işlemleri.', scope: 'COMPANY', permissions: ['accounting.read','accounting.manage','finance.read','payments.read','payments.create','reports.read'] },
   { key: 'cashier', name: 'Kasa Yetkilisi', description: 'Şube kasa, tahsilat ve ödeme işlemleri.', scope: 'BRANCH', permissions: ['payments.read','payments.create','sales.read','sales.collect','reports.read'] },
 
   { key: 'reception', name: 'Resepsiyon', description: 'Müşteri, randevu ve ön büro işlemleri.', scope: 'BRANCH', permissions: ['customers.read','customers.create','customers.update','appointments.read','appointments.create','appointments.update','appointments.cancel','payments.read','payments.create','services.read','hr_self_service.read'] },
