@@ -200,7 +200,6 @@ export class PayrollWorkInputService {
           approvedLeaveRecords:Number(staffSnapshot.approvedLeaveRecords??0),
           declaredLeaveDays:Number(staffSnapshot.declaredLeaveDays??0),
           unpaidLeaveRecords:Number(staffSnapshot.unpaidLeaveRecords??0),
-        unpaidLeaveDays:Number(staffSnapshot.unpaidLeaveDays??0),
           unpaidLeaveDays:Number(staffSnapshot.unpaidLeaveDays??0),
         };
         await tx.$executeRawUnsafe(
