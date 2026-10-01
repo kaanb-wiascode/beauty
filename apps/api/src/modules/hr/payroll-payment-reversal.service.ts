@@ -32,10 +32,14 @@ export class PayrollPaymentReversalService {
     return `JE-${d.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
+  private round(value: number) {
+    return Math.round((value + Number.EPSILON) * 100) / 100;
+  }
+
   private reason(value: string) {
     const clean = (value ?? '').trim();
     if (clean.length < 5) {
-      throw new BadRequestException('Reversal reason must contain at least 5 characters.');
+      throw new BadRequestException('Ters kayıt nedeni en az 5 karakter olmalıdır.');
     }
     return clean;
   }
@@ -55,7 +59,7 @@ export class PayrollPaymentReversalService {
       include: { lines: true },
     });
     if (!original || !original.lines.length) {
-      throw new BadRequestException('Original payroll settlement journal is missing.');
+      throw new BadRequestException('Ters kayıt için gerekli orijinal bordro muhasebe fişi bulunamadı.');
     }
     const now = new Date();
     return tx.journalEntry.create({
@@ -99,7 +103,7 @@ export class PayrollPaymentReversalService {
           companyId,
           branchIds,
         );
-        if (!rows.length) throw new NotFoundException('Salary payment not found.');
+        if (!rows.length) throw new NotFoundException('Maaş ödemesi bulunamadı.');
         const payment = rows[0];
         if (payment.status === 'REVERSED') {
           return {
@@ -110,7 +114,7 @@ export class PayrollPaymentReversalService {
           };
         }
         if (payment.status !== 'PAID' || !payment.journalEntryId) {
-          throw new BadRequestException('Only posted salary payments can be reversed.');
+          throw new BadRequestException('Yalnız kesinleşmiş maaş ödemeleri ters kayda alınabilir.');
         }
         const period = await tx.$queryRawUnsafe<any[]>(
           `SELECT status,branch_id AS "branchId" FROM payroll_periods
@@ -123,10 +127,10 @@ export class PayrollPaymentReversalService {
           branchIds,
         );
         if (!period.length || period[0].status === 'REVERSED') {
-          throw new BadRequestException('Payroll period is already reversed or outside active organization scope.');
+          throw new BadRequestException('Bordro dönemi zaten ters kayda alınmış veya aktif organizasyon kapsamınızın dışında.');
         }
         if (period[0].branchId !== payment.branchId) {
-          throw new BadRequestException('Salary payment branch does not match payroll period branch.');
+          throw new BadRequestException('Maaş ödemesinin şubesi bordro dönemi şubesiyle eşleşmiyor.');
         }
         const reversal = await this.reverseJournal(
           tx,
@@ -168,8 +172,8 @@ export class PayrollPaymentReversalService {
           throw new BadRequestException('Bordro ödeme kuyruğu kaydı bulunamadığı için ters kayıt tamamlanamadı.');
         }
         const queue=queueRows[0];
-        const nextPaid=Math.max(0,Number(queue.amountPaid)-Number(payment.amount));
-        const nextRemaining=Math.max(0,Number(queue.amountDue)-nextPaid);
+        const nextPaid=this.round(Math.max(0,Number(queue.amountPaid)-Number(payment.amount)));
+        const nextRemaining=this.round(Math.max(0,Number(queue.amountDue)-nextPaid));
         const nextStatus=nextPaid<=0.01?'PENDING':'PARTIALLY_PAID';
         await tx.$executeRawUnsafe(
           `UPDATE hr_payroll_payment_queue
@@ -218,7 +222,7 @@ export class PayrollPaymentReversalService {
           companyId,
           branchIds,
         );
-        if (!rows.length) throw new NotFoundException('Payroll liability payment not found.');
+        if (!rows.length) throw new NotFoundException('Bordro yükümlülük ödemesi bulunamadı.');
         const payment = rows[0];
         if (payment.status === 'REVERSED') {
           return {
@@ -229,7 +233,7 @@ export class PayrollPaymentReversalService {
           };
         }
         if (payment.status !== 'PAID' || !payment.journalEntryId) {
-          throw new BadRequestException('Only posted payroll liability payments can be reversed.');
+          throw new BadRequestException('Yalnız kesinleşmiş bordro yükümlülük ödemeleri ters kayda alınabilir.');
         }
         const period = await tx.$queryRawUnsafe<any[]>(
           `SELECT status,branch_id AS "branchId" FROM payroll_periods
@@ -245,7 +249,7 @@ export class PayrollPaymentReversalService {
           throw new BadRequestException('Payroll period is already reversed or outside active organization scope.');
         }
         if (period[0].branchId !== payment.branchId) {
-          throw new BadRequestException('Liability payment branch does not match payroll period branch.');
+          throw new BadRequestException('Yükümlülük ödemesinin şubesi bordro dönemi şubesiyle eşleşmiyor.');
         }
         const reversal = await this.reverseJournal(
           tx,
