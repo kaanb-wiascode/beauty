@@ -152,6 +152,9 @@ export class ApprovalRuntimeService {
           if(request.entityType==='hr_attendance_correction'){
             await this.applyApprovedAttendanceCorrection(request.entityId,request.tenantId,request.companyId,tx);
           }
+          if(request.entityType==='hr_attendance_event'){
+            await this.applyApprovedAttendanceEvent(request.entityId,request.tenantId,request.companyId,tx);
+          }
         }
         await this.recordAction(tx,context.tenantId,context.companyId,request.id,step.stepOrder,'APPROVE',actor,null,note||null);
       }
@@ -175,6 +178,70 @@ export class ApprovalRuntimeService {
       return{id:request.id,status:'PENDING',currentStepOrder:request.currentStepOrder};
     },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
+
+  private async applyApprovedAttendanceEvent(eventId:string,tenantId:string,companyId:string,tx:Prisma.TransactionClient){
+    const rows=await tx.$queryRaw<Array<{staffId:string;branchId:string;workDate:string}>>`
+      SELECT staff_id AS "staffId",branch_id AS "branchId",occurred_at::date::text AS "workDate"
+      FROM hr_attendance_events
+      WHERE id=${eventId}
+        AND tenant_id=${tenantId}
+        AND company_id=${companyId}
+      FOR UPDATE
+    `;
+    const source=rows[0];
+    if(!source)throw new NotFoundException('Onaylanan puantaj hareketi bulunamadı.');
+
+    const events=await tx.$queryRaw<Array<{eventType:string;occurredAt:Date}>>`
+      SELECT e.event_type AS "eventType",e.occurred_at AS "occurredAt"
+      FROM hr_attendance_events e
+      JOIN approval_requests r
+        ON r."tenantId"=e.tenant_id
+       AND r."companyId"=e.company_id
+       AND r."entityType"='hr_attendance_event'
+       AND r."entityId"=e.id
+       AND r.status='APPROVED'
+      WHERE e.tenant_id=${tenantId}
+        AND e.company_id=${companyId}
+        AND e.staff_id=${source.staffId}
+        AND e.occurred_at::date=${source.workDate}::date
+      ORDER BY e.occurred_at,e.id
+    `;
+
+    const checkIn=events.find(item=>item.eventType==='DAY_START')?.occurredAt??null;
+    const checkOut=[...events].reverse().find(item=>item.eventType==='DAY_END')?.occurredAt??null;
+    let breakStartedAt:Date|null=null;
+    let breakMinutes=0;
+    for(const item of events){
+      if(item.eventType==='BREAK_START'){
+        breakStartedAt=item.occurredAt;
+      }else if(item.eventType==='BREAK_END'&&breakStartedAt){
+        breakMinutes+=Math.max(0,Math.floor((item.occurredAt.getTime()-breakStartedAt.getTime())/60000));
+        breakStartedAt=null;
+      }
+    }
+
+    if(!checkIn)return;
+    const projectionEnd=checkOut??events.at(-1)?.occurredAt??checkIn;
+    const workedMinutes=Math.max(0,Math.floor((projectionEnd.getTime()-checkIn.getTime())/60000)-breakMinutes);
+
+    await tx.$executeRaw`
+      INSERT INTO attendance_records(
+        tenant_id,branch_id,staff_id,work_date,check_in,check_out,break_minutes,worked_minutes,overtime_minutes,status
+      ) VALUES(
+        ${tenantId},${source.branchId},${source.staffId},${source.workDate}::date,${checkIn},${checkOut},${breakMinutes},${workedMinutes},0,'PRESENT'
+      )
+      ON CONFLICT(staff_id,work_date) DO UPDATE
+      SET branch_id=EXCLUDED.branch_id,
+          check_in=EXCLUDED.check_in,
+          check_out=EXCLUDED.check_out,
+          break_minutes=EXCLUDED.break_minutes,
+          worked_minutes=EXCLUDED.worked_minutes,
+          status='PRESENT',
+          updated_at=CURRENT_TIMESTAMP
+      WHERE COALESCE(attendance_records.exception_status,'')<>'CORRECTED'
+    `;
+  }
+
 
   private async applyApprovedAttendanceCorrection(correctionId:string,tenantId:string,companyId:string,tx:Prisma.TransactionClient){
     const rows=await tx.$queryRaw<Array<{attendanceRecordId:string;newValue:any}>>`
