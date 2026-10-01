@@ -244,6 +244,11 @@ const USER_LABELS: Record<string, string> = {
   INTERN: "Stajyer",
   SELF_REVIEW: "Çalışan Değerlendirmesi",
   MANAGER_REVIEW: "Yönetici Değerlendirmesi",
+  DAY_START: "Güne Başlama",
+  BREAK_START: "Mola Başlangıcı",
+  BREAK_END: "Mola Bitişi",
+  DAY_END: "Günü Bitirme",
+  RETURNED: "Düzeltme Bekliyor",
   hr_attendance_event: "Puantaj Hareketi",
   hr_attendance_correction: "Puantaj Düzeltme Talebi",
 };
