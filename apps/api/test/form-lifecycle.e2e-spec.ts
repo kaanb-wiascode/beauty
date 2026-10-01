@@ -160,7 +160,18 @@ describe('User-facing form lifecycle (e2e)', () => {
       .send({ firstName: 'Eksik Personel' })
       .expect(400);
 
+    const provisioningRoles = await request(app.getHttpServer())
+      .get('/hr/employee-provisioning/roles')
+      .set(auth)
+      .expect(200);
+    const employeeRole = (provisioningRoles.body as Array<{ id: string; slug: string }>).find(
+      (role) => role.slug === 'employee',
+    );
+    expect(employeeRole?.id).toBeTruthy();
+
     const employeePayload = {
+      branchId,
+      roleId: employeeRole!.id,
       firstName: 'Deniz',
       lastName: `Personel-${suffix}`,
       phone: `+90554${suffix.slice(0, 7)}`,
