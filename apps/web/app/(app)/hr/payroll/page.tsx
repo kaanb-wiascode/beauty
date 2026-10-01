@@ -33,7 +33,7 @@ export default function PayrollPage(){
               type: "remote-select",
               optionsPath: "/hr/payroll/payment-queue",
               optionValueKey: "id",
-              optionLabelKeys: ["firstName", "lastName", "branchName", "status"],
+              optionLabelKeys: ["displayLabel"],
               required: true,
             },
             {
