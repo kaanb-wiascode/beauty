@@ -15,6 +15,7 @@ const HR_ITEMS = [
   ["/hr/talent", "Yetenek ve Performans"],
   ["/hr/analytics", "İK Analizi"],
   ["/hr/payroll-dashboard", "Bordro Kontrolü"],
+  ["/hr/salary-contracts", "NET Ücret Sözleşmeleri"],
   ["/hr/payroll", "Bordro Kayıtları"],
   ["/hr/payments", "Maaş Ödemeleri"],
   ["/hr/sgk", "Sosyal Güvenlik"],
