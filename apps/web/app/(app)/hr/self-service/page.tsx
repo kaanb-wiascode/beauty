@@ -1,10 +1,12 @@
 import { EnterpriseDataPage } from "@/components/enterprise-data-page";
 import { AttendanceActionsPanel } from "./attendance-actions-panel";
+import { EmployeeNotificationsPanel } from "./employee-notifications-panel";
 
 export default function HRSelfServicePage() {
   return (
     <div className="mx-auto max-w-[1500px] space-y-6 pb-12">
       <AttendanceActionsPanel />
+      <EmployeeNotificationsPanel />
       <EnterpriseDataPage
       eyebrow="Çalışan Deneyimi"
       title="Çalışan İşlemleri"
@@ -39,11 +41,6 @@ export default function HRSelfServicePage() {
           description: "Gün içindeki çalışma ve mola hareketlerinizin onay durumunu, yönetici adımını ve karar süresini gösterir.",
           path: "/hr/self-service/me",
           dataKey: "attendanceToday",
-        },
-        {
-          title: "Bildirimlerim",
-          description: "Bordro ödemesi gibi çalışan hesabınıza ait önemli insan kaynakları bildirimlerini gösterir.",
-          path: "/hr/self-service/me/notifications",
         },
         {
           title: "Bordro ve Ödeme Durumum",
