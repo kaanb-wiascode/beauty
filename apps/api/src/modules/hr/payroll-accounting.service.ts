@@ -55,103 +55,6 @@ export class PayrollAccountingService {
     return `JE-${d.toISOString().slice(0, 10).replaceAll('-', '')}-${randomUUID().slice(0, 8).toUpperCase()}`;
   }
 
-  private role(v: string | null | undefined) {
-    return (v ?? '')
-      .trim()
-      .toLowerCase()
-      .replace(/[\s_]+/g, '-')
-      .replace(/[^a-z0-9-]/g, '');
-  }
-
-  private async assertApprover(userId: string) {
-    const { tenantId, companyId } = this.context();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT r.slug AS "roleSlug",r.name AS "roleName"
-       FROM memberships m JOIN roles r ON r.id=m."roleId"
-       WHERE m."userId"=$1::text AND m."tenantId"=$2::text AND m.status='ACTIVE'
-         AND (m."companyId" IS NULL OR m."companyId"=$3::text)
-       LIMIT 1`,
-      userId,
-      tenantId,
-      companyId,
-    );
-    const actor = rows[0];
-    if (!actor) throw new ForbiddenException('Approver has no active membership.');
-    const ids = new Set([this.role(actor.roleSlug), this.role(actor.roleName)]);
-    const allowed = [
-      'hr-manager',
-      'human-resources-manager',
-      'finance',
-      'finance-manager',
-      'finance-director',
-      'cfo',
-      'company-manager',
-      'general-manager',
-      'director',
-      'owner',
-      'admin',
-      'super-admin',
-    ];
-    if (!allowed.some((r) => ids.has(r))) {
-      throw new ForbiddenException('Payroll approval requires HR, finance or management authority.');
-    }
-  }
-
-  private async ensurePayrollApprovalWorkflow(tx:Prisma.TransactionClient,userId:string){
-    const {tenantId,companyId}=this.context();
-    const workflowKey='hr.payroll-period-approval';
-    const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
-    await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
-    const existing=await tx.$queryRaw<Array<{id:string}>>`
-      SELECT id FROM approval_workflow_definitions
-      WHERE "tenantId"=${tenantId} AND "companyId"=${companyId}
-        AND "workflowKey"=${workflowKey} AND status='PUBLISHED'
-      LIMIT 1
-    `;
-    if(existing.length)return;
-    const versions=await tx.$queryRaw<Array<{version:number}>>`
-      SELECT COALESCE(MAX(version),0)::int AS version
-      FROM approval_workflow_definitions
-      WHERE "tenantId"=${tenantId} AND "companyId"=${companyId}
-        AND "workflowKey"=${workflowKey}
-    `;
-    const version=Number(versions[0]?.version??0)+1;
-    const steps=[
-      {
-        key:'accounting-control',
-        name:'Muhasebe Kontrolü',
-        approverType:'ROLE',
-        approverValue:'accounting-manager',
-        slaMinutes:240,
-        timeoutAction:'ESCALATE',
-        escalationApproverType:'ROLE',
-        escalationApproverValue:'finance-manager',
-      },
-      {
-        key:'upper-management-approval',
-        name:'Üst Yönetim Onayı',
-        approverType:'ROLE',
-        approverValue:'general-manager',
-        slaMinutes:240,
-        timeoutAction:'ESCALATE',
-        escalationApproverType:'ROLE',
-        escalationApproverValue:'owner',
-      },
-    ];
-    await tx.$executeRaw`
-      INSERT INTO approval_workflow_definitions(
-        id,"tenantId","companyId","workflowKey",name,domain,description,
-        version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
-      ) VALUES(
-        gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},
-        'Bordro Onay Akışı','hr',
-        'Bordro dönemleri için muhasebe kontrolü ve üst yönetim onayı.',
-        ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,
-        ${userId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
-      )
-    `;
-  }
-
   private validate(input: PayrollItemInput) {
     const nums = [
       'grossAmount',
@@ -408,34 +311,74 @@ export class PayrollAccountingService {
   async approve(periodId: string, userId: string) {
     const { tenantId, companyId } = this.context();
     const branchIds = await this.branchIds();
-    const rows = await this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT id,branch_id AS "branchId",status FROM payroll_periods
-       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
-         AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
-       LIMIT 1`,
-      periodId,
-      tenantId,
-      companyId,
-      branchIds,
-    );
-    if (!rows.length) throw new NotFoundException('Payroll period not found.');
-    if (rows[0].status !== 'SUBMITTED') {
-      throw new BadRequestException('Only submitted payroll can be approved.');
-    }
-    await this.assertApprover(userId);
-    const updated = await this.prisma.$executeRawUnsafe(
-      `UPDATE payroll_periods
-       SET status='APPROVED',approved_by_user_id=$2::text,approved_at=NOW(),updated_at=NOW()
-       WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='SUBMITTED'
-         AND ($5::text[] IS NULL OR branch_id=ANY($5::text[]))`,
-      periodId,
-      userId,
-      tenantId,
-      companyId,
-      branchIds,
-    );
-    if (updated !== 1) throw new BadRequestException('Payroll period changed concurrently.');
-    return { periodId, status: 'APPROVED' };
+
+    return this.prisma.$transaction(async (tx) => {
+      const periods = await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,branch_id AS "branchId",status,approved_by_user_id AS "approvedByUserId",approved_at AS "approvedAt"
+         FROM payroll_periods
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
+         FOR UPDATE`,
+        periodId,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
+      const period=periods[0];
+      if(period.status==='APPROVED'){
+        return {
+          periodId,
+          status:'APPROVED',
+          approvedByUserId:period.approvedByUserId,
+          approvedAt:period.approvedAt,
+          duplicate:true,
+        };
+      }
+      if(period.status!=='SUBMITTED'){
+        throw new BadRequestException('Yalnız onaya gönderilmiş bordro dönemi onaylanabilir.');
+      }
+
+      const requests=await tx.$queryRawUnsafe<any[]>(
+        `SELECT r.id,r.status,
+                (
+                  SELECT a."actorUserId"
+                  FROM approval_request_actions a
+                  WHERE a."requestId"=r.id AND a.action='APPROVE'
+                  ORDER BY a."createdAt" DESC
+                  LIMIT 1
+                ) AS "finalApproverUserId"
+         FROM approval_requests r
+         WHERE r."tenantId"=$1::text AND r."companyId"=$2::text
+           AND r."entityType"='hr_payroll_period' AND r."entityId"=$3::text
+         ORDER BY r."createdAt" DESC
+         LIMIT 1`,
+        tenantId,
+        companyId,
+        periodId,
+      );
+      const approval=requests[0];
+      if(!approval||approval.status!=='APPROVED'){
+        throw new BadRequestException(
+          'Bordro, merkezi onay akışındaki Muhasebe Kontrolü ve Üst Yönetim Onayı tamamlanmadan onaylanamaz.',
+        );
+      }
+
+      const finalApproverUserId=String(approval.finalApproverUserId??userId);
+      const updated=await tx.$executeRawUnsafe(
+        `UPDATE payroll_periods
+         SET status='APPROVED',approved_by_user_id=$2::text,approved_at=COALESCE(approved_at,NOW()),updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text AND status='SUBMITTED'
+           AND ($5::text[] IS NULL OR branch_id=ANY($5::text[]))`,
+        periodId,
+        finalApproverUserId,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if(updated!==1) throw new BadRequestException('Bordro dönemi eşzamanlı olarak değiştirildi.');
+      return {periodId,status:'APPROVED',approvedByUserId:finalApproverUserId,approvalRequestId:approval.id};
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
   }
 
   private async ensureAccount(
