@@ -10,7 +10,7 @@ CREATE TABLE IF NOT EXISTS hr_compensation_requests (
   period_year integer NOT NULL CHECK (period_year BETWEEN 2000 AND 2200),
   period_month integer NOT NULL CHECK (period_month BETWEEN 1 AND 12),
   reason text NOT NULL,
-  status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','APPROVED','REJECTED','CANCELLED','APPLIED')),
+  status text NOT NULL DEFAULT 'PENDING' CHECK (status IN ('PENDING','RETURNED','APPROVED','REJECTED','CANCELLED','APPLIED')),
   approval_request_id text,
   requested_by_user_id text NOT NULL,
   approved_at timestamptz,
