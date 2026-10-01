@@ -40,6 +40,27 @@ export class SalaryContractService {
     return Math.round((n + Number.EPSILON) * 100) / 100;
   }
 
+  async listAll() {
+    const { tenantId, companyId, branchIds } = await this.context();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT c.id,c.staff_id AS "staffId",s."firstName",s."lastName",
+              c.branch_id AS "branchId",b.name AS "branchName",
+              c.salary_basis AS "salaryBasis",c.net_amount AS "netAmount",c.currency,
+              c.effective_from AS "effectiveFrom",c.effective_to AS "effectiveTo",
+              c.status,c.note,c.created_at AS "createdAt",c.updated_at AS "updatedAt"
+       FROM hr_salary_contracts c
+       JOIN staff s ON s.id=c.staff_id
+       JOIN branches b ON b.id=c.branch_id
+       WHERE c.tenant_id=$1::text AND c.company_id=$2::text
+         AND b."companyId"=$2::text
+         AND ($3::text[] IS NULL OR c.branch_id=ANY($3::text[]))
+       ORDER BY c.effective_from DESC,s."firstName",s."lastName"`,
+      tenantId,
+      companyId,
+      branchIds,
+    );
+  }
+
   async list(staffId: string) {
     const { tenantId, companyId, branchIds } = await this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
