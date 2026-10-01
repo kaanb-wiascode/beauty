@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { BadRequestException, ForbiddenException, Injectable, NotFoundException } from '@nestjs/common';
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
@@ -117,128 +117,9 @@ export class PayrollAccountingService {
     `;
   }
 
-  private validate(input: PayrollItemInput) {
-    const nums = [
-      'grossAmount',
-      'netAmount',
-      'incomeTax',
-      'stampTax',
-      'employeeSocialSecurity',
-      'unemploymentEmployee',
-      'employerSocialSecurity',
-      'unemploymentEmployer',
-      'otherDeductions',
-      'employerCost',
-    ] as const;
-    for (const k of nums) {
-      const v = Number(input[k] ?? 0);
-      if (!Number.isFinite(v) || v < 0) throw new BadRequestException('Bordro tutarları negatif olamaz.');
-    }
-    const employeeDeductions = this.round(
-      Number(input.incomeTax ?? 0) +
-        Number(input.stampTax ?? 0) +
-        Number(input.employeeSocialSecurity ?? 0) +
-        Number(input.unemploymentEmployee ?? 0) +
-        Number(input.otherDeductions ?? 0),
-    );
-    const expectedNet = this.round(Number(input.grossAmount) - employeeDeductions);
-    if (Math.abs(expectedNet - this.round(Number(input.netAmount))) > 0.01) {
-      throw new BadRequestException(`Net bordro tutarı hesapla uyuşmuyor. Beklenen net tutar: ${expectedNet}.`);
-    }
-    const expectedEmployerCost = this.round(
-      Number(input.grossAmount) +
-        Number(input.employerSocialSecurity ?? 0) +
-        Number(input.unemploymentEmployer ?? 0),
-    );
-    if (Math.abs(expectedEmployerCost - this.round(Number(input.employerCost))) > 0.01) {
-      throw new BadRequestException(
-        `İşveren maliyeti hesapla uyuşmuyor. Beklenen tutar: ${expectedEmployerCost}.`,
-      );
-    }
-    return { employeeDeductions, expectedEmployerCost };
-  }
-
-  async upsertItem(periodId: string, input: PayrollItemInput) {
-    const { tenantId, companyId } = this.context();
-    const branchIds = await this.branchIds();
-    const calc = this.validate(input);
-    if (branchIds && !branchIds.includes(input.branchId)) {
-      throw new ForbiddenException('Payroll item is outside active organization scope.');
-    }
-    return this.prisma.$transaction(
-      async (tx) => {
-        const periods = await tx.$queryRawUnsafe<any[]>(
-          `SELECT id,status,branch_id AS "branchId" FROM payroll_periods
-           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
-             AND ($4::text[] IS NULL OR branch_id=ANY($4::text[]))
-           FOR UPDATE`,
-          periodId,
-          tenantId,
-          companyId,
-          branchIds,
-        );
-        if (!periods.length) {
-          throw new BadRequestException('Yalnız aktif organizasyon kapsamındaki taslak bordro dönemi düzenlenebilir.');
-        }
-        if (periods[0].branchId !== input.branchId) {
-          throw new BadRequestException('Bordro kaleminin şubesi bordro dönemi şubesiyle aynı olmalıdır.');
-        }
-        const staff = await tx.staff.findFirst({
-          where: { id: input.staffId, tenantId, branchId: input.branchId, status: 'ACTIVE' },
-          select: { id: true },
-        });
-        if (!staff) throw new NotFoundException('Aktif personel bulunamadı.');
-        if (input.costCenterId) {
-          const cc = await tx.$queryRawUnsafe<any[]>(
-            `SELECT id FROM cost_centers
-             WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND active=true
-             LIMIT 1`,
-            input.costCenterId,
-            tenantId,
-            companyId,
-          );
-          if (!cc.length) throw new BadRequestException('Masraf merkezi aktif şirket kapsamında kullanılamıyor.');
-        }
-        const snapshot = {
-          grossAmount: this.round(input.grossAmount),
-          netAmount: this.round(input.netAmount),
-          incomeTax: this.round(input.incomeTax ?? 0),
-          stampTax: this.round(input.stampTax ?? 0),
-          employeeSocialSecurity: this.round(input.employeeSocialSecurity ?? 0),
-          unemploymentEmployee: this.round(input.unemploymentEmployee ?? 0),
-          employerSocialSecurity: this.round(input.employerSocialSecurity ?? 0),
-          unemploymentEmployer: this.round(input.unemploymentEmployer ?? 0),
-          otherDeductions: this.round(input.otherDeductions ?? 0),
-          employerCost: this.round(input.employerCost),
-        };
-        const rows = await tx.$queryRawUnsafe<any[]>(
-          `INSERT INTO payroll_items(tenant_id,company_id,branch_id,period_id,staff_id,cost_center_id,gross_amount,net_amount,deductions,employer_cost,income_tax,stamp_tax,employee_social_security,unemployment_employee,employer_social_security,unemployment_employer,other_deductions,calculation_snapshot,status,note)
-           VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6::text,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18::jsonb,'DRAFT',$19)
-           ON CONFLICT(period_id,staff_id) DO UPDATE SET branch_id=EXCLUDED.branch_id,company_id=EXCLUDED.company_id,cost_center_id=EXCLUDED.cost_center_id,gross_amount=EXCLUDED.gross_amount,net_amount=EXCLUDED.net_amount,deductions=EXCLUDED.deductions,employer_cost=EXCLUDED.employer_cost,income_tax=EXCLUDED.income_tax,stamp_tax=EXCLUDED.stamp_tax,employee_social_security=EXCLUDED.employee_social_security,unemployment_employee=EXCLUDED.unemployment_employee,employer_social_security=EXCLUDED.employer_social_security,unemployment_employer=EXCLUDED.unemployment_employer,other_deductions=EXCLUDED.other_deductions,calculation_snapshot=EXCLUDED.calculation_snapshot,note=EXCLUDED.note,updated_at=NOW()
-           RETURNING *`,
-          tenantId,
-          companyId,
-          input.branchId,
-          periodId,
-          input.staffId,
-          input.costCenterId ?? null,
-          snapshot.grossAmount,
-          snapshot.netAmount,
-          calc.employeeDeductions,
-          snapshot.employerCost,
-          snapshot.incomeTax,
-          snapshot.stampTax,
-          snapshot.employeeSocialSecurity,
-          snapshot.unemploymentEmployee,
-          snapshot.employerSocialSecurity,
-          snapshot.unemploymentEmployer,
-          snapshot.otherDeductions,
-          JSON.stringify(snapshot),
-          input.note ?? null,
-        );
-        return rows[0];
-      },
-      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+  async upsertItem(_periodId: string, _input: PayrollItemInput) {
+    throw new BadRequestException(
+      'Bordro ücret kalemleri manuel olarak oluşturulamaz veya değiştirilemez. Bordroyu puantaj kapanışı ve aktif NET ücret sözleşmesi üzerinden yeniden hazırlayın.',
     );
   }
 
