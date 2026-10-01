@@ -91,11 +91,11 @@ export class PayrollLegalEngineService {
       minimumWageIncomeTaxExemption: this.amount(
         input.minimumWageIncomeTaxExemption ?? 0,
         'minimumWageIncomeTaxExemption',
-      ),
+      ) ?? 0,
       minimumWageStampTaxExemption: this.amount(
         input.minimumWageStampTaxExemption ?? 0,
         'minimumWageStampTaxExemption',
-      ),
+      ) ?? 0,
       socialSecurityBaseFloor: floor,
       socialSecurityBaseCeiling: ceiling,
     };
