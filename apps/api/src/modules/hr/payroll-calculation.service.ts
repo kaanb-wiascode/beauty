@@ -292,6 +292,26 @@ export class PayrollCalculationService {
           ]),
         );
 
+        const compensationRows = await tx.$queryRawUnsafe<any[]>(
+          `SELECT id,staff_id AS "staffId",type,amount,reason,approved_at AS "approvedAt"
+           FROM hr_compensation_requests
+           WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+             AND period_year=$4 AND period_month=$5 AND status='APPROVED' AND currency='TRY'
+           ORDER BY approved_at,id`,
+          tenantId,
+          companyId,
+          period.branchId,
+          Number(period.year),
+          Number(period.month),
+        );
+        const compensationByStaff = new Map<string, any[]>();
+        for (const row of compensationRows) {
+          const key = String(row.staffId);
+          const current = compensationByStaff.get(key) ?? [];
+          current.push(row);
+          compensationByStaff.set(key, current);
+        }
+
         const blockers: any[] = [];
         const calculations: any[] = [];
 
@@ -357,7 +377,16 @@ export class PayrollCalculationService {
           const cumulativeTaxBaseBefore = this.round(
             Number(openingByStaff.get(staffId) ?? 0) + Number(prior?.priorTaxableBase ?? 0),
           );
-          const netAdjustment = this.policyAdjustment(Number(contract.netAmount), work, policy);
+          const baseNetAdjustment = this.policyAdjustment(Number(contract.netAmount), work, policy);
+          const approvedCompensation = compensationByStaff.get(staffId) ?? [];
+          const approvedCompensationTotal = this.round(
+            approvedCompensation.reduce((sum: number, row: any) => sum + Number(row.amount ?? 0), 0),
+          );
+          const netAdjustment = {
+            ...baseNetAdjustment,
+            approvedCompensationTotal,
+            targetNet: this.round(baseNetAdjustment.targetNet + approvedCompensationTotal),
+          };
           const legal = this.legalEngine.calculateWithParameters({
             targetNet: netAdjustment.targetNet,
             parameters: version.parameters,
@@ -371,6 +400,7 @@ export class PayrollCalculationService {
             contract,
             work,
             netAdjustment,
+            approvedCompensation,
             legal,
             cumulativeTaxBaseBefore,
           });
@@ -421,6 +451,17 @@ export class PayrollCalculationService {
               source: 'NET_CONTRACT_POLICY',
               settings: policy,
               ...calc.netAdjustment,
+            },
+            approvedVariableCompensation: {
+              source: 'APPROVED_COMPENSATION_REQUESTS',
+              total: calc.netAdjustment.approvedCompensationTotal,
+              requests: calc.approvedCompensation.map((row: any) => ({
+                id: row.id,
+                type: row.type,
+                amount: Number(row.amount),
+                reason: row.reason,
+                approvedAt: row.approvedAt,
+              })),
             },
             legalCalculation: {
               source: 'NET_CONTRACT_LEGAL_ENGINE',
