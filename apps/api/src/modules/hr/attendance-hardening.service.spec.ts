@@ -4,6 +4,7 @@ import { PrismaService } from '@beauty-erp/database';
 
 import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
 import { TenantContext } from '../../common/tenant/tenant-context';
+import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.service';
 import { AttendanceHardeningService } from './attendance-hardening.service';
 
 describe('AttendanceHardeningService', () => {
@@ -21,10 +22,16 @@ describe('AttendanceHardeningService', () => {
     async (_callback: unknown): Promise<unknown> => undefined,
   );
   const prisma = { $queryRawUnsafe: queryRawUnsafe, $transaction: transaction };
+  const approvalRuntime = {
+    createWithinTransaction: jest.fn(async () => ({ id: 'approval-1' })),
+  };
   let service: AttendanceHardeningService;
 
   const createTransactionDouble = () => ({
     $queryRawUnsafe: jest.fn(
+      async (..._args: unknown[]): Promise<unknown[]> => [],
+    ),
+    $queryRaw: jest.fn(
       async (..._args: unknown[]): Promise<unknown[]> => [],
     ),
     $executeRawUnsafe: jest.fn(
@@ -53,6 +60,7 @@ describe('AttendanceHardeningService', () => {
         { provide: PrismaService, useValue: prisma },
         { provide: TenantContext, useValue: ctx },
         { provide: OrganizationScopeService, useValue: organizationScope },
+        { provide: ApprovalRuntimeService, useValue: approvalRuntime },
       ],
     }).compile();
     service = moduleRef.get(AttendanceHardeningService);
@@ -67,6 +75,7 @@ describe('AttendanceHardeningService', () => {
   it('opens an exception for a scheduled shift with a missing checkout', async () => {
     const tx = createTransactionDouble();
     tx.$queryRawUnsafe
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           shiftId: 'shift-1',
@@ -110,6 +119,7 @@ describe('AttendanceHardeningService', () => {
   it('marks complete absence when a scheduled employee has no punches', async () => {
     const tx = createTransactionDouble();
     tx.$queryRawUnsafe
+      .mockResolvedValueOnce([])
       .mockResolvedValueOnce([
         {
           shiftId: 'shift-2',
@@ -149,19 +159,30 @@ describe('AttendanceHardeningService', () => {
     ).rejects.toBeInstanceOf(BadRequestException);
   });
 
-  it('audits corrections in the same transaction', async () => {
+  it('creates the correction and approval in the same transaction', async () => {
     const tx = createTransactionDouble();
-    tx.$queryRawUnsafe.mockResolvedValue([
-      {
-        id: 'att-1',
-        branch_id: 'branch-1',
-        staff_id: 'staff-1',
-        check_in: '09:00',
-        check_out: null,
-        status: 'PRESENT',
-        note: null,
-      },
-    ]);
+    tx.$queryRawUnsafe
+      .mockResolvedValueOnce([
+        {
+          id: 'att-1',
+          branch_id: 'branch-1',
+          staff_id: 'staff-1',
+          work_date: '2026-09-15',
+          check_in: '09:00',
+          check_out: null,
+          status: 'PRESENT',
+          note: null,
+          scheduled_shift_id: null,
+          late_minutes: 0,
+          early_departure_minutes: 0,
+          missing_punch: true,
+          absence: false,
+        },
+      ])
+      .mockResolvedValueOnce([]);
+    tx.$queryRaw
+      .mockResolvedValueOnce([{ locked: 1 }])
+      .mockResolvedValueOnce([{ id: 'workflow-1' }]);
     tx.$executeRawUnsafe.mockResolvedValue(1);
     useTransaction(tx);
 
@@ -172,13 +193,24 @@ describe('AttendanceHardeningService', () => {
     );
 
     expect(result).toEqual(
-      expect.objectContaining({ id: 'att-1', exceptionStatus: 'CORRECTED' }),
+      expect.objectContaining({
+        attendanceRecordId: 'att-1',
+        approvalRequestId: 'approval-1',
+        approvalRequired: true,
+      }),
     );
-    expect(tx.$executeRawUnsafe).toHaveBeenCalledTimes(2);
-    expect(String(tx.$executeRawUnsafe.mock.calls[1][0])).toContain(
+    expect(tx.$executeRawUnsafe).toHaveBeenCalledTimes(1);
+    expect(String(tx.$executeRawUnsafe.mock.calls[0][0])).toContain(
       'hr_attendance_corrections',
     );
-    expect(tx.$executeRawUnsafe.mock.calls[1][10]).toBe('user-1');
+    expect(tx.$executeRawUnsafe.mock.calls[0][10]).toBe('user-1');
+    expect(approvalRuntime.createWithinTransaction).toHaveBeenCalledWith(
+      expect.objectContaining({
+        workflowKey: 'hr.attendance-correction',
+        entityType: 'hr_attendance_correction',
+      }),
+      tx,
+    );
   });
 
   it('does not correct attendance outside scope', async () => {
