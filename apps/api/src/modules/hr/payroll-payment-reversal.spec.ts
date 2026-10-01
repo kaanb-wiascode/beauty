@@ -27,6 +27,52 @@ describe('PayrollPaymentReversalService', () => {
     expect(query.mock.calls[0][4]).toEqual(['branch-a', 'branch-b']);
   });
 
+
+  it('reopens the payroll payment queue and clears paid notification after reversal', async () => {
+    const query = jest.fn()
+      .mockResolvedValueOnce([{
+        id: 'pay-a',
+        branchId: 'branch-a',
+        periodId: 'period-a',
+        staffId: 'staff-a',
+        amount: '300',
+        status: 'PAID',
+        journalEntryId: 'je-paid',
+        reversalJournalEntryId: null,
+      }])
+      .mockResolvedValueOnce([{ status: 'POSTED', branchId: 'branch-a' }])
+      .mockResolvedValueOnce([{
+        id: 'queue-a',
+        amountDue: '1000',
+        amountPaid: '1000',
+      }]);
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx = {
+      $queryRawUnsafe: query,
+      $executeRawUnsafe: execute,
+      journalEntry: {
+        findFirst: jest.fn().mockResolvedValue({
+          id: 'je-paid',
+          lines: [{ accountId: 'acc-1', debit: 300, credit: 0, memo: 'payment' }],
+        }),
+        create: jest.fn().mockResolvedValue({ id: 'je-reversal' }),
+      },
+    };
+    const prisma = { $transaction: jest.fn(async (fn: any) => fn(tx)) } as never;
+    const service = new PayrollPaymentReversalService(prisma, tenant, scope);
+
+    await expect(service.reverseSalaryPayment('pay-a', 'user-a', 'ödeme ters kayıt')).resolves.toEqual({
+      paymentId: 'pay-a',
+      status: 'REVERSED',
+      journalEntryId: 'je-reversal',
+      duplicate: false,
+    });
+
+    expect(query.mock.calls[2][0]).toContain('hr_payroll_payment_queue');
+    expect(execute.mock.calls.some((call) => String(call[0]).includes('UPDATE hr_payroll_payment_queue'))).toBe(true);
+    expect(execute.mock.calls.some((call) => String(call[0]).includes('DELETE FROM hr_employee_notifications'))).toBe(true);
+  });
+
   it('does not expose branchless liability payments to restricted company scope', async () => {
     const query = jest.fn().mockResolvedValueOnce([]);
     const tx = { $queryRawUnsafe: query };
