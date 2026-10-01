@@ -10,6 +10,7 @@ import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.s
 export class HrSelfServiceService {
  constructor(private readonly prisma:PrismaService,private readonly ctx:TenantContext,private readonly employee360:Employee360Service,private readonly leave:LeavePolicyService,private readonly approvals:ApprovalWorkflowService,private readonly approvalRuntime:ApprovalRuntimeService){}
  private scope(){const tenantId=this.ctx.getTenantId(),companyId=this.ctx.getCompanyId();if(!tenantId||!companyId)throw new BadRequestException('Tenant and company context are required.');return{tenantId,companyId};}
+ private istanbulWorkDate(date:Date){const parts=new Intl.DateTimeFormat('en-US',{timeZone:'Europe/Istanbul',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(date);const year=parts.find(part=>part.type==='year')?.value,month=parts.find(part=>part.type==='month')?.value,day=parts.find(part=>part.type==='day')?.value;if(!year||!month||!day)throw new BadRequestException('Puantaj iş günü hesaplanamadı.');return `${year}-${month}-${day}`;}
  private async employee(userId:string){const{tenantId,companyId}=this.scope();const rows=await this.prisma.$queryRawUnsafe<any[]>(`SELECT s.id,s."branchId" AS "branchId",s."firstName" AS "firstName",s."lastName" AS "lastName",s.email,s.status FROM hr_employee_user_links l JOIN staff s ON s.id=l.staff_id JOIN branches b ON b.id=s."branchId" WHERE l.tenant_id=$1 AND l.company_id=$2 AND l.user_id=$3 AND l.active=TRUE AND s."tenantId"=$1 AND b."companyId"=$2 LIMIT 1`,tenantId,companyId,userId);if(!rows.length)throw new NotFoundException('Employee identity is not linked to this user.');return rows[0];}
  async link(staffId:string,userId:string,actorId:string){const{tenantId,companyId}=this.scope();const staff=await this.prisma.staff.findFirst({where:{id:staffId,tenantId,branch:{companyId}},select:{id:true}});const user=await this.prisma.user.findFirst({where:{id:userId,memberships:{some:{tenantId,companyId,status:'ACTIVE'}}},select:{id:true}});if(!staff||!user)throw new NotFoundException('Staff or user not found in organization scope.');await this.prisma.$executeRawUnsafe(`INSERT INTO hr_employee_user_links(tenant_id,company_id,staff_id,user_id,linked_by) VALUES($1,$2,$3,$4,$5) ON CONFLICT(tenant_id,staff_id) DO UPDATE SET user_id=EXCLUDED.user_id,company_id=EXCLUDED.company_id,active=TRUE,linked_at=CURRENT_TIMESTAMP,linked_by=EXCLUDED.linked_by`,tenantId,companyId,staffId,userId,actorId);return{staffId,userId,active:true};}
  async employeeHome(userId:string){
@@ -50,7 +51,7 @@ export class HrSelfServiceService {
     WHERE e.tenant_id=$1
       AND e.company_id=$2
       AND e.staff_id=$3
-      AND e.occurred_at::date=CURRENT_DATE
+      AND ((e.occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
     ORDER BY e.occurred_at DESC,e.id DESC`,
    tenantId,companyId,employee.id,
   );
@@ -136,7 +137,7 @@ export class HrSelfServiceService {
      WHERE e.tenant_id=$1
        AND e.company_id=$2
        AND e.staff_id=$3
-       AND e.occurred_at::date=CURRENT_DATE
+       AND ((e.occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
      ORDER BY e.occurred_at,e.id`,
     tenantId,
     companyId,
@@ -211,7 +212,7 @@ export class HrSelfServiceService {
      WHERE e.tenant_id=$1
        AND e.company_id=$2
        AND e.staff_id=$3
-       AND e.occurred_at::date=CURRENT_DATE
+       AND ((e.occurred_at AT TIME ZONE 'UTC') AT TIME ZONE 'Europe/Istanbul')::date=(CURRENT_TIMESTAMP AT TIME ZONE 'Europe/Istanbul')::date
      ORDER BY e.occurred_at,e.id`,
     tenantId,
     companyId,
@@ -249,7 +250,7 @@ export class HrSelfServiceService {
     approvalStatus:'PENDING',
     effective:false,
     attendance:{
-     workDate:new Date(event.occurredAt).toISOString().slice(0,10),
+     workDate:this.istanbulWorkDate(new Date(event.occurredAt)),
      checkIn,
      checkOut,
      breakMinutes,
