@@ -104,7 +104,7 @@ describe('OperationsRebookingService', () => {
       staffEligibility,
     );
     const result = await service.create(source.id, {
-      startAt: new Date('2026-10-01T10:00:00.000Z'),
+      startAt: new Date('2199-10-01T10:00:00.000Z'),
     });
 
     expect(result).toMatchObject({
