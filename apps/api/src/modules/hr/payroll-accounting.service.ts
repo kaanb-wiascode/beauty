@@ -373,7 +373,8 @@ export class PayrollAccountingService {
         );
         if (updated !== 1) throw new BadRequestException('Bordro dönemi eşzamanlı olarak değiştirildi.');
 
-        await this.ensurePayrollApprovalWorkflow(tx,userId??this.tenant.getContext().userId??'system');
+        if(!userId) throw new BadRequestException('Bordro onay talebini oluşturan kullanıcı belirlenemedi.');
+        await this.ensurePayrollApprovalWorkflow(tx,userId);
         const approval=await this.approvalRuntime.createWithinTransaction({
           workflowKey:'hr.payroll-period-approval',
           entityType:'hr_payroll_period',
