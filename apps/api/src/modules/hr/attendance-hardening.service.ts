@@ -60,6 +60,62 @@ export class AttendanceHardeningService {
     });
   }
 
+  private async ensureAttendanceCorrectionWorkflow(
+    tx:Prisma.TransactionClient,
+    actorId:string,
+  ){
+    const tenantId=this.tenantContext.getTenantId();
+    const companyId=this.tenantContext.getCompanyId();
+    if(!tenantId||!companyId)throw new BadRequestException('Tenant and company context are required.');
+
+    const workflowKey='hr.attendance-correction';
+    const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${lockKey}))`;
+
+    const published=await tx.$queryRaw<Array<{id:string}>>`
+      SELECT id
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+        AND status='PUBLISHED'
+      LIMIT 1
+    `;
+    if(published.length)return;
+
+    const versions=await tx.$queryRaw<Array<{version:number}>>`
+      SELECT COALESCE(MAX(version),0)::int AS version
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+    `;
+    const version=Number(versions[0]?.version??0)+1;
+    const steps=[{
+      key:'manager-approval',
+      name:'Yönetici Onayı',
+      approverType:'DIRECT_MANAGER',
+      approverValue:null,
+      slaMinutes:15,
+      timeoutAction:'ESCALATE',
+      escalationApproverType:'BRANCH_MANAGER',
+      escalationApproverValue:null,
+    }];
+
+    await tx.$executeRaw`
+      INSERT INTO approval_workflow_definitions(
+        id,"tenantId","companyId","workflowKey",name,domain,description,
+        version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
+      ) VALUES(
+        gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},
+        'Puantaj Düzeltme Onayı','hr',
+        'Puantaj düzeltme talepleri için varsayılan yönetici onayı.',
+        ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,
+        ${actorId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+      )
+    `;
+  }
+
   async correct(id: string, body: any, actorId: string) {
     const reason = String(body.reason ?? '').trim();
     if (!reason) throw new BadRequestException('Düzeltme nedeni zorunludur.');
@@ -166,6 +222,8 @@ export class AttendanceHardeningService {
         JSON.stringify(requestedValue),
         actorId,
       );
+
+      await this.ensureAttendanceCorrectionWorkflow(tx,actorId);
 
       const approval = await this.approvalRuntime.createWithinTransaction({
         workflowKey: 'hr.attendance-correction',
