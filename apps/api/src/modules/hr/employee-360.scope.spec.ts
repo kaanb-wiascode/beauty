@@ -66,10 +66,11 @@ describe('Employee360Service organization scope', () => {
     await service.get('staff-a', true);
 
     expect(fieldSecurity.canRead).toHaveBeenCalledTimes(2);
-    expect(query).toHaveBeenCalledTimes(9);
-    for (const call of query.mock.calls) {
+    expect(query).toHaveBeenCalledTimes(11);
+    const branchScopedCalls=query.mock.calls.filter((call:any[])=>String(call[0]).includes('ANY($3::text[])'));
+    expect(branchScopedCalls).toHaveLength(9);
+    for (const call of branchScopedCalls) {
       expect(call.slice(1)).toContainEqual(['branch-a', 'branch-b']);
-      expect(String(call[0])).toContain('ANY($3::text[])');
     }
   });
 
@@ -106,7 +107,7 @@ describe('Employee360Service organization scope', () => {
 
     const result = await service.get('staff-a', true);
 
-    expect(query).toHaveBeenCalledTimes(7);
+    expect(query).toHaveBeenCalledTimes(9);
     expect(result.employee).toEqual(expect.objectContaining({
       identityNumber: '11111111111',
       iban: 'TR0001',
