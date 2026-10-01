@@ -84,7 +84,7 @@ export class StaffService {
     });
 
     if (!branch) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Şube bulunamadı.');
     }
 
     if (roleScope === 'CENTRAL') {
@@ -216,7 +216,7 @@ export class StaffService {
       where: { id, ...scope },
     });
 
-    if (!staff) throw new NotFoundException('Staff not found');
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
     return staff;
   }
 
@@ -224,7 +224,7 @@ export class StaffService {
     const scope = await this.organizationScope.getBranchScopedWhere();
     const staff = await this.prisma.staff.findFirst({
       where: { id, ...scope },
-      select: { id: true },
+      select: { id: true, profile: true },
     });
 
     if (!staff) throw new NotFoundException('Staff not found');
@@ -236,7 +236,14 @@ export class StaffService {
         ...(input.lastName !== undefined && { lastName: input.lastName.trim() }),
         ...(input.phone !== undefined && { phone: input.phone?.trim() || null }),
         ...(input.email !== undefined && { email: input.email?.trim().toLowerCase() || null }),
-        ...(input.profile !== undefined && { profile: input.profile }),
+        ...(input.profile !== undefined && {
+          profile: {
+            ...((staff.profile && typeof staff.profile === 'object' && !Array.isArray(staff.profile))
+              ? staff.profile
+              : {}),
+            ...input.profile,
+          },
+        }),
       },
     });
   }
