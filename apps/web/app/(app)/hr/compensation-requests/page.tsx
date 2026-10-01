@@ -32,6 +32,18 @@ export default function CompensationRequestsPage(){
             {name:"reason",label:"Talep Açıklaması",type:"textarea",required:true},
           ],
         },
+        {
+          title:"Düzeltmeye Gönderilen Talebi Güncelle",
+          description:"Merkezi onayda düzeltmeye gönderilen kendi talebinizin tutarını veya açıklamasını güncelleyin. Ardından Onaylar ekranından yeniden gönderin.",
+          path:"/hr/compensation-requests/{id}",
+          method:"PATCH",
+          success:"Talep güncellendi. Onaylar ekranından yeniden gönderebilirsiniz.",
+          fields:[
+            {name:"id",label:"Talep",type:"remote-select",optionsPath:"/hr/compensation-requests",optionValueKey:"id",optionLabelKeys:["firstName","lastName","type","status"],required:true},
+            {name:"amount",label:"Yeni Tutar",type:"number"},
+            {name:"reason",label:"Yeni Açıklama",type:"textarea"},
+          ],
+        },
       ]}
     />
   );
