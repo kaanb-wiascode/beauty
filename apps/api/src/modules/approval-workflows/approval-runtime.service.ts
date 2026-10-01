@@ -20,20 +20,50 @@ export class ApprovalRuntimeService {
     ORDER BY r."createdAt" DESC LIMIT 500`}
 
   async create(input:{workflowKey:string;entityType:string;entityId:string;branchId?:string|null;payload?:Record<string,unknown>;reason?:string}){
-    const c=this.tenantContext.getContext(), actor=await this.actor();
-    const rows=await this.prisma.$queryRaw<WorkflowRow[]>`
+    return this.prisma.$transaction(
+      tx=>this.createWithinTransaction(input,tx),
+      {isolationLevel:Prisma.TransactionIsolationLevel.Serializable},
+    );
+  }
+
+  async createWithinTransaction(
+    input:{workflowKey:string;entityType:string;entityId:string;branchId?:string|null;payload?:Record<string,unknown>;reason?:string},
+    tx:Prisma.TransactionClient,
+  ){
+    const c=this.tenantContext.getContext(),actor=await this.actor(tx);
+    const rows=await tx.$queryRaw<WorkflowRow[]>`
       SELECT id,"workflowKey",version,domain,steps FROM approval_workflow_definitions
       WHERE "tenantId"=${c.tenantId} AND "companyId"=${c.companyId} AND "workflowKey"=${input.workflowKey.trim().toLowerCase()} AND status='PUBLISHED'
       ORDER BY version DESC LIMIT 1`;
-    const wf=rows[0]; if(!wf) throw new NotFoundException('Published approval workflow not found');
-    const steps=this.steps(wf.steps); if(!steps.length) throw new BadRequestException('Published workflow has no executable steps');
+    const wf=rows[0];if(!wf)throw new NotFoundException('Yayınlanmış onay akışı bulunamadı.');
+    const steps=this.steps(wf.steps);if(!steps.length)throw new BadRequestException('Yayınlanmış onay akışında çalıştırılabilir adım bulunmuyor.');
     const branchId=input.branchId??c.branchId??null;
-    if(branchId){const branch=await this.prisma.branch.findFirst({where:{id:branchId,companyId:c.companyId,status:'ACTIVE',company:{tenantId:c.tenantId}},select:{id:true}});if(!branch) throw new BadRequestException('Approval branch is invalid');}
-    return this.prisma.$transaction(async tx=>{const id=randomUUID();
-      const req=await tx.$queryRaw<RequestRow[]>`INSERT INTO approval_requests(id,"tenantId","companyId","branchId","workflowDefinitionId","workflowKey","workflowVersion",domain,"entityType","entityId","requestedByUserId",status,"currentStepOrder",payload,reason,"stepStartedAt","createdAt","updatedAt") VALUES(${id},${c.tenantId},${c.companyId},${branchId},${wf.id},${wf.workflowKey},${wf.version},${wf.domain},${input.entityType.trim()},${input.entityId.trim()},${actor},'PENDING',1,${JSON.stringify(input.payload??{})}::jsonb,${input.reason?.trim()||null},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *`;
-      for(let i=0;i<steps.length;i++){const s=this.normalizeStep(steps[i]);await tx.$executeRaw`INSERT INTO approval_request_steps(id,"requestId","stepOrder","stepKey","stepName","approverPermission","approverRoleSlug","approverType","approverValue","slaMinutes","escalationApproverType","escalationApproverValue","timeoutAction",status,"startedAt","createdAt","updatedAt") VALUES(${randomUUID()},${id},${i+1},${s.key},${s.name},${s.approverPermission??null},${s.approverRoleSlug??null},${s.approverType??null},${s.approverValue??null},${s.slaMinutes??null},${s.escalationApproverType??null},${s.escalationApproverValue??null},${s.timeoutAction??'ESCALATE'},${i===0?'PENDING':'WAITING'},${i===0?new Date():null},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`;}
-      await this.audit.record({actorUserId:actor,resource:'approval_requests',action:'create',targetTenantId:c.tenantId,targetEntityType:input.entityType.trim(),targetEntityId:input.entityId.trim(),beforeState:null,afterState:{requestId:id,workflowKey:wf.workflowKey,workflowVersion:wf.version,branchId},metadata:{companyId:c.companyId,branchId}},tx);
-      return req[0];},{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+    if(branchId){
+      const branch=await tx.branch.findFirst({
+        where:{id:branchId,companyId:c.companyId,status:'ACTIVE',company:{tenantId:c.tenantId}},
+        select:{id:true},
+      });
+      if(!branch)throw new BadRequestException('Onay akışı için seçilen şube geçersiz.');
+    }
+
+    const id=randomUUID();
+    const req=await tx.$queryRaw<RequestRow[]>`INSERT INTO approval_requests(id,"tenantId","companyId","branchId","workflowDefinitionId","workflowKey","workflowVersion",domain,"entityType","entityId","requestedByUserId",status,"currentStepOrder",payload,reason,"stepStartedAt","createdAt","updatedAt") VALUES(${id},${c.tenantId},${c.companyId},${branchId},${wf.id},${wf.workflowKey},${wf.version},${wf.domain},${input.entityType.trim()},${input.entityId.trim()},${actor},'PENDING',1,${JSON.stringify(input.payload??{})}::jsonb,${input.reason?.trim()||null},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP) RETURNING *`;
+    for(let i=0;i<steps.length;i++){
+      const s=this.normalizeStep(steps[i]);
+      await tx.$executeRaw`INSERT INTO approval_request_steps(id,"requestId","stepOrder","stepKey","stepName","approverPermission","approverRoleSlug","approverType","approverValue","slaMinutes","escalationApproverType","escalationApproverValue","timeoutAction",status,"startedAt","createdAt","updatedAt") VALUES(${randomUUID()},${id},${i+1},${s.key},${s.name},${s.approverPermission??null},${s.approverRoleSlug??null},${s.approverType??null},${s.approverValue??null},${s.slaMinutes??null},${s.escalationApproverType??null},${s.escalationApproverValue??null},${s.timeoutAction??'ESCALATE'},${i===0?'PENDING':'WAITING'},${i===0?new Date():null},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP)`;
+    }
+    await this.audit.record({
+      actorUserId:actor,
+      resource:'approval_requests',
+      action:'create',
+      targetTenantId:c.tenantId,
+      targetEntityType:input.entityType.trim(),
+      targetEntityId:input.entityId.trim(),
+      beforeState:null,
+      afterState:{requestId:id,workflowKey:wf.workflowKey,workflowVersion:wf.version,branchId},
+      metadata:{companyId:c.companyId,branchId},
+    },tx);
+    return req[0];
   }
 
   async inbox(status='PENDING'){
@@ -244,5 +274,5 @@ export class ApprovalRuntimeService {
   }
   private normalizeStep(s:StepDef):StepDef{let type=String(s.approverType??'').toUpperCase()||undefined;let value=s.approverValue??null;if(!type&&s.approverPermission){type='PERMISSION';value=s.approverPermission}else if(!type&&s.approverRoleSlug){type='ROLE';value=s.approverRoleSlug}if(!type)throw new BadRequestException(`${s.name} adımında onaylayan tipi eksik.`);const noValue=['MANAGER','DIRECT_MANAGER','BRANCH_MANAGER','REGIONAL_MANAGER','DEPARTMENT_MANAGER'];if(!noValue.includes(type)&&!String(value??'').trim())throw new BadRequestException(`${s.name} adımında onaylayan değeri eksik.`);return{...s,approverType:type,approverValue:String(value??'').trim()||null,slaMinutes:s.slaMinutes==null?null:Math.max(1,Math.trunc(Number(s.slaMinutes))),escalationApproverType:s.escalationApproverType?String(s.escalationApproverType).toUpperCase():null,escalationApproverValue:String(s.escalationApproverValue??'').trim()||null,timeoutAction:String(s.timeoutAction??'ESCALATE').toUpperCase()}}
   private steps(v:unknown):StepDef[]{return Array.isArray(v)?v.filter((x):x is StepDef=>!!x&&typeof x==='object'&&typeof (x as StepDef).key==='string'&&typeof (x as StepDef).name==='string'):[]}
-  private async actor(){const c=this.tenantContext.getContext();const m=await this.prisma.membership.findFirst({where:{id:c.membershipId,tenantId:c.tenantId,companyId:c.companyId,status:'ACTIVE'},select:{userId:true}});if(!m)throw new BadRequestException('Active membership is required');return m.userId;}
+  private async actor(tx?:Prisma.TransactionClient){const c=this.tenantContext.getContext(),db=tx??this.prisma;const m=await db.membership.findFirst({where:{id:c.membershipId,tenantId:c.tenantId,companyId:c.companyId,status:'ACTIVE'},select:{userId:true}});if(!m)throw new BadRequestException('Aktif üyelik gereklidir.');return m.userId;}
 }
