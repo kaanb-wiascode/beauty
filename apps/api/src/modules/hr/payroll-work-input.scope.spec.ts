@@ -35,7 +35,7 @@ describe('PayrollWorkInputService organization scope', () => {
     scope.getBranchScopedWhere.mockResolvedValue({ tenantId:'tenant-1', branchId:{ in:['branch-1'] } });
     const tx:any = {
       $queryRawUnsafe: jest.fn()
-        .mockResolvedValueOnce([{ id:'period-1', year:2026, month:9, status:'DRAFT', branchId:null }])
+        .mockResolvedValueOnce([{ id:'period-1', year:2026, month:9, status:'DRAFT', branchId:'branch-2' }])
         .mockResolvedValueOnce([]),
     };
     const prisma:any = { $transaction: (fn:any)=>fn(tx) };
