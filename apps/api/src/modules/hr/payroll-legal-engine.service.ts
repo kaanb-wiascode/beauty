@@ -182,7 +182,7 @@ export class PayrollLegalEngineService {
     cumulativeTaxBaseBefore = 0,
     otherDeductions = 0,
   ) {
-    const targetNet = this.round(this.amount(targetNetInput, 'targetNet'));
+    const targetNet = this.round(this.amount(targetNetInput, 'targetNet') ?? 0);
     if (targetNet === 0) return this.grossToNet(0, params, cumulativeTaxBaseBefore, otherDeductions);
 
     let low = targetNet;
