@@ -132,7 +132,7 @@ export class PayrollAccountingService {
     ] as const;
     for (const k of nums) {
       const v = Number(input[k] ?? 0);
-      if (!Number.isFinite(v) || v < 0) throw new BadRequestException(`${k} cannot be negative.`);
+      if (!Number.isFinite(v) || v < 0) throw new BadRequestException('Bordro tutarları negatif olamaz.');
     }
     const employeeDeductions = this.round(
       Number(input.incomeTax ?? 0) +
@@ -143,7 +143,7 @@ export class PayrollAccountingService {
     );
     const expectedNet = this.round(Number(input.grossAmount) - employeeDeductions);
     if (Math.abs(expectedNet - this.round(Number(input.netAmount))) > 0.01) {
-      throw new BadRequestException(`Net payroll does not reconcile. Expected ${expectedNet}.`);
+      throw new BadRequestException(`Net bordro tutarı hesapla uyuşmuyor. Beklenen net tutar: ${expectedNet}.`);
     }
     const expectedEmployerCost = this.round(
       Number(input.grossAmount) +
@@ -152,7 +152,7 @@ export class PayrollAccountingService {
     );
     if (Math.abs(expectedEmployerCost - this.round(Number(input.employerCost))) > 0.01) {
       throw new BadRequestException(
-        `Employer cost does not reconcile. Expected ${expectedEmployerCost}.`,
+        `İşveren maliyeti hesapla uyuşmuyor. Beklenen tutar: ${expectedEmployerCost}.`,
       );
     }
     return { employeeDeductions, expectedEmployerCost };
@@ -178,16 +178,16 @@ export class PayrollAccountingService {
           branchIds,
         );
         if (!periods.length) {
-          throw new BadRequestException('Only a draft payroll period in active organization scope can be edited.');
+          throw new BadRequestException('Yalnız aktif organizasyon kapsamındaki taslak bordro dönemi düzenlenebilir.');
         }
         if (periods[0].branchId !== input.branchId) {
-          throw new BadRequestException('Payroll item branch must match payroll period branch.');
+          throw new BadRequestException('Bordro kaleminin şubesi bordro dönemi şubesiyle aynı olmalıdır.');
         }
         const staff = await tx.staff.findFirst({
           where: { id: input.staffId, tenantId, branchId: input.branchId, status: 'ACTIVE' },
           select: { id: true },
         });
-        if (!staff) throw new NotFoundException('Active staff member not found.');
+        if (!staff) throw new NotFoundException('Aktif personel bulunamadı.');
         if (input.costCenterId) {
           const cc = await tx.$queryRawUnsafe<any[]>(
             `SELECT id FROM cost_centers
@@ -197,7 +197,7 @@ export class PayrollAccountingService {
             tenantId,
             companyId,
           );
-          if (!cc.length) throw new BadRequestException('Cost center is not available in company scope.');
+          if (!cc.length) throw new BadRequestException('Masraf merkezi aktif şirket kapsamında kullanılamıyor.');
         }
         const snapshot = {
           grossAmount: this.round(input.grossAmount),
@@ -513,13 +513,13 @@ export class PayrollAccountingService {
           companyId,
           branchIds,
         );
-        if (!periods.length) throw new NotFoundException('Payroll period not found.');
+        if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
         const period = periods[0];
         if (period.status === 'POSTED') {
           return { periodId, status: 'POSTED', journalEntryId: period.journalEntryId, duplicate: true };
         }
         if (period.status !== 'APPROVED') {
-          throw new BadRequestException('Only approved payroll can be posted.');
+          throw new BadRequestException('Yalnız onaylanmış bordro muhasebeleştirilebilir.');
         }
         const items = await tx.$queryRawUnsafe<any[]>(
           `SELECT * FROM payroll_items
@@ -533,7 +533,7 @@ export class PayrollAccountingService {
           period.branchId,
           branchIds,
         );
-        if (!items.length) throw new BadRequestException('Payroll period has no scoped items.');
+        if (!items.length) throw new BadRequestException('Bordro döneminde aktif kapsamda bordro kalemi bulunmuyor.');
         let expense = 0;
         let net = 0;
         let taxes = 0;
@@ -555,7 +555,7 @@ export class PayrollAccountingService {
         const credits = this.round(net + taxes + social + other);
         if (Math.abs(expense - credits) > 0.01) {
           throw new BadRequestException(
-            `Payroll journal is not balanced. Expense ${expense}, liabilities ${credits}.`,
+            `Bordro muhasebe fişi dengede değil. Gider: ${expense}, yükümlülükler: ${credits}.`,
           );
         }
         const expenseAcc = await this.ensureAccount(
