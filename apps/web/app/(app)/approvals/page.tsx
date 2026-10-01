@@ -58,9 +58,9 @@ const ACTION_LABELS:Record<ActionKind,string>={
   DELEGATE:"Devret",
 };
 
-function remainingLabel(dueAt?:string|null,overdue?:boolean){
+function remainingLabel(dueAt:string|null|undefined,overdue:boolean|undefined,now:number){
   if(!dueAt)return "Süre sınırı yok";
-  const diff=new Date(dueAt).getTime()-Date.now();
+  const diff=new Date(dueAt).getTime()-now;
   const abs=Math.abs(diff);
   const minutes=Math.floor(abs/60000);
   const seconds=Math.floor((abs%60000)/1000);
@@ -86,7 +86,7 @@ export default function ApprovalQueuePage(){
   const[delegateToUserId,setDelegateToUserId]=useState("");
   const[correctionItem,setCorrectionItem]=useState<CorrectionItem|null>(null);
   const[resubmitComment,setResubmitComment]=useState("");
-  const[,setClock]=useState(0);
+  const[now,setNow]=useState(0);
 
   const load=useCallback(async()=>{
     setLoading(true);setError("");
@@ -112,11 +112,15 @@ export default function ApprovalQueuePage(){
 
   useEffect(()=>{void load()},[load]);
   useEffect(()=>{
-    const timer=window.setInterval(()=>setClock(value=>value+1),1000);
+    setNow(Date.now());
+    const timer=window.setInterval(()=>setNow(Date.now()),1000);
     return()=>window.clearInterval(timer);
   },[]);
 
-  const overdueCount=useMemo(()=>items.filter(item=>item.overdue||Boolean(item.dueAt&&new Date(item.dueAt).getTime()<=Date.now())).length,[items]);
+  const overdueCount=useMemo(
+    ()=>items.filter(item=>item.overdue||Boolean(item.dueAt&&new Date(item.dueAt).getTime()<=now)).length,
+    [items,now],
+  );
 
   function openAction(item:ApprovalItem,kind:ActionKind){
     setSelected(item);
@@ -222,7 +226,7 @@ export default function ApprovalQueuePage(){
 
     {items.length?<section className="space-y-3">
       {items.map(item=>{
-        const overdue=item.overdue||Boolean(item.dueAt&&new Date(item.dueAt).getTime()<=Date.now());
+        const overdue=item.overdue||Boolean(item.dueAt&&new Date(item.dueAt).getTime()<=now);
         return <article key={item.id} className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0 space-y-3">
@@ -239,7 +243,7 @@ export default function ApprovalQueuePage(){
                 <span>Adım {item.currentStepOrder}</span>
                 {item.amount?<span>Tutar: {Number(item.amount).toLocaleString("tr-TR")} ₺</span>:null}
                 <span>Oluşturma: {new Date(item.createdAt).toLocaleString("tr-TR")}</span>
-                <span className={overdue?"font-semibold text-[var(--danger)]":"font-semibold text-[var(--accent)]"}>{remainingLabel(item.dueAt,overdue)}</span>
+                <span className={overdue?"font-semibold text-[var(--danger)]":"font-semibold text-[var(--accent)]"}>{remainingLabel(item.dueAt,overdue,now)}</span>
               </div>
             </div>
 
