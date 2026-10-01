@@ -32,6 +32,26 @@ export class PayrollSettlementService {
     return tx.chartOfAccount.create({data:{tenantId,companyId,code,name,type,active:true},select:{id:true}});
   }
 
+  async paymentQueue(){
+    const {tenantId,companyId,branchIds}=await this.context();
+    return this.prisma.$queryRawUnsafe<any[]>(
+      `SELECT q.id,q.period_id AS "periodId",q.staff_id AS "staffId",
+              s."firstName",s."lastName",q.branch_id AS "branchId",b.name AS "branchName",
+              pp.year,pp.month,q.amount_due AS "amountDue",q.amount_paid AS "amountPaid",
+              q.remaining_amount AS "remainingAmount",q.status,q.queued_at AS "queuedAt",q.paid_at AS "paidAt"
+       FROM hr_payroll_payment_queue q
+       JOIN payroll_periods pp ON pp.id=q.period_id
+       JOIN staff s ON s.id=q.staff_id
+       JOIN branches b ON b.id=q.branch_id
+       WHERE q.tenant_id=$1::text AND q.company_id=$2::text
+         AND ($3::text[] IS NULL OR q.branch_id=ANY($3::text[]))
+       ORDER BY
+         CASE q.status WHEN 'PENDING' THEN 1 WHEN 'PARTIALLY_PAID' THEN 2 WHEN 'PAID' THEN 3 ELSE 4 END,
+         q.queued_at ASC`,
+      tenantId,companyId,branchIds,
+    );
+  }
+
   async paySalary(periodId:string,staffId:string,amountInput:number,method:PayrollPaymentMethod,userId:string,note?:string){
     const {tenantId,companyId,branchIds}=await this.context(); const amount=this.round(Number(amountInput));
     if(!Number.isFinite(amount)||amount<=0) throw new BadRequestException('Salary payment amount must be greater than zero.');
@@ -86,7 +106,7 @@ export class PayrollSettlementService {
           `SELECT user_id AS "userId"
            FROM hr_employee_user_links
            WHERE tenant_id=$1::text AND company_id=$2::text AND staff_id=$3::text AND active=TRUE
-           ORDER BY created_at DESC
+           ORDER BY linked_at DESC
            LIMIT 1`,
           tenantId,companyId,staffId,
         );
