@@ -64,6 +64,24 @@ export class HrSelfServiceService {
    attendanceToday,
   };
  }
+ async payrollStatus(userId:string){
+  const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
+  const rows=await this.prisma.$queryRawUnsafe<any[]>(
+   `SELECT pp.id AS "periodId",pp.year,pp.month,pp.status AS "periodStatus",
+           pi.net_amount AS "netAmount",q.amount_due AS "amountDue",
+           q.amount_paid AS "amountPaid",q.remaining_amount AS "remainingAmount",
+           q.status AS "paymentStatus",q.paid_at AS "paidAt"
+    FROM payroll_items pi
+    JOIN payroll_periods pp ON pp.id=pi.period_id
+    LEFT JOIN hr_payroll_payment_queue q
+      ON q.period_id=pi.period_id AND q.staff_id=pi.staff_id
+    WHERE pi.tenant_id=$1::text AND pi.company_id=$2::text AND pi.staff_id=$3::text
+    ORDER BY pp.year DESC,pp.month DESC
+    LIMIT 12`,
+   tenantId,companyId,employee.id,
+  );
+  return rows;
+ }
  async notifications(userId:string){
   const employee=await this.employee(userId),{tenantId,companyId}=this.scope();
   return this.prisma.$queryRawUnsafe<any[]>(
