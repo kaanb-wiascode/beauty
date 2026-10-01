@@ -141,6 +141,59 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
       })
       .expect(201);
 
+    const closureId = randomUUID();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO hr_attendance_period_closures(
+         id,tenant_id,company_id,branch_id,payroll_period_id,year,month,
+         period_start,period_end,status,staff_count,attendance_record_count,
+         open_exception_count,snapshot,closed_by_user_id,closed_at
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,2199,12,
+         '2199-12-01'::date,'2199-12-31'::date,'CLOSED',1,1,0,$6::jsonb,$7::text,NOW()
+       )`,
+      closureId,
+      currentTenantId,
+      companyId,
+      branchId,
+      period.body.id,
+      JSON.stringify({
+        staff: [
+          {
+            staffId: staff.body.id,
+            workedMinutes: 9600,
+            overtimeMinutes: 0,
+            approvedOvertimeMinutes: 0,
+            presentDays: 20,
+            absentDays: 0,
+            approvedLeaveRecords: 0,
+            declaredLeaveDays: 0,
+            unpaidLeaveRecords: 0,
+            unpaidLeaveDays: 0,
+          },
+        ],
+      }),
+      registered.body.user.id,
+    );
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE payroll_items
+       SET calculation_snapshot = calculation_snapshot || $2::jsonb, updated_at=NOW()
+       WHERE period_id=$1::text AND staff_id=$3::text`,
+      period.body.id,
+      JSON.stringify({
+        workInputs: {
+          source: 'ATTENDANCE_PERIOD_CLOSE',
+          closureId,
+          periodStart: '2199-12-01',
+          periodEnd: '2199-12-31',
+        },
+        salaryContract: { salaryBasis: 'MONTHLY_NET' },
+        legalCalculation: { source: 'NET_CONTRACT_LEGAL_ENGINE' },
+        netCompensationAdjustment: { source: 'NET_CONTRACT_POLICY' },
+      }),
+      staff.body.id,
+    );
+
     await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/submit`)
       .set('Authorization', authorization)
