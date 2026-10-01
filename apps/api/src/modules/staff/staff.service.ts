@@ -95,7 +95,7 @@ export class StaffService {
       await this.organizationScope.getAssignedActiveBranchIds();
 
     if (!assignedBranchIds.includes(branchId)) {
-      throw new NotFoundException('Branch not found');
+      throw new NotFoundException('Şube bulunamadı.');
     }
   }
 
@@ -227,7 +227,7 @@ export class StaffService {
       select: { id: true, profile: true },
     });
 
-    if (!staff) throw new NotFoundException('Staff not found');
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
 
     return this.prisma.staff.update({
       where: { id: staff.id },
@@ -255,7 +255,7 @@ export class StaffService {
       select: { id: true },
     });
 
-    if (!staff) throw new NotFoundException('Staff not found');
+    if (!staff) throw new NotFoundException('Personel bulunamadı.');
 
     const archived = await this.prisma.staff.update({
       where: { id: staff.id },
