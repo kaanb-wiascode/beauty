@@ -215,7 +215,7 @@ export class HrService {
     existing: EmployeeMasterRecord | null,
     profile: StaffProfile,
   ) {
-    const currentSalary = existing?.grossSalary ?? profile.salary ?? null;
+    const currentSalary = existing?.grossSalary ?? null;
     return {
       employeeNumber:
         body.personnelNumber !== undefined
@@ -257,14 +257,8 @@ export class HrService {
         body.iban !== undefined
           ? this.nullableString(body.iban)
           : (existing?.iban ?? this.nullableString(profile.iban)),
-      grossSalary:
-        body.grossSalary !== undefined || body.salary !== undefined
-          ? this.nullableAmount(body.grossSalary ?? body.salary, 'grossSalary')
-          : this.nullableAmount(currentSalary, 'grossSalary'),
-      salaryType:
-        body.salaryType !== undefined
-          ? this.nullableString(body.salaryType)
-          : (existing?.salaryType ?? this.nullableString(profile.salaryType)),
+      grossSalary: this.nullableAmount(currentSalary, 'grossSalary'),
+      salaryType: existing?.salaryType ?? null,
     };
   }
 
