@@ -16,7 +16,7 @@ export type CustomerConsent = { id: string; type: CustomerConsentType; status: "
 export type StaffProfile = {
   identityNumber?: string; birthDate?: string; birthPlace?: string; gender?: string; maritalStatus?: string; nationality?: string;
   address?: string; city?: string; district?: string; postalCode?: string; personnelNumber?: string; position?: string;
-  department?: string; employmentType?: string; hireDate?: string; contractType?: string; salaryType?: string; salary?: number;
+  department?: string; employmentType?: string; hireDate?: string; contractType?: string;
   iban?: string; bankName?: string; emergencyName?: string; emergencyRelation?: string; emergencyPhone?: string;
   services?: string[]; notes?: string;
 };
