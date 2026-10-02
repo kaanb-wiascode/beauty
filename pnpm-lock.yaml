@@ -11,7 +11,6 @@ overrides:
   deepmerge-ts: 8.0.1
   js-yaml: 4.3.2
   multer: 2.3.0
-  node-forge: 1.4.1
 
 importers:
 
@@ -5260,7 +5259,8 @@ packages:
       encoding:
         optional: true
 
-  node-forge@1.4.1:
+  node-forge@1.4.0:
+    resolution: {integrity: sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==}
     engines: {node: '>= 6.13.0'}
 
   node-gyp-build@4.8.4:
@@ -7541,7 +7541,7 @@ snapshots:
       glob: 13.0.6
       lan-network: 0.2.1
       multitars: 1.0.2
-      node-forge: 1.4.1
+      node-forge: 1.4.0
       npm-package-arg: 11.0.3
       ora: 3.4.0
       picomatch: 4.0.5
@@ -7578,7 +7578,7 @@ snapshots:
 
   '@expo/code-signing-certificates@0.0.6':
     dependencies:
-      node-forge: 1.4.1
+      node-forge: 1.4.0
 
   '@expo/config-plugins@57.0.8(typescript@6.0.3)':
     dependencies:
@@ -12876,7 +12876,7 @@ snapshots:
     dependencies:
       whatwg-url: 5.0.0
 
-  node-forge@1.4.1: {}
+  node-forge@1.4.0: {}
 
   node-gyp-build@4.8.4: {}
 
