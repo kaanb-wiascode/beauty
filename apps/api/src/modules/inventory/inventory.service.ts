@@ -6,6 +6,7 @@ import {
 import { Prisma, PrismaService } from '@beauty-erp/database';
 import { TenantContext } from '../../common/tenant/tenant-context';
 import { InventoryScopeService } from './inventory-scope.service';
+import { AccountsPayableService } from '../accounts-payable/accounts-payable.service';
 
 const row = (value: any) => value;
 type RawDb = Pick<
@@ -19,6 +20,7 @@ export class InventoryService {
     private readonly prisma: PrismaService,
     private readonly tenantContext: TenantContext,
     private readonly inventoryScope: InventoryScopeService,
+    private readonly accountsPayable: AccountsPayableService,
   ) {}
 
   private tenantId() {
@@ -904,6 +906,182 @@ export class InventoryService {
       }
       return rows[0];
     });
+  }
+
+  async receivePurchaseOrder(
+    id: string,
+    input: {
+      invoiceNumber?: string | null;
+      dueAt?: Date | null;
+      receivedAt?: Date | null;
+      actorId: string;
+    },
+  ) {
+    const tenantId = this.tenantId();
+    const companyId = this.companyId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const orders = await tx.$queryRawUnsafe<any[]>(
+          `SELECT po.id,po.status,po.supplier_id AS "supplierId",po.warehouse_id AS "warehouseId",
+                  po.total_amount AS "totalAmount",po.note,w.branch_id AS "branchId",s.name AS "supplierName"
+           FROM inventory_purchase_orders po
+           JOIN inventory_warehouses w ON w.id=po.warehouse_id
+           LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id
+           WHERE po.id=$1::text AND po.tenant_id=$2::text AND po.company_id=$3::text
+             AND ($4::text[] IS NULL OR w.branch_id=ANY($4::text[]))
+           FOR UPDATE`,
+          id,
+          tenantId,
+          companyId,
+          branchIds,
+        );
+        if (!orders.length) throw new NotFoundException('Satın alma siparişi bulunamadı.');
+        const order = orders[0];
+
+        if (order.status === 'RECEIVED') {
+          return {
+            purchaseOrderId: id,
+            status: 'RECEIVED',
+            totalAmount: Number(order.totalAmount ?? 0),
+            idempotent: true,
+          };
+        }
+        if (!['APPROVED', 'ORDERED'].includes(order.status)) {
+          throw new BadRequestException(
+            'Satın alma siparişi yalnız onaylanmış veya sipariş edilmiş durumdayken teslim alınabilir.',
+          );
+        }
+        if (!order.supplierId) {
+          throw new BadRequestException(
+            'Satın alma siparişini teslim almak için tedarikçi seçilmiş olmalıdır.',
+          );
+        }
+
+        const items = await tx.$queryRawUnsafe<any[]>(
+          `SELECT i.product_id AS "productId",i.quantity,i.unit_cost AS "unitCost"
+           FROM inventory_purchase_order_items i
+           JOIN inventory_products p ON p.id=i.product_id AND p.company_id=$2::text
+           WHERE i.purchase_order_id=$1::text
+           ORDER BY i.product_id
+           FOR UPDATE OF i`,
+          id,
+          companyId,
+        );
+        if (!items.length) {
+          throw new BadRequestException('Satın alma siparişinde teslim alınacak ürün bulunmuyor.');
+        }
+
+        let calculatedTotal = 0;
+        for (const item of items) {
+          const quantity = Number(item.quantity);
+          const unitCost = Number(item.unitCost ?? 0);
+          if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost < 0) {
+            throw new BadRequestException('Satın alma siparişi kalemlerinden biri geçersiz.');
+          }
+          const lineValue = Math.round((quantity * unitCost + Number.EPSILON) * 100) / 100;
+          calculatedTotal = Math.round((calculatedTotal + lineValue + Number.EPSILON) * 100) / 100;
+
+          const stockRows = await tx.$queryRawUnsafe<any[]>(
+            `SELECT quantity,cost_per_unit AS "costPerUnit"
+             FROM inventory_stock
+             WHERE product_id=$1::text AND warehouse_id=$2::text
+             FOR UPDATE`,
+            item.productId,
+            order.warehouseId,
+          );
+          const oldQty = Number(stockRows[0]?.quantity ?? 0);
+          const oldCost = Number(stockRows[0]?.costPerUnit ?? 0);
+          const newQty = oldQty + quantity;
+          const weightedCost =
+            newQty > 0
+              ? Math.round(
+                  ((oldQty * oldCost + quantity * unitCost) / newQty + Number.EPSILON) * 100,
+                ) / 100
+              : unitCost;
+
+          await tx.$executeRawUnsafe(
+            `INSERT INTO inventory_stock(product_id,warehouse_id,quantity,cost_per_unit)
+             VALUES($1::text,$2::text,$3,$4)
+             ON CONFLICT(product_id,warehouse_id)
+             DO UPDATE SET quantity=inventory_stock.quantity+EXCLUDED.quantity,
+                           cost_per_unit=$4,
+                           updated_at=NOW()`,
+            item.productId,
+            order.warehouseId,
+            quantity,
+            weightedCost,
+          );
+
+          await tx.$executeRawUnsafe(
+            `INSERT INTO inventory_movements(
+               tenant_id,company_id,product_id,warehouse_id,type,quantity,unit_cost,
+               reference_type,reference_id,note
+             ) VALUES(
+               $1::text,$2::text,$3::text,$4::text,'PURCHASE',$5,$6,
+               'PURCHASE_ORDER',$7::text,'Satın alma siparişi teslim alımı'
+             )`,
+            tenantId,
+            companyId,
+            item.productId,
+            order.warehouseId,
+            quantity,
+            unitCost,
+            id,
+          );
+        }
+
+        const storedTotal = Number(order.totalAmount ?? 0);
+        if (Math.abs(storedTotal - calculatedTotal) > 0.01) {
+          throw new BadRequestException(
+            `Satın alma siparişi toplamı kalemlerle eşleşmiyor. Sipariş: ${storedTotal.toFixed(2)}, kalem toplamı: ${calculatedTotal.toFixed(2)}.`,
+          );
+        }
+
+        const supplierBill =
+          await this.accountsPayable.createInventoryPurchaseBillWithinTransaction(tx, {
+            tenantId,
+            companyId,
+            branchId: order.branchId ?? null,
+            supplierId: order.supplierId,
+            purchaseOrderId: id,
+            invoiceNumber: input.invoiceNumber ?? null,
+            description: order.note?.trim()
+              ? `Stok alımı · ${order.note.trim()}`
+              : `Stok alımı · Sipariş ${id}`,
+            amount: calculatedTotal,
+            dueAt: input.dueAt ?? null,
+            actorId: input.actorId,
+          });
+
+        const receivedAt = input.receivedAt ?? new Date();
+        const updated = await tx.$executeRawUnsafe(
+          `UPDATE inventory_purchase_orders
+           SET status='RECEIVED',received_at=$2::timestamptz,updated_at=NOW()
+           WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text
+             AND status IN('APPROVED','ORDERED')`,
+          id,
+          receivedAt,
+          tenantId,
+          companyId,
+        );
+        if (updated !== 1) {
+          throw new BadRequestException(
+            'Satın alma siparişi eşzamanlı olarak değiştirildi. Lütfen ekranı yenileyin.',
+          );
+        }
+
+        return {
+          purchaseOrderId: id,
+          status: 'RECEIVED',
+          totalAmount: calculatedTotal,
+          supplierBillId: supplierBill.id,
+          idempotent: false,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
   }
 
   async transfers() {
