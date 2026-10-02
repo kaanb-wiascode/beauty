@@ -53,7 +53,7 @@ export class PayrollReversalService {
       companyId,
     );
     const actor = rows[0];
-    if (!actor) throw new ForbiddenException('Actor has no active membership.');
+    if (!actor) throw new ForbiddenException('İşlemi yapan kullanıcının aktif üyeliği bulunmuyor.');
     const roles = new Set([this.role(actor.roleSlug), this.role(actor.roleName)]);
     const allowed = [
       'hr-manager',
@@ -78,7 +78,7 @@ export class PayrollReversalService {
   async cancel(periodId: string, userId: string, reason: string) {
     const clean = (reason ?? '').trim();
     if (clean.length < 5) {
-      throw new BadRequestException('Cancellation reason must contain at least 5 characters.');
+      throw new BadRequestException('İptal nedeni en az 5 karakter olmalıdır.');
     }
     const { tenantId, companyId } = this.context();
     const branchIds = await this.branchIds();
@@ -92,12 +92,12 @@ export class PayrollReversalService {
       companyId,
       branchIds,
     );
-    if (!periods.length) throw new NotFoundException('Payroll period not found.');
+    if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
     if (periods[0].status === 'CANCELLED') {
       return { periodId, status: 'CANCELLED', duplicate: true };
     }
     if (periods[0].status === 'POSTED' || periods[0].status === 'REVERSED') {
-      throw new BadRequestException('Posted payroll must be reversed instead of cancelled.');
+      throw new BadRequestException('Muhasebeleştirilmiş bordro iptal edilemez; ters kayıt işlemi yapılmalıdır.');
     }
     await this.assertAuthority(userId);
     const changed = await this.prisma.$transaction(
@@ -112,10 +112,10 @@ export class PayrollReversalService {
           companyId,
           branchIds,
         );
-        if (!locked.length) throw new NotFoundException('Payroll period not found.');
+        if (!locked.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
         if (locked[0].status === 'CANCELLED') return false;
         if (!['DRAFT', 'SUBMITTED', 'APPROVED'].includes(locked[0].status)) {
-          throw new BadRequestException('Payroll period can no longer be cancelled.');
+          throw new BadRequestException('Bordro dönemi artık iptal edilemez.');
         }
         await tx.$executeRawUnsafe(
           `UPDATE payroll_periods
@@ -149,7 +149,7 @@ export class PayrollReversalService {
   async reverse(periodId: string, userId: string, reason: string) {
     const clean = (reason ?? '').trim();
     if (clean.length < 5) {
-      throw new BadRequestException('Reversal reason must contain at least 5 characters.');
+      throw new BadRequestException('Ters kayıt nedeni en az 5 karakter olmalıdır.');
     }
     const { tenantId, companyId } = this.context();
     const branchIds = await this.branchIds();
@@ -164,7 +164,7 @@ export class PayrollReversalService {
       companyId,
       branchIds,
     );
-    if (!pre.length) throw new NotFoundException('Payroll period not found.');
+    if (!pre.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
     if (pre[0].status === 'REVERSED') {
       return {
         periodId,
@@ -174,7 +174,7 @@ export class PayrollReversalService {
       };
     }
     if (pre[0].status !== 'POSTED') {
-      throw new BadRequestException('Only posted payroll can be reversed.');
+      throw new BadRequestException('Yalnız muhasebeleştirilmiş bordrolar ters kayda alınabilir.');
     }
     await this.assertAuthority(userId);
 
@@ -191,7 +191,7 @@ export class PayrollReversalService {
           companyId,
           branchIds,
         );
-        if (!rows.length) throw new NotFoundException('Payroll period not found.');
+        if (!rows.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
         const period = rows[0];
         if (period.status === 'REVERSED') {
           return {
@@ -202,7 +202,7 @@ export class PayrollReversalService {
           };
         }
         if (period.status !== 'POSTED' || !period.journalEntryId) {
-          throw new BadRequestException('Posted payroll journal is required.');
+          throw new BadRequestException('Muhasebeleştirilmiş bordro fişi zorunludur.');
         }
         const settlement = await tx.$queryRawUnsafe<any[]>(
           `SELECT
@@ -236,7 +236,7 @@ export class PayrollReversalService {
           include: { lines: true },
         });
         if (!original || !original.lines.length) {
-          throw new BadRequestException('Original payroll journal is missing.');
+          throw new BadRequestException('Orijinal bordro muhasebe fişi bulunamadı.');
         }
         const now = new Date();
         const reversal = await tx.journalEntry.create({
