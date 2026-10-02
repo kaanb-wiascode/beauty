@@ -77,11 +77,12 @@ export class InventoryService {
     companyId = this.companyId(),
   ) {
     const rows = await db.$queryRawUnsafe<any[]>(
-      `SELECT id FROM inventory_products WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
+      `SELECT id,tax_rate AS "taxRate" FROM inventory_products WHERE id=$1::text AND company_id=$2::text AND status='ACTIVE' LIMIT 1`,
       productId,
       companyId,
     );
     if (!rows.length) throw new NotFoundException('Ürün bulunamadı.');
+    return rows[0];
   }
 
   private async requireSupplier(
@@ -856,7 +857,7 @@ export class InventoryService {
   async purchaseOrders() {
     const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
-      `SELECT po.id,po.status,po.total_amount AS "totalAmount",po.ordered_at AS "orderedAt",po.received_at AS "receivedAt",s.name AS "supplierName",w.name AS "warehouseName",COUNT(i.id)::int AS "itemCount"
+      `SELECT po.id,po.status,po.subtotal_amount AS "subtotalAmount",po.tax_amount AS "taxAmount",po.total_amount AS "totalAmount",po.ordered_at AS "orderedAt",po.received_at AS "receivedAt",s.name AS "supplierName",w.name AS "warehouseName",COUNT(i.id)::int AS "itemCount"
        FROM inventory_purchase_orders po
        LEFT JOIN inventory_suppliers s ON s.id=po.supplier_id
        JOIN inventory_warehouses w ON w.id=po.warehouse_id
@@ -874,7 +875,7 @@ export class InventoryService {
     const companyId = this.companyId();
     if (!input.warehouseId || !input.items?.length) {
       throw new BadRequestException(
-        'Warehouse and at least one item are required',
+        'Depo ve en az bir satın alma kalemi seçilmelidir.',
       );
     }
 
@@ -884,7 +885,16 @@ export class InventoryService {
         await this.requireSupplier(tx, input.supplierId, companyId);
       }
 
-      let totalAmount = 0;
+      let subtotalAmount = 0;
+      let taxAmount = 0;
+      const preparedItems: Array<{
+        productId: string;
+        quantity: number;
+        unitCost: number;
+        taxRate: number;
+        taxAmount: number;
+      }> = [];
+
       for (const item of input.items) {
         const quantity = Number(item.quantity);
         const unitCost = Number(item.unitCost || 0);
@@ -896,30 +906,67 @@ export class InventoryService {
         ) {
           throw new BadRequestException('Satın alma siparişi kalemi geçersiz.');
         }
-        await this.requireProduct(tx, item.productId, companyId);
-        totalAmount += quantity * unitCost;
+
+        const product = await this.requireProduct(tx, item.productId, companyId);
+        const taxRate = Number(item.taxRate ?? product.taxRate ?? 0);
+        if (!Number.isFinite(taxRate) || taxRate < 0 || taxRate > 100) {
+          throw new BadRequestException('Satın alma KDV oranı 0 ile 100 arasında olmalıdır.');
+        }
+
+        const lineNet =
+          Math.round((quantity * unitCost + Number.EPSILON) * 100) / 100;
+        const lineTax =
+          Math.round((lineNet * (taxRate / 100) + Number.EPSILON) * 100) / 100;
+
+        subtotalAmount =
+          Math.round((subtotalAmount + lineNet + Number.EPSILON) * 100) / 100;
+        taxAmount =
+          Math.round((taxAmount + lineTax + Number.EPSILON) * 100) / 100;
+
+        preparedItems.push({
+          productId: item.productId,
+          quantity,
+          unitCost,
+          taxRate,
+          taxAmount: lineTax,
+        });
       }
-      totalAmount = Math.round(totalAmount * 100) / 100;
+
+      const totalAmount =
+        Math.round((subtotalAmount + taxAmount + Number.EPSILON) * 100) / 100;
 
       const rows = await tx.$queryRawUnsafe<any[]>(
-        `INSERT INTO inventory_purchase_orders(tenant_id,company_id,supplier_id,warehouse_id,status,total_amount,note,ordered_at) VALUES($1::text,$2::text,$3::text,$4::text,$5::"InventoryPurchaseStatus",$6,$7,$8::timestamptz) RETURNING id,status,total_amount AS "totalAmount"`,
+        `INSERT INTO inventory_purchase_orders(
+           tenant_id,company_id,supplier_id,warehouse_id,status,
+           subtotal_amount,tax_amount,total_amount,note,ordered_at
+         ) VALUES(
+           $1::text,$2::text,$3::text,$4::text,$5::"InventoryPurchaseStatus",
+           $6,$7,$8,$9,$10::timestamptz
+         )
+         RETURNING id,status,subtotal_amount AS "subtotalAmount",tax_amount AS "taxAmount",total_amount AS "totalAmount"`,
         tenantId,
         companyId,
         input.supplierId || null,
         input.warehouseId,
         input.status === 'PENDING' ? 'PENDING' : 'DRAFT',
+        subtotalAmount,
+        taxAmount,
         totalAmount,
         input.note || null,
         input.orderedAt || null,
       );
 
-      for (const item of input.items) {
+      for (const item of preparedItems) {
         await tx.$executeRawUnsafe(
-          `INSERT INTO inventory_purchase_order_items(purchase_order_id,product_id,quantity,unit_cost) VALUES($1::text,$2::text,$3,$4)`,
+          `INSERT INTO inventory_purchase_order_items(
+             purchase_order_id,product_id,quantity,unit_cost,tax_rate,tax_amount
+           ) VALUES($1::text,$2::text,$3,$4,$5,$6)`,
           rows[0].id,
           item.productId,
-          Number(item.quantity),
-          Number(item.unitCost || 0),
+          item.quantity,
+          item.unitCost,
+          item.taxRate,
+          item.taxAmount,
         );
       }
       return rows[0];
@@ -1087,6 +1134,7 @@ export class InventoryService {
       async (tx) => {
         const orders = await tx.$queryRawUnsafe<any[]>(
           `SELECT po.id,po.status,po.supplier_id AS "supplierId",po.warehouse_id AS "warehouseId",
+                  po.subtotal_amount AS "subtotalAmount",po.tax_amount AS "taxAmount",
                   po.total_amount AS "totalAmount",po.note,w.branch_id AS "branchId",s.name AS "supplierName"
            FROM inventory_purchase_orders po
            JOIN inventory_warehouses w ON w.id=po.warehouse_id
@@ -1122,7 +1170,8 @@ export class InventoryService {
         }
 
         const items = await tx.$queryRawUnsafe<any[]>(
-          `SELECT i.product_id AS "productId",i.quantity,i.unit_cost AS "unitCost"
+          `SELECT i.product_id AS "productId",i.quantity,i.unit_cost AS "unitCost",
+                  i.tax_rate AS "taxRate",i.tax_amount AS "taxAmount"
            FROM inventory_purchase_order_items i
            JOIN inventory_products p ON p.id=i.product_id AND p.company_id=$2::text
            WHERE i.purchase_order_id=$1::text
@@ -1135,15 +1184,24 @@ export class InventoryService {
           throw new BadRequestException('Satın alma siparişinde teslim alınacak ürün bulunmuyor.');
         }
 
-        let calculatedTotal = 0;
+        let calculatedSubtotal = 0;
+        let calculatedTax = 0;
         for (const item of items) {
           const quantity = Number(item.quantity);
           const unitCost = Number(item.unitCost ?? 0);
           if (!Number.isFinite(quantity) || quantity <= 0 || !Number.isFinite(unitCost) || unitCost < 0) {
             throw new BadRequestException('Satın alma siparişi kalemlerinden biri geçersiz.');
           }
-          const lineValue = Math.round((quantity * unitCost + Number.EPSILON) * 100) / 100;
-          calculatedTotal = Math.round((calculatedTotal + lineValue + Number.EPSILON) * 100) / 100;
+          const lineValue =
+            Math.round((quantity * unitCost + Number.EPSILON) * 100) / 100;
+          const lineTax = Number(item.taxAmount ?? 0);
+          if (!Number.isFinite(lineTax) || lineTax < 0) {
+            throw new BadRequestException('Satın alma siparişi KDV tutarı geçersiz.');
+          }
+          calculatedSubtotal =
+            Math.round((calculatedSubtotal + lineValue + Number.EPSILON) * 100) / 100;
+          calculatedTax =
+            Math.round((calculatedTax + lineTax + Number.EPSILON) * 100) / 100;
 
           const stockRows = await tx.$queryRawUnsafe<any[]>(
             `SELECT quantity,cost_per_unit AS "costPerUnit"
@@ -1202,10 +1260,18 @@ export class InventoryService {
           );
         }
 
+        const calculatedTotal =
+          Math.round((calculatedSubtotal + calculatedTax + Number.EPSILON) * 100) / 100;
+        const storedSubtotal = Number(order.subtotalAmount ?? 0);
+        const storedTax = Number(order.taxAmount ?? 0);
         const storedTotal = Number(order.totalAmount ?? 0);
-        if (Math.abs(storedTotal - calculatedTotal) > 0.01) {
+        if (
+          Math.abs(storedSubtotal - calculatedSubtotal) > 0.01 ||
+          Math.abs(storedTax - calculatedTax) > 0.01 ||
+          Math.abs(storedTotal - calculatedTotal) > 0.01
+        ) {
           throw new BadRequestException(
-            `Satın alma siparişi toplamı kalemlerle eşleşmiyor. Sipariş: ${storedTotal.toFixed(2)}, kalem toplamı: ${calculatedTotal.toFixed(2)}.`,
+            'Satın alma siparişi net/KDV/toplam değerleri kalemlerle eşleşmiyor.',
           );
         }
 
@@ -1220,7 +1286,8 @@ export class InventoryService {
             description: order.note?.trim()
               ? `Stok alımı · ${order.note.trim()}`
               : `Stok alımı · Sipariş ${id}`,
-            amount: calculatedTotal,
+            amount: calculatedSubtotal,
+            taxAmount: calculatedTax,
             dueAt: input.dueAt ?? null,
             actorId: input.actorId,
           });
@@ -1245,6 +1312,8 @@ export class InventoryService {
         return {
           purchaseOrderId: id,
           status: 'RECEIVED',
+          subtotalAmount: calculatedSubtotal,
+          taxAmount: calculatedTax,
           totalAmount: calculatedTotal,
           supplierBillId: supplierBill.id,
           idempotent: false,
