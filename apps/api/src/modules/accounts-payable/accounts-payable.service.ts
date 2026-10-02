@@ -270,6 +270,103 @@ export class AccountsPayableService {
     return { id: billId, idempotent: false };
   }
 
+  async cancelInventoryPurchaseBillWithinTransaction(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string;
+      companyId: string;
+      branchId: string | null;
+      purchaseOrderId: string;
+      reason: string;
+    },
+  ) {
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('İade nedeni zorunludur.');
+
+    await this.acquireTransactionLock(
+      tx,
+      `supplier-bill-source:${input.companyId}`,
+      `INVENTORY_PURCHASE_ORDER:${input.purchaseOrderId}`,
+    );
+
+    const bills = await tx.$queryRawUnsafe<any[]>(
+      `SELECT b.id,b.amount,b.status,
+              COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid
+       FROM supplier_bills b
+       WHERE b.company_id=$1::text
+         AND b.source_type='INVENTORY_PURCHASE_ORDER'
+         AND b.source_id=$2::text
+       FOR UPDATE`,
+      input.companyId,
+      input.purchaseOrderId,
+    );
+    if (!bills.length) {
+      throw new NotFoundException('Satın alma siparişine bağlı tedarikçi faturası bulunamadı.');
+    }
+    const bill = bills[0];
+    if (bill.status === 'CANCELLED') {
+      return { id: bill.id, status: 'CANCELLED', idempotent: true };
+    }
+    if (Math.abs(Number(bill.paid ?? 0)) > 0.01) {
+      throw new BadRequestException(
+        'Ödemesi bulunan stok alım faturası, ödeme ters kaydı tamamlanmadan iade edilemez.',
+      );
+    }
+
+    const originalJournal = await tx.journalEntry.findFirst({
+      where: {
+        companyId: input.companyId,
+        referenceType: 'SUPPLIER_BILL',
+        referenceId: bill.id,
+      },
+      include: { lines: true },
+    });
+    const originalDebitLine = originalJournal?.lines.find(
+      (line) => Number(line.debit) > 0,
+    );
+    if (!originalDebitLine) {
+      throw new BadRequestException(
+        'Stok alım faturasının özgün muhasebe kaydı bulunamadı.',
+      );
+    }
+
+    const payable = await this.ensureAccount(
+      tx,
+      input.tenantId,
+      input.companyId,
+      '320',
+      'Satıcılar',
+      'LIABILITY',
+    );
+    await this.postJournal(tx, {
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      branchId: input.branchId,
+      referenceType: 'INVENTORY_PURCHASE_RETURN',
+      referenceId: input.purchaseOrderId,
+      description: `Stok alım iadesi ${input.purchaseOrderId}`,
+      entryDate: new Date(),
+      debitAccountId: payable.id,
+      creditAccountId: originalDebitLine.accountId,
+      amount: Number(bill.amount),
+    });
+
+    const updated = await tx.$executeRawUnsafe(
+      `UPDATE supplier_bills
+       SET status='CANCELLED',cancelled_at=NOW(),cancel_reason=$2,updated_at=NOW()
+       WHERE id=$1::text AND status<>'CANCELLED'`,
+      bill.id,
+      reason,
+    );
+    if (updated !== 1) {
+      throw new BadRequestException(
+        'Stok alım faturası eşzamanlı olarak değiştirildi. Lütfen ekranı yenileyin.',
+      );
+    }
+
+    return { id: bill.id, status: 'CANCELLED', idempotent: false };
+  }
+
   async createBill(input: CreateBillInput) {
     const { tenantId, companyId, branchId } = this.context();
     const amount = this.round(input.amount);
