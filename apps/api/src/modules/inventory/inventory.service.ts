@@ -1236,6 +1236,164 @@ export class InventoryService {
     );
   }
 
+  async returnPurchaseOrder(
+    id: string,
+    input: { reason: string; actorId: string },
+  ) {
+    const tenantId = this.tenantId();
+    const companyId = this.companyId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+    const reason = input.reason.trim();
+    if (!reason) throw new BadRequestException('İade nedeni zorunludur.');
+
+    return this.prisma.$transaction(
+      async (tx) => {
+        const orders = await tx.$queryRawUnsafe<any[]>(
+          `SELECT po.id,po.status,po.warehouse_id AS "warehouseId",
+                  po.total_amount AS "totalAmount",w.branch_id AS "branchId"
+           FROM inventory_purchase_orders po
+           JOIN inventory_warehouses w ON w.id=po.warehouse_id
+           WHERE po.id=$1::text AND po.tenant_id=$2::text AND po.company_id=$3::text
+             AND ($4::text[] IS NULL OR w.branch_id=ANY($4::text[]))
+           FOR UPDATE`,
+          id,
+          tenantId,
+          companyId,
+          branchIds,
+        );
+        if (!orders.length) throw new NotFoundException('Satın alma siparişi bulunamadı.');
+        const order = orders[0];
+        if (order.status !== 'RECEIVED') {
+          throw new BadRequestException(
+            'Yalnız teslim alınmış satın alma siparişleri iade edilebilir.',
+          );
+        }
+
+        const existingReturn = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+          `SELECT id FROM inventory_movements
+           WHERE tenant_id=$1::text AND company_id=$2::text
+             AND reference_type='PURCHASE_ORDER_RETURN' AND reference_id=$3::text
+           LIMIT 1`,
+          tenantId,
+          companyId,
+          id,
+        );
+        if (existingReturn[0]) {
+          return {
+            purchaseOrderId: id,
+            status: 'RETURNED',
+            idempotent: true,
+          };
+        }
+
+        const items = await tx.$queryRawUnsafe<any[]>(
+          `SELECT i.product_id AS "productId",
+                  i.received_quantity AS "receivedQuantity",
+                  i.unit_cost AS "unitCost"
+           FROM inventory_purchase_order_items i
+           WHERE i.purchase_order_id=$1::text
+           ORDER BY i.product_id
+           FOR UPDATE`,
+          id,
+        );
+        if (!items.length) {
+          throw new BadRequestException('İade edilecek satın alma siparişi kalemi bulunamadı.');
+        }
+
+        for (const item of items) {
+          const quantity = Number(item.receivedQuantity ?? 0);
+          const unitCost = Number(item.unitCost ?? 0);
+          if (!Number.isFinite(quantity) || quantity <= 0) {
+            throw new BadRequestException(
+              'Satın alma siparişi kalemlerinden birinin teslim miktarı geçersiz.',
+            );
+          }
+
+          const stockRows = await tx.$queryRawUnsafe<any[]>(
+            `SELECT quantity FROM inventory_stock
+             WHERE product_id=$1::text AND warehouse_id=$2::text
+             FOR UPDATE`,
+            item.productId,
+            order.warehouseId,
+          );
+          const available = Number(stockRows[0]?.quantity ?? 0);
+          if (available < quantity) {
+            throw new BadRequestException(
+              `İade için yeterli stok yok: ${item.productId}.`,
+            );
+          }
+
+          await tx.$executeRawUnsafe(
+            `UPDATE inventory_stock
+             SET quantity=quantity-$3,updated_at=NOW()
+             WHERE product_id=$1::text AND warehouse_id=$2::text`,
+            item.productId,
+            order.warehouseId,
+            quantity,
+          );
+
+          await tx.$executeRawUnsafe(
+            `INSERT INTO inventory_movements(
+               tenant_id,company_id,product_id,warehouse_id,type,quantity,unit_cost,
+               reference_type,reference_id,note
+             ) VALUES(
+               $1::text,$2::text,$3::text,$4::text,'RETURN',$5,$6,
+               'PURCHASE_ORDER_RETURN',$7::text,$8
+             )`,
+            tenantId,
+            companyId,
+            item.productId,
+            order.warehouseId,
+            quantity,
+            unitCost,
+            id,
+            reason,
+          );
+
+          await tx.$executeRawUnsafe(
+            `UPDATE inventory_purchase_order_items
+             SET received_quantity=0
+             WHERE purchase_order_id=$1::text AND product_id=$2::text`,
+            id,
+            item.productId,
+          );
+        }
+
+        const supplierBill =
+          await this.accountsPayable.cancelInventoryPurchaseBillWithinTransaction(tx, {
+            tenantId,
+            companyId,
+            branchId: order.branchId ?? null,
+            purchaseOrderId: id,
+            reason,
+          });
+
+        const updated = await tx.$executeRawUnsafe(
+          `UPDATE inventory_purchase_orders
+           SET status='CANCELLED',updated_at=NOW()
+           WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+             AND status='RECEIVED'`,
+          id,
+          tenantId,
+          companyId,
+        );
+        if (updated !== 1) {
+          throw new BadRequestException(
+            'Satın alma siparişi eşzamanlı olarak değiştirildi. Lütfen ekranı yenileyin.',
+          );
+        }
+
+        return {
+          purchaseOrderId: id,
+          status: 'RETURNED',
+          supplierBillId: supplierBill.id,
+          idempotent: false,
+        };
+      },
+      { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+    );
+  }
+
   async transfers() {
     const { companyId, branchIds } = await this.inventoryScope.getWarehouseScope();
     return this.prisma.$queryRawUnsafe<any[]>(
