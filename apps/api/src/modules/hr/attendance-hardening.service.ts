@@ -17,13 +17,13 @@ export class AttendanceHardeningService {
   private async scope() {
     const tenantId = this.tenantContext.getTenantId();
     const companyId = this.tenantContext.getCompanyId();
-    if (!tenantId || !companyId) throw new BadRequestException('Tenant and company context are required.');
+    if (!tenantId || !companyId) throw new BadRequestException('Kiracı ve şirket bağlamı zorunludur.');
     const scoped = await this.organizationScope.getBranchScopedWhere();
     const branchIds = 'branchId' in scoped ? (typeof scoped.branchId === 'string' ? [scoped.branchId] : scoped.branchId.in) : null;
     return { tenantId, companyId, branchIds };
   }
 
-  private validateRange(from:string,to:string){if(!from||!to||Number.isNaN(Date.parse(from))||Number.isNaN(Date.parse(to))||from>to)throw new BadRequestException('A valid from/to date range is required.');}
+  private validateRange(from:string,to:string){if(!from||!to||Number.isNaN(Date.parse(from))||Number.isNaN(Date.parse(to))||from>to)throw new BadRequestException('Geçerli bir başlangıç ve bitiş tarihi aralığı zorunludur.');}
 
   async exceptions(from: string, to: string) {
     this.validateRange(from,to); const s = await this.scope();
@@ -66,7 +66,7 @@ export class AttendanceHardeningService {
   ){
     const tenantId=this.tenantContext.getTenantId();
     const companyId=this.tenantContext.getCompanyId();
-    if(!tenantId||!companyId)throw new BadRequestException('Tenant and company context are required.');
+    if(!tenantId||!companyId)throw new BadRequestException('Kiracı ve şirket bağlamı zorunludur.');
 
     const workflowKey='hr.attendance-correction';
     const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
