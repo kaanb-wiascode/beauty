@@ -22,7 +22,7 @@ BEGIN
 
   branch_text := NEW.branch_id;
 
-  SELECT b.company_id
+  SELECT b."companyId"
     INTO company_text
   FROM branches b
   WHERE b.id = branch_text;
