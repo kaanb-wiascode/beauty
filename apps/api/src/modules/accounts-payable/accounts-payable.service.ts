@@ -280,13 +280,19 @@ export class AccountsPayableService {
       invoiceNumber?: string | null;
       description: string;
       amount: number;
+      taxAmount?: number;
       dueAt?: Date | null;
       actorId: string;
     },
   ) {
-    const amount = this.round(input.amount);
-    if (!Number.isFinite(amount) || amount <= 0) {
-      throw new BadRequestException('Stok alım faturası tutarı sıfırdan büyük olmalıdır.');
+    const netAmount = this.round(input.amount);
+    const taxAmount = this.round(input.taxAmount ?? 0);
+    const grossAmount = this.round(netAmount + taxAmount);
+    if (!Number.isFinite(netAmount) || netAmount <= 0) {
+      throw new BadRequestException('Stok alım faturası net tutarı sıfırdan büyük olmalıdır.');
+    }
+    if (!Number.isFinite(taxAmount) || taxAmount < 0) {
+      throw new BadRequestException('Stok alım faturası KDV tutarı negatif olamaz.');
     }
 
     await this.acquireTransactionLock(
@@ -317,10 +323,11 @@ export class AccountsPayableService {
     const billId = randomUUID();
     await tx.$executeRawUnsafe(
       `INSERT INTO supplier_bills(
-         id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at,source_type,source_id
+         id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,
+         amount,net_amount,tax_amount,due_at,source_type,source_id
        ) VALUES(
-         $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,
-         'INVENTORY_PURCHASE_ORDER',$10::text
+         $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,
+         $8,$9,$10,$11,'INVENTORY_PURCHASE_ORDER',$12::text
        )`,
       billId,
       input.tenantId,
@@ -329,7 +336,9 @@ export class AccountsPayableService {
       input.supplierId,
       input.invoiceNumber?.trim() || null,
       input.description.trim(),
-      amount,
+      grossAmount,
+      netAmount,
+      taxAmount,
       input.dueAt ?? null,
       input.purchaseOrderId,
     );
@@ -342,6 +351,16 @@ export class AccountsPayableService {
       'İlk Madde ve Malzeme',
       'ASSET',
     );
+    const deductibleVat = taxAmount > 0
+      ? await this.ensureAccount(
+          tx,
+          input.tenantId,
+          input.companyId,
+          '191',
+          'İndirilecek KDV',
+          'ASSET',
+        )
+      : null;
     const payable = await this.ensureAccount(
       tx,
       input.tenantId,
@@ -350,21 +369,54 @@ export class AccountsPayableService {
       'Satıcılar',
       'LIABILITY',
     );
-    const occurredAt = new Date();
-    await this.postJournal(tx, {
-      tenantId: input.tenantId,
-      companyId: input.companyId,
-      branchId: input.branchId,
-      referenceType: 'SUPPLIER_BILL',
-      referenceId: billId,
-      description: `Stok alım faturası ${input.invoiceNumber?.trim() || billId}`,
-      entryDate: occurredAt,
-      debitAccountId: inventory.id,
-      creditAccountId: payable.id,
-      amount,
-    });
 
-    return { id: billId, idempotent: false };
+    const occurredAt = new Date();
+    await this.acquireTransactionLock(
+      tx,
+      `journal:${input.companyId}`,
+      `SUPPLIER_BILL:${billId}`,
+    );
+    const existingJournal = await tx.journalEntry.findFirst({
+      where: {
+        companyId: input.companyId,
+        referenceType: 'SUPPLIER_BILL',
+        referenceId: billId,
+      },
+      select: { id: true },
+    });
+    if (!existingJournal) {
+      await tx.journalEntry.create({
+        data: {
+          tenantId: input.tenantId,
+          companyId: input.companyId,
+          branchId: input.branchId,
+          number: this.journalNumber(occurredAt),
+          status: 'POSTED',
+          entryDate: occurredAt,
+          description: `Stok alım faturası ${input.invoiceNumber?.trim() || billId}`,
+          referenceType: 'SUPPLIER_BILL',
+          referenceId: billId,
+          postedAt: new Date(),
+          lines: {
+            create: [
+              { accountId: inventory.id, debit: netAmount, credit: 0, memo: 'Stok alım matrahı' },
+              ...(deductibleVat
+                ? [{ accountId: deductibleVat.id, debit: taxAmount, credit: 0, memo: 'İndirilecek KDV' }]
+                : []),
+              { accountId: payable.id, debit: 0, credit: grossAmount, memo: 'Tedarikçi borcu' },
+            ],
+          },
+        },
+      });
+    }
+
+    return {
+      id: billId,
+      netAmount,
+      taxAmount,
+      amount: grossAmount,
+      idempotent: false,
+    };
   }
 
   async cancelInventoryPurchaseBillWithinTransaction(
@@ -387,7 +439,7 @@ export class AccountsPayableService {
     );
 
     const bills = await tx.$queryRawUnsafe<any[]>(
-      `SELECT b.id,b.amount,b.status,
+      `SELECT b.id,b.amount,b.net_amount AS "netAmount",b.tax_amount AS "taxAmount",b.status,
               COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid
        FROM supplier_bills b
        WHERE b.company_id=$1::text
@@ -418,10 +470,9 @@ export class AccountsPayableService {
       },
       include: { lines: true },
     });
-    const originalDebitLine = originalJournal?.lines.find(
-      (line) => Number(line.debit) > 0,
-    );
-    if (!originalDebitLine) {
+    const originalDebitLines =
+      originalJournal?.lines.filter((line) => Number(line.debit) > 0) ?? [];
+    if (!originalJournal || originalDebitLines.length === 0) {
       throw new BadRequestException(
         'Stok alım faturasının özgün muhasebe kaydı bulunamadı.',
       );
@@ -435,18 +486,52 @@ export class AccountsPayableService {
       'Satıcılar',
       'LIABILITY',
     );
-    await this.postJournal(tx, {
-      tenantId: input.tenantId,
-      companyId: input.companyId,
-      branchId: input.branchId,
-      referenceType: 'INVENTORY_PURCHASE_RETURN',
-      referenceId: input.purchaseOrderId,
-      description: `Stok alım iadesi ${input.purchaseOrderId}`,
-      entryDate: new Date(),
-      debitAccountId: payable.id,
-      creditAccountId: originalDebitLine.accountId,
-      amount: Number(bill.amount),
+    const reversalDate = new Date();
+    await this.acquireTransactionLock(
+      tx,
+      `journal:${input.companyId}`,
+      `INVENTORY_PURCHASE_RETURN:${input.purchaseOrderId}`,
+    );
+    const existingReversal = await tx.journalEntry.findFirst({
+      where: {
+        companyId: input.companyId,
+        referenceType: 'INVENTORY_PURCHASE_RETURN',
+        referenceId: input.purchaseOrderId,
+      },
+      select: { id: true },
     });
+    if (!existingReversal) {
+      await tx.journalEntry.create({
+        data: {
+          tenantId: input.tenantId,
+          companyId: input.companyId,
+          branchId: input.branchId,
+          number: this.journalNumber(reversalDate),
+          status: 'POSTED',
+          entryDate: reversalDate,
+          description: `Stok alım iadesi ${input.purchaseOrderId}`,
+          referenceType: 'INVENTORY_PURCHASE_RETURN',
+          referenceId: input.purchaseOrderId,
+          postedAt: reversalDate,
+          lines: {
+            create: [
+              {
+                accountId: payable.id,
+                debit: Number(bill.amount),
+                credit: 0,
+                memo: 'Tedarikçi borcu ters kaydı',
+              },
+              ...originalDebitLines.map((line) => ({
+                accountId: line.accountId,
+                debit: 0,
+                credit: Number(line.debit),
+                memo: 'Satın alma iadesi',
+              })),
+            ],
+          },
+        },
+      });
+    }
 
     const updated = await tx.$executeRawUnsafe(
       `UPDATE supplier_bills
