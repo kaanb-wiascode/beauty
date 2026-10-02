@@ -20,7 +20,7 @@ BEGIN
     RETURN NEW;
   END IF;
 
-  branch_text := NEW.branch_id;
+  branch_text := NEW."branchId";
 
   SELECT b."companyId"
     INTO company_text
@@ -46,7 +46,7 @@ BEGIN
   FOR material IN
     SELECT ism.product_id, ism.quantity
     FROM inventory_service_materials ism
-    WHERE ism.service_id = NEW.service_id
+    WHERE ism.service_id = NEW."serviceId"
   LOOP
     SELECT *
       INTO stock_row
@@ -88,7 +88,7 @@ BEGIN
       note
     )
     VALUES(
-      NEW.tenant_id,
+      NEW."tenantId",
       company_text,
       material.product_id,
       warehouse,
@@ -145,7 +145,7 @@ BEGIN
           reason
         )
         VALUES(
-          NEW.tenant_id,
+          NEW."tenantId",
           company_text,
           warehouse,
           material.product_id,
@@ -169,7 +169,7 @@ BEGIN
           reference_id
         )
         SELECT
-          NEW.tenant_id,
+          NEW."tenantId",
           company_text,
           branch_text,
           role_target,
@@ -187,7 +187,7 @@ BEGIN
      AND NOT EXISTS (
        SELECT 1
        FROM journal_entries je
-       WHERE je."tenantId" = NEW.tenant_id
+       WHERE je."tenantId" = NEW."tenantId"
          AND je."companyId" = company_text
          AND je."referenceType" = 'SERVICE_CONSUMPTION'
          AND je."referenceId" = NEW.id
@@ -206,7 +206,7 @@ BEGIN
     )
     VALUES(
       gen_random_uuid()::text,
-      NEW.tenant_id,
+      NEW."tenantId",
       company_text,
       '150',
       'İlk Madde ve Malzeme',
@@ -232,7 +232,7 @@ BEGIN
     )
     VALUES(
       gen_random_uuid()::text,
-      NEW.tenant_id,
+      NEW."tenantId",
       company_text,
       '740',
       'Hizmet Üretim Maliyeti',
@@ -269,7 +269,7 @@ BEGIN
     )
     VALUES(
       journal_id,
-      NEW.tenant_id,
+      NEW."tenantId",
       company_text,
       branch_text,
       journal_number,
