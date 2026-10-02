@@ -772,7 +772,25 @@ export class InventoryService {
         );
       }
 
-      return asset;
+      const purchasePrice = Number(input.purchasePrice || 0);
+      let supplierBillId: string | null = null;
+      if (purchasePrice > 0 && input.supplierId) {
+        const supplierBill =
+          await this.accountsPayable.createAssetPurchaseBillWithinTransaction(tx, {
+            tenantId,
+            companyId,
+            branchId: effectiveBranchId,
+            supplierId: input.supplierId,
+            assetId: asset.id,
+            invoiceNumber: input.invoiceNumber || null,
+            description: `Demirbaş alımı · ${asset.name}`,
+            amount: purchasePrice,
+            dueAt: null,
+          });
+        supplierBillId = supplierBill.id;
+      }
+
+      return { ...asset, supplierBillId };
     });
   }
 
