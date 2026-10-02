@@ -97,4 +97,56 @@ describe('InventoryService purchase order receipt', () => {
       ),
     ).toBe(true);
   });
+  it('enforces the purchase order lifecycle before receipt', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([{ id: 'po-2', status: 'PENDING', supplierId: 'supplier-1' }])
+      .mockResolvedValueOnce([{ id: 'po-2', status: 'APPROVED' }])
+      .mockResolvedValueOnce([{ id: 'po-2', status: 'RECEIVED' }]);
+
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx: any = {
+      $queryRawUnsafe: query,
+      $executeRawUnsafe: execute,
+    };
+    const prisma: any = {
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const service = new InventoryService(
+      prisma,
+      tenant,
+      inventoryScope,
+      { createInventoryPurchaseBillWithinTransaction: jest.fn() } as any,
+    );
+
+    await expect(service.approvePurchaseOrder('po-2')).resolves.toEqual({
+      purchaseOrderId: 'po-2',
+      status: 'APPROVED',
+      idempotent: false,
+    });
+
+    await expect(
+      service.orderPurchaseOrder('po-2', new Date('2026-10-02T11:00:00.000Z')),
+    ).resolves.toEqual({
+      purchaseOrderId: 'po-2',
+      status: 'ORDERED',
+      idempotent: false,
+    });
+
+    await expect(service.cancelPurchaseOrder('po-2')).rejects.toThrow(
+      'Teslim alınmış satın alma siparişi iptal edilemez.',
+    );
+
+    expect(
+      execute.mock.calls.some((call: any[]) =>
+        String(call[0]).includes("SET status='APPROVED'"),
+      ),
+    ).toBe(true);
+    expect(
+      execute.mock.calls.some((call: any[]) =>
+        String(call[0]).includes("SET status='ORDERED'"),
+      ),
+    ).toBe(true);
+  });
+
 });
