@@ -668,7 +668,8 @@ export class AccountsPayableService {
     const { companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<any[]>(
       `SELECT b.id,b.supplier_id AS "supplierId",s.name AS "supplierName",b.invoice_number AS "invoiceNumber",
-              b.description,b.amount,b.due_at AS "dueAt",b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",
+              b.description,b.net_amount AS "netAmount",b.tax_amount AS "taxAmount",b.amount,b.due_at AS "dueAt",
+              b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",
               b.source_type AS "sourceType",b.source_id AS "sourceId",b.created_at AS "createdAt",
               COALESCE(SUM(p.amount),0)::numeric AS paid,
               (b.amount-COALESCE(SUM(p.amount),0))::numeric AS balance
@@ -692,7 +693,8 @@ export class AccountsPayableService {
     const { companyId, branchId } = this.context();
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT b.id,b.supplier_id AS "supplierId",s.name AS "supplierName",b.invoice_number AS "invoiceNumber",
-              b.description,b.amount,b.due_at AS "dueAt",b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",
+              b.description,b.net_amount AS "netAmount",b.tax_amount AS "taxAmount",b.amount,b.due_at AS "dueAt",
+              b.status,b.cancelled_at AS "cancelledAt",b.cancel_reason AS "cancelReason",
               b.source_type AS "sourceType",b.source_id AS "sourceId",b.created_at AS "createdAt",
               COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid,
               (b.amount-COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0))::numeric AS balance
