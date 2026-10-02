@@ -108,6 +108,46 @@ describe('InventoryService purchase order receipt', () => {
       ),
     ).toBe(true);
   });
+  it('returns idempotently when the purchase order was already returned', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 'po-returned',
+          status: 'CANCELLED',
+          warehouseId: 'warehouse-1',
+          totalAmount: '240',
+          branchId: 'branch-1',
+        },
+      ])
+      .mockResolvedValueOnce([{ id: 'movement-1' }]);
+
+    const tx: any = {
+      $queryRawUnsafe: query,
+      $executeRawUnsafe: jest.fn(),
+    };
+    const prisma: any = {
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const service = new InventoryService(
+      prisma,
+      tenant,
+      inventoryScope,
+      {} as any,
+    );
+
+    await expect(
+      service.returnPurchaseOrder('po-returned', {
+        reason: 'Tekrar deneme',
+        actorId: 'user-1',
+      }),
+    ).resolves.toEqual({
+      purchaseOrderId: 'po-returned',
+      status: 'RETURNED',
+      idempotent: true,
+    });
+  });
+
   it('enforces the purchase order lifecycle before receipt', async () => {
     const query = jest
       .fn()
@@ -175,7 +215,7 @@ describe('InventoryService purchase order receipt', () => {
       .mockResolvedValueOnce([
         { productId: 'product-1', receivedQuantity: '2', unitCost: '100' },
       ])
-      .mockResolvedValueOnce([{ quantity: '5' }]);
+      .mockResolvedValueOnce([{ quantity: '5', costPerUnit: '90' }]);
 
     const execute = jest.fn().mockResolvedValue(1);
     const tx: any = {
@@ -214,7 +254,7 @@ describe('InventoryService purchase order receipt', () => {
 
     expect(
       execute.mock.calls.some((call: any[]) =>
-        String(call[0]).includes('quantity=quantity-$3'),
+        String(call[0]).includes('quantity=quantity-$3,cost_per_unit=$4'),
       ),
     ).toBe(true);
     expect(
