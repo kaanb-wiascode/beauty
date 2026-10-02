@@ -219,10 +219,11 @@ export class AccountsPayableService {
     const billId = randomUUID();
     await tx.$executeRawUnsafe(
       `INSERT INTO supplier_bills(
-         id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at,source_type,source_id
+         id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,
+         amount,net_amount,tax_amount,due_at,source_type,source_id
        ) VALUES(
-         $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,
-         'ASSET_PURCHASE',$10::text
+         $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,
+         $8,$8,0,$9,'ASSET_PURCHASE',$10::text
        )`,
       billId,
       input.tenantId,
@@ -592,8 +593,9 @@ export class AccountsPayableService {
         const billId = randomUUID();
         const rows = await tx.$queryRawUnsafe<any[]>(
           `INSERT INTO supplier_bills(
-             id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at,source_type,source_id
-           ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,$10,$11::text)
+             id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,
+             amount,net_amount,tax_amount,due_at,source_type,source_id
+           ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$8,0,$9,$10,$11::text)
            RETURNING id,supplier_id AS "supplierId",invoice_number AS "invoiceNumber",description,amount,due_at AS "dueAt",status,
                      source_type AS "sourceType",source_id AS "sourceId",created_at AS "createdAt"`,
           billId,
