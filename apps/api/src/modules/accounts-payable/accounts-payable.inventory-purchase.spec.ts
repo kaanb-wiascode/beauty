@@ -15,6 +15,7 @@ describe('AccountsPayableService inventory purchase bill', () => {
       chartOfAccount: {
         findFirst: jest.fn(async ({ where }: any) => {
           if (where.code === '150') return { id: 'account-150', active: true };
+          if (where.code === '191') return { id: 'account-191', active: true };
           if (where.code === '320') return { id: 'account-320', active: true };
           return null;
         }),
@@ -50,19 +51,43 @@ describe('AccountsPayableService inventory purchase bill', () => {
       invoiceNumber: 'INV-1',
       description: 'Stok alımı',
       amount: 1250,
+      taxAmount: 250,
       dueAt: null,
       actorId: 'user-1',
     });
 
-    expect(result).toEqual(expect.objectContaining({ idempotent: false }));
+    expect(result).toEqual(
+      expect.objectContaining({
+        netAmount: 1250,
+        taxAmount: 250,
+        amount: 1500,
+        idempotent: false,
+      }),
+    );
     expect(journalCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({
           referenceType: 'SUPPLIER_BILL',
           lines: {
             create: [
-              { accountId: 'account-150', debit: 1250, credit: 0 },
-              { accountId: 'account-320', debit: 0, credit: 1250 },
+              {
+                accountId: 'account-150',
+                debit: 1250,
+                credit: 0,
+                memo: 'Stok alım matrahı',
+              },
+              {
+                accountId: 'account-191',
+                debit: 250,
+                credit: 0,
+                memo: 'İndirilecek KDV',
+              },
+              {
+                accountId: 'account-320',
+                debit: 0,
+                credit: 1500,
+                memo: 'Tedarikçi borcu',
+              },
             ],
           },
         }),
