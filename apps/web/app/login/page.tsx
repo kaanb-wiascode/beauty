@@ -20,6 +20,30 @@ type MfaChallenge = {
 
 type MfaSetup = { secret: string; otpauthUri: string };
 
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function ensureApiReady() {
+  let lastError: unknown = null;
+
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    try {
+      await api<{ status?: string }>("/health/live", {
+        method: "GET",
+        auth: false,
+      });
+      return;
+    } catch (error) {
+      lastError = error;
+      if (error instanceof ApiError && error.status === 401) throw error;
+      if (attempt < 9) await sleep(2000);
+    }
+  }
+
+  throw lastError instanceof Error
+    ? lastError
+    : new ApiError("Sunucu şu anda hazırlanıyor.", 503);
+}
+
 function ValooMark() {
   return (
     <div
@@ -63,6 +87,8 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
+      await ensureApiReady();
+
       const data = await api<LoginResponse | MfaChallenge>("/auth/login", {
         method: "POST",
         body: { email, password },
@@ -84,7 +110,17 @@ export default function LoginPage() {
 
       finishLogin(data);
     } catch (err) {
-      setError(err instanceof ApiError ? "Giriş bilgileri doğrulanamadı. Lütfen bilgilerinizi kontrol edin." : "Giriş yapılamadı. Lütfen tekrar deneyin.");
+      if (err instanceof ApiError) {
+        if (err.status === 401) {
+          setError("E-posta adresi veya şifre hatalı.");
+        } else if (err.status === 0 || err.status >= 500) {
+          setError("Sunucu şu anda hazırlanıyor. Lütfen kısa bir süre sonra tekrar deneyin.");
+        } else {
+          setError(userErrorMessage(err.message, "Giriş yapılamadı. Lütfen tekrar deneyin."));
+        }
+      } else {
+        setError("Giriş yapılamadı. Lütfen tekrar deneyin.");
+      }
     } finally {
       setLoading(false);
     }
