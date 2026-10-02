@@ -36,14 +36,7 @@ const inventoryUnit = z.enum([
   'PAIR',
   'BOX',
 ]);
-const purchaseStatus = z.enum([
-  'DRAFT',
-  'PENDING',
-  'APPROVED',
-  'ORDERED',
-  'RECEIVED',
-  'CANCELLED',
-]);
+const purchaseStatus = z.enum(['DRAFT', 'PENDING']);
 
 const productSchema = z.object({
   categoryId: uuid.nullable().optional(),
@@ -117,6 +110,10 @@ const supplierSchema = z.object({
   taxNumber: optionalText(80),
   address: optionalText(2000),
   notes: optionalText(4000),
+});
+
+const purchaseOrderOrderSchema = z.object({
+  orderedAt: z.coerce.date().nullable().optional(),
 });
 
 const purchaseOrderReceiveSchema = z.object({
@@ -352,6 +349,28 @@ export class InventoryController {
   @RequirePermission('inventory', 'write')
   createPurchaseOrder(@Body() body: unknown) {
     return this.inventory.createPurchaseOrder(purchaseOrderSchema.parse(body));
+  }
+
+  @Post('purchase-orders/:id/approve')
+  @RequirePermission('inventory', 'write')
+  approvePurchaseOrder(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.inventory.approvePurchaseOrder(id);
+  }
+
+  @Post('purchase-orders/:id/order')
+  @RequirePermission('inventory', 'write')
+  orderPurchaseOrder(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    const parsed = purchaseOrderOrderSchema.parse(body);
+    return this.inventory.orderPurchaseOrder(id, parsed.orderedAt);
+  }
+
+  @Post('purchase-orders/:id/cancel')
+  @RequirePermission('inventory', 'write')
+  cancelPurchaseOrder(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.inventory.cancelPurchaseOrder(id);
   }
 
   @Post('purchase-orders/:id/receive')
