@@ -773,7 +773,7 @@ export class HrService {
     const scope = await this.scope();
     const branchId = await this.writableBranch(scope, body.branchId);
     if (!body.staffId || !body.startDate || !body.endDate) {
-      throw new BadRequestException('staffId, startDate and endDate are required');
+      throw new BadRequestException('Personel, başlangıç tarihi ve bitiş tarihi zorunludur.');
     }
     await this.assertStaffInBranch(scope.tenantId, body.staffId, branchId);
     await this.prisma.$executeRawUnsafe(
