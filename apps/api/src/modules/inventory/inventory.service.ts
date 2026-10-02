@@ -1350,11 +1350,6 @@ export class InventoryService {
         );
         if (!orders.length) throw new NotFoundException('Satın alma siparişi bulunamadı.');
         const order = orders[0];
-        if (order.status !== 'RECEIVED') {
-          throw new BadRequestException(
-            'Yalnız teslim alınmış satın alma siparişleri iade edilebilir.',
-          );
-        }
 
         const existingReturn = await tx.$queryRawUnsafe<Array<{ id: string }>>(
           `SELECT id FROM inventory_movements
@@ -1371,6 +1366,12 @@ export class InventoryService {
             status: 'RETURNED',
             idempotent: true,
           };
+        }
+
+        if (order.status !== 'RECEIVED') {
+          throw new BadRequestException(
+            'Yalnız teslim alınmış satın alma siparişleri iade edilebilir.',
+          );
         }
 
         const items = await tx.$queryRawUnsafe<any[]>(
@@ -1397,7 +1398,7 @@ export class InventoryService {
           }
 
           const stockRows = await tx.$queryRawUnsafe<any[]>(
-            `SELECT quantity FROM inventory_stock
+            `SELECT quantity,cost_per_unit AS "costPerUnit" FROM inventory_stock
              WHERE product_id=$1::text AND warehouse_id=$2::text
              FOR UPDATE`,
             item.productId,
@@ -1410,13 +1411,34 @@ export class InventoryService {
             );
           }
 
+          const currentCost = Number(stockRows[0]?.costPerUnit ?? 0);
+          const remainingQuantity = available - quantity;
+          const currentValue = available * currentCost;
+          const returnedValue = quantity * unitCost;
+          const remainingValue = currentValue - returnedValue;
+
+          if (remainingValue < -0.01) {
+            throw new BadRequestException(
+              'Satın alma iadesi stok değerini negatife düşürüyor. Önce stok hareketlerini kontrol edin.',
+            );
+          }
+
+          const remainingCost =
+            remainingQuantity > 0
+              ? Math.round(
+                  ((Math.max(0, remainingValue) / remainingQuantity) + Number.EPSILON) *
+                    100,
+                ) / 100
+              : 0;
+
           await tx.$executeRawUnsafe(
             `UPDATE inventory_stock
-             SET quantity=quantity-$3,updated_at=NOW()
+             SET quantity=quantity-$3,cost_per_unit=$4,updated_at=NOW()
              WHERE product_id=$1::text AND warehouse_id=$2::text`,
             item.productId,
             order.warehouseId,
             quantity,
+            remainingCost,
           );
 
           await tx.$executeRawUnsafe(
