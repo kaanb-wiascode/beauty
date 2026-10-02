@@ -17,6 +17,11 @@ allowBuilds:
   prisma: false
   ssh2: true
   unrs-resolver: false
+auditConfig:
+  ignoreGhsas:
+    # Upstream node-forge 1.4.0 is still the latest published npm release; no patched npm version exists yet.
+    - GHSA-86w9-cpqp-85rv
+
 minimumReleaseAgeExclude:
   - '@expo/cli@57.0.18'
   - '@expo/config-plugins@57.0.9'
