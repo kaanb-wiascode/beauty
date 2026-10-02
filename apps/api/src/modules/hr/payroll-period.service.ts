@@ -12,8 +12,8 @@ export class PayrollPeriodService {
   ) {}
 
   async create(year:number,month:number){
-    if(!Number.isInteger(year)||year<2000||year>2200) throw new BadRequestException('Invalid payroll year.');
-    if(!Number.isInteger(month)||month<1||month>12) throw new BadRequestException('month must be between 1 and 12.');
+    if(!Number.isInteger(year)||year<2000||year>2200) throw new BadRequestException('Geçerli bir bordro yılı girilmelidir.');
+    if(!Number.isInteger(month)||month<1||month>12) throw new BadRequestException('Ay 1 ile 12 arasında olmalıdır.');
 
     const tenantId=this.tenant.getTenantId();
     const companyId=this.tenant.getCompanyId();
@@ -22,9 +22,9 @@ export class PayrollPeriodService {
 
     let branchId:string|null=null;
     if('branchId' in scope){
-      if(!activeBranchId) throw new BadRequestException('A branch must be selected to create a branch payroll period.');
+      if(!activeBranchId) throw new BadRequestException('Şubeye bağlı bordro dönemi oluşturmak için bir şube seçilmelidir.');
       const allowed=typeof scope.branchId==='string'?[scope.branchId]:scope.branchId.in;
-      if(!allowed.includes(activeBranchId)) throw new BadRequestException('Selected branch is outside the active organization scope.');
+      if(!allowed.includes(activeBranchId)) throw new BadRequestException('Seçilen şube aktif organizasyon kapsamının dışında.');
       branchId=activeBranchId;
     }
 
@@ -42,8 +42,8 @@ export class PayrollPeriodService {
          DO UPDATE SET updated_at=NOW()
          RETURNING *`,tenantId,companyId,year,month);
     const period=rows[0];
-    if(period.company_id&&period.company_id!==companyId) throw new BadRequestException('Payroll period belongs to another company.');
-    if(branchId&&period.branch_id!==branchId) throw new BadRequestException('Payroll period belongs to another branch.');
+    if(period.company_id&&period.company_id!==companyId) throw new BadRequestException('Bordro dönemi başka bir şirkete ait.');
+    if(branchId&&period.branch_id!==branchId) throw new BadRequestException('Bordro dönemi başka bir şubeye ait.');
     return period;
   }
 }
