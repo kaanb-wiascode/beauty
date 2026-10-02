@@ -37,7 +37,7 @@ export class PayrollReportService {
       companyId,
       branchIds,
     );
-    if (!periods.length) throw new NotFoundException('Payroll period not found.');
+    if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
     const periodBranchId = periods[0].branchId as string | null;
 
     const [totals, employees, costCenters, liabilities] = await Promise.all([
