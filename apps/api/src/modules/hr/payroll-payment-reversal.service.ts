@@ -246,7 +246,7 @@ export class PayrollPaymentReversalService {
           branchIds,
         );
         if (!period.length || period[0].status === 'REVERSED') {
-          throw new BadRequestException('Payroll period is already reversed or outside active organization scope.');
+          throw new BadRequestException('Bordro dönemi zaten ters kayda alınmış veya aktif organizasyon kapsamınızın dışında.');
         }
         if (period[0].branchId !== payment.branchId) {
           throw new BadRequestException('Yükümlülük ödemesinin şubesi bordro dönemi şubesiyle eşleşmiyor.');
