@@ -37,7 +37,7 @@ export class PayrollLegalEngineService {
   private rate(value: unknown, field: string) {
     const n = Number(value);
     if (!Number.isFinite(n) || n < 0 || n > 1) {
-      throw new BadRequestException(`${field} must be between 0 and 1.`);
+      throw new BadRequestException(`${field} değeri 0 ile 1 arasında olmalıdır.`);
     }
     return n;
   }
@@ -46,39 +46,39 @@ export class PayrollLegalEngineService {
     if (nullable && (value === null || value === undefined || value === '')) return null;
     const n = Number(value);
     if (!Number.isFinite(n) || n < 0) {
-      throw new BadRequestException(`${field} must be a non-negative number.`);
+      throw new BadRequestException(`${field} değeri negatif olmayan bir sayı olmalıdır.`);
     }
     return n;
   }
 
   private validateParameters(input: any): LegalParameters {
     if (!input || typeof input !== 'object' || Array.isArray(input)) {
-      throw new BadRequestException('Legal payroll parameters must be an object.');
+      throw new BadRequestException('Yasal bordro parametreleri geçerli bir nesne olmalıdır.');
     }
     const rawBrackets = Array.isArray(input.incomeTaxBrackets) ? input.incomeTaxBrackets : [];
-    if (!rawBrackets.length) throw new BadRequestException('At least one income tax bracket is required.');
+    if (!rawBrackets.length) throw new BadRequestException('En az bir gelir vergisi dilimi tanımlanmalıdır.');
 
     let previous = 0;
     const brackets: TaxBracket[] = rawBrackets.map((row: any, index: number) => {
       const upTo = row?.upTo == null ? null : this.amount(row.upTo, `incomeTaxBrackets[${index}].upTo`);
       const rate = this.rate(row?.rate, `incomeTaxBrackets[${index}].rate`);
       if (upTo !== null && upTo <= previous) {
-        throw new BadRequestException('Income tax bracket upper limits must be strictly increasing.');
+        throw new BadRequestException('Gelir vergisi dilimi üst sınırları artan sırada olmalıdır.');
       }
       if (index < rawBrackets.length - 1 && upTo === null) {
-        throw new BadRequestException('Only the final income tax bracket can be open ended.');
+        throw new BadRequestException('Yalnızca son gelir vergisi dilimi açık uçlu olabilir.');
       }
       if (upTo !== null) previous = upTo;
       return { upTo, rate };
     });
     if (brackets.at(-1)?.upTo !== null) {
-      throw new BadRequestException('The final income tax bracket must be open ended.');
+      throw new BadRequestException('Son gelir vergisi dilimi açık uçlu olmalıdır.');
     }
 
     const floor = this.amount(input.socialSecurityBaseFloor, 'socialSecurityBaseFloor', true);
     const ceiling = this.amount(input.socialSecurityBaseCeiling, 'socialSecurityBaseCeiling', true);
     if (floor !== null && ceiling !== null && ceiling < floor) {
-      throw new BadRequestException('Social security base ceiling cannot be lower than floor.');
+      throw new BadRequestException('SGK matrah tavanı, taban tutarından düşük olamaz.');
     }
 
     return {
@@ -193,7 +193,7 @@ export class PayrollLegalEngineService {
       highResult = this.grossToNet(high, params, cumulativeTaxBaseBefore, otherDeductions);
     }
     if (highResult.netAmount < targetNet) {
-      throw new BadRequestException('Net-to-gross calculation could not reach the target net amount.');
+      throw new BadRequestException('Netten brüte hesaplama hedef net tutara ulaşamadı.');
     }
 
     let best = highResult;
@@ -237,10 +237,10 @@ export class PayrollLegalEngineService {
     const effectiveFrom = String(input?.effectiveFrom ?? '').trim();
     const effectiveTo = input?.effectiveTo ? String(input.effectiveTo).trim() : null;
     if (!versionLabel || !effectiveFrom || Number.isNaN(Date.parse(effectiveFrom))) {
-      throw new BadRequestException('versionLabel and a valid effectiveFrom are required.');
+      throw new BadRequestException('Versiyon etiketi ve geçerli bir başlangıç tarihi zorunludur.');
     }
     if (effectiveTo && (Number.isNaN(Date.parse(effectiveTo)) || effectiveTo < effectiveFrom)) {
-      throw new BadRequestException('effectiveTo must be on or after effectiveFrom.');
+      throw new BadRequestException('Bitiş tarihi, başlangıç tarihiyle aynı veya daha ileri bir tarih olmalıdır.');
     }
     const parameters = this.validateParameters(input?.parameters);
 
@@ -279,11 +279,11 @@ export class PayrollLegalEngineService {
         tenantId,
         companyId,
       );
-      if (!rows.length) throw new NotFoundException('Payroll legal parameter version not found.');
+      if (!rows.length) throw new NotFoundException('Bordro yasal parametre versiyonu bulunamadı.');
       const current = rows[0];
       if (current.status === 'PUBLISHED') return { ...current, duplicate: true };
       if (current.status !== 'DRAFT') {
-        throw new BadRequestException('Only a draft legal parameter version can be published.');
+        throw new BadRequestException('Yalnızca taslak durumundaki yasal parametre versiyonu yayımlanabilir.');
       }
       this.validateParameters(current.parameters);
 
@@ -304,7 +304,7 @@ export class PayrollLegalEngineService {
       );
       if (overlap.length) {
         throw new BadRequestException(
-          `Published legal parameter date range overlaps with ${overlap[0].versionLabel}.`,
+          `Yayımlanmış yasal parametre tarih aralığı ${overlap[0].versionLabel} ile çakışıyor.`,
         );
       }
 
@@ -323,7 +323,7 @@ export class PayrollLegalEngineService {
 
   async activeVersion(asOf: string) {
     const { tenantId, companyId } = this.context();
-    if (!asOf || Number.isNaN(Date.parse(asOf))) throw new BadRequestException('A valid asOf date is required.');
+    if (!asOf || Number.isNaN(Date.parse(asOf))) throw new BadRequestException('Geçerli bir hesaplama tarihi zorunludur.');
     const rows = await this.prisma.$queryRawUnsafe<any[]>(
       `SELECT id,jurisdiction,version_label AS "versionLabel",effective_from AS "effectiveFrom",
               effective_to AS "effectiveTo",parameters,source_reference AS "sourceReference",published_at AS "publishedAt"
@@ -336,7 +336,7 @@ export class PayrollLegalEngineService {
       asOf,
     );
     if (!rows.length) {
-      throw new NotFoundException('No published legal payroll parameter version covers the requested date.');
+      throw new NotFoundException('İstenen tarihi kapsayan yayımlanmış bir yasal bordro parametre versiyonu bulunamadı.');
     }
     return rows[0];
   }
