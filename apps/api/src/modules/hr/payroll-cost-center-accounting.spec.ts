@@ -59,7 +59,7 @@ describe('PayrollCostCenterAccountingService', () => {
     };
     const service = new PayrollCostCenterAccountingService(prisma, tenant, scope);
 
-    await expect(service.ensureSplit('period-global')).rejects.toThrow('Payroll period not found.');
+    await expect(service.ensureSplit('period-global')).rejects.toThrow('Bordro dönemi bulunamadı.');
     expect(query.mock.calls[0][0]).not.toContain('branch_id IS NULL');
   });
 });
