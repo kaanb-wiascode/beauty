@@ -47,17 +47,17 @@ export class PayrollCostCenterAccountingService {
           companyId,
           branchIds,
         );
-        if (!periods.length) throw new NotFoundException('Payroll period not found.');
+        if (!periods.length) throw new NotFoundException('Bordro dönemi bulunamadı.');
         const period = periods[0];
         if (period.status !== 'POSTED' || !period.journalEntryId) {
-          throw new BadRequestException('Posted payroll journal is required.');
+          throw new BadRequestException('Muhasebeleştirilmiş bordro fişi zorunludur.');
         }
 
         const account = await tx.chartOfAccount.findFirst({
           where: { tenantId, companyId, code: '770' },
           select: { id: true },
         });
-        if (!account) throw new BadRequestException('Payroll expense account 770 is missing.');
+        if (!account) throw new BadRequestException('770 kodlu bordro gider hesabı bulunamadı.');
 
         const groups = await tx.$queryRawUnsafe<any[]>(
           `SELECT cost_center_id AS "costCenterId",COALESCE(SUM(employer_cost),0)::numeric AS amount
@@ -72,7 +72,7 @@ export class PayrollCostCenterAccountingService {
           period.branchId,
           branchIds,
         );
-        if (!groups.length) throw new BadRequestException('Payroll period has no expense allocation.');
+        if (!groups.length) throw new BadRequestException('Bordro döneminde gider dağılımı bulunmuyor.');
         const total = this.round(groups.reduce((sum, g) => sum + Number(g.amount), 0));
 
         const current = await tx.journalEntryLine.findMany({
@@ -82,7 +82,7 @@ export class PayrollCostCenterAccountingService {
         const currentDebit = this.round(current.reduce((sum, l) => sum + Number(l.debit), 0));
         if (Math.abs(currentDebit - total) > 0.01) {
           throw new BadRequestException(
-            'Payroll expense allocation does not reconcile with posted journal.',
+            'Bordro gider dağılımı muhasebeleştirilmiş fişle mutabık değil.',
           );
         }
 
@@ -113,7 +113,7 @@ export class PayrollCostCenterAccountingService {
 
         if (current.length !== 1) {
           throw new BadRequestException(
-            'Payroll expense lines are already partially allocated and require manual review.',
+            'Bordro gider satırları kısmen dağıtılmış; manuel inceleme gerekiyor.',
           );
         }
         await tx.$executeRawUnsafe(
@@ -147,7 +147,7 @@ export class PayrollCostCenterAccountingService {
             );
             if (!centers.length) {
               throw new BadRequestException(
-                'Payroll cost center is no longer active in company scope.',
+                'Bordro maliyet merkezi artık şirket kapsamında aktif değil.',
               );
             }
             await tx.$executeRawUnsafe(
