@@ -24,14 +24,22 @@ describe('InventoryService purchase order receipt', () => {
           status: 'APPROVED',
           supplierId: 'supplier-1',
           warehouseId: 'warehouse-1',
-          totalAmount: '200',
+          subtotalAmount: '200',
+          taxAmount: '40',
+          totalAmount: '240',
           note: 'Serum alımı',
           branchId: 'branch-1',
           supplierName: 'Tedarikçi A',
         },
       ])
       .mockResolvedValueOnce([
-        { productId: 'product-1', quantity: '2', unitCost: '100' },
+        {
+          productId: 'product-1',
+          quantity: '2',
+          unitCost: '100',
+          taxRate: '20',
+          taxAmount: '40',
+        },
       ])
       .mockResolvedValueOnce([{ quantity: '3', costPerUnit: '80' }]);
 
@@ -67,7 +75,9 @@ describe('InventoryService purchase order receipt', () => {
     ).resolves.toEqual({
       purchaseOrderId: 'po-1',
       status: 'RECEIVED',
-      totalAmount: 200,
+      subtotalAmount: 200,
+      taxAmount: 40,
+      totalAmount: 240,
       supplierBillId: 'bill-1',
       idempotent: false,
     });
@@ -88,6 +98,7 @@ describe('InventoryService purchase order receipt', () => {
         purchaseOrderId: 'po-1',
         supplierId: 'supplier-1',
         amount: 200,
+        taxAmount: 40,
         branchId: 'branch-1',
       }),
     );
