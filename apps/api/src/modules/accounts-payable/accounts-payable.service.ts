@@ -172,6 +172,104 @@ export class AccountsPayableService {
     });
   }
 
+  async createInventoryPurchaseBillWithinTransaction(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string;
+      companyId: string;
+      branchId: string | null;
+      supplierId: string;
+      purchaseOrderId: string;
+      invoiceNumber?: string | null;
+      description: string;
+      amount: number;
+      dueAt?: Date | null;
+      actorId: string;
+    },
+  ) {
+    const amount = this.round(input.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Stok alım faturası tutarı sıfırdan büyük olmalıdır.');
+    }
+
+    await this.acquireTransactionLock(
+      tx,
+      `supplier-bill-source:${input.companyId}`,
+      `INVENTORY_PURCHASE_ORDER:${input.purchaseOrderId}`,
+    );
+
+    const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM supplier_bills
+       WHERE company_id=$1::text AND source_type='INVENTORY_PURCHASE_ORDER' AND source_id=$2::text
+       LIMIT 1`,
+      input.companyId,
+      input.purchaseOrderId,
+    );
+    if (existing[0]) return { id: existing[0].id, idempotent: true };
+
+    const suppliers = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM inventory_suppliers
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='ACTIVE'
+       LIMIT 1`,
+      input.supplierId,
+      input.tenantId,
+      input.companyId,
+    );
+    if (!suppliers.length) throw new NotFoundException('Tedarikçi bulunamadı.');
+
+    const billId = randomUUID();
+    await tx.$executeRawUnsafe(
+      `INSERT INTO supplier_bills(
+         id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at,source_type,source_id
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,
+         'INVENTORY_PURCHASE_ORDER',$10::text
+       )`,
+      billId,
+      input.tenantId,
+      input.companyId,
+      input.branchId,
+      input.supplierId,
+      input.invoiceNumber?.trim() || null,
+      input.description.trim(),
+      amount,
+      input.dueAt ?? null,
+      input.purchaseOrderId,
+    );
+
+    const inventory = await this.ensureAccount(
+      tx,
+      input.tenantId,
+      input.companyId,
+      '150',
+      'İlk Madde ve Malzeme',
+      'ASSET',
+    );
+    const payable = await this.ensureAccount(
+      tx,
+      input.tenantId,
+      input.companyId,
+      '320',
+      'Satıcılar',
+      'LIABILITY',
+    );
+    const occurredAt = new Date();
+    await this.postJournal(tx, {
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      branchId: input.branchId,
+      referenceType: 'SUPPLIER_BILL',
+      referenceId: billId,
+      description: `Stok alım faturası ${input.invoiceNumber?.trim() || billId}`,
+      entryDate: occurredAt,
+      debitAccountId: inventory.id,
+      creditAccountId: payable.id,
+      amount,
+    });
+
+    return { id: billId, idempotent: false };
+  }
+
   async createBill(input: CreateBillInput) {
     const { tenantId, companyId, branchId } = this.context();
     const amount = this.round(input.amount);
@@ -344,7 +442,7 @@ export class AccountsPayableService {
       async (tx) => {
         const bills = await tx.$queryRawUnsafe<any[]>(
           `SELECT b.id,b.amount,b.status,b.description,b.invoice_number AS "invoiceNumber",
-                  b.due_at AS "dueAt",s.name AS "supplierName",
+                  b.due_at AS "dueAt",b.source_type AS "sourceType",s.name AS "supplierName",
                   COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid
            FROM supplier_bills b
            JOIN inventory_suppliers s ON s.id=b.supplier_id
@@ -418,43 +516,45 @@ export class AccountsPayableService {
           },
           include: { lines: { include: { account: true } } },
         });
-        const expenseAccountId =
-          originalJournal?.lines.find(
-            (line) => Number(line.debit) > 0 && line.account.type === 'EXPENSE',
-          )?.accountId ??
-          (
-            await this.ensureAccount(
-              tx,
-              tenantId,
-              companyId,
-              '770',
-              'Genel Yönetim Giderleri',
-              'EXPENSE',
-            )
-          ).id;
-        const actorId = await this.currentUserId(tx);
-        await this.supplierExpenseSync.syncBillPayment(tx, {
-          tenantId,
-          companyId,
-          branchId,
-          billId: id,
-          actorId,
-          supplierName: bill.supplierName,
-          invoiceNumber: bill.invoiceNumber,
-          description: bill.description,
-          amount,
-          occurredAt: paidAt,
-          dueAt: bill.dueAt,
-          expenseAccountId,
-          payableAccountId: payable.id,
-          paymentId,
-          paymentJournalId: paymentJournal.id,
-          paymentAccountId: paymentAccount.id,
-          method: input.method,
-          reference: input.reference?.trim() || null,
-          note: input.note?.trim() || null,
-          paidAt,
-        });
+        if (bill.sourceType !== 'INVENTORY_PURCHASE_ORDER') {
+          const expenseAccountId =
+            originalJournal?.lines.find(
+              (line) => Number(line.debit) > 0 && line.account.type === 'EXPENSE',
+            )?.accountId ??
+            (
+              await this.ensureAccount(
+                tx,
+                tenantId,
+                companyId,
+                '770',
+                'Genel Yönetim Giderleri',
+                'EXPENSE',
+              )
+            ).id;
+          const actorId = await this.currentUserId(tx);
+          await this.supplierExpenseSync.syncBillPayment(tx, {
+            tenantId,
+            companyId,
+            branchId,
+            billId: id,
+            actorId,
+            supplierName: bill.supplierName,
+            invoiceNumber: bill.invoiceNumber,
+            description: bill.description,
+            amount,
+            occurredAt: paidAt,
+            dueAt: bill.dueAt,
+            expenseAccountId,
+            payableAccountId: payable.id,
+            paymentId,
+            paymentJournalId: paymentJournal.id,
+            paymentAccountId: paymentAccount.id,
+            method: input.method,
+            reference: input.reference?.trim() || null,
+            note: input.note?.trim() || null,
+            paidAt,
+          });
+        }
 
         const after = this.round(remaining - amount);
         await tx.$executeRawUnsafe(
@@ -478,6 +578,7 @@ export class AccountsPayableService {
       async (tx) => {
         const bills = await tx.$queryRawUnsafe<any[]>(
           `SELECT b.id,b.amount,b.status,b.invoice_number AS "invoiceNumber",
+                  b.source_type AS "sourceType",
                   COALESCE((SELECT SUM(p.amount) FROM supplier_bill_payments p WHERE p.supplier_bill_id=b.id),0)::numeric AS paid
            FROM supplier_bills b
            WHERE b.id=$1::text AND b.company_id=$2::text AND ($3::text IS NULL OR b.branch_id=$3::text)
@@ -512,11 +613,11 @@ export class AccountsPayableService {
           where: { companyId, referenceType: 'SUPPLIER_BILL', referenceId: id },
           include: { lines: { include: { account: true } } },
         });
-        const originalExpenseLine = originalJournal?.lines.find(
-          (line) => Number(line.debit) > 0 && line.account.type === 'EXPENSE',
+        const originalDebitLine = originalJournal?.lines.find(
+          (line) => Number(line.debit) > 0,
         );
-        const expense = originalExpenseLine
-          ? { id: originalExpenseLine.accountId }
+        const debitAccount = originalDebitLine
+          ? { id: originalDebitLine.accountId }
           : await this.ensureAccount(
               tx,
               tenantId,
@@ -542,19 +643,21 @@ export class AccountsPayableService {
           description: `Tedarikçi faturası iptali ${bill.invoiceNumber || id}`,
           entryDate: new Date(),
           debitAccountId: payable.id,
-          creditAccountId: expense.id,
+          creditAccountId: debitAccount.id,
           amount: Number(bill.amount),
         });
 
-        const actorId = await this.currentUserId(tx);
-        await this.supplierExpenseSync.syncBillCancelled(tx, {
-          tenantId,
-          companyId,
-          branchId,
-          billId: id,
-          actorId,
-          reason,
-        });
+        if (bill.sourceType !== 'INVENTORY_PURCHASE_ORDER') {
+          const actorId = await this.currentUserId(tx);
+          await this.supplierExpenseSync.syncBillCancelled(tx, {
+            tenantId,
+            companyId,
+            branchId,
+            billId: id,
+            actorId,
+            reason,
+          });
+        }
       },
       { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
     );
