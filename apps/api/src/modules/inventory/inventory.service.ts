@@ -889,7 +889,7 @@ export class InventoryService {
         companyId,
         input.supplierId || null,
         input.warehouseId,
-        input.status || 'DRAFT',
+        input.status === 'PENDING' ? 'PENDING' : 'DRAFT',
         totalAmount,
         input.note || null,
         input.orderedAt || null,
@@ -906,6 +906,150 @@ export class InventoryService {
       }
       return rows[0];
     });
+  }
+
+  async approvePurchaseOrder(id: string) {
+    const tenantId = this.tenantId();
+    const companyId = this.companyId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT po.id,po.status,po.supplier_id AS "supplierId"
+         FROM inventory_purchase_orders po
+         JOIN inventory_warehouses w ON w.id=po.warehouse_id
+         WHERE po.id=$1::text AND po.tenant_id=$2::text AND po.company_id=$3::text
+           AND ($4::text[] IS NULL OR w.branch_id=ANY($4::text[]))
+         FOR UPDATE`,
+        id,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if (!rows.length) throw new NotFoundException('Satın alma siparişi bulunamadı.');
+      const order = rows[0];
+      if (order.status === 'APPROVED') {
+        return { purchaseOrderId: id, status: 'APPROVED', idempotent: true };
+      }
+      if (!['DRAFT', 'PENDING'].includes(order.status)) {
+        throw new BadRequestException(
+          'Satın alma siparişi yalnız taslak veya bekleyen durumdayken onaylanabilir.',
+        );
+      }
+      if (!order.supplierId) {
+        throw new BadRequestException(
+          'Satın alma siparişini onaylamak için tedarikçi seçilmiş olmalıdır.',
+        );
+      }
+      const updated = await tx.$executeRawUnsafe(
+        `UPDATE inventory_purchase_orders
+         SET status='APPROVED',updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND status IN('DRAFT','PENDING')`,
+        id,
+        tenantId,
+        companyId,
+      );
+      if (updated !== 1) {
+        throw new BadRequestException(
+          'Satın alma siparişi eşzamanlı olarak değiştirildi. Lütfen ekranı yenileyin.',
+        );
+      }
+      return { purchaseOrderId: id, status: 'APPROVED', idempotent: false };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async orderPurchaseOrder(id: string, orderedAt?: Date | null) {
+    const tenantId = this.tenantId();
+    const companyId = this.companyId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT po.id,po.status
+         FROM inventory_purchase_orders po
+         JOIN inventory_warehouses w ON w.id=po.warehouse_id
+         WHERE po.id=$1::text AND po.tenant_id=$2::text AND po.company_id=$3::text
+           AND ($4::text[] IS NULL OR w.branch_id=ANY($4::text[]))
+         FOR UPDATE`,
+        id,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if (!rows.length) throw new NotFoundException('Satın alma siparişi bulunamadı.');
+      const order = rows[0];
+      if (order.status === 'ORDERED') {
+        return { purchaseOrderId: id, status: 'ORDERED', idempotent: true };
+      }
+      if (order.status !== 'APPROVED') {
+        throw new BadRequestException(
+          'Satın alma siparişi yalnız onaylandıktan sonra sipariş verildi durumuna alınabilir.',
+        );
+      }
+      const updated = await tx.$executeRawUnsafe(
+        `UPDATE inventory_purchase_orders
+         SET status='ORDERED',ordered_at=$2::timestamptz,updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$3::text AND company_id=$4::text
+           AND status='APPROVED'`,
+        id,
+        orderedAt ?? new Date(),
+        tenantId,
+        companyId,
+      );
+      if (updated !== 1) {
+        throw new BadRequestException(
+          'Satın alma siparişi eşzamanlı olarak değiştirildi. Lütfen ekranı yenileyin.',
+        );
+      }
+      return { purchaseOrderId: id, status: 'ORDERED', idempotent: false };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
+  }
+
+  async cancelPurchaseOrder(id: string) {
+    const tenantId = this.tenantId();
+    const companyId = this.companyId();
+    const { branchIds } = await this.inventoryScope.getWarehouseScope();
+
+    return this.prisma.$transaction(async (tx) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT po.id,po.status
+         FROM inventory_purchase_orders po
+         JOIN inventory_warehouses w ON w.id=po.warehouse_id
+         WHERE po.id=$1::text AND po.tenant_id=$2::text AND po.company_id=$3::text
+           AND ($4::text[] IS NULL OR w.branch_id=ANY($4::text[]))
+         FOR UPDATE`,
+        id,
+        tenantId,
+        companyId,
+        branchIds,
+      );
+      if (!rows.length) throw new NotFoundException('Satın alma siparişi bulunamadı.');
+      const order = rows[0];
+      if (order.status === 'CANCELLED') {
+        return { purchaseOrderId: id, status: 'CANCELLED', idempotent: true };
+      }
+      if (order.status === 'RECEIVED') {
+        throw new BadRequestException(
+          'Teslim alınmış satın alma siparişi iptal edilemez. İade veya ters kayıt akışı kullanılmalıdır.',
+        );
+      }
+      const updated = await tx.$executeRawUnsafe(
+        `UPDATE inventory_purchase_orders
+         SET status='CANCELLED',updated_at=NOW()
+         WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+           AND status<>'RECEIVED' AND status<>'CANCELLED'`,
+        id,
+        tenantId,
+        companyId,
+      );
+      if (updated !== 1) {
+        throw new BadRequestException(
+          'Satın alma siparişi eşzamanlı olarak değiştirildi. Lütfen ekranı yenileyin.',
+        );
+      }
+      return { purchaseOrderId: id, status: 'CANCELLED', idempotent: false };
+    }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
   }
 
   async receivePurchaseOrder(
@@ -1012,6 +1156,14 @@ export class InventoryService {
             order.warehouseId,
             quantity,
             weightedCost,
+          );
+
+          await tx.$executeRawUnsafe(
+            `UPDATE inventory_purchase_order_items
+             SET received_quantity=quantity
+             WHERE purchase_order_id=$1::text AND product_id=$2::text`,
+            id,
+            item.productId,
           );
 
           await tx.$executeRawUnsafe(
