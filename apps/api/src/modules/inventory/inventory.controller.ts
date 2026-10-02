@@ -119,6 +119,12 @@ const supplierSchema = z.object({
   notes: optionalText(4000),
 });
 
+const purchaseOrderReceiveSchema = z.object({
+  invoiceNumber: optionalText(160),
+  dueAt: z.coerce.date().nullable().optional(),
+  receivedAt: z.coerce.date().nullable().optional(),
+});
+
 const purchaseOrderSchema = z.object({
   supplierId: uuid.nullable().optional(),
   warehouseId: uuid,
@@ -346,6 +352,20 @@ export class InventoryController {
   @RequirePermission('inventory', 'write')
   createPurchaseOrder(@Body() body: unknown) {
     return this.inventory.createPurchaseOrder(purchaseOrderSchema.parse(body));
+  }
+
+  @Post('purchase-orders/:id/receive')
+  @RequirePermission('inventory', 'write')
+  receivePurchaseOrder(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const parsed = purchaseOrderReceiveSchema.parse(body);
+    return this.inventory.receivePurchaseOrder(id, {
+      ...parsed,
+      actorId: this.userId(req),
+    });
   }
 
   @Get('assets')
