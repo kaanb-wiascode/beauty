@@ -82,7 +82,7 @@ describe('PayrollReversalService', () => {
     const service = new PayrollReversalService(prisma, tenant, scope);
 
     await expect(service.reverse('period-global', 'user-a', 'Tekrar kontrol')).rejects.toThrow(
-      'Payroll period not found.',
+      'Bordro dönemi bulunamadı.',
     );
     expect(prisma.$queryRawUnsafe.mock.calls[0][0]).not.toContain('branch_id IS NULL');
     expect(prisma.$transaction).not.toHaveBeenCalled();
