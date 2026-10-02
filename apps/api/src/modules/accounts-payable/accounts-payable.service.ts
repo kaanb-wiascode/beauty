@@ -172,6 +172,103 @@ export class AccountsPayableService {
     });
   }
 
+  async createAssetPurchaseBillWithinTransaction(
+    tx: Prisma.TransactionClient,
+    input: {
+      tenantId: string;
+      companyId: string;
+      branchId: string | null;
+      supplierId: string;
+      assetId: string;
+      invoiceNumber?: string | null;
+      description: string;
+      amount: number;
+      dueAt?: Date | null;
+    },
+  ) {
+    const amount = this.round(input.amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      throw new BadRequestException('Demirbaş alım faturası tutarı sıfırdan büyük olmalıdır.');
+    }
+
+    await this.acquireTransactionLock(
+      tx,
+      `supplier-bill-source:${input.companyId}`,
+      `ASSET_PURCHASE:${input.assetId}`,
+    );
+
+    const existing = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM supplier_bills
+       WHERE company_id=$1::text AND source_type='ASSET_PURCHASE' AND source_id=$2::text
+       LIMIT 1`,
+      input.companyId,
+      input.assetId,
+    );
+    if (existing[0]) return { id: existing[0].id, idempotent: true };
+
+    const suppliers = await tx.$queryRawUnsafe<Array<{ id: string }>>(
+      `SELECT id FROM inventory_suppliers
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='ACTIVE'
+       LIMIT 1`,
+      input.supplierId,
+      input.tenantId,
+      input.companyId,
+    );
+    if (!suppliers.length) throw new NotFoundException('Tedarikçi bulunamadı.');
+
+    const billId = randomUUID();
+    await tx.$executeRawUnsafe(
+      `INSERT INTO supplier_bills(
+         id,tenant_id,company_id,branch_id,supplier_id,invoice_number,description,amount,due_at,source_type,source_id
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,$6,$7,$8,$9,
+         'ASSET_PURCHASE',$10::text
+       )`,
+      billId,
+      input.tenantId,
+      input.companyId,
+      input.branchId,
+      input.supplierId,
+      input.invoiceNumber?.trim() || null,
+      input.description.trim(),
+      amount,
+      input.dueAt ?? null,
+      input.assetId,
+    );
+
+    const fixedAsset = await this.ensureAccount(
+      tx,
+      input.tenantId,
+      input.companyId,
+      '255',
+      'Demirbaşlar',
+      'ASSET',
+    );
+    const payable = await this.ensureAccount(
+      tx,
+      input.tenantId,
+      input.companyId,
+      '320',
+      'Satıcılar',
+      'LIABILITY',
+    );
+
+    await this.postJournal(tx, {
+      tenantId: input.tenantId,
+      companyId: input.companyId,
+      branchId: input.branchId,
+      referenceType: 'SUPPLIER_BILL',
+      referenceId: billId,
+      description: `Demirbaş alım faturası ${input.invoiceNumber?.trim() || billId}`,
+      entryDate: new Date(),
+      debitAccountId: fixedAsset.id,
+      creditAccountId: payable.id,
+      amount,
+    });
+
+    return { id: billId, idempotent: false };
+  }
+
   async createInventoryPurchaseBillWithinTransaction(
     tx: Prisma.TransactionClient,
     input: {
@@ -613,7 +710,7 @@ export class AccountsPayableService {
           },
           include: { lines: { include: { account: true } } },
         });
-        if (bill.sourceType !== 'INVENTORY_PURCHASE_ORDER') {
+        if (!['INVENTORY_PURCHASE_ORDER', 'ASSET_PURCHASE'].includes(bill.sourceType)) {
           const expenseAccountId =
             originalJournal?.lines.find(
               (line) => Number(line.debit) > 0 && line.account.type === 'EXPENSE',
@@ -744,7 +841,7 @@ export class AccountsPayableService {
           amount: Number(bill.amount),
         });
 
-        if (bill.sourceType !== 'INVENTORY_PURCHASE_ORDER') {
+        if (!['INVENTORY_PURCHASE_ORDER', 'ASSET_PURCHASE'].includes(bill.sourceType)) {
           const actorId = await this.currentUserId(tx);
           await this.supplierExpenseSync.syncBillCancelled(tx, {
             tenantId,
