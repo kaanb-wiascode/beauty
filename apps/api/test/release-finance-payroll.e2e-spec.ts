@@ -273,6 +273,19 @@ describe('Release payroll and finance reconciliation (e2e)', () => {
     expect(postedPayroll.body.status).toBe('POSTED');
     expect(postedPayroll.body.journalEntryId).toBeTruthy();
 
+    const paymentQueue = await request(app.getHttpServer())
+      .get('/hr/payroll/payment-queue')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(
+      paymentQueue.body.some(
+        (item: { periodId?: string; staffId?: string; status?: string }) =>
+          item.periodId === period.body.id &&
+          item.staffId === staff.body.id &&
+          item.status !== 'PAID',
+      ),
+    ).toBe(true);
+
     const salaryPayment = await request(app.getHttpServer())
       .post(`/hr/payroll/periods/${period.body.id}/payments`)
       .set('Authorization', authorization)
