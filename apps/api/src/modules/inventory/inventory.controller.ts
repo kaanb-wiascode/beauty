@@ -138,6 +138,7 @@ const purchaseOrderSchema = z.object({
         productId: uuid,
         quantity: z.coerce.number().positive(),
         unitCost: z.coerce.number().min(0),
+        taxRate: z.coerce.number().min(0).max(100).optional(),
       }),
     )
     .min(1)
