@@ -52,6 +52,6 @@ describe('PayrollPeriodService organization scope', () => {
     const prisma:any = { $queryRawUnsafe: jest.fn().mockResolvedValue([{ company_id:'company-1', branch_id:'branch-2' }]) };
     const service = new PayrollPeriodService(prisma, tenant, scope);
 
-    await expect(service.create(2026, 9)).rejects.toThrow('Payroll period belongs to another branch.');
+    await expect(service.create(2026, 9)).rejects.toThrow('Bordro dönemi başka bir şubeye ait.');
   });
 });
