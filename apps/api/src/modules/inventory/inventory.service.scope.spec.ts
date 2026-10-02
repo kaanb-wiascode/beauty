@@ -8,6 +8,8 @@ describe('InventoryService organization scope', () => {
     getBranchId: jest.fn().mockReturnValue(null),
   } as any;
 
+  const accountsPayable = {} as any;
+
   const inventoryScope = {
     getWarehouseScope: jest.fn().mockResolvedValue({
       tenantId: 'tenant-a',
@@ -32,6 +34,7 @@ describe('InventoryService organization scope', () => {
       { $queryRawUnsafe: query } as any,
       tenant,
       inventoryScope,
+      accountsPayable,
     );
 
     await service.movements(50);
@@ -55,7 +58,7 @@ describe('InventoryService organization scope', () => {
       $executeRawUnsafe: execute,
       $queryRawUnsafe: query,
     } as any;
-    const service = new InventoryService(prisma, tenant, inventoryScope);
+    const service = new InventoryService(prisma, tenant, inventoryScope, accountsPayable);
 
     await service.products('serum');
 
@@ -80,7 +83,7 @@ describe('InventoryService organization scope', () => {
     const prisma = {
       $transaction: jest.fn((fn: any) => fn(tx)),
     } as any;
-    const service = new InventoryService(prisma, tenant, inventoryScope);
+    const service = new InventoryService(prisma, tenant, inventoryScope, accountsPayable);
 
     await expect(
       service.addMovement('product-a', 'warehouse-outside', 1, 'ADJUSTMENT_IN'),
@@ -108,6 +111,7 @@ describe('InventoryService organization scope', () => {
       { $queryRawUnsafe: query } as any,
       tenant,
       inventoryScope,
+      accountsPayable,
     );
 
     await service.purchaseOrders();
