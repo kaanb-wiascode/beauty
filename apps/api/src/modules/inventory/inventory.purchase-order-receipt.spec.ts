@@ -148,5 +148,83 @@ describe('InventoryService purchase order receipt', () => {
       ),
     ).toBe(true);
   });
+  it('returns a received purchase order by reversing stock and supplier payable atomically', async () => {
+    const query = jest
+      .fn()
+      .mockResolvedValueOnce([
+        {
+          id: 'po-3',
+          status: 'RECEIVED',
+          warehouseId: 'warehouse-1',
+          totalAmount: '200',
+          branchId: 'branch-1',
+        },
+      ])
+      .mockResolvedValueOnce([])
+      .mockResolvedValueOnce([
+        { productId: 'product-1', receivedQuantity: '2', unitCost: '100' },
+      ])
+      .mockResolvedValueOnce([{ quantity: '5' }]);
+
+    const execute = jest.fn().mockResolvedValue(1);
+    const tx: any = {
+      $queryRawUnsafe: query,
+      $executeRawUnsafe: execute,
+    };
+    const prisma: any = {
+      $transaction: jest.fn(async (fn: any) => fn(tx)),
+    };
+    const accountsPayable = {
+      cancelInventoryPurchaseBillWithinTransaction: jest.fn().mockResolvedValue({
+        id: 'bill-3',
+        status: 'CANCELLED',
+        idempotent: false,
+      }),
+    };
+
+    const service = new InventoryService(
+      prisma,
+      tenant,
+      inventoryScope,
+      accountsPayable as any,
+    );
+
+    await expect(
+      service.returnPurchaseOrder('po-3', {
+        reason: 'Tedarikçiye iade',
+        actorId: 'user-1',
+      }),
+    ).resolves.toEqual({
+      purchaseOrderId: 'po-3',
+      status: 'RETURNED',
+      supplierBillId: 'bill-3',
+      idempotent: false,
+    });
+
+    expect(
+      execute.mock.calls.some((call: any[]) =>
+        String(call[0]).includes('quantity=quantity-$3'),
+      ),
+    ).toBe(true);
+    expect(
+      execute.mock.calls.some((call: any[]) =>
+        String(call[0]).includes("'RETURN'"),
+      ),
+    ).toBe(true);
+    expect(accountsPayable.cancelInventoryPurchaseBillWithinTransaction).toHaveBeenCalledWith(
+      tx,
+      expect.objectContaining({
+        purchaseOrderId: 'po-3',
+        branchId: 'branch-1',
+        reason: 'Tedarikçiye iade',
+      }),
+    );
+    expect(
+      execute.mock.calls.some((call: any[]) =>
+        String(call[0]).includes("SET status='CANCELLED'"),
+      ),
+    ).toBe(true);
+  });
+
 
 });
