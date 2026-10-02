@@ -28,7 +28,7 @@ export class PayrollPolicyService {
   }
   private round(v:number){return Math.round((v+Number.EPSILON)*100)/100;}
   private bounds(year:number,month:number){
-    if(!Number.isInteger(year)||year<2000||year>2200||!Number.isInteger(month)||month<1||month>12) throw new BadRequestException('Valid payroll year and month are required.');
+    if(!Number.isInteger(year)||year<2000||year>2200||!Number.isInteger(month)||month<1||month>12) throw new BadRequestException('Geçerli bordro yılı ve ayı zorunludur.');
     const start=`${year}-${String(month).padStart(2,'0')}-01`;
     const end=new Date(Date.UTC(year,month,0)).toISOString().slice(0,10);
     return{start,end};
@@ -38,9 +38,9 @@ export class PayrollPolicyService {
     const standard=input.standardMonthlyMinutes==null?null:Number(input.standardMonthlyMinutes);
     const multiplier=input.overtimeMultiplier==null?null:Number(input.overtimeMultiplier);
     const divisor=input.monthlyDayDivisor==null?null:Number(input.monthlyDayDivisor);
-    if(input.applyOvertime&&(!Number.isFinite(standard)||Number(standard)<=0)) throw new BadRequestException('standardMonthlyMinutes is required when overtime policy is enabled.');
-    if(input.applyOvertime&&(!Number.isFinite(multiplier)||Number(multiplier)<0)) throw new BadRequestException('overtimeMultiplier is required when overtime policy is enabled.');
-    if(input.applyUnpaidLeaveDeduction&&(!Number.isFinite(divisor)||Number(divisor)<=0)) throw new BadRequestException('monthlyDayDivisor is required when unpaid leave deduction is enabled.');
+    if(input.applyOvertime&&(!Number.isFinite(standard)||Number(standard)<=0)) throw new BadRequestException('Fazla mesai politikası etkin olduğunda standart aylık dakika değeri zorunludur.');
+    if(input.applyOvertime&&(!Number.isFinite(multiplier)||Number(multiplier)<0)) throw new BadRequestException('Fazla mesai politikası etkin olduğunda fazla mesai katsayısı zorunludur.');
+    if(input.applyUnpaidLeaveDeduction&&(!Number.isFinite(divisor)||Number(divisor)<=0)) throw new BadRequestException('Ücretsiz izin kesintisi etkin olduğunda aylık gün böleni zorunludur.');
     return {standardMonthlyMinutes:standard,overtimeMultiplier:multiplier,monthlyDayDivisor:divisor};
   }
 
@@ -107,19 +107,19 @@ export class PayrollPolicyService {
         `SELECT id,year,month,status,branch_id AS "branchId" FROM payroll_periods
          WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text AND status='DRAFT'
            AND ($4::text[] IS NULL OR branch_id=ANY($4::text[])) FOR UPDATE`,periodId,tenantId,companyId,branchIds);
-      if(!periods.length) throw new BadRequestException('Draft payroll period is required.');
+      if(!periods.length) throw new BadRequestException('Taslak bordro dönemi zorunludur.');
       const p=periods[0]; const periodBranchId=p.branchId as string|null;
-      if(!periodBranchId) throw new BadRequestException('A branch-scoped payroll period is required for policy evaluation.');
+      if(!periodBranchId) throw new BadRequestException('Politika değerlendirmesi için şubeye bağlı bir bordro dönemi zorunludur.');
       const {start,end}=this.bounds(Number(p.year),Number(p.month));
       const items=await tx.$queryRawUnsafe<any[]>(
         `SELECT id,branch_id AS "branchId",gross_amount AS "grossAmount",calculation_snapshot AS "calculationSnapshot"
          FROM payroll_items WHERE period_id=$1::text AND staff_id=$2::text AND tenant_id=$3::text AND company_id=$4::text AND branch_id=$5::text FOR UPDATE`,
         periodId,staffId,tenantId,companyId,periodBranchId);
-      if(!items.length) throw new NotFoundException('Draft payroll item not found.');
+      if(!items.length) throw new NotFoundException('Taslak bordro kalemi bulunamadı.');
       const staff=await tx.$queryRawUnsafe<any[]>(
         `SELECT COALESCE((profile->>'salary')::numeric,0) AS "configuredGrossSalary"
          FROM staff WHERE id=$1::text AND "tenantId"=$2::text AND "branchId"=$3::text LIMIT 1`,staffId,tenantId,periodBranchId);
-      if(!staff.length) throw new NotFoundException('Staff member not found.');
+      if(!staff.length) throw new NotFoundException('Personel bulunamadı.');
       const stats=await tx.$queryRawUnsafe<any[]>(
         `SELECT COALESCE((SELECT SUM(ar.overtime_minutes) FROM attendance_records ar WHERE ar.staff_id=$1::text AND ar.tenant_id=$2::text AND ar.branch_id=$5::text AND ar.work_date BETWEEN $3::date AND $4::date),0)::numeric AS "overtimeMinutes",
                 COALESCE((SELECT SUM(LEAST(lr.days, GREATEST(0,(LEAST(lr.end_date,$4::date)-GREATEST(lr.start_date,$3::date)+1))::numeric)) FROM leave_requests lr
