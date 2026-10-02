@@ -116,6 +116,10 @@ const purchaseOrderOrderSchema = z.object({
   orderedAt: z.coerce.date().nullable().optional(),
 });
 
+const purchaseOrderReturnSchema = z.object({
+  reason: z.string().trim().min(1).max(500),
+});
+
 const purchaseOrderReceiveSchema = z.object({
   invoiceNumber: optionalText(160),
   dueAt: z.coerce.date().nullable().optional(),
@@ -383,6 +387,20 @@ export class InventoryController {
     const parsed = purchaseOrderReceiveSchema.parse(body);
     return this.inventory.receivePurchaseOrder(id, {
       ...parsed,
+      actorId: this.userId(req),
+    });
+  }
+
+  @Post('purchase-orders/:id/return')
+  @RequirePermission('inventory', 'write')
+  returnPurchaseOrder(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+    @Req() req: { user?: { sub?: string } },
+  ) {
+    const parsed = purchaseOrderReturnSchema.parse(body);
+    return this.inventory.returnPurchaseOrder(id, {
+      reason: parsed.reason,
       actorId: this.userId(req),
     });
   }
