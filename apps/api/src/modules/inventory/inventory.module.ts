@@ -1,4 +1,5 @@
 import { Module } from '@nestjs/common';
+import { AccountsPayableModule } from '../accounts-payable/accounts-payable.module';
 import { InventoryController } from './inventory.controller';
 import { InventoryLotsController } from './inventory-lots.controller';
 import { InventoryService } from './inventory.service';
@@ -11,6 +12,7 @@ import { InventoryScopeService } from './inventory-scope.service';
 import { InventoryReportingService } from './inventory-reporting.service';
 
 @Module({
+  imports: [AccountsPayableModule],
   controllers: [InventoryController, InventoryLotsController],
   providers: [
     InventoryService,
