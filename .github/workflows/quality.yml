@@ -1,37 +1,231 @@
-name: Web quality
+name: Monorepo quality
 
 on:
   push:
-    branches: [main]
+    branches:
+      - main
+      - feature/core-commerce-foundation
+      - "release/**"
   pull_request:
-    branches: [main]
+    branches:
+      - main
   workflow_dispatch:
 
+concurrency:
+  group: quality-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  web-quality:
+  quality:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: apps/web
+    timeout-minutes: 20
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: beauty_ci
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d beauty_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty_ci?schema=public
+      REDIS_URL: redis://localhost:6379
+      JWT_ACCESS_SECRET: beauty-ci-access-secret-2026-very-long
+      JWT_REFRESH_SECRET: beauty-ci-refresh-secret-2026-very-long
+
     steps:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - name: Setup pnpm and Node
-        uses: pnpm/setup@v1
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
         with:
           version: 11.9.0
-          runtime: node@22.13.1
-          cache: true
-          cache-dependency-path: apps/web/pnpm-lock.yaml
-          package-json-file: apps/web/package.json
-          install: false
+          run_install: false
 
-      - name: Install dependencies
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
+      - name: Validate GitHub Actions workflows
+        shell: bash
+        run: |
+          version="1.7.12"
+          archive="actionlint_${version}_linux_amd64.tar.gz"
+          curl --fail --silent --show-error --location \
+            --output "/tmp/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${version}/$archive"
+          echo "8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8  /tmp/$archive" \
+            | sha256sum --check -
+          mkdir -p /tmp/actionlint
+          tar -xzf "/tmp/$archive" -C /tmp/actionlint
+          /tmp/actionlint/actionlint -shellcheck="" .github/workflows/*.yml
 
-      - name: Production build
-        run: pnpm build
+      - name: Validate release shell scripts
+        run: bash -n scripts/release/*.sh
+
+      - name: Guard Prisma advisory-lock raw queries
+        run: bash scripts/release/verify-no-prisma-void-advisory-locks.sh
+
+      - name: Validate deployment manifests
+        env:
+          RELEASE_SHA: 0123456789abcdef0123456789abcdef01234567
+          API_IMAGE: ghcr.io/kaanb-wiascode/beauty-api:0123456789abcdef0123456789abcdef01234567
+          WEB_IMAGE: ghcr.io/kaanb-wiascode/beauty-web:0123456789abcdef0123456789abcdef01234567
+          CORS_ORIGINS: https://staging.valoo.example
+          PUBLIC_API_URL: https://staging.valoo.example/backend
+          DATABASE_URL: postgresql://user:password@db.internal:5432/valoo?sslmode=require
+          REDIS_URL: rediss://:password@redis.internal:6379
+          JWT_ACCESS_SECRET: ci-deployment-access-secret-at-least-32-characters
+          JWT_REFRESH_SECRET: ci-deployment-refresh-secret-at-least-32-characters
+          OBJECT_STORAGE_BUCKET: valoo-ci-private
+          OBJECT_STORAGE_REGION: eu-central-1
+          OBJECT_STORAGE_ENDPOINT: https://storage.valoo.example
+          OBJECT_STORAGE_ACCESS_KEY_ID: ci-access-key
+          OBJECT_STORAGE_SECRET_ACCESS_KEY: ci-secret-key
+        run: |
+          bash scripts/release/verify-deployment-env.sh
+          docker compose -f infrastructure/docker-compose.staging.yml config --quiet
+          docker compose -f infrastructure/docker-compose.coolify.staging.yml config --quiet
+          docker compose -f infrastructure/docker-compose.production.yml config --quiet
+          docker compose -f infrastructure/docker-compose.coolify.production.yml config --quiet
+
+      - name: Validate Prisma schema
+        run: pnpm --filter @beauty-erp/database validate
+
+      - name: Apply database migrations
+        run: pnpm --filter @beauty-erp/database migrate:deploy
+
+      - name: Generate Prisma client
+        run: pnpm --filter @beauty-erp/database generate
+
+      - name: Typecheck database package
+        run: pnpm --filter @beauty-erp/database typecheck
+
+      - name: Build database package
+        run: pnpm --filter @beauty-erp/database build
+
+      - name: Typecheck shared commerce contracts
+        run: pnpm --filter @beauty-erp/types typecheck
+
+      - name: Build shared commerce contracts
+        run: pnpm --filter @beauty-erp/types build
+
+      - name: Lint commerce release surface
+        run: >-
+          pnpm --filter api exec eslint
+          "src/modules/commerce/**/*.ts"
+          "src/modules/packages/**/*.ts"
+          "src/modules/sales/**/*.ts"
+          "src/modules/sessions/**/*.ts"
+          "src/modules/appointments/**/*.ts"
+          "src/app.module.ts"
+          --no-error-on-unmatched-pattern
+
+      - name: Typecheck API
+        run: pnpm --filter api typecheck
+
+      - name: Test API
+        run: pnpm --filter api test:ci
+
+      - name: Test API E2E
+        env:
+          AUTH_PUBLIC_RATE_LIMIT_DISABLED: 'true'
+        run: pnpm --filter api exec jest --config ./test/jest-e2e.json --runInBand
+
+      - name: Build API
+        env:
+          NODE_ENV: production
+        run: pnpm --filter api build
+
+      - name: Lint web
+        run: pnpm --filter web lint
+
+      - name: Typecheck web
+        run: pnpm --filter web typecheck
+
+      - name: Build web
+        env:
+          NODE_ENV: production
+          RELEASE_SHA: ${{ github.sha }}
+          API_URL: http://127.0.0.1:3000
+        run: pnpm --filter web build
+
+      - name: Start API production runtime
+        env:
+          NODE_ENV: production
+          RELEASE_SHA: ${{ github.sha }}
+          CORS_ORIGINS: https://app.valoo.example
+          TRUST_PROXY: 'false'
+          OBJECT_STORAGE_BUCKET: valoo-ci-private
+          OBJECT_STORAGE_REGION: eu-central-1
+          OBJECT_STORAGE_ENDPOINT: https://storage.valoo.example
+          OBJECT_STORAGE_ACCESS_KEY_ID: ci-access-key
+          OBJECT_STORAGE_SECRET_ACCESS_KEY: ci-secret-key
+          OBJECT_STORAGE_FORCE_PATH_STYLE: 'true'
+          REPORT_EXPORT_STORAGE_DRIVER: object
+          REPORT_EXPORT_WORKER_ENABLED: 'true'
+        run: |
+          pnpm --filter api start:prod >/tmp/valoo-api.log 2>&1 &
+          echo $! >/tmp/valoo-api.pid
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3000/health/ready >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/valoo-api.log
+          exit 1
+
+      - name: Start web production runtime
+        env:
+          NODE_ENV: production
+          API_URL: http://127.0.0.1:3000
+        run: |
+          pnpm --filter web exec next start -p 3001 >/tmp/valoo-web.log 2>&1 &
+          echo $! >/tmp/valoo-web.pid
+          for attempt in {1..30}; do
+            if curl --silent --fail http://127.0.0.1:3001/login >/dev/null; then
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/valoo-web.log
+          exit 1
+
+      - name: Verify production runtime
+        env:
+          RELEASE_SHA: ${{ github.sha }}
+          API_BASE_URL: http://127.0.0.1:3000
+          WEB_BASE_URL: http://127.0.0.1:3001
+        run: bash scripts/release/verify-production-runtime.sh
+
+      - name: Stop production runtime
+        if: always()
+        run: |
+          if [[ -f /tmp/valoo-web.pid ]]; then kill "$(cat /tmp/valoo-web.pid)" || true; fi
+          if [[ -f /tmp/valoo-api.pid ]]; then kill "$(cat /tmp/valoo-api.pid)" || true; fi
+          if [[ -f /tmp/valoo-web.log ]]; then tail -n 100 /tmp/valoo-web.log; fi
+          if [[ -f /tmp/valoo-api.log ]]; then tail -n 100 /tmp/valoo-api.log; fi

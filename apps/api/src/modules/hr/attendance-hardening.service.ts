@@ -1,0 +1,250 @@
+import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import { Prisma, PrismaService } from '@beauty-erp/database';
+import { OrganizationScopeService } from '../../common/tenant/organization-scope.service';
+import { TenantContext } from '../../common/tenant/tenant-context';
+import { randomUUID } from 'crypto';
+import { ApprovalRuntimeService } from '../approval-workflows/approval-runtime.service';
+
+@Injectable()
+export class AttendanceHardeningService {
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly tenantContext: TenantContext,
+    private readonly organizationScope: OrganizationScopeService,
+    private readonly approvalRuntime: ApprovalRuntimeService,
+  ) {}
+
+  private async scope() {
+    const tenantId = this.tenantContext.getTenantId();
+    const companyId = this.tenantContext.getCompanyId();
+    if (!tenantId || !companyId) throw new BadRequestException('Kiracı ve şirket bağlamı zorunludur.');
+    const scoped = await this.organizationScope.getBranchScopedWhere();
+    const branchIds = 'branchId' in scoped ? (typeof scoped.branchId === 'string' ? [scoped.branchId] : scoped.branchId.in) : null;
+    return { tenantId, companyId, branchIds };
+  }
+
+  private validateRange(from:string,to:string){if(!from||!to||Number.isNaN(Date.parse(from))||Number.isNaN(Date.parse(to))||from>to)throw new BadRequestException('Geçerli bir başlangıç ve bitiş tarihi aralığı zorunludur.');}
+
+  async exceptions(from: string, to: string) {
+    this.validateRange(from,to); const s = await this.scope();
+    return this.prisma.$queryRawUnsafe<any[]>(`SELECT a.id,a.staff_id AS "staffId",st."firstName",st."lastName",a.work_date::text AS "date",a.status,a.check_in AS "checkIn",a.check_out AS "checkOut",a.scheduled_shift_id AS "scheduledShiftId",a.late_minutes AS "lateMinutes",a.early_departure_minutes AS "earlyDepartureMinutes",a.missing_punch AS "missingPunch",a.absence,a.holiday_work AS "holidayWork",a.weekly_rest_work AS "weeklyRestWork",a.exception_status AS "exceptionStatus" FROM attendance_records a JOIN staff st ON st.id=a.staff_id JOIN branches b ON b.id=a.branch_id WHERE a.tenant_id=$1 AND b."companyId"=$2 AND ($3::text[] IS NULL OR a.branch_id=ANY($3::text[])) AND a.work_date BETWEEN $4::date AND $5::date AND a.exception_status<>'NONE' ORDER BY a.work_date DESC,st."firstName"`,s.tenantId,s.companyId,s.branchIds,from,to);
+  }
+
+  async reconcile(from: string, to: string) {
+    this.validateRange(from,to); const s=await this.scope();
+    return this.prisma.$transaction(async tx=>{
+      const closed=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,branch_id AS "branchId",year,month
+         FROM hr_attendance_period_closures
+         WHERE tenant_id=$1::text AND company_id=$2::text AND status='CLOSED'
+           AND period_start <= $5::date AND period_end >= $4::date
+           AND ($3::text[] IS NULL OR branch_id=ANY($3::text[]))
+         LIMIT 1`,
+        s.tenantId,s.companyId,s.branchIds,from,to,
+      );
+      if(closed.length){
+        throw new BadRequestException(
+          `Puantaj uzlaştırması yapılamadı: ${closed[0].year}/${String(closed[0].month).padStart(2,'0')} dönemi kapatılmış.`,
+        );
+      }
+      const scheduled=await tx.$queryRawUnsafe<any[]>(`SELECT sh.id AS "shiftId",sh.branch_id AS "branchId",sh.shift_date::text AS "workDate",sh.starts_at AS "startsAt",sh.ends_at AS "endsAt",sa.staff_id AS "staffId",a.id AS "attendanceId",a.check_in AS "checkIn",a.check_out AS "checkOut",a.exception_status AS "exceptionStatus" FROM hr_scheduled_shifts sh JOIN hr_shift_assignments sa ON sa.scheduled_shift_id=sh.id AND sa.status IN('ASSIGNED','CONFIRMED','COMPLETED') JOIN branches b ON b.id=sh.branch_id LEFT JOIN attendance_records a ON a.tenant_id=sh.tenant_id AND a.branch_id=sh.branch_id AND a.staff_id=sa.staff_id AND a.work_date=sh.shift_date WHERE sh.tenant_id=$1 AND sh.company_id=$2 AND b."companyId"=$2 AND sh.status IN('PUBLISHED','COMPLETED') AND sh.shift_date BETWEEN $4::date AND $5::date AND ($3::text[] IS NULL OR sh.branch_id=ANY($3::text[])) ORDER BY sh.shift_date,sa.staff_id,sh.starts_at`,s.tenantId,s.companyId,s.branchIds,from,to);
+      const grouped=new Map<string,any[]>();for(const r of scheduled){const key=`${r.staffId}:${r.workDate}`;const list=grouped.get(key)??[];list.push(r);grouped.set(key,list)}
+      let inserted=0,updated=0,ambiguous=0;
+      for(const shifts of grouped.values()){
+        const r=shifts[0];
+        if(shifts.length>1){ambiguous++;if(r.attendanceId)await tx.$executeRawUnsafe(`UPDATE attendance_records SET scheduled_shift_id=NULL,exception_status=CASE WHEN exception_status IN('CORRECTED','WAIVED') THEN exception_status ELSE 'OPEN' END,note=COALESCE(note||' | ','')||'Multiple scheduled shifts require manual attendance review.',updated_at=CURRENT_TIMESTAMP WHERE id=$1 AND tenant_id=$2`,r.attendanceId,s.tenantId);continue}
+        if(!r.attendanceId){await tx.$executeRawUnsafe(`INSERT INTO attendance_records(id,tenant_id,branch_id,staff_id,work_date,status,worked_minutes,overtime_minutes,scheduled_shift_id,late_minutes,early_departure_minutes,missing_punch,absence,exception_status,note) VALUES($1,$2,$3,$4,$5::date,'ABSENT',0,0,$6,0,0,true,true,'OPEN','Generated from published scheduled shift with no attendance punches.') ON CONFLICT(staff_id,work_date) DO NOTHING`,randomUUID(),s.tenantId,r.branchId,r.staffId,r.workDate,r.shiftId);inserted++;continue}
+        const metrics=await tx.$queryRawUnsafe<any[]>(`SELECT GREATEST(0,FLOOR(EXTRACT(EPOCH FROM ($1::timestamp-$2::timestamp))/60))::int AS late,GREATEST(0,FLOOR(EXTRACT(EPOCH FROM ($3::timestamp-$4::timestamp))/60))::int AS early`,r.checkIn??r.startsAt,r.startsAt,r.endsAt,r.checkOut??r.endsAt);const late=r.checkIn?Number(metrics[0].late):0,early=r.checkOut?Number(metrics[0].early):0,missing=!r.checkIn||!r.checkOut,absence=!r.checkIn&&!r.checkOut,exception=missing||late>0||early>0?'OPEN':'NONE';await tx.$executeRawUnsafe(`UPDATE attendance_records SET scheduled_shift_id=$1,late_minutes=$2,early_departure_minutes=$3,missing_punch=$4,absence=$5,status=CASE WHEN $5 THEN 'ABSENT' ELSE status END,exception_status=CASE WHEN exception_status IN('CORRECTED','WAIVED') THEN exception_status ELSE $6 END,updated_at=CURRENT_TIMESTAMP WHERE id=$7 AND tenant_id=$8`,r.shiftId,late,early,missing,absence,exception,r.attendanceId,s.tenantId);updated++
+      }
+      return{scheduledAssignments:scheduled.length,processedDays:grouped.size,insertedAbsences:inserted,updated,ambiguousMultipleShiftDays:ambiguous};
+    });
+  }
+
+  private async ensureAttendanceCorrectionWorkflow(
+    tx:Prisma.TransactionClient,
+    actorId:string,
+  ){
+    const tenantId=this.tenantContext.getTenantId();
+    const companyId=this.tenantContext.getCompanyId();
+    if(!tenantId||!companyId)throw new BadRequestException('Kiracı ve şirket bağlamı zorunludur.');
+
+    const workflowKey='hr.attendance-correction';
+    const lockKey=`${tenantId}:${companyId}:${workflowKey}:default-workflow`;
+    await tx.$queryRaw`WITH lock_guard AS (SELECT pg_advisory_xact_lock(hashtext(${lockKey}))) SELECT 1 AS locked FROM lock_guard`;
+
+    const published=await tx.$queryRaw<Array<{id:string}>>`
+      SELECT id
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+        AND status='PUBLISHED'
+      LIMIT 1
+    `;
+    if(published.length)return;
+
+    const versions=await tx.$queryRaw<Array<{version:number}>>`
+      SELECT COALESCE(MAX(version),0)::int AS version
+      FROM approval_workflow_definitions
+      WHERE "tenantId"=${tenantId}
+        AND "companyId"=${companyId}
+        AND "workflowKey"=${workflowKey}
+    `;
+    const version=Number(versions[0]?.version??0)+1;
+    const steps=[{
+      key:'manager-approval',
+      name:'Yönetici Onayı',
+      approverType:'DIRECT_MANAGER',
+      approverValue:null,
+      slaMinutes:15,
+      timeoutAction:'ESCALATE',
+      escalationApproverType:'BRANCH_MANAGER',
+      escalationApproverValue:null,
+    }];
+
+    await tx.$executeRaw`
+      INSERT INTO approval_workflow_definitions(
+        id,"tenantId","companyId","workflowKey",name,domain,description,
+        version,status,conditions,steps,"createdByUserId","publishedAt","createdAt","updatedAt"
+      ) VALUES(
+        gen_random_uuid()::text,${tenantId},${companyId},${workflowKey},
+        'Puantaj Düzeltme Onayı','hr',
+        'Puantaj düzeltme talepleri için varsayılan yönetici onayı.',
+        ${version},'PUBLISHED','{}'::jsonb,${JSON.stringify(steps)}::jsonb,
+        ${actorId},CURRENT_TIMESTAMP,CURRENT_TIMESTAMP,CURRENT_TIMESTAMP
+      )
+    `;
+  }
+
+  async correct(id: string, body: any, actorId: string) {
+    const reason = String(body.reason ?? '').trim();
+    if (!reason) throw new BadRequestException('Düzeltme nedeni zorunludur.');
+
+    const s = await this.scope();
+    return this.prisma.$transaction(async (tx:Prisma.TransactionClient) => {
+      const rows = await tx.$queryRawUnsafe<any[]>(
+        `SELECT a.*
+         FROM attendance_records a
+         JOIN branches b ON b.id = a.branch_id
+         WHERE a.id = $1
+           AND a.tenant_id = $2
+           AND b."companyId" = $3
+           AND ($4::text[] IS NULL OR a.branch_id = ANY($4::text[]))
+         FOR UPDATE`,
+        id,
+        s.tenantId,
+        s.companyId,
+        s.branchIds,
+      );
+
+      const current = rows[0];
+      if (!current) throw new NotFoundException('Puantaj kaydı bulunamadı.');
+
+      const closed=await tx.$queryRawUnsafe<any[]>(
+        `SELECT id,year,month
+         FROM hr_attendance_period_closures
+         WHERE tenant_id=$1::text AND company_id=$2::text AND branch_id=$3::text
+           AND status='CLOSED' AND $4::date BETWEEN period_start AND period_end
+         LIMIT 1`,
+        s.tenantId,s.companyId,current.branch_id,current.work_date,
+      );
+      if(closed.length){
+        throw new BadRequestException(
+          `Puantaj düzeltme talebi oluşturulamaz: ${closed[0].year}/${String(closed[0].month).padStart(2,'0')} dönemi kapatılmış.`,
+        );
+      }
+
+      const requested = {
+        checkIn: body.checkIn ?? current.check_in,
+        checkOut: body.checkOut ?? current.check_out,
+        status: body.status ?? current.status,
+        note: body.note ?? current.note,
+      };
+
+      let late = current.late_minutes ?? 0;
+      let early = current.early_departure_minutes ?? 0;
+      const missing = !requested.checkIn || !requested.checkOut;
+      const absence = !requested.checkIn && !requested.checkOut;
+
+      if (current.scheduled_shift_id) {
+        const metrics = await tx.$queryRawUnsafe<any[]>(
+          `SELECT
+             CASE WHEN $1::timestamp IS NULL THEN 0
+               ELSE GREATEST(0, FLOOR(EXTRACT(EPOCH FROM ($1::timestamp - starts_at)) / 60))::int
+             END AS late,
+             CASE WHEN $2::timestamp IS NULL THEN 0
+               ELSE GREATEST(0, FLOOR(EXTRACT(EPOCH FROM (ends_at - $2::timestamp)) / 60))::int
+             END AS early
+           FROM hr_scheduled_shifts
+           WHERE id = $3 AND tenant_id = $4`,
+          requested.checkIn,
+          requested.checkOut,
+          current.scheduled_shift_id,
+          s.tenantId,
+        );
+        if (metrics.length) {
+          late = Number(metrics[0].late);
+          early = Number(metrics[0].early);
+        }
+      }
+
+      const correctionId = randomUUID();
+      const requestedValue = {
+        ...requested,
+        lateMinutes: late,
+        earlyDepartureMinutes: early,
+        missingPunch: missing,
+        absence,
+      };
+
+      await tx.$executeRawUnsafe(
+        `INSERT INTO hr_attendance_corrections(
+           id, tenant_id, company_id, branch_id, attendance_record_id, staff_id,
+           reason, previous_value, new_value, actor_id
+         ) VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10)`,
+        correctionId,
+        s.tenantId,
+        s.companyId,
+        current.branch_id,
+        id,
+        current.staff_id,
+        reason,
+        JSON.stringify({
+          checkIn: current.check_in,
+          checkOut: current.check_out,
+          status: current.status,
+          note: current.note,
+          lateMinutes: current.late_minutes,
+          earlyDepartureMinutes: current.early_departure_minutes,
+          missingPunch: current.missing_punch,
+          absence: current.absence,
+        }),
+        JSON.stringify(requestedValue),
+        actorId,
+      );
+
+      await this.ensureAttendanceCorrectionWorkflow(tx,actorId);
+
+      const approval = await this.approvalRuntime.createWithinTransaction({
+        workflowKey: 'hr.attendance-correction',
+        entityType: 'hr_attendance_correction',
+        entityId: correctionId,
+        branchId: current.branch_id,
+        reason,
+        payload: {
+          attendanceRecordId: id,
+          staffId: current.staff_id,
+          requestedValue,
+        },
+      },tx);
+
+      return {
+        id: correctionId,
+        attendanceRecordId: id,
+        approvalRequestId: approval.id,
+        approvalRequired: true,
+        message: 'Düzeltme talebi oluşturuldu ve onay akışına gönderildi. Puantaj kaydı onay tamamlanmadan değiştirilmedi.',
+      };
+    },{isolationLevel:Prisma.TransactionIsolationLevel.Serializable});
+  }
+}

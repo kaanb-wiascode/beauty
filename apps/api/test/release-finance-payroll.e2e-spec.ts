@@ -1,0 +1,472 @@
+import { INestApplication } from '@nestjs/common';
+import { Test, TestingModule } from '@nestjs/testing';
+import { PrismaService } from '@beauty-erp/database';
+import request from 'supertest';
+import { randomUUID } from 'node:crypto';
+
+import { AppModule } from './../src/app.module';
+import { PrismaExceptionFilter } from './../src/common/database/prisma-exception.filter';
+import { ZodExceptionFilter } from './../src/common/validation/zod-exception.filter';
+
+jest.setTimeout(120_000);
+
+describe('Release payroll and finance reconciliation (e2e)', () => {
+  let app: INestApplication;
+  let prisma: PrismaService;
+  let tenantId: string | null = null;
+
+  const suffix = randomUUID().replace(/-/g, '').slice(0, 12);
+  const password = `ReleaseAcceptance-${suffix}-A1!`;
+
+  beforeAll(async () => {
+    const moduleFixture: TestingModule = await Test.createTestingModule({
+      imports: [AppModule],
+    }).compile();
+
+    app = moduleFixture.createNestApplication();
+    app.useGlobalFilters(
+      new PrismaExceptionFilter(),
+      new ZodExceptionFilter(),
+    );
+    await app.init();
+    prisma = moduleFixture.get(PrismaService);
+  });
+
+  afterAll(async () => {
+    try {
+      if (tenantId) {
+        await prisma.tenant.delete({ where: { id: tenantId } }).catch(() => undefined);
+      }
+    } finally {
+      await app.close();
+    }
+  });
+
+  it('posts and reverses payroll settlement and finance reconciliation', async () => {
+    const email = `release-finance-${suffix}@example.test`;
+    const registered = await request(app.getHttpServer())
+      .post('/auth/register')
+      .send({
+        email,
+        password,
+        firstName: 'Release',
+        lastName: 'Finance',
+        tenantName: `Release Finance ${suffix}`,
+        tenantSlug: `release-finance-${suffix}`,
+      })
+      .expect(201);
+
+    const currentTenantId = String(registered.body.tenant.id);
+    tenantId = currentTenantId;
+    const companyId = String(registered.body.company.id);
+    const branchId = registered.body.branch.id;
+    const membershipId = registered.body.membership.id;
+
+    const login = await request(app.getHttpServer())
+      .post('/auth/login')
+      .send({ email, password })
+      .expect(201);
+
+    const switched = await request(app.getHttpServer())
+      .post('/auth/context/switch')
+      .set('Authorization', `Bearer ${login.body.accessToken}`)
+      .send({ membershipId, branchId })
+      .expect(201);
+
+    const authorization = `Bearer ${switched.body.accessToken}`;
+
+    const ownerRole = await prisma.role.findFirstOrThrow({
+      where: { tenantId: currentTenantId, companyId, slug: 'owner' },
+      select: { id: true },
+    });
+    const hrSensitive = await prisma.permission.upsert({
+      where: {
+        resource_action: { resource: 'hr_sensitive', action: 'read' },
+      },
+      update: {},
+      create: {
+        resource: 'hr_sensitive',
+        action: 'read',
+        description: 'HR sensitive read permission',
+      },
+      select: { id: true },
+    });
+    await prisma.rolePermission.upsert({
+      where: {
+        roleId_permissionId: {
+          roleId: ownerRole.id,
+          permissionId: hrSensitive.id,
+        },
+      },
+      update: {},
+      create: {
+        roleId: ownerRole.id,
+        permissionId: hrSensitive.id,
+      },
+    });
+
+    const staff = await request(app.getHttpServer())
+      .post('/staff')
+      .set('Authorization', authorization)
+      .send({
+        firstName: 'Payroll',
+        lastName: 'Acceptance',
+        email: `payroll-${suffix}@example.test`,
+      })
+      .expect(201);
+
+    const period = await request(app.getHttpServer())
+      .post('/hr/payroll/periods')
+      .set('Authorization', authorization)
+      .send({ year: 2199, month: 12 })
+      .expect(201);
+
+    const closureId = randomUUID();
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO hr_attendance_period_closures(
+         id,tenant_id,company_id,branch_id,payroll_period_id,year,month,
+         period_start,period_end,status,staff_count,attendance_record_count,
+         open_exception_count,snapshot,closed_by_user_id,closed_at
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,2199,12,
+         '2199-12-01'::date,'2199-12-31'::date,'CLOSED',1,1,0,$6::jsonb,$7::text,NOW()
+       )`,
+      closureId,
+      currentTenantId,
+      companyId,
+      branchId,
+      period.body.id,
+      JSON.stringify({
+        staff: [
+          {
+            staffId: staff.body.id,
+            workedMinutes: 9600,
+            overtimeMinutes: 0,
+            approvedOvertimeMinutes: 0,
+            presentDays: 20,
+            absentDays: 0,
+            approvedLeaveRecords: 0,
+            declaredLeaveDays: 0,
+            unpaidLeaveRecords: 0,
+            unpaidLeaveDays: 0,
+          },
+        ],
+      }),
+      registered.body.user.id,
+    );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO hr_salary_contracts(
+         id,tenant_id,company_id,branch_id,staff_id,salary_basis,net_amount,currency,
+         effective_from,effective_to,status,note,created_by_user_id
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,'MONTHLY_NET',770,'TRY',
+         '2199-12-01'::date,'2199-12-31'::date,'ACTIVE','Release acceptance salary contract',$6::text
+       )`,
+      randomUUID(),
+      currentTenantId,
+      companyId,
+      branchId,
+      staff.body.id,
+      registered.body.user.id,
+    );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO payroll_legal_parameter_versions(
+         id,tenant_id,company_id,jurisdiction,version_label,effective_from,effective_to,status,
+         parameters,source_reference,note,created_by_user_id,published_by_user_id,published_at
+       ) VALUES(
+         $1::text,$2::text,$3::text,'TR','Release Acceptance 2199',
+         '2199-01-01'::date,'2199-12-31'::date,'PUBLISHED',$4::jsonb,
+         'release-acceptance','Release acceptance legal parameters',$5::text,$5::text,NOW()
+       )`,
+      randomUUID(),
+      currentTenantId,
+      companyId,
+      JSON.stringify({
+        employeeSocialSecurityRate: 0,
+        unemploymentEmployeeRate: 0,
+        employerSocialSecurityRate: 0,
+        unemploymentEmployerRate: 0,
+        stampTaxRate: 0,
+        incomeTaxBrackets: [{ upTo: null, rate: 0 }],
+        minimumWageIncomeTaxExemption: 0,
+        minimumWageStampTaxExemption: 0,
+        socialSecurityBaseFloor: null,
+        socialSecurityBaseCeiling: null,
+      }),
+      registered.body.user.id,
+    );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO payroll_tax_base_opening_balances(
+         id,tenant_id,company_id,branch_id,staff_id,tax_year,cumulative_tax_base,
+         source_reference,note,recorded_by_user_id
+       ) VALUES(
+         $1::text,$2::text,$3::text,$4::text,$5::text,2199,0,
+         'release-acceptance','Release acceptance opening balance',$6::text
+       )`,
+      randomUUID(),
+      currentTenantId,
+      companyId,
+      branchId,
+      staff.body.id,
+      registered.body.user.id,
+    );
+
+    const preparedPayroll = await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/prepare`)
+      .set('Authorization', authorization)
+      .expect(201);
+    expect(preparedPayroll.body.status).toBe('PREPARED');
+    expect(preparedPayroll.body.preparedCount).toBe(1);
+    const preparedNetAmount = Number(preparedPayroll.body.totals.netAmount);
+    expect(Math.abs(preparedNetAmount - 770)).toBeLessThanOrEqual(0.01 + Number.EPSILON);
+
+    const submittedPayroll = await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/submit`)
+      .set('Authorization', authorization)
+      .expect(201);
+    expect(submittedPayroll.body.approvalRequestId).toBeTruthy();
+
+    await prisma.$executeRawUnsafe(
+      `UPDATE approval_request_steps
+       SET "approverType"='ROLE',
+           "approverValue"='owner',
+           "approverRoleSlug"='owner',
+           "updatedAt"=NOW()
+       WHERE "requestId"=$1::text`,
+      submittedPayroll.body.approvalRequestId,
+    );
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO sod_policy_definitions(
+         id,"tenantId","companyId",domain,"requesterCannotApprove","requireDistinctApprovers",enabled,
+         "createdByUserId","updatedByUserId","createdAt","updatedAt"
+       ) VALUES(
+         gen_random_uuid()::text,$1::text,$2::text,'hr',FALSE,FALSE,FALSE,$3::text,$3::text,NOW(),NOW()
+       )
+       ON CONFLICT("tenantId","companyId",domain)
+       DO UPDATE SET "requesterCannotApprove"=FALSE,"requireDistinctApprovers"=FALSE,enabled=FALSE,
+                     "updatedByUserId"=EXCLUDED."updatedByUserId","updatedAt"=NOW()`,
+      currentTenantId,
+      companyId,
+      registered.body.user.id,
+    );
+
+    await request(app.getHttpServer())
+      .post(`/admin/approval-workflows/runtime/requests/${submittedPayroll.body.approvalRequestId}/act`)
+      .set('Authorization', authorization)
+      .send({ decision: 'APPROVE', comment: 'Muhasebe kontrolü tamamlandı.' })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/admin/approval-workflows/runtime/requests/${submittedPayroll.body.approvalRequestId}/act`)
+      .set('Authorization', authorization)
+      .send({ decision: 'APPROVE', comment: 'Üst yönetim onayı tamamlandı.' })
+      .expect(201);
+
+    const postedPayroll = await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/post`)
+      .set('Authorization', authorization)
+      .expect(201);
+    expect(postedPayroll.body.status).toBe('POSTED');
+    expect(postedPayroll.body.journalEntryId).toBeTruthy();
+
+    const paymentQueue = await request(app.getHttpServer())
+      .get('/hr/payroll/payment-queue')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(
+      paymentQueue.body.some(
+        (item: { periodId?: string; staffId?: string; status?: string }) =>
+          item.periodId === period.body.id &&
+          item.staffId === staff.body.id &&
+          item.status !== 'PAID',
+      ),
+    ).toBe(true);
+
+    const salaryPayment = await request(app.getHttpServer())
+      .post(`/hr/payroll/periods/${period.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({
+        staffId: staff.body.id,
+        amount: preparedNetAmount,
+        method: 'BANK',
+        note: 'Release acceptance salary settlement',
+      })
+      .expect(201);
+    expect(salaryPayment.body.status).toBe('PAID');
+
+    const reversedSalary = await request(app.getHttpServer())
+      .post(`/hr/payroll/payments/${salaryPayment.body.paymentId}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'Release acceptance salary reversal' })
+      .expect(201);
+    expect(reversedSalary.body.status).toBe('REVERSED');
+
+    const taxonomyBootstrap = await request(app.getHttpServer())
+      .post('/finance/setup/bootstrap-default-taxonomy')
+      .set('Authorization', authorization);
+
+    if (taxonomyBootstrap.status !== 201) {
+      throw new Error(
+        `Finance taxonomy bootstrap failed with HTTP ${taxonomyBootstrap.status}: ${JSON.stringify(taxonomyBootstrap.body)}`,
+      );
+    }
+
+    const categories = await request(app.getHttpServer())
+      .get('/finance/setup/expense-categories')
+      .set('Authorization', authorization)
+      .expect(200);
+    const category = categories.body.find((item: { id: string; active: boolean }) => item.active);
+    expect(category?.id).toBeTruthy();
+
+    const accounts = await request(app.getHttpServer())
+      .get('/accounting/accounts')
+      .set('Authorization', authorization)
+      .expect(200);
+    const expenseAccount = accounts.body.find((item: { code: string }) => item.code === '770');
+    const payableAccount = accounts.body.find((item: { code: string }) => item.code === '335');
+    const bankAssetAccount = accounts.body.find((item: { code: string }) => item.code === '102');
+    expect(expenseAccount?.id).toBeTruthy();
+    expect(payableAccount?.id).toBeTruthy();
+    expect(bankAssetAccount?.id).toBeTruthy();
+
+    await request(app.getHttpServer())
+      .put('/finance/setup/expense-accounting-mappings')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: category.id,
+        expenseAccountId: expenseAccount.id,
+        payableAccountId: payableAccount.id,
+      })
+      .expect(200);
+
+    const expense = await request(app.getHttpServer())
+      .post('/finance/expenses')
+      .set('Authorization', authorization)
+      .send({
+        categoryId: category.id,
+        transactionDate: new Date().toISOString(),
+        grossAmount: 100,
+        netAmount: 100,
+        taxAmount: 0,
+        withholdingAmount: 0,
+        currency: 'TRY',
+        exchangeRate: 1,
+        description: `Release reconciliation ${suffix}`,
+      })
+      .expect(201);
+
+    await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/submit`)
+      .set('Authorization', authorization)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/approve`)
+      .set('Authorization', authorization)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/accounting/prepare`)
+      .set('Authorization', authorization)
+      .expect(201);
+    await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/accounting/post`)
+      .set('Authorization', authorization)
+      .expect(201);
+
+    const expensePayment = await request(app.getHttpServer())
+      .post(`/finance/expenses/${expense.body.id}/payments`)
+      .set('Authorization', authorization)
+      .send({
+        amount: 100,
+        paymentAccountId: bankAssetAccount.id,
+        method: 'TRANSFER',
+        reference: `RECON-${suffix}`,
+        note: 'Release acceptance expense payment',
+      })
+      .expect(201);
+
+    const integrationId = randomUUID();
+    const bankAccountId = randomUUID();
+    const bankTransactionId = randomUUID();
+
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO finance_integrations(
+         id,tenant_id,company_id,branch_id,kind,provider,display_name,status,auth_type,metadata
+       ) VALUES($1::text,$2::text,$3::text,$4::text,'OPEN_BANKING','STAGING_ACCEPTANCE',$5,'CONNECTED','MANUAL','{}'::jsonb)`,
+      integrationId, currentTenantId, companyId, branchId, `Release Acceptance Bank ${suffix}`,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO bank_accounts(
+         id,tenant_id,company_id,branch_id,integration_id,external_account_id,
+         bank_name,account_name,currency,active,updated_at
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,'Release Acceptance Bank',$7,'TRY',true,NOW())`,
+      bankAccountId, currentTenantId, companyId, branchId, integrationId, `account-${suffix}`, `Acceptance ${suffix}`,
+    );
+    await prisma.$executeRawUnsafe(
+      `INSERT INTO bank_transactions(
+         id,tenant_id,company_id,branch_id,bank_account_id,external_transaction_id,
+         booked_at,amount,currency,description,reconciliation_status
+       ) VALUES($1::text,$2::text,$3::text,$4::text,$5::text,$6,NOW(),-100,'TRY',$7,'UNMATCHED')`,
+      bankTransactionId, currentTenantId, companyId, branchId, bankAccountId, `transaction-${suffix}`, `RECON-${suffix}`,
+    );
+
+    const suggestions = await request(app.getHttpServer())
+      .get(`/finance/reconciliation/expense-payments/${expensePayment.body.id}/suggestions`)
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(
+      suggestions.body.suggestions.some((item: { id: string }) => item.id === bankTransactionId),
+    ).toBe(true);
+
+    const matched = await request(app.getHttpServer())
+      .post(`/finance/reconciliation/expense-payments/${expensePayment.body.id}/match`)
+      .set('Authorization', authorization)
+      .send({ bankTransactionId, amount: 100 })
+      .expect(201);
+    expect(matched.body.id).toBeTruthy();
+
+    const reversedMatch = await request(app.getHttpServer())
+      .post(`/finance/reconciliation/${matched.body.id}/reverse`)
+      .set('Authorization', authorization)
+      .send({ reason: 'Release acceptance reconciliation reversal' })
+      .expect(201);
+    expect(reversedMatch.body.reversedAt).toBeTruthy();
+
+    const bankRows = await prisma.$queryRawUnsafe<Array<{ reconciliationStatus: string }>>(
+      `SELECT reconciliation_status AS "reconciliationStatus" FROM bank_transactions WHERE id=$1::text`,
+      bankTransactionId,
+    );
+    expect(bankRows[0]?.reconciliationStatus).toBe('UNMATCHED');
+
+    const controlProjection = await request(app.getHttpServer())
+      .get('/finance/control/projection')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(controlProjection.body.ledger).toEqual(expect.objectContaining({
+      bank: expect.any(Number),
+      supplierPayable: expect.any(Number),
+    }));
+
+    const auditTrail = await request(app.getHttpServer())
+      .get('/finance/control/audit-trail?limit=200')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(
+      auditTrail.body.some(
+        (event: { domain?: string; eventType?: string }) =>
+          event.domain === 'RECONCILIATION' &&
+          event.eventType === 'RECONCILIATION_REVERSED',
+      ),
+    ).toBe(true);
+
+    const cfo = await request(app.getHttpServer())
+      .get('/profitability/cfo/management-cockpit')
+      .set('Authorization', authorization)
+      .expect(200);
+    expect(cfo.body.baseCurrency).toBe('TRY');
+    expect(cfo.body.workingCapital).toBeTruthy();
+  });
+});

@@ -1,0 +1,61 @@
+name: Bootstrap Coolify production application
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: bootstrap-coolify-production
+  cancel-in-progress: false
+
+jobs:
+  bootstrap:
+    name: Create VALOO production application
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Create Coolify production application
+        id: bootstrap
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          COOLIFY_PROJECT_UUID: ${{ secrets.COOLIFY_PROJECT_UUID }}
+          COOLIFY_SERVER_UUID: ${{ secrets.COOLIFY_SERVER_UUID }}
+          COOLIFY_ENVIRONMENT_NAME: ${{ vars.COOLIFY_ENVIRONMENT_NAME || 'production' }}
+        run: bash scripts/release/bootstrap-coolify-production.sh
+
+      - name: Verify created application
+        env:
+          COOLIFY_API_URL: ${{ secrets.COOLIFY_API_URL }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+          APPLICATION_UUID: ${{ steps.bootstrap.outputs.application_uuid }}
+        shell: bash
+        run: |
+          response="$(curl --fail --silent --show-error \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" \
+            "${COOLIFY_API_URL%/}/applications/$APPLICATION_UUID")"
+          returned_uuid="$(jq -r '.uuid // empty' <<<"$response")"
+          [[ "$returned_uuid" == "$APPLICATION_UUID" ]] || {
+            echo "Created Coolify production application could not be verified" >&2
+            exit 1
+          }
+
+      - name: Write bootstrap summary
+        env:
+          APPLICATION_UUID: ${{ steps.bootstrap.outputs.application_uuid }}
+        shell: bash
+        run: |
+          {
+            echo "## VALOO Coolify production bootstrap"
+            echo
+            echo "- Application UUID: $APPLICATION_UUID"
+            echo "- Compose file: infrastructure/docker-compose.coolify.production.yml"
+            echo
+            echo "Next required action: save this UUID as the GitHub production environment secret COOLIFY_PRODUCTION_APPLICATION_UUID."
+          } >> "$GITHUB_STEP_SUMMARY"

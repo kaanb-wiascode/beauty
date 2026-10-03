@@ -1,0 +1,497 @@
+"use client";
+
+import Link from "next/link";
+import { CardInfo } from "@/components/card-info";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Modal } from "@/components/modal";
+import { TeamShareAction } from "@/components/team-share-action";
+import { Alert, Button, EmptyState, Field, GlassCard, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { useToast } from "@/components/toast";
+import { api, ApiError } from "@/lib/api";
+import { getCardHelp } from "@/lib/card-help";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { followUpChannelLabels, opportunityStageLabels, type CrmAssignee, type CrmEvent, type CrmFollowUp, type CrmInteraction, type OpportunityStage } from "@/lib/crm-types";
+
+type OpportunityDetail = {
+  id: string; leadId: string | null; customerId: string | null; ownerUserId: string | null;
+  title: string; stage: OpportunityStage; estimatedValue: string | number | null; currency: string;
+  probability: number; expectedCloseDate: string | null; lostReason: string | null; saleId: string | null;
+  commercialSnapshot: Record<string, unknown> | null; convertedAt: string | null;
+  saleStatus: string | null; saleTotal: string | number | null; paidTotal: string | number | null; version: number;
+  createdAt: string; updatedAt: string; leadFirstName: string | null; leadLastName: string | null;
+  customerFirstName: string | null; customerLastName: string | null; followUps: CrmFollowUp[]; interactions: CrmInteraction[]; events: CrmEvent[];
+};
+type CrmQuote = {
+  id: string;
+  opportunityId: string;
+  customerId: string | null;
+  ownerUserId: string;
+  quoteNumber: string;
+  status: "DRAFT" | "SENT" | "VIEWED" | "ACCEPTED" | "REJECTED" | "EXPIRED" | "CANCELLED";
+  currency: string;
+  subtotal: string | number;
+  discountTotal: string | number;
+  total: string | number;
+  validUntil: string | null;
+  saleId?: string | null;
+  convertedAt?: string | null;
+  version: number;
+  createdAt: string;
+};
+
+type QuoteItemForm = {
+  itemType: "SERVICE" | "PACKAGE" | "CUSTOM";
+  referenceId: string;
+  description: string;
+  quantity: string;
+  unitPrice: string;
+};
+type ServiceOption = { id: string; name: string; price: string | number; currency: string; status: string };
+type ServicePage = { data: ServiceOption[]; meta: { page: number; limit: number; total: number; totalPages: number } };
+type PackageOption = { id: string; name: string; price: string | number; active: boolean };
+
+type FollowUpAction = "complete" | "reschedule" | "cancel";
+type FollowUpForm = { assignedUserId: string; channel: CrmFollowUp["channel"]; dueAt: string; note: string };
+
+const nextStages: Record<OpportunityStage, OpportunityStage[]> = {
+  QUALIFIED: ["NEEDS_ANALYSIS", "LOST"], NEEDS_ANALYSIS: ["PROPOSAL", "LOST"],
+  PROPOSAL: ["NEGOTIATION", "WON", "LOST"], NEGOTIATION: ["PROPOSAL", "WON", "LOST"], WON: [], LOST: [],
+};
+const interactionTypeLabels: Record<CrmInteraction["type"], string> = {
+  CALL: "Telefon",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  IN_PERSON: "Yüz yüze",
+  VIDEO_CALL: "Görüntülü görüşme",
+  OTHER: "Diğer",
+};
+
+const quoteStatusLabels: Record<CrmQuote["status"], string> = {
+  DRAFT: "Taslak",
+  SENT: "Gönderildi",
+  VIEWED: "Görüntülendi",
+  ACCEPTED: "Kabul Edildi",
+  REJECTED: "Reddedildi",
+  EXPIRED: "Süresi Doldu",
+  CANCELLED: "İptal Edildi",
+};
+
+const followUpStatusLabels: Record<CrmFollowUp["status"], string> = { OPEN: "Açık", COMPLETED: "Tamamlandı", CANCELLED: "İptal Edildi" };
+const emptyFollowUp: FollowUpForm = { assignedUserId: "", channel: "CALL", dueAt: "", note: "" };
+
+function money(value: string | number | null, currency: string) {
+  return new Intl.NumberFormat("tr-TR", { style: "currency", currency, maximumFractionDigits: 2 }).format(Number(value ?? 0));
+}
+function dateTime(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
+}
+function dateOnly(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(value));
+}
+function localInput(value: string | Date) {
+  const date = new Date(value);
+  const local = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return local.toISOString().slice(0, 16);
+}
+function nextHour() { const date = new Date(); date.setMinutes(0, 0, 0); date.setHours(date.getHours() + 1); return localInput(date); }
+function eventLabel(type: string) {
+  return ({ OPPORTUNITY_CREATED: "Satış Fırsatı Oluşturuldu", OPPORTUNITY_STAGE_CHANGED: "Satış Aşaması Değişti", LEAD_QUALIFIED: "Potansiyel Müşteri Nitelendirildi", FOLLOW_UP_CREATED: "Takip Oluşturuldu", FOLLOW_UP_COMPLETED: "Takip Tamamlandı", FOLLOW_UP_RESCHEDULED: "Takip Yeniden Planlandı", FOLLOW_UP_CANCELLED: "Takip İptal Edildi", INTERACTION_CREATED: "Görüşme Kaydedildi", OPPORTUNITY_SALE_LINKED: "Satış Taslağı Bağlandı", SALE_CONFIRMED: "Satış Onaylandı", SALE_CANCELLED: "Satış İptal Edildi", SALE_PAYMENT_RECEIVED: "Ödeme Alındı", SALE_PAYMENT_REFUNDED: "Ödeme İade Edildi", QUOTE_CREATED: "Teklif Oluşturuldu", QUOTE_STATUS_CHANGED: "Teklif Durumu Güncellendi", QUOTE_CONVERTED_TO_SALE: "Teklif Satışa Dönüştürüldü", QUOTE_SENT: "Teklif Müşteriye Gönderildi" } as Record<string, string>)[type] ?? type.replaceAll("_", " ");
+}
+function eventSummary(metadata: Record<string, unknown> | null) {
+  return metadata ? Object.entries(metadata).filter(([, v]) => v !== null && v !== undefined && v !== "").slice(0, 4).map(([k, v]) => `${k}: ${String(v)}`).join(" · ") : null;
+}
+
+export default function OpportunityDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const canManage = hasPermission("crm", "manage");
+  const { showToast } = useToast();
+  const [opportunity, setOpportunity] = useState<OpportunityDetail | null>(null);
+  const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [quotes, setQuotes] = useState<CrmQuote[]>([]);
+  const [quoteOpen, setQuoteOpen] = useState(false);
+  const [quoteSaving, setQuoteSaving] = useState(false);
+  const [quoteError, setQuoteError] = useState("");
+  const [quoteActionId, setQuoteActionId] = useState("");
+  const [quoteForm, setQuoteForm] = useState({ discountTotal: "0", validUntil: "", notes: "" });
+  const [quoteItems, setQuoteItems] = useState<QuoteItemForm[]>([{ itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
+  const [serviceOptions, setServiceOptions] = useState<ServiceOption[]>([]);
+  const [packageOptions, setPackageOptions] = useState<PackageOption[]>([]);
+
+  const [transitionOpen, setTransitionOpen] = useState(false);
+  const [transitionSaving, setTransitionSaving] = useState(false);
+  const [transitionError, setTransitionError] = useState("");
+  const [targetStage, setTargetStage] = useState<OpportunityStage | "">("");
+  const [probability, setProbability] = useState("");
+  const [estimatedValue, setEstimatedValue] = useState("");
+  const [expectedCloseDate, setExpectedCloseDate] = useState("");
+  const [lostReason, setLostReason] = useState("");
+
+  const [followUpOpen, setFollowUpOpen] = useState(false);
+  const [followUpSaving, setFollowUpSaving] = useState(false);
+  const [followUpError, setFollowUpError] = useState("");
+  const [followUpForm, setFollowUpForm] = useState<FollowUpForm>(emptyFollowUp);
+
+  const [selectedFollowUp, setSelectedFollowUp] = useState<CrmFollowUp | null>(null);
+  const [followUpAction, setFollowUpAction] = useState<FollowUpAction | null>(null);
+  const [actionSaving, setActionSaving] = useState(false);
+  const [actionError, setActionError] = useState("");
+  const [outcome, setOutcome] = useState("");
+  const [rescheduledAt, setRescheduledAt] = useState("");
+  const [cancelReason, setCancelReason] = useState("");
+
+  async function refresh(id: string) { const [result, quoteRows] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), api<CrmQuote[]>(`/crm/quotes?opportunityId=${id}`)]); setOpportunity(result); setQuotes(quoteRows); return result; }
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { id } = await params;
+        const [result, people, quoteRows, servicesResult, packageRows] = await Promise.all([api<OpportunityDetail>(`/crm/opportunities/${id}`), canManage ? api<CrmAssignee[]>("/crm/assignees") : Promise.resolve([]), api<CrmQuote[]>(`/crm/quotes?opportunityId=${id}`), canManage ? api<ServicePage>("/services?page=1&limit=100&status=ACTIVE") : Promise.resolve({ data: [], meta: { page: 1, limit: 100, total: 0, totalPages: 0 } }), canManage ? api<PackageOption[]>("/packages") : Promise.resolve([])]);
+        if (!cancelled) { setOpportunity(result); setAssignees(people); setQuotes(quoteRows); setServiceOptions(servicesResult.data.filter((item) => item.status === "ACTIVE")); setPackageOptions(packageRows.filter((item) => item.active)); }
+      } catch (requestError) {
+        if (!cancelled) setError(requestError instanceof ApiError ? requestError.message : "Satış fırsatı yüklenemedi.");
+      } finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [canManage, params]);
+
+  const subject = useMemo(() => {
+    if (!opportunity) return null;
+    const lead = [opportunity.leadFirstName, opportunity.leadLastName].filter(Boolean).join(" ");
+    const customer = [opportunity.customerFirstName, opportunity.customerLastName].filter(Boolean).join(" ");
+    if (opportunity.leadId) return { label: lead || "Potansiyel müşteri", href: `/crm/leads/${opportunity.leadId}`, kind: "Potansiyel Müşteri" };
+    if (opportunity.customerId) return { label: customer || "Müşteri", href: `/customers/${opportunity.customerId}`, kind: "Müşteri" };
+    return null;
+  }, [opportunity]);
+
+  function branchReady(message: string) { if (hasActiveBranch()) return true; showToast(message, "error"); return false; }
+
+  function openTransition() {
+    if (!opportunity || !canManage || !nextStages[opportunity.stage].length || !branchReady("Satış fırsatını güncellemek için aktif bir şube seçin.")) return;
+    const stage = nextStages[opportunity.stage][0]; setTargetStage(stage); setProbability(stage === "WON" ? "100" : stage === "LOST" ? "0" : String(opportunity.probability));
+    setEstimatedValue(opportunity.estimatedValue == null ? "" : String(opportunity.estimatedValue)); setExpectedCloseDate(opportunity.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toISOString().slice(0, 10) : ""); setLostReason(""); setTransitionError(""); setTransitionOpen(true);
+  }
+
+  async function transition(event: FormEvent) {
+    event.preventDefault(); if (!opportunity || !targetStage) return;
+    if (targetStage === "LOST" && !lostReason.trim()) return setTransitionError("Kaybedilen fırsat için neden gereklidir.");
+    const chance = Number(probability); const value = estimatedValue.trim() === "" ? null : Number(estimatedValue);
+    if (!Number.isFinite(chance) || chance < 0 || chance > 100) return setTransitionError("Kazanma olasılığı 0 ile 100 arasında olmalıdır.");
+    if (value !== null && (!Number.isFinite(value) || value < 0)) return setTransitionError("Tahmini değer sıfır veya pozitif olmalıdır.");
+    setTransitionSaving(true); setTransitionError("");
+    try {
+      await api(`/crm/opportunities/${opportunity.id}/transition`, { method: "POST", body: { version: opportunity.version, stage: targetStage, probability: chance, estimatedValue: value, expectedCloseDate: expectedCloseDate ? new Date(`${expectedCloseDate}T12:00:00`).toISOString() : null, ...(targetStage === "LOST" ? { lostReason: lostReason.trim() } : {}) } });
+      await refresh(opportunity.id); setTransitionOpen(false); showToast("Satış fırsatı güncellendi.", "success");
+    } catch (e) { setTransitionError(e instanceof ApiError ? e.message : "Satış fırsatı güncellenemedi."); } finally { setTransitionSaving(false); }
+  }
+
+  function openQuote() {
+    if (!opportunity || !canManage || !branchReady("Teklif oluşturmak için aktif bir şube seçin.")) return;
+    setQuoteError("");
+    setQuoteForm({
+      discountTotal: "0",
+      validUntil: opportunity.expectedCloseDate ? new Date(opportunity.expectedCloseDate).toISOString().slice(0, 10) : "",
+      notes: "",
+    });
+    setQuoteItems([{ itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
+    setQuoteOpen(true);
+  }
+
+  function updateQuoteItem(index: number, patch: Partial<QuoteItemForm>) {
+    setQuoteItems((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
+  }
+
+  function selectQuoteReference(index: number, referenceId: string) {
+    const item = quoteItems[index];
+    if (!item) return;
+    if (item.itemType === "SERVICE") {
+      const selected = serviceOptions.find((service) => service.id === referenceId);
+      updateQuoteItem(index, {
+        referenceId,
+        description: selected?.name ?? "",
+        unitPrice: selected == null ? "" : String(selected.price),
+      });
+      return;
+    }
+    if (item.itemType === "PACKAGE") {
+      const selected = packageOptions.find((pack) => pack.id === referenceId);
+      updateQuoteItem(index, {
+        referenceId,
+        description: selected?.name ?? "",
+        unitPrice: selected == null ? "" : String(selected.price),
+      });
+    }
+  }
+
+  function addQuoteItem() {
+    setQuoteItems((current) => [...current, { itemType: "SERVICE", referenceId: "", description: "", quantity: "1", unitPrice: "" }]);
+  }
+
+  function removeQuoteItem(index: number) {
+    setQuoteItems((current) => current.length === 1 ? current : current.filter((_, itemIndex) => itemIndex !== index));
+  }
+
+  async function createQuote(event: FormEvent) {
+    event.preventDefault();
+    if (!opportunity) return;
+    const normalizedItems = quoteItems.map((item) => ({
+      ...item,
+      quantityNumber: Number(item.quantity),
+      unitPriceNumber: Number(item.unitPrice),
+    }));
+    if (!normalizedItems.length) return setQuoteError("En az bir teklif kalemi gereklidir.");
+    if (normalizedItems.some((item) => !item.description.trim())) return setQuoteError("Tüm teklif kalemlerinde açıklama gereklidir.");
+    if (normalizedItems.some((item) => (item.itemType === "SERVICE" || item.itemType === "PACKAGE") && !item.referenceId)) return setQuoteError("Hizmet ve paket kalemlerinde katalog seçimi gereklidir.");
+    if (normalizedItems.some((item) => !Number.isFinite(item.quantityNumber) || item.quantityNumber < 1)) return setQuoteError("Tüm kalemlerin miktarı en az 1 olmalıdır.");
+    if (normalizedItems.some((item) => !Number.isFinite(item.unitPriceNumber) || item.unitPriceNumber < 0)) return setQuoteError("Tüm kalemlerin birim fiyatı sıfır veya pozitif olmalıdır.");
+    const subtotal = normalizedItems.reduce((sum, item) => sum + item.quantityNumber * item.unitPriceNumber, 0);
+    const discountTotal = Number(quoteForm.discountTotal || 0);
+    if (!Number.isFinite(discountTotal) || discountTotal < 0) return setQuoteError("İndirim sıfır veya pozitif olmalıdır.");
+    if (discountTotal > subtotal) return setQuoteError("İndirim teklif ara toplamını aşamaz.");
+
+    setQuoteSaving(true);
+    setQuoteError("");
+    try {
+      await api("/crm/quotes", {
+        method: "POST",
+        body: {
+          opportunityId: opportunity.id,
+          ...(opportunity.customerId ? { customerId: opportunity.customerId } : {}),
+          currency: opportunity.currency,
+          discountTotal,
+          ...(quoteForm.validUntil ? { validUntil: new Date(`${quoteForm.validUntil}T23:59:59`).toISOString() } : {}),
+          ...(quoteForm.notes.trim() ? { notes: quoteForm.notes.trim() } : {}),
+          items: normalizedItems.map((item) => ({
+            itemType: item.itemType,
+            ...(item.referenceId ? { referenceId: item.referenceId } : {}),
+            description: item.description.trim(),
+            quantity: item.quantityNumber,
+            unitPrice: item.unitPriceNumber,
+          })),
+        },
+      });
+      await refresh(opportunity.id);
+      setQuoteOpen(false);
+      showToast("Teklif oluşturuldu.", "success");
+    } catch (e) {
+      setQuoteError(e instanceof ApiError ? e.message : "Teklif oluşturulamadı.");
+    } finally {
+      setQuoteSaving(false);
+    }
+  }
+
+  async function updateQuoteStatus(quote: CrmQuote, status: Exclude<CrmQuote["status"], "DRAFT">) {
+    if (!opportunity || !canManage || !branchReady("Teklif durumunu güncellemek için aktif bir şube seçin.")) return;
+    setQuoteError("");
+    try {
+      await api(`/crm/quotes/${quote.id}/status`, {
+        method: "PATCH",
+        body: { version: quote.version, status },
+      });
+      await refresh(opportunity.id);
+      showToast(`Teklif durumu “${quoteStatusLabels[status]}” olarak güncellendi.`, "success");
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Teklif durumu güncellenemedi.";
+      setQuoteError(message);
+      showToast(message, "error");
+    }
+  }
+
+  async function sendQuote(quote: CrmQuote, channel: "WHATSAPP" | "SMS" | "EMAIL") {
+    if (!opportunity || !canManage || !branchReady("Teklifi göndermek için aktif bir şube seçin.")) return;
+    const actionKey = `${quote.id}:${channel}`;
+    setQuoteActionId(actionKey);
+    setQuoteError("");
+    try {
+      await api(`/crm/quotes/${quote.id}/send`, {
+        method: "POST",
+        body: { channel },
+      });
+      await refresh(opportunity.id);
+      const channelLabel = channel === "EMAIL" ? "e-posta" : channel === "WHATSAPP" ? "WhatsApp" : "SMS";
+      showToast(`Teklif ${channelLabel} üzerinden gönderildi.`, "success");
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Teklif gönderilemedi.";
+      setQuoteError(message);
+      showToast(message, "error");
+    } finally {
+      setQuoteActionId("");
+    }
+  }
+
+  async function convertQuoteToSale(quote: CrmQuote) {
+    if (!opportunity || !canManage || !branchReady("Teklifi satışa dönüştürmek için aktif bir şube seçin.")) return;
+    setQuoteError("");
+    try {
+      await api(`/crm/quotes/${quote.id}/convert-sale`, { method: "POST" });
+      await refresh(opportunity.id);
+      showToast("Kabul edilen teklif satış kaydına dönüştürüldü.", "success");
+    } catch (e) {
+      const message = e instanceof ApiError ? e.message : "Teklif satışa dönüştürülemedi.";
+      setQuoteError(message);
+      showToast(message, "error");
+    }
+  }
+
+  function openFollowUp() {
+    if (!opportunity || !canManage || !branchReady("Takip oluşturmak için aktif bir şube seçin.")) return;
+    setFollowUpForm({ assignedUserId: opportunity.ownerUserId ?? assignees[0]?.id ?? "", channel: "CALL", dueAt: nextHour(), note: "" }); setFollowUpError(""); setFollowUpOpen(true);
+  }
+
+  async function createFollowUp(event: FormEvent) {
+    event.preventDefault(); if (!opportunity) return;
+    if (!followUpForm.assignedUserId) return setFollowUpError("Takip sorumlusu seçilmelidir.");
+    if (!followUpForm.dueAt) return setFollowUpError("Takip tarihi seçilmelidir.");
+    setFollowUpSaving(true); setFollowUpError("");
+    try {
+      await api("/crm/follow-ups", { method: "POST", body: { opportunityId: opportunity.id, assignedUserId: followUpForm.assignedUserId, channel: followUpForm.channel, dueAt: new Date(followUpForm.dueAt).toISOString(), ...(followUpForm.note.trim() ? { note: followUpForm.note.trim() } : {}) } });
+      await refresh(opportunity.id); setFollowUpOpen(false); showToast("Satış fırsatı için takip oluşturuldu.", "success");
+    } catch (e) { setFollowUpError(e instanceof ApiError ? e.message : "Takip oluşturulamadı."); } finally { setFollowUpSaving(false); }
+  }
+
+  function openAction(followUp: CrmFollowUp, action: FollowUpAction) {
+    if (!canManage || followUp.status !== "OPEN" || !branchReady("Takibi güncellemek için aktif bir şube seçin.")) return;
+    setSelectedFollowUp(followUp); setFollowUpAction(action); setActionError(""); setOutcome(""); setRescheduledAt(localInput(followUp.dueAt)); setCancelReason("");
+  }
+
+  async function submitAction(event: FormEvent) {
+    event.preventDefault(); if (!opportunity || !selectedFollowUp || !followUpAction) return;
+    const endpoint = followUpAction; const body: Record<string, unknown> = { version: selectedFollowUp.version };
+    if (followUpAction === "complete") { if (!outcome.trim()) return setActionError("Takip sonucu gereklidir."); body.outcome = outcome.trim(); }
+    if (followUpAction === "reschedule") { if (!rescheduledAt) return setActionError("Yeni takip tarihi gereklidir."); body.dueAt = new Date(rescheduledAt).toISOString(); }
+    if (followUpAction === "cancel") { if (!cancelReason.trim()) return setActionError("İptal nedeni gereklidir."); body.reason = cancelReason.trim(); }
+    setActionSaving(true); setActionError("");
+    try {
+      await api(`/crm/follow-ups/${selectedFollowUp.id}/${endpoint}`, { method: "POST", body });
+      await refresh(opportunity.id); setSelectedFollowUp(null); setFollowUpAction(null); showToast(followUpAction === "complete" ? "Takip tamamlandı." : followUpAction === "reschedule" ? "Takip yeniden planlandı." : "Takip iptal edildi.", "success");
+    } catch (e) { setActionError(e instanceof ApiError ? e.message : "Takip güncellenemedi."); } finally { setActionSaving(false); }
+  }
+
+  if (loading) return <div className="mx-auto max-w-6xl"><PageHeader title="Satış Fırsatı" /><div className="mt-10"><Spinner label="Satış fırsatı hazırlanıyor..." /></div></div>;
+  if (error || !opportunity) return <div className="mx-auto max-w-6xl space-y-6"><PageHeader title="Satış Fırsatı" /><Alert>{error || "Satış fırsatı bulunamadı."}</Alert><Link href="/crm/pipeline"><Button variant="secondary">Satış sürecine dön</Button></Link></div>;
+
+  return <div className="mx-auto max-w-6xl space-y-6">
+    <PageHeader title={opportunity.title} description="Satış fırsatının müşteri bağlantısını, ticari durumunu, takiplerini ve CRM geçmişini tek ekranda yönetin." action={<div className="flex flex-wrap gap-2"><TeamShareAction payload={{ kind: "OPPORTUNITY", id: opportunity.id, title: opportunity.title, subtitle: opportunityStageLabels[opportunity.stage], meta: [money(opportunity.estimatedValue, opportunity.currency), `Kazanma olasılığı: %${opportunity.probability}`, opportunity.expectedCloseDate ? `Beklenen kapanış: ${dateOnly(opportunity.expectedCloseDate)}` : ""].filter(Boolean), href: `/crm/opportunities/${opportunity.id}` }} />{canManage && nextStages[opportunity.stage].length ? <Button variant="secondary" onClick={openTransition}>Fırsatı Güncelle</Button> : null}{canManage ? <Link href={`/crm/interactions?new=1&opportunityId=${opportunity.id}&label=${encodeURIComponent(opportunity.title)}`}><Button variant="secondary">+ Görüşme Kaydet</Button></Link> : null}{canManage ? <Button variant="secondary" onClick={openQuote}>+ Teklif Oluştur</Button> : null}{canManage ? <Button variant="secondary" onClick={openFollowUp}>+ Takip Oluştur</Button> : null}{subject ? <Link href={subject.href}><Button variant="secondary">{subject.label}</Button></Link> : null}<Link href="/crm/pipeline"><Button>Satış Sürecine Dön</Button></Link></div>} />
+
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <Metric label="Aşama" value={opportunityStageLabels[opportunity.stage]} /><Metric label="Tahmini Değer" value={money(opportunity.estimatedValue, opportunity.currency)} /><Metric label="Kazanma Olasılığı" value={`%${opportunity.probability}`} /><Metric label="Beklenen Kapanış" value={opportunity.expectedCloseDate ? dateOnly(opportunity.expectedCloseDate) : "—"} />
+    </section>
+
+    <section className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(300px,.6fr)]">
+      <GlassCard><div className="flex items-start justify-between gap-4"><div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Ticari Bağlantı</p><h2 className="mt-1 text-[18px] font-semibold">Fırsat Özeti</h2></div><div className="flex items-center gap-2"><CardInfo help={getCardHelp("Fırsat Özeti", "Satış fırsatının ticari bağlantı ve zaman bilgilerini özetler.")} /><span className="rounded-full bg-[var(--accent-soft)] px-3 py-1 text-[10px] font-semibold text-[var(--accent)]">v{opportunity.version}</span></div></div><div className="mt-5 grid gap-4 sm:grid-cols-2"><Detail label="Kayıt Türü" value={subject?.kind || "Bağlantısız"} /><Detail label="Kayıt" value={subject?.label || "—"} /><Detail label="Oluşturulma" value={dateTime(opportunity.createdAt)} /><Detail label="Son Güncelleme" value={dateTime(opportunity.updatedAt)} />{opportunity.lostReason ? <div className="sm:col-span-2"><Detail label="Kaybetme Nedeni" value={opportunity.lostReason} /></div> : null}</div></GlassCard>
+      <GlassCard><div className="flex items-start justify-between gap-3"><div><p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--accent)]">Satış Dönüşümü</p><h2 className="mt-1 text-[18px] font-semibold">Satış Bağlantısı</h2></div><CardInfo help={getCardHelp("Satış Bağlantısı", "Fırsatın satış kaydına dönüşüp dönüşmediğini ve dönüşüm bilgisini gösterir.")} /></div>{opportunity.saleId ? (() => {
+        const saleTotal = Number(opportunity.saleTotal ?? 0);
+        const paidTotal = Number(opportunity.paidTotal ?? 0);
+        const balance = Math.max(0, Math.round((saleTotal - paidTotal + Number.EPSILON) * 100) / 100);
+        const paymentStatus = paidTotal <= 0 ? "Tahsilat bekliyor" : balance > 0 ? "Kısmi tahsilat" : "Tamamı tahsil edildi";
+        return <div className="mt-5 space-y-3">
+          <Detail label="Satış durumu" value={opportunity.saleStatus === "CONFIRMED" ? "Onaylandı" : opportunity.saleStatus === "CANCELLED" ? "İptal edildi" : opportunity.saleStatus === "DRAFT" ? "Taslak" : opportunity.saleStatus || "—"} />
+          <Detail label="Satış toplamı" value={money(saleTotal, opportunity.currency)} />
+          <Detail label="Tahsil edilen" value={money(paidTotal, opportunity.currency)} />
+          <Detail label="Kalan bakiye" value={money(balance, opportunity.currency)} />
+          <Detail label="Tahsilat durumu" value={paymentStatus} />
+          <Detail label="Dönüşüm tarihi" value={opportunity.convertedAt ? dateTime(opportunity.convertedAt) : "—"} />
+          <Link href="/sales" className="inline-flex text-[10px] font-semibold text-[var(--accent)]">Satış kaydını aç →</Link>
+        </div>;
+      })() : <p className="mt-5 text-[12px] leading-5 text-[var(--muted)]">Bu fırsat henüz satış taslağına dönüştürülmemiş.</p>}</GlassCard>
+    </section>
+
+    <GlassCard className="p-0">
+      <div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4">
+        <div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Teklifler</h2><CardInfo help={getCardHelp("Teklifler", "Bu satış fırsatı için oluşturulan ticari teklifleri ve güncel durumlarını gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Fiyat, indirim ve geçerlilik takibi</p></div>
+        {canManage ? <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openQuote}>+ Yeni Teklif</Button> : null}
+      </div>
+      {quotes.length ? <div className="divide-y divide-[var(--line)]">{quotes.map((quote) => <div key={quote.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[150px_120px_1fr_130px] sm:items-center">
+        <div><p className="text-[11px] font-semibold">{quote.quoteNumber}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{dateOnly(quote.createdAt)}</p></div>
+        <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{quoteStatusLabels[quote.status]}</span>
+        <div className="text-[10px] text-[var(--muted)]">Ara toplam: {money(quote.subtotal, quote.currency)} · İndirim: {money(quote.discountTotal, quote.currency)}{quote.validUntil ? ` · Son geçerlilik: ${dateOnly(quote.validUntil)}` : ""}</div>
+        <div className="flex flex-col items-start gap-2 sm:items-end">
+          <strong className="text-[12px]">{money(quote.total, quote.currency)}</strong>
+          {canManage ? <div className="flex flex-wrap gap-1.5 sm:justify-end">
+            {["DRAFT","SENT","VIEWED"].includes(quote.status) ? <>
+              <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" disabled={Boolean(quoteActionId)} onClick={() => void sendQuote(quote, "WHATSAPP")}>{quoteActionId === `${quote.id}:WHATSAPP` ? "Gönderiliyor..." : "WhatsApp"}</Button>
+              <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" disabled={Boolean(quoteActionId)} onClick={() => void sendQuote(quote, "SMS")}>{quoteActionId === `${quote.id}:SMS` ? "Gönderiliyor..." : "SMS"}</Button>
+              <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" disabled={Boolean(quoteActionId)} onClick={() => void sendQuote(quote, "EMAIL")}>{quoteActionId === `${quote.id}:EMAIL` ? "Gönderiliyor..." : "E-posta"}</Button>
+            </> : null}
+            {quote.status === "DRAFT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "SENT")}>Gönderildi Olarak İşaretle</Button> : null}
+            {quote.status === "SENT" ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "VIEWED")}>Görüntülendi</Button> : null}
+            {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "ACCEPTED")}>Kabul Edildi</Button> : null}
+            {["SENT","VIEWED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "REJECTED")}>Reddedildi</Button> : null}
+            {quote.status === "ACCEPTED" && !quote.saleId && !opportunity.saleId ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void convertQuoteToSale(quote)}>Satışa Dönüştür</Button> : null}
+            {quote.saleId ? <Link href="/sales"><Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]">Satışı Aç</Button></Link> : null}
+            {!["ACCEPTED","REJECTED","CANCELLED","EXPIRED"].includes(quote.status) ? <Button variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => void updateQuoteStatus(quote, "CANCELLED")}>İptal Et</Button> : null}
+          </div> : null}
+        </div>
+      </div>)}</div> : <EmptyState title="Teklif Bulunmuyor" description="Bu satış fırsatı için henüz teklif oluşturulmamış." action={canManage ? <Button onClick={openQuote}>İlk Teklifi Oluştur</Button> : undefined} />}
+    </GlassCard>
+
+    <section className="grid gap-5 xl:grid-cols-2">
+      <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Görüşmeler</h2><CardInfo help={getCardHelp("Görüşmeler", "Bu satış fırsatına bağlı müşteri temaslarını gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Satış sürecindeki görüşme geçmişi</p></div><Link href={`/crm/interactions?opportunityId=${opportunity.id}`} className="text-[10px] font-semibold text-[#1674BD]">Tüm Görüşmeler →</Link></div>{opportunity.interactions?.length ? <div className="divide-y divide-[var(--line)]">{opportunity.interactions.slice(0,6).map((row) => <div key={row.id} className="grid gap-2 px-5 py-4 sm:grid-cols-[120px_1fr_150px] sm:items-center"><div><p className="text-[11px] font-semibold">{interactionTypeLabels[row.type]}</p><p className="mt-1 text-[9px] text-[var(--muted)]">{row.direction === "INBOUND" ? "Gelen" : "Giden"}</p></div><div className="min-w-0"><p className="truncate text-[11px]">{row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>{row.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">Sonraki: {row.nextAction}</p> : null}</div><time className="text-[10px] text-[var(--muted)] sm:text-right">{dateTime(row.startedAt)}</time></div>)}</div> : <EmptyState title="Görüşme Bulunmuyor" description="Bu satış fırsatına bağlı görüşme kaydı henüz yok." action={canManage ? <Link href={`/crm/interactions?new=1&opportunityId=${opportunity.id}&label=${encodeURIComponent(opportunity.title)}`}><Button>İlk Görüşmeyi Kaydet</Button></Link> : undefined} />}</GlassCard>
+
+    <GlassCard className="p-0"><div className="flex items-center justify-between border-b border-[var(--line)] px-5 py-4"><div className="min-w-0 flex-1"><div className="flex items-start justify-between gap-3"><h2 className="text-[15px] font-semibold">Takipler</h2><CardInfo help={getCardHelp("Takipler", "Bu fırsata bağlı müşteri temaslarını ve takip görevlerini gösterir.")} /></div><p className="mt-1 text-[10px] text-[var(--muted)]">Bu fırsata bağlı müşteri temasları</p></div>{canManage ? <Button variant="ghost" className="min-h-8 px-3 py-1 text-[10px]" onClick={openFollowUp}>+ Yeni Takip</Button> : null}</div>{opportunity.followUps.length ? <div className="divide-y divide-[var(--line)]">{opportunity.followUps.map((f) => <div key={f.id} className="px-5 py-4"><div className="flex justify-between gap-3"><p className="text-[12px] font-semibold">{followUpChannelLabels[f.channel]}</p><span className="text-[10px] text-[var(--muted)]">{followUpStatusLabels[f.status]}</span></div><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(f.dueAt)}</p>{f.note ? <p className="mt-2 text-[11px]">{f.note}</p> : null}{f.outcome ? <p className="mt-2 text-[10px] text-[var(--muted)]">Sonuç: {f.outcome}</p> : null}{f.cancellationReason ? <p className="mt-2 text-[10px] text-[var(--muted)]">İptal nedeni: {f.cancellationReason}</p> : null}{canManage && f.status === "OPEN" ? <div className="mt-3 flex flex-wrap gap-2"><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "complete")}>Tamamla</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "reschedule")}>Ertele</Button><Button variant="ghost" className="min-h-7 px-2 py-1 text-[10px]" onClick={() => openAction(f, "cancel")}>İptal Et</Button></div> : null}</div>)}</div> : <EmptyState title="Takip Bulunmuyor" description="Bu fırsata bağlı takip kaydı henüz yok." action={canManage ? <Button onClick={openFollowUp}>İlk Takibi Oluştur</Button> : undefined} />}</GlassCard>
+      <GlassCard className="p-0"><div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4"><div><h2 className="text-[15px] font-semibold">CRM zaman çizelgesi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Fırsata ilişkin önemli satış ve müşteri hareketleri</p></div><CardInfo help={getCardHelp("CRM zaman çizelgesi", "Satış fırsatındaki aşama değişiklikleri, görüşmeler, takipler, teklifler, satış ve ödeme hareketlerini kronolojik olarak gösterir.")} /></div>{opportunity.events.length ? <div className="divide-y divide-[var(--line)]">{opportunity.events.map((e) => { const summary = eventSummary(e.metadata); return <div key={e.id} className="px-5 py-4"><p className="text-[12px] font-semibold">{eventLabel(e.eventType)}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{dateTime(e.createdAt)}</p>{summary ? <p className="mt-2 text-[10px] text-[var(--muted)]">{summary}</p> : null}</div>; })}</div> : <EmptyState title="CRM hareketi bulunmuyor" description="Bu fırsat için henüz olay geçmişi oluşmamış." />}</GlassCard>
+    </section>
+
+    <Modal open={quoteOpen} onClose={() => !quoteSaving && setQuoteOpen(false)} title="Yeni Teklif Oluştur" description="Satış fırsatı için hizmet, paket, fiyat, indirim ve geçerlilik bilgilerini belirleyin.">
+      <form onSubmit={createQuote} className="space-y-4">
+        {quoteError ? <Alert>{quoteError}</Alert> : null}
+        <div className="space-y-3">
+          {quoteItems.map((item, index) => (
+            <div key={index} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)]/30 p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="text-[11px] font-semibold">Teklif Kalemi {index + 1}</p>
+                {quoteItems.length > 1 ? <Button type="button" variant="ghost" className="min-h-7 px-2 py-1 text-[9px]" onClick={() => removeQuoteItem(index)}>Kalemi Kaldır</Button> : null}
+              </div>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Kalem türü" required>
+                  <Select value={item.itemType} onChange={(e) => updateQuoteItem(index, { itemType: e.target.value as QuoteItemForm["itemType"], referenceId: "", description: "", unitPrice: "" })}>
+                    <option value="SERVICE">Hizmet</option>
+                    <option value="PACKAGE">Paket</option>
+                    <option value="CUSTOM">Özel kalem</option>
+                  </Select>
+                </Field>
+                {item.itemType === "SERVICE" ? <Field label="Hizmet" required>
+                  <Select value={item.referenceId} onChange={(e) => selectQuoteReference(index, e.target.value)}>
+                    <option value="">Hizmet seçin</option>
+                    {serviceOptions.map((service) => <option key={service.id} value={service.id}>{service.name} · {money(service.price, service.currency)}</option>)}
+                  </Select>
+                </Field> : item.itemType === "PACKAGE" ? <Field label="Paket" required>
+                  <Select value={item.referenceId} onChange={(e) => selectQuoteReference(index, e.target.value)}>
+                    <option value="">Paket seçin</option>
+                    {packageOptions.map((pack) => <option key={pack.id} value={pack.id}>{pack.name} · {money(pack.price, opportunity.currency)}</option>)}
+                  </Select>
+                </Field> : <Field label="Özel kalem açıklaması" required>
+                  <TextInput value={item.description} onChange={(e) => updateQuoteItem(index, { description: e.target.value })} placeholder="Örn. Kuruma özel hizmet paketi" />
+                </Field>}
+                <Field label="Miktar" required><TextInput type="number" min="1" step="1" value={item.quantity} onChange={(e) => updateQuoteItem(index, { quantity: e.target.value })} /></Field>
+                <Field label={`Birim fiyat (${opportunity.currency})`} required><TextInput type="number" min="0" step="0.01" value={item.unitPrice} onChange={(e) => updateQuoteItem(index, { unitPrice: e.target.value })} /></Field>
+              </div>
+              {item.itemType !== "CUSTOM" && item.description ? <p className="mt-3 text-[10px] text-[var(--muted)]">Seçilen kalem: {item.description}</p> : null}
+            </div>
+          ))}
+          <Button type="button" variant="secondary" className="w-full" onClick={addQuoteItem}>+ Teklif Kalemi Ekle</Button>
+        </div>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label={`Toplam indirim (${opportunity.currency})`}><TextInput type="number" min="0" step="0.01" value={quoteForm.discountTotal} onChange={(e) => setQuoteForm({ ...quoteForm, discountTotal: e.target.value })} /></Field>
+          <Field label="Teklif geçerlilik tarihi"><TextInput type="date" value={quoteForm.validUntil} onChange={(e) => setQuoteForm({ ...quoteForm, validUntil: e.target.value })} /></Field>
+        </div>
+        <Field label="Teklif notu"><TextArea rows={4} value={quoteForm.notes} onChange={(e) => setQuoteForm({ ...quoteForm, notes: e.target.value })} placeholder="Ödeme koşulları, açıklama veya müşteriye özel not…" /></Field>
+        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-4 py-3">
+          <p className="text-[10px] text-[var(--muted)]">Hizmet veya paket kataloglarına bağlı kabul edilmiş teklifler satışa doğrudan dönüştürülebilir. Özel kalemler satış öncesinde hizmet veya paketle eşleştirilmelidir.</p>
+        </div>
+        <div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setQuoteOpen(false)} disabled={quoteSaving}>Vazgeç</Button><Button type="submit" disabled={quoteSaving}>{quoteSaving ? "Oluşturuluyor..." : "Teklifi Oluştur"}</Button></div>
+      </form>
+    </Modal>
+
+    <Modal open={transitionOpen} onClose={() => !transitionSaving && setTransitionOpen(false)} title="Satış Fırsatını Güncelle"><form onSubmit={transition} className="space-y-4">{transitionError ? <Alert>{transitionError}</Alert> : null}<Field label="Yeni Aşama" required><Select value={targetStage} onChange={(e) => { const stage = e.target.value as OpportunityStage; setTargetStage(stage); setProbability(stage === "WON" ? "100" : stage === "LOST" ? "0" : String(opportunity.probability)); }}>{nextStages[opportunity.stage].map((stage) => <option key={stage} value={stage}>{opportunityStageLabels[stage]}</option>)}</Select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Kazanma Olasılığı (%)"><TextInput type="number" min="0" max="100" value={probability} disabled={["WON", "LOST"].includes(targetStage)} onChange={(e) => setProbability(e.target.value)} /></Field><Field label={`Tahmini Değer (${opportunity.currency})`}><TextInput type="number" min="0" step="0.01" value={estimatedValue} onChange={(e) => setEstimatedValue(e.target.value)} /></Field></div><Field label="Beklenen Kapanış Tarihi"><TextInput type="date" value={expectedCloseDate} onChange={(e) => setExpectedCloseDate(e.target.value)} /></Field>{targetStage === "LOST" ? <Field label="Kaybetme Nedeni" required><TextArea rows={4} maxLength={1000} value={lostReason} onChange={(e) => setLostReason(e.target.value)} /></Field> : null}<div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setTransitionOpen(false)} disabled={transitionSaving}>Vazgeç</Button><Button type="submit" disabled={transitionSaving}>{transitionSaving ? "Güncelleniyor..." : "Fırsatı Güncelle"}</Button></div></form></Modal>
+
+    <Modal open={followUpOpen} onClose={() => !followUpSaving && setFollowUpOpen(false)} title="Satış Fırsatı Takibi Oluştur"><form onSubmit={createFollowUp} className="space-y-4">{followUpError ? <Alert>{followUpError}</Alert> : null}<Field label="Sorumlu" required><Select value={followUpForm.assignedUserId} onChange={(e) => setFollowUpForm((x) => ({ ...x, assignedUserId: e.target.value }))}><option value="">Sorumlu Seçin</option>{assignees.map((a) => <option key={a.id} value={a.id}>{a.firstName} {a.lastName} · {a.email}</option>)}</Select></Field><div className="grid gap-4 sm:grid-cols-2"><Field label="Kanal"><Select value={followUpForm.channel} onChange={(e) => setFollowUpForm((x) => ({ ...x, channel: e.target.value as CrmFollowUp["channel"] }))}>{Object.entries(followUpChannelLabels).map(([v, l]) => <option key={v} value={v}>{l}</option>)}</Select></Field><Field label="Takip Tarihi"><TextInput type="datetime-local" value={followUpForm.dueAt} onChange={(e) => setFollowUpForm((x) => ({ ...x, dueAt: e.target.value }))} /></Field></div><Field label="Not"><TextArea rows={4} maxLength={2000} value={followUpForm.note} onChange={(e) => setFollowUpForm((x) => ({ ...x, note: e.target.value }))} /></Field><div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => setFollowUpOpen(false)} disabled={followUpSaving}>Vazgeç</Button><Button type="submit" disabled={followUpSaving}>{followUpSaving ? "Oluşturuluyor..." : "Takibi Oluştur"}</Button></div></form></Modal>
+
+    <Modal open={Boolean(selectedFollowUp && followUpAction)} onClose={() => !actionSaving && (setSelectedFollowUp(null), setFollowUpAction(null))} title={followUpAction === "complete" ? "Takibi Tamamla" : followUpAction === "reschedule" ? "Takibi Ertele" : "Takibi İptal Et"}><form onSubmit={submitAction} className="space-y-4">{actionError ? <Alert>{actionError}</Alert> : null}{followUpAction === "complete" ? <Field label="Takip Sonucu" required><TextArea rows={4} maxLength={2000} value={outcome} onChange={(e) => setOutcome(e.target.value)} /></Field> : null}{followUpAction === "reschedule" ? <Field label="Yeni Takip Tarihi" required><TextInput type="datetime-local" value={rescheduledAt} onChange={(e) => setRescheduledAt(e.target.value)} /></Field> : null}{followUpAction === "cancel" ? <Field label="İptal Nedeni" required><TextArea rows={4} maxLength={1000} value={cancelReason} onChange={(e) => setCancelReason(e.target.value)} /></Field> : null}<Alert tone="success">İşlem sırasında kaydın güncel sürümü kontrol edilir. Başka bir kullanıcı değişiklik yaptıysa çakışan güncelleme uygulanmaz.</Alert><div className="flex justify-end gap-3"><Button type="button" variant="secondary" onClick={() => { setSelectedFollowUp(null); setFollowUpAction(null); }} disabled={actionSaving}>Vazgeç</Button><Button type="submit" disabled={actionSaving}>{actionSaving ? "Kaydediliyor..." : followUpAction === "complete" ? "Takibi Tamamla" : followUpAction === "reschedule" ? "Takibi Ertele" : "Takibi İptal Et"}</Button></div></form></Modal>
+  </div>;
+}
+
+function Metric({ label, value }: { label: string; value: string }) { return <GlassCard><div className="flex items-start justify-between gap-3"><p className="text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><CardInfo help={getCardHelp(label)} /></div><strong className="mt-3 block text-[18px] font-semibold">{value}</strong></GlassCard>; }
+function Detail({ label, value }: { label: string; value: string }) { return <div><p className="text-[10px] uppercase tracking-[.08em] text-[var(--muted-soft)]">{label}</p><p className="mt-1.5 break-words text-[12px] leading-5">{value}</p></div>; }

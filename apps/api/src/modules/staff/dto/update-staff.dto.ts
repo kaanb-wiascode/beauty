@@ -17,8 +17,6 @@ const staffProfileSchema = z.object({
   employmentType: z.string().trim().max(50).optional(),
   hireDate: z.string().trim().max(30).optional(),
   contractType: z.string().trim().max(50).optional(),
-  salaryType: z.string().trim().max(50).optional(),
-  salary: z.number().nonnegative().optional(),
   iban: z.string().trim().max(50).optional(),
   bankName: z.string().trim().max(100).optional(),
   emergencyName: z.string().trim().max(150).optional(),
@@ -36,6 +34,6 @@ export const updateStaffSchema = z
     email: z.string().trim().email().max(255).optional(),
     profile: staffProfileSchema.optional(),
   })
-  .refine((data) => Object.keys(data).length > 0, { message: 'At least one field must be provided' });
+  .refine((data) => Object.keys(data).length > 0, { message: 'En az bir alan gönderilmelidir.' });
 
 export type UpdateStaffInput = z.infer<typeof updateStaffSchema>;

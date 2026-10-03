@@ -9,13 +9,7 @@ export const updateAppointmentSchema = z
     endAt: z.coerce.date().optional(),
     notes: z.string().trim().max(2000).optional(),
     status: z
-      .enum([
-        'SCHEDULED',
-        'CONFIRMED',
-        'COMPLETED',
-        'CANCELLED',
-        'NO_SHOW',
-      ])
+      .enum(['SCHEDULED', 'CONFIRMED', 'COMPLETED', 'CANCELLED', 'NO_SHOW'])
       .optional(),
   })
   .refine((data) => Object.keys(data).length > 0, {

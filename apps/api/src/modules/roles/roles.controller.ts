@@ -8,22 +8,37 @@ import {
   Post,
   UseGuards,
 } from '@nestjs/common';
+import { z } from 'zod';
 
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import { TenantAuthGuard } from '../../common/tenant/tenant-auth.guard';
 import { PermissionsGuard } from '../../common/auth/permissions.guard';
 import { RequirePermission } from '../../common/auth/permissions.decorator';
 
+import { RoleCloneService } from './role-clone.service';
+import { RoleTemplateService } from './role-template.service';
 import { RolesService } from './roles.service';
 import { createRoleSchema } from './dto/create-role.dto';
 import { updateRoleSchema } from './dto/update-role.dto';
 import { updateRolePermissionsSchema } from './dto/update-role-permissions.dto';
+
+const cloneRoleSchema = z.object({
+  name: z.string().trim().min(2).max(80),
+  description: z.string().trim().max(255).optional(),
+});
+
+const instantiateTemplateSchema = z.object({
+  name: z.string().trim().min(2).max(80).optional(),
+  description: z.string().trim().max(255).optional(),
+});
 
 @Controller('roles')
 @UseGuards(JwtAuthGuard, TenantAuthGuard)
 export class RolesController {
   constructor(
     private readonly rolesService: RolesService,
+    private readonly roleCloneService: RoleCloneService,
+    private readonly roleTemplateService: RoleTemplateService,
   ) {}
 
   @Post()
@@ -31,8 +46,37 @@ export class RolesController {
   @RequirePermission('roles', 'update')
   async create(@Body() body: unknown) {
     const input = createRoleSchema.parse(body);
-
     return this.rolesService.create(input);
+  }
+
+  @Get('templates')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('roles', 'read')
+  templates() {
+    return this.roleTemplateService.list();
+  }
+
+  @Post('templates/:key/instantiate')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  instantiateTemplate(
+    @Param('key') key: string,
+    @Body() body: unknown,
+  ) {
+    return this.roleTemplateService.instantiate(
+      key,
+      instantiateTemplateSchema.parse(body),
+    );
+  }
+
+  @Post(':id/clone')
+  @UseGuards(PermissionsGuard)
+  @RequirePermission('roles', 'update')
+  async clone(
+    @Param('id') id: string,
+    @Body() body: unknown,
+  ) {
+    return this.roleCloneService.clone(id, cloneRoleSchema.parse(body));
   }
 
   @Get()
@@ -64,7 +108,6 @@ export class RolesController {
     @Body() body: unknown,
   ) {
     const input = updateRoleSchema.parse(body);
-
     return this.rolesService.update(id, input);
   }
 
@@ -82,12 +125,7 @@ export class RolesController {
     @Param('id') id: string,
     @Body() body: unknown,
   ) {
-    const input =
-      updateRolePermissionsSchema.parse(body);
-
-    return this.rolesService.updatePermissions(
-      id,
-      input,
-    );
+    const input = updateRolePermissionsSchema.parse(body);
+    return this.rolesService.updatePermissions(id, input);
   }
 }

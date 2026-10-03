@@ -1,0 +1,841 @@
+const USER_LABELS: Record<string, string> = {
+  ACTIVE: "Aktif",
+  INACTIVE: "Pasif",
+  ARCHIVED: "Arşivlendi",
+  PENDING: "Bekliyor",
+  APPROVED: "Onaylandı",
+  REJECTED: "Reddedildi",
+  PAID: "Ödendi",
+  REFUNDED: "İade Edildi",
+  PRESENT: "Geldi",
+  ABSENT: "Gelmedi",
+  DRAFT: "Taslak",
+  PUBLISHED: "Yayında",
+  UNPUBLISHED: "Yayında Değil",
+  RETIRED: "Kullanımdan Kaldırıldı",
+  CLOSED: "Kapandı",
+  AWARDED: "Kazanan Seçildi",
+  CANCELLED: "İptal Edildi",
+  SUBMITTED: "Gönderildi",
+  ACCEPTED: "Kabul Edildi",
+  DECLINED: "Reddedildi",
+  WITHDRAWN: "Geri Çekildi",
+  CONNECTED: "Bağlı",
+  CONNECTING: "Bağlanıyor",
+  DISCONNECTED: "Bağlantı Kesildi",
+  DEGRADED: "Kısmi Sorun",
+  ERROR: "Hata",
+  HEALTHY: "Sorunsuz",
+  ATTENTION: "Kontrol Gerekli",
+  WARNING: "Uyarı",
+  CRITICAL: "Kritik",
+  SUCCESS: "Başarılı",
+  FAILED: "Başarısız",
+  PROCESSING: "İşleniyor",
+  PROCESSED: "İşlendi",
+  RUNNING: "Devam Ediyor",
+  COMPLETED: "Tamamlandı",
+  RETRY_PENDING: "Yeniden Denenecek",
+  ENRICHMENT_PENDING: "Bilgi Tamamlanıyor",
+  DEAD_LETTER: "Manuel İnceleme Gerekiyor",
+  MATCHED: "Eşleştirildi",
+  UNMATCHED: "Eşleştirilmedi",
+  CONFIGURED: "Ayarlanmış",
+  MISSING: "Eksik",
+  READY: "Hazır",
+  PARTIAL: "Kısmen Hazır",
+  STALE: "Güncel Değil",
+  OPEN: "Açık",
+  ACKNOWLEDGED: "İnceleniyor",
+  INVESTIGATING: "İnceleniyor",
+  ACTION_REQUIRED: "İşlem Gerekli",
+  RESOLVED: "Çözüldü",
+  IMPROVED: "İyileşti",
+  STABLE: "Değişmedi",
+  WORSE: "Kötüleşti",
+  INSUFFICIENT_BASELINE: "Başlangıç Verisi Yetersiz",
+  NORMAL: "Normal",
+  HIGH: "Yüksek",
+  MEDIUM: "Orta",
+  LOW: "Düşük",
+  ASSIGNED: "Atandı",
+  IN_PROGRESS: "Devam Ediyor",
+  EXPIRED: "Süresi Doldu",
+  RESTRICTED: "Kısıtlı",
+  EXECUTED: "Uygulandı",
+  SYSTEM: "Sistem",
+  OVERRIDE: "Özel Ayar",
+  PLAN: "Plan",
+  DEFAULT: "Varsayılan",
+  TRIAL: "Deneme",
+  PAST_DUE: "Ödeme Gecikmiş",
+  SCHEDULED: "Planlandı",
+  RECEIVED: "Teslim Alındı",
+  ORDERED: "Sipariş Verildi",
+  CLAIMED: "İşleme Alındı",
+  SENT: "Gönderildi",
+  DEAD: "Gönderilemedi",
+  UNVERIFIED: "Doğrulanmadı",
+  SUSPENDED: "Askıda",
+  REVOKED: "İptal Edildi",
+  BANK: "Banka",
+  CASH: "Nakit",
+  CARD: "Kart",
+  TRANSFER: "Havale / EFT",
+  ANNUAL: "Yıllık İzin",
+  SICK: "Hastalık İzni",
+  EXCUSE: "Mazeret İzni",
+  UNPAID: "Ücretsiz İzin",
+  OTHER: "Diğer",
+  OWNER: "Yetkili",
+  ADMIN: "Yönetici",
+  MANAGER: "Müdür",
+  STAFF: "Personel",
+  VERIFIED: "Doğrulandı",
+  MANUFACTURER: "Üretici",
+  DISTRIBUTOR: "Distribütör",
+  IMPORTER: "İthalatçı",
+  WHOLESALER: "Toptancı",
+  RETAILER: "Perakendeci",
+  SERVICE_PROVIDER: "Hizmet Sağlayıcı",
+  IDEA: "Fikir",
+  BRIEF: "İçerik Özeti",
+  PRODUCTION: "Üretimde",
+  REVIEW: "İncelemede",
+  CONTRACTED: "Sözleşmeli",
+  APPOINTMENT: "Randevu Oluşturuldu",
+  NEW: "Yeni",
+  CONTACTED: "İletişime Geçildi",
+  QUALIFIED: "Uygun",
+  WON: "Kazanıldı",
+  LOST: "Kaybedildi",
+  MANUAL: "Elle Eklendi",
+  QUALITY_RULE: "Kalite Kuralı",
+  COMPETENCY_GAP: "Yetkinlik Açığı",
+  DEVELOPMENT_PLAN: "Gelişim Planı",
+  PERSONNEL: "Personel",
+  BRANCH: "Şube",
+  POSITION: "Pozisyon",
+  CENTRAL: "Merkez",
+  COMPANY: "Şirket",
+  PLATFORM_OWNER: "Platform Sahibi",
+  PLATFORM_ADMIN: "Platform Yöneticisi",
+  TENANT: "İşletme",
+  SUPER_ADMIN: "Süper Yönetici",
+  ONLINE: "Çevrim İçi",
+  CLASSROOM: "Sınıf Eğitimi",
+  BLENDED: "Karma Eğitim",
+  SELF_PACED: "Bireysel Eğitim",
+  IN_PERSON: "Yüz Yüze",
+  SINGLE_CHOICE: "Tek Seçimli",
+  MULTIPLE_CHOICE: "Çok Seçimli",
+  TRUE_FALSE: "Doğru / Yanlış",
+  INSTAGRAM: "Instagram",
+  FACEBOOK: "Facebook",
+  TIKTOK: "TikTok",
+  YOUTUBE: "YouTube",
+  LINKEDIN: "LinkedIn",
+  WEBSITE: "Web Sitesi",
+  EMAIL: "E-Posta",
+  SMS: "SMS",
+  WHATSAPP: "WhatsApp",
+  GOOGLE_ADS: "Google Reklamları",
+  META: "Meta Reklamları",
+  MULTI_CHANNEL: "Çoklu Kanal",
+  LEAD_GENERATION: "Potansiyel Müşteri Kazanımı",
+  AWARENESS: "Bilinirlik",
+  SALES: "Satış",
+  RETENTION: "Müşteri Sadakati",
+  REACTIVATION: "Yeniden Kazanım",
+  POST: "Gönderi",
+  REEL: "Kısa Video (Reel)",
+  STORY: "Hikâye",
+  VIDEO: "Video",
+  ARTICLE: "Makale",
+  BANNER: "Banner",
+  LOGO: "Logo",
+  COLOR_PALETTE: "Renk Paleti",
+  FONT: "Yazı Tipi",
+  GUIDELINE: "Kullanım Kılavuzu",
+  TEMPLATE: "Şablon",
+  PHOTO: "Fotoğraf",
+  EXPORT: "Veri Dışa Aktarım İncelemesi",
+  ANONYMIZATION: "Anonimleştirme İncelemesi",
+  DELETION_REVIEW: "Silme Uygunluk İncelemesi",
+  IN_REVIEW: "İncelemede",
+  security_mfa: "İki Aşamalı Doğrulama",
+  security_sessions: "Oturum Güvenliği",
+  CONFIRMED: "Onaylandı",
+  RESCHEDULE_REQUESTED: "Tarih Değişikliği İstiyor",
+  CANCEL_REQUESTED: "İptal İstiyor",
+  INFO: "Bilgi",
+  NO_SHOW: "Gelmedi",
+  PENDING_APPROVAL: "Onay Bekliyor",
+  PENDING_REVIEW: "İnceleme Bekliyor",
+  NOT_STARTED: "Başlamadı",
+  AVAILABLE: "Kullanılabilir",
+  RESERVED: "Ayrıldı",
+  CONSUMED: "Kullanıldı",
+  UNAVAILABLE: "Kullanılamıyor",
+  ENABLED: "Etkin",
+  DISABLED: "Devre Dışı",
+  LOCKED: "Kilitli",
+  BLOCKED: "Engellendi",
+  SKIPPED: "Atlandı",
+  READ_ONLY: "Salt Okunur",
+  CONTROLLED_WRITE: "Kontrollü Düzenleme",
+  ENTERPRISE: "Kurumsal",
+  STARTER: "Başlangıç",
+  PROFESSIONAL: "Profesyonel",
+  CREATED: "Oluşturuldu",
+  UPDATED: "Güncellendi",
+  DELETED: "Silindi",
+  QUEUED: "Sırada",
+  PENDING_PAYMENT: "Ödeme Bekliyor",
+  PENDING_DELIVERY: "Teslimat Bekliyor",
+  DELIVERED: "Teslim Edildi",
+  PRIMARY: "Sorumlu Personel",
+  ASSISTANT: "Yardımcı Personel",
+  HANDOFF: "Devralan Personel",
+  ROOM: "Oda / Kabin",
+  ASSET: "Cihaz / Ekipman",
+  OPEN_BANKING: "Banka Bağlantısı",
+  VIRTUAL_POS: "Sanal POS",
+  API_KEY: "API Anahtarı ile Bağlantı",
+  OAUTH2: "Güvenli Hesap Bağlantısı",
+  REVENUE: "Gelir",
+  EXPENSE: "Gider",
+  COST_CENTER: "Maliyet Merkezi",
+  POSTED: "Muhasebeleştirildi",
+  PARTIALLY_PAID: "Kısmi Ödendi",
+  PARTIALLY_COLLECTED: "Kısmi Tahsil Edildi",
+  UNCOLLECTED: "Tahsil Edilmedi",
+  COLLECTED: "Tahsil Edildi",
+  CHARGEBACK: "Ters İbraz",
+  REFUND: "İade",
+  MAINTENANCE: "Bakımda",
+  EQUIPMENT: "Cihaz / Ekipman",
+  FURNITURE: "Mobilya",
+  IT: "Bilgi Teknolojileri",
+  VEHICLE: "Araç",
+  GOOD: "İyi",
+  FAIR: "Orta",
+  POOR: "Zayıf",
+  BROKEN: "Arızalı",
+  EXPIRING: "Süresi Yaklaşıyor",
+  IN_APP: "Uygulama İçi",
+  INCOME: "Gelir",
+  SALE: "Satış",
+  CUSTOMER: "Müşteri",
+  LEAD: "Potansiyel Müşteri",
+  SUPPLIER: "Tedarikçi",
+  INVENTORY: "Envanter",
+  QUALITY: "Kalite",
+  NOTIFICATION: "Bildirim",
+  APPLIED: "Başvurdu",
+  SCREENING: "Ön Değerlendirme",
+  INTERVIEW: "Görüşme",
+  OFFER: "Teklif Aşaması",
+  HIRED: "İşe Alındı",
+  FULL_TIME: "Tam Zamanlı",
+  PART_TIME: "Yarı Zamanlı",
+  HOURLY: "Saatlik",
+  SEASONAL: "Dönemsel",
+  INTERN: "Stajyer",
+  SELF_REVIEW: "Çalışan Değerlendirmesi",
+  MANAGER_REVIEW: "Yönetici Değerlendirmesi",
+  DAY_START: "Güne Başlama",
+  BREAK_START: "Mola Başlangıcı",
+  BREAK_END: "Mola Bitişi",
+  DAY_END: "Günü Bitirme",
+  RETURNED: "Düzeltme Bekliyor",
+  hr_attendance_event: "Puantaj Hareketi",
+  hr_attendance_correction: "Puantaj Düzeltme Talebi",
+};
+
+const USER_RESOURCE_LABELS: Record<string, string> = {
+  appointments: "Randevular",
+  customers: "Müşteriler",
+  staff: "Personel",
+  services: "Hizmetler",
+  payments: "Ödemeler",
+  finance: "Finans",
+  accounting: "Muhasebe",
+  accounting_journal: "Yevmiye İşlemleri",
+  finance_period: "Finansal Dönem",
+  inventory: "Envanter",
+  procurement: "Satın Alma",
+  training: "Eğitim ve Gelişim",
+  communications: "Kurumsal İletişim",
+  crm: "Müşteri İlişkileri",
+  reports: "Raporlar",
+  roles: "Roller ve Yetkiler",
+  hr: "İnsan Kaynakları",
+  settings: "Ayarlar",
+  quality: "Kalite",
+  platform: "Platform Yönetimi",
+  role: "Rol",
+  admin: "Yönetici",
+  tenant: "Şirket",
+  audit: "Denetim",
+  organization: "Organizasyon",
+};
+
+const USER_FIELD_LABELS: Record<string, string> = {
+  id: "Kayıt Kodu",
+  tenantId: "İşletme Kodu",
+  tenantName: "İşletme Adı",
+  tenantSlug: "İşletme Kısa Adı",
+  companyId: "Şirket Kodu",
+  companyName: "Şirket Adı",
+  companySlug: "Şirket Kısa Adı",
+  branchId: "Şube Kodu",
+  branchName: "Şube",
+  roleId: "Rol Kodu",
+  membershipId: "Üyelik Kodu",
+  userId: "Kullanıcı Kodu",
+  staffId: "Personel Kodu",
+  staffName: "Personel",
+  customerId: "Müşteri Kodu",
+  customerName: "Müşteri",
+  serviceId: "Hizmet Kodu",
+  appointmentId: "Randevu Kodu",
+  paymentId: "Ödeme Kodu",
+  planVersionId: "Plan Sürümü Kodu",
+  provisioningRunId: "Kurulum İşlemi Kodu",
+  runId: "İşlem Kodu",
+  ticketId: "Destek Talebi Kodu",
+  supportTicketId: "Destek Talebi Kodu",
+  sessionId: "Destek Oturumu Kodu",
+  requestId: "Talep Kodu",
+  integrationId: "Entegrasyon Kodu",
+  posTransactionId: "POS İşlem Kodu",
+  salePaymentId: "Satış Ödemesi Kodu",
+  bankAccountId: "Banka Hesabı Kodu",
+  providerSettlementId: "Sağlayıcı Tahsilat Kodu",
+  externalEventId: "Harici İşlem Kodu",
+  costCenterId: "Maliyet Merkezi Kodu",
+  journalEntryLineId: "Yevmiye Satırı Kodu",
+  saleItemId: "Satış Kalemi Kodu",
+  purchaseOrderItemId: "Sipariş Kalemi Kodu",
+  goodsReceiptItemId: "Mal Kabul Kalemi Kodu",
+  entitlementKey: "Kullanım Hakkı",
+  itemKey: "Madde Anahtarı",
+  createdAt: "Oluşturulma",
+  updatedAt: "Güncellenme",
+  startsAt: "Başlangıç",
+  endsAt: "Bitiş",
+  renewsAt: "Yenileme",
+  dueAt: "Vade",
+  happenedAt: "Olay Tarihi",
+  settledAt: "Hesaba Geçiş Tarihi",
+  firstContactedAt: "İlk İletişim",
+  firstResponseAt: "İlk Yanıt",
+  leadScore: "Potansiyel Müşteri Puanı",
+  leadTemperature: "Potansiyel Müşteri Önceliği",
+  riskStatus: "Risk Durumu",
+  successStage: "Başarı Aşaması",
+  accessMode: "Erişim Biçimi",
+  initialResponseMinutes: "İlk Yanıt Süresi (dk)",
+  resolutionMinutes: "Çözüm Süresi (dk)",
+  jobTitle: "Pozisyon",
+  currentTitle: "Mevcut / Son Görev",
+  appliedAt: "Başvuru Tarihi",
+  scheduledAt: "Görüşme Tarihi",
+  interviewType: "Görüşme Türü",
+  offeredTitle: "Teklif Edilen Pozisyon",
+  grossSalary: "Brüt Ücret",
+  expiresAt: "Teklif Geçerlilik Süresi",
+  score: "Puan",
+  rating: "Değerlendirme Puanı",
+  stage: "Başvuru Aşaması",
+  source: "Kaynak",
+  city: "Şehir",
+  leaveTypeName: "İzin Türü",
+  annualEntitlement: "Yıllık İzin Hakkı",
+  accrualMethod: "Hak Kazanma Şekli",
+  accrualAmount: "Kazanılan İzin",
+  carryOverLimit: "Devreden İzin Sınırı",
+  available: "Kullanılabilir",
+  used: "Kullanılan",
+  pending: "Bekleyen",
+  workedMinutes: "Çalışma Süresi",
+  overtimeMinutes: "Fazla Mesai",
+  absentRecords: "Devamsızlık",
+};
+
+const USER_DOMAIN_LABELS: Record<string, string> = {
+  finance: "Finans",
+  hr: "İnsan Kaynakları",
+  procurement: "Satın Alma",
+  operations: "Operasyon",
+  inventory: "Envanter",
+  sales: "Satış",
+  crm: "Müşteri İlişkileri",
+  payments: "Ödemeler",
+  training: "Eğitim ve Gelişim",
+  communications: "Kurumsal İletişim",
+  quality: "Kalite",
+  platform: "Platform Yönetimi",
+};
+
+const USER_ACTION_LABELS: Record<string, string> = {
+  read: "Görüntüleme",
+  view: "Görüntüleme",
+  create: "Oluşturma",
+  update: "Düzenleme",
+  write: "Düzenleme",
+  delete: "Silme",
+  manage: "Yönetme",
+  approve: "Onaylama",
+  post: "Muhasebeleştirme",
+  close: "Kapatma",
+  reopen: "Yeniden Açma",
+  reject: "Reddetme",
+  refund: "İade",
+  export: "Dışa Aktarma",
+  import: "İçe Aktarma",
+  assign: "Atama",
+  publish: "Yayınlama",
+  execute: "İşlem Yapma",
+  grant: "Yetki Verme",
+  revoke: "Yetki Kaldırma",
+  suspend: "Askıya Alma",
+  activate: "Aktifleştirme",
+  clone: "Kopyalama",
+};
+
+const USER_TEXT_LABELS: Record<string, string> = {
+  RESOLVE_LIQUIDITY_GAP: "Likidite Açığını Gider",
+  FINANCIAL_RECOVERY_PLAN: "Finansal Toparlanma Planı",
+  EXTEND_RUNWAY: "Nakit Dayanma Süresini Uzat",
+  ACCELERATE_COLLECTIONS: "Tahsilatları Hızlandır",
+  IMPROVE_WORKING_CAPITAL: "İşletme Sermayesini İyileştir",
+  REDUCE_OVERDUE_RECEIVABLES: "Gecikmiş Alacakları Azalt",
+  "Minimum financial health score": "Minimum finansal sağlık puanı",
+  "Minimum cash runway": "Minimum nakit dayanma süresi",
+  "Maximum DSO": "En yüksek tahsilat süresi",
+  "Minimum net working capital": "Minimum net işletme sermayesi",
+  "Maximum overdue receivable ratio": "En yüksek vadesi geçmiş alacak oranı",
+  "Maximum 13-week liquidity alerts": "13 haftalık likidite uyarı sınırı",
+  "Initiate a financial recovery plan and review liquidity, collections, cost controls and near-term commitments weekly.":
+    "Finansal toparlanma planı başlatın; likiditeyi, tahsilatları, maliyet kontrollerini ve kısa vadeli yükümlülükleri haftalık olarak gözden geçirin.",
+  "Protect cash immediately: defer non-essential outflows, accelerate collections and preserve the configured liquidity floor.":
+    "Nakit pozisyonunu koruyun: zorunlu olmayan ödemeleri erteleyin, tahsilatları hızlandırın ve belirlenen minimum likidite seviyesini koruyun.",
+  "Review the first forecasted liquidity breach week and reschedule supplier payments or accelerate receivable collection before that date.":
+    "İlk likidite açığı beklenen haftayı inceleyin; bu tarihten önce tedarikçi ödemelerini yeniden planlayın veya alacak tahsilatını hızlandırın.",
+  "Prioritize overdue customer balances, shorten payment terms for new sales and follow up before installment due dates.":
+    "Vadesi geçmiş müşteri bakiyelerine öncelik verin, yeni satışlarda ödeme vadelerini kısaltın ve taksit vadelerinden önce takip başlatın.",
+  "Reduce inventory tied-up cash, accelerate receivables and renegotiate supplier terms to restore working-capital headroom.":
+    "Stokta bağlı nakdi azaltın, alacak tahsilatını hızlandırın ve işletme sermayesi alanı yaratmak için tedarikçi vadelerini yeniden görüşün.",
+  "Segment overdue balances by aging and customer exposure, then prioritize high-value and 90+ day accounts for collection.":
+    "Vadesi geçmiş bakiyeleri yaşlandırma ve müşteri riskine göre ayırın; yüksek tutarlı ve 90 günü aşan alacaklara tahsilatta öncelik verin.",
+  "Review the breached financial threshold and assign a corrective action owner.":
+    "Aşılan finansal eşiği inceleyin ve düzeltici aksiyon için sorumlu atayın.",
+  "Dashboard": "Genel Bakış",
+  "Management Dashboard": "Yönetim Genel Bakışı",
+  "Pipeline": "Satış Süreci",
+  "Sales Pipeline": "Satış Süreci",
+  "Timeline": "Zaman Akışı",
+  "Global Timeline": "Genel Zaman Akışı",
+  "Workflow": "İş Akışı",
+  "Workflow Management": "İş Akışı Yönetimi",
+  "Lead Score": "Potansiyel Müşteri Puanı",
+  "Lead Scoring": "Potansiyel Müşteri Puanlama",
+  "Lead Assignment": "Potansiyel Müşteri Atama",
+  "Customer 360": "Müşteri 360°",
+  "Customer 360 View": "Müşteri 360° Görünümü",
+  "SLA": "Hizmet Süresi",
+  "SLA & Escalation": "Hizmet Süresi ve Üst Yönetime Aktarma",
+  "Escalation": "Üst Yönetime Aktarma",
+  "Intelligence": "Analiz",
+  "Business Intelligence": "İş Analizi",
+  "Talent Intelligence": "Yetenek Analizi",
+  "Skill Gap": "Yetkinlik Açığı",
+};
+
+const USER_ERROR_MESSAGES: Record<string, string> = {
+  "Invalid email or password": "E-Posta Veya Şifre Hatalı.",
+  "No active tenant membership": "Aktif İşletme Üyeliği Bulunamadı.",
+  "No active organization membership": "Aktif İşletme Üyeliği Bulunamadı.",
+  "Active organization membership is missing": "Aktif İşletme Üyeliği Bulunamadı.",
+  "Membership organization context is missing": "İşletme Bilgileri Yüklenemedi. Lütfen Tekrar Giriş Yapın.",
+  "A branch must be selected for this operation.": "Bu İşlem İçin Önce Bir Şube Seçin.",
+  "A branch is required for this role": "Bu Kullanıcı Rolü İçin Bir Şube Seçilmelidir.",
+  "A branch is required for a branch-scoped role": "Bu Kullanıcı Rolü İçin Bir Şube Seçilmelidir.",
+  "Branch context is required": "Bu İşlem İçin Önce Bir Şube Seçin.",
+  "CRM mutation requires an active branch.": "Müşteri İlişkileri İşlemleri İçin Önce Bir Şube Seçin.",
+  "No active branch access is assigned": "Kullanabileceğiniz Aktif Bir Şube Bulunamadı.",
+  "Branch not found": "Seçilen Şube Bulunamadı.",
+  "Branch does not belong to this company": "Seçilen Şube Bu İşletmeye Ait Değil.",
+  "You do not have access to this branch": "Bu Şubeye Erişim Yetkiniz Bulunmuyor.",
+  "You do not have permission to perform this action": "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor.",
+  "Staff already has an overlapping appointment": "Bu Personelin Seçilen Saatte Çakışan Bir Randevusu Var.",
+  "Appointment startAt must be before endAt": "Randevu Başlangıcı Bitişten Önce Olmalıdır.",
+  "Invalid appointment date": "Geçersiz Randevu Tarihi.",
+  "Staff is not active": "Seçilen Personel Aktif Değil.",
+  "Service is not active": "Seçilen Hizmet Aktif Değil.",
+  "Customer not found": "Müşteri Bulunamadı.",
+  "Staff not found": "Personel Bulunamadı.",
+  "Service not found": "Hizmet Bulunamadı.",
+  "Appointment not found": "Randevu Bulunamadı.",
+  "Cancelled appointment cannot be reactivated": "İptal Edilen Randevu Yeniden Aktifleştirilemez.",
+  "Appointment is already cancelled": "Randevu Zaten İptal Edilmiş.",
+  "Failed to create appointment": "Randevu Oluşturulamadı.",
+  "Failed to update appointment": "Randevu Güncellenemedi.",
+  "Failed to cancel appointment": "Randevu İptal Edilemedi.",
+  "Appointment already has a payment": "Bu Randevunun Zaten Bir Ödeme Kaydı Var.",
+  "Cancelled or no-show appointment cannot be paid": "İptal Edilmiş Veya Gerçekleşmemiş Randevu İçin Ödeme Alınamaz.",
+  "Payment not found": "Ödeme Bulunamadı.",
+  "Income category not found": "Gelir Kategorisi Bulunamadı.",
+  "Expense category not found": "Gider Kategorisi Bulunamadı.",
+  "Cost center not found": "Maliyet Merkezi Bulunamadı.",
+  "Income record not found": "Gelir Kaydı Bulunamadı.",
+  "Expense not found": "Gider Kaydı Bulunamadı.",
+  "Income source type and source id must be provided together.": "Gelir Kaynağı Bilgileri Birlikte Girilmelidir.",
+  "Expense source type and source id must be provided together.": "Gider Kaynağı Bilgileri Birlikte Girilmelidir.",
+  "Only approved income records can receive collections.": "Yalnızca Onaylanmış Gelir Kayıtlarına Tahsilat Eklenebilir.",
+  "Income must be posted to accounting before collection can be recorded.": "Tahsilat Kaydetmeden Önce Gelir Muhasebeleştirilmelidir.",
+  "Income accounting mapping is required before collection can be recorded.": "Tahsilat İçin Gelir Kategorisinin Muhasebe Eşlemesi Tamamlanmalıdır.",
+  "Collection would exceed the income gross amount.": "Tahsilat Tutarı Gelirin Kalan Tutarını Aşamaz.",
+  "Collection amount must be greater than zero.": "Tahsilat Tutarı Sıfırdan Büyük Olmalıdır.",
+  "Payment source type and source id must be provided together.": "Ödeme Kaynağı Bilgileri Birlikte Girilmelidir.",
+  "Payment account must be an active asset account in the current company.": "Geçerli Ve Aktif Bir Kasa Veya Banka Hesabı Seçilmelidir.",
+  "Expense payable account mapping is required before payment can be recorded.": "Ödeme Öncesinde Gider Kategorisinin Borç Hesabı Eşlemesi Tamamlanmalıdır.",
+  "Expense payment is already reversed.": "Bu Gider Ödemesi Daha Önce Geri Alınmış.",
+  "Income collection is already reversed.": "Bu Tahsilat Daha Önce Geri Alınmış.",
+  "Only draft or rejected income records can be edited.": "Yalnızca Taslak Veya Reddedilmiş Gelir Kayıtları Düzenlenebilir.",
+  "Only draft or rejected expenses can be edited.": "Yalnızca Taslak Veya Reddedilmiş Gider Kayıtları Düzenlenebilir.",
+  "Income record was modified by another request. Refresh and retry.": "Gelir Kaydı Başka Bir İşlem Tarafından Değiştirildi. Verileri Yenileyip Tekrar Deneyin.",
+  "Expense was modified by another request. Refresh and retry.": "Gider Kaydı Başka Bir İşlem Tarafından Değiştirildi. Verileri Yenileyip Tekrar Deneyin.",
+  "Financial obligation not found.": "Finansal Yükümlülük Bulunamadı.",
+  "Financial obligation is not eligible for payment allocation.": "Bu Yükümlülük Henüz Ödeme Tahsisine Uygun Değil.",
+  "Active expense payment not found.": "Kullanılabilir Gider Ödemesi Bulunamadı.",
+  "Obligation and expense payment currencies do not match.": "Yükümlülük İle Ödemenin Para Birimleri Aynı Olmalıdır.",
+  "Allocation amount must be greater than zero.": "Tahsis Tutarı Sıfırdan Büyük Olmalıdır.",
+  "Allocation exceeds remaining obligation amount.": "Tahsis Tutarı Yükümlülüğün Kalan Tutarını Aşamaz.",
+  "Allocation exceeds remaining expense payment amount.": "Tahsis Tutarı Ödemenin Kullanılabilir Tutarını Aşamaz.",
+  "Financial obligation payment allocation is already reversed.": "Bu Ödeme Tahsisi Daha Önce Geri Alınmış.",
+  "A positive exchange rate is required for foreign-currency income.": "Yabancı Para Geliri İçin Geçerli Bir Döviz Kuru Girilmelidir.",
+  "A positive exchange rate is required for foreign-currency expenses.": "Yabancı Para Gideri İçin Geçerli Bir Döviz Kuru Girilmelidir.",
+  "Company not found.": "Şirket Bilgisi Bulunamadı.",
+  "Para birimi 3 harfli ISO kodu olmalıdır.": "Para Birimi 3 Harfli Bir Kod Olmalıdır. Örnek: TRY, EUR, USD.",
+  "Döviz kuru sıfırdan büyük olmalıdır.": "Döviz Kuru Sıfırdan Büyük Olmalıdır.",
+  "Baz para birimi, muhasebeleştirilmiş kayıt oluştuktan sonra değiştirilemez.": "Muhasebeleştirilmiş Kayıt Bulunduğu İçin Şirketin Baz Para Birimi Artık Değiştirilemez.",
+  "Baz para birimi, finansal kayıt oluşturulduktan sonra değiştirilemez.": "Finansal Kayıt Oluşturulduğu İçin Şirketin Baz Para Birimi Artık Değiştirilemez.",
+  "Yevmiye kaydını oluşturan kullanıcı aynı kaydı onaylayamaz.": "Yevmiye Kaydını Oluşturan Kullanıcı Aynı Kaydı Onaylayamaz.",
+  "Kaydı oluşturan veya onaylayan kullanıcı aynı kaydı muhasebeleştiremez.": "Yevmiye Kaydını Oluşturan Veya Onaylayan Kullanıcı Aynı Kaydı Muhasebeleştiremez.",
+  "Yalnızca taslak yevmiye kaydı onaya gönderilebilir.": "Yalnızca Taslak Yevmiye Kaydı Onaya Gönderilebilir.",
+  "Yalnızca onay bekleyen yevmiye kaydı onaylanabilir.": "Yalnızca Onay Bekleyen Yevmiye Kaydı Onaylanabilir.",
+  "Yalnızca onaylanmış yevmiye kaydı muhasebeleştirilebilir.": "Yalnızca Onaylanmış Yevmiye Kaydı Muhasebeleştirilebilir.",
+  "Follow-up is not open or is outside the active scope.": "Takip Açık Değil Veya Aktif Çalışma Kapsamının Dışında.",
+  "Follow-up changed, is closed, or is outside the active scope.": "Takip Başka Bir Kullanıcı Tarafından Değiştirildi, Kapatıldı Veya Aktif Kapsamın Dışında.",
+  "CRM assignee is not an active company member.": "Seçilen Sorumlu Aktif İşletme Veya Şube Kapsamında Değil.",
+  "Warehouse is outside the active branch scope.": "Seçilen Depo Aktif Şube Kapsamında Değil.",
+  "Warehouse not found": "Seçilen Depo Bulunamadı.",
+  "Inventory warehouse not found": "Uygun Envanter Deposu Bulunamadı.",
+  "Insufficient stock": "Yeterli Stok Bulunmuyor.",
+  "Quantity must be greater than zero": "Miktar Sıfırdan Büyük Olmalıdır.",
+  "Warehouse and at least one item are required": "Depo Ve En Az Bir Ürün Seçilmelidir.",
+  "Valid source and destination warehouses are required": "Geçerli Bir Çıkış Ve Varış Deposu Seçilmelidir.",
+  "Transfer must contain at least one item": "Transfer İçin En Az Bir Ürün Seçilmelidir.",
+  "Invalid transfer quantity": "Transfer Miktarı Geçerli Değil.",
+  "Asset is required": "Envanter Varlığı Seçilmelidir.",
+  "Asset not found": "Envanter Varlığı Bulunamadı Veya Aktif Şube Kapsamında Değil.",
+  "Asset name is required": "Envanter Varlığı Adı Gereklidir.",
+  "Asset code is required": "Envanter Varlığı Kodu Gereklidir.",
+  "Asset branch must match the active branch context.": "Envanter Varlığının Şubesi Aktif Şube İle Aynı Olmalıdır.",
+  "Asset warehouse must belong to the selected branch.": "Seçilen Depo Envanter Varlığının Şubesine Ait Olmalıdır.",
+  "Assigned staff must belong to the asset branch.": "Zimmetlenecek Personel Envanter Varlığının Şubesine Ait Olmalıdır.",
+  "Cycle count reason is required.": "Stok Sayımı Nedeni Gereklidir.",
+  "Cycle count must contain at least one item.": "Stok Sayımı İçin En Az Bir Ürün Girilmelidir.",
+  "A product can only appear once in a cycle count.": "Bir Ürün Aynı Stok Sayımında Yalnızca Bir Kez Yer Alabilir.",
+  "Counted quantity cannot be negative.": "Sayılan Miktar Sıfırdan Küçük Olamaz.",
+  "Cycle count not found.": "Stok Sayımı Bulunamadı Veya Aktif Şube Kapsamında Değil.",
+  "Only draft cycle counts can be submitted.": "Yalnızca Taslak Stok Sayımları Onaya Gönderilebilir.",
+  "Only submitted cycle counts can be approved.": "Yalnızca Onay Bekleyen Stok Sayımları Onaylanabilir.",
+  "Only submitted cycle counts can be rejected.": "Yalnızca Onay Bekleyen Stok Sayımları Reddedilebilir.",
+  "Only approved cycle counts can be posted.": "Yalnızca Onaylanmış Stok Sayımları Stoğa İşlenebilir.",
+  "Cycle count changed concurrently.": "Stok Sayımı Başka Bir İşlem Tarafından Değiştirildi. Lütfen Verileri Yenileyip Tekrar Deneyin.",
+  "Rejection reason is required.": "Ret Nedeni Gereklidir.",
+  "Inventory approval requires manager or higher authority.": "Stok Sayımı Onayı İçin Müdür Veya Daha Üst Yetki Gereklidir.",
+  "Operation is outside active branch scope.": "Bu İşlem Aktif Şube Kapsamının Dışında.",
+  "Approver has no access to operation branch.": "Bu Şubedeki Stok Sayımını Onaylama Yetkiniz Bulunmuyor.",
+  Forbidden: "Bu İşlemi Yapmaya Yetkiniz Bulunmuyor.",
+  Unauthorized: "Oturumunuz Geçerli Değil. Lütfen Tekrar Giriş Yapın.",
+  "Not Found": "Aradığınız Kayıt Bulunamadı.",
+  "Network Error": "Sunucuya Bağlanılamadı. Lütfen Tekrar Deneyin.",
+  "Event key and audience are required": "Bildirim olayı ve hedef kitlesi seçilmelidir.",
+  "At least one supported notification channel is required": "En az bir bildirim kanalı seçilmelidir.",
+  "Active membership is required": "Bu işlem için aktif işletme üyeliği gereklidir.",
+  "The latest job offer must be accepted before hiring.": "Adayı çalışan olarak başlatmadan önce son iş teklifinin kabul edilmiş olması gerekir.",
+  "Job posting or candidate not found.": "Seçilen pozisyon veya aday bulunamadı.",
+  "Application not found.": "Başvuru kaydı bulunamadı.",
+  "Offer not found.": "İş teklifi bulunamadı.",
+  "Interview not found.": "Görüşme kaydı bulunamadı.",
+  "Interview score must be between 0 and 100.": "Görüşme puanı 0 ile 100 arasında olmalıdır.",
+  "Offer response is invalid.": "İş teklifi yanıtı geçerli değil.",
+  "Branch is outside organization scope.": "Seçilen şube yetkili olduğunuz organizasyon kapsamının dışında.",
+};
+
+const USER_ERROR_PATTERNS: Array<{ pattern: RegExp; message: string }> = [
+  { pattern: /^Purchase order not found/i, message: "Satın alma siparişi bulunamadı." },
+  { pattern: /^Purchase order cannot be ordered from status/i, message: "Bu sipariş henüz sipariş verme aşamasına uygun değil. Önce gerekli onayları tamamlayın." },
+  { pattern: /^At least one receipt item is required/i, message: "Teslim alınacak en az bir ürün seçin." },
+  { pattern: /^A purchase order item can only appear once in a receipt/i, message: "Aynı ürün teslim alma listesine yalnızca bir kez eklenebilir." },
+  { pattern: /^Only ordered purchase orders can be received/i, message: "Yalnızca sipariş verilmiş kayıtlar teslim alınabilir." },
+  { pattern: /^A supplier is required before receiving a purchase order/i, message: "Teslim alma işlemi için siparişte bir tedarikçi seçilmiş olmalıdır." },
+  { pattern: /^One or more receipt items do not belong to this purchase order/i, message: "Seçilen ürünlerden biri bu satın alma siparişine ait değil." },
+  { pattern: /^Receipt quantities must be greater than zero/i, message: "Teslim alınan miktar sıfırdan büyük olmalıdır." },
+  { pattern: /^Receipt quantity exceeds outstanding quantity/i, message: "Teslim alınan miktar siparişte kalan miktarı aşamaz." },
+  { pattern: /^Goods receipt total must be greater than zero/i, message: "Mal kabul toplamı sıfırdan büyük olmalıdır. Ürün maliyetlerini kontrol edin." },
+  { pattern: /^Goods receipt not found/i, message: "Mal kabul kaydı bulunamadı." },
+  { pattern: /^Goods receipt is already reversed/i, message: "Bu mal kabul kaydı daha önce geri alınmış." },
+  { pattern: /^Goods receipt has no supplier bill to reverse/i, message: "Bu mal kabul kaydına bağlı geri alınabilir bir tedarikçi borcu bulunmuyor." },
+  { pattern: /^Linked supplier bill not found/i, message: "Bağlı tedarikçi borç kaydı bulunamadı." },
+  { pattern: /^Linked supplier bill is already cancelled/i, message: "Bağlı tedarikçi borç kaydı zaten iptal edilmiş." },
+  { pattern: /^Paid goods receipts cannot be reversed/i, message: "Ödemesi yapılmış mal kabul geri alınamaz. Önce bağlı tedarikçi ödemesini geri alın." },
+  { pattern: /^Goods receipt has no items/i, message: "Mal kabul kaydında ürün bulunmuyor." },
+  { pattern: /^Insufficient stock to return product/i, message: "İade için yeterli stok bulunmuyor." },
+  { pattern: /^Internal note must contain between 1 and 4000 characters/i, message: "İç not 1 ile 4000 karakter arasında olmalıdır." },
+  { pattern: /^Platform customer tenant was not found/i, message: "İşletme müşteri kaydı bulunamadı." },
+  { pattern: /^Assigned owner must be an active platform administrator/i, message: "Seçilen sorumlu aktif bir platform yöneticisi olmalıdır." },
+  { pattern: /^Value must not exceed/i, message: "Girilen değer izin verilen uzunluğu aşıyor." },
+  { pattern: /^Invalid date value/i, message: "Geçerli bir tarih seçin." },
+];
+
+const TECHNICAL_ERROR_PATTERN = /\b(?:backend|frontend|api|endpoint|prisma|postgres|postgresql|sql|constraint|stack|trace|exception|uuid|jwt|token|payload|runtime|undefined|null|database|db|foreign key|unique key|validation failed|internal server error|syntax error|query failed)\b/i;
+const ENGLISH_UI_PATTERN = /\b(?:review|maximum|minimum|resolve|failed|success|warning|critical|pending|approved|rejected|created|updated|deleted|branch|customer|payment|financial|liquidity|account|status|required|invalid|please|select|save|cancel|close|open|forecast|receivable|supplier|collection|working capital|runway)\b/i;
+
+const SYSTEM_WORD_LABELS: Record<string, string> = {
+  ACTIVE: "Aktif",
+  INACTIVE: "Pasif",
+  PENDING: "Bekliyor",
+  DRAFT: "Taslak",
+  PUBLISHED: "Yayında",
+  REVIEW: "İnceleme",
+  APPROVAL: "Onay",
+  APPROVED: "Onaylandı",
+  REJECTED: "Reddedildi",
+  ASSIGNED: "Atandı",
+  PROGRESS: "Devam Ediyor",
+  COMPLETED: "Tamamlandı",
+  FAILED: "Başarısız",
+  CANCELLED: "İptal Edildi",
+  SCHEDULED: "Planlandı",
+  OPEN: "Açık",
+  CLOSED: "Kapandı",
+  READY: "Hazır",
+  EXPIRED: "Süresi Doldu",
+  OWNER: "Sahibi",
+  ADMIN: "Yönetici",
+  MANAGER: "Müdür",
+  STAFF: "Personel",
+  BRANCH: "Şube",
+  COMPANY: "Şirket",
+  CENTRAL: "Merkez",
+  PLATFORM: "Platform",
+  SECURITY: "Güvenlik",
+  SESSION: "Oturum",
+  SESSIONS: "Oturumlar",
+  MFA: "İki Aşamalı Doğrulama",
+  LOGIN: "Giriş",
+  LOGOUT: "Çıkış",
+  REVOKE: "Kapatma",
+  REVOKED: "Kapatıldı",
+  ENROLLED: "Etkinleştirildi",
+  AUTHENTICATED: "Doğrulandı",
+  ONLINE: "Çevrim İçi",
+  OFFLINE: "Çevrim Dışı",
+  RESOLVE: "Gider",
+  LIQUIDITY: "Likidite",
+  GAP: "Açığı",
+  FINANCIAL: "Finansal",
+  RECOVERY: "Toparlanma",
+  EXTEND: "Uzat",
+  RUNWAY: "Dayanma Süresi",
+  ACCELERATE: "Hızlandır",
+  COLLECTIONS: "Tahsilatlar",
+  IMPROVE: "İyileştir",
+  WORKING: "İşletme",
+  CAPITAL: "Sermayesi",
+  REDUCE: "Azalt",
+  OVERDUE: "Gecikmiş",
+  RECEIVABLES: "Alacaklar",
+  ALERTS: "Uyarılar",
+};
+
+function humanizeSystemValue(value: string): string {
+  const normalized = value.trim();
+  if (!normalized) return "—";
+
+  if (/^[0-9a-f]{8}-[0-9a-f-]{27,}$/i.test(normalized)) return normalized;
+  if (/^https?:\/\//i.test(normalized)) return normalized;
+
+  const parts = normalized
+    .replace(/([a-zğüşöçı])([A-ZĞÜŞÖÇİ])/g, "$1_$2")
+    .split(/[_\-\s]+/)
+    .filter(Boolean);
+
+  if (parts.length <= 1 && !/^[A-Z0-9_\-]+$/.test(normalized)) return normalized;
+
+  return parts
+    .map((part) => {
+      const upper = part.toLocaleUpperCase("tr-TR");
+      return SYSTEM_WORD_LABELS[upper] ?? titleCaseVisibleText(part.toLocaleLowerCase("tr-TR"));
+    })
+    .join(" ");
+}
+
+function titleCaseVisibleText(value: string): string {
+  return value
+    .trim()
+    .split(/(\s+)/)
+    .map((part) => {
+      if (!part.trim()) return part;
+      if (/^(https?:\/\/|www\.)/i.test(part)) return part;
+      const [first, ...rest] = Array.from(part);
+      return `${first?.toLocaleUpperCase("tr-TR") ?? ""}${rest.join("")}`;
+    })
+    .join("");
+}
+
+function looksTechnical(message: string): boolean {
+  if (TECHNICAL_ERROR_PATTERN.test(message)) return true;
+  if (/\b[A-Z_]{3,}\b/.test(message)) return true;
+  if (/\b[a-zA-Z]+(?:Id|At|Url|Uri|Dto|Dto\b)/.test(message)) return true;
+  if (/\/[a-z0-9_-]+(?:\/[a-z0-9_:{-]+)+/i.test(message)) return true;
+  return false;
+}
+
+export function userLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_LABELS[value] ?? humanizeSystemValue(value);
+}
+
+export function userLabelOr(value: string | null | undefined, fallback: string): string {
+  if (!value) return fallback;
+  return USER_LABELS[value] ?? humanizeSystemValue(value);
+}
+
+export function userFieldLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_FIELD_LABELS[value] ?? humanizeSystemValue(value);
+}
+
+export function userDomainLabel(value: string | null | undefined): string {
+  if (!value) return "Tüm İşlem Alanları";
+  return USER_DOMAIN_LABELS[value] ?? userLabel(value);
+}
+
+export function userResourceLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_RESOURCE_LABELS[value] ?? userLabel(value);
+}
+
+export function userActionLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return USER_ACTION_LABELS[value] ?? userLabel(value);
+}
+
+export function userPermissionLabel(resource: string, action: string): string {
+  const resourceLabel = USER_RESOURCE_LABELS[resource] ?? userLabel(resource);
+  const actionLabel = USER_ACTION_LABELS[action] ?? userLabel(action);
+  return `${resourceLabel} · ${actionLabel}`;
+}
+
+export function userPermissionKeyLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  const [resource, action] = value.split(".");
+  if (!resource || !action) return userLabel(value);
+  return userPermissionLabel(resource, action);
+}
+export function userEventKeyLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value
+    .split(".")
+    .filter(Boolean)
+    .map((segment) => {
+      const lower=segment.toLocaleLowerCase("tr-TR");
+      return USER_DOMAIN_LABELS[lower]
+        ?? USER_RESOURCE_LABELS[lower]
+        ?? USER_ACTION_LABELS[lower]
+        ?? USER_LABELS[segment.toLocaleUpperCase("tr-TR")]
+        ?? humanizeSystemValue(segment);
+    })
+    .join(" · ");
+}
+
+export function userAudienceLabel(value: string | null | undefined): string {
+  if (!value) return "—";
+  return value
+    .split(/[-_.]+/)
+    .filter(Boolean)
+    .map((segment) => {
+      const lower=segment.toLocaleLowerCase("tr-TR");
+      return USER_DOMAIN_LABELS[lower]
+        ?? USER_RESOURCE_LABELS[lower]
+        ?? USER_LABELS[segment.toLocaleUpperCase("tr-TR")]
+        ?? humanizeSystemValue(segment);
+    })
+    .join(" · ");
+}
+
+
+export function userText(value: string | null | undefined, fallback?: string): string {
+  if (!value) return fallback ?? "—";
+  const normalized=value.trim();
+  if (!normalized) return fallback ?? "—";
+
+  const exact=USER_TEXT_LABELS[normalized] ?? USER_LABELS[normalized];
+  if (exact) return exact;
+
+  if (/^[A-Z0-9_\-]{3,}$/.test(normalized)) {
+    return fallback ?? "Sistem İşlemi";
+  }
+
+  if (looksTechnical(normalized)) {
+    return fallback ?? "Sistem Bilgisi";
+  }
+
+  const hasTurkishCharacters=/[çğıöşüÇĞİÖŞÜ]/.test(normalized);
+  const commonTurkishWords=/\b(?:bir|bu|için|ile|ve|veya|değil|görev|işlem|kullanıcı|müşteri|ödeme|tahsilat|finans|şube|sağlık|uyarı|durum|kayıt|yönetim)\b/i.test(normalized);
+  const wordCount=normalized.split(/\s+/).filter(Boolean).length;
+  const looksLikeEnglishSentence=wordCount>=3 || normalized.length>=32 || /[.!?:;]$/.test(normalized);
+  if (!hasTurkishCharacters && !commonTurkishWords && looksLikeEnglishSentence && ENGLISH_UI_PATTERN.test(normalized)) {
+    return fallback ?? "Bilgi mevcut.";
+  }
+
+  return normalized;
+}
+
+export function userNoticeMessage(message: string): string {
+  const normalized = message.trim();
+  if (!normalized) return "İşlem tamamlandı.";
+  const mapped=USER_ERROR_MESSAGES[normalized];
+  if(mapped) return mapped;
+  return userText(normalized,"İşlem tamamlandı.");
+}
+
+export function userErrorMessage(
+  message: string | null | undefined,
+  fallback = "İşlem Tamamlanamadı. Lütfen Bilgileri Kontrol Edip Tekrar Deneyin.",
+): string {
+  const normalized = message?.trim() ?? "";
+  if (!normalized) return fallback;
+
+  const mapped = USER_ERROR_MESSAGES[normalized];
+  if (mapped) return mapped;
+
+  const patternMatch = USER_ERROR_PATTERNS.find((item) => item.pattern.test(normalized));
+  if (patternMatch) return patternMatch.message;
+
+  if (looksTechnical(normalized)) return fallback;
+
+  const hasTurkishCharacters = /[çğıöşüÇĞİÖŞÜ]/.test(normalized);
+  const commonTurkishWords = /\b(?:bir|bu|için|ile|ve|veya|değil|bulunamadı|geçersiz|gerekli|zorunlu|olmalıdır|kaydedilemedi|yüklenemedi|güncellenemedi|oluşturulamadı|silinemedi|işlem|kullanıcı|müşteri|randevu|ödeme|teklif|personel|hizmet|şube)\b/i.test(normalized);
+
+  if (!hasTurkishCharacters && !commonTurkishWords) return fallback;
+
+  return titleCaseVisibleText(normalized);
+}
