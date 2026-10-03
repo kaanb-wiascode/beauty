@@ -25,7 +25,7 @@ const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 async function ensureApiReady() {
   let lastError: unknown = null;
 
-  for (let attempt = 0; attempt < 10; attempt += 1) {
+  for (let attempt = 0; attempt < 45; attempt += 1) {
     try {
       await api<{ status?: string }>("/health/live", {
         method: "GET",
@@ -35,7 +35,7 @@ async function ensureApiReady() {
     } catch (error) {
       lastError = error;
       if (error instanceof ApiError && error.status === 401) throw error;
-      if (attempt < 9) await sleep(2000);
+      if (attempt < 44) await sleep(2000);
     }
   }
 
