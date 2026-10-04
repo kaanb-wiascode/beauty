@@ -4,7 +4,7 @@
   box-shadow: var(--shadow-soft) !important;
 }
 
-/* Inventory module: dense ERP data using the canonical VALOO blue/cyan system. */
+/* Inventory module: dense ERP data using the canonical VALOO green system. */
 h1, h2, h3, strong { color: var(--ink) !important; }
 
 input, select, textarea {
@@ -15,7 +15,7 @@ input, select, textarea {
 }
 
 input:focus, select:focus, textarea:focus {
-  border-color: rgba(22, 116, 189, .45) !important;
+  border-color: rgba(0, 191, 99, .45) !important;
   box-shadow: 0 0 0 4px var(--accent-soft) !important;
   outline: none !important;
 }
@@ -39,7 +39,7 @@ table tbody tr:hover { background: var(--surface-2) !important; }
   background: linear-gradient(135deg, var(--accent), var(--brand-gradient-start)) !important;
   border-color: var(--accent) !important;
   color: #fff !important;
-  box-shadow: 0 8px 20px rgba(22, 116, 189, .16) !important;
+  box-shadow: 0 8px 20px rgba(0, 191, 99, .16) !important;
 }
 .inventory-primary:hover { background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important; transform: translateY(-1px); }
 
@@ -53,7 +53,7 @@ table tbody tr:hover { background: var(--surface-2) !important; }
 
 .inventory-positive { color: var(--secondary) !important; background: var(--secondary-soft) !important; border-color: #d6f0e5 !important; }
 .inventory-warning { color: #a96a20 !important; background: var(--warning-soft) !important; border-color: #f4dfc2 !important; }
-.inventory-accent { color: var(--accent) !important; background: var(--accent-soft) !important; border-color: #d7eaf7 !important; }
+.inventory-accent { color: var(--accent) !important; background: var(--accent-soft) !important; border-color: #d9f1e3 !important; }
 
 @media (max-width: 767px) {
   h1 { font-size: 28px !important; }
