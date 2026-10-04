@@ -504,6 +504,7 @@ export class PaymentsService {
   async dashboardReport(input: DashboardReportInput) {
     const now = new Date();
     const branchScope = await this.organizationScope.getBranchScopedWhere();
+    const paymentScope = await this.organizationScope.getPaymentScopedWhere();
 
     const last7From = new Date(input.from);
     last7From.setDate(last7From.getDate() - 6);
@@ -523,6 +524,8 @@ export class PaymentsService {
       upcomingAppointments,
       last7Metrics,
       monthMetrics,
+      trendPayments,
+      trendAppointments,
     ] = await Promise.all([
       this.summary({
         from: input.from,
@@ -655,6 +658,32 @@ export class PaymentsService {
       }),
       this.buildPeriodMetrics(last7From, input.to),
       this.buildPeriodMetrics(monthFrom, input.to),
+      this.prisma.payment.findMany({
+        where: {
+          ...paymentScope,
+          status: { in: ['COMPLETED', 'REFUNDED'] },
+          OR: [
+            { paidAt: { gte: last7From, lte: input.to } },
+            { refundedAt: { gte: last7From, lte: input.to } },
+          ],
+        },
+        select: {
+          amount: true,
+          status: true,
+          paidAt: true,
+          refundedAt: true,
+        },
+      }),
+      this.prisma.appointment.findMany({
+        where: {
+          ...branchScope,
+          startAt: { gte: last7From, lte: input.to },
+        },
+        select: {
+          startAt: true,
+          status: true,
+        },
+      }),
     ]);
 
     const appointmentCounts = {
@@ -774,6 +803,54 @@ export class PaymentsService {
       .sort((a, b) => b.collected - a.collected)
       .slice(0, 5);
 
+    const dayKey = (value: Date) => {
+      const year = value.getFullYear();
+      const month = String(value.getMonth() + 1).padStart(2, '0');
+      const day = String(value.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    };
+    const dailyTrendMap = new Map<string, {
+      date: string;
+      gross: number;
+      refunds: number;
+      net: number;
+      appointments: number;
+      completed: number;
+    }>();
+    for (let offset = 0; offset < 7; offset += 1) {
+      const day = new Date(last7From);
+      day.setDate(last7From.getDate() + offset);
+      const key = dayKey(day);
+      dailyTrendMap.set(key, {
+        date: key,
+        gross: 0,
+        refunds: 0,
+        net: 0,
+        appointments: 0,
+        completed: 0,
+      });
+    }
+    for (const payment of trendPayments) {
+      if (payment.status === 'COMPLETED') {
+        const bucket = dailyTrendMap.get(dayKey(payment.paidAt));
+        if (bucket) bucket.gross += Number(payment.amount);
+      }
+      if (payment.status === 'REFUNDED' && payment.refundedAt) {
+        const bucket = dailyTrendMap.get(dayKey(payment.refundedAt));
+        if (bucket) bucket.refunds += Number(payment.amount);
+      }
+    }
+    for (const appointment of trendAppointments) {
+      const bucket = dailyTrendMap.get(dayKey(appointment.startAt));
+      if (!bucket) continue;
+      bucket.appointments += 1;
+      if (appointment.status === 'COMPLETED') bucket.completed += 1;
+    }
+    const dailyTrend = [...dailyTrendMap.values()].map((item) => ({
+      ...item,
+      net: item.gross - item.refunds,
+    }));
+
     return {
       summary: {
         ...summary,
@@ -795,6 +872,8 @@ export class PaymentsService {
       },
 
       paymentBreakdown: summary.methods,
+
+      dailyTrend,
 
       todayAppointments: appointmentDetails,
 
