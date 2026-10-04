@@ -14,6 +14,7 @@ import {
 } from "@/lib/auth";
 import { cx, fullName } from "@/lib/format";
 import { NavIcon } from "./nav-icon";
+import { ValooLogo } from "./valoo-logo";
 import { ValooSelect } from "./valoo-controls";
 import { parseValooRichCard } from "./team-rich-card";
 
@@ -808,13 +809,5 @@ function getInitials(firstName: string, lastName: string) {
 }
 
 function BrandMark() {
-  return (
-    <div
-      aria-hidden="true"
-      className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] text-[16px] font-semibold text-white shadow-[0_6px_18px_rgba(22,116,189,0.20)]"
-      style={{ background: "linear-gradient(135deg, #55D4E1 0%, #1674BD 50%, #0551B0 100%)" }}
-    >
-      V
-    </div>
-  );
+  return <ValooLogo className="w-11 shrink-0" alt="VALOO" />;
 }
