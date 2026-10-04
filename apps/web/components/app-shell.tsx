@@ -299,7 +299,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                         <>
                           <span className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em]">{item.label}</span>
                           {"badge" in item && item.badge ? (
-                            <span className="rounded-full bg-[#dff3fb] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{item.badge}</span>
+                            <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{item.badge}</span>
                           ) : null}
                         </>
                       ) : null}
