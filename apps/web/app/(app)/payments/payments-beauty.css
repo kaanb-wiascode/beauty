@@ -15,7 +15,7 @@
 [data-payments] select:focus,
 [data-payments] textarea:focus { border-color: rgba(0,191,99,.45) !important; box-shadow: 0 0 0 4px var(--accent-soft) !important; outline: none !important; }
 
-[data-payments] table thead th { background:#fcfbfe !important; color:var(--muted) !important; border-bottom-color:var(--line) !important; }
+[data-payments] table thead th { background:#f8fcf9 !important; color:var(--muted) !important; border-bottom-color:var(--line) !important; }
 [data-payments] table tbody tr { border-bottom-color:var(--line) !important; }
 [data-payments] table tbody tr:hover { background:#f5fbf7 !important; }
 
@@ -23,7 +23,7 @@
 [data-payments] .payments-primary:hover { background:linear-gradient(135deg,var(--accent-strong),var(--accent)) !important; transform:translateY(-1px); }
 
 [data-payments] .payments-green { color:var(--secondary) !important; background:var(--secondary-soft) !important; }
-[data-payments] .payments-purple { color:var(--accent) !important; background:var(--accent-soft) !important; }
+[data-payments] .payments-accent { color:var(--accent) !important; background:var(--accent-soft) !important; }
 [data-payments] .payments-danger { color:var(--danger) !important; background:var(--danger-soft) !important; }
 
 @media(max-width:767px){ [data-payments] h1{font-size:28px !important;} [data-payments] table{min-width:760px;} }
