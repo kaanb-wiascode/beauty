@@ -152,7 +152,7 @@ export default function HRDashboardPage() {
                 <Link
                   key={module.href}
                   href={module.href}
-                  className="group rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-0.5 hover:border-[rgba(22,116,189,.24)] hover:shadow-[0_10px_28px_rgba(17,70,104,.06)]"
+                  className="group rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 transition hover:-translate-y-0.5 hover:border-[rgba(0,191,99,.24)] hover:shadow-[0_10px_28px_rgba(18,93,53,.06)]"
                 >
                   <div className="flex items-start justify-between gap-3">
                     <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">
