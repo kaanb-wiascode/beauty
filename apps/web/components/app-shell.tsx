@@ -285,7 +285,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                         "group relative flex h-11 items-center rounded-[14px] transition-all duration-200",
                         collapsed ? "justify-center px-2" : "gap-3 px-3",
                         active
-                          ? "bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(22,116,189,0.06)]"
+                          ? "bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(0,191,99,0.06)]"
                           : "text-[var(--muted)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]",
                       )}
                     >
@@ -583,7 +583,7 @@ export function AppShell({ children }: { children: ReactNode }) {
     height: "calc(100vh - 32px)",
     borderRadius: 28,
     margin: 0,
-    boxShadow: "0 14px 40px rgba(17,70,104,0.08)",
+    boxShadow: "0 14px 40px rgba(18,93,53,0.08)",
     overflow: "hidden",
   };
 
@@ -692,7 +692,7 @@ export function AppShell({ children }: { children: ReactNode }) {
 
       <div className="fixed bottom-5 right-5 z-[80] hidden sm:block">
         {messengerOpen ? (
-          <div className="mb-3 w-[380px] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_80px_rgba(17,70,104,.22)] backdrop-blur-2xl">
+          <div className="mb-3 w-[380px] overflow-hidden rounded-[24px] border border-white/80 bg-white/95 shadow-[0_24px_80px_rgba(18,93,53,.22)] backdrop-blur-2xl">
             <div className="flex items-center justify-between border-b border-[var(--line)] px-4 py-3.5">
               <div>
                 <p className="text-[13px] font-semibold text-[var(--ink)]">Mesajlar</p>
@@ -793,7 +793,7 @@ export function AppShell({ children }: { children: ReactNode }) {
           onClick={() => setMessengerOpen((current) => !current)}
           aria-label="Mesajları aç"
           aria-expanded={messengerOpen}
-          className="relative ml-auto flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-[22px] text-white shadow-[0_14px_34px_rgba(22,116,189,.32)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(22,116,189,.38)]"
+          className="relative ml-auto flex h-14 w-14 items-center justify-center rounded-full bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-[22px] text-white shadow-[0_14px_34px_rgba(0,191,99,.32)] transition hover:-translate-y-0.5 hover:shadow-[0_18px_42px_rgba(0,191,99,.38)]"
         >
           <span aria-hidden="true">✦</span>
           {teamUnread > 0 ? <span className="absolute -right-1 -top-1 min-w-5 rounded-full border-2 border-white bg-rose-500 px-1 py-0.5 text-center text-[9px] font-bold text-white">{teamUnread > 99 ? "99+" : teamUnread}</span> : null}
