@@ -46,14 +46,6 @@ async function ensureApiReady() {
     : new ApiError("Sunucu şu anda hazırlanıyor.", 503);
 }
 
-const bubbleItems = [
-  { text: "Bugünkü randevular hazır!", icon: "▣", className: "left-[47%] top-[8%] rotate-[2deg]" },
-  { text: "Ekip planı tıkırında.", icon: "♧", className: "right-[7%] top-[24%] -rotate-[2deg]" },
-  { text: "Tahsilatlar kontrol altında.", icon: "▤", className: "right-[8%] top-[39%] rotate-[1deg]" },
-  { text: "Müşteriler hep yanında.", icon: "♡", className: "left-[12%] top-[47%] -rotate-[3deg]" },
-  { text: "Stoklar düzenli.", icon: "◇", className: "left-[43%] top-[49%] rotate-[2deg]" },
-] as const;
-
 export default function LoginPage() {
   const router = useRouter();
   const [email, setEmail] = useState("");
@@ -179,119 +171,150 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[#eef8f1] p-0 text-[var(--ink)] lg:p-5">
       <div className="mx-auto grid min-h-screen max-w-[1600px] overflow-hidden bg-white shadow-[0_28px_90px_rgba(18,93,53,.12)] lg:min-h-[calc(100vh-40px)] lg:grid-cols-[minmax(0,1.18fr)_minmax(440px,.82fr)] lg:rounded-[34px]">
-        <section className="relative hidden overflow-hidden border-r border-[rgba(0,191,99,.10)] bg-[linear-gradient(145deg,#fffdf8_0%,#f6fbf7_44%,#eaf8ef_100%)] lg:block">
-          <div className="absolute -left-24 top-20 h-72 w-72 rounded-full bg-[rgba(0,191,99,.08)] blur-3xl" />
-          <div className="absolute -right-28 bottom-16 h-80 w-80 rounded-full bg-[rgba(67,217,139,.12)] blur-3xl" />
+        <section className="relative hidden overflow-hidden border-r border-[rgba(0,191,99,.10)] bg-[linear-gradient(155deg,#fbfefc_0%,#f4faf6_45%,#edf8f1_100%)] lg:block">
+          <div className="absolute inset-0 opacity-[.35]" style={{ backgroundImage: "linear-gradient(rgba(0,191,99,.055) 1px, transparent 1px), linear-gradient(90deg, rgba(0,191,99,.055) 1px, transparent 1px)", backgroundSize: "34px 34px" }} />
+          <div className="absolute -left-32 top-24 h-80 w-80 rounded-full bg-[rgba(0,191,99,.09)] blur-3xl" />
+          <div className="absolute -right-24 bottom-8 h-96 w-96 rounded-full bg-[rgba(67,217,139,.11)] blur-3xl" />
 
-          <div className="relative z-10 flex h-full min-h-[900px] flex-col px-10 pb-8 pt-9 xl:px-14">
+          <div className="relative z-10 flex h-full min-h-[900px] flex-col px-10 pb-10 pt-9 xl:px-14">
             <ValooLogo className="w-[150px]" priority />
 
-            <div className="mt-12 max-w-[560px]">
-              <p className="font-[cursive] text-[42px] font-semibold leading-[1.02] tracking-[-0.05em] text-[#15231a] xl:text-[56px]">
+            <div className="mt-14 max-w-[620px]">
+              <p className="text-[13px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">VALOO ile gün daha kolay</p>
+              <h2 className="mt-4 max-w-[600px] text-[46px] font-semibold leading-[.98] tracking-[-.055em] text-[#15231a] xl:text-[60px]">
                 İşler yolunda,
-                <span className="block text-[var(--accent)]">sen keyfinde. ♡</span>
-              </p>
-              <p className="mt-6 max-w-[500px] text-[15px] leading-7 text-[#56645b]">
-                Randevular, ekip, müşteriler, finans ve daha fazlası VALOO&apos;da bir arada.
-                Günün karmaşasını bize bırak, sen işine odaklan.
+                <span className="block text-[var(--accent)]">sen keyfinde.</span>
+              </h2>
+              <p className="mt-6 max-w-[540px] text-[15px] leading-7 text-[#56645b]">
+                Randevular, ekip, müşteriler, finans ve operasyon aynı ritimde ilerlesin.
+                VALOO gününü sadeleştirir, sen kararlarına odaklanırsın.
               </p>
             </div>
 
-            {bubbleItems.map((item) => (
-              <div
-                key={item.text}
-                className={`absolute z-20 flex max-w-[240px] items-center gap-3 rounded-[22px] border border-white/90 bg-white/88 px-4 py-3 shadow-[0_12px_35px_rgba(18,93,53,.09)] backdrop-blur-xl ${item.className}`}
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-[12px] bg-[var(--accent-soft)] text-[18px] font-semibold text-[var(--accent)]">
-                  {item.icon}
-                </span>
-                <span className="text-[12px] font-semibold leading-4 text-[#263329]">{item.text}</span>
+            <div className="mt-8 flex flex-wrap gap-3">
+              <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-[0_10px_28px_rgba(18,93,53,.07)] backdrop-blur-xl">
+                <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">Bugünkü randevular</p>
+                <div className="mt-1 flex items-end gap-2"><strong className="text-[24px] tracking-[-.04em]">18</strong><span className="pb-1 text-[10px] font-semibold text-[var(--accent)]">planlandı</span></div>
               </div>
-            ))}
-
-            <div className="absolute right-[7%] top-[56%] z-20 rounded-[26px] bg-[#08723f] px-6 py-5 text-center text-[14px] font-semibold leading-5 text-white shadow-[0_20px_48px_rgba(0,105,54,.22)]">
-              Daha az stres,
-              <br />
-              daha çok başarı. ♡
+              <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-[0_10px_28px_rgba(18,93,53,.07)] backdrop-blur-xl">
+                <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">Ekip durumu</p>
+                <div className="mt-1 flex items-end gap-2"><strong className="text-[24px] tracking-[-.04em]">7</strong><span className="pb-1 text-[10px] font-semibold text-[var(--accent)]">aktif personel</span></div>
+              </div>
+              <div className="rounded-[18px] border border-white/90 bg-white/88 px-4 py-3 shadow-[0_10px_28px_rgba(18,93,53,.07)] backdrop-blur-xl">
+                <p className="text-[10px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">Günlük ciro</p>
+                <div className="mt-1 flex items-end gap-2"><strong className="text-[24px] tracking-[-.04em]">₺84.250</strong><span className="pb-1 text-[10px] font-semibold text-[var(--accent)]">bugün</span></div>
+              </div>
             </div>
 
-            <div className="relative mt-auto pt-40">
-              <div className="relative mx-auto max-w-[760px] rounded-[28px] border border-white/90 bg-white/85 p-3 shadow-[0_30px_70px_rgba(18,93,53,.18)] backdrop-blur-xl">
-                <div className="overflow-hidden rounded-[22px] border border-[#dfe9e2] bg-[#f8fbf9]">
-                  <div className="grid min-h-[350px] grid-cols-[145px_minmax(0,1fr)]">
-                    <aside className="bg-[#173225] px-3 py-4 text-white">
-                      <ValooLogo className="w-[84px] brightness-0 invert" alt="VALOO" />
+            <div className="relative mt-auto pt-12">
+              <div className="relative mx-auto max-w-[820px]">
+                <div className="relative z-10 overflow-hidden rounded-[30px] border border-white/95 bg-white shadow-[0_36px_90px_rgba(18,93,53,.18)]">
+                  <div className="flex h-8 items-center gap-1.5 border-b border-[#e6eee9] bg-[#f7faf8] px-4">
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#dbe5de]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#dbe5de]" />
+                    <span className="h-2.5 w-2.5 rounded-full bg-[#dbe5de]" />
+                    <span className="ml-3 rounded-full bg-white px-3 py-1 text-[7px] font-medium text-[var(--muted)]">valoo.app/dashboard</span>
+                  </div>
+
+                  <div className="grid min-h-[390px] grid-cols-[150px_minmax(0,1fr)]">
+                    <aside className="bg-[#163225] px-3 py-4 text-white">
+                      <ValooLogo className="w-[82px] brightness-0 invert" alt="VALOO" />
                       <div className="mt-6 space-y-1 text-[9px]">
-                        {["Bugün", "Randevular", "Müşteriler", "Operasyon Merkezi", "Finans", "Stok", "İK", "Raporlar"].map((label, index) => (
-                          <div key={label} className={`rounded-[8px] px-2.5 py-2 ${index === 0 ? "bg-[#00bf63] font-semibold" : "text-white/70"}`}>
-                            {label}
-                          </div>
+                        {["Bugün","Yönetim Özeti","Müşteri İlişkileri","Operasyon Merkezi","Finans Yönetimi","İnsan Kaynakları","Envanter","Raporlar"].map((label,index)=>(
+                          <div key={label} className={`rounded-[9px] px-2.5 py-2 ${index===0?"bg-[#00bf63] font-semibold":"text-white/68"}`}>{label}</div>
                         ))}
                       </div>
                     </aside>
 
-                    <div className="bg-white p-5">
+                    <div className="bg-[#fbfdfb] p-5">
                       <div className="flex items-center justify-between gap-4">
                         <div>
-                          <p className="text-[10px] text-[var(--muted)]">Günaydın 👋</p>
-                          <h2 className="mt-1 text-[18px] font-semibold tracking-[-.03em]">Bugünün özeti</h2>
+                          <p className="text-[9px] font-medium text-[var(--muted)]">5 Ekim · Pazartesi</p>
+                          <h3 className="mt-1 text-[20px] font-semibold tracking-[-.04em]">Bugünün özeti</h3>
                         </div>
-                        <span className="rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-[9px] font-semibold text-[var(--accent)]">{currentTimeLabel}</span>
+                        <div className="flex items-center gap-2">
+                          <span className="rounded-[10px] border border-[#dfe9e2] bg-white px-3 py-2 text-[8px] font-medium text-[var(--muted)]">Tüm Şubeler</span>
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[9px] font-semibold text-[var(--accent)]">KA</span>
+                        </div>
                       </div>
 
                       <div className="mt-5 grid grid-cols-4 gap-2">
                         {[
-                          ["Randevular", "18"],
-                          ["Günlük Ciro", "₺84.250"],
-                          ["Aktif Personel", "7"],
-                          ["Yeni Müşteri", "5"],
-                        ].map(([label, value]) => (
-                          <div key={label} className="rounded-[12px] border border-[#e4ece7] bg-[#fbfdfb] p-3">
-                            <p className="text-[8px] text-[var(--muted)]">{label}</p>
-                            <p className="mt-1.5 text-[14px] font-semibold">{value}</p>
-                            <p className="mt-1 text-[7px] font-semibold text-[var(--accent)]">↑ bugün</p>
+                          ["Randevular","18","+4"],
+                          ["Tahsilat","₺84.250","+12%"],
+                          ["Aktif Personel","7","7/8"],
+                          ["Yeni Müşteri","5","+2"],
+                        ].map(([label,value,meta])=>(
+                          <div key={label} className="rounded-[14px] border border-[#e3ece6] bg-white p-3">
+                            <p className="text-[7px] font-medium uppercase tracking-[.05em] text-[var(--muted)]">{label}</p>
+                            <div className="mt-2 flex items-end justify-between gap-1"><strong className="text-[14px]">{value}</strong><span className="text-[7px] font-semibold text-[var(--accent)]">{meta}</span></div>
                           </div>
                         ))}
                       </div>
 
-                      <div className="mt-4 grid grid-cols-[1.18fr_.82fr] gap-3">
-                        <div className="rounded-[14px] border border-[#e4ece7] p-3">
+                      <div className="mt-4 grid grid-cols-[1.15fr_.85fr] gap-3">
+                        <div className="rounded-[15px] border border-[#e3ece6] bg-white p-3">
                           <div className="flex items-center justify-between">
-                            <p className="text-[10px] font-semibold">Bugünkü Randevular</p>
-                            <span className="text-[8px] font-semibold text-[var(--accent)]">Tümünü gör</span>
+                            <div><p className="text-[10px] font-semibold">Canlı Operasyon</p><p className="mt-0.5 text-[7px] text-[var(--muted)]">Bugünkü randevu akışı</p></div>
+                            <span className="text-[7px] font-semibold text-[var(--accent)]">Operasyon Merkezi →</span>
                           </div>
                           <div className="mt-3 space-y-2">
                             {[
-                              ["09:00", "Ayşe Demir", "Tamamlandı"],
-                              ["10:30", "Zeynep Yılmaz", "Şu anda"],
-                              ["12:00", "Melis Kaya", "Bekliyor"],
-                              ["14:30", "Ece Arslan", "Bekliyor"],
-                            ].map(([time, name, status]) => (
-                              <div key={time} className="grid grid-cols-[42px_minmax(0,1fr)_auto] items-center gap-2 text-[8px]">
-                                <span className="text-[var(--muted)]">{time}</span>
-                                <span className="font-medium">{name}</span>
-                                <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[7px] font-semibold text-[var(--accent)]">{status}</span>
+                              ["09:00","Ayşe Demir","Cilt Bakımı","Tamamlandı"],
+                              ["10:30","Zeynep Yılmaz","Lazer Epilasyon","İşlemde"],
+                              ["12:00","Melis Kaya","Hydrafacial","Bekliyor"],
+                              ["14:30","Ece Arslan","Bölgesel İncelme","Bekliyor"],
+                            ].map(([time,name,service,status])=>(
+                              <div key={time} className="grid grid-cols-[38px_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] bg-[#f8fbf9] px-2 py-2 text-[7px]">
+                                <span className="font-semibold text-[var(--muted)]">{time}</span>
+                                <span className="min-w-0"><strong className="block truncate text-[8px]">{name}</strong><span className="block truncate text-[6px] text-[var(--muted)]">{service}</span></span>
+                                <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 font-semibold text-[var(--accent)]">{status}</span>
                               </div>
                             ))}
                           </div>
                         </div>
 
-                        <div className="rounded-[14px] border border-[#e4ece7] p-3">
-                          <p className="text-[10px] font-semibold">Günlük Ciro</p>
-                          <p className="mt-2 text-[18px] font-semibold">₺84.250</p>
-                          <div className="mt-5 flex h-24 items-end gap-1.5">
-                            {[32, 44, 38, 57, 64, 75, 89].map((height, index) => (
-                              <span key={index} className="flex-1 rounded-t bg-[linear-gradient(180deg,#43d98b,#00bf63)]" style={{ height: `${height}%` }} />
-                            ))}
+                        <div className="space-y-3">
+                          <div className="rounded-[15px] border border-[#e3ece6] bg-white p-3">
+                            <p className="text-[10px] font-semibold">Tahsilat Eğilimi</p>
+                            <p className="mt-1 text-[7px] text-[var(--muted)]">Son 7 gün</p>
+                            <div className="mt-4 flex h-20 items-end gap-1.5">
+                              {[42,52,47,66,71,84,95].map((height,index)=><span key={index} className="flex-1 rounded-t-[4px] bg-[linear-gradient(180deg,#55dfa0,#00bf63)]" style={{height:`${height}%`}} />)}
+                            </div>
                           </div>
-                          <div className="mt-2 flex justify-between text-[6px] text-[var(--muted)]">
-                            <span>Pzt</span><span>Sal</span><span>Çar</span><span>Per</span><span>Cum</span><span>Cmt</span><span>Paz</span>
+                          <div className="rounded-[15px] border border-[#e3ece6] bg-white p-3">
+                            <div className="flex items-center justify-between"><p className="text-[9px] font-semibold">Ekip Durumu</p><span className="text-[7px] text-[var(--accent)]">7 aktif</span></div>
+                            <div className="mt-3 flex -space-x-1.5">
+                              {["AK","EY","MS","BD","SA"].map((initials,index)=><span key={initials} className="flex h-7 w-7 items-center justify-center rounded-full border-2 border-white bg-[var(--accent-soft)] text-[6px] font-semibold text-[var(--accent)]" style={{zIndex:10-index}}>{initials}</span>)}
+                            </div>
                           </div>
                         </div>
                       </div>
                     </div>
                   </div>
                 </div>
+
+                <div className="absolute -bottom-5 -right-3 z-20 w-[170px] rounded-[26px] border-[6px] border-[#183326] bg-white p-2 shadow-[0_24px_60px_rgba(18,93,53,.2)] xl:-right-8">
+                  <div className="rounded-[18px] bg-[#f7fbf8] p-3">
+                    <div className="flex items-center justify-between"><ValooLogo className="w-[58px]" alt="VALOO" /><span className="text-[7px] text-[var(--muted)]">09:41</span></div>
+                    <p className="mt-4 text-[8px] font-semibold">Bugün</p>
+                    <div className="mt-2 rounded-[12px] bg-white p-2.5 shadow-sm">
+                      <p className="text-[6px] text-[var(--muted)]">Sonraki randevu</p>
+                      <p className="mt-1 text-[9px] font-semibold">10:30 · Zeynep</p>
+                      <span className="mt-2 inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[6px] font-semibold text-[var(--accent)]">Hazır</span>
+                    </div>
+                    <div className="mt-2 grid grid-cols-2 gap-2">
+                      <div className="rounded-[10px] bg-white p-2"><p className="text-[5px] text-[var(--muted)]">Tahsilat</p><p className="mt-1 text-[8px] font-semibold">₺84K</p></div>
+                      <div className="rounded-[10px] bg-white p-2"><p className="text-[5px] text-[var(--muted)]">Ekip</p><p className="mt-1 text-[8px] font-semibold">7 aktif</p></div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="mt-8 flex items-center gap-6 text-[10px] text-[var(--muted)]">
+                <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[var(--accent)]" /> Gerçek zamanlı operasyon</span>
+                <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[var(--accent)]" /> Tek merkezden görünürlük</span>
+                <span className="inline-flex items-center gap-2"><i className="h-2 w-2 rounded-full bg-[var(--accent)]" /> Mobil uyumlu</span>
               </div>
             </div>
           </div>
