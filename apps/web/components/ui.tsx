@@ -126,9 +126,9 @@ export function Button({
 }: ButtonProps) {
   const variants = {
     primary:
-      "border border-[var(--accent)] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white shadow-[0_7px_18px_rgba(22,116,189,.17)] hover:shadow-[0_9px_24px_rgba(22,116,189,.22)]",
+      "border border-[var(--accent)] bg-[linear-gradient(135deg,var(--brand-gradient-start),var(--accent),var(--brand-gradient-end))] text-white shadow-[0_7px_18px_rgba(0,191,99,.17)] hover:shadow-[0_9px_24px_rgba(0,191,99,.22)]",
     secondary:
-      "border border-[var(--line)] bg-white text-[var(--ink)] shadow-[0_1px_2px_rgba(17,70,104,.03)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]",
+      "border border-[var(--line)] bg-white text-[var(--ink)] shadow-[0_1px_2px_rgba(18,93,53,.03)] hover:border-[var(--line-strong)] hover:text-[var(--accent)]",
     ghost:
       "border border-transparent bg-transparent text-[var(--muted)] hover:bg-[var(--accent-soft)] hover:text-[var(--accent)]",
     danger:
