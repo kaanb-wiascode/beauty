@@ -17,7 +17,7 @@
   border-color: var(--line) !important;
   background: rgba(255,255,255,.92) !important;
   color: var(--muted) !important;
-  box-shadow: 0 2px 10px rgba(72,54,104,.035) !important;
+  box-shadow: 0 2px 10px rgba(18,93,53,.035) !important;
 }
 .dashboard-search:hover { border-color: var(--line-strong) !important; }
 
@@ -32,12 +32,12 @@
 .dashboard-primary-action {
   border: 0 !important;
   border-radius: 13px !important;
-  background: linear-gradient(135deg, var(--accent), #9475f3) !important;
-  box-shadow: 0 9px 22px rgba(22,116,189,.18) !important;
+  background: linear-gradient(135deg, var(--accent), #43d98b) !important;
+  box-shadow: 0 9px 22px rgba(0,191,99,.18) !important;
 }
 .dashboard-primary-action:hover {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent)) !important;
-  box-shadow: 0 11px 25px rgba(22,116,189,.22) !important;
+  box-shadow: 0 11px 25px rgba(0,191,99,.22) !important;
 }
 
 .metric-card {
@@ -45,13 +45,13 @@
   border-radius: 18px !important;
   border-color: var(--line) !important;
   background: rgba(255,255,255,.94) !important;
-  box-shadow: 0 8px 24px rgba(72,54,104,.055) !important;
+  box-shadow: 0 8px 24px rgba(18,93,53,.055) !important;
   transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
 }
 .metric-card:hover {
   transform: translateY(-2px);
   border-color: #ddd5ee !important;
-  box-shadow: 0 14px 32px rgba(72,54,104,.09) !important;
+  box-shadow: 0 14px 32px rgba(18,93,53,.09) !important;
 }
 .metric-icon {
   border-radius: 12px !important;
@@ -73,7 +73,7 @@
   border-radius: 18px !important;
   border-color: var(--line) !important;
   background: rgba(255,255,255,.96) !important;
-  box-shadow: 0 8px 28px rgba(72,54,104,.055) !important;
+  box-shadow: 0 8px 28px rgba(18,93,53,.055) !important;
 }
 .panel-header {
   min-height: 64px !important;
@@ -86,8 +86,8 @@
 .panel-link-button,
 .count-chip,
 .soft-chip {
-  border-color: #e5e0ee !important;
-  background: #faf8ff !important;
+  border-color: #dfe9e2 !important;
+  background: #f5fbf7 !important;
   color: var(--accent) !important;
 }
 .panel-link-button:hover { background: var(--accent-soft) !important; }
@@ -96,7 +96,7 @@
   min-height: 76px !important;
   padding: 12px 18px !important;
 }
-.schedule-row:hover { background: #fbf9ff !important; }
+.schedule-row:hover { background: #f7fcf9 !important; }
 .schedule-dot {
   background: var(--accent) !important;
   box-shadow: 0 0 0 4px var(--accent-soft) !important;
@@ -106,21 +106,21 @@
 
 /* Appointment status becomes semantic instead of monochrome. */
 .status {
-  border: 1px solid #e4def0 !important;
+  border: 1px solid #dfe9e2 !important;
   background: var(--accent-soft) !important;
   color: var(--accent) !important;
 }
 
 /* User avatar uses the Beauty gradient instead of black. */
 .profile {
-  background: linear-gradient(135deg, #9675ef, var(--accent), var(--secondary)) !important;
-  box-shadow: 0 5px 14px rgba(22,116,189,.18) !important;
+  background: linear-gradient(135deg, #43d98b, var(--accent), var(--secondary)) !important;
+  box-shadow: 0 5px 14px rgba(0,191,99,.18) !important;
 }
 
 .dashboard-avatar {
   color: var(--accent) !important;
   background: linear-gradient(135deg, #eaf5fb, #eaf8f2) !important;
-  border: 1px solid #e7e0f1 !important;
+  border: 1px solid #dfe9e2 !important;
 }
 
 .next-appointment { padding: 20px !important; }
@@ -137,12 +137,12 @@
   background: var(--accent-soft) !important;
   color: var(--accent) !important;
 }
-.panel-action-button:hover { background: #e8e0ff !important; }
+.panel-action-button:hover { background: #dcf8e9 !important; }
 
 .trend-mini {
   border-radius: 13px !important;
-  background: #faf8ff !important;
-  border-color: #e8e1f2 !important;
+  background: #f5fbf7 !important;
+  border-color: #dfe9e2 !important;
 }
 .trend-mini.success {
   background: var(--secondary-soft) !important;
@@ -151,19 +151,19 @@
 .trend-mini strong { color: var(--ink) !important; }
 
 .metric-bar-track {
-  background: #eeeaf5 !important;
+  background: #e8f2eb !important;
   border-radius: 999px !important;
 }
 .metric-bar-track > div,
 .metric-bar-fill {
-  background: linear-gradient(90deg, var(--accent), #9b7af3) !important;
+  background: linear-gradient(90deg, var(--accent), #43d98b) !important;
   border-radius: inherit !important;
 }
 
 .period-footer { border-top-color: var(--line) !important; }
 
 .payment-total {
-  border: 1px solid #e5dff0 !important;
+  border: 1px solid #dfe9e2 !important;
   border-radius: 15px !important;
   background: linear-gradient(135deg, #faf7ff, #f2fbf7) !important;
 }
@@ -179,7 +179,7 @@
 .dashboard-topbar .fixed {
   border-color: var(--line) !important;
   background: rgba(255,255,255,.97) !important;
-  box-shadow: 0 18px 45px rgba(72,54,104,.13) !important;
+  box-shadow: 0 18px 45px rgba(18,93,53,.13) !important;
 }
 
 /* Keep the dashboard permanently light: the legacy theme toggle remains non-interactive visually. */
