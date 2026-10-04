@@ -605,7 +605,7 @@ export function AppShell({ children }: { children: ReactNode }) {
             <BrandMark />
             {!collapsed ? (
               <div className="min-w-0">
-                <div className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[var(--ink)]">VALOO</div>
+                <div className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[var(--ink)]">Yönetim Platformu</div>
                 <div className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{tenant?.name ?? "İşletme Yönetimi"}</div>
               </div>
             ) : null}
