@@ -152,34 +152,40 @@ export default function DashboardPage() {
           </div>
         </Panel>
 
-        <Panel title="Aktiviteler" subtitle="Bugünün akışı" action={<span className="text-[9px] font-medium text-[var(--muted)]">Güncel</span>}>
-          <div className="px-3 py-2">
-            {today.slice(0,3).map((a)=><div key={a.id} className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-start gap-2 border-b border-[var(--line)] py-2.5 last:border-0">
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] [&_svg]:h-3.5 [&_svg]:w-3.5"><CalendarIcon/></span>
-              <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[var(--ink)]">{statusLabel[a.status]} randevu</p><p className="mt-0.5 truncate text-[9px] text-[var(--muted)]">{fullName(a.customer.firstName,a.customer.lastName)} · {a.service.name}</p></div>
-              <time className="pt-0.5 text-[9px] text-[var(--muted-soft)]">{time(a.startAt)}</time>
-            </div>)}
-            {data.summary.paymentCount?<div className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-start gap-2 border-b border-[var(--line)] py-2.5 last:border-0"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)] [&_svg]:h-3.5 [&_svg]:w-3.5"><WalletIcon/></span><div className="min-w-0"><p className="text-[10px] font-semibold text-[var(--ink)]">{data.summary.paymentCount} ödeme işlemi</p><p className="mt-0.5 truncate text-[9px] text-[var(--muted)]">{money.format(data.summary.net)} net tahsilat</p></div><span className="pt-0.5 text-[9px] text-[var(--muted-soft)]">Bugün</span></div>:null}
-            {p7.newCustomers?<div className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-start gap-2 py-2.5"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--muted)] [&_svg]:h-3.5 [&_svg]:w-3.5"><PeopleIcon/></span><div className="min-w-0"><p className="text-[10px] font-semibold text-[var(--ink)]">Yeni müşteriler</p><p className="mt-0.5 text-[9px] text-[var(--muted)]">Son 7 günde {p7.newCustomers} yeni kayıt</p></div><span className="pt-0.5 text-[9px] text-[var(--muted-soft)]">7 gün</span></div>:null}
-            {!today.length&&!data.summary.paymentCount&&!p7.newCustomers?<Empty label="Henüz aktivite yok" href="/reports"/>:null}
-          </div>
-        </Panel>
-
-        <Panel title="Ekip Durumu" subtitle="Bugünkü çalışma görünümü" action={<span className="count-chip">{data.totals.activeStaff} aktif</span>}>
+        <Panel title="Ekip Durumu" subtitle="Bugünkü ekip kapasitesi ve performansı" action={<span className="count-chip">{data.totals.activeStaff} aktif</span>}>
           <div className="p-3">
             <div className="flex items-center justify-between gap-3">
-              <div className="flex -space-x-1.5">{data.staffPerformance.slice(0,6).map((s)=><div key={s.id} className="rounded-full border-2 border-[var(--surface)]" title={s.name}><Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/></div>)}</div>
-              <span className="text-[10px] font-semibold text-[var(--accent)]">{teamCoveragePct}% programlı</span>
+              <div className="flex -space-x-1.5">{data.staffPerformance.slice(0,7).map((s)=><div key={s.id} className="rounded-full border-2 border-[var(--surface)]" title={s.name}><Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/></div>)}</div>
+              <div className="text-right"><span className="block text-[9px] text-[var(--muted)]">Program kapsamı</span><strong className="mt-0.5 block text-[12px] font-semibold text-[var(--accent)]">{teamCoveragePct}%</strong></div>
             </div>
             <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${teamCoveragePct}%`}}/></div>
+
             <div className="mt-3 grid grid-cols-3 gap-2">
-              <div className="rounded-[11px] bg-[var(--surface-2)] p-2 text-center"><strong className="block text-[14px] text-[var(--ink)]">{scheduledTeamCount}</strong><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Programlı</span></div>
-              <div className="rounded-[11px] bg-[var(--surface-2)] p-2 text-center"><strong className="block text-[14px] text-[var(--ink)]">{upcomingStaffIds.size}</strong><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Yaklaşan</span></div>
-              <div className="rounded-[11px] bg-[var(--surface-2)] p-2 text-center"><strong className="block text-[14px] text-[var(--ink)]">{data.totals.activeStaff}</strong><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Aktif</span></div>
+              <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] p-2.5 text-center"><strong className="block text-[16px] leading-none text-[var(--ink)]">{scheduledTeamCount}</strong><span className="mt-1 block text-[8px] text-[var(--muted)]">Bugün Programlı</span></div>
+              <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] p-2.5 text-center"><strong className="block text-[16px] leading-none text-[var(--ink)]">{upcomingStaffIds.size}</strong><span className="mt-1 block text-[8px] text-[var(--muted)]">Yaklaşan İşlem</span></div>
+              <div className="rounded-[12px] border border-[var(--line)] bg-[var(--surface-2)] p-2.5 text-center"><strong className="block text-[16px] leading-none text-[var(--ink)]">{data.totals.activeStaff}</strong><span className="mt-1 block text-[8px] text-[var(--muted)]">Aktif Personel</span></div>
             </div>
-            {busiestStaff?<div className="mt-3 flex items-center gap-2 rounded-[12px] border border-[var(--line)] px-2.5 py-2"><Avatar label={initials(busiestStaff.name.split(" ")[0] ?? "",busiestStaff.name.split(" ").slice(1).join(" "))}/><div className="min-w-0 flex-1"><span className="block text-[8px] text-[var(--muted)]">Öne çıkan ekip üyesi</span><b className="mt-0.5 block truncate text-[10px] font-semibold text-[var(--ink)]">{busiestStaff.name}</b></div><span className="text-[9px] font-semibold text-[var(--accent)]">{busiestStaff.appointmentCount} rnd.</span></div>:null}
+
+            {data.staffPerformance.length?<div className="mt-3 rounded-[14px] border border-[var(--line)]">
+              <div className="flex items-center justify-between border-b border-[var(--line)] px-3 py-2"><span className="text-[9px] font-semibold text-[var(--muted)]">Bugünün Öne Çıkan Ekibi</span><span className="text-[8px] text-[var(--muted-soft)]">Randevu / Tahsilat</span></div>
+              <div className="divide-y divide-[var(--line)]">{data.staffPerformance.slice(0,3).map((s,index)=><div key={s.id} className="grid grid-cols-[24px_30px_minmax(0,1fr)_auto] items-center gap-2 px-3 py-2.5">
+                <span className="text-center text-[9px] font-semibold text-[var(--muted-soft)]">{index+1}</span>
+                <Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/>
+                <div className="min-w-0"><b className="block truncate text-[10px] font-semibold text-[var(--ink)]">{s.name}</b><span className="mt-0.5 block text-[8px] text-[var(--muted)]">{s.appointmentCount} randevu</span></div>
+                <span className="text-[9px] font-semibold text-[var(--accent)]">{money.format(s.collected)}</span>
+              </div>)}</div>
+            </div>:null}
           </div>
           <Link href="/staff" className="panel-footer-link">Ekibi görüntüle<ArrowRightIcon/></Link>
+        </Panel>
+
+        <Panel title="Bildirimler" subtitle="Dikkat gerektiren güncel durumlar" action={<span className="flex items-center gap-1.5 text-[9px] font-medium text-[var(--muted)]"><span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]"/>Güncel</span>}>
+          <div className="px-3 py-2">
+            {data.summary.scheduledAppointments>0?<Link href="/appointments" className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 rounded-[12px] px-2 py-2.5 transition hover:bg-[var(--surface-2)]"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--warning-soft)] text-[var(--warning)] [&_svg]:h-3.5 [&_svg]:w-3.5"><ClockIcon/></span><div className="min-w-0"><b className="block text-[10px] font-semibold text-[var(--ink)]">{data.summary.scheduledAppointments} randevu bekliyor</b><span className="mt-0.5 block text-[9px] text-[var(--muted)]">Bugünkü planlanmış işlemler</span></div><ArrowRightIcon/></Link>:null}
+            {(data.summary.cancelledAppointments+data.summary.noShowAppointments)>0?<Link href="/appointments" className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 rounded-[12px] px-2 py-2.5 transition hover:bg-[var(--surface-2)]"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--danger-soft)] text-[var(--danger)] [&_svg]:h-3.5 [&_svg]:w-3.5"><CalendarIcon/></span><div className="min-w-0"><b className="block text-[10px] font-semibold text-[var(--ink)]">{data.summary.cancelledAppointments+data.summary.noShowAppointments} aksayan randevu</b><span className="mt-0.5 block text-[9px] text-[var(--muted)]">{data.summary.cancelledAppointments} iptal · {data.summary.noShowAppointments} gelmedi</span></div><ArrowRightIcon/></Link>:null}
+            {data.summary.paymentCount>0?<Link href="/payments" className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-center gap-2 rounded-[12px] px-2 py-2.5 transition hover:bg-[var(--surface-2)]"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)] [&_svg]:h-3.5 [&_svg]:w-3.5"><WalletIcon/></span><div className="min-w-0"><b className="block text-[10px] font-semibold text-[var(--ink)]">{data.summary.paymentCount} ödeme kaydı</b><span className="mt-0.5 block text-[9px] text-[var(--muted)]">{money.format(data.summary.net)} net tahsilat</span></div><ArrowRightIcon/></Link>:null}
+            {data.summary.scheduledAppointments===0&&(data.summary.cancelledAppointments+data.summary.noShowAppointments)===0&&data.summary.paymentCount===0?<div className="flex min-h-[88px] items-center justify-center text-center"><div><span className="mx-auto flex h-8 w-8 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)]"><CheckIcon/></span><b className="mt-2 block text-[10px] text-[var(--ink)]">Şu an kritik bildirim yok</b><span className="mt-0.5 block text-[9px] text-[var(--muted)]">Güncel operasyon akışı normal görünüyor.</span></div></div>:null}
+          </div>
         </Panel>
       </aside>
     </div>
