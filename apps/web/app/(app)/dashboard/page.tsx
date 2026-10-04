@@ -70,6 +70,11 @@ export default function DashboardPage() {
   const upcoming = data.upcomingAppointments.filter((a) => a.status !== "CANCELLED" && a.status !== "NO_SHOW").sort((a,b) => +new Date(a.startAt)-+new Date(b.startAt));
   const next = upcoming[0] ?? null; const p7 = data.periods.last7Days; const paymentTotal = Object.values(data.paymentBreakdown).reduce((a,b)=>a+b,0);
   const pct = (n:number) => data.summary.appointmentCount ? Math.round(n / data.summary.appointmentCount * 100) : 0;
+  const todayStaffIds = new Set(today.map((appointment)=>appointment.staff.id));
+  const upcomingStaffIds = new Set(upcoming.map((appointment)=>appointment.staff.id));
+  const scheduledTeamCount = todayStaffIds.size;
+  const teamCoveragePct = data.totals.activeStaff ? Math.min(100, Math.round((scheduledTeamCount / data.totals.activeStaff) * 100)) : 0;
+  const busiestStaff = data.staffPerformance[0] ?? null;
 
   function saved() { setError(""); window.setTimeout(() => window.location.reload(), 450); }
 
@@ -120,10 +125,62 @@ export default function DashboardPage() {
       </main>
 
       <aside className="dashboard-rail xl:sticky xl:top-0 xl:h-[calc(100vh-24px)] xl:overflow-y-auto xl:pr-1">
-        <Panel title="Yaklaşan Randevular" action={<span className="count-chip">{upcoming.length}</span>}><div className="rail-list">{upcoming.slice(0,6).map(a=><Link href="/appointments" key={a.id} className="rail-appointment"><span className="rail-time">{time(a.startAt)}</span><Avatar label={initials(a.customer.firstName,a.customer.lastName)}/><div className="min-w-0"><p className="truncate">{fullName(a.customer.firstName,a.customer.lastName)}</p><span>{a.service.name}</span></div></Link>)}{!upcoming.length?<Empty label="Yaklaşan randevu yok" href="/appointments"/>:null}</div></Panel>
-        <Panel title="Hızlı İşlemler" subtitle="Sık kullanılan işlemlere hızlıca erişin"><div className="quick-actions"><Quick label="Yeni Randevu" onClick={()=>setAction("appointment")}/><Quick label="Yeni Müşteri" onClick={()=>setAction("customer")}/><Quick label="Yeni Hizmet" onClick={()=>setAction("service")}/><Quick label="Ödeme Al" onClick={()=>setAction("payment")}/></div></Panel>
-        <Panel title="Aktiviteler"><div className="activity-list">{today.slice(0,4).map((a)=><Activity key={a.id} icon={<CalendarIcon/>} title="Randevu oluşturuldu" detail={`${fullName(a.customer.firstName,a.customer.lastName)} · ${a.service.name}`}/>)}{data.summary.paymentCount?<Activity icon={<WalletIcon/>} title="Ödeme alındı" detail={money.format(data.summary.net)}/>:null}{p7.newCustomers?<Activity icon={<PeopleIcon/>} title="Yeni müşteri" detail={`${p7.newCustomers} yeni müşteri`}/>:null}{!today.length&&!data.summary.paymentCount&&!p7.newCustomers?<Empty label="Henüz aktivite yok" href="/reports"/>:null}</div></Panel>
-        <Panel title="Ekip Durumu" action={<span className="count-chip">{data.totals.activeStaff}</span>}><div className="staff-stack">{data.staffPerformance.slice(0,6).map((s,i)=><div key={s.id} className="staff-avatar-wrap" title={s.name}><Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/><span className={`presence ${i<4?"online":""}`}/></div>)}</div><Link href="/staff" className="panel-footer-link">Ekibi görüntüle<ArrowRightIcon/></Link></Panel>
+        <Panel title="Yaklaşan Randevular" subtitle="Sıradaki program" action={<div className="flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-[var(--accent)]"/><span className="text-[10px] font-semibold text-[var(--accent)]">Canlı</span><span className="count-chip">{upcoming.length}</span></div>}>
+          <div className="px-3 py-2">
+            {upcoming.slice(0,5).map((a,index)=><Link href="/appointments" key={a.id} className="group relative grid grid-cols-[46px_12px_minmax(0,1fr)] gap-2 rounded-[12px] px-1 py-2.5 transition hover:bg-[var(--surface-2)]">
+              <div className="pt-0.5 text-right"><strong className="block text-[11px] font-semibold text-[var(--ink)]">{time(a.startAt)}</strong><span className="mt-0.5 block text-[9px] text-[var(--muted-soft)]">{index===0?until(a.startAt):duration(a.startAt,a.endAt)}</span></div>
+              <div className="relative flex justify-center"><span className={`mt-1.5 h-2 w-2 rounded-full ${index===0?"bg-[var(--accent)] ring-4 ring-[var(--accent-soft)]":"bg-[var(--line-strong)]"}`}/>{index<Math.min(upcoming.length,5)-1?<span className="absolute bottom-[-10px] top-[15px] w-px bg-[var(--line)]"/>:null}</div>
+              <div className="min-w-0 pr-1"><div className="flex items-center gap-2"><Avatar label={initials(a.customer.firstName,a.customer.lastName)}/><div className="min-w-0"><p className="truncate text-[11px] font-semibold text-[var(--ink)]">{fullName(a.customer.firstName,a.customer.lastName)}</p><p className="mt-0.5 truncate text-[10px] text-[var(--muted)]">{a.service.name}</p></div></div><p className="ml-10 mt-1 truncate text-[9px] text-[var(--muted-soft)]">{fullName(a.staff.firstName,a.staff.lastName)}</p></div>
+            </Link>)}
+            {!upcoming.length?<Empty label="Yaklaşan randevu yok" href="/appointments"/>:null}
+          </div>
+          <Link href="/appointments" className="panel-footer-link">Takvimi görüntüle<ArrowRightIcon/></Link>
+        </Panel>
+
+        <Panel title="Hızlı İşlemler" subtitle="Günlük işlemler">
+          <div className="grid grid-cols-2 gap-2 p-3">
+            {[
+              {label:"Yeni Randevu",detail:"Randevu oluştur",action:"appointment" as DashboardAction,icon:<CalendarIcon/>},
+              {label:"Yeni Müşteri",detail:"Müşteri ekle",action:"customer" as DashboardAction,icon:<PeopleIcon/>},
+              {label:"Ödeme Al",detail:"Tahsilat kaydet",action:"payment" as DashboardAction,icon:<WalletIcon/>},
+              {label:"Yeni Hizmet",detail:"Hizmet tanımla",action:"service" as DashboardAction,icon:<SparkleIcon/>},
+            ].map((item)=><button key={item.label} type="button" onClick={()=>setAction(item.action)} className="group min-h-[88px] rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]">
+              <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)] [&_svg]:h-4 [&_svg]:w-4">{item.icon}</span>
+              <b className="mt-2 block text-[11px] font-semibold text-[var(--ink)]">{item.label}</b>
+              <span className="mt-0.5 block text-[9px] text-[var(--muted)]">{item.detail}</span>
+            </button>)}
+          </div>
+        </Panel>
+
+        <Panel title="Aktiviteler" subtitle="Bugünün akışı" action={<span className="text-[9px] font-medium text-[var(--muted)]">Güncel</span>}>
+          <div className="px-3 py-2">
+            {today.slice(0,3).map((a)=><div key={a.id} className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-start gap-2 border-b border-[var(--line)] py-2.5 last:border-0">
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[var(--accent)] [&_svg]:h-3.5 [&_svg]:w-3.5"><CalendarIcon/></span>
+              <div className="min-w-0"><p className="truncate text-[10px] font-semibold text-[var(--ink)]">{statusLabel[a.status]} randevu</p><p className="mt-0.5 truncate text-[9px] text-[var(--muted)]">{fullName(a.customer.firstName,a.customer.lastName)} · {a.service.name}</p></div>
+              <time className="pt-0.5 text-[9px] text-[var(--muted-soft)]">{time(a.startAt)}</time>
+            </div>)}
+            {data.summary.paymentCount?<div className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-start gap-2 border-b border-[var(--line)] py-2.5 last:border-0"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--success-soft)] text-[var(--success)] [&_svg]:h-3.5 [&_svg]:w-3.5"><WalletIcon/></span><div className="min-w-0"><p className="text-[10px] font-semibold text-[var(--ink)]">{data.summary.paymentCount} ödeme işlemi</p><p className="mt-0.5 truncate text-[9px] text-[var(--muted)]">{money.format(data.summary.net)} net tahsilat</p></div><span className="pt-0.5 text-[9px] text-[var(--muted-soft)]">Bugün</span></div>:null}
+            {p7.newCustomers?<div className="grid grid-cols-[30px_minmax(0,1fr)_auto] items-start gap-2 py-2.5"><span className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--surface-2)] text-[var(--muted)] [&_svg]:h-3.5 [&_svg]:w-3.5"><PeopleIcon/></span><div className="min-w-0"><p className="text-[10px] font-semibold text-[var(--ink)]">Yeni müşteriler</p><p className="mt-0.5 text-[9px] text-[var(--muted)]">Son 7 günde {p7.newCustomers} yeni kayıt</p></div><span className="pt-0.5 text-[9px] text-[var(--muted-soft)]">7 gün</span></div>:null}
+            {!today.length&&!data.summary.paymentCount&&!p7.newCustomers?<Empty label="Henüz aktivite yok" href="/reports"/>:null}
+          </div>
+        </Panel>
+
+        <Panel title="Ekip Durumu" subtitle="Bugünkü çalışma görünümü" action={<span className="count-chip">{data.totals.activeStaff} aktif</span>}>
+          <div className="p-3">
+            <div className="flex items-center justify-between gap-3">
+              <div className="flex -space-x-1.5">{data.staffPerformance.slice(0,6).map((s)=><div key={s.id} className="rounded-full border-2 border-[var(--surface)]" title={s.name}><Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/></div>)}</div>
+              <span className="text-[10px] font-semibold text-[var(--accent)]">{teamCoveragePct}% programlı</span>
+            </div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${teamCoveragePct}%`}}/></div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              <div className="rounded-[11px] bg-[var(--surface-2)] p-2 text-center"><strong className="block text-[14px] text-[var(--ink)]">{scheduledTeamCount}</strong><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Programlı</span></div>
+              <div className="rounded-[11px] bg-[var(--surface-2)] p-2 text-center"><strong className="block text-[14px] text-[var(--ink)]">{upcomingStaffIds.size}</strong><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Yaklaşan</span></div>
+              <div className="rounded-[11px] bg-[var(--surface-2)] p-2 text-center"><strong className="block text-[14px] text-[var(--ink)]">{data.totals.activeStaff}</strong><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Aktif</span></div>
+            </div>
+            {busiestStaff?<div className="mt-3 flex items-center gap-2 rounded-[12px] border border-[var(--line)] px-2.5 py-2"><Avatar label={initials(busiestStaff.name.split(" ")[0] ?? "",busiestStaff.name.split(" ").slice(1).join(" "))}/><div className="min-w-0 flex-1"><span className="block text-[8px] text-[var(--muted)]">Öne çıkan ekip üyesi</span><b className="mt-0.5 block truncate text-[10px] font-semibold text-[var(--ink)]">{busiestStaff.name}</b></div><span className="text-[9px] font-semibold text-[var(--accent)]">{busiestStaff.appointmentCount} rnd.</span></div>:null}
+          </div>
+          <Link href="/staff" className="panel-footer-link">Ekibi görüntüle<ArrowRightIcon/></Link>
+        </Panel>
       </aside>
     </div>
 
