@@ -7,6 +7,7 @@ import { userErrorMessage } from "@/lib/user-language";
 import { getAccessToken, persistSession } from "@/lib/auth";
 import type { LoginResponse } from "@/lib/types";
 import { Alert, Button, TextInput } from "@/components/ui";
+import { ValooLogo } from "@/components/valoo-logo";
 
 type MfaChallenge = {
   mfaRequired: true;
@@ -42,19 +43,6 @@ async function ensureApiReady() {
   throw lastError instanceof Error
     ? lastError
     : new ApiError("Sunucu şu anda hazırlanıyor.", 503);
-}
-
-function ValooMark() {
-  return (
-    <div
-      className="relative mx-auto flex h-24 w-24 items-center justify-center rounded-[28px] shadow-[0_18px_45px_rgba(22,116,189,0.18)]"
-      style={{ background: "linear-gradient(135deg, #55D4E1 0%, #369FCB 48%, #0551B0 100%)" }}
-      aria-hidden="true"
-    >
-      <div className="absolute inset-[7px] rounded-[22px] bg-white/95" />
-      <span className="relative bg-gradient-to-br from-[#55D4E1] via-[#369FCB] to-[#0551B0] bg-clip-text text-[42px] font-semibold leading-none tracking-[-0.08em] text-transparent">V</span>
-    </div>
-  );
 }
 
 export default function LoginPage() {
@@ -155,19 +143,17 @@ export default function LoginPage() {
   return (
     <main className="min-h-screen bg-[var(--background)] text-[var(--ink)]">
       <header className="mx-auto flex h-[72px] max-w-[1200px] items-center justify-between border-b border-[var(--line)] px-6 sm:px-8">
-        <a href="/login" className="flex items-center gap-2.5 text-[17px] font-semibold tracking-[-0.02em]">
-          <span className="flex h-8 w-8 items-center justify-center rounded-[10px] text-[12px] font-semibold text-white shadow-[0_6px_18px_rgba(22,116,189,0.18)]" style={{ background: "linear-gradient(135deg, #55D4E1 0%, #369FCB 48%, #0551B0 100%)" }} aria-hidden="true">V</span>
-          VALOO
+        <a href="/login" className="flex items-center" aria-label="VALOO giriş">
+          <ValooLogo className="w-[112px]" priority />
         </a>
         <span className="text-[12px] font-medium text-[var(--muted)]">Güvenli giriş</span>
       </header>
 
       <section className="mx-auto flex min-h-[calc(100vh-160px)] w-full max-w-[760px] flex-col items-center px-6 pb-16 pt-20 sm:pt-24">
-        <ValooMark />
+        <ValooLogo className="w-[220px] sm:w-[260px]" priority />
         <div className="mt-8 text-center">
           <p className="text-[11px] font-semibold uppercase tracking-[.16em] text-[var(--muted)]">İşletme yönetimi</p>
-          <h1 className="mt-2 text-[38px] font-semibold leading-tight tracking-[-0.045em] sm:text-[46px]">VALOO</h1>
-          <p className="mt-2 text-[17px] text-[var(--muted)]">{challenge ? "İki aşamalı doğrulama" : "Hesabınıza giriş yapın"}</p>
+                    <p className="mt-2 text-[17px] text-[var(--muted)]">{challenge ? "İki aşamalı doğrulama" : "Hesabınıza giriş yapın"}</p>
         </div>
 
         {!challenge ? (
