@@ -1,29 +1,29 @@
 @import "tailwindcss";
 
 :root {
-  --brand-primary: #1674bd;
-  --brand-primary-hover: #0b5fa9;
-  --brand-accent: #55d4e1;
-  --brand-gradient-start: #55d4e1;
-  --brand-gradient-end: #0551b0;
-  --background: #f7fafc;
-  --foreground: #17212b;
-  --muted: #667482;
-  --muted-soft: #6b7a89;
-  --line: #dfe7ed;
-  --line-strong: #c9d6e0;
-  --accent: #1674bd;
-  --accent-strong: #0b5fa9;
-  --accent-soft: #eaf5fb;
-  --secondary: #178a61;
-  --secondary-strong: #0f714f;
-  --secondary-soft: #eaf7f1;
-  --success: #178a61;
-  --success-soft: #eaf7f1;
+  --brand-primary: #00bf63;
+  --brand-primary-hover: #00a957;
+  --brand-accent: #43d98b;
+  --brand-gradient-start: #43d98b;
+  --brand-gradient-end: #008f4a;
+  --background: #f7fbf8;
+  --foreground: #17231c;
+  --muted: #647168;
+  --muted-soft: #77827a;
+  --line: #dfe9e2;
+  --line-strong: #c8d8cd;
+  --accent: #00bf63;
+  --accent-strong: #00a957;
+  --accent-soft: #e9fbf1;
+  --secondary: #148657;
+  --secondary-strong: #0f704a;
+  --secondary-soft: #eaf8f0;
+  --success: #148657;
+  --success-soft: #eaf8f0;
   --warning: #b66f24;
   --warning-soft: #fff5e8;
-  --info: #1674bd;
-  --info-soft: #eaf5fb;
+  --info: #00bf63;
+  --info-soft: #e9fbf1;
   --danger: #c45167;
   --danger-soft: #fff0f3;
   --surface: #ffffff;
@@ -31,10 +31,10 @@
   --glass: rgba(255, 255, 255, 0.90);
   --glass-elevated: rgba(255, 255, 255, 0.96);
   --glass-solid: #ffffff;
-  --ink: #17212b;
-  --shadow-soft: 0 1px 2px rgba(17, 70, 104, 0.025), 0 10px 28px rgba(17, 70, 104, 0.055);
-  --shadow-lift: 0 14px 38px rgba(17, 70, 104, 0.09), 0 2px 8px rgba(17, 70, 104, 0.035);
-  --focus-ring: rgba(22, 116, 189, 0.22);
+  --ink: #17231c;
+  --shadow-soft: 0 1px 2px rgba(18, 93, 53, 0.025), 0 10px 28px rgba(18, 93, 53, 0.055);
+  --shadow-lift: 0 14px 38px rgba(18, 93, 53, 0.09), 0 2px 8px rgba(18, 93, 53, 0.035);
+  --focus-ring: rgba(0, 191, 99, 0.22);
   --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --duration: 180ms;
   --motion-fast: 150ms;
@@ -71,15 +71,15 @@ button, input, select, textarea { font: inherit; }
 button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 a { color: inherit; }
-:focus-visible { outline: 2px solid rgba(22,116,189,.34); outline-offset: 3px; }
-button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline-color: rgba(22,116,189,.34); }
+:focus-visible { outline: 2px solid rgba(0,191,99,.34); outline-offset: 3px; }
+button:focus-visible, input:focus-visible, select:focus-visible, textarea:focus-visible, a:focus-visible { outline-color: rgba(0,191,99,.34); }
 .ambient-root { position: relative; z-index: 1; }
 .glass { background: var(--glass); backdrop-filter: blur(18px) saturate(1.05); -webkit-backdrop-filter: blur(18px) saturate(1.05); border: 1px solid rgba(233,233,231,.92); box-shadow: var(--shadow-soft); }
 .glass-elevated { background: var(--glass-elevated); backdrop-filter: blur(20px) saturate(1.05); -webkit-backdrop-filter: blur(20px) saturate(1.05); border: 1px solid rgba(233,233,231,.95); box-shadow: var(--shadow-lift); }
 .surface { background: var(--glass-solid); border: 1px solid var(--line); box-shadow: var(--shadow-soft); }
 .control { width: 100%; min-height: 44px; border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--surface); padding: 11px 14px; color: var(--ink); font-size: var(--text-body); line-height: 1.35; outline: none; transition: border-color var(--duration) var(--ease-out), box-shadow var(--duration) var(--ease-out), background-color var(--duration) var(--ease-out); }
 .control:hover:not(:disabled) { border-color: var(--line-strong); }
-.control:focus { border-color: rgba(22,116,189,.46); box-shadow: 0 0 0 4px var(--accent-soft); }
+.control:focus { border-color: rgba(0,191,99,.46); box-shadow: 0 0 0 4px var(--accent-soft); }
 .control:disabled { opacity: .5; cursor: not-allowed; }
 .control::placeholder { color: var(--muted-soft); }
 .data-table { border-collapse: collapse; }
