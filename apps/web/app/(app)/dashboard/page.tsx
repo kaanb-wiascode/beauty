@@ -17,7 +17,8 @@ type Status = "SCHEDULED" | "CONFIRMED" | "COMPLETED" | "CANCELLED" | "NO_SHOW";
 type Method = "CASH" | "CARD" | "TRANSFER";
 type Appointment = { id: string; startAt: string; endAt: string; status: Status; customer: { id: string; firstName: string; lastName: string }; staff: { id: string; firstName: string; lastName: string }; service: { id: string; name: string }; payment: { id: string; amount: number; method: Method; status: "COMPLETED" | "REFUNDED"; paidAt: string } | null };
 type Period = { gross: number; refunds: number; net: number; appointmentCount: number; completedAppointments: number; cancelledAppointments: number; noShowAppointments: number; newCustomers: number };
-type Report = { summary: { gross: number; refunds: number; net: number; paymentCount: number; refundCount: number; methods: Record<Method, number>; appointmentCount: number; completedAppointments: number; scheduledAppointments: number; confirmedAppointments: number; cancelledAppointments: number; noShowAppointments: number }; totals: { customers: number; activeStaff: number; activeServices: number; appointments: number }; paymentBreakdown: Record<Method, number>; periods: { last7Days: Period; month: Period }; todayAppointments: Appointment[]; upcomingAppointments: Appointment[]; topService: { id: string; name: string; collected: number; appointmentCount: number } | null; topStaff: { id: string; name: string; collected: number; appointmentCount: number } | null; servicePerformance: { id: string; name: string; collected: number; appointmentCount: number }[]; staffPerformance: { id: string; name: string; collected: number; appointmentCount: number }[] };
+type DailyTrend = { date: string; gross: number; refunds: number; net: number; appointments: number; completed: number };
+type Report = { summary: { gross: number; refunds: number; net: number; paymentCount: number; refundCount: number; methods: Record<Method, number>; appointmentCount: number; completedAppointments: number; scheduledAppointments: number; confirmedAppointments: number; cancelledAppointments: number; noShowAppointments: number }; totals: { customers: number; activeStaff: number; activeServices: number; appointments: number }; paymentBreakdown: Record<Method, number>; dailyTrend: DailyTrend[]; periods: { last7Days: Period; month: Period }; todayAppointments: Appointment[]; upcomingAppointments: Appointment[]; topService: { id: string; name: string; collected: number; appointmentCount: number } | null; topStaff: { id: string; name: string; collected: number; appointmentCount: number } | null; servicePerformance: { id: string; name: string; collected: number; appointmentCount: number }[]; staffPerformance: { id: string; name: string; collected: number; appointmentCount: number }[] };
 
 const money = new Intl.NumberFormat("tr-TR", { style: "currency", currency: "TRY", maximumFractionDigits: 0 });
 const statusLabel: Record<Status, string> = { SCHEDULED: "Planlandı", CONFIRMED: "Onaylandı", COMPLETED: "Tamamlandı", CANCELLED: "İptal", NO_SHOW: "Gelmedi" };
@@ -98,6 +99,15 @@ export default function DashboardPage() {
 
         <section className="grid grid-cols-2 gap-3 lg:grid-cols-4"><Metric icon={<CalendarIcon/>} label="Bugünkü Randevu" value={data.summary.appointmentCount} detail="Toplam" badge={`${data.summary.scheduledAppointments} planlandı`} tone="neutral"/><Metric icon={<WalletIcon/>} label="Tahsilat" value={money.format(data.summary.net)} detail="Bugün" badge={`${data.summary.paymentCount} işlem`} tone="success"/><Metric icon={<CheckIcon/>} label="Tamamlanan" value={data.summary.completedAppointments} detail="Bugün" badge={`%${pct(data.summary.completedAppointments)}`} tone="info"/><Metric icon={<ClockIcon/>} label="Bekleyen" value={data.summary.scheduledAppointments} detail="Bugün" badge={`%${pct(data.summary.scheduledAppointments)}`} tone="warning"/></section>
 
+        <section className="grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,.65fr)]">
+          <Panel title="Tahsilat Trendi" subtitle="Son 7 gün · günlük net tahsilat" action={<Link href="/finance/income" className="panel-link-button">Finansa Git</Link>}>
+            <RevenueTrendChart data={data.dailyTrend} />
+          </Panel>
+          <Panel title="Randevu Durumu" subtitle="Bugünkü operasyon dağılımı" action={<Link href="/appointments" className="panel-link-button">Randevular</Link>}>
+            <AppointmentStatusChart summary={data.summary} />
+          </Panel>
+        </section>
+
         <section className="grid min-w-0 gap-4 lg:grid-cols-2">
           <Panel title="Bugünün Programı" subtitle={dateLabel(new Date())} action={<Link href="/appointments" className="panel-link-button">Tümü</Link>}><div className="divide-y divide-[var(--line)]">{today.slice(0,5).map((a)=><Link key={a.id} href="/appointments" className="schedule-row"><div className="schedule-time"><strong>{time(a.startAt)}</strong><span>{time(a.endAt)}</span></div><div className="schedule-dot"/><div className="flex min-w-0 items-center gap-3"><Avatar label={initials(a.customer.firstName,a.customer.lastName)}/><div className="min-w-0"><p className="truncate text-[13px] font-semibold text-[var(--ink)]">{fullName(a.customer.firstName,a.customer.lastName)}</p><p className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{a.service.name}</p><p className="mt-0.5 truncate text-[10px] text-[var(--muted-soft)]">{fullName(a.staff.firstName,a.staff.lastName)}</p></div></div><span className={styles.status}>{statusLabel[a.status]}</span></Link>)}{!today.length?<Empty label="Bugün randevu yok" href="/appointments"/>:null}</div><Link href="/appointments" className="panel-footer-link"><CalendarIcon/>Takvimi aç<ArrowRightIcon/></Link></Panel>
           <Panel title="Sıradaki Randevu" subtitle="Yaklaşan program" action={next?<span className="count-chip">{time(next.startAt)}</span>:null}>{next?<div className="next-appointment"><div className="flex items-center justify-between gap-3"><strong className="next-time">{time(next.startAt)}</strong><span className="soft-chip">{until(next.startAt)}</span></div><div className="mt-4 flex items-center gap-3"><Avatar size="lg" label={initials(next.customer.firstName,next.customer.lastName)}/><div className="min-w-0"><p className="truncate text-[15px] font-semibold text-[var(--ink)]">{fullName(next.customer.firstName,next.customer.lastName)}</p><p className="mt-1 truncate text-[12px] text-[var(--muted)]">{next.service.name}</p><p className="mt-1 truncate text-[11px] text-[var(--muted-soft)]">{fullName(next.staff.firstName,next.staff.lastName)}</p></div></div><div className="next-meta-grid"><Meta icon={<SparkleIcon/>} label="Hizmet" value={next.service.name}/><Meta icon={<StaffIcon/>} label="Uzman" value={fullName(next.staff.firstName,next.staff.lastName)}/><Meta icon={<ClockIcon/>} label="Süre" value={duration(next.startAt,next.endAt)}/></div><Link href="/appointments" className="panel-action-button">Randevuyu görüntüle<ArrowRightIcon/></Link></div>:<Empty label="Yaklaşan randevu yok" href="/appointments"/>}</Panel>
@@ -130,6 +140,75 @@ function Bar({label,value,max}:{label:string;value:number;max:number}){return <d
 function Meta({icon,label,value}:{icon:ReactNode;label:string;value:string}){return <div className="meta-cell"><span>{icon}</span><small>{label}</small><strong title={value}>{value}</strong></div>}
 function Activity({icon,title,detail}:{icon:ReactNode;title:string;detail:string}){return <div className="activity-item"><span className="activity-icon">{icon}</span><div className="min-w-0"><p>{title}</p><span className="truncate">{detail}</span></div><time>şimdi</time></div>}
 function Quick({label,onClick}:{label:string;onClick:()=>void}){return <button type="button" onClick={onClick} className="quick-action"><div className="quick-action-label">{label}</div><div className="quick-action-arrow"><ArrowRightIcon/></div></button>}
+
+function RevenueTrendChart({data}:{data:DailyTrend[]}) {
+  const [selectedIndex,setSelectedIndex]=useState(Math.max(0,data.length-1));
+  if (!data.length) return <div className="chart-empty">Trend verisi bulunamadı.</div>;
+  const selected=data[Math.min(selectedIndex,data.length-1)] ?? data[data.length-1];
+  const width=560, height=190, left=22, right=18, top=20, bottom=38;
+  const max=Math.max(...data.map((item)=>Math.max(0,item.net)),1);
+  const usableW=width-left-right, usableH=height-top-bottom;
+  const points=data.map((item,index)=>({
+    x:left+(data.length===1?usableW/2:(index/(data.length-1))*usableW),
+    y:top+usableH-(Math.max(0,item.net)/max)*usableH,
+    item,index,
+  }));
+  const path=points.map((point,index)=>`${index?"L":"M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
+  const area=`${path} L ${points[points.length-1].x.toFixed(1)} ${(top+usableH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(top+usableH).toFixed(1)} Z`;
+  const day=(value:string)=>new Intl.DateTimeFormat("tr-TR",{weekday:"short",day:"2-digit"}).format(new Date(`${value}T12:00:00`));
+  return <div className="revenue-chart">
+    <div className="chart-summary">
+      <div><span>Seçili Gün</span><strong>{money.format(selected.net)}</strong></div>
+      <div className="chart-summary-meta"><span>{day(selected.date)}</span><b>{selected.appointments} randevu</b></div>
+    </div>
+    <svg className="trend-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Son 7 gün net tahsilat grafiği">
+      <defs><linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".20"/><stop offset="100%" stopColor="var(--accent)" stopOpacity=".01"/></linearGradient></defs>
+      {[0,.5,1].map((ratio)=><line key={ratio} x1={left} x2={width-right} y1={top+usableH*ratio} y2={top+usableH*ratio} className="chart-grid-line"/>)}
+      <path d={area} fill="url(#revenueArea)"/>
+      <path d={path} className="chart-trend-line"/>
+      {points.map((point)=><g key={point.item.date} role="button" tabIndex={0} aria-label={`${day(point.item.date)} ${money.format(point.item.net)}`} onClick={()=>setSelectedIndex(point.index)} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setSelectedIndex(point.index)}}} className="chart-point-group">
+        <circle cx={point.x} cy={point.y} r={point.index===selectedIndex?7:5} className={point.index===selectedIndex?"chart-point selected":"chart-point"}/>
+        <text x={point.x} y={height-12} textAnchor="middle" className="chart-axis-label">{day(point.item.date).split(" ")[0]}</text>
+      </g>)}
+    </svg>
+  </div>;
+}
+
+function AppointmentStatusChart({summary}:{summary:Report["summary"]}) {
+  const statuses=[
+    {key:"completed",label:"Tamamlandı",value:summary.completedAppointments,tone:"success"},
+    {key:"confirmed",label:"Onaylandı",value:summary.confirmedAppointments,tone:"accent"},
+    {key:"scheduled",label:"Planlandı",value:summary.scheduledAppointments,tone:"warning"},
+    {key:"cancelled",label:"İptal",value:summary.cancelledAppointments,tone:"danger"},
+    {key:"noShow",label:"Gelmedi",value:summary.noShowAppointments,tone:"muted"},
+  ];
+  const [selected,setSelected]=useState(statuses[0].key);
+  const total=Math.max(1,summary.appointmentCount);
+  let cursor=0;
+  const slices=statuses.map((item)=>{
+    const start=cursor;
+    const end=cursor+(item.value/total)*100;
+    cursor=end;
+    return `var(--chart-${item.tone}) ${start}% ${end}%`;
+  });
+  const active=statuses.find((item)=>item.key===selected) ?? statuses[0];
+  const activePct=summary.appointmentCount?Math.round(active.value/summary.appointmentCount*100):0;
+  return <div className="status-chart">
+    <div className="status-donut-wrap">
+      <div className="status-donut" style={{background:`conic-gradient(${slices.join(",")})`}} aria-label="Randevu durum dağılımı">
+        <div className="status-donut-center"><strong>{active.value}</strong><span>%{activePct}</span></div>
+      </div>
+      <div className="status-donut-caption"><b>{active.label}</b><span>{summary.appointmentCount} toplam randevu</span></div>
+    </div>
+    <div className="status-legend">
+      {statuses.map((item)=><button key={item.key} type="button" onClick={()=>setSelected(item.key)} className={`status-legend-row ${selected===item.key?"active":""}`}>
+        <span className={`status-dot ${item.tone}`}/>
+        <span>{item.label}</span>
+        <strong>{item.value}</strong>
+      </button>)}
+    </div>
+  </div>;
+}
 function Empty({label,href}:{label:string;href:string}){return <Link href={href} className="flex min-h-[90px] flex-col items-center justify-center gap-1 text-center"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--muted)]"><CalendarIcon/></span><span className="text-[11px] font-medium text-[var(--ink)]">{label}</span><span className="text-[10px] text-[var(--muted)]">Detaylara git</span></Link>}
 function ToolPopover({title,children}:{title:string;children:ReactNode}){return <div className="absolute right-0 top-11 z-40 w-[250px] rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_18px_45px_rgba(23,23,23,.12)]"><p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{title}</p>{children}</div>}
 function ToolButton({label,onClick}:{label:string;onClick:()=>void}){return <button type="button" onClick={onClick} className="w-full rounded-xl px-3 py-2.5 text-left text-xs font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">{label}</button>}
