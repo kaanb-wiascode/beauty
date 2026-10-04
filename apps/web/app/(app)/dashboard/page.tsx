@@ -143,7 +143,7 @@ function Quick({label,onClick}:{label:string;onClick:()=>void}){return <button t
 
 function RevenueTrendChart({data}:{data:DailyTrend[]}) {
   const [selectedIndex,setSelectedIndex]=useState(Math.max(0,data.length-1));
-  if (!data.length) return <div className="chart-empty">Trend verisi bulunamadı.</div>;
+  if (!data.length) return <div className="flex min-h-[220px] items-center justify-center p-5 text-[12px] text-[var(--muted)]">Trend verisi bulunamadı.</div>;
   const selected=data[Math.min(selectedIndex,data.length-1)] ?? data[data.length-1];
   const width=560, height=190, left=22, right=18, top=20, bottom=38;
   const max=Math.max(...data.map((item)=>Math.max(0,item.net)),1);
@@ -156,19 +156,19 @@ function RevenueTrendChart({data}:{data:DailyTrend[]}) {
   const path=points.map((point,index)=>`${index?"L":"M"} ${point.x.toFixed(1)} ${point.y.toFixed(1)}`).join(" ");
   const area=`${path} L ${points[points.length-1].x.toFixed(1)} ${(top+usableH).toFixed(1)} L ${points[0].x.toFixed(1)} ${(top+usableH).toFixed(1)} Z`;
   const day=(value:string)=>new Intl.DateTimeFormat("tr-TR",{weekday:"short",day:"2-digit"}).format(new Date(`${value}T12:00:00`));
-  return <div className="revenue-chart">
-    <div className="chart-summary">
-      <div><span>Seçili Gün</span><strong>{money.format(selected.net)}</strong></div>
-      <div className="chart-summary-meta"><span>{day(selected.date)}</span><b>{selected.appointments} randevu</b></div>
+  return <div className="px-4 pb-2.5 pt-4">
+    <div className="mb-1 flex items-end justify-between gap-4">
+      <div><span className="block text-[11px] text-[var(--muted)]">Seçili Gün</span><strong className="mt-1 block text-[24px] leading-none tracking-[-0.04em] text-[var(--ink)]">{money.format(selected.net)}</strong></div>
+      <div className="flex flex-col items-end gap-0.5 text-[11px]"><span className="text-[var(--muted)]">{day(selected.date)}</span><b className="font-semibold text-[var(--ink)]">{selected.appointments} randevu</b></div>
     </div>
-    <svg className="trend-svg" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Son 7 gün net tahsilat grafiği">
+    <svg className="min-h-[190px] h-auto w-full overflow-visible" viewBox={`0 0 ${width} ${height}`} role="img" aria-label="Son 7 gün net tahsilat grafiği">
       <defs><linearGradient id="revenueArea" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stopColor="var(--accent)" stopOpacity=".20"/><stop offset="100%" stopColor="var(--accent)" stopOpacity=".01"/></linearGradient></defs>
-      {[0,.5,1].map((ratio)=><line key={ratio} x1={left} x2={width-right} y1={top+usableH*ratio} y2={top+usableH*ratio} className="chart-grid-line"/>)}
+      {[0,.5,1].map((ratio)=><line key={ratio} x1={left} x2={width-right} y1={top+usableH*ratio} y2={top+usableH*ratio} stroke="var(--line)" strokeWidth="1" strokeDasharray="3 5"/>)}
       <path d={area} fill="url(#revenueArea)"/>
-      <path d={path} className="chart-trend-line"/>
-      {points.map((point)=><g key={point.item.date} role="button" tabIndex={0} aria-label={`${day(point.item.date)} ${money.format(point.item.net)}`} onClick={()=>setSelectedIndex(point.index)} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setSelectedIndex(point.index)}}} className="chart-point-group">
-        <circle cx={point.x} cy={point.y} r={point.index===selectedIndex?7:5} className={point.index===selectedIndex?"chart-point selected":"chart-point"}/>
-        <text x={point.x} y={height-12} textAnchor="middle" className="chart-axis-label">{day(point.item.date).split(" ")[0]}</text>
+      <path d={path} fill="none" stroke="var(--accent)" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+      {points.map((point)=><g key={point.item.date} role="button" tabIndex={0} aria-label={`${day(point.item.date)} ${money.format(point.item.net)}`} onClick={()=>setSelectedIndex(point.index)} onKeyDown={(event)=>{if(event.key==="Enter"||event.key===" "){event.preventDefault();setSelectedIndex(point.index)}}} className="cursor-pointer outline-none">
+        <circle cx={point.x} cy={point.y} r={point.index===selectedIndex?7:5} fill={point.index===selectedIndex?"var(--accent)":"var(--surface)"} stroke="var(--accent)" strokeWidth="3"/>
+        <text x={point.x} y={height-12} textAnchor="middle" fill="var(--muted-soft)" fontSize="10" fontWeight="600">{day(point.item.date).split(" ")[0]}</text>
       </g>)}
     </svg>
   </div>;
@@ -176,11 +176,11 @@ function RevenueTrendChart({data}:{data:DailyTrend[]}) {
 
 function AppointmentStatusChart({summary}:{summary:Report["summary"]}) {
   const statuses=[
-    {key:"completed",label:"Tamamlandı",value:summary.completedAppointments,tone:"success"},
-    {key:"confirmed",label:"Onaylandı",value:summary.confirmedAppointments,tone:"accent"},
-    {key:"scheduled",label:"Planlandı",value:summary.scheduledAppointments,tone:"warning"},
-    {key:"cancelled",label:"İptal",value:summary.cancelledAppointments,tone:"danger"},
-    {key:"noShow",label:"Gelmedi",value:summary.noShowAppointments,tone:"muted"},
+    {key:"completed",label:"Tamamlandı",value:summary.completedAppointments,color:"var(--success)"},
+    {key:"confirmed",label:"Onaylandı",value:summary.confirmedAppointments,color:"var(--accent)"},
+    {key:"scheduled",label:"Planlandı",value:summary.scheduledAppointments,color:"var(--warning)"},
+    {key:"cancelled",label:"İptal",value:summary.cancelledAppointments,color:"var(--danger)"},
+    {key:"noShow",label:"Gelmedi",value:summary.noShowAppointments,color:"var(--line-strong)"},
   ];
   const [selected,setSelected]=useState(statuses[0].key);
   const total=Math.max(1,summary.appointmentCount);
@@ -189,26 +189,28 @@ function AppointmentStatusChart({summary}:{summary:Report["summary"]}) {
     const start=cursor;
     const end=cursor+(item.value/total)*100;
     cursor=end;
-    return `var(--chart-${item.tone}) ${start}% ${end}%`;
+    return `${item.color} ${start}% ${end}%`;
   });
   const active=statuses.find((item)=>item.key===selected) ?? statuses[0];
   const activePct=summary.appointmentCount?Math.round(active.value/summary.appointmentCount*100):0;
-  return <div className="status-chart">
-    <div className="status-donut-wrap">
-      <div className="status-donut" style={{background:`conic-gradient(${slices.join(",")})`}} aria-label="Randevu durum dağılımı">
-        <div className="status-donut-center"><strong>{active.value}</strong><span>%{activePct}</span></div>
+  return <div className="grid items-center gap-4 p-4 sm:grid-cols-[minmax(140px,.9fr)_minmax(150px,1.1fr)]">
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative grid aspect-square w-[142px] place-items-center rounded-full" style={{background:`conic-gradient(${slices.join(",")})`}} aria-label="Randevu durum dağılımı">
+        <div className="absolute inset-[19px] rounded-full border border-[var(--line)] bg-[var(--surface)]"/>
+        <div className="relative z-10 flex flex-col items-center"><strong className="text-[25px] leading-none tracking-[-0.04em] text-[var(--ink)]">{active.value}</strong><span className="mt-1 text-[11px] font-semibold text-[var(--muted)]">%{activePct}</span></div>
       </div>
-      <div className="status-donut-caption"><b>{active.label}</b><span>{summary.appointmentCount} toplam randevu</span></div>
+      <div className="text-center"><b className="block text-[12px] text-[var(--ink)]">{active.label}</b><span className="mt-0.5 block text-[10px] text-[var(--muted)]">{summary.appointmentCount} toplam randevu</span></div>
     </div>
-    <div className="status-legend">
-      {statuses.map((item)=><button key={item.key} type="button" onClick={()=>setSelected(item.key)} className={`status-legend-row ${selected===item.key?"active":""}`}>
-        <span className={`status-dot ${item.tone}`}/>
+    <div className="flex flex-col gap-1.5">
+      {statuses.map((item)=><button key={item.key} type="button" onClick={()=>setSelected(item.key)} className={`grid min-h-[34px] grid-cols-[10px_minmax(0,1fr)_auto] items-center gap-2 rounded-[10px] border px-2.5 text-left text-[11px] transition ${selected===item.key?"border-[var(--line)] bg-[var(--surface-2)] text-[var(--ink)]":"border-transparent text-[var(--muted)] hover:border-[var(--line)] hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"}`}>
+        <span className="h-2 w-2 rounded-full" style={{background:item.color}}/>
         <span>{item.label}</span>
-        <strong>{item.value}</strong>
+        <strong className="text-[11px] text-[var(--ink)]">{item.value}</strong>
       </button>)}
     </div>
   </div>;
 }
+
 function Empty({label,href}:{label:string;href:string}){return <Link href={href} className="flex min-h-[90px] flex-col items-center justify-center gap-1 text-center"><span className="flex h-8 w-8 items-center justify-center rounded-lg bg-[var(--surface-2)] text-[var(--muted)]"><CalendarIcon/></span><span className="text-[11px] font-medium text-[var(--ink)]">{label}</span><span className="text-[10px] text-[var(--muted)]">Detaylara git</span></Link>}
 function ToolPopover({title,children}:{title:string;children:ReactNode}){return <div className="absolute right-0 top-11 z-40 w-[250px] rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[0_18px_45px_rgba(23,23,23,.12)]"><p className="px-3 py-2 text-[11px] font-semibold uppercase tracking-[.08em] text-[var(--muted-soft)]">{title}</p>{children}</div>}
 function ToolButton({label,onClick}:{label:string;onClick:()=>void}){return <button type="button" onClick={onClick} className="w-full rounded-xl px-3 py-2.5 text-left text-xs font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">{label}</button>}
