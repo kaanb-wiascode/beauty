@@ -262,7 +262,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                 type="button"
                 onClick={() => toggleSection(section.label)}
                 aria-expanded={open}
-                className="flex w-full items-center justify-between rounded-[10px] px-3 py-2 text-left text-[11px] font-semibold uppercase tracking-[0.14em] text-[var(--muted)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--ink)]"
+                className="flex w-full items-center justify-between rounded-[10px] px-3 py-2.5 text-left text-[13px] font-semibold tracking-[-0.01em] text-[var(--ink)] transition-colors hover:bg-[var(--surface-2)] hover:text-[var(--accent)]"
               >
                 <span>{section.label}</span>
                 <span aria-hidden="true" className={cx("text-[12px] transition-transform duration-200", open ? "rotate-90" : "rotate-0")}>›</span>
@@ -282,7 +282,7 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                       aria-current={active ? "page" : undefined}
                       title={collapsed ? item.label : undefined}
                       className={cx(
-                        "group relative flex h-11 items-center rounded-[14px] transition-all duration-200",
+                        "group relative flex h-10 items-center rounded-[12px] transition-all duration-200",
                         collapsed ? "justify-center px-2" : "gap-3 px-3",
                         active
                           ? "bg-[var(--accent-soft)] text-[var(--accent)] shadow-[inset_0_0_0_1px_rgba(0,191,99,0.06)]"
@@ -290,14 +290,14 @@ function NavLinks({ pathname, collapsed }: { pathname: string; collapsed: boolea
                       )}
                     >
                       <span className={cx(
-                        "flex h-8 w-8 shrink-0 items-center justify-center rounded-[10px]",
+                        "flex h-7 w-7 shrink-0 items-center justify-center rounded-[9px]",
                         active ? "bg-white/80 text-[var(--accent)]" : "text-[var(--muted)] group-hover:text-[var(--ink)]",
                       )}>
                         <NavIcon name={item.icon} />
                       </span>
                       {!collapsed ? (
                         <>
-                          <span className="min-w-0 flex-1 truncate text-[13px] font-medium tracking-[-0.01em]">{item.label}</span>
+                          <span className={cx("min-w-0 flex-1 truncate text-[13px] tracking-[-0.01em]", active ? "font-semibold" : "font-normal")}>{item.label}</span>
                           {"badge" in item && item.badge ? (
                             <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[11px] font-semibold text-[var(--accent)]">{item.badge}</span>
                           ) : null}
