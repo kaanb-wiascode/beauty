@@ -3,13 +3,11 @@
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
-import { CardInfo } from "@/components/card-info";
 import {
   Alert,
   Button,
   EmptyState,
   Field,
-  PageHeader,
   Select,
   Spinner,
   TextArea,
@@ -18,7 +16,6 @@ import {
 import { useToast } from "@/components/toast";
 import { api, ApiError } from "@/lib/api";
 import { userErrorMessage } from "@/lib/user-language";
-import { getCardHelp } from "@/lib/card-help";
 import { getStoredUser, hasActiveBranch, hasPermission } from "@/lib/auth";
 import {
   followUpChannelLabels,
@@ -29,6 +26,8 @@ import {
 } from "@/lib/crm-types";
 
 type Filter = "OPEN" | "COMPLETED" | "CANCELLED" | "ALL";
+type TimeScope = "ALL" | "OVERDUE" | "TODAY" | "NEXT_7_DAYS" | "LATER";
+type SortMode = "due" | "newest";
 const emptyForm = {
   subject: "",
   assignedUserId: "",
@@ -59,6 +58,34 @@ function toDateTimeInput(value: string) {
   return local.toISOString().slice(0, 16);
 }
 
+function startOfDay(timestamp: number) {
+  const date = new Date(timestamp);
+  date.setHours(0, 0, 0, 0);
+  return date.getTime();
+}
+
+function endOfDay(timestamp: number) {
+  const date = new Date(timestamp);
+  date.setHours(23, 59, 59, 999);
+  return date.getTime();
+}
+
+function dueLabel(value: string, now: number) {
+  const due = new Date(value).getTime();
+  const diff = due - now;
+  const absoluteMinutes = Math.max(1, Math.round(Math.abs(diff) / 60000));
+  if (diff < 0) {
+    if (absoluteMinutes < 60) return `${absoluteMinutes} dk gecikti`;
+    const hours = Math.round(absoluteMinutes / 60);
+    if (hours < 24) return `${hours} sa gecikti`;
+    return `${Math.round(hours / 24)} gün gecikti`;
+  }
+  if (absoluteMinutes < 60) return `${absoluteMinutes} dk kaldı`;
+  const hours = Math.round(absoluteMinutes / 60);
+  if (hours < 24) return `${hours} sa kaldı`;
+  return `${Math.round(hours / 24)} gün kaldı`;
+}
+
 export default function CrmFollowUpsPage() {
   const canManage = hasPermission("crm", "manage");
   const { showToast } = useToast();
@@ -68,6 +95,11 @@ export default function CrmFollowUpsPage() {
   const [assignees, setAssignees] = useState<CrmAssignee[]>([]);
   const [filter, setFilter] = useState<Filter>("OPEN");
   const [assignedUserId, setAssignedUserId] = useState("");
+  const [search, setSearch] = useState("");
+  const [timeScope, setTimeScope] = useState<TimeScope>("ALL");
+  const [mineOnly, setMineOnly] = useState(false);
+  const [sortMode, setSortMode] = useState<SortMode>("due");
+  const [selectedFollowUp, setSelectedFollowUp] = useState<CrmFollowUp | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -85,11 +117,8 @@ export default function CrmFollowUpsPage() {
     setLoading(true);
     setError("");
     try {
-      const params = new URLSearchParams({ limit: "200" });
-      if (filter !== "ALL") params.set("status", filter);
-      if (assignedUserId) params.set("assignedUserId", assignedUserId);
       const [followUps, leadRows, opportunityRows, assigneeRows] = await Promise.all([
-        api<CrmFollowUp[]>(`/crm/follow-ups?${params}`),
+        api<CrmFollowUp[]>("/crm/follow-ups?limit=200"),
         api<CrmLead[]>("/crm/leads?limit=200"),
         api<CrmOpportunity[]>("/crm/opportunities?limit=200"),
         api<CrmAssignee[]>("/crm/assignees"),
@@ -103,7 +132,7 @@ export default function CrmFollowUpsPage() {
     } finally {
       setLoading(false);
     }
-  }, [assignedUserId, filter]);
+  }, []);
   useEffect(() => { void load(); }, [load]);
 
   const subjectLabels = useMemo(() => {
@@ -112,6 +141,69 @@ export default function CrmFollowUpsPage() {
     opportunities.forEach((row) => labels.set(`opportunity:${row.id}`, row.title));
     return labels;
   }, [leads, opportunities]);
+
+  const assigneeNames = useMemo(
+    () => new Map(assignees.map((person) => [person.id, `${person.firstName} ${person.lastName}`])),
+    [assignees],
+  );
+
+  const leadById = useMemo(() => new Map(leads.map((lead) => [lead.id, lead])), [leads]);
+
+  const followUpCounts = useMemo(() => {
+    const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
+    const nextWeekEnd = todayEnd + 7 * 86400000;
+    const open = rows.filter((row) => row.status === "OPEN");
+    return {
+      open: open.length,
+      overdue: open.filter((row) => new Date(row.dueAt).getTime() < now).length,
+      today: open.filter((row) => {
+        const due = new Date(row.dueAt).getTime();
+        return due >= todayStart && due <= todayEnd;
+      }).length,
+      next7: open.filter((row) => {
+        const due = new Date(row.dueAt).getTime();
+        return due > todayEnd && due <= nextWeekEnd;
+      }).length,
+      completed: rows.filter((row) => row.status === "COMPLETED").length,
+    };
+  }, [rows, now]);
+
+  const visibleRows = useMemo(() => {
+    const currentUserId = getStoredUser()?.id ?? "";
+    const todayStart = startOfDay(now);
+    const todayEnd = endOfDay(now);
+    const nextWeekEnd = todayEnd + 7 * 86400000;
+    const query = search.trim().toLocaleLowerCase("tr-TR");
+
+    return rows
+      .filter((row) => filter === "ALL" || row.status === filter)
+      .filter((row) => !assignedUserId || row.assignedUserId === assignedUserId)
+      .filter((row) => !mineOnly || (currentUserId && row.assignedUserId === currentUserId))
+      .filter((row) => {
+        if (row.status !== "OPEN" || timeScope === "ALL") return true;
+        const due = new Date(row.dueAt).getTime();
+        if (timeScope === "OVERDUE") return due < now;
+        if (timeScope === "TODAY") return due >= todayStart && due <= todayEnd;
+        if (timeScope === "NEXT_7_DAYS") return due > todayEnd && due <= nextWeekEnd;
+        return due > nextWeekEnd;
+      })
+      .filter((row) => {
+        if (!query) return true;
+        const haystack = [
+          subjectLabels.get(row.leadId ? `lead:${row.leadId}` : `opportunity:${row.opportunityId}`) ?? "",
+          row.note ?? "",
+          row.outcome ?? "",
+          row.cancellationReason ?? "",
+          assigneeNames.get(row.assignedUserId) ?? "",
+          followUpChannelLabels[row.channel],
+        ].join(" ").toLocaleLowerCase("tr-TR");
+        return haystack.includes(query);
+      })
+      .sort((a, b) => sortMode === "newest"
+        ? new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+        : new Date(a.dueAt).getTime() - new Date(b.dueAt).getTime());
+  }, [rows, filter, assignedUserId, mineOnly, timeScope, search, sortMode, subjectLabels, assigneeNames, now]);
 
   function requireActiveBranch(message: string) {
     if (hasActiveBranch()) return true;
