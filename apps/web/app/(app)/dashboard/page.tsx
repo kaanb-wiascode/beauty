@@ -140,14 +140,13 @@ export default function DashboardPage() {
         <Panel title="Hızlı İşlemler" subtitle="Günlük işlemler">
           <div className="grid grid-cols-2 gap-2 p-3">
             {[
-              {label:"Yeni Randevu",detail:"Randevu oluştur",action:"appointment" as DashboardAction,icon:<CalendarIcon/>},
-              {label:"Yeni Müşteri",detail:"Müşteri ekle",action:"customer" as DashboardAction,icon:<PeopleIcon/>},
-              {label:"Ödeme Al",detail:"Tahsilat kaydet",action:"payment" as DashboardAction,icon:<WalletIcon/>},
-              {label:"Yeni Hizmet",detail:"Hizmet tanımla",action:"service" as DashboardAction,icon:<SparkleIcon/>},
-            ].map((item)=><button key={item.label} type="button" onClick={()=>setAction(item.action)} className="group min-h-[88px] rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 text-left transition hover:-translate-y-0.5 hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]">
-              <span className="flex h-8 w-8 items-center justify-center rounded-[10px] bg-[var(--accent-soft)] text-[var(--accent)] [&_svg]:h-4 [&_svg]:w-4">{item.icon}</span>
-              <b className="mt-2 block text-[11px] font-semibold text-[var(--ink)]">{item.label}</b>
-              <span className="mt-0.5 block text-[9px] text-[var(--muted)]">{item.detail}</span>
+              {label:"Yeni Randevu",detail:"Randevu oluştur",action:"appointment" as DashboardAction},
+              {label:"Yeni Müşteri",detail:"Müşteri ekle",action:"customer" as DashboardAction},
+              {label:"Ödeme Al",detail:"Tahsilat kaydet",action:"payment" as DashboardAction},
+              {label:"Yeni Hizmet",detail:"Hizmet tanımla",action:"service" as DashboardAction},
+            ].map((item)=><button key={item.label} type="button" onClick={()=>setAction(item.action)} className="group min-h-[72px] rounded-[13px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]">
+              <b className="block text-[11px] font-semibold text-[var(--ink)]">{item.label}</b>
+              <span className="mt-1 block text-[9px] leading-4 text-[var(--muted)]">{item.detail}</span>
             </button>)}
           </div>
         </Panel>
@@ -172,17 +171,9 @@ export default function DashboardPage() {
               <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 text-center"><strong className="block text-[20px] leading-none text-[var(--ink)]">{data.totals.activeStaff}</strong><span className="mt-1.5 block text-[9px] font-medium text-[var(--muted)]">Aktif Personel</span></div>
             </div>
 
-            {data.staffPerformance.length?<div className="mt-4 overflow-hidden rounded-[16px] border border-[var(--line)]">
-              <div className="flex items-center justify-between border-b border-[var(--line)] bg-[var(--surface-2)] px-3.5 py-2.5"><div><span className="block text-[10px] font-semibold text-[var(--ink)]">Ekip Performansı</span><span className="mt-0.5 block text-[8px] text-[var(--muted)]">Bugünkü randevu ve tahsilat görünümü</span></div><span className="text-[8px] font-medium text-[var(--muted-soft)]">Randevu / Tahsilat</span></div>
-              <div className="divide-y divide-[var(--line)]">{data.staffPerformance.slice(0,5).map((s,index)=><div key={s.id} className="grid grid-cols-[24px_34px_minmax(0,1fr)_auto] items-center gap-2.5 px-3.5 py-3">
-                <span className="text-center text-[10px] font-semibold text-[var(--muted-soft)]">{index+1}</span>
-                <Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/>
-                <div className="min-w-0"><b className="block truncate text-[11px] font-semibold text-[var(--ink)]">{s.name}</b><span className="mt-0.5 block text-[9px] text-[var(--muted)]">{s.appointmentCount} randevu</span></div>
-                <div className="text-right"><span className="block text-[10px] font-semibold text-[var(--accent)]">{money.format(s.collected)}</span><span className="mt-0.5 block text-[8px] text-[var(--muted-soft)]">Tahsilat</span></div>
-              </div>)}</div>
-            </div>:null}
+            
           </div>
-          <Link href="/staff" className="panel-footer-link">Tüm ekibi görüntüle<ArrowRightIcon/></Link>
+          <Link href="/staff" className="panel-footer-link">Ekibi görüntüle<ArrowRightIcon/></Link>
         </Panel>
       </aside>
     </div>
