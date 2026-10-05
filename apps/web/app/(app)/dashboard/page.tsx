@@ -138,40 +138,53 @@ export default function DashboardPage() {
         </Panel>
 
         <Panel title="Hızlı İşlemler" subtitle="Günlük işlemler">
-          <div className="grid grid-cols-2 gap-2 p-3">
+          <div className="divide-y divide-[var(--line)] px-3 py-1">
             {[
               {label:"Yeni Randevu",detail:"Randevu oluştur",action:"appointment" as DashboardAction},
               {label:"Yeni Müşteri",detail:"Müşteri ekle",action:"customer" as DashboardAction},
               {label:"Ödeme Al",detail:"Tahsilat kaydet",action:"payment" as DashboardAction},
               {label:"Yeni Hizmet",detail:"Hizmet tanımla",action:"service" as DashboardAction},
-            ].map((item)=><button key={item.label} type="button" onClick={()=>setAction(item.action)} className="group min-h-[72px] rounded-[13px] border border-[var(--line)] bg-[var(--surface)] px-3 py-3 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]">
-              <b className="block text-[11px] font-semibold text-[var(--ink)]">{item.label}</b>
-              <span className="mt-1 block text-[9px] leading-4 text-[var(--muted)]">{item.detail}</span>
+            ].map((item)=><button key={item.label} type="button" onClick={()=>setAction(item.action)} className="flex min-h-[52px] w-full items-center justify-between gap-3 px-1 text-left transition hover:bg-[var(--surface-2)]">
+              <div className="min-w-0">
+                <b className="block truncate text-[11px] font-semibold text-[var(--ink)]">{item.label}</b>
+                <span className="mt-0.5 block truncate text-[9px] text-[var(--muted)]">{item.detail}</span>
+              </div>
+              <span className="text-[15px] text-[var(--muted-soft)]">›</span>
             </button>)}
           </div>
         </Panel>
 
-        <Panel title="Ekip Durumu" subtitle="Bugünkü ekip kapasitesi ve performansı" action={<span className="count-chip">{data.totals.activeStaff} aktif</span>}>
-          <div className="p-4">
-            <div className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-3.5">
-              <div className="flex items-center justify-between gap-4">
-                <div>
-                  <span className="block text-[10px] font-medium text-[var(--muted)]">Program Kapsamı</span>
-                  <strong className="mt-1 block text-[28px] leading-none tracking-[-0.04em] text-[var(--ink)]">{teamCoveragePct}%</strong>
-                </div>
-                <div className="flex -space-x-2">{data.staffPerformance.slice(0,8).map((s)=><div key={s.id} className="rounded-full border-2 border-[var(--surface)]" title={s.name}><Avatar label={initials(s.name.split(" ")[0] ?? "",s.name.split(" ").slice(1).join(" "))}/></div>)}</div>
+        <Panel title="Ekip Durumu" subtitle="Bugünkü ekip kapasitesi" action={<span className="count-chip">{data.totals.activeStaff} aktif</span>}>
+          <div className="px-4 py-3">
+            <div className="flex items-end justify-between gap-4">
+              <div>
+                <span className="block text-[9px] font-medium text-[var(--muted)]">Program Kapsamı</span>
+                <strong className="mt-1 block text-[30px] leading-none tracking-[-0.04em] text-[var(--ink)]">{teamCoveragePct}%</strong>
               </div>
-              <div className="mt-3 h-2 overflow-hidden rounded-full bg-[var(--surface)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${teamCoveragePct}%`}}/></div>
-              <div className="mt-2 flex items-center justify-between text-[9px] text-[var(--muted)]"><span>{scheduledTeamCount} personel bugün programlı</span><span>{Math.max(0,data.totals.activeStaff-scheduledTeamCount)} programsız</span></div>
+              <div className="text-right">
+                <span className="block text-[10px] font-semibold text-[var(--ink)]">{scheduledTeamCount} / {data.totals.activeStaff}</span>
+                <span className="mt-0.5 block text-[8px] text-[var(--muted)]">personel programlı</span>
+              </div>
             </div>
 
-            <div className="mt-3 grid grid-cols-3 gap-2.5">
-              <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 text-center"><strong className="block text-[20px] leading-none text-[var(--ink)]">{scheduledTeamCount}</strong><span className="mt-1.5 block text-[9px] font-medium text-[var(--muted)]">Bugün Programlı</span></div>
-              <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 text-center"><strong className="block text-[20px] leading-none text-[var(--ink)]">{upcomingStaffIds.size}</strong><span className="mt-1.5 block text-[9px] font-medium text-[var(--muted)]">Yaklaşan İşlem</span></div>
-              <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface)] p-3 text-center"><strong className="block text-[20px] leading-none text-[var(--ink)]">{data.totals.activeStaff}</strong><span className="mt-1.5 block text-[9px] font-medium text-[var(--muted)]">Aktif Personel</span></div>
+            <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]">
+              <span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${teamCoveragePct}%`}}/>
             </div>
 
-            
+            <div className="mt-4 grid grid-cols-3 gap-3 border-t border-[var(--line)] pt-3">
+              <div>
+                <strong className="block text-[18px] leading-none text-[var(--ink)]">{scheduledTeamCount}</strong>
+                <span className="mt-1 block text-[8px] leading-3 text-[var(--muted)]">Bugün Programlı</span>
+              </div>
+              <div>
+                <strong className="block text-[18px] leading-none text-[var(--ink)]">{upcomingStaffIds.size}</strong>
+                <span className="mt-1 block text-[8px] leading-3 text-[var(--muted)]">Yaklaşan İşlem</span>
+              </div>
+              <div>
+                <strong className="block text-[18px] leading-none text-[var(--ink)]">{Math.max(0,data.totals.activeStaff-scheduledTeamCount)}</strong>
+                <span className="mt-1 block text-[8px] leading-3 text-[var(--muted)]">Programsız</span>
+              </div>
+            </div>
           </div>
           <Link href="/staff" className="panel-footer-link">Ekibi görüntüle<ArrowRightIcon/></Link>
         </Panel>
