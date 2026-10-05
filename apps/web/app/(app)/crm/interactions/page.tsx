@@ -1,18 +1,25 @@
 "use client";
 
 import Link from "next/link";
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { CardInfo } from "@/components/card-info";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Modal } from "@/components/modal";
-import { Alert, Button, EmptyState, Field, PageHeader, Select, Spinner, TextArea, TextInput } from "@/components/ui";
-import { api, ApiError } from "@/lib/api";
-import { getCardHelp } from "@/lib/card-help";
+import { Alert, Button, EmptyState, Field, Select, Spinner, TextArea, TextInput } from "@/components/ui";
+import { api, ApiError, withQuery } from "@/lib/api";
 import { userErrorMessage } from "@/lib/user-language";
+import { getStoredUser, hasActiveBranch, hasPermission } from "@/lib/auth";
+import { useToast } from "@/components/toast";
 
 type InteractionType = "CALL" | "WHATSAPP" | "SMS" | "EMAIL" | "IN_PERSON" | "VIDEO_CALL" | "OTHER";
 type InteractionDirection = "INBOUND" | "OUTBOUND";
 type InteractionStatus = "PLANNED" | "COMPLETED" | "CANCELLED";
 type InteractionOutcome = "REACHED" | "NOT_REACHED" | "INTERESTED" | "UNDECIDED" | "AWAITING_QUOTE" | "APPOINTMENT_CREATED" | "CALLBACK" | "SALE" | "NOT_INTERESTED" | "OTHER";
+type FollowUpChannel = "CALL" | "SMS" | "EMAIL" | "WHATSAPP" | "IN_PERSON" | "OTHER";
+type SubjectType = "CUSTOMER" | "LEAD" | "OPPORTUNITY";
+type SubjectOption = { type: SubjectType; id: string; label: string; detail: string };
+type Assignee = { id: string; firstName: string | null; lastName: string | null; email?: string | null };
+type CustomerOption = { id: string; firstName: string; lastName: string };
+type LeadOption = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null };
+type OpportunityOption = { id: string; title: string; leadFirstName: string | null; leadLastName: string | null; customerFirstName: string | null; customerLastName: string | null };
 
 type Interaction = {
   id: string;
@@ -47,8 +54,23 @@ const typeLabels: Record<InteractionType, string> = {
 };
 
 const directionLabels: Record<InteractionDirection, string> = {
-  INBOUND: "Gelen",
-  OUTBOUND: "Giden",
+  INBOUND: "Müşteri bize ulaştı",
+  OUTBOUND: "Biz ulaştık",
+};
+
+const subjectTypeLabels: Record<SubjectType, string> = {
+  CUSTOMER: "Müşteri",
+  LEAD: "Potansiyel Müşteri",
+  OPPORTUNITY: "Satış Fırsatı",
+};
+
+const followUpChannelLabels: Record<FollowUpChannel, string> = {
+  CALL: "Telefon",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  WHATSAPP: "WhatsApp",
+  IN_PERSON: "Yüz yüze",
+  OTHER: "Diğer",
 };
 
 const outcomeLabels: Record<InteractionOutcome, string> = {
@@ -88,39 +110,84 @@ function formatDuration(seconds: number | null) {
 }
 
 export default function CrmInteractionsPage() {
+  const canManage = hasPermission("crm", "manage");
+  const activeBranch = hasActiveBranch();
+  const { showToast } = useToast();
   const [rows, setRows] = useState<Interaction[]>([]);
+  const [subjectOptions, setSubjectOptions] = useState<SubjectOption[]>([]);
+  const [assignees, setAssignees] = useState<Assignee[]>([]);
   const [type, setType] = useState<InteractionType | "ALL">("ALL");
   const [direction, setDirection] = useState<InteractionDirection | "ALL">("ALL");
   const [status, setStatus] = useState<InteractionStatus | "ALL">("ALL");
   const [outcome, setOutcome] = useState<InteractionOutcome | "ALL">("ALL");
+  const [search, setSearch] = useState("");
+  const [selectedInteraction, setSelectedInteraction] = useState<Interaction | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [createOpen, setCreateOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [formError, setFormError] = useState("");
   const [subject, setSubject] = useState<{ leadId?: string; opportunityId?: string; customerId?: string; label?: string }>({});
-  const [form, setForm] = useState({ type: "CALL" as InteractionType, direction: "OUTBOUND" as InteractionDirection, status: "COMPLETED" as InteractionStatus, outcomeCode: "REACHED" as InteractionOutcome, result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
+  const [subjectSearch, setSubjectSearch] = useState("");
+  const [subjectKey, setSubjectKey] = useState("");
+  const [scheduleNext, setScheduleNext] = useState(false);
+  const [followUpChannel, setFollowUpChannel] = useState<FollowUpChannel>("CALL");
+  const [followUpAssignedUserId, setFollowUpAssignedUserId] = useState("");
+  const [followUpAt, setFollowUpAt] = useState("");
+  const [followUpNote, setFollowUpNote] = useState("");
+  const [form, setForm] = useState({ type: "CALL" as InteractionType, direction: "OUTBOUND" as InteractionDirection, status: "COMPLETED" as InteractionStatus, outcomeCode: "REACHED" as InteractionOutcome, result: "", notes: "", startedAt: "", durationMinutes: "", ownerUserId: "" });
 
   const load = useCallback(async () => {
+    if (!activeBranch) {
+      setRows([]);
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
-      const query = new URLSearchParams({ limit: "200" });
-      if (type !== "ALL") query.set("type", type);
-      if (direction !== "ALL") query.set("direction", direction);
-      if (status !== "ALL") query.set("status", status);
-      if (outcome !== "ALL") query.set("outcomeCode", outcome);
-      setRows(await api<Interaction[]>(`/crm/interactions?${query}`));
+      const canReadCustomers = hasPermission("customers", "read");
+      const [interactionRows, leadRows, opportunityRows, customerRows, assigneeRows] = await Promise.all([
+        api<Interaction[]>("/crm/interactions?limit=200"),
+        api<LeadOption[]>("/crm/leads?limit=200"),
+        api<OpportunityOption[]>("/crm/opportunities?limit=200"),
+        canReadCustomers
+          ? api<{ data: CustomerOption[] }>(withQuery("/customers", { page: 1, limit: 200 }))
+          : Promise.resolve({ data: [] as CustomerOption[] }),
+        canManage ? api<Assignee[]>("/crm/assignees") : Promise.resolve([] as Assignee[]),
+      ]);
+      setRows(interactionRows);
+      setAssignees(assigneeRows);
+      setSubjectOptions([
+        ...customerRows.data.map((item) => ({
+          type: "CUSTOMER" as const,
+          id: item.id,
+          label: `${item.firstName} ${item.lastName}`.trim(),
+          detail: "Müşteri",
+        })),
+        ...leadRows.map((item) => ({
+          type: "LEAD" as const,
+          id: item.id,
+          label: `${item.firstName} ${item.lastName}`.trim(),
+          detail: [item.phone, item.email].filter(Boolean).join(" · ") || "Potansiyel müşteri",
+        })),
+        ...opportunityRows.map((item) => ({
+          type: "OPPORTUNITY" as const,
+          id: item.id,
+          label: item.title,
+          detail: [item.customerFirstName || item.leadFirstName, item.customerLastName || item.leadLastName].filter(Boolean).join(" ") || "Satış fırsatı",
+        })),
+      ]);
     } catch (requestError) {
       setError(
         requestError instanceof ApiError
-          ? userErrorMessage(requestError.message, "Görüşme kayıtları yüklenemedi.")
-          : "Görüşme kayıtları yüklenemedi.",
+          ? userErrorMessage(requestError.message, "İletişim geçmişi yüklenemedi.")
+          : "İletişim geçmişi yüklenemedi.",
       );
     } finally {
       setLoading(false);
     }
-  }, [direction, outcome, status, type]);
+  }, [activeBranch, canManage]);
 
   useEffect(() => {
     void load();
