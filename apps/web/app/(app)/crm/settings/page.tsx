@@ -165,7 +165,7 @@ export default function CrmSettingsPage() {
     setLoading(true);
     setError("");
     try {
-      const [assignmentRows, automationRows, teamRows, assigneeRows, surveyorRows, policyRows] = await Promise.all([
+      const results = await Promise.allSettled([
         api<AssignmentRule[]>("/crm/assignment-rules"),
         api<AutomationRule[]>("/crm/automation-rules"),
         api<CrmTeam[]>("/crm/teams"),
@@ -173,28 +173,70 @@ export default function CrmSettingsPage() {
         api<SurveyorCandidate[]>("/crm/surveyor-candidates"),
         api<AccessPolicy[]>("/crm/access-policies"),
       ]);
-      setAssignmentRules(assignmentRows);
-      setAutomationRules(automationRows);
-      setTeams(teamRows);
-      setAssignees(assigneeRows);
-      setSurveyorCandidates(surveyorRows);
-      setAccessPolicies(policyRows);
-      setAccessPolicyDrafts(Object.fromEntries(policyRows.map((row) => {
-        const fallback: CrmDataScope = row.roleSlug === "owner" ? "ALL" : row.hasCrmManage ? (row.roleScope === "CENTRAL" ? "ALL" : row.roleScope === "COMPANY" ? "COMPANY" : "BRANCH") : "SELF";
-        return [row.roleId, row.dataScope ?? fallback];
-      })));
-      setSurveyorDrafts(Object.fromEntries(surveyorRows.map((row) => [row.staffId, {
-        active: row.active,
-        dailyDeskQuota: row.dailyDeskQuota == null ? "" : String(row.dailyDeskQuota),
-        weeklyDeskQuota: row.weeklyDeskQuota == null ? "" : String(row.weeklyDeskQuota),
-      }])));
-    } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "CRM ayarları yüklenemedi.");
+
+      const sectionNames = [
+        "müşteri dağıtımı",
+        "takip ve otomatik işler",
+        "satış ekipleri",
+        "sorumlu kullanıcılar",
+        "anketörler",
+        "rol ve veri görünürlüğü",
+      ];
+
+      const failures: string[] = [];
+
+      const assignmentResult = results[0];
+      if (assignmentResult.status === "fulfilled") setAssignmentRules(assignmentResult.value);
+      else failures.push(sectionNames[0]);
+
+      const automationResult = results[1];
+      if (automationResult.status === "fulfilled") setAutomationRules(automationResult.value);
+      else failures.push(sectionNames[1]);
+
+      const teamResult = results[2];
+      if (teamResult.status === "fulfilled") setTeams(teamResult.value);
+      else failures.push(sectionNames[2]);
+
+      const assigneeResult = results[3];
+      if (assigneeResult.status === "fulfilled") setAssignees(assigneeResult.value);
+      else failures.push(sectionNames[3]);
+
+      const surveyorResult = results[4];
+      if (surveyorResult.status === "fulfilled") {
+        setSurveyorCandidates(surveyorResult.value);
+        setSurveyorDrafts(Object.fromEntries(surveyorResult.value.map((row) => [row.staffId, {
+          active: row.active,
+          dailyDeskQuota: row.dailyDeskQuota == null ? "" : String(row.dailyDeskQuota),
+          weeklyDeskQuota: row.weeklyDeskQuota == null ? "" : String(row.weeklyDeskQuota),
+        }])));
+      } else {
+        failures.push(sectionNames[4]);
+      }
+
+      const policyResult = results[5];
+      if (policyResult.status === "fulfilled") {
+        setAccessPolicies(policyResult.value);
+        setAccessPolicyDrafts(Object.fromEntries(policyResult.value.map((row) => {
+          const fallback: CrmDataScope = row.roleSlug === "owner"
+            ? "ALL"
+            : row.hasCrmManage
+              ? (row.roleScope === "CENTRAL" ? "ALL" : row.roleScope === "COMPANY" ? "COMPANY" : "BRANCH")
+              : "SELF";
+          return [row.roleId, row.dataScope ?? fallback];
+        })));
+      } else {
+        failures.push(sectionNames[5]);
+      }
+
+      if (failures.length) {
+        setError("Bazı CRM ayarları yüklenemedi: " + failures.join(", ") + ". Diğer ayarlar kullanılmaya devam edebilir.");
+      }
+    } catch {
+      setError("CRM ayarları şu anda yüklenemiyor. Sayfayı yenileyip tekrar deneyin.");
     } finally {
       setLoading(false);
     }
   }, [activeBranch]);
-
   useEffect(() => { void load(); }, [load]);
 
   async function toggleAssignmentRule(rule: AssignmentRule) {
@@ -207,7 +249,7 @@ export default function CrmSettingsPage() {
       });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Atama kuralı güncellenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Müşteri dağıtım kuralı güncellenemedi.") : "Müşteri dağıtım kuralı güncellenemedi.");
     } finally {
       setSaving("");
     }
@@ -235,7 +277,7 @@ export default function CrmSettingsPage() {
       });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Atama kuralı oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Müşteri dağıtım kuralı oluşturulamadı.") : "Müşteri dağıtım kuralı oluşturulamadı.");
     } finally {
       setSaving("");
     }
@@ -254,7 +296,7 @@ export default function CrmSettingsPage() {
       setTeamForm({ name: "Satış Ekibi", managerUserId: "" });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "CRM ekibi oluşturulamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Satış ekibi oluşturulamadı.") : "Satış ekibi oluşturulamadı.");
     } finally {
       setSaving("");
     }
@@ -273,7 +315,7 @@ export default function CrmSettingsPage() {
       setMemberSelections((current) => ({ ...current, [teamId]: "" }));
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Ekip üyesi eklenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Ekip üyesi eklenemedi.") : "Ekip üyesi eklenemedi.");
     } finally {
       setSaving("");
     }
@@ -292,7 +334,7 @@ export default function CrmSettingsPage() {
       });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Üye yetkinlikleri güncellenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Uzmanlık bilgileri güncellenemedi.") : "Uzmanlık bilgileri güncellenemedi.");
     } finally {
       setSaving("");
     }
@@ -305,7 +347,7 @@ export default function CrmSettingsPage() {
       await api(`/crm/teams/${teamId}/members/${userId}`, { method: "DELETE" });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Ekip üyesi çıkarılamadı.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Ekip üyesi çıkarılamadı.") : "Ekip üyesi çıkarılamadı.");
     } finally {
       setSaving("");
     }
@@ -323,7 +365,7 @@ export default function CrmSettingsPage() {
       });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "CRM veri erişim kapsamı güncellenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Rolün CRM görünürlük ayarı güncellenemedi.") : "Rolün CRM görünürlük ayarı güncellenemedi.");
     } finally {
       setSaving("");
     }
@@ -347,7 +389,7 @@ export default function CrmSettingsPage() {
       });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "Anketör ayarları güncellenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Anketör ayarları güncellenemedi.") : "Anketör ayarları güncellenemedi.");
     } finally {
       setSaving("");
     }
@@ -363,7 +405,7 @@ export default function CrmSettingsPage() {
       });
       await load();
     } catch (requestError) {
-      setError(requestError instanceof ApiError ? requestError.message : "SLA ayarı güncellenemedi.");
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Müşteri dönüş ve takip süresi ayarı güncellenemedi.") : "Müşteri dönüş ve takip süresi ayarı güncellenemedi.");
     } finally {
       setSaving("");
     }
@@ -422,7 +464,7 @@ export default function CrmSettingsPage() {
 
       {!activeBranch ? <Alert>CRM ayarlarını yönetmek için çalışma kapsamından bir şube seçin.</Alert> : null}
       {activeBranch && !canManage ? <Alert>Bu ayarları görüntüleyebilirsiniz; değişiklik yapmak için müşteri ilişkileri yönetim yetkisi gerekir.</Alert> : null}
-      {error ? <Alert onClose={() => setError("")}>{userErrorMessage(error, "CRM ayarlarıyla ilgili işlem tamamlanamadı.")}</Alert> : null}
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
       <section className="overflow-x-auto rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-soft)]">
         <div className="flex min-w-max gap-1">
