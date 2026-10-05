@@ -469,58 +469,68 @@ export default function CrmLeadsPage() {
         {loading ? (
           <Spinner label="Potansiyel müşteriler yükleniyor..." />
         ) : visibleLeads.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {visibleLeads.map((lead)=>{
-              const priority=lead.leadTemperature==="HOT"?"Yüksek":lead.leadTemperature==="WARM"?"Orta":"Normal";
-              const priorityClass=lead.leadTemperature==="HOT"?"text-[var(--danger)]":lead.leadTemperature==="WARM"?"text-[var(--warning)]":"text-[var(--muted)]";
-              const score=Number(lead.leadScore??0);
-              const sourceLabel=leadSourceLabels[lead.source]??"Diğer Kaynak";
-              return <article key={lead.id} className="px-4 py-3 transition-colors hover:bg-[var(--surface-2)]">
-                <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.15fr)_minmax(170px,.75fr)_minmax(210px,.9fr)_minmax(180px,.8fr)_auto] lg:items-center">
-                  <Link href={`/crm/leads/${lead.id}`} className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] font-bold text-[var(--accent)]">{initials(lead)}</span>
-                    <span className="min-w-0">
-                      <strong className="block truncate text-[12px] text-[var(--ink)]">{lead.firstName} {lead.lastName}</strong>
-                      <small className="mt-0.5 block truncate text-[9px] text-[var(--muted)]">{lead.phone||lead.email||"İletişim bilgisi yok"} · {sourceLabel}</small>
-                    </span>
-                  </Link>
+          <div>
+            <div className={`hidden ${grid} items-center gap-4 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 lg:grid`}>
+              <span className="text-[9px] font-semibold text-[var(--muted)]">Müşteri</span>
+              <span className="text-[9px] font-semibold text-[var(--muted)]">Öncelik</span>
+              <span className="text-[9px] font-semibold text-[var(--muted)]">Sorumlu / Tahmini Satış</span>
+              <span className="text-[9px] font-semibold text-[var(--muted)]">Durum / Güncelleme</span>
+              <span className="text-right text-[9px] font-semibold text-[var(--muted)]">İşlemler</span>
+            </div>
 
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2">
-                      <span className={`text-[9px] font-semibold ${priorityClass}`}>{priority} Öncelik</span>
-                      {score>0?<span className="text-[9px] font-semibold text-[var(--ink)]">{score} puan</span>:<span className="text-[9px] text-[var(--muted-soft)]">Henüz puanlanmadı</span>}
+            <div className="divide-y divide-[var(--line)]">
+              {visibleLeads.map((lead)=>{
+                const priority=lead.leadTemperature==="HOT"?"Yüksek":lead.leadTemperature==="WARM"?"Orta":"Normal";
+                const priorityClass=lead.leadTemperature==="HOT"?"text-[var(--danger)]":lead.leadTemperature==="WARM"?"text-[var(--warning)]":"text-[var(--muted)]";
+                const score=Number(lead.leadScore??0);
+                const sourceLabel=leadSourceLabels[lead.source]??"Diğer Kaynak";
+                return <article key={lead.id} className="px-4 py-3 transition-colors hover:bg-[var(--surface-2)]">
+                  <div className={`grid gap-3 lg:items-center lg:gap-4 ${grid}`}>
+                    <Link href={`/crm/leads/${lead.id}`} className="flex min-w-0 items-center gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] font-bold text-[var(--accent)]">{initials(lead)}</span>
+                      <span className="min-w-0">
+                        <strong className="block truncate text-[12px] text-[var(--ink)]">{lead.firstName} {lead.lastName}</strong>
+                        <small className="mt-0.5 block truncate text-[9px] text-[var(--muted)]">{lead.phone||lead.email||"İletişim bilgisi yok"} · {sourceLabel}</small>
+                      </span>
+                    </Link>
+
+                    <div className="min-w-0 lg:pr-3">
+                      <div className="flex items-center gap-2">
+                        <span className={`whitespace-nowrap text-[9px] font-semibold ${priorityClass}`}>{priority} Öncelik</span>
+                        {score>0?<span className="whitespace-nowrap text-[9px] font-semibold text-[var(--ink)]">{score} puan</span>:<span className="whitespace-nowrap text-[9px] text-[var(--muted-soft)]">Henüz puanlanmadı</span>}
+                      </div>
+                      {score>0?<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${Math.min(100,score)}%`}}/></div>:null}
                     </div>
-                    {score>0?<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${Math.min(100,score)}%`}}/></div>:null}
-                  </div>
 
-                  <div className="min-w-0">
-                    <span className={`block truncate text-[10px] font-medium ${lead.ownerUserId?"text-[var(--ink)]":"text-[var(--warning)]"}`}>
-                      {lead.ownerUserId?(assigneeNames.get(lead.ownerUserId)??"Atanmış kullanıcı"):"Sorumlu atanmamış"}
-                    </span>
-                    {lead.estimatedValue!=null?<span className="mt-0.5 block text-[9px] text-[var(--muted)]">Tahmini satış {Number(lead.estimatedValue).toLocaleString("tr-TR")} ₺</span>:<span className="mt-0.5 block text-[9px] text-[var(--muted)]">Tahmini satış değeri yok</span>}
-                  </div>
+                    <div className="min-w-0">
+                      <span className={`block truncate text-[10px] font-medium ${lead.ownerUserId?"text-[var(--ink)]":"text-[var(--warning)]"}`}>
+                        {lead.ownerUserId?(assigneeNames.get(lead.ownerUserId)??"Atanmış kullanıcı"):"Sorumlu atanmamış"}
+                      </span>
+                      {lead.estimatedValue!=null?<span className="mt-0.5 block truncate text-[9px] text-[var(--muted)]">Tahmini satış {Number(lead.estimatedValue).toLocaleString("tr-TR")} ₺</span>:<span className="mt-0.5 block truncate text-[9px] text-[var(--muted)]">Tahmini satış değeri yok</span>}
+                    </div>
 
-                  <div className="min-w-0">
-                    <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--accent)]">{leadStatusLabels[lead.status]}</span>
-                    <time className="mt-1 block text-[8px] text-[var(--muted)]">{formatDate(lead.updatedAt)}</time>
-                  </div>
+                    <div className="min-w-0">
+                      <span className="inline-flex max-w-full truncate rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--accent)]">{leadStatusLabels[lead.status]}</span>
+                      <time className="mt-1 block whitespace-nowrap text-[8px] text-[var(--muted)]">{formatDate(lead.updatedAt)}</time>
+                    </div>
 
-                  <div className="flex items-center gap-2 lg:justify-end">
-                    {canManage&&["NEW","CONTACTED"].includes(lead.status)&&!lead.opportunityId?<Button
-                      variant="secondary"
-                      className="min-h-8 whitespace-nowrap px-3 py-1.5 text-[9px]"
-                      onClick={()=>{
-                        if(!requireActiveBranch("Potansiyel müşteriyi satış fırsatına dönüştürmek için önce çalışma kapsamından bir şube seçin."))return;
-                        setFormError("");
-                        setOpportunityForm({...emptyOpportunity,title:`${lead.firstName} ${lead.lastName} Satış Fırsatı`});
-                        setQualifying(lead);
-                      }}
-                    >Satışa Dönüştür</Button>:null}
-                    <Link href={`/crm/leads/${lead.id}`} className="inline-flex min-h-8 items-center rounded-[9px] px-2.5 text-[9px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Detay</Link>
+                    <div className="flex min-h-8 items-center gap-2 lg:justify-end">
+                      {canManage&&["NEW","CONTACTED"].includes(lead.status)&&!lead.opportunityId?<Button
+                        variant="secondary"
+                        className="min-h-8 whitespace-nowrap px-3 py-1.5 text-[9px]"
+                        onClick={()=>{
+                          if(!requireActiveBranch("Potansiyel müşteriyi satış fırsatına dönüştürmek için önce çalışma kapsamından bir şube seçin."))return;
+                          setFormError("");
+                          setOpportunityForm({...emptyOpportunity,title:`${lead.firstName} ${lead.lastName} Satış Fırsatı`});
+                          setQualifying(lead);
+                        }}
+                      >Satışa Dönüştür</Button>:<span className="hidden lg:block lg:w-[118px]" aria-hidden="true" />}
+                      <Link href={`/crm/leads/${lead.id}`} className="inline-flex min-h-8 w-[56px] items-center justify-center rounded-[9px] px-2 text-[9px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Detay</Link>
+                    </div>
                   </div>
-                </div>
-              </article>;
-            })}
+                </article>;
+              })}
+            </div>
           </div>
         ) : (
           <EmptyState title="Potansiyel müşteri bulunamadı" description="Arama ve filtreleri değiştirin veya yeni bir potansiyel müşteri oluşturun." />
