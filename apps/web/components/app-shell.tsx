@@ -600,18 +600,23 @@ export function AppShell({ children }: { children: ReactNode }) {
         )}
         style={sidebarStyle}
       >
-        <div className={cx("flex items-center border-b border-[var(--line)] py-5", collapsed ? "justify-center px-3" : "justify-between px-5")}>
-          <div className={cx("flex min-w-0 items-center", collapsed ? "justify-center" : "gap-3")}>
-            <BrandMark />
-            {!collapsed ? (
-              <div className="min-w-0">
-                <div className="truncate text-[14px] font-semibold tracking-[-0.02em] text-[var(--ink)]">Yönetim Platformu</div>
-                <div className="mt-0.5 truncate text-[11px] text-[var(--muted)]">{tenant?.name ?? "İşletme Yönetimi"}</div>
-              </div>
-            ) : null}
+        <div className={cx(
+          "flex items-center border-b border-[var(--line)]",
+          collapsed ? "justify-center px-3 py-5" : "min-h-[92px] justify-between px-5 py-5",
+        )}>
+          <div className={cx("flex min-w-0 items-center", collapsed ? "justify-center" : "flex-1")}>
+            <BrandMark compact={collapsed} />
           </div>
           {!collapsed ? (
-            <button type="button" onClick={toggleSidebar} aria-label="Menüyü Daralt" title="Menüyü Daralt" className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[var(--radius-control)] text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]">‹</button>
+            <button
+              type="button"
+              onClick={toggleSidebar}
+              aria-label="Menüyü Daralt"
+              title="Menüyü Daralt"
+              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[var(--radius-control)] text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]"
+            >
+              ‹
+            </button>
           ) : null}
         </div>
 
@@ -808,6 +813,15 @@ function getInitials(firstName: string, lastName: string) {
   return `${firstName.charAt(0)}${lastName.charAt(0)}`.toUpperCase();
 }
 
-function BrandMark() {
-  return <ValooLogo className="w-11 shrink-0" alt="VALOO" />;
+function BrandMark({ compact = false }: { compact?: boolean }) {
+  return (
+    <ValooLogo
+      className={cx(
+        "shrink-0 transition-[width] duration-200",
+        compact ? "w-10" : "w-[104px]",
+      )}
+      alt="VALOO"
+      priority
+    />
+  );
 }
