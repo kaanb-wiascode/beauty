@@ -485,7 +485,7 @@ export default function CrmFollowUpsPage() {
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
-          {lead?.phone && row.status === "OPEN" ? <a href={\`tel:\${lead.phone}\`} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Ara</a> : null}
+          {lead?.phone && row.status === "OPEN" ? <a href={"tel:"+lead.phone} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Ara</a> : null}
           {canManage && row.status === "OPEN" ? <>
             <Button variant="secondary" className="min-h-8 px-3 py-1 text-[9px]" onClick={() => openComplete(row)}>Tamamla</Button>
             <Button variant="ghost" className="min-h-8 px-2 py-1 text-[9px]" onClick={() => openReschedule(row)}>Yeniden Planla</Button>
