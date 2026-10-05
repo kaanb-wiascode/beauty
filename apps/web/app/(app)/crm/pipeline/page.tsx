@@ -13,6 +13,16 @@ import { hasActiveBranch, hasPermission } from "@/lib/auth";
 import { opportunityStageLabels, type CrmAssignee, type CrmOpportunity, type OpportunityStage } from "@/lib/crm-types";
 
 const stages: OpportunityStage[] = ["QUALIFIED", "NEEDS_ANALYSIS", "PROPOSAL", "NEGOTIATION", "WON", "LOST"];
+const activeStages: OpportunityStage[] = ["QUALIFIED", "NEEDS_ANALYSIS", "PROPOSAL", "NEGOTIATION"];
+const closedStages: OpportunityStage[] = ["WON", "LOST"];
+const stageLabels: Record<OpportunityStage, string> = {
+  QUALIFIED: "İlk Değerlendirme",
+  NEEDS_ANALYSIS: "İhtiyaç Belirlendi",
+  PROPOSAL: "Teklif Verildi",
+  NEGOTIATION: "Karar Bekleniyor",
+  WON: "Kazanıldı",
+  LOST: "Kaybedildi",
+};
 const nextStages: Record<OpportunityStage, OpportunityStage[]> = {
   QUALIFIED: ["NEEDS_ANALYSIS", "LOST"], NEEDS_ANALYSIS: ["PROPOSAL", "LOST"],
   PROPOSAL: ["NEGOTIATION", "WON", "LOST"], NEGOTIATION: ["PROPOSAL", "WON", "LOST"], WON: [], LOST: [],
@@ -61,6 +71,11 @@ export default function CrmPipelinePage() {
   const [saleItems, setSaleItems] = useState<DraftSaleItem[]>([newSaleItem(1)]);
   const [saleItemSequence, setSaleItemSequence] = useState(1);
   const [saleDiscount, setSaleDiscount] = useState("0");
+  const [viewGroup, setViewGroup] = useState<"ACTIVE" | "CLOSED">("ACTIVE");
+  const [viewMode, setViewMode] = useState<"BOARD" | "LIST">("BOARD");
+  const [selectedOpportunity, setSelectedOpportunity] = useState<CrmOpportunity | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [dragTarget, setDragTarget] = useState<OpportunityStage | null>(null);
 
   useEffect(() => { const t = window.setTimeout(() => setDebouncedSearch(search.trim()), 250); return () => window.clearTimeout(t); }, [search]);
 
@@ -84,8 +99,30 @@ export default function CrmPipelinePage() {
 
   const totals = useMemo(() => {
     const open = rows.filter((row) => !["WON", "LOST"].includes(row.stage));
-    return { count: open.length, raw: open.reduce((s, r) => s + Number(r.estimatedValue ?? 0), 0), weighted: open.reduce((s, r) => s + Number(r.estimatedValue ?? 0) * r.probability / 100, 0) };
+    const overdue = open.filter((row) => row.expectedCloseDate && new Date(row.expectedCloseDate).getTime() < Date.now()).length;
+    const closingSoon = open.filter((row) => {
+      if (!row.expectedCloseDate) return false;
+      const diff = new Date(row.expectedCloseDate).getTime() - Date.now();
+      return diff >= 0 && diff <= 30 * 86400000;
+    }).length;
+    return {
+      count: open.length,
+      raw: open.reduce((s, r) => s + Number(r.estimatedValue ?? 0), 0),
+      weighted: open.reduce((s, r) => s + Number(r.estimatedValue ?? 0) * r.probability / 100, 0),
+      overdue,
+      closingSoon,
+      stale: open.filter((row) => daysSince(row.updatedAt) >= 14).length,
+      highProbability: open.filter((row) => row.probability >= 80).length,
+    };
   }, [rows]);
+
+  const assigneeNames = useMemo(
+    () => new Map(assignees.map((person) => [person.id, `${person.firstName} ${person.lastName}`])),
+    [assignees],
+  );
+
+  const visibleStages = viewGroup === "ACTIVE" ? activeStages : closedStages;
+  const visibleRows = rows.filter((row) => visibleStages.includes(row.stage));
 
   function referencesFor(type: SaleReferenceType) { return type === "SERVICE" ? services.map((x) => ({ id: x.id, label: x.name, price: x.price })) : packages.filter((x) => x.active).map((x) => ({ id: x.id, label: x.name, price: x.price })); }
   function requireActiveBranch() { if (hasActiveBranch()) return true; showToast("Satış fırsatını güncellemek için önce çalışma kapsamından bir şube seçin.", "error"); return false; }
@@ -96,6 +133,43 @@ export default function CrmPipelinePage() {
     setSaving(true); setError("");
     try { await api(`/crm/opportunities/${transitioning.id}/transition`, { method: "POST", body: { version: transitioning.version, stage: targetStage, probability: Number(probability), ...(targetStage === "LOST" ? { lostReason: lostReason.trim() } : {}) } }); setTransitioning(null); showToast("Satış fırsatı aşaması güncellendi.", "success"); await load(); }
     catch (e) { setError(e instanceof ApiError ? userErrorMessage(e.message, "Satış fırsatı güncellenemedi.") : "Satış fırsatı güncellenemedi."); } finally { setSaving(false); }
+  }
+
+  async function moveOpportunity(row: CrmOpportunity, target: OpportunityStage) {
+    if (row.stage === target) return;
+    if (!nextStages[row.stage].includes(target)) {
+      showToast("Bu satış fırsatı doğrudan seçilen aşamaya taşınamaz.", "error");
+      return;
+    }
+    if (target === "LOST") {
+      setTransitioning(row);
+      setTargetStage("LOST");
+      setProbability("0");
+      setLostReason("");
+      return;
+    }
+    if (!requireActiveBranch()) return;
+    setSaving(true);
+    setError("");
+    try {
+      await api(`/crm/opportunities/${row.id}/transition`, {
+        method: "POST",
+        body: {
+          version: row.version,
+          stage: target,
+          probability: target === "WON" ? 100 : row.probability,
+        },
+      });
+      showToast(`Satış fırsatı “${stageLabels[target]}” aşamasına taşındı.`, "success");
+      setSelectedOpportunity(null);
+      await load();
+    } catch (e) {
+      setError(e instanceof ApiError ? userErrorMessage(e.message, "Satış fırsatı taşınamadı.") : "Satış fırsatı taşınamadı.");
+    } finally {
+      setSaving(false);
+      setDraggingId(null);
+      setDragTarget(null);
+    }
   }
 
   async function openSale(row: CrmOpportunity) {
