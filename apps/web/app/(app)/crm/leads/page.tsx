@@ -403,109 +403,120 @@ export default function CrmLeadsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
-        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 xl:flex-row xl:items-center xl:justify-between">
-          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
-            <TextInput
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Ad, telefon veya e-posta ara"
-              aria-label="Potansiyel müşteri ara"
-              className="sm:max-w-sm"
-            />
+      <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 lg:flex-row lg:items-center lg:justify-between">
+          <TextInput
+            value={search}
+            onChange={(event) => setSearch(event.target.value)}
+            placeholder="Ad, telefon veya e-posta ara"
+            aria-label="Potansiyel müşteri ara"
+            className="lg:max-w-[430px]"
+          />
+
+          <div className="flex flex-wrap items-center gap-2">
+            <details className="relative">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[10px] font-semibold text-[var(--ink)] transition hover:bg-[var(--surface-2)]">
+                Filtreler
+                {(status!=="ALL"||temperature!=="ALL"||ownerUserId||assignmentFilter==="UNASSIGNED")?<span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[8px] text-[var(--accent)]">Aktif</span>:null}
+                <span className="text-[11px] text-[var(--muted)]">⌄</span>
+              </summary>
+              <div className="absolute right-0 z-40 mt-2 w-[320px] space-y-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_18px_48px_rgba(23,35,28,.14)]">
+                <Select value={status} onChange={(event)=>setStatus(event.target.value as LeadStatus|"ALL")} aria-label="Duruma göre filtrele">
+                  {statuses.map((item)=><option key={item} value={item}>{item==="ALL"?"Tüm Durumlar":leadStatusLabels[item]}</option>)}
+                </Select>
+                <Select value={temperature} onChange={(event)=>setTemperature(event.target.value as LeadTemperature|"ALL")} aria-label="Önceliğe göre filtrele">
+                  <option value="ALL">Tüm Öncelikler</option>
+                  <option value="HOT">Yüksek Öncelik</option>
+                  <option value="WARM">Orta Öncelik</option>
+                  <option value="COLD">Normal Öncelik</option>
+                </Select>
+                <Select value={ownerUserId} onChange={(event)=>{setOwnerUserId(event.target.value);setAssignmentFilter("ALL")}} aria-label="Sorumluya göre filtrele">
+                  <option value="">Tüm Sorumlular</option>
+                  {assignees.map((person)=><option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+                </Select>
+                <button
+                  type="button"
+                  onClick={()=>setAssignmentFilter(assignmentFilter==="UNASSIGNED"?"ALL":"UNASSIGNED")}
+                  className={`w-full rounded-[10px] border px-3 py-2 text-left text-[10px] font-semibold transition ${assignmentFilter==="UNASSIGNED"?"border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]":"border-[var(--line)] text-[var(--muted)] hover:bg-[var(--surface-2)]"}`}
+                >
+                  Sadece sorumlusu olmayanlar
+                </button>
+                <button
+                  type="button"
+                  onClick={()=>{setStatus("ALL");setTemperature("ALL");setOwnerUserId("");setAssignmentFilter("ALL")}}
+                  className="w-full rounded-[10px] px-3 py-2 text-left text-[10px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]"
+                >
+                  Filtreleri Temizle
+                </button>
+              </div>
+            </details>
+
             <Select
-              value={status}
-              onChange={(event) => setStatus(event.target.value as LeadStatus | "ALL")}
-              aria-label="Duruma göre filtrele"
-              className="sm:max-w-[190px]"
+              value={sortMode}
+              onChange={(event)=>setSortMode(event.target.value as typeof sortMode)}
+              aria-label="Sıralama"
+              className="max-w-[210px]"
             >
-              {statuses.map((item) => <option key={item} value={item}>{item === "ALL" ? "Tüm Durumlar" : leadStatusLabels[item]}</option>)}
-            </Select>
-            <Select
-              value={temperature}
-              onChange={(event) => setTemperature(event.target.value as LeadTemperature | "ALL")}
-              aria-label="Önceliğe göre filtrele"
-              className="sm:max-w-[190px]"
-            >
-              <option value="ALL">Tüm Öncelikler</option>
-              <option value="HOT">Yüksek Öncelik</option>
-              <option value="WARM">Orta Öncelik</option>
-              <option value="COLD">Normal Öncelik</option>
-            </Select>
-            <Select
-              value={ownerUserId}
-              onChange={(event) => {setOwnerUserId(event.target.value);setAssignmentFilter("ALL")}}
-              aria-label="Sorumluya göre filtrele"
-              className="sm:max-w-[210px]"
-            >
-              <option value="">Tüm Sorumlular</option>
-              {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+              <option value="priority">Önceliğe Göre</option>
+              <option value="score">Müşteri Puanına Göre</option>
+              <option value="value">Tahmini Değere Göre</option>
+              <option value="newest">En Yeni</option>
+              <option value="updated">En Son Güncellenen</option>
             </Select>
           </div>
-
-          <Select
-            value={sortMode}
-            onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
-            aria-label="Sıralama"
-            className="xl:max-w-[210px]"
-          >
-            <option value="priority">Önceliğe Göre</option>
-            <option value="score">Müşteri Puanına Göre</option>
-            <option value="value">Tahmini Değere Göre</option>
-            <option value="newest">En Yeni</option>
-            <option value="updated">En Son Güncellenen</option>
-          </Select>
         </div>
 
         {loading ? (
           <Spinner label="Potansiyel müşteriler yükleniyor..." />
         ) : visibleLeads.length ? (
           <div className="divide-y divide-[var(--line)]">
-            {visibleLeads.map((lead) => {
-              const priority=lead.leadTemperature==="HOT"?"Yüksek Öncelik":lead.leadTemperature==="WARM"?"Orta Öncelik":"Normal Öncelik";
-              const priorityClass=lead.leadTemperature==="HOT"?"bg-[var(--danger-soft)] text-[var(--danger)]":lead.leadTemperature==="WARM"?"bg-[var(--warning-soft)] text-[var(--warning)]":"bg-[var(--surface-2)] text-[var(--muted)]";
+            {visibleLeads.map((lead)=>{
+              const priority=lead.leadTemperature==="HOT"?"Yüksek":lead.leadTemperature==="WARM"?"Orta":"Normal";
+              const priorityClass=lead.leadTemperature==="HOT"?"text-[var(--danger)]":lead.leadTemperature==="WARM"?"text-[var(--warning)]":"text-[var(--muted)]";
               const score=Number(lead.leadScore??0);
-              return <article key={lead.id} className="px-4 py-4 transition-colors hover:bg-[var(--surface-2)]">
-                <div className="grid gap-4 xl:grid-cols-[minmax(240px,1.25fr)_minmax(180px,.8fr)_minmax(200px,.95fr)_minmax(170px,.75fr)_auto] xl:items-center">
+              const sourceLabel=leadSourceLabels[lead.source]??"Diğer Kaynak";
+              return <article key={lead.id} className="px-4 py-3 transition-colors hover:bg-[var(--surface-2)]">
+                <div className="grid gap-3 lg:grid-cols-[minmax(240px,1.15fr)_minmax(170px,.75fr)_minmax(210px,.9fr)_minmax(180px,.8fr)_auto] lg:items-center">
                   <Link href={`/crm/leads/${lead.id}`} className="flex min-w-0 items-center gap-3">
-                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-bold text-[var(--accent)]">{initials(lead)}</span>
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] font-bold text-[var(--accent)]">{initials(lead)}</span>
                     <span className="min-w-0">
-                      <strong className="block truncate text-[13px] text-[var(--ink)]">{lead.firstName} {lead.lastName}</strong>
-                      <small className="mt-1 block truncate text-[10px] text-[var(--muted)]">{lead.phone||lead.email||"İletişim bilgisi yok"}</small>
+                      <strong className="block truncate text-[12px] text-[var(--ink)]">{lead.firstName} {lead.lastName}</strong>
+                      <small className="mt-0.5 block truncate text-[9px] text-[var(--muted)]">{lead.phone||lead.email||"İletişim bilgisi yok"} · {sourceLabel}</small>
                     </span>
                   </Link>
 
                   <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${priorityClass}`}>{priority}</span>
-                      <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[9px] font-semibold text-[var(--ink)]">{score}/100</span>
+                    <div className="flex items-center gap-2">
+                      <span className={`text-[9px] font-semibold ${priorityClass}`}>{priority} Öncelik</span>
+                      {score>0?<span className="text-[9px] font-semibold text-[var(--ink)]">{score} puan</span>:<span className="text-[9px] text-[var(--muted-soft)]">Henüz puanlanmadı</span>}
                     </div>
-                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${Math.max(score?4:0,Math.min(100,score))}%`}}/></div>
+                    {score>0?<div className="mt-1.5 h-1 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${Math.min(100,score)}%`}}/></div>:null}
                   </div>
 
                   <div className="min-w-0">
-                    <span className="block truncate text-[10px] font-medium text-[var(--ink)]">{leadSourceLabels[lead.source]??lead.source}</span>
-                    <span className={`mt-1 block truncate text-[9px] ${lead.ownerUserId?"text-[var(--muted)]":"font-semibold text-[var(--warning)]"}`}>{lead.ownerUserId?(assigneeNames.get(lead.ownerUserId)??"Atanmış kullanıcı"):"Sorumlu atanmamış"}</span>
-                    {lead.estimatedValue!=null?<span className="mt-1 block text-[9px] text-[var(--muted)]">Tahmini satış: {Number(lead.estimatedValue).toLocaleString("tr-TR")} ₺</span>:null}
+                    <span className={`block truncate text-[10px] font-medium ${lead.ownerUserId?"text-[var(--ink)]":"text-[var(--warning)]"}`}>
+                      {lead.ownerUserId?(assigneeNames.get(lead.ownerUserId)??"Atanmış kullanıcı"):"Sorumlu atanmamış"}
+                    </span>
+                    {lead.estimatedValue!=null?<span className="mt-0.5 block text-[9px] text-[var(--muted)]">Tahmini satış {Number(lead.estimatedValue).toLocaleString("tr-TR")} ₺</span>:<span className="mt-0.5 block text-[9px] text-[var(--muted)]">Tahmini satış değeri yok</span>}
                   </div>
 
                   <div className="min-w-0">
-                    <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">{leadStatusLabels[lead.status]}</span>
-                    <time className="mt-2 block text-[9px] text-[var(--muted)]">Son güncelleme: {formatDate(lead.updatedAt)}</time>
+                    <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[9px] font-semibold text-[var(--accent)]">{leadStatusLabels[lead.status]}</span>
+                    <time className="mt-1 block text-[8px] text-[var(--muted)]">{formatDate(lead.updatedAt)}</time>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 xl:justify-end">
-                    <Link href={`/crm/leads/${lead.id}`} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-3 text-[10px] font-semibold text-[var(--ink)] transition hover:bg-[var(--surface-2)]">Detay</Link>
+                  <div className="flex items-center gap-2 lg:justify-end">
                     {canManage&&["NEW","CONTACTED"].includes(lead.status)&&!lead.opportunityId?<Button
                       variant="secondary"
-                      className="min-h-8 px-3 py-1.5 text-[10px]"
-                      onClick={() => {
-                        if (!requireActiveBranch("Potansiyel müşteriyi satış fırsatına dönüştürmek için önce çalışma kapsamından bir şube seçin.")) return;
+                      className="min-h-8 whitespace-nowrap px-3 py-1.5 text-[9px]"
+                      onClick={()=>{
+                        if(!requireActiveBranch("Potansiyel müşteriyi satış fırsatına dönüştürmek için önce çalışma kapsamından bir şube seçin."))return;
                         setFormError("");
                         setOpportunityForm({...emptyOpportunity,title:`${lead.firstName} ${lead.lastName} Satış Fırsatı`});
                         setQualifying(lead);
                       }}
-                    >Satış Fırsatına Dönüştür</Button>:null}
+                    >Satışa Dönüştür</Button>:null}
+                    <Link href={`/crm/leads/${lead.id}`} className="inline-flex min-h-8 items-center rounded-[9px] px-2.5 text-[9px] font-semibold text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)]">Detay</Link>
                   </div>
                 </div>
               </article>;
