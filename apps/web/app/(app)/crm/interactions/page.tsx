@@ -348,151 +348,309 @@ export default function CrmInteractionsPage() {
     return Array.from(groups.entries());
   }, [visibleRows]);
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Görüşmeler"
-        description="Müşterilerle yapılan telefon, WhatsApp, e-posta, yüz yüze ve diğer temasları tek merkezden izleyin."
-        action={subject.leadId || subject.opportunityId || subject.customerId ? <Button onClick={() => { setFormError(""); setForm((current) => ({ ...current, startedAt: new Date().toISOString().slice(0, 16) })); setCreateOpen(true); }}>+ Görüşme Kaydet</Button> : undefined}
-      />
 
+  function selectSubject(value: string) {
+    setSubjectKey(value);
+    const [kind, id] = value.split(":") as [SubjectType, string];
+    const option = subjectOptions.find((item) => item.type === kind && item.id === id);
+    if (!kind || !id) {
+      setSubject({});
+      setScheduleNext(false);
+      return;
+    }
+    setSubject(
+      kind === "CUSTOMER"
+        ? { customerId: id, label: option?.label }
+        : kind === "LEAD"
+          ? { leadId: id, label: option?.label }
+          : { opportunityId: id, label: option?.label },
+    );
+    if (kind === "CUSTOMER") setScheduleNext(false);
+  }
+
+  function openCreate() {
+    if (!activeBranch) {
+      showToast("Görüşme kaydetmek için önce çalışma kapsamından bir şube seçin.", "error");
+      return;
+    }
+    const currentUserId = getStoredUser()?.id ?? "";
+    setFormError("");
+    setSubjectSearch("");
+    setScheduleNext(false);
+    setFollowUpAt("");
+    setFollowUpNote("");
+    setFollowUpAssignedUserId(currentUserId);
+    setForm({
+      type: "CALL",
+      direction: "OUTBOUND",
+      status: "COMPLETED",
+      outcomeCode: "REACHED",
+      result: "",
+      notes: "",
+      startedAt: new Date().toISOString().slice(0, 16),
+      durationMinutes: "",
+      ownerUserId: currentUserId,
+    });
+    setCreateOpen(true);
+  }
+
+  function interactionHref(row: Interaction) {
+    if (row.opportunityId) return "/crm/opportunities/" + row.opportunityId;
+    if (row.leadId) return "/crm/leads/" + row.leadId;
+    if (row.customerId) return "/customers/" + row.customerId;
+    return "/crm";
+  }
+
+  function interactionSubjectType(row: Interaction) {
+    if (row.opportunityId) return "Satış Fırsatı";
+    if (row.leadId) return "Potansiyel Müşteri";
+    return "Müşteri";
+  }
+
+  return (
+    <div className="space-y-5">
+      <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)] xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-[12px] font-medium text-[var(--muted)]">Müşteri temas geçmişi</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">İletişim Geçmişi</h1>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Müşteriyle ne konuşulduğunu, görüşmenin nasıl sonuçlandığını ve bundan sonra ne yapılacağını tek yerde kaydedin ve izleyin.</p>
+        </div>
+        {canManage ? <Button onClick={openCreate}>Yeni Görüşme Kaydet</Button> : null}
+      </header>
+
+      {!activeBranch ? <Alert>İletişim geçmişini kullanmak için önce çalışma kapsamından bir şube seçin.</Alert> : null}
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-3 sm:grid-cols-3">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          ["Tamamlanan görüşme", completed, "Seçili görünümde tamamlanan müşteri temaslarının sayısı."],
-          ["Planlanan görüşme", planned, "Henüz gerçekleşmemiş planlı müşteri görüşmelerinin sayısı."],
-          ["Sonraki aksiyon", nextActions, "İleri tarihli takip veya aksiyon bilgisi bulunan görüşmelerin sayısı."],
-        ].map(([label, value, detail]) => (
-          <article key={String(label)} className="rounded-[18px] border border-[var(--line)] bg-white px-4 py-3 shadow-[var(--shadow-soft)]">
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] text-[var(--muted)]">{label}</span>
-              <CardInfo help={getCardHelp(String(label), String(detail))} />
-            </div>
-            <strong className="mt-2 block text-[20px]">{value}</strong>
-          </article>
-        ))}
+          ["Bugünkü Görüşmeler", todayCount, "Bugün kaydedilen müşteri temasları"],
+          ["Ulaşılan Müşteriler", reached, "Sonuç alınan görüşmeler"],
+          ["Tekrar Aranacak", callbacks, "Takip veya geri arama ihtiyacı bulunanlar"],
+          ["Randevuya Dönüşen", appointments, "Randevuyla sonuçlanan görüşmeler"],
+          ["Satışa Dönüşen", sales, "Satışla sonuçlanan görüşmeler"],
+        ].map(([label,value,detail]) => <article key={String(label)} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
+          <span className="text-[10px] font-medium text-[var(--muted)]">{label}</span>
+          <strong className="mt-3 block text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</strong>
+          <span className="mt-2 block text-[8px] text-[var(--muted)]">{detail}</span>
+        </article>)}
       </section>
 
-      <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
-        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 sm:flex-row">
-          <Select value={type} onChange={(event) => setType(event.target.value as InteractionType | "ALL")} className="sm:max-w-[220px]" aria-label="Görüşme türüne göre filtrele">
-            <option value="ALL">Tüm görüşme türleri</option>
-            {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </Select>
-          <Select value={direction} onChange={(event) => setDirection(event.target.value as InteractionDirection | "ALL")} className="sm:max-w-[180px]" aria-label="Görüşme yönüne göre filtrele">
-            <option value="ALL">Gelen ve giden</option>
-            <option value="INBOUND">Gelen</option>
-            <option value="OUTBOUND">Giden</option>
-          </Select>
-          <Select value={status} onChange={(event) => setStatus(event.target.value as InteractionStatus | "ALL")} className="sm:max-w-[190px]" aria-label="Görüşme durumuna göre filtrele">
-            <option value="ALL">Tüm durumlar</option>
-            <option value="PLANNED">Planlandı</option>
-            <option value="COMPLETED">Tamamlandı</option>
-            <option value="CANCELLED">İptal edildi</option>
-          </Select>
-          <Select value={outcome} onChange={(event) => setOutcome(event.target.value as InteractionOutcome | "ALL")} className="sm:max-w-[210px]" aria-label="Görüşme sonucuna göre filtrele">
-            <option value="ALL">Tüm görüşme sonuçları</option>
-            {Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-          </Select>
+      <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 xl:flex-row xl:items-center xl:justify-between">
+          <div>
+            <h2 className="text-[12px] font-semibold text-[var(--ink)]">Görüşme Zaman Çizgisi</h2>
+            <p className="mt-1 text-[8px] text-[var(--muted)]">{visibleRows.length} iletişim kaydı</p>
+          </div>
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row xl:max-w-[860px]">
+            <TextInput value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Müşteri, sonuç, not veya sorumlu ara…" aria-label="İletişim geçmişinde ara" />
+            <details className="relative shrink-0">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">
+                Filtreler
+                {(type!=="ALL"||direction!=="ALL"||status!=="ALL"||outcome!=="ALL") ? <span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[8px] text-[var(--accent)]">Aktif</span> : null}
+                <span className="text-[var(--muted)]">⌄</span>
+              </summary>
+              <div className="absolute right-0 z-40 mt-2 w-[320px] space-y-2 rounded-[15px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_18px_48px_rgba(23,35,28,.14)]">
+                <Select value={type} onChange={(event) => setType(event.target.value as InteractionType|"ALL")}>
+                  <option value="ALL">Tüm iletişim türleri</option>
+                  {Object.entries(typeLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+                <Select value={direction} onChange={(event) => setDirection(event.target.value as InteractionDirection|"ALL")}>
+                  <option value="ALL">Tüm iletişim yönleri</option>
+                  <option value="OUTBOUND">Biz ulaştık</option>
+                  <option value="INBOUND">Müşteri bize ulaştı</option>
+                </Select>
+                <Select value={status} onChange={(event) => setStatus(event.target.value as InteractionStatus|"ALL")}>
+                  <option value="ALL">Tüm durumlar</option>
+                  <option value="COMPLETED">Tamamlandı</option>
+                  <option value="PLANNED">Eski planlı kayıtlar</option>
+                  <option value="CANCELLED">İptal edildi</option>
+                </Select>
+                <Select value={outcome} onChange={(event) => setOutcome(event.target.value as InteractionOutcome|"ALL")}>
+                  <option value="ALL">Tüm sonuçlar</option>
+                  {Object.entries(outcomeLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+                <button type="button" onClick={() => {setType("ALL");setDirection("ALL");setStatus("ALL");setOutcome("ALL")}} className="w-full rounded-[9px] px-3 py-2 text-left text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">Filtreleri Temizle</button>
+              </div>
+            </details>
+          </div>
         </div>
 
-        {loading ? (
-          <Spinner label="Görüşmeler yükleniyor..." />
-        ) : rows.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {rows.map((row) => {
-              const href = row.opportunityId
-                ? `/crm/opportunities/${row.opportunityId}`
-                : row.leadId
-                  ? `/crm/leads/${row.leadId}`
-                  : row.customerId
-                    ? `/customers/${row.customerId}`
-                    : "/crm";
-              const ownerName = [row.ownerFirstName, row.ownerLastName].filter(Boolean).join(" ") || "Sorumlu kullanıcı";
-              return (
-                <Link key={row.id} href={href} className="grid gap-3 px-5 py-4 transition-colors hover:bg-[#f8fcfd] lg:grid-cols-[minmax(220px,1.2fr)_140px_120px_150px_minmax(180px,1fr)] lg:items-center">
-                  <div className="min-w-0">
-                    <p className="truncate text-[13px] font-semibold">{row.subjectLabel}</p>
-                    <p className="mt-1 truncate text-[10px] text-[var(--muted)]">{ownerName}</p>
-                  </div>
-                  <div>
-                    <p className="text-[11px] font-medium">{typeLabels[row.type]}</p>
-                    <p className="mt-1 text-[9px] text-[var(--muted)]">{directionLabels[row.direction]}</p>
-                  </div>
-                  <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[10px] font-semibold text-[var(--accent)]">{statusLabels[row.status]}</span>
-                  <div>
-                    <p className="text-[10px] text-[var(--muted)]">{formatDateTime(row.startedAt)}</p>
-                    <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Süre: {formatDuration(row.durationSeconds)}</p>
-                  </div>
-                  <div className="min-w-0">
-                    <p className="truncate text-[11px]">{row.outcomeCode ? outcomeLabels[row.outcomeCode] : row.result || row.notes || "Görüşme sonucu girilmemiş"}</p>
-                    {row.outcomeCode && row.result ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">{row.result}</p> : null}
-                    {row.nextAction ? <p className="mt-1 truncate text-[9px] text-[var(--muted)]">Sonraki: {row.nextAction}</p> : null}
-                  </div>
-                </Link>
-              );
-            })}
+        {loading ? <div className="p-6"><Spinner label="İletişim geçmişi yükleniyor..." /></div> : timelineGroups.length ? (
+          <div className="p-4 sm:p-5">
+            {timelineGroups.map(([group,items]) => <section key={group} className="mb-6 last:mb-0">
+              <div className="mb-3 flex items-center gap-3">
+                <h3 className="shrink-0 text-[10px] font-semibold text-[var(--muted)]">{group}</h3>
+                <span className="h-px flex-1 bg-[var(--line)]" />
+              </div>
+              <div className="space-y-2.5">
+                {items.map((row) => {
+                  const ownerName=[row.ownerFirstName,row.ownerLastName].filter(Boolean).join(" ")||"Sorumlu kullanıcı";
+                  const resultText=row.outcomeCode?outcomeLabels[row.outcomeCode]:row.result||row.notes||"Görüşme sonucu girilmemiş";
+                  return <button key={row.id} type="button" onClick={() => setSelectedInteraction(row)} className="grid w-full gap-3 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left transition hover:border-[var(--line-strong)] hover:bg-[var(--surface-2)]/40 lg:grid-cols-[minmax(220px,1.15fr)_150px_160px_minmax(240px,1.2fr)] lg:items-center">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-semibold text-[var(--accent)]">{interactionSubjectType(row)}</span>
+                        <span className="text-[8px] text-[var(--muted)]">{typeLabels[row.type]}</span>
+                      </div>
+                      <strong className="mt-2 block truncate text-[12px] text-[var(--ink)]">{row.subjectLabel}</strong>
+                      <span className="mt-1 block truncate text-[9px] text-[var(--muted)]">{ownerName}</span>
+                    </div>
+                    <div>
+                      <span className="block text-[9px] font-semibold text-[var(--ink)]">{directionLabels[row.direction]}</span>
+                      <span className="mt-1 block text-[8px] text-[var(--muted)]">{formatDuration(row.durationSeconds)}</span>
+                    </div>
+                    <div>
+                      <span className={row.status==="CANCELLED"?"inline-flex rounded-full bg-[var(--danger-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--danger)]":"inline-flex rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--accent)]"}>{statusLabels[row.status]}</span>
+                      <time className="mt-1.5 block text-[8px] text-[var(--muted)]">{formatDateTime(row.startedAt)}</time>
+                    </div>
+                    <div className="min-w-0">
+                      <strong className="block truncate text-[10px] text-[var(--ink)]">{resultText}</strong>
+                      {row.result&&row.outcomeCode?<span className="mt-1 block truncate text-[9px] text-[var(--muted)]">{row.result}</span>:null}
+                      {row.nextAction?<span className="mt-1.5 block truncate text-[8px] font-medium text-[var(--warning)]">Sonraki adım: {row.nextAction}{row.nextActionAt?" · "+formatDateTime(row.nextActionAt):""}</span>:null}
+                    </div>
+                  </button>;
+                })}
+              </div>
+            </section>)}
           </div>
-        ) : (
-          <EmptyState
-            title="Görüşme kaydı bulunmuyor"
-            description="Müşteri, potansiyel müşteri veya satış fırsatı üzerinden oluşturulan görüşmeler burada listelenecek."
-          />
-        )}
+        ) : <div className="p-6"><EmptyState title="İletişim kaydı bulunamadı" description={search||type!=="ALL"||direction!=="ALL"||status!=="ALL"||outcome!=="ALL"?"Arama veya filtrelerle eşleşen iletişim kaydı bulunamadı.":"Henüz müşteri görüşmesi kaydedilmemiş."} action={canManage?<Button onClick={openCreate}>İlk Görüşmeyi Kaydet</Button>:undefined} /></div>}
       </section>
 
-      <Modal open={createOpen} onClose={() => !saving && setCreateOpen(false)} title="Görüşme Kaydet" description={subject.label ? `${subject.label} için müşteri temasını kaydedin.` : "Müşteri temasını ve görüşme sonucunu kaydedin."}>
+      {selectedInteraction ? <div className="fixed inset-0 z-[80] flex justify-end bg-black/20" onClick={() => setSelectedInteraction(null)}>
+        <aside className="h-full w-full max-w-[440px] overflow-y-auto border-l border-[var(--line)] bg-[var(--surface)] p-5 shadow-[-18px_0_48px_rgba(23,35,28,.16)]" onClick={(event) => event.stopPropagation()}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <span className="text-[9px] font-semibold text-[var(--accent)]">{interactionSubjectType(selectedInteraction)}</span>
+              <h2 className="mt-1 text-[20px] font-semibold tracking-[-.035em] text-[var(--ink)]">{selectedInteraction.subjectLabel}</h2>
+              <p className="mt-1 text-[9px] text-[var(--muted)]">{typeLabels[selectedInteraction.type]} · {directionLabels[selectedInteraction.direction]}</p>
+            </div>
+            <button type="button" onClick={() => setSelectedInteraction(null)} className="rounded-[9px] border border-[var(--line)] px-2.5 py-1.5 text-[12px] text-[var(--muted)] hover:bg-[var(--surface-2)]">×</button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Sonuç</span><strong className="mt-1 block text-[10px] text-[var(--ink)]">{selectedInteraction.outcomeCode?outcomeLabels[selectedInteraction.outcomeCode]:"Belirtilmedi"}</strong></div>
+            <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Süre</span><strong className="mt-1 block text-[10px] text-[var(--ink)]">{formatDuration(selectedInteraction.durationSeconds)}</strong></div>
+            <div className="col-span-2 rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Görüşme Zamanı</span><strong className="mt-1 block text-[10px] text-[var(--ink)]">{formatDateTime(selectedInteraction.startedAt)}</strong></div>
+          </div>
+
+          {selectedInteraction.result||selectedInteraction.notes?<div className="mt-5 rounded-[14px] border border-[var(--line)] p-4">
+            <h3 className="text-[10px] font-semibold text-[var(--ink)]">Görüşme Detayı</h3>
+            {selectedInteraction.result?<p className="mt-2 text-[10px] leading-5 text-[var(--ink)]">{selectedInteraction.result}</p>:null}
+            {selectedInteraction.notes?<p className="mt-2 whitespace-pre-wrap text-[9px] leading-5 text-[var(--muted)]">{selectedInteraction.notes}</p>:null}
+          </div>:null}
+
+          {selectedInteraction.nextAction?<div className="mt-4 rounded-[14px] border border-[var(--warning)]/30 bg-[var(--warning-soft)] p-4">
+            <span className="text-[8px] font-semibold text-[var(--warning)]">Sonraki Adım</span>
+            <strong className="mt-1 block text-[10px] text-[var(--ink)]">{selectedInteraction.nextAction}</strong>
+            {selectedInteraction.nextActionAt?<span className="mt-1 block text-[8px] text-[var(--muted)]">{formatDateTime(selectedInteraction.nextActionAt)}</span>:null}
+          </div>:null}
+
+          <div className="mt-6">
+            <Link href={interactionHref(selectedInteraction)} className="flex min-h-10 w-full items-center justify-center rounded-[10px] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Bağlı Kaydı Aç</Link>
+          </div>
+        </aside>
+      </div> : null}
+
+      <Modal open={createOpen} onClose={() => !saving && setCreateOpen(false)} title="Yeni Görüşme Kaydet" description="Müşteriyle yapılan teması, sonucunu ve gerekiyorsa sonraki takibi kaydedin.">
         <form onSubmit={createInteraction} className="space-y-4">
           {formError ? <Alert>{formError}</Alert> : null}
+
+          <Field label="Kiminle görüştünüz?" required>
+            <div className="space-y-2">
+              <TextInput value={subjectSearch} onChange={(event) => setSubjectSearch(event.target.value)} placeholder="Müşteri, potansiyel müşteri veya satış fırsatı ara…" />
+              <Select value={subjectKey} onChange={(event) => selectSubject(event.target.value)}>
+                <option value="">Seçin</option>
+                {filteredSubjectOptions.map((item) => <option key={item.type+":"+item.id} value={item.type+":"+item.id}>{subjectTypeLabels[item.type]} · {item.label}{item.detail&&item.detail!==item.label?" · "+item.detail:""}</option>)}
+              </Select>
+            </div>
+          </Field>
+
           <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Görüşme türü" required>
-              <Select value={form.type} onChange={(event) => setForm({ ...form, type: event.target.value as InteractionType })}>
-                {Object.entries(typeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            <Field label="Nasıl iletişim kuruldu?" required>
+              <Select value={form.type} onChange={(event) => {
+                const nextType=event.target.value as InteractionType;
+                setForm({...form,type:nextType});
+                if (nextType==="CALL"||nextType==="SMS"||nextType==="EMAIL"||nextType==="WHATSAPP"||nextType==="IN_PERSON") setFollowUpChannel(nextType);
+                else setFollowUpChannel("OTHER");
+              }}>
+                {Object.entries(typeLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </Field>
-            <Field label="Görüşme yönü" required>
-              <Select value={form.direction} onChange={(event) => setForm({ ...form, direction: event.target.value as InteractionDirection })}>
-                <option value="OUTBOUND">Giden</option>
-                <option value="INBOUND">Gelen</option>
+            <Field label="İletişimi kim başlattı?" required>
+              <Select value={form.direction} onChange={(event) => setForm({...form,direction:event.target.value as InteractionDirection})}>
+                <option value="OUTBOUND">Biz ulaştık</option>
+                <option value="INBOUND">Müşteri bize ulaştı</option>
               </Select>
             </Field>
-            <Field label="Durum" required>
-              <Select value={form.status} onChange={(event) => setForm({ ...form, status: event.target.value as InteractionStatus })}>
-                <option value="COMPLETED">Tamamlandı</option>
-                <option value="PLANNED">Planlandı</option>
+            <Field label="Görüşme durumu" required>
+              <Select value={form.status} onChange={(event) => setForm({...form,status:event.target.value as InteractionStatus})}>
+                <option value="COMPLETED">Gerçekleşti</option>
                 <option value="CANCELLED">İptal edildi</option>
               </Select>
             </Field>
             <Field label="Görüşme zamanı">
-              <TextInput type="datetime-local" value={form.startedAt} onChange={(event) => setForm({ ...form, startedAt: event.target.value })} />
+              <TextInput type="datetime-local" value={form.startedAt} onChange={(event) => setForm({...form,startedAt:event.target.value})} />
             </Field>
             <Field label="Süre (dakika)">
-              <TextInput type="number" min="0" step="0.5" value={form.durationMinutes} onChange={(event) => setForm({ ...form, durationMinutes: event.target.value })} />
+              <TextInput type="number" min="0" step="0.5" value={form.durationMinutes} onChange={(event) => setForm({...form,durationMinutes:event.target.value})} />
             </Field>
-            <Field label="Görüşme sonucu" required>
-              <Select value={form.outcomeCode} onChange={(event) => setForm({ ...form, outcomeCode: event.target.value as InteractionOutcome })}>
-                {Object.entries(outcomeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+            <Field label="Sorumlu">
+              <Select value={form.ownerUserId} onChange={(event) => setForm({...form,ownerUserId:event.target.value})}>
+                <option value="">Oturum açan kullanıcı</option>
+                {assignees.map((person) => <option key={person.id} value={person.id}>{([person.firstName,person.lastName].filter(Boolean).join(" ")||person.email||"Kullanıcı")}</option>)}
               </Select>
             </Field>
-            <Field label="Sonuç açıklaması">
-              <TextInput value={form.result} onChange={(event) => setForm({ ...form, result: event.target.value })} placeholder="Örn. Fiyat bilgisini değerlendirecek" />
-            </Field>
           </div>
-          <Field label="Görüşme notu">
-            <TextArea rows={4} value={form.notes} onChange={(event) => setForm({ ...form, notes: event.target.value })} placeholder="Müşterinin ihtiyacı, itirazı ve önemli görüşme notları…" />
+
+          {form.status!=="CANCELLED"?<Field label="Görüşmenin sonucu ne oldu?" required>
+            <Select value={form.outcomeCode} onChange={(event) => setForm({...form,outcomeCode:event.target.value as InteractionOutcome})}>
+              {Object.entries(outcomeLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+            </Select>
+          </Field>:null}
+
+          <Field label="Sonuç açıklaması">
+            <TextInput value={form.result} onChange={(event) => setForm({...form,result:event.target.value})} placeholder="Örn. Fiyat bilgisini değerlendirecek" />
           </Field>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Sonraki aksiyon">
-              <TextInput value={form.nextAction} onChange={(event) => setForm({ ...form, nextAction: event.target.value })} placeholder="Örn. Teklif gönder, tekrar ara" />
+
+          <Field label="Ne konuşuldu?">
+            <TextArea rows={4} value={form.notes} onChange={(event) => setForm({...form,notes:event.target.value})} placeholder="Müşterinin ihtiyacı, itirazı ve önemli görüşme notları…" />
+          </Field>
+
+          <button
+            type="button"
+            disabled={Boolean(subject.customerId&&!subject.leadId&&!subject.opportunityId)}
+            onClick={() => setScheduleNext((value) => !value)}
+            className={scheduleNext?"w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent-soft)] p-3 text-left":"w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left hover:border-[var(--line-strong)] disabled:cursor-not-allowed disabled:opacity-55"}
+          >
+            <span className="block text-[10px] font-semibold text-[var(--ink)]">Sonraki Takibi Planla</span>
+            <span className="mt-1 block text-[8px] leading-4 text-[var(--muted)]">{subject.customerId&&!subject.leadId&&!subject.opportunityId?"Takip Merkezi görevi şu anda potansiyel müşteri veya satış fırsatı kayıtlarında kullanılabilir.":"Görüşmeyi kaydederken Takip Merkezi'ne gerçek bir görev oluşturun."}</span>
+          </button>
+
+          {scheduleNext?<div className="space-y-4 rounded-[14px] border border-[var(--line)] p-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Takip Kanalı" required>
+                <Select value={followUpChannel} onChange={(event) => setFollowUpChannel(event.target.value as FollowUpChannel)}>
+                  {Object.entries(followUpChannelLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Takip Tarihi ve Saati" required>
+                <TextInput type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} />
+              </Field>
+              <Field label="Takip Sorumlusu" required>
+                <Select value={followUpAssignedUserId} onChange={(event) => setFollowUpAssignedUserId(event.target.value)}>
+                  <option value="">Sorumlu seçin</option>
+                  {assignees.map((person) => <option key={person.id} value={person.id}>{([person.firstName,person.lastName].filter(Boolean).join(" ")||person.email||"Kullanıcı")}</option>)}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Takip Notu">
+              <TextArea rows={3} value={followUpNote} onChange={(event) => setFollowUpNote(event.target.value)} placeholder="Bir sonraki görüşmede yapılacak işlem veya hatırlanması gereken konu…" />
             </Field>
-            <Field label="Sonraki aksiyon tarihi">
-              <TextInput type="datetime-local" value={form.nextActionAt} onChange={(event) => setForm({ ...form, nextActionAt: event.target.value })} />
-            </Field>
-          </div>
+          </div>:null}
+
           <div className="flex justify-end gap-3">
             <Button type="button" variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button>
-            <Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : "Görüşmeyi Kaydet"}</Button>
+            <Button type="submit" disabled={saving||!subjectKey}>{saving?"Kaydediliyor…":scheduleNext?"Kaydet ve Takibi Planla":"Görüşmeyi Kaydet"}</Button>
           </div>
         </form>
       </Modal>
