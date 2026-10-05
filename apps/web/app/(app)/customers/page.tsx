@@ -29,7 +29,6 @@ import {
   TextInput,
   Th,
 } from "@/components/ui";
-import { CardInfo } from "@/components/card-info";
 import { DatePicker } from "@/components/date-picker";
 import { useToast } from "@/components/toast";
 import { ValooSelect } from "@/components/valoo-controls";
@@ -329,7 +328,7 @@ export default function CustomersPage() {
 
     const timer = window.setTimeout(() => {
       const needle = form.phone.trim() || form.email.trim();
-      void api<Paginated<Customer>>(
+      void api<CustomerListResponse>(
         withQuery("/customers", { page: 1, limit: 10, search: needle }),
       )
         .then((result) => {
