@@ -457,7 +457,7 @@ export default function CrmFollowUpsPage() {
         : row.note || "Takip notu eklenmedi";
 
     return (
-      <article key={row.id} className="grid gap-4 border-b border-[var(--line)] px-4 py-4 transition last:border-b-0 hover:bg-[var(--surface-2)]/55 xl:grid-cols-[minmax(260px,1.15fr)_minmax(220px,1fr)_155px_185px_auto] xl:items-center">
+      <article key={row.id} className="grid gap-4 border-b border-[var(--line)] px-4 py-3.5 transition last:border-b-0 hover:bg-[var(--surface-2)]/55 xl:grid-cols-[minmax(300px,1.2fr)_minmax(260px,1fr)_160px_190px_230px] xl:items-center">
         <button type="button" onClick={() => setSelectedFollowUp(row)} className="min-w-0 text-left">
           <div className="flex items-center gap-2">
             <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-semibold text-[var(--accent)]">{subjectKind(row)}</span>
@@ -468,35 +468,34 @@ export default function CrmFollowUpsPage() {
         </button>
 
         <button type="button" onClick={() => setSelectedFollowUp(row)} className="min-w-0 text-left">
-          <span className="block text-[8px] font-semibold text-[var(--muted)]">Takip amacı / sonuç</span>
-          <span className="mt-1.5 block line-clamp-2 text-[10px] leading-4 text-[var(--ink)]">{detail}</span>
+          <span className="block line-clamp-2 text-[10px] leading-5 text-[var(--ink)]">{detail}</span>
         </button>
 
         <div className="min-w-0">
-          <span className="inline-flex rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[9px] font-semibold text-[var(--ink)]">{followUpChannelLabels[row.channel]}</span>
+          <span className="inline-flex min-w-[72px] justify-center rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[9px] font-semibold text-[var(--ink)]">{followUpChannelLabels[row.channel]}</span>
           <span className="mt-1.5 block truncate text-[9px] text-[var(--muted)]">{ownerName}</span>
         </div>
 
         <div className="min-w-0">
-          <time className={overdue ? "block text-[10px] font-semibold text-[var(--danger)]" : "block text-[10px] font-semibold text-[var(--ink)]"}>{formatDateTime(row.dueAt)}</time>
+          <time className={overdue ? "block whitespace-nowrap text-[10px] font-semibold text-[var(--danger)]" : "block whitespace-nowrap text-[10px] font-semibold text-[var(--ink)]"}>{formatDateTime(row.dueAt)}</time>
           {row.status === "OPEN"
-            ? <span className={overdue ? "mt-1 block text-[8px] font-semibold text-[var(--danger)]" : "mt-1 block text-[8px] text-[var(--muted)]"}>{dueLabel(row.dueAt, now)}</span>
-            : <span className="mt-1 block text-[8px] text-[var(--muted)]">{row.status === "COMPLETED" ? "Tamamlandı" : "İptal edildi"}</span>}
+            ? <span className={overdue ? "mt-1 block whitespace-nowrap text-[8px] font-semibold text-[var(--danger)]" : "mt-1 block whitespace-nowrap text-[8px] text-[var(--muted)]"}>{dueLabel(row.dueAt, now)}</span>
+            : <span className="mt-1 block whitespace-nowrap text-[8px] text-[var(--muted)]">{row.status === "COMPLETED" ? "Tamamlandı" : "İptal edildi"}</span>}
         </div>
 
-        <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
-          {lead?.phone && row.status === "OPEN" ? <a href={"tel:"+lead.phone} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Ara</a> : null}
+        <div className="flex min-h-8 items-center gap-1.5 xl:justify-end">
           {canManage && row.status === "OPEN" ? <>
-            <Button variant="secondary" className="min-h-8 px-3 py-1 text-[9px]" onClick={() => openComplete(row)}>Tamamla</Button>
-            <Button variant="ghost" className="min-h-8 px-2 py-1 text-[9px]" onClick={() => openReschedule(row)}>Yeniden Planla</Button>
-            <details className="relative">
-              <summary className="cursor-pointer list-none rounded-[8px] px-2 py-1 text-[13px] leading-none text-[var(--muted)] hover:bg-[var(--surface-2)]">•••</summary>
-              <div className="absolute right-0 z-30 mt-1 w-[150px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[0_12px_32px_rgba(23,35,28,.14)]">
+            <Button variant="secondary" className="min-h-8 w-[78px] shrink-0 px-2 py-1 text-[9px]" onClick={() => openComplete(row)}>Tamamla</Button>
+            <Button variant="ghost" className="min-h-8 w-[108px] shrink-0 px-2 py-1 text-[9px]" onClick={() => openReschedule(row)}>Yeniden Planla</Button>
+            <details className="relative shrink-0">
+              <summary className="flex h-8 w-8 cursor-pointer list-none items-center justify-center rounded-[8px] text-[13px] leading-none text-[var(--muted)] hover:bg-[var(--surface-2)]">•••</summary>
+              <div className="absolute right-0 z-30 mt-1 w-[160px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[0_12px_32px_rgba(23,35,28,.14)]">
+                {lead?.phone ? <a href={"tel:"+lead.phone} className="block rounded-[8px] px-2.5 py-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Telefonla Ara</a> : null}
                 <Link href={subjectHref(row)} className="block rounded-[8px] px-2.5 py-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Bağlı Kaydı Aç</Link>
                 <button type="button" onClick={() => openCancel(row)} className="block w-full rounded-[8px] px-2.5 py-2 text-left text-[9px] font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)]">Takibi İptal Et</button>
               </div>
             </details>
-          </> : <Link href={subjectHref(row)} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Kaydı Aç</Link>}
+          </> : <Link href={subjectHref(row)} className="inline-flex min-h-8 w-[108px] items-center justify-center rounded-[9px] border border-[var(--line)] px-2 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Kaydı Aç</Link>}
         </div>
       </article>
     );
@@ -604,7 +603,7 @@ export default function CrmFollowUpsPage() {
           ] as Array<[TimeScope,string]>).map(([value,label])=><button key={value} type="button" onClick={()=>setTimeScope(value)} className={timeScope===value?"rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-[8px] font-semibold text-[var(--accent)]":"rounded-full border border-[var(--line)] px-3 py-1.5 text-[8px] font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"}>{label}</button>)}
         </div>:null}
 
-        <div className="hidden grid-cols-[minmax(260px,1.15fr)_minmax(220px,1fr)_155px_185px_260px] gap-4 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 text-[8px] font-semibold text-[var(--muted)] xl:grid">
+        <div className="hidden grid-cols-[minmax(300px,1.2fr)_minmax(260px,1fr)_160px_190px_230px] gap-4 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 text-[8px] font-semibold text-[var(--muted)] xl:grid">
           <span>Müşteri / Satış Fırsatı</span>
           <span>Takip Amacı / Sonuç</span>
           <span>Kanal / Sorumlu</span>
