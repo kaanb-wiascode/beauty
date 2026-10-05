@@ -124,11 +124,39 @@ export class CustomersService {
 
   async findAll(input: ListCustomersInput) {
     const customerScope = await this.organizationScope.getBranchScopedWhere();
-    const { page, limit, search } = input;
+    const appointmentScope = await this.organizationScope.getBranchScopedWhere();
+    const { page, limit, search, segment } = input;
     const skip = (page - 1) * limit;
+    const now = new Date();
+    const recentSince = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+
+    const segmentWhere =
+      segment === 'RECENT'
+        ? { createdAt: { gte: recentSince } }
+        : segment === 'UPCOMING'
+          ? {
+              appointments: {
+                some: {
+                  ...appointmentScope,
+                  startAt: { gte: now },
+                  status: { in: ['SCHEDULED' as const, 'CONFIRMED' as const] },
+                },
+              },
+            }
+          : segment === 'NEEDS_ATTENTION'
+            ? {
+                careEvents: {
+                  some: {
+                    ...customerScope,
+                    status: { in: ['OPEN' as const, 'IN_PROGRESS' as const] },
+                  },
+                },
+              }
+            : {};
 
     const where = {
       ...customerScope,
+      ...segmentWhere,
       ...(search
         ? {
             OR: [
@@ -141,7 +169,14 @@ export class CustomersService {
         : {}),
     };
 
-    const [data, total] = await Promise.all([
+    const [
+      baseCustomers,
+      total,
+      allCustomerCount,
+      newCustomerCount,
+      upcomingCustomerCount,
+      needsAttentionCount,
+    ] = await Promise.all([
       this.prisma.customer.findMany({
         where,
         skip,
@@ -149,7 +184,127 @@ export class CustomersService {
         orderBy: { createdAt: 'desc' },
       }),
       this.prisma.customer.count({ where }),
+      this.prisma.customer.count({ where: customerScope }),
+      this.prisma.customer.count({
+        where: {
+          ...customerScope,
+          createdAt: { gte: recentSince },
+        },
+      }),
+      this.prisma.customer.count({
+        where: {
+          ...customerScope,
+          appointments: {
+            some: {
+              ...appointmentScope,
+              startAt: { gte: now },
+              status: { in: ['SCHEDULED', 'CONFIRMED'] },
+            },
+          },
+        },
+      }),
+      this.prisma.customer.count({
+        where: {
+          ...customerScope,
+          careEvents: {
+            some: {
+              ...customerScope,
+              status: { in: ['OPEN', 'IN_PROGRESS'] },
+            },
+          },
+        },
+      }),
     ]);
+
+    const customerIds = baseCustomers.map((customer) => customer.id);
+
+    const [appointments, openCareEvents] = customerIds.length
+      ? await Promise.all([
+          this.prisma.appointment.findMany({
+            where: {
+              ...appointmentScope,
+              customerId: { in: customerIds },
+            },
+            select: {
+              id: true,
+              customerId: true,
+              startAt: true,
+              status: true,
+              payment: {
+                select: {
+                  amount: true,
+                  status: true,
+                },
+              },
+            },
+            orderBy: { startAt: 'desc' },
+          }),
+          this.prisma.customerCareEvent.findMany({
+            where: {
+              ...customerScope,
+              customerId: { in: customerIds },
+              status: { in: ['OPEN', 'IN_PROGRESS'] },
+            },
+            select: {
+              customerId: true,
+              severity: true,
+              followUpAt: true,
+            },
+          }),
+        ])
+      : [[], []];
+
+    const data = baseCustomers.map((customer) => {
+      const customerAppointments = appointments.filter(
+        (appointment) => appointment.customerId === customer.id,
+      );
+      const completedAppointments = customerAppointments.filter(
+        (appointment) => appointment.status === 'COMPLETED',
+      );
+      const upcomingAppointments = customerAppointments
+        .filter(
+          (appointment) =>
+            appointment.startAt >= now &&
+            (appointment.status === 'SCHEDULED' ||
+              appointment.status === 'CONFIRMED'),
+        )
+        .sort((a, b) => a.startAt.getTime() - b.startAt.getTime());
+      const customerCareEvents = openCareEvents.filter(
+        (event) => event.customerId === customer.id,
+      );
+
+      const totalPaid = customerAppointments.reduce((sum, appointment) => {
+        if (appointment.payment?.status !== 'COMPLETED') return sum;
+        return sum + Number(appointment.payment.amount);
+      }, 0);
+      const totalRefunded = customerAppointments.reduce((sum, appointment) => {
+        if (appointment.payment?.status !== 'REFUNDED') return sum;
+        return sum + Number(appointment.payment.amount);
+      }, 0);
+
+      return {
+        ...customer,
+        summary: {
+          totalAppointments: customerAppointments.length,
+          completedAppointments: completedAppointments.length,
+          lastVisitAt: completedAppointments[0]?.startAt ?? null,
+          nextAppointmentAt: upcomingAppointments[0]?.startAt ?? null,
+          netSpent: totalPaid - totalRefunded,
+          openCareEventCount: customerCareEvents.length,
+          criticalCareEventCount: customerCareEvents.filter(
+            (event) =>
+              event.severity === 'HIGH' || event.severity === 'CRITICAL',
+          ).length,
+          nextCareFollowUpAt:
+            customerCareEvents
+              .filter((event) => event.followUpAt && event.followUpAt >= now)
+              .sort(
+                (a, b) =>
+                  a.followUpAt!.getTime() - b.followUpAt!.getTime(),
+              )[0]?.followUpAt ?? null,
+        },
+      };
+    });
 
     return {
       data,
@@ -158,6 +313,12 @@ export class CustomersService {
         limit,
         total,
         totalPages: Math.ceil(total / limit),
+        summary: {
+          totalCustomers: allCustomerCount,
+          newCustomersLast7Days: newCustomerCount,
+          customersWithUpcomingAppointments: upcomingCustomerCount,
+          customersNeedingAttention: needsAttentionCount,
+        },
       },
     };
   }
