@@ -631,10 +631,10 @@ export default function CrmFollowUpsPage() {
                 {Object.entries(followUpChannelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
               </Select>
             </Field>
-            <Field label="Tarih Ve Saat" required><TextInput type="datetime-local" value={form.dueAt} onChange={(event) => setForm({ ...form, dueAt: event.target.value })} /></Field>
+            <Field label="Tarih ve Saat" required><TextInput type="datetime-local" value={form.dueAt} onChange={(event) => setForm({ ...form, dueAt: event.target.value })} /></Field>
           </div>
           <Field label="Takip Amacı / Not"><TextArea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Bu takipte konuşulacak konu veya hatırlanması gereken bilgi…" /></Field>
-          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Planlanıyor..." : "Takip Oluştur"}</Button></div>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Planlanıyor..." : "Takibi Planla"}</Button></div>
         </form>
       </Modal>
 
