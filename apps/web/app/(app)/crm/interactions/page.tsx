@@ -199,9 +199,20 @@ export default function CrmInteractionsPage() {
     const opportunityId = query.get("opportunityId") || undefined;
     const customerId = query.get("customerId") || undefined;
     const label = query.get("label") || undefined;
-    setSubject({ leadId, opportunityId, customerId, label });
+    const nextSubject = { leadId, opportunityId, customerId, label };
+    setSubject(nextSubject);
+    if (leadId) setSubjectKey(`LEAD:${leadId}`);
+    else if (opportunityId) setSubjectKey(`OPPORTUNITY:${opportunityId}`);
+    else if (customerId) setSubjectKey(`CUSTOMER:${customerId}`);
+
     if (query.get("new") === "1" && (leadId || opportunityId || customerId)) {
-      setForm((current) => ({ ...current, startedAt: new Date().toISOString().slice(0, 16) }));
+      const currentUserId = getStoredUser()?.id ?? "";
+      setForm((current) => ({
+        ...current,
+        startedAt: new Date().toISOString().slice(0, 16),
+        ownerUserId: currentUserId,
+      }));
+      setFollowUpAssignedUserId(currentUserId);
       setCreateOpen(true);
     }
   }, []);
@@ -209,9 +220,18 @@ export default function CrmInteractionsPage() {
   async function createInteraction(event: FormEvent) {
     event.preventDefault();
     if (!subject.leadId && !subject.opportunityId && !subject.customerId) {
-      setFormError("Görüşmenin bağlı olduğu müşteri kaydı bulunamadı.");
+      setFormError("Görüşmenin bağlı olduğu müşteri, potansiyel müşteri veya satış fırsatını seçin.");
       return;
     }
+    if (scheduleNext && !subject.leadId && !subject.opportunityId) {
+      setFormError("Takip Merkezi görevi potansiyel müşteri veya satış fırsatı için oluşturulabilir.");
+      return;
+    }
+    if (scheduleNext && (!followUpAt || !followUpAssignedUserId)) {
+      setFormError("Sonraki takip için tarih, saat ve sorumlu seçilmelidir.");
+      return;
+    }
+
     setSaving(true);
     setFormError("");
     try {
@@ -223,17 +243,47 @@ export default function CrmInteractionsPage() {
           type: form.type,
           direction: form.direction,
           status: form.status,
-          outcomeCode: form.outcomeCode,
+          outcomeCode: form.status === "CANCELLED" ? undefined : form.outcomeCode,
+          ...(form.ownerUserId ? { ownerUserId: form.ownerUserId } : {}),
           ...(form.result.trim() ? { result: form.result.trim() } : {}),
           ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
           ...(form.startedAt ? { startedAt: new Date(form.startedAt).toISOString() } : {}),
           ...(form.durationMinutes ? { durationSeconds: Math.round(Number(form.durationMinutes) * 60) } : {}),
-          ...(form.nextAction.trim() ? { nextAction: form.nextAction.trim() } : {}),
-          ...(form.nextActionAt ? { nextActionAt: new Date(form.nextActionAt).toISOString() } : {}),
+          ...(scheduleNext && followUpNote.trim() ? { nextAction: followUpNote.trim() } : {}),
+          ...(scheduleNext && followUpAt ? { nextActionAt: new Date(followUpAt).toISOString() } : {}),
         },
       });
+
+      if (scheduleNext) {
+        await api("/crm/follow-ups", {
+          method: "POST",
+          body: {
+            ...(subject.leadId ? { leadId: subject.leadId } : { opportunityId: subject.opportunityId }),
+            assignedUserId: followUpAssignedUserId,
+            channel: followUpChannel,
+            dueAt: new Date(followUpAt).toISOString(),
+            ...(followUpNote.trim() ? { note: followUpNote.trim() } : {}),
+          },
+        });
+      }
+
       setCreateOpen(false);
-      setForm({ type: "CALL", direction: "OUTBOUND", status: "COMPLETED", outcomeCode: "REACHED", result: "", notes: "", startedAt: "", durationMinutes: "", nextAction: "", nextActionAt: "" });
+      setScheduleNext(false);
+      setFollowUpAt("");
+      setFollowUpNote("");
+      setSubjectSearch("");
+      setForm({
+        type: "CALL",
+        direction: "OUTBOUND",
+        status: "COMPLETED",
+        outcomeCode: "REACHED",
+        result: "",
+        notes: "",
+        startedAt: "",
+        durationMinutes: "",
+        ownerUserId: "",
+      });
+      showToast(scheduleNext ? "Görüşme kaydedildi ve sonraki takip planlandı." : "Görüşme kaydedildi.", "success");
       await load();
     } catch (requestError) {
       setFormError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Görüşme kaydı oluşturulamadı.") : "Görüşme kaydı oluşturulamadı.");
@@ -242,9 +292,61 @@ export default function CrmInteractionsPage() {
     }
   }
 
+  const filteredSubjectOptions = useMemo(() => {
+    const query = subjectSearch.trim().toLocaleLowerCase("tr-TR");
+    return query
+      ? subjectOptions.filter((item) => `${item.label} ${item.detail} ${subjectTypeLabels[item.type]}`.toLocaleLowerCase("tr-TR").includes(query))
+      : subjectOptions;
+  }, [subjectOptions, subjectSearch]);
+
+  const visibleRows = useMemo(() => {
+    const query = search.trim().toLocaleLowerCase("tr-TR");
+    return rows.filter((row) => {
+      if (type !== "ALL" && row.type !== type) return false;
+      if (direction !== "ALL" && row.direction !== direction) return false;
+      if (status !== "ALL" && row.status !== status) return false;
+      if (outcome !== "ALL" && row.outcomeCode !== outcome) return false;
+      if (!query) return true;
+      const ownerName = [row.ownerFirstName, row.ownerLastName].filter(Boolean).join(" ");
+      return [
+        row.subjectLabel,
+        ownerName,
+        row.result ?? "",
+        row.notes ?? "",
+        row.nextAction ?? "",
+        row.outcomeCode ? outcomeLabels[row.outcomeCode] : "",
+        typeLabels[row.type],
+      ].join(" ").toLocaleLowerCase("tr-TR").includes(query);
+    });
+  }, [rows, type, direction, status, outcome, search]);
+
+  const now = Date.now();
+  const todayKey = new Date().toDateString();
   const completed = rows.filter((row) => row.status === "COMPLETED").length;
-  const planned = rows.filter((row) => row.status === "PLANNED").length;
-  const nextActions = rows.filter((row) => row.nextActionAt && new Date(row.nextActionAt) >= new Date()).length;
+  const todayCount = rows.filter((row) => new Date(row.startedAt).toDateString() === todayKey).length;
+  const reached = rows.filter((row) => ["REACHED", "INTERESTED", "UNDECIDED", "AWAITING_QUOTE", "APPOINTMENT_CREATED", "CALLBACK", "SALE"].includes(row.outcomeCode ?? "")).length;
+  const callbacks = rows.filter((row) => row.outcomeCode === "CALLBACK" || (row.nextActionAt && new Date(row.nextActionAt).getTime() >= now)).length;
+  const appointments = rows.filter((row) => row.outcomeCode === "APPOINTMENT_CREATED").length;
+  const sales = rows.filter((row) => row.outcomeCode === "SALE").length;
+
+  const timelineGroups = useMemo(() => {
+    const groups = new Map<string, Interaction[]>();
+    const today = new Date();
+    const yesterday = new Date(today);
+    yesterday.setDate(today.getDate() - 1);
+    for (const row of visibleRows) {
+      const date = new Date(row.startedAt);
+      const key = date.toDateString() === today.toDateString()
+        ? "Bugün"
+        : date.toDateString() === yesterday.toDateString()
+          ? "Dün"
+          : new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "long", year: "numeric" }).format(date);
+      const existing = groups.get(key) ?? [];
+      existing.push(row);
+      groups.set(key, existing);
+    }
+    return Array.from(groups.entries());
+  }, [visibleRows]);
 
   return (
     <div className="space-y-6">
