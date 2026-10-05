@@ -390,262 +390,362 @@ export default function CrmSettingsPage() {
 
   if (loading) return <Spinner label="CRM ayarları hazırlanıyor..." />;
 
+  const tabs: Array<{ value: SettingsTab; label: string; description: string }> = [
+    { value: "OVERVIEW", label: "Genel Bakış", description: "CRM yapılandırma özeti" },
+    { value: "TEAM_ACCESS", label: "Ekipler ve Yetkiler", description: "Kim neyi görür ve yönetir" },
+    { value: "ASSIGNMENT", label: "Müşteri Dağıtımı", description: "Yeni kayıtlar kime düşer" },
+    { value: "FOLLOW_UP", label: "Takip ve Otomatik İşler", description: "Süreler, uyarılar ve görevler" },
+    { value: "CHANNELS", label: "İletişim Kanalları", description: "WhatsApp, SMS ve e-posta" },
+    { value: "SURVEYORS", label: "Anketörler", description: "Anketör kullanımı ve kotalar" },
+  ];
+
   return (
-    <div className="mx-auto max-w-6xl space-y-6">
-      <PageHeader
-        title="CRM Ayarları"
-        description="Potansiyel müşteri dağıtımı, satış ekibi iş yükü ve müşteri dönüş sürelerini yönetin."
-      />
-      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-
-      <section>
-        <GlassCard className="p-0">
-          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
-            <div className="flex items-start gap-2">
-              <CardInfo help={getCardHelp("Anketör Yönetimi", "Aktif şube çalışanlarını Anketör olarak tanımlar ve CRM kaynak takibinde kullanılacak günlük/haftalık masa kotalarını yönetir.")} />
-              <div><h2 className="text-[15px] font-semibold">Anketör Yönetimi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Şube çalışanları, aktiflik ve masa kotaları</p></div>
-            </div>
+    <div className="space-y-5">
+      <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
+          <div>
+            <p className="text-[12px] font-medium text-[var(--muted)]">Müşteri ilişkileri yönetimi</p>
+            <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">CRM Ayar Merkezi</h1>
+            <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">
+              Satış ekiplerini, müşteri dağıtımını, takip sürelerini, otomatik görevleri ve iletişim kanallarını tek yerden yönetin.
+            </p>
           </div>
-          {surveyorCandidates.length ? <div className="divide-y divide-[var(--line)]">{surveyorCandidates.map((person) => {
-            const draft = surveyorDrafts[person.staffId] ?? { active: person.active, dailyDeskQuota: person.dailyDeskQuota == null ? "" : String(person.dailyDeskQuota), weeklyDeskQuota: person.weeklyDeskQuota == null ? "" : String(person.weeklyDeskQuota) };
-            return <div key={person.staffId} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(180px,1fr)_140px_160px_160px_auto] lg:items-end">
-              <div><p className="text-[12px] font-semibold">{person.firstName} {person.lastName}</p><p className="mt-1 text-[10px] text-[var(--muted)]">{draft.active ? "CRM kaynak seçiminde aktif" : "Anketör olarak kullanılmıyor"}</p></div>
-              <label className="flex h-10 items-center gap-2 rounded-[12px] border border-[var(--line)] px-3 text-[11px]"><input type="checkbox" checked={draft.active} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, active: event.target.checked } }))} /> Anketör aktif</label>
-              <Field label="Günlük masa kotası"><TextInput type="number" min="0" step="1" value={draft.dailyDeskQuota} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, dailyDeskQuota: event.target.value } }))} /></Field>
-              <Field label="Haftalık masa kotası"><TextInput type="number" min="0" step="1" value={draft.weeklyDeskQuota} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, weeklyDeskQuota: event.target.value } }))} /></Field>
-              <Button variant="secondary" disabled={saving === `surveyor-${person.staffId}`} onClick={() => void saveSurveyorProfile(person.staffId)}>{saving === `surveyor-${person.staffId}` ? "Kaydediliyor..." : "Kaydet"}</Button>
-            </div>;
-          })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">Aktif şubede Anketör olarak tanımlanabilecek çalışan bulunmuyor.</div>}
-        </GlassCard>
+          <Button variant="secondary" onClick={() => void load()} disabled={Boolean(saving)}>
+            Ayarları Yenile
+          </Button>
+        </div>
+      </header>
+
+      {!activeBranch ? <Alert>CRM ayarlarını yönetmek için çalışma kapsamından bir şube seçin.</Alert> : null}
+      {activeBranch && !canManage ? <Alert>Bu ayarları görüntüleyebilirsiniz; değişiklik yapmak için müşteri ilişkileri yönetim yetkisi gerekir.</Alert> : null}
+      {error ? <Alert onClose={() => setError("")}>{userErrorMessage(error, "CRM ayarlarıyla ilgili işlem tamamlanamadı.")}</Alert> : null}
+
+      <section className="overflow-x-auto rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-2 shadow-[var(--shadow-soft)]">
+        <div className="flex min-w-max gap-1">
+          {tabs.map((item) => (
+            <button
+              key={item.value}
+              type="button"
+              onClick={() => setTab(item.value)}
+              className={tab === item.value
+                ? "min-w-[145px] rounded-[12px] bg-[var(--accent-soft)] px-4 py-3 text-left text-[var(--accent)]"
+                : "min-w-[145px] rounded-[12px] px-4 py-3 text-left text-[var(--muted)] hover:bg-[var(--surface-2)]"}
+            >
+              <span className="block text-[10px] font-semibold">{item.label}</span>
+              <span className="mt-1 block text-[8px] leading-4 opacity-80">{item.description}</span>
+            </button>
+          ))}
+        </div>
       </section>
 
-      <section>
-        <GlassCard className="p-0">
-          <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
-            <div className="flex items-start gap-2">
-              <CardInfo help={getCardHelp("CRM Veri Erişim Kapsamı", "Her rolün CRM içerisinde hangi müşterileri, potansiyel müşterileri, satış fırsatlarını, takipleri ve rapor verilerini görebileceğini belirler.")} />
-              <div>
-                <h2 className="text-[15px] font-semibold">CRM Veri Erişim Kapsamı</h2>
-                <p className="mt-1 text-[10px] text-[var(--muted)]">Rol bazında müşteri ve satış verisi görünürlüğü</p>
-              </div>
-            </div>
-          </div>
-          {accessPolicies.length ? <div className="divide-y divide-[var(--line)]">{accessPolicies.map((policy) => {
-            const value = accessPolicyDrafts[policy.roleId] ?? "SELF";
-            const disabled = policy.roleSlug === "owner" || !policy.hasCrmRead;
-            return <div key={policy.roleId} className="grid gap-3 px-5 py-4 lg:grid-cols-[minmax(220px,1fr)_260px_auto] lg:items-end">
-              <div>
-                <p className="text-[12px] font-semibold">{policy.roleName}</p>
-                <p className="mt-1 text-[10px] text-[var(--muted)]">
-                  {policy.membershipCount} aktif kullanıcı · {policy.hasCrmRead ? (policy.hasCrmManage ? "CRM görüntüleme ve yönetme yetkisi" : "CRM görüntüleme yetkisi") : "CRM erişim yetkisi yok"}
-                </p>
-              </div>
-              <Field label="CRM veri kapsamı">
-                <Select
-                  value={value}
-                  disabled={disabled}
-                  onChange={(event) => setAccessPolicyDrafts((current) => ({ ...current, [policy.roleId]: event.target.value as CrmDataScope }))}
-                >
-                  {(Object.keys(dataScopeLabels) as CrmDataScope[]).map((scope) => <option key={scope} value={scope}>{dataScopeLabels[scope].label}</option>)}
-                </Select>
-              </Field>
-              <Button
-                variant="secondary"
-                disabled={disabled || saving === `access-${policy.roleId}`}
-                onClick={() => void saveAccessPolicy(policy.roleId)}
-              >
-                {saving === `access-${policy.roleId}` ? "Kaydediliyor..." : "Kapsamı Kaydet"}
-              </Button>
-              <p className="text-[10px] leading-5 text-[var(--muted)] lg:col-start-2 lg:col-span-2">{dataScopeLabels[value].description}</p>
-            </div>;
-          })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">CRM erişim kapsamı tanımlanabilecek rol bulunmuyor.</div>}
-        </GlassCard>
-      </section>
+      {tab === "OVERVIEW" ? (
+        <div className="space-y-4">
+          <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
+            {[
+              ["Aktif Satış Ekibi", settingsSummary.activeTeams, "Müşteri dağıtımında kullanılabilen ekipler"],
+              ["Ekip Üyesi", settingsSummary.teamMembers, "CRM ekiplerinde yer alan benzersiz kullanıcılar"],
+              ["Aktif Dağıtım Kuralı", settingsSummary.activeAssignmentRules, "Yeni müşteriyi otomatik yönlendiren kurallar"],
+              ["Aktif Takip Kuralı", settingsSummary.activeTaskRules, "Otomatik görev oluşturan kurallar"],
+              ["Aktif Süre Uyarısı", settingsSummary.activeTimeRules, "Dönüş ve takip süresi kontrolleri"],
+              ["Aktif Anketör", settingsSummary.activeSurveyors, "Müşteri kaynağı olarak kullanılabilen anketörler"],
+            ].map(([label, value, detail]) => (
+              <article key={String(label)} className="rounded-[17px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
+                <span className="text-[9px] font-medium text-[var(--muted)]">{label}</span>
+                <strong className="mt-3 block text-[23px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</strong>
+                <span className="mt-2 block text-[8px] leading-4 text-[var(--muted)]">{detail}</span>
+              </article>
+            ))}
+          </section>
 
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <GlassCard className="p-0">
-          <div className="border-b border-[var(--line)] px-5 py-4">
-            <div className="flex items-start gap-2">
-              <CardInfo help={getCardHelp("Satış Ekipleri", "Potansiyel müşteri dağıtımı ve SLA eskalasyonunda kullanılacak satış ekiplerini ve ekip üyelerini yönetir.")} />
-              <div><h2 className="text-[15px] font-semibold">Satış Ekipleri</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Ekip yöneticileri ve satış temsilcileri</p></div>
-            </div>
-          </div>
-          {teams.length ? <div className="divide-y divide-[var(--line)]">{teams.map((team) => {
-            const available = assignees.filter((person) => !team.members.some((member) => member.userId === person.id));
-            return <div key={team.id} className="px-5 py-4">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div><p className="text-[12px] font-semibold">{team.name}</p><p className="mt-1 text-[10px] text-[var(--muted)]">Ekip yöneticisi: {[team.managerFirstName, team.managerLastName].filter(Boolean).join(" ") || "Belirtilmedi"} · {team.members.length} üye</p></div>
-                <span className="text-[10px] font-medium text-[var(--muted)]">{team.active ? "Aktif" : "Pasif"}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-2">{team.members.map((member) => {
-                const skillKey = `${team.id}:${member.userId}`;
-                const skillValue = memberSkillInputs[skillKey] ?? member.skills.join(", ");
-                return <div key={member.userId} className="rounded-[13px] border border-[var(--line)] bg-[var(--surface-2)]/35 px-3 py-2.5">
-                  <div className="flex items-center justify-between gap-3">
-                    <span className="text-[10px] font-medium">{member.firstName} {member.lastName}</span>
-                    {member.userId !== team.managerUserId ? <button type="button" onClick={() => void removeTeamMember(team.id, member.userId)} disabled={saving === `member-${team.id}`} className="text-[10px] text-[var(--muted)] hover:text-[var(--danger)]">Ekipten çıkar</button> : null}
-                  </div>
-                  <div className="mt-2 flex gap-2">
-                    <TextInput
-                      value={skillValue}
-                      onChange={(event) => setMemberSkillInputs((current) => ({ ...current, [skillKey]: event.target.value }))}
-                      placeholder="Yetkinlikler: lazer, vip, satış-kıdemli"
-                    />
-                    <Button type="button" variant="secondary" className="shrink-0" disabled={saving === `skills-${skillKey}`} onClick={() => void saveMemberSkills(team.id, member.userId)}>
-                      {saving === `skills-${skillKey}` ? "Kaydediliyor..." : "Yetkinlikleri Kaydet"}
-                    </Button>
-                  </div>
-                </div>;
-              })}</div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
-                <Select value={memberSelections[team.id] ?? ""} onChange={(event) => setMemberSelections((current) => ({ ...current, [team.id]: event.target.value }))}>
-                  <option value="">Ekip üyesi ekleyin</option>
-                  {available.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
-                </Select>
-                <Button variant="secondary" disabled={!memberSelections[team.id] || saving === `member-${team.id}`} onClick={() => void addTeamMember(team.id)}>Üye Ekle</Button>
-              </div>
-            </div>;
-          })}</div> : <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">Henüz CRM satış ekibi oluşturulmamış.</div>}
-        </GlassCard>
+          <section className="grid gap-3 lg:grid-cols-2 xl:grid-cols-3">
+            {tabs.filter((item) => item.value !== "OVERVIEW").map((item) => (
+              <button key={item.value} type="button" onClick={() => setTab(item.value)} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 text-left shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
+                <h2 className="text-[13px] font-semibold text-[var(--ink)]">{item.label}</h2>
+                <p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">{item.description}</p>
+                <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">Ayarları Aç →</span>
+              </button>
+            ))}
+            <Link href="/crm/compliance" className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
+              <h2 className="text-[13px] font-semibold text-[var(--ink)]">Müşteri İletişim İzinleri</h2>
+              <p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">WhatsApp, SMS ve e-posta izinlarını müşteri bazında yönetin.</p>
+              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İzinları Yönet →</span>
+            </Link>
+          </section>
+        </div>
+      ) : null}
 
-        <GlassCard>
-          <div className="flex items-start gap-2">
-            <CardInfo help={getCardHelp("Yeni Satış Ekibi", "Yeni bir CRM satış ekibi oluşturur ve seçilen kullanıcıyı ekip yöneticisi olarak tanımlar.")} />
-            <div><h2 className="text-[15px] font-semibold">Yeni Satış Ekibi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Aktif şube için ekip oluşturun</p></div>
-          </div>
-          <form onSubmit={createTeam} className="mt-5 space-y-4">
-            <Field label="Ekip adı" required><TextInput value={teamForm.name} onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })} /></Field>
-            <Field label="Ekip yöneticisi" required><Select value={teamForm.managerUserId} onChange={(event) => setTeamForm({ ...teamForm, managerUserId: event.target.value })}><option value="">Yönetici seçin</option>{assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</Select></Field>
-            <Button type="submit" className="w-full" disabled={saving === "team"}>{saving === "team" ? "Oluşturuluyor..." : "Ekibi Oluştur"}</Button>
-          </form>
-        </GlassCard>
-      </section>
-
-      <section className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
-        <GlassCard className="p-0">
-          <div className="border-b border-[var(--line)] px-5 py-4">
-            <div className="flex items-start gap-2">
-              <CardInfo help={getCardHelp("Potansiyel Müşteri Atama Kuralları", "Yeni potansiyel müşterilerin satış ekibine hangi yöntemle dağıtılacağını belirler.")} />
-              <div>
-                <h2 className="text-[15px] font-semibold">Potansiyel Müşteri Atama Kuralları</h2>
-                <p className="mt-1 text-[10px] text-[var(--muted)]">Otomatik satış ekibi dağıtım politikaları</p>
+      {tab === "TEAM_ACCESS" ? (
+        <div className="space-y-4">
+          <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_340px]">
+            <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+              <div className="border-b border-[var(--line)] p-5">
+                <h2 className="text-[14px] font-semibold text-[var(--ink)]">Satış Ekipleri</h2>
+                <p className="mt-1 text-[9px] text-[var(--muted)]">Ekip yöneticilerini, üyeleri ve dağıtımda kullanılacak uzmanlık etiketlerini yönetin.</p>
               </div>
+              {teams.length ? <div className="divide-y divide-[var(--line)]">
+                {teams.map((team) => {
+                  const available = assignees.filter((person) => !team.members.some((member) => member.userId === person.id));
+                  return <div key={team.id} className="p-5">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <strong className="text-[12px] text-[var(--ink)]">{team.name}</strong>
+                          <span className={team.active ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[8px] font-semibold text-[var(--accent)]" : "rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[8px] font-semibold text-[var(--muted)]"}>{team.active ? "Aktif" : "Pasif"}</span>
+                        </div>
+                        <p className="mt-1 text-[9px] text-[var(--muted)]">Yönetici: {[team.managerFirstName, team.managerLastName].filter(Boolean).join(" ") || "Belirtilmedi"} · {team.members.length} üye</p>
+                      </div>
+                    </div>
+                    <div className="mt-4 space-y-2">
+                      {team.members.map((member) => {
+                        const skillKey = team.id + ":" + member.userId;
+                        const skillValue = memberSkillInputs[skillKey] ?? member.skills.join(", ");
+                        return <div key={member.userId} className="rounded-[13px] bg-[var(--surface-2)] p-3">
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="text-[10px] font-semibold text-[var(--ink)]">{member.firstName} {member.lastName}</span>
+                            {member.userId !== team.managerUserId ? <button type="button" onClick={() => void removeTeamMember(team.id, member.userId)} disabled={!canManage || saving === "member-" + team.id} className="text-[8px] font-medium text-[var(--muted)] hover:text-[var(--danger)]">Ekipten Çıkar</button> : <span className="text-[8px] text-[var(--accent)]">Ekip Yöneticisi</span>}
+                          </div>
+                          <div className="mt-2 flex flex-col gap-2 sm:flex-row">
+                            <TextInput
+                              value={skillValue}
+                              disabled={!canManage}
+                              onChange={(event) => setMemberSkillInputs((current) => ({ ...current, [skillKey]: event.target.value }))}
+                              placeholder="Uzmanlık etiketleri: lazer, vip, kıdemli satış"
+                            />
+                            <Button type="button" variant="secondary" disabled={!canManage || saving === "skills-" + skillKey} onClick={() => void saveMemberSkills(team.id, member.userId)}>
+                              {saving === "skills-" + skillKey ? "Kaydediliyor…" : "Uzmanlıkları Kaydet"}
+                            </Button>
+                          </div>
+                        </div>;
+                      })}
+                    </div>
+                    <div className="mt-3 grid gap-2 sm:grid-cols-[1fr_auto]">
+                      <Select disabled={!canManage} value={memberSelections[team.id] ?? ""} onChange={(event) => setMemberSelections((current) => ({ ...current, [team.id]: event.target.value }))}>
+                        <option value="">Ekip üyesi seçin</option>
+                        {available.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+                      </Select>
+                      <Button variant="secondary" disabled={!canManage || !memberSelections[team.id] || saving === "member-" + team.id} onClick={() => void addTeamMember(team.id)}>Üye Ekle</Button>
+                    </div>
+                  </div>;
+                })}
+              </div> : <div className="p-6"><EmptyState title="Satış ekibi yok" description="Henüz CRM satış ekibi oluşturulmamış." /></div>}
             </div>
-          </div>
-          {assignmentRules.length ? (
-            <div className="divide-y divide-[var(--line)]">
-              {assignmentRules.map((rule) => (
-                <div key={rule.id} className="grid gap-3 px-5 py-4 sm:grid-cols-[minmax(0,1fr)_180px_100px_auto] sm:items-center">
+
+            <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+              <h2 className="text-[14px] font-semibold text-[var(--ink)]">Yeni Satış Ekibi</h2>
+              <p className="mt-1 text-[9px] text-[var(--muted)]">Yeni bir ekip oluşturun ve yöneticisini seçin.</p>
+              <form onSubmit={createTeam} className="mt-5 space-y-4">
+                <Field label="Ekip Adı" required><TextInput disabled={!canManage} value={teamForm.name} onChange={(event) => setTeamForm({ ...teamForm, name: event.target.value })} /></Field>
+                <Field label="Ekip Yöneticisi" required><Select disabled={!canManage} value={teamForm.managerUserId} onChange={(event) => setTeamForm({ ...teamForm, managerUserId: event.target.value })}><option value="">Yönetici seçin</option>{assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}</Select></Field>
+                <Button type="submit" className="w-full" disabled={!canManage || saving === "team"}>{saving === "team" ? "Oluşturuluyor…" : "Ekibi Oluştur"}</Button>
+              </form>
+            </div>
+          </section>
+
+          <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+            <div className="border-b border-[var(--line)] p-5">
+              <h2 className="text-[14px] font-semibold text-[var(--ink)]">Kim Hangi CRM Kayıtlarını Görebilir?</h2>
+              <p className="mt-1 text-[9px] text-[var(--muted)]">Her rolün müşteri, satış fırsatı, takip ve rapor verilerinde ne kadar geniş bir alan görebileceğini belirleyin.</p>
+            </div>
+            {accessPolicies.length ? <div className="divide-y divide-[var(--line)]">
+              {accessPolicies.map((policy) => {
+                const value = accessPolicyDrafts[policy.roleId] ?? "SELF";
+                const disabled = policy.roleSlug === "owner" || !policy.hasCrmRead || !canManage;
+                return <div key={policy.roleId} className="grid gap-3 p-4 lg:grid-cols-[minmax(220px,1fr)_260px_auto] lg:items-end">
                   <div>
-                    <div className="flex items-center gap-2"><p className="text-[12px] font-semibold">{rule.name}</p><span className={rule.active ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[9px] font-semibold text-[var(--accent)]" : "rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[9px] font-semibold text-[var(--muted)]"}>{rule.active ? "Aktif" : "Pasif"}</span></div>
-                    <p className="mt-1 text-[10px] text-[var(--muted)]">
-                      {rule.sourceFilter ? `Kaynak: ${sourceLabels[rule.sourceFilter] ?? rule.sourceFilter}` : "Tüm kaynaklar"}
-                      {rule.skillKey ? ` · Yetkinlik: ${rule.skillKey}` : ""}
-                    </p>
+                    <strong className="text-[11px] text-[var(--ink)]">{policy.roleName}</strong>
+                    <p className="mt-1 text-[8px] text-[var(--muted)]">{policy.membershipCount} aktif kullanıcı · {policy.hasCrmRead ? (policy.hasCrmManage ? "Görüntüleyebilir ve yönetebilir" : "Yalnız görüntüleyebilir") : "CRM erişimi yok"}</p>
                   </div>
-                  <span className="text-[11px] font-medium">{assignmentModeLabels[rule.mode]}</span>
-                  <span className="text-[10px] text-[var(--muted)]">Öncelik: {rule.priority}</span>
-                  <Button variant="secondary" className="min-h-8 px-3 text-[10px]" disabled={saving === `assignment-${rule.id}`} onClick={() => void toggleAssignmentRule(rule)}>{saving === `assignment-${rule.id}` ? "Kaydediliyor..." : rule.active ? "Pasife Al" : "Aktifleştir"}</Button>
+                  <Field label="Görebileceği Kayıtlar">
+                    <Select value={value} disabled={disabled} onChange={(event) => setAccessPolicyDrafts((current) => ({ ...current, [policy.roleId]: event.target.value as CrmDataScope }))}>
+                      {(Object.keys(dataScopeLabels) as CrmDataScope[]).map((scope) => <option key={scope} value={scope}>{dataScopeLabels[scope].label}</option>)}
+                    </Select>
+                  </Field>
+                  <Button variant="secondary" disabled={disabled || saving === "access-" + policy.roleId} onClick={() => void saveAccessPolicy(policy.roleId)}>{saving === "access-" + policy.roleId ? "Kaydediliyor…" : "Kaydet"}</Button>
+                  <p className="text-[8px] leading-4 text-[var(--muted)] lg:col-start-2 lg:col-span-2">{dataScopeLabels[value].description}</p>
+                </div>;
+              })}
+            </div> : <div className="p-6"><EmptyState title="Rol bulunamadı" description="CRM erişim kapsamı tanımlanabilecek rol bulunmuyor." /></div>}
+          </section>
+        </div>
+      ) : null}
+
+      {tab === "ASSIGNMENT" ? (
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <div className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+            <div className="border-b border-[var(--line)] p-5">
+              <h2 className="text-[14px] font-semibold text-[var(--ink)]">Yeni Müşteriler Kime Atansın?</h2>
+              <p className="mt-1 text-[9px] text-[var(--muted)]">Yeni potansiyel müşterilerin satış ekibine otomatik dağıtım sırasını yönetin. Daha küçük öncelik numarası önce çalışır.</p>
+            </div>
+            {assignmentRules.length ? <div className="divide-y divide-[var(--line)]">
+              {assignmentRules.map((rule) => (
+                <div key={rule.id} className="grid gap-3 p-4 lg:grid-cols-[minmax(220px,1fr)_180px_110px_auto] lg:items-center">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <strong className="text-[11px] text-[var(--ink)]">{rule.name}</strong>
+                      <span className={rule.active ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[8px] font-semibold text-[var(--accent)]" : "rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[8px] text-[var(--muted)]"}>{rule.active ? "Aktif" : "Kapalı"}</span>
+                    </div>
+                    <p className="mt-1 text-[8px] text-[var(--muted)]">{rule.sourceFilter ? "Kaynak: " + (sourceLabels[rule.sourceFilter] ?? rule.sourceFilter) : "Tüm müşteri kaynakları"}{rule.skillKey ? " · Gerekli uzmanlık: " + rule.skillKey : ""}</p>
+                  </div>
+                  <span className="text-[9px] font-medium text-[var(--ink)]">{assignmentModeLabels[rule.mode]}</span>
+                  <span className="text-[8px] text-[var(--muted)]">Sıra: {rule.priority}</span>
+                  <Button variant="secondary" disabled={!canManage || saving === "assignment-" + rule.id} onClick={() => void toggleAssignmentRule(rule)}>{rule.active ? "Kapat" : "Aktifleştir"}</Button>
                 </div>
               ))}
-            </div>
-          ) : (
-            <div className="px-5 py-8 text-center text-[12px] text-[var(--muted)]">
-              Henüz otomatik atama kuralı oluşturulmamış. Kural yoksa kayıt, oluşturan kullanıcıya atanır.
-            </div>
-          )}
-        </GlassCard>
-
-        <GlassCard>
-          <div className="flex items-start gap-2">
-            <CardInfo help={getCardHelp("Yeni Atama Kuralı", "Kaynak ve dağıtım yöntemine göre yeni potansiyel müşterilerin sorumlusunu otomatik belirler.")} />
-            <div><h2 className="text-[15px] font-semibold">Yeni Atama Kuralı</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Aktif şube için kural oluşturun</p></div>
+            </div> : <div className="p-6"><EmptyState title="Dağıtım kuralı yok" description="Kural yoksa yeni kayıt, oluşturan kullanıcıya atanır." /></div>}
           </div>
-          <form onSubmit={createAssignmentRule} className="mt-5 space-y-4">
-            <Field label="Kural adı" required>
-              <TextInput value={assignmentForm.name} onChange={(event) => setAssignmentForm({ ...assignmentForm, name: event.target.value })} />
-            </Field>
-            <Field label="Dağıtım yöntemi" required>
-              <Select value={assignmentForm.mode} onChange={(event) => setAssignmentForm({ ...assignmentForm, mode: event.target.value as AssignmentMode })}>
-                {Object.entries(assignmentModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-              </Select>
-            </Field>
-            <Field label="Satış ekibi">
-              <Select value={assignmentForm.teamId} onChange={(event) => setAssignmentForm({ ...assignmentForm, teamId: event.target.value })}>
-                <option value="">Aktif şubedeki tüm CRM ekipleri</option>
-                {teams.filter((team) => team.active).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
-              </Select>
-            </Field>
-            <Field label="Müşteri kaynağı filtresi">
-              <Select value={assignmentForm.sourceFilter} onChange={(event) => setAssignmentForm({ ...assignmentForm, sourceFilter: event.target.value })}>
-                <option value="">Tüm kaynaklar</option>
-                <option value="MANUAL">Manuel</option>
-                <option value="INSTAGRAM">Instagram</option>
-                <option value="GOOGLE">Google</option>
-                <option value="WEBSITE">Web Sitesi</option>
-                <option value="REFERRAL">Tavsiye</option>
-                <option value="WALK_IN">Doğrudan</option>
-                <option value="SURVEYOR">Anketör</option>
-                <option value="OTHER">Diğer</option>
-              </Select>
-            </Field>
-            {assignmentForm.mode === "SKILL_BASED" ? <Field label="Yetkinlik anahtarı"><TextInput value={assignmentForm.skillKey} onChange={(event) => setAssignmentForm({ ...assignmentForm, skillKey: event.target.value })} placeholder="Örn. lazer, satış-kıdemli" /></Field> : null}
-            <Field label="Öncelik sırası"><TextInput type="number" min="1" max="10000" value={assignmentForm.priority} onChange={(event) => setAssignmentForm({ ...assignmentForm, priority: event.target.value })} /></Field>
-            <Button type="submit" disabled={saving === "assignment"} className="w-full">{saving === "assignment" ? "Oluşturuluyor..." : "Kuralı Oluştur"}</Button>
-          </form>
-        </GlassCard>
-      </section>
 
-      <section className="space-y-3">
-        <div className="flex items-start gap-2">
-          <CardInfo help={getCardHelp("SLA ve Eskalasyon", "Müşteriye dönüş, takip ve satış fırsatı güncelleme süreleri aşıldığında otomatik aksiyon üretir.")} />
-          <div><h2 className="text-[17px] font-semibold">SLA ve Eskalasyon</h2><p className="mt-1 text-[11px] text-[var(--muted)]">Satış ekibinin hizmet ve takip sürelerini yönetin</p></div>
+          <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+            <h2 className="text-[14px] font-semibold text-[var(--ink)]">Yeni Dağıtım Kuralı</h2>
+            <p className="mt-1 text-[9px] leading-4 text-[var(--muted)]">Belirli bir kaynaktan gelen müşterileri uygun satış ekibine otomatik yönlendirin.</p>
+            <form onSubmit={createAssignmentRule} className="mt-5 space-y-4">
+              <Field label="Kural Adı" required><TextInput disabled={!canManage} value={assignmentForm.name} onChange={(event) => setAssignmentForm({ ...assignmentForm, name: event.target.value })} /></Field>
+              <Field label="Müşteriler Nasıl Dağıtılsın?" required>
+                <Select disabled={!canManage} value={assignmentForm.mode} onChange={(event) => setAssignmentForm({ ...assignmentForm, mode: event.target.value as AssignmentMode })}>
+                  {Object.entries(assignmentModeLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Hangi Satış Ekibi?">
+                <Select disabled={!canManage} value={assignmentForm.teamId} onChange={(event) => setAssignmentForm({ ...assignmentForm, teamId: event.target.value })}>
+                  <option value="">Tüm aktif CRM ekipleri</option>
+                  {teams.filter((team) => team.active).map((team) => <option key={team.id} value={team.id}>{team.name}</option>)}
+                </Select>
+              </Field>
+              <Field label="Hangi Kaynaktan Gelenler?">
+                <Select disabled={!canManage} value={assignmentForm.sourceFilter} onChange={(event) => setAssignmentForm({ ...assignmentForm, sourceFilter: event.target.value })}>
+                  <option value="">Tüm kaynaklar</option>
+                  {Object.entries(sourceLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+              </Field>
+              {assignmentForm.mode === "SKILL_BASED" ? <Field label="Gerekli Uzmanlık Etiketi"><TextInput disabled={!canManage} value={assignmentForm.skillKey} onChange={(event) => setAssignmentForm({ ...assignmentForm, skillKey: event.target.value })} placeholder="Örn. lazer, vip, kıdemli satış" /></Field> : null}
+              <Field label="Çalışma Sırası"><TextInput disabled={!canManage} type="number" min="1" max="10000" value={assignmentForm.priority} onChange={(event) => setAssignmentForm({ ...assignmentForm, priority: event.target.value })} /></Field>
+              <Button type="submit" className="w-full" disabled={!canManage || saving === "assignment"}>{saving === "assignment" ? "Oluşturuluyor…" : "Kuralı Oluştur"}</Button>
+            </form>
+          </div>
+        </section>
+      ) : null}
+
+      {tab === "FOLLOW_UP" ? (
+        <div className="space-y-5">
+          <section>
+            <div className="mb-3">
+              <h2 className="text-[14px] font-semibold text-[var(--ink)]">Müşteri Dönüş ve Takip Süreleri</h2>
+              <p className="mt-1 text-[9px] text-[var(--muted)]">Satış ekibinin ne kadar sürede aksiyon alması gerektiğini iş diliyle belirleyin.</p>
+            </div>
+            <div className="grid gap-4 xl:grid-cols-3">
+              {slaRules.map((rule) => {
+                const meta = slaLabels[rule.ruleKey];
+                const isLead = rule.ruleKey === "LEAD_FIRST_RESPONSE_SLA";
+                const isFollowUp = rule.ruleKey === "FOLLOW_UP_OVERDUE_ESCALATION";
+                const primaryKey = isLead ? "thresholdMinutes" : isFollowUp ? "graceMinutes" : "staleDays";
+                const primaryLabel = isLead ? "En geç kaç dakikada dönüş yapılsın?" : isFollowUp ? "Takip kaç dakika gecikebilir?" : "Kaç gün hareketsiz kalabilir?";
+                const primaryValue = Number(rule.config[primaryKey] ?? (isLead ? 60 : isFollowUp ? 30 : 7));
+                const delay = Number(rule.config.escalationDelayMinutes ?? 15);
+                return <article key={rule.ruleKey} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h3 className="text-[12px] font-semibold text-[var(--ink)]">{meta.title}</h3><p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">{meta.description}</p></div>
+                    <label className="flex items-center gap-2 text-[8px] font-semibold text-[var(--muted)]"><input type="checkbox" checked={rule.enabled} disabled={!canManage || saving === rule.ruleKey} onChange={(event) => void updateSla(rule, { ...rule.config }, event.target.checked)} /> {rule.enabled ? "Açık" : "Kapalı"}</label>
+                  </div>
+                  <div className="mt-5 space-y-4">
+                    <Field label={primaryLabel}><TextInput disabled={!canManage} type="number" min="1" value={String(primaryValue)} onChange={(event) => setAutomationConfig(rule.ruleKey, primaryKey, Number(event.target.value))} /></Field>
+                    <Field label="Uyarıdan sonra yeni aksiyon kaç dakika içinde oluşsun?"><TextInput disabled={!canManage} type="number" min="1" value={String(delay)} onChange={(event) => setAutomationConfig(rule.ruleKey, "escalationDelayMinutes", Number(event.target.value))} /></Field>
+                    <Button variant="secondary" className="w-full" disabled={!canManage || saving === rule.ruleKey} onClick={() => void updateSla(rule, { ...rule.config, channel: String(rule.config.channel ?? "CALL") })}>{saving === rule.ruleKey ? "Kaydediliyor…" : "Süreleri Kaydet"}</Button>
+                  </div>
+                </article>;
+              })}
+            </div>
+          </section>
+
+          <section>
+            <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div>
+                <h2 className="text-[14px] font-semibold text-[var(--ink)]">Otomatik Takip Görevleri</h2>
+                <p className="mt-1 text-[9px] text-[var(--muted)]">Sistem hangi durumda kendiliğinden takip görevi oluştursun?</p>
+              </div>
+              <Link href="/crm/automations" className="text-[9px] font-semibold text-[var(--accent)]">Çalışma Geçmişini Gör →</Link>
+            </div>
+            <div className="grid gap-4 xl:grid-cols-3">
+              {taskAutomationRules.map((rule) => {
+                const meta = taskAutomationLabels[rule.ruleKey];
+                const channel = String(rule.config.channel ?? "CALL");
+                return <article key={rule.ruleKey} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+                  <div className="flex items-start justify-between gap-3">
+                    <div><h3 className="text-[12px] font-semibold text-[var(--ink)]">{meta.title}</h3><p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">{meta.description}</p></div>
+                    <label className="flex items-center gap-2 text-[8px] font-semibold text-[var(--muted)]"><input type="checkbox" checked={rule.enabled} disabled={!canManage || saving === rule.ruleKey} onChange={(event) => setAutomationRules((current) => current.map((item) => item.ruleKey === rule.ruleKey ? { ...item, enabled: event.target.checked } : item))} /> {rule.enabled ? "Açık" : "Kapalı"}</label>
+                  </div>
+                  <div className="mt-5 space-y-4">
+                    {rule.ruleKey === "LEAD_FIRST_TOUCH" ? <Field label="Yeni müşteri geldikten kaç saat sonra takip oluşsun?"><TextInput disabled={!canManage} type="number" min="1" max="720" value={String(automationNumber(rule, "delayHours", 24))} onChange={(event) => setAutomationConfig(rule.ruleKey, "delayHours", Number(event.target.value))} /></Field> : null}
+                    {rule.ruleKey === "OPPORTUNITY_STAGE_FOLLOW_UP" ? <>
+                      <Field label="Normal aşamalarda kaç gün sonra takip?"><TextInput disabled={!canManage} type="number" min="1" max="90" value={String(automationNumber(rule, "defaultDelayDays", 2))} onChange={(event) => setAutomationConfig(rule.ruleKey, "defaultDelayDays", Number(event.target.value))} /></Field>
+                      <Field label="Karar beklenirken kaç gün sonra takip?"><TextInput disabled={!canManage} type="number" min="1" max="90" value={String(automationNumber(rule, "negotiationDelayDays", 1))} onChange={(event) => setAutomationConfig(rule.ruleKey, "negotiationDelayDays", Number(event.target.value))} /></Field>
+                    </> : null}
+                    {rule.ruleKey === "STALE_OPPORTUNITY_FOLLOW_UP" ? <>
+                      <Field label="Kaç gün hareketsiz kalınca görev oluşsun?"><TextInput disabled={!canManage} type="number" min="1" max="90" value={String(automationNumber(rule, "staleDays", 14))} onChange={(event) => setAutomationConfig(rule.ruleKey, "staleDays", Number(event.target.value))} /></Field>
+                      <Field label="Görev kaç saat sonrasına planlansın?"><TextInput disabled={!canManage} type="number" min="1" max="720" value={String(automationNumber(rule, "delayHours", 24))} onChange={(event) => setAutomationConfig(rule.ruleKey, "delayHours", Number(event.target.value))} /></Field>
+                    </> : null}
+                    <Field label="Varsayılan Takip Kanalı">
+                      <Select disabled={!canManage} value={channel} onChange={(event) => setAutomationConfig(rule.ruleKey, "channel", event.target.value)}>
+                        {Object.entries(channelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+                      </Select>
+                    </Field>
+                    <Button className="w-full" disabled={!canManage || saving === rule.ruleKey} onClick={() => void updateSla(rule, { ...rule.config })}>{saving === rule.ruleKey ? "Kaydediliyor…" : "Otomatik Görevi Kaydet"}</Button>
+                  </div>
+                </article>;
+              })}
+            </div>
+          </section>
         </div>
-        <div className="grid gap-4 lg:grid-cols-3">
-          {slaRules.map((rule) => {
-            const meta = slaLabels[rule.ruleKey];
-            const isLead = rule.ruleKey === "LEAD_FIRST_RESPONSE_SLA";
-            const isFollowUp = rule.ruleKey === "FOLLOW_UP_OVERDUE_ESCALATION";
-            const primaryKey = isLead ? "thresholdMinutes" : isFollowUp ? "graceMinutes" : "staleDays";
-            const primaryLabel = isLead ? "İlk dönüş süresi (dakika)" : isFollowUp ? "Gecikme toleransı (dakika)" : "Hareketsizlik süresi (gün)";
-            const primaryValue = Number(rule.config[primaryKey] ?? (isLead ? 60 : isFollowUp ? 30 : 7));
-            const escalationDelay = Number(rule.config.escalationDelayMinutes ?? 15);
-            return (
-              <GlassCard key={rule.ruleKey}>
-                <div className="flex items-start gap-2">
-                  <CardInfo help={getCardHelp(meta.title, meta.description)} />
-                  <div><h3 className="text-[13px] font-semibold">{meta.title}</h3><p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">{meta.description}</p></div>
-                </div>
-                <div className="mt-5 space-y-4">
-                  <label className="flex items-center justify-between gap-3 rounded-[13px] border border-[var(--line)] px-3 py-2.5">
-                    <span className="text-[11px] font-medium">Kural aktif</span>
-                    <input type="checkbox" checked={rule.enabled} onChange={(event) => void updateSla(rule, { ...rule.config }, event.target.checked)} disabled={saving === rule.ruleKey} />
-                  </label>
-                  <Field label={primaryLabel}>
-                    <TextInput
-                      type="number"
-                      min="1"
-                      value={String(primaryValue)}
-                      onChange={(event) => setAutomationRules((current) => current.map((item) => item.ruleKey === rule.ruleKey ? { ...item, config: { ...item.config, [primaryKey]: Number(event.target.value) } } : item))}
-                    />
-                  </Field>
-                  <Field label="Eskalasyon aksiyonu süresi (dakika)">
-                    <TextInput
-                      type="number"
-                      min="1"
-                      value={String(escalationDelay)}
-                      onChange={(event) => setAutomationRules((current) => current.map((item) => item.ruleKey === rule.ruleKey ? { ...item, config: { ...item.config, escalationDelayMinutes: Number(event.target.value) } } : item))}
-                    />
-                  </Field>
-                  <Button variant="secondary" className="w-full" disabled={saving === rule.ruleKey} onClick={() => void updateSla(rule, { ...rule.config, channel: String(rule.config.channel ?? "CALL") })}>
-                    {saving === rule.ruleKey ? "Kaydediliyor..." : "SLA Ayarını Kaydet"}
-                  </Button>
-                </div>
-              </GlassCard>
-            );
-          })}
+      ) : null}
+
+      {tab === "CHANNELS" ? (
+        <div className="space-y-4">
+          <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+            <h2 className="text-[14px] font-semibold text-[var(--ink)]">Müşteriyle Hangi Kanallardan İletişim Kurulabilir?</h2>
+            <p className="mt-1 text-[9px] leading-5 text-[var(--muted)]">WhatsApp, SMS ve e-posta gönderim bağlantılarını bu alandan yönetin. Gizli bağlantı bilgileri kaydedildikten sonra tekrar gösterilmez.</p>
+          </section>
+
+          <CrmMessageProviderSettings />
+          <CrmTwilioSmsSettings />
+          <CrmResendEmailSettings />
+
+          <section className="grid gap-3 lg:grid-cols-2">
+            <Link href="/crm/compliance" className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
+              <h3 className="text-[12px] font-semibold text-[var(--ink)]">Müşteri İletişim İzinleri</h3>
+              <p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">Belirli bir müşterinin WhatsApp, SMS ve e-posta iletişim iznini görüntüleyin veya güncelleyin.</p>
+              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İzinları Yönet →</span>
+            </Link>
+            <Link href="/crm/communications" className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
+              <h3 className="text-[12px] font-semibold text-[var(--ink)]">Bağlantı Sağlığı ve Teslimat Geçmişi</h3>
+              <p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">Gönderim hatalarını, gelen mesajları ve mesaj teslimat durumlarını inceleyin.</p>
+              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İletişim Durumunu Gör →</span>
+            </Link>
+          </section>
         </div>
-      </section>
+      ) : null}
+
+      {tab === "SURVEYORS" ? (
+        <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+          <div className="border-b border-[var(--line)] p-5">
+            <h2 className="text-[14px] font-semibold text-[var(--ink)]">Anketör Ayarları</h2>
+            <p className="mt-1 text-[9px] text-[var(--muted)]">Hangi çalışanların müşteri kaynağı olarak kullanılacağını ve günlük/haftalık hedeflerini belirleyin.</p>
+          </div>
+          {surveyorCandidates.length ? <div className="divide-y divide-[var(--line)]">
+            {surveyorCandidates.map((person) => {
+              const draft = surveyorDrafts[person.staffId] ?? {
+                active: person.active,
+                dailyDeskQuota: person.dailyDeskQuota == null ? "" : String(person.dailyDeskQuota),
+                weeklyDeskQuota: person.weeklyDeskQuota == null ? "" : String(person.weeklyDeskQuota),
+              };
+              return <div key={person.staffId} className="grid gap-3 p-4 lg:grid-cols-[minmax(180px,1fr)_150px_160px_160px_auto] lg:items-end">
+                <div><strong className="text-[11px] text-[var(--ink)]">{person.firstName} {person.lastName}</strong><p className="mt-1 text-[8px] text-[var(--muted)]">{draft.active ? "Yeni müşteri kaydında anketör olarak seçilebilir" : "Anketör olarak kullanılmıyor"}</p></div>
+                <label className="flex h-10 items-center gap-2 rounded-[10px] border border-[var(--line)] px-3 text-[9px]"><input disabled={!canManage} type="checkbox" checked={draft.active} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, active: event.target.checked } }))} /> Anketör Olarak Kullan</label>
+                <Field label="Günlük Hedef"><TextInput disabled={!canManage} type="number" min="0" step="1" value={draft.dailyDeskQuota} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, dailyDeskQuota: event.target.value } }))} /></Field>
+                <Field label="Haftalık Hedef"><TextInput disabled={!canManage} type="number" min="0" step="1" value={draft.weeklyDeskQuota} onChange={(event) => setSurveyorDrafts((current) => ({ ...current, [person.staffId]: { ...draft, weeklyDeskQuota: event.target.value } }))} /></Field>
+                <Button variant="secondary" disabled={!canManage || saving === "surveyor-" + person.staffId} onClick={() => void saveSurveyorProfile(person.staffId)}>{saving === "surveyor-" + person.staffId ? "Kaydediliyor…" : "Kaydet"}</Button>
+              </div>;
+            })}
+          </div> : <div className="p-6"><EmptyState title="Anketör adayı yok" description="Aktif şubede anketör olarak tanımlanabilecek çalışan bulunmuyor." /></div>}
+        </section>
+      ) : null}
     </div>
   );
 }
