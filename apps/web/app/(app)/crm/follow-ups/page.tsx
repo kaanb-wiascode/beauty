@@ -110,6 +110,10 @@ export default function CrmFollowUpsPage() {
   const [cancelling, setCancelling] = useState<CrmFollowUp | null>(null);
   const [cancellationReason, setCancellationReason] = useState("");
   const [outcome, setOutcome] = useState("");
+  const [scheduleNext, setScheduleNext] = useState(false);
+  const [nextFollowUpAt, setNextFollowUpAt] = useState("");
+  const [nextFollowUpChannel, setNextFollowUpChannel] = useState<CrmFollowUp["channel"]>("CALL");
+  const [nextFollowUpNote, setNextFollowUpNote] = useState("");
   const [form, setForm] = useState(emptyForm);
   const [now] = useState(() => Date.now());
 
@@ -241,7 +245,7 @@ export default function CrmFollowUpsPage() {
       });
       setCreateOpen(false);
       setForm(emptyForm);
-      showToast("Takip görevi oluşturuldu.", "success");
+      showToast("Takip planlandı.", "success");
       await load();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip oluşturulamadı.") : "Takip oluşturulamadı.");
@@ -256,13 +260,12 @@ export default function CrmFollowUpsPage() {
       setError("Görüşme sonucu gereklidir.");
       return;
     }
-    if (
-      !requireActiveBranch(
-        "Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.",
-      )
-    ) {
+    if (scheduleNext && !nextFollowUpAt) {
+      setError("Sonraki takip için tarih ve saat seçilmelidir.");
       return;
     }
+    if (!requireActiveBranch("Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.")) return;
+
     setSaving(true);
     setError("");
     try {
@@ -270,9 +273,39 @@ export default function CrmFollowUpsPage() {
         method: "POST",
         body: { version: completing.version, outcome: outcome.trim() },
       });
+
+      let nextCreated = true;
+      if (scheduleNext) {
+        try {
+          await api("/crm/follow-ups", {
+            method: "POST",
+            body: {
+              ...(completing.leadId ? { leadId: completing.leadId } : { opportunityId: completing.opportunityId }),
+              assignedUserId: completing.assignedUserId,
+              channel: nextFollowUpChannel,
+              dueAt: new Date(nextFollowUpAt).toISOString(),
+              ...(nextFollowUpNote.trim() ? { note: nextFollowUpNote.trim() } : {}),
+            },
+          });
+        } catch (nextError) {
+          nextCreated = false;
+          showToast(
+            nextError instanceof ApiError
+              ? userErrorMessage(nextError.message, "Takip tamamlandı ancak sonraki takip oluşturulamadı.")
+              : "Takip tamamlandı ancak sonraki takip oluşturulamadı.",
+            "error",
+          );
+        }
+      }
+
       setCompleting(null);
       setOutcome("");
-      showToast("Takip tamamlandı.", "success");
+      setScheduleNext(false);
+      setNextFollowUpAt("");
+      setNextFollowUpNote("");
+      if (nextCreated) {
+        showToast(scheduleNext ? "Takip tamamlandı ve sonraki takip planlandı." : "Takip tamamlandı.", "success");
+      }
       await load();
     } catch (requestError) {
       setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Takip tamamlanamadı.") : "Takip tamamlanamadı.");
@@ -399,6 +432,10 @@ export default function CrmFollowUpsPage() {
     if (!requireActiveBranch("Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.")) return;
     setError("");
     setOutcome("");
+    setScheduleNext(false);
+    setNextFollowUpAt("");
+    setNextFollowUpChannel(row.channel);
+    setNextFollowUpNote("");
     setCompleting(row);
   }
 
@@ -432,7 +469,7 @@ export default function CrmFollowUpsPage() {
           setError("");
           setForm({ ...emptyForm, assignedUserId: getStoredUser()?.id ?? "" });
           setCreateOpen(true);
-        }}>Yeni Takip Oluştur</Button> : null}
+        }}>Yeni Takibi Planla</Button> : null}
       </header>
 
       {error && !createOpen && !completing && !rescheduling && !cancelling ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
@@ -568,10 +605,10 @@ export default function CrmFollowUpsPage() {
         </aside>
       </div> : null}
 
-      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni takip görevi" description="Takibi bir potansiyel müşteriye veya satış fırsatına bağlayın.">
+      <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni Takip Planla" description="Kiminle, ne zaman ve hangi kanaldan iletişim kurulacağını belirleyin.">
         <form onSubmit={createFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
-          <Field label="Müşteri İlişkileri Kaydı" required>
+          <Field label="Kimi veya hangi satış fırsatını takip edeceksiniz?" required>
             <Select value={form.subject} onChange={(event) => setForm({ ...form, subject: event.target.value })}>
               <option value="">Seçin</option>
               <optgroup label="Potansiyel Müşteriler">
@@ -596,16 +633,47 @@ export default function CrmFollowUpsPage() {
             </Field>
             <Field label="Tarih Ve Saat" required><TextInput type="datetime-local" value={form.dueAt} onChange={(event) => setForm({ ...form, dueAt: event.target.value })} /></Field>
           </div>
-          <Field label="Not"><TextArea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} /></Field>
-          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Kaydediliyor..." : "Takip Oluştur"}</Button></div>
+          <Field label="Takip Amacı / Not"><TextArea rows={3} value={form.note} onChange={(event) => setForm({ ...form, note: event.target.value })} placeholder="Bu takipte konuşulacak konu veya hatırlanması gereken bilgi…" /></Field>
+          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCreateOpen(false)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Planlanıyor..." : "Takip Oluştur"}</Button></div>
         </form>
       </Modal>
 
-      <Modal open={Boolean(completing)} onClose={() => setCompleting(null)} title="Takibi tamamla" description="Görüşme sonucunu müşteri ilişkileri geçmişine kaydedin.">
+      <Modal open={Boolean(completing)} onClose={() => setCompleting(null)} title="Takibi Tamamla" description={completing ? subjectFor(completing) : undefined}>
         <form onSubmit={completeFollowUp} className="space-y-4">
           {error ? <Alert>{error}</Alert> : null}
-          <Field label="Görüşme Sonucu" required><TextArea rows={4} value={outcome} onChange={(event) => setOutcome(event.target.value)} /></Field>
-          <div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setCompleting(null)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Tamamlanıyor..." : "Tamamla"}</Button></div>
+          <Field label="Görüşme Sonucu" required>
+            <TextArea rows={4} value={outcome} onChange={(event) => setOutcome(event.target.value)} placeholder="Müşteriyle ne görüşüldü, hangi sonuca varıldı?" />
+          </Field>
+
+          <button
+            type="button"
+            onClick={() => setScheduleNext((value) => !value)}
+            className={scheduleNext ? "w-full rounded-[14px] border border-[var(--accent)] bg-[var(--accent-soft)] p-3 text-left" : "w-full rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left hover:border-[var(--line-strong)]"}
+          >
+            <span className="block text-[10px] font-semibold text-[var(--ink)]">Sonraki takibi de planla</span>
+            <span className="mt-1 block text-[9px] leading-4 text-[var(--muted)]">Bu görüşme tamamlanırken aynı müşteri veya satış fırsatı için yeni bir takip oluşturun.</span>
+          </button>
+
+          {scheduleNext ? <div className="space-y-4 rounded-[14px] border border-[var(--line)] p-4">
+            <div className="grid gap-4 sm:grid-cols-2">
+              <Field label="Sonraki İletişim Kanalı">
+                <Select value={nextFollowUpChannel} onChange={(event) => setNextFollowUpChannel(event.target.value as CrmFollowUp["channel"])}>
+                  {Object.entries(followUpChannelLabels).map(([value,label]) => <option key={value} value={value}>{label}</option>)}
+                </Select>
+              </Field>
+              <Field label="Sonraki Tarih ve Saat" required>
+                <TextInput type="datetime-local" value={nextFollowUpAt} onChange={(event) => setNextFollowUpAt(event.target.value)} />
+              </Field>
+            </div>
+            <Field label="Sonraki Takip Notu">
+              <TextArea rows={3} value={nextFollowUpNote} onChange={(event) => setNextFollowUpNote(event.target.value)} placeholder="Bir sonraki görüşmede hatırlanması gereken konu…" />
+            </Field>
+          </div> : null}
+
+          <div className="flex justify-end gap-3">
+            <Button variant="secondary" onClick={() => setCompleting(null)} disabled={saving}>Vazgeç</Button>
+            <Button type="submit" disabled={saving}>{saving ? "Tamamlanıyor..." : scheduleNext ? "Tamamla ve Sonrakini Planla" : "Takibi Tamamla"}</Button>
+          </div>
         </form>
       </Modal>
 
