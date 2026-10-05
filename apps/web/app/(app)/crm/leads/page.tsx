@@ -470,7 +470,7 @@ export default function CrmLeadsPage() {
           <Spinner label="Potansiyel müşteriler yükleniyor..." />
         ) : visibleLeads.length ? (
           <div>
-            <div className={`hidden ${grid} items-center gap-4 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 lg:grid`}>
+            <div className="hidden lg:grid-cols-[minmax(270px,1.25fr)_190px_220px_190px_240px] items-center gap-4 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 lg:grid">
               <span className="text-[9px] font-semibold text-[var(--muted)]">Müşteri</span>
               <span className="text-[9px] font-semibold text-[var(--muted)]">Öncelik</span>
               <span className="text-[9px] font-semibold text-[var(--muted)]">Sorumlu / Tahmini Satış</span>
@@ -485,7 +485,7 @@ export default function CrmLeadsPage() {
                 const score=Number(lead.leadScore??0);
                 const sourceLabel=leadSourceLabels[lead.source]??"Diğer Kaynak";
                 return <article key={lead.id} className="px-4 py-3 transition-colors hover:bg-[var(--surface-2)]">
-                  <div className={`grid gap-3 lg:items-center lg:gap-4 ${grid}`}>
+                  <div className="grid gap-3 lg:items-center lg:gap-4 lg:grid-cols-[minmax(270px,1.25fr)_190px_220px_190px_240px]">
                     <Link href={`/crm/leads/${lead.id}`} className="flex min-w-0 items-center gap-3">
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[10px] font-bold text-[var(--accent)]">{initials(lead)}</span>
                       <span className="min-w-0">
