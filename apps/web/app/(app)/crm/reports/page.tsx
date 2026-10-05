@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, EmptyState, Select, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -340,11 +341,60 @@ export default function CrmReportsPage() {
     setTo(localDateInput(end));
   }
 
+  function exportCsv() {
+    const headers = [
+      "Satışçı",
+      "E-posta",
+      "Potansiyel Müşteri",
+      "Görüşme",
+      "Randevu",
+      "Satış Fırsatı",
+      "Kazanılan",
+      "Kazanma Oranı",
+      "Gerçekleşen Satış",
+      "Tamamlanan Takip",
+      "Geciken Takip",
+      "İlk Dönüş Dakika",
+    ];
+    const rows = salespeople.map((row) => [
+      salespersonName(row),
+      row.email ?? "",
+      row.leadCount,
+      row.interactionCount,
+      row.appointmentOutcomeCount,
+      row.opportunityCount,
+      row.wonCount,
+      row.winRate,
+      row.actualSalesValue,
+      row.completedFollowUpCount,
+      row.overdueFollowUpCount,
+      row.averageFirstResponseMinutes || "",
+    ]);
+    const escape = (value: string | number) => {
+      const text = String(value);
+      return /[",\n]/.test(text) ? `"${text.replaceAll('"', '""')}"` : text;
+    };
+    const csv = [headers, ...rows].map((row) => row.map(escape).join(",")).join("\n");
+    const blob = new Blob(["\ufeff" + csv], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `crm-raporu-${from}-${to}.csv`;
+    anchor.click();
+    URL.revokeObjectURL(url);
+  }
+
   const currentPeriodLabel = `${fullDate(from)} – ${fullDate(to)}`;
   const previous = previousRange(from, to);
   const previousPeriodLabel = `${fullDate(previous.from)} – ${fullDate(previous.to)}`;
 
-  const cards = [
+  const cards: Array<{
+    label: string;
+    value: string;
+    change: number | null;
+    detail: string;
+    pointChange?: boolean;
+  }> = [
     {
       label: "Potansiyel Müşteri",
       value: number(totals.leads),
@@ -399,9 +449,12 @@ export default function CrmReportsPage() {
               Potansiyel müşteri kazanımını, satış dönüşümünü, ekip performansını ve takip disiplinini tek görünümde değerlendirin.
             </p>
           </div>
-          <Button variant="secondary" onClick={() => void load()} disabled={loading}>
-            {loading ? "Güncelleniyor…" : "Raporu Yenile"}
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" onClick={exportCsv} disabled={!salespeople.length}>Dışa Aktar</Button>
+            <Button variant="secondary" onClick={() => void load()} disabled={loading}>
+              {loading ? "Güncelleniyor…" : "Raporu Yenile"}
+            </Button>
+          </div>
         </div>
 
         <div className="mt-5 flex flex-col gap-3 border-t border-[var(--line)] pt-4 xl:flex-row xl:items-end xl:justify-between">
@@ -566,6 +619,11 @@ export default function CrmReportsPage() {
                 <div className="col-span-2 rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Satışçı Ortalamalarına Göre İlk Dönüş</span><strong className="mt-1 block text-[18px] text-[var(--ink)]">{averageResponse ? `${averageResponse} dk` : "—"}</strong></div>
               </div>
               <p className="mt-3 text-[8px] leading-4 text-[var(--muted)]">Geciken takip göstergesi seçilen dönemden bağımsız olarak halen açık ve zamanı geçmiş görevleri gösterir.</p>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3 xl:grid-cols-1 2xl:grid-cols-3">
+                <Link href="/crm/follow-ups" className="flex min-h-9 items-center justify-center rounded-[9px] border border-[var(--line)] px-2 text-[8px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Takip Merkezi</Link>
+                <Link href="/crm/pipeline" className="flex min-h-9 items-center justify-center rounded-[9px] border border-[var(--line)] px-2 text-[8px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Satış Süreci</Link>
+                <Link href="/crm/interactions" className="flex min-h-9 items-center justify-center rounded-[9px] border border-[var(--line)] px-2 text-[8px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">İletişim Geçmişi</Link>
+              </div>
             </section>
           </div>
         </div>
