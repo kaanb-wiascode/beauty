@@ -104,6 +104,9 @@ export default function CrmLeadsPage() {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState<LeadStatus | "ALL">("ALL");
   const [ownerUserId, setOwnerUserId] = useState("");
+  const [temperature, setTemperature] = useState<LeadTemperature | "ALL">("ALL");
+  const [assignmentFilter, setAssignmentFilter] = useState<"ALL" | "UNASSIGNED">("ALL");
+  const [sortMode, setSortMode] = useState<"priority" | "newest" | "updated" | "score" | "value">("priority");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -184,13 +187,37 @@ export default function CrmLeadsPage() {
   const counts = useMemo(
     () => ({
       total: leads.length,
-      actionable: leads.filter((lead) =>
-        ["NEW", "CONTACTED"].includes(lead.status),
-      ).length,
+      newLeads: leads.filter((lead) => lead.status === "NEW").length,
+      hot: leads.filter((lead) => lead.leadTemperature === "HOT").length,
       qualified: leads.filter((lead) => lead.status === "QUALIFIED").length,
+      unassigned: leads.filter((lead) => !lead.ownerUserId).length,
     }),
     [leads],
   );
+
+  const visibleLeads = useMemo(() => {
+    const rows = leads.filter((lead) => {
+      if (temperature !== "ALL" && lead.leadTemperature !== temperature) return false;
+      if (assignmentFilter === "UNASSIGNED" && lead.ownerUserId) return false;
+      return true;
+    });
+
+    return [...rows].sort((a, b) => {
+      if (sortMode === "newest") return +new Date(b.createdAt) - +new Date(a.createdAt);
+      if (sortMode === "updated") return +new Date(b.updatedAt) - +new Date(a.updatedAt);
+      if (sortMode === "score") return Number(b.leadScore ?? 0) - Number(a.leadScore ?? 0);
+      if (sortMode === "value") return Number(b.estimatedValue ?? 0) - Number(a.estimatedValue ?? 0);
+
+      const temperatureRank = { HOT: 3, WARM: 2, COLD: 1 } as const;
+      const aRank = temperatureRank[a.leadTemperature ?? "COLD"];
+      const bRank = temperatureRank[b.leadTemperature ?? "COLD"];
+      if (aRank !== bRank) return bRank - aRank;
+      if (Number(a.leadScore ?? 0) !== Number(b.leadScore ?? 0)) {
+        return Number(b.leadScore ?? 0) - Number(a.leadScore ?? 0);
+      }
+      return +new Date(b.updatedAt) - +new Date(a.updatedAt);
+    });
+  }, [assignmentFilter, leads, sortMode, temperature]);
   const assigneeNames = useMemo(
     () =>
       new Map(
@@ -333,50 +360,47 @@ export default function CrmLeadsPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader
-        title="Potansiyel Müşteri Havuzu"
-        description="Yeni müşteri adaylarını kaydedin, temas durumunu izleyin ve uygun adayları satış fırsatına dönüştürün."
-        action={
-          canManage ? (
-            <Button
-              onClick={() => {
-                if (
-                  !requireActiveBranch(
-                    "Yeni potansiyel müşteri oluşturmak için önce çalışma kapsamından bir şube seçin.",
-                  )
-                ) {
-                  return;
-                }
-                setFormError("");
-                setLeadStep(0);
-                setLeadForm(emptyLead);
-                setCreateOpen(true);
-              }}
-            >
-              + Yeni Potansiyel Müşteri
-            </Button>
-          ) : undefined
-        }
-      />
+      <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)] sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="text-[12px] font-medium text-[var(--muted)]">Potansiyel müşteri yönetimi</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Potansiyel Müşteri Merkezi</h1>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Yeni müşteri adaylarını önceliklendirin, sorumlulara dağıtın ve satışa en yakın kayıtları hızlıca satış fırsatına dönüştürün.</p>
+        </div>
+        {canManage ? <Button
+          onClick={() => {
+            if (!requireActiveBranch("Yeni potansiyel müşteri oluşturmak için önce çalışma kapsamından bir şube seçin.")) return;
+            setFormError("");
+            setLeadStep(0);
+            setLeadForm(emptyLead);
+            setCreateOpen(true);
+          }}
+        >Yeni Potansiyel Müşteri</Button> : null}
+      </header>
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-3 sm:grid-cols-3">
-        {[
-          ["Görünen Potansiyel Müşteri", counts.total],
-          ["İşlem Bekleyen", counts.actionable],
-          ["Nitelikli", counts.qualified],
-        ].map(([label, value]) => (
-          <article
-            key={String(label)}
-            className="rounded-[18px] border border-[var(--line)] bg-white px-4 py-3 shadow-[var(--shadow-soft)]"
-          >
-            <div className="flex items-start justify-between gap-3">
-              <span className="text-[10px] text-[var(--muted)]">{label}</span>
-              <CardInfo help={getCardHelp(String(label))} />
-            </div>
-            <strong className="mt-2 block text-[20px]">{value}</strong>
-          </article>
-        ))}
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <LeadSummaryCard label="Tüm Müşteriler" value={counts.total} detail="Mevcut filtre kapsamındaki kayıtlar" active={status==="ALL"&&temperature==="ALL"&&assignmentFilter==="ALL"} onClick={()=>{setStatus("ALL");setTemperature("ALL");setAssignmentFilter("ALL")}}/>
+        <LeadSummaryCard label="Yeni Müşteriler" value={counts.newLeads} detail="İlk temas bekleyen kayıtlar" active={status==="NEW"} onClick={()=>{setStatus("NEW");setTemperature("ALL");setAssignmentFilter("ALL")}}/>
+        <LeadSummaryCard label="Yüksek Öncelik" value={counts.hot} detail="Öncelikli satış görüşmesi gerekenler" active={temperature==="HOT"} tone="warning" onClick={()=>{setStatus("ALL");setTemperature("HOT");setAssignmentFilter("ALL")}}/>
+        <LeadSummaryCard label="Satışa Hazır" value={counts.qualified} detail="Satış fırsatına dönüştürülebilir" active={status==="QUALIFIED"} onClick={()=>{setStatus("QUALIFIED");setTemperature("ALL");setAssignmentFilter("ALL")}}/>
+        <LeadSummaryCard label="Sorumlusu Olmayan" value={counts.unassigned} detail="Henüz kullanıcıya atanmamış" active={assignmentFilter==="UNASSIGNED"} tone="warning" onClick={()=>{setStatus("ALL");setTemperature("ALL");setAssignmentFilter("UNASSIGNED")}}/>
+      </section>
+
+      <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="flex items-center justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
+          <div><h2 className="text-[14px] font-semibold text-[var(--ink)]">Bugünkü Öncelikler</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Satış ekibinin önce ele alması gereken müşteri grupları</p></div>
+        </div>
+        <div className="grid gap-2 p-4 md:grid-cols-3">
+          <button type="button" onClick={()=>{setStatus("NEW");setTemperature("ALL");setAssignmentFilter("ALL")}} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left transition hover:border-[var(--line-strong)]">
+            <b className="block text-[10px] font-semibold text-[var(--ink)]">{counts.newLeads} yeni müşteri ilk temas bekliyor</b><span className="mt-1.5 block text-[9px] leading-4 text-[var(--muted)]">Yeni kayıtlarla mümkün olan en kısa sürede iletişime geçin.</span>
+          </button>
+          <button type="button" onClick={()=>{setStatus("ALL");setTemperature("HOT");setAssignmentFilter("ALL")}} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left transition hover:border-[var(--line-strong)]">
+            <b className="block text-[10px] font-semibold text-[var(--ink)]">{counts.hot} yüksek öncelikli müşteri var</b><span className="mt-1.5 block text-[9px] leading-4 text-[var(--muted)]">Satın alma ihtimali yüksek müşterileri öncelikli değerlendirin.</span>
+          </button>
+          <button type="button" onClick={()=>{setStatus("ALL");setTemperature("ALL");setAssignmentFilter("UNASSIGNED")}} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left transition hover:border-[var(--line-strong)]">
+            <b className="block text-[10px] font-semibold text-[var(--ink)]">{counts.unassigned} müşteri sorumlusuz</b><span className="mt-1.5 block text-[9px] leading-4 text-[var(--muted)]">Sorumlusu olmayan kayıtları satış ekibine dağıtın.</span>
+          </button>
+        </div>
       </section>
 
       <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
