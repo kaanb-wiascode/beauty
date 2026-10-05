@@ -249,22 +249,33 @@ export default function CrmInteractionsPage() {
           ...(form.notes.trim() ? { notes: form.notes.trim() } : {}),
           ...(form.startedAt ? { startedAt: new Date(form.startedAt).toISOString() } : {}),
           ...(form.durationMinutes ? { durationSeconds: Math.round(Number(form.durationMinutes) * 60) } : {}),
-          ...(scheduleNext && followUpNote.trim() ? { nextAction: followUpNote.trim() } : {}),
+          ...(scheduleNext ? { nextAction: followUpNote.trim() || followUpChannelLabels[followUpChannel] + " ile takip" } : {}),
           ...(scheduleNext && followUpAt ? { nextActionAt: new Date(followUpAt).toISOString() } : {}),
         },
       });
 
+      let followUpCreated = true;
       if (scheduleNext) {
-        await api("/crm/follow-ups", {
-          method: "POST",
-          body: {
-            ...(subject.leadId ? { leadId: subject.leadId } : { opportunityId: subject.opportunityId }),
-            assignedUserId: followUpAssignedUserId,
-            channel: followUpChannel,
-            dueAt: new Date(followUpAt).toISOString(),
-            ...(followUpNote.trim() ? { note: followUpNote.trim() } : {}),
-          },
-        });
+        try {
+          await api("/crm/follow-ups", {
+            method: "POST",
+            body: {
+              ...(subject.leadId ? { leadId: subject.leadId } : { opportunityId: subject.opportunityId }),
+              assignedUserId: followUpAssignedUserId,
+              channel: followUpChannel,
+              dueAt: new Date(followUpAt).toISOString(),
+              ...(followUpNote.trim() ? { note: followUpNote.trim() } : {}),
+            },
+          });
+        } catch (followUpError) {
+          followUpCreated = false;
+          showToast(
+            followUpError instanceof ApiError
+              ? userErrorMessage(followUpError.message, "Görüşme kaydedildi ancak sonraki takip oluşturulamadı.")
+              : "Görüşme kaydedildi ancak sonraki takip oluşturulamadı.",
+            "error",
+          );
+        }
       }
 
       setCreateOpen(false);
@@ -283,7 +294,9 @@ export default function CrmInteractionsPage() {
         durationMinutes: "",
         ownerUserId: "",
       });
-      showToast(scheduleNext ? "Görüşme kaydedildi ve sonraki takip planlandı." : "Görüşme kaydedildi.", "success");
+      if (followUpCreated) {
+        showToast(scheduleNext ? "Görüşme kaydedildi ve sonraki takip planlandı." : "Görüşme kaydedildi.", "success");
+      }
       await load();
     } catch (requestError) {
       setFormError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Görüşme kaydı oluşturulamadı.") : "Görüşme kaydı oluşturulamadı.");
@@ -322,7 +335,6 @@ export default function CrmInteractionsPage() {
 
   const now = Date.now();
   const todayKey = new Date().toDateString();
-  const completed = rows.filter((row) => row.status === "COMPLETED").length;
   const todayCount = rows.filter((row) => new Date(row.startedAt).toDateString() === todayKey).length;
   const reached = rows.filter((row) => ["REACHED", "INTERESTED", "UNDECIDED", "AWAITING_QUOTE", "APPOINTMENT_CREATED", "CALLBACK", "SALE"].includes(row.outcomeCode ?? "")).length;
   const callbacks = rows.filter((row) => row.outcomeCode === "CALLBACK" || (row.nextActionAt && new Date(row.nextActionAt).getTime() >= now)).length;
