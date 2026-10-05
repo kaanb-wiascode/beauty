@@ -1,14 +1,13 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { CardInfo } from "@/components/card-info";
-import { Alert, Button, EmptyState, GlassCard, PageHeader, Select, Spinner } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { useToast } from "@/components/toast";
-import { api, ApiError } from "@/lib/api";
-import { getCardHelp } from "@/lib/card-help";
+import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
-import { userLabel } from "@/lib/user-language";
+import { userErrorMessage, userLabel } from "@/lib/user-language";
 import { ConversationContextPanel } from "./conversation-context-panel";
+import { Modal } from "@/components/modal";
 
 type SubjectType = "CUSTOMER" | "LEAD" | "OPPORTUNITY";
 type TeamMode = "ALL" | "MINE" | "UNASSIGNED";
@@ -25,9 +24,13 @@ type Assignee = { id: string; firstName?: string | null; lastName?: string | nul
 type AssignmentResult = { assignedUserId: string | null; version: number };
 type StateResult = { status: ConversationStatus; priority: ConversationPriority; snoozedUntil: string | null; resolvedAt: string | null; closedAt: string | null; version: number };
 type ProviderStatus = { providers: Array<{ key: string; channels: Channel[]; webhookReady: boolean; challengeReady: boolean }>; supportedChannels: Channel[]; registeredChannels: Channel[] };
+type ComposeCustomer = { id: string; firstName: string; lastName: string };
+type ComposeLead = { id: string; firstName: string; lastName: string; phone: string | null; email: string | null };
+type ComposeOpportunity = { id: string; title: string; leadFirstName: string | null; leadLastName: string | null; customerFirstName: string | null; customerLastName: string | null };
+type ComposeSubject = { type: SubjectType; id: string; label: string; detail: string };
 
 const channelLabel = { EMAIL: "E-posta", SMS: "SMS", WHATSAPP: "WhatsApp" } as const;
-const subjectLabel = { CUSTOMER: "Müşteri", LEAD: "Lead", OPPORTUNITY: "Fırsat" } as const;
+const subjectLabel = { CUSTOMER: "Müşteri", LEAD: "Potansiyel Müşteri", OPPORTUNITY: "Satış Fırsatı" } as const;
 const statusLabel = { OPEN: "Açık", PENDING: "Beklemede", RESOLVED: "Çözüldü", SNOOZED: "Ertelendi", CLOSED: "Kapalı" } as const;
 const priorityLabel = { LOW: "Düşük", NORMAL: "Normal", HIGH: "Yüksek", URGENT: "Acil" } as const;
 function formatDate(value: string) { return new Intl.DateTimeFormat("tr-TR", { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value)); }
@@ -45,6 +48,16 @@ export default function CrmConversationsPage() {
   const [loading, setLoading] = useState(true); const [detailLoading, setDetailLoading] = useState(false); const [mutating, setMutating] = useState(false); const [error, setError] = useState("");
   const [filter, setFilter] = useState<"ALL" | "UNREAD" | "AWAITING">("ALL"); const [teamMode, setTeamMode] = useState<TeamMode>("ALL"); const [statusFilter, setStatusFilter] = useState<StatusFilter>("ACTIVE"); const [priorityFilter, setPriorityFilter] = useState<PriorityFilter>("ALL"); const [channelFilter, setChannelFilter] = useState<ChannelFilter>("ALL");
   const [providers, setProviders] = useState<ProviderStatus | null>(null); const [replyChannel, setReplyChannel] = useState<Channel>("WHATSAPP"); const [replySubject, setReplySubject] = useState(""); const [replyBody, setReplyBody] = useState(""); const [sending, setSending] = useState(false);
+  const [threadSearch, setThreadSearch] = useState("");
+  const [composeOpen, setComposeOpen] = useState(false);
+  const [composeLoading, setComposeLoading] = useState(false);
+  const [composeSubjects, setComposeSubjects] = useState<ComposeSubject[]>([]);
+  const [composeSubjectKey, setComposeSubjectKey] = useState("");
+  const [composeSearch, setComposeSearch] = useState("");
+  const [composeChannel, setComposeChannel] = useState<Channel>("WHATSAPP");
+  const [composeEmailSubject, setComposeEmailSubject] = useState("");
+  const [composeBody, setComposeBody] = useState("");
+  const [composeSending, setComposeSending] = useState(false);
 
   const load = useCallback(async () => { if (!canRead || !activeBranch) { setLoading(false); return; } setLoading(true); setError(""); try { const params = new URLSearchParams({ limit: "150", mode: teamMode, status: statusFilter, priority: priorityFilter, channel: channelFilter }); const [rows, people, providerRows] = await Promise.all([api<Thread[]>(`/crm/conversations?${params.toString()}`), canManage ? api<Assignee[]>("/crm/assignees") : Promise.resolve([]), api<ProviderStatus>("/crm/messages/providers")]); setThreads(rows); setAssignees(people); setProviders(providerRows); setSelected((current) => current ? rows.find((row) => row.subjectType === current.subjectType && row.subjectId === current.subjectId) ?? null : null); } catch (requestError) { setError(requestError instanceof ApiError ? requestError.message : "Konuşmalar yüklenemedi."); } finally { setLoading(false); } }, [activeBranch, canManage, canRead, channelFilter, priorityFilter, statusFilter, teamMode]);
   useEffect(() => { void load(); }, [load]);
@@ -54,7 +67,115 @@ export default function CrmConversationsPage() {
   async function setState(status: ConversationStatus, priority = selected?.conversationPriority ?? "NORMAL", snoozeMinutes?: number) { if (!selected || !canManage || mutating) return; setMutating(true); setError(""); try { const snoozedUntil = status === "SNOOZED" ? snoozeMinutes ? isoAfterMinutes(snoozeMinutes) : selected.snoozedUntil : null; const result = await api<StateResult>(`/crm/conversation-operations/states/${selected.subjectType}/${selected.subjectId}`, { method: "PATCH", body: { status, priority, snoozedUntil, version: selected.stateVersion ?? 0 } }); const patch = { conversationStatus: result.status, conversationPriority: result.priority, snoozedUntil: result.snoozedUntil, resolvedAt: result.resolvedAt, closedAt: result.closedAt, stateVersion: result.version }; setSelected((current) => current ? { ...current, ...patch } : current); setThreads((current) => current.map((item) => item.subjectType === selected.subjectType && item.subjectId === selected.subjectId ? { ...item, ...patch } : item)); showToast(status === "PENDING" ? "Konuşma beklemeye alındı." : status === "RESOLVED" ? "Konuşma çözüldü." : status === "CLOSED" ? "Konuşma kapatıldı." : status === "SNOOZED" ? "Konuşma ertelendi." : "Konuşma yeniden açıldı."); if (statusFilter !== "ACTIVE" || status === "RESOLVED" || status === "CLOSED" || status === "SNOOZED") { setSelected(null); setDetail(null); await load(); } } catch (requestError) { setError(requestError instanceof ApiError ? requestError.message : "Konuşma durumu güncellenemedi."); } finally { setMutating(false); } }
   async function sendReply() { if (!selected || !canManage || sending || !replyBody.trim()) return; if (!availableChannels.includes(replyChannel)) { setError(`${channelLabel[replyChannel]} için kayıtlı mesaj sağlayıcısı yok.`); return; } setSending(true); setError(""); try { const draft = await api<Message>("/crm/messages/drafts", { method: "POST", body: { ...subjectPayload(selected), channel: replyChannel, subject: replyChannel === "EMAIL" ? replySubject.trim() || undefined : undefined, body: replyBody.trim(), idempotencyKey: messageIdempotencyKey(selected) } }); const sent = await api<Message>(`/crm/messages/${draft.id}/send`, { method: "POST", body: { version: draft.version ?? 1 } }); setDetail((current) => current ? { ...current, messages: [...current.messages, sent] } : current); setReplyBody(""); showToast(`${channelLabel[replyChannel]} mesajı gönderildi.`); await load(); } catch (requestError) { setError(requestError instanceof ApiError ? requestError.message : "Mesaj gönderilemedi. Kanal sağlayıcısı, alıcı veya iletişim iznini kontrol edin."); } finally { setSending(false); } }
 
-  const visible = useMemo(() => threads.filter((thread) => filter === "ALL" || (filter === "UNREAD" ? thread.unreadCount > 0 : thread.awaitingResponse)), [filter, threads]); const unread = threads.reduce((sum, thread) => sum + thread.unreadCount, 0); const awaiting = threads.filter((thread) => thread.awaitingResponse).length; const unassigned = threads.filter((thread) => !thread.assignedUserId).length;
+  async function openCompose() {
+    if (!canManage || composeLoading) return;
+    if (!activeBranch) {
+      showToast("Yeni mesaj başlatmak için önce çalışma kapsamından bir şube seçin.", "error");
+      return;
+    }
+    setComposeOpen(true);
+    setComposeLoading(true);
+    setComposeSearch("");
+    setComposeSubjectKey("");
+    setComposeEmailSubject("");
+    setComposeBody("");
+    setError("");
+    try {
+      const canReadCustomers = hasPermission("customers", "read");
+      const [leadRows, opportunityRows, customerRows] = await Promise.all([
+        api<ComposeLead[]>("/crm/leads?limit=200"),
+        api<ComposeOpportunity[]>("/crm/opportunities?limit=200"),
+        canReadCustomers
+          ? api<{ data: ComposeCustomer[] }>(withQuery("/customers", { page: 1, limit: 200 }))
+          : Promise.resolve({ data: [] as ComposeCustomer[] }),
+      ]);
+      const subjects: ComposeSubject[] = [
+        ...customerRows.data.map((item) => ({
+          type: "CUSTOMER" as const,
+          id: item.id,
+          label: `${item.firstName} ${item.lastName}`.trim(),
+          detail: "Müşteri",
+        })),
+        ...leadRows.map((item) => ({
+          type: "LEAD" as const,
+          id: item.id,
+          label: `${item.firstName} ${item.lastName}`.trim(),
+          detail: [item.phone, item.email].filter(Boolean).join(" · ") || "Potansiyel Müşteri",
+        })),
+        ...opportunityRows.map((item) => ({
+          type: "OPPORTUNITY" as const,
+          id: item.id,
+          label: item.title,
+          detail: [item.customerFirstName || item.leadFirstName, item.customerLastName || item.leadLastName].filter(Boolean).join(" ") || "Satış Fırsatı",
+        })),
+      ];
+      setComposeSubjects(subjects);
+      const registered = providers?.registeredChannels ?? [];
+      setComposeChannel(registered.includes("WHATSAPP") ? "WHATSAPP" : registered[0] ?? "WHATSAPP");
+    } catch (requestError) {
+      setError(requestError instanceof ApiError ? userErrorMessage(requestError.message, "Yeni mesaj seçenekleri yüklenemedi.") : "Yeni mesaj seçenekleri yüklenemedi.");
+    } finally {
+      setComposeLoading(false);
+    }
+  }
+
+  async function sendNewMessage() {
+    if (!canManage || composeSending || !composeSubjectKey || !composeBody.trim()) return;
+    if (!availableChannels.includes(composeChannel)) {
+      setError(`${channelLabel[composeChannel]} için aktif mesaj bağlantısı bulunmuyor.`);
+      return;
+    }
+    const [type, id] = composeSubjectKey.split(":") as [SubjectType, string];
+    if (!type || !id) return;
+    setComposeSending(true);
+    setError("");
+    try {
+      const payload = type === "CUSTOMER" ? { customerId: id } : type === "LEAD" ? { leadId: id } : { opportunityId: id };
+      const draft = await api<Message>("/crm/messages/drafts", {
+        method: "POST",
+        body: {
+          ...payload,
+          channel: composeChannel,
+          subject: composeChannel === "EMAIL" ? composeEmailSubject.trim() || undefined : undefined,
+          body: composeBody.trim(),
+          idempotencyKey: `compose:${type}:${id}:${crypto.randomUUID()}`,
+        },
+      });
+      await api<Message>(`/crm/messages/${draft.id}/send`, { method: "POST", body: { version: draft.version ?? 1 } });
+      setComposeOpen(false);
+      setComposeBody("");
+      setComposeSubjectKey("");
+      showToast(`${channelLabel[composeChannel]} ile yeni konuşma başlatıldı.`, "success");
+      await load();
+    } catch (requestError) {
+      setError(requestError instanceof ApiError
+        ? userErrorMessage(requestError.message, "Mesaj gönderilemedi. İletişim bilgisi, izin veya kanal bağlantısını kontrol edin.")
+        : "Mesaj gönderilemedi. İletişim bilgisi, izin veya kanal bağlantısını kontrol edin.");
+    } finally {
+      setComposeSending(false);
+    }
+  }
+
+  const visible = useMemo(() => {
+    const query = threadSearch.trim().toLocaleLowerCase("tr-TR");
+    return threads.filter((thread) => {
+      const matchesFilter = filter === "ALL" || (filter === "UNREAD" ? thread.unreadCount > 0 : thread.awaitingResponse);
+      if (!matchesFilter) return false;
+      if (!query) return true;
+      return [thread.subjectLabel, thread.lastBody, thread.lastSubject ?? "", thread.assignedUserName ?? "", channelLabel[thread.lastChannel]]
+        .join(" ")
+        .toLocaleLowerCase("tr-TR")
+        .includes(query);
+    });
+  }, [filter, threadSearch, threads]);
+  const unread = threads.reduce((sum, thread) => sum + thread.unreadCount, 0);
+  const awaiting = threads.filter((thread) => thread.awaitingResponse).length;
+  const unassigned = threads.filter((thread) => !thread.assignedUserId).length;
+  const urgent = threads.filter((thread) => thread.conversationPriority === "URGENT" || thread.conversationPriority === "HIGH").length;
+  const composeVisibleSubjects = useMemo(() => {
+    const query = composeSearch.trim().toLocaleLowerCase("tr-TR");
+    return query ? composeSubjects.filter((item) => `${item.label} ${item.detail} ${subjectLabel[item.type]}`.toLocaleLowerCase("tr-TR").includes(query)) : composeSubjects;
+  }, [composeSearch, composeSubjects]);
   const availableChannels = providers?.registeredChannels ?? [];
 
   return <div className="space-y-6"><PageHeader title="Birleşik Mesaj Kutusu" description="WhatsApp, SMS ve e-posta konuşmalarını ekip sorumluluğu, yanıt süreleri ve müşteri bilgileriyle birlikte yönetin." action={<Button variant="secondary" onClick={() => void load()}>Yenile</Button>} />
