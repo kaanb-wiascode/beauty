@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
-import { Alert, Button, EmptyState, Field, GlassCard, Select, Spinner, TextInput } from "@/components/ui";
+import { Alert, Button, EmptyState, Field, Select, Spinner, TextArea, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { CrmMessageProviderSettings } from "@/components/crm-message-provider-settings";
 import { CrmTwilioSmsSettings } from "@/components/crm-twilio-sms-settings";
@@ -158,6 +158,10 @@ export default function CrmSettingsPage() {
   const [memberSkillInputs, setMemberSkillInputs] = useState<Record<string, string>>({});
 
   const load = useCallback(async () => {
+    if (!activeBranch) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError("");
     try {
@@ -189,7 +193,7 @@ export default function CrmSettingsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [activeBranch]);
 
   useEffect(() => { void load(); }, [load]);
 
@@ -468,7 +472,7 @@ export default function CrmSettingsPage() {
             <Link href="/crm/compliance" className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
               <h2 className="text-[13px] font-semibold text-[var(--ink)]">Müşteri İletişim İzinleri</h2>
               <p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">WhatsApp, SMS ve e-posta izinlarını müşteri bazında yönetin.</p>
-              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İzinları Yönet →</span>
+              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İzinleri Yönet →</span>
             </Link>
           </section>
         </div>
@@ -687,7 +691,27 @@ export default function CrmSettingsPage() {
                         {Object.entries(channelLabels).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
                       </Select>
                     </Field>
-                    <Button className="w-full" disabled={!canManage || saving === rule.ruleKey} onClick={() => void updateSla(rule, { ...rule.config })}>{saving === rule.ruleKey ? "Kaydediliyor…" : "Otomatik Görevi Kaydet"}</Button>
+
+                    {rule.ruleKey === "LEAD_FIRST_TOUCH" || rule.ruleKey === "OPPORTUNITY_STAGE_FOLLOW_UP" ? <div className="rounded-[13px] border border-[var(--line)] bg-[var(--surface-2)]/45 p-3">
+                      <label className="flex items-center justify-between gap-3">
+                        <div><span className="block text-[9px] font-semibold text-[var(--ink)]">Müşteriye Otomatik Mesaj Gönder</span><span className="mt-1 block text-[8px] leading-4 text-[var(--muted)]">Takip görevi oluştuğunda müşteriye seçilen kanaldan mesaj gönderilsin.</span></div>
+                        <input type="checkbox" disabled={!canManage} checked={rule.config.messageEnabled === true} onChange={(event) => setAutomationRules((current) => current.map((item) => item.ruleKey === rule.ruleKey ? { ...item, config: { ...item.config, messageEnabled: event.target.checked } } : item))} />
+                      </label>
+                      {rule.config.messageEnabled === true ? <div className="mt-3 space-y-3">
+                        <Field label="Mesaj Kanalı">
+                          <Select disabled={!canManage} value={String(rule.config.messageChannel ?? "WHATSAPP")} onChange={(event) => setAutomationConfig(rule.ruleKey, "messageChannel", event.target.value)}>
+                            <option value="WHATSAPP">WhatsApp</option>
+                            <option value="SMS">SMS</option>
+                            <option value="EMAIL">E-posta</option>
+                          </Select>
+                        </Field>
+                        <Field label="Gönderilecek Mesaj">
+                          <TextArea disabled={!canManage} rows={4} maxLength={2000} value={String(rule.config.messageTemplate ?? "")} onChange={(event) => setAutomationRules((current) => current.map((item) => item.ruleKey === rule.ruleKey ? { ...item, config: { ...item.config, messageTemplate: event.target.value } } : item))} placeholder="Müşteriye gönderilecek mesajı yazın…" />
+                        </Field>
+                      </div> : null}
+                    </div> : null}
+
+                    <Button className="w-full" disabled={!canManage || saving === rule.ruleKey} onClick={() => void updateSla(rule, { ...rule.config })}>{saving === rule.ruleKey ? "Kaydediliyor…" : "Otomatik İşleri Kaydet"}</Button>
                   </div>
                 </article>;
               })}
@@ -711,7 +735,7 @@ export default function CrmSettingsPage() {
             <Link href="/crm/compliance" className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
               <h3 className="text-[12px] font-semibold text-[var(--ink)]">Müşteri İletişim İzinleri</h3>
               <p className="mt-2 text-[9px] leading-5 text-[var(--muted)]">Belirli bir müşterinin WhatsApp, SMS ve e-posta iletişim iznini görüntüleyin veya güncelleyin.</p>
-              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İzinları Yönet →</span>
+              <span className="mt-4 inline-flex text-[9px] font-semibold text-[var(--accent)]">İzinleri Yönet →</span>
             </Link>
             <Link href="/crm/communications" className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]">
               <h3 className="text-[12px] font-semibold text-[var(--ink)]">Bağlantı Sağlığı ve Teslimat Geçmişi</h3>
