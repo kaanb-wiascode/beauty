@@ -457,6 +457,52 @@ export default function CrmFollowUpsPage() {
         : row.note || "Takip notu eklenmedi";
 
     return (
+      <article key={row.id} className="grid gap-4 border-b border-[var(--line)] px-4 py-4 transition last:border-b-0 hover:bg-[var(--surface-2)]/55 xl:grid-cols-[minmax(260px,1.15fr)_minmax(220px,1fr)_155px_185px_auto] xl:items-center">
+        <button type="button" onClick={() => setSelectedFollowUp(row)} className="min-w-0 text-left">
+          <div className="flex items-center gap-2">
+            <span className="rounded-full bg-[var(--accent-soft)] px-2 py-1 text-[8px] font-semibold text-[var(--accent)]">{subjectKind(row)}</span>
+            {overdue ? <span className="rounded-full bg-[var(--danger-soft)] px-2 py-1 text-[8px] font-semibold text-[var(--danger)]">Geciken</span> : null}
+          </div>
+          <strong className="mt-2 block truncate text-[12px] text-[var(--ink)]">{subjectFor(row)}</strong>
+          <span className="mt-1 block truncate text-[9px] text-[var(--muted)]">{subjectContext(row)}</span>
+        </button>
+
+        <button type="button" onClick={() => setSelectedFollowUp(row)} className="min-w-0 text-left">
+          <span className="block text-[8px] font-semibold text-[var(--muted)]">Takip amacı / sonuç</span>
+          <span className="mt-1.5 block line-clamp-2 text-[10px] leading-4 text-[var(--ink)]">{detail}</span>
+        </button>
+
+        <div className="min-w-0">
+          <span className="inline-flex rounded-full border border-[var(--line)] bg-[var(--surface)] px-2.5 py-1 text-[9px] font-semibold text-[var(--ink)]">{followUpChannelLabels[row.channel]}</span>
+          <span className="mt-1.5 block truncate text-[9px] text-[var(--muted)]">{ownerName}</span>
+        </div>
+
+        <div className="min-w-0">
+          <time className={overdue ? "block text-[10px] font-semibold text-[var(--danger)]" : "block text-[10px] font-semibold text-[var(--ink)]"}>{formatDateTime(row.dueAt)}</time>
+          {row.status === "OPEN"
+            ? <span className={overdue ? "mt-1 block text-[8px] font-semibold text-[var(--danger)]" : "mt-1 block text-[8px] text-[var(--muted)]"}>{dueLabel(row.dueAt, now)}</span>
+            : <span className="mt-1 block text-[8px] text-[var(--muted)]">{row.status === "COMPLETED" ? "Tamamlandı" : "İptal edildi"}</span>}
+        </div>
+
+        <div className="flex flex-wrap items-center gap-1.5 xl:justify-end">
+          {lead?.phone && row.status === "OPEN" ? <a href={\`tel:\${lead.phone}\`} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Ara</a> : null}
+          {canManage && row.status === "OPEN" ? <>
+            <Button variant="secondary" className="min-h-8 px-3 py-1 text-[9px]" onClick={() => openComplete(row)}>Tamamla</Button>
+            <Button variant="ghost" className="min-h-8 px-2 py-1 text-[9px]" onClick={() => openReschedule(row)}>Yeniden Planla</Button>
+            <details className="relative">
+              <summary className="cursor-pointer list-none rounded-[8px] px-2 py-1 text-[13px] leading-none text-[var(--muted)] hover:bg-[var(--surface-2)]">•••</summary>
+              <div className="absolute right-0 z-30 mt-1 w-[150px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[0_12px_32px_rgba(23,35,28,.14)]">
+                <Link href={subjectHref(row)} className="block rounded-[8px] px-2.5 py-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Bağlı Kaydı Aç</Link>
+                <button type="button" onClick={() => openCancel(row)} className="block w-full rounded-[8px] px-2.5 py-2 text-left text-[9px] font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)]">Takibi İptal Et</button>
+              </div>
+            </details>
+          </> : <Link href={subjectHref(row)} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-2.5 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Kaydı Aç</Link>}
+        </div>
+      </article>
+    );
+  }
+
+  return (
     <div className="space-y-5">
       <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)] xl:flex-row xl:items-end xl:justify-between">
         <div>
