@@ -403,125 +403,116 @@ export default function CrmLeadsPage() {
         </div>
       </section>
 
-      <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
-        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 sm:flex-row">
-          <TextInput
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-            placeholder="Ad, telefon veya e-posta ara"
-            aria-label="Potansiyel Müşteri Ara"
-            className="sm:max-w-sm"
-          />
+      <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row">
+            <TextInput
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              placeholder="Ad, telefon veya e-posta ara"
+              aria-label="Potansiyel müşteri ara"
+              className="sm:max-w-sm"
+            />
+            <Select
+              value={status}
+              onChange={(event) => setStatus(event.target.value as LeadStatus | "ALL")}
+              aria-label="Duruma göre filtrele"
+              className="sm:max-w-[190px]"
+            >
+              {statuses.map((item) => <option key={item} value={item}>{item === "ALL" ? "Tüm Durumlar" : leadStatusLabels[item]}</option>)}
+            </Select>
+            <Select
+              value={temperature}
+              onChange={(event) => setTemperature(event.target.value as LeadTemperature | "ALL")}
+              aria-label="Önceliğe göre filtrele"
+              className="sm:max-w-[190px]"
+            >
+              <option value="ALL">Tüm Öncelikler</option>
+              <option value="HOT">Yüksek Öncelik</option>
+              <option value="WARM">Orta Öncelik</option>
+              <option value="COLD">Normal Öncelik</option>
+            </Select>
+            <Select
+              value={ownerUserId}
+              onChange={(event) => {setOwnerUserId(event.target.value);setAssignmentFilter("ALL")}}
+              aria-label="Sorumluya göre filtrele"
+              className="sm:max-w-[210px]"
+            >
+              <option value="">Tüm Sorumlular</option>
+              {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+            </Select>
+          </div>
+
           <Select
-            value={status}
-            onChange={(event) =>
-              setStatus(event.target.value as LeadStatus | "ALL")
-            }
-            aria-label="Duruma Göre Filtrele"
-            className="sm:max-w-[210px]"
+            value={sortMode}
+            onChange={(event) => setSortMode(event.target.value as typeof sortMode)}
+            aria-label="Sıralama"
+            className="xl:max-w-[210px]"
           >
-            {statuses.map((item) => (
-              <option key={item} value={item}>
-                {item === "ALL" ? "Tüm Durumlar" : leadStatusLabels[item]}
-              </option>
-            ))}
-          </Select>
-          <Select
-            value={ownerUserId}
-            onChange={(event) => setOwnerUserId(event.target.value)}
-            aria-label="Sorumluya Göre Filtrele"
-            className="sm:max-w-[220px]"
-          >
-            <option value="">Tüm Sorumlular</option>
-            {assignees.map((person) => (
-              <option key={person.id} value={person.id}>
-                {person.firstName} {person.lastName}
-              </option>
-            ))}
+            <option value="priority">Önceliğe Göre</option>
+            <option value="score">Müşteri Puanına Göre</option>
+            <option value="value">Tahmini Değere Göre</option>
+            <option value="newest">En Yeni</option>
+            <option value="updated">En Son Güncellenen</option>
           </Select>
         </div>
+
         {loading ? (
-          <Spinner label="Potansiyel Müşteriler Yükleniyor..." />
-        ) : leads.length ? (
+          <Spinner label="Potansiyel müşteriler yükleniyor..." />
+        ) : visibleLeads.length ? (
           <div className="divide-y divide-[var(--line)]">
-            {leads.map((lead) => (
-              <div
-                key={lead.id}
-                className="grid gap-3 px-4 py-4 transition-colors hover:bg-[#f8fcfd] md:grid-cols-[minmax(220px,1.3fr)_minmax(150px,1fr)_130px_120px_auto] md:items-center"
-              >
-                <Link
-                  href={`/crm/leads/${lead.id}`}
-                  className="flex min-w-0 items-center gap-3"
-                >
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#EAF5FB] text-[11px] font-bold text-[#1674BD]">
-                    {initials(lead)}
-                  </span>
-                  <span className="min-w-0">
-                    <strong className="block truncate text-[13px]">
-                      {lead.firstName} {lead.lastName}
-                    </strong>
-                    <small className="mt-1 block truncate text-[10px] text-[var(--muted)]">
-                      {lead.phone || lead.email}
-                    </small>
-                  </span>
-                </Link>
-                <span className="min-w-0 text-[11px] text-[var(--muted)]">
-                  <span className="block truncate">
-                    {leadSourceLabels[lead.source] ?? lead.source}
-                  </span>
-                  <small className="mt-1 block truncate text-[9px] text-[var(--muted-soft)]">
-                    {lead.ownerUserId
-                      ? (assigneeNames.get(lead.ownerUserId) ??
-                        "Atanmış Kullanıcı")
-                      : "Sorumlu Yok"}
-                  </small>
-                </span>
-                <span className="w-fit rounded-full bg-[#EAF5FB] px-2.5 py-1 text-[10px] font-semibold text-[#1674BD]">
-                  {leadStatusLabels[lead.status]}
-                </span>
-                <time className="text-[10px] text-[var(--muted)]">
-                  {formatDate(lead.updatedAt)}
-                </time>
-                {canManage &&
-                ["NEW", "CONTACTED"].includes(lead.status) &&
-                !lead.opportunityId ? (
-                  <Button
-                    variant="secondary"
-                    className="min-h-8 px-3 py-1.5 text-[11px]"
-                    onClick={() => {
-                      if (
-                        !requireActiveBranch(
-                          "Potansiyel Müşteriyi Nitelendirmek İçin Önce Çalışma Kapsamından Bir Şube Seçin.",
-                        )
-                      ) {
-                        return;
-                      }
-                      setFormError("");
-                      setOpportunityForm({
-                        ...emptyOpportunity,
-                        title: `${lead.firstName} ${lead.lastName} Satış Fırsatı`,
-                      });
-                      setQualifying(lead);
-                    }}
-                  >
-                    Nitelendir
-                  </Button>
-                ) : (
-                  <Link
-                    href={`/crm/leads/${lead.id}`}
-                    className="text-[11px] font-semibold text-[#1674BD]"
-                  >
-                    Detay →
+            {visibleLeads.map((lead) => {
+              const priority=lead.leadTemperature==="HOT"?"Yüksek Öncelik":lead.leadTemperature==="WARM"?"Orta Öncelik":"Normal Öncelik";
+              const priorityClass=lead.leadTemperature==="HOT"?"bg-[var(--danger-soft)] text-[var(--danger)]":lead.leadTemperature==="WARM"?"bg-[var(--warning-soft)] text-[var(--warning)]":"bg-[var(--surface-2)] text-[var(--muted)]";
+              const score=Number(lead.leadScore??0);
+              return <article key={lead.id} className="px-4 py-4 transition-colors hover:bg-[var(--surface-2)]">
+                <div className="grid gap-4 xl:grid-cols-[minmax(240px,1.25fr)_minmax(180px,.8fr)_minmax(200px,.95fr)_minmax(170px,.75fr)_auto] xl:items-center">
+                  <Link href={`/crm/leads/${lead.id}`} className="flex min-w-0 items-center gap-3">
+                    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-bold text-[var(--accent)]">{initials(lead)}</span>
+                    <span className="min-w-0">
+                      <strong className="block truncate text-[13px] text-[var(--ink)]">{lead.firstName} {lead.lastName}</strong>
+                      <small className="mt-1 block truncate text-[10px] text-[var(--muted)]">{lead.phone||lead.email||"İletişim bilgisi yok"}</small>
+                    </span>
                   </Link>
-                )}
-              </div>
-            ))}
+
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${priorityClass}`}>{priority}</span>
+                      <span className="rounded-full bg-[var(--surface-2)] px-2 py-1 text-[9px] font-semibold text-[var(--ink)]">{score}/100</span>
+                    </div>
+                    <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:`${Math.max(score?4:0,Math.min(100,score))}%`}}/></div>
+                  </div>
+
+                  <div className="min-w-0">
+                    <span className="block truncate text-[10px] font-medium text-[var(--ink)]">{leadSourceLabels[lead.source]??lead.source}</span>
+                    <span className={`mt-1 block truncate text-[9px] ${lead.ownerUserId?"text-[var(--muted)]":"font-semibold text-[var(--warning)]"}`}>{lead.ownerUserId?(assigneeNames.get(lead.ownerUserId)??"Atanmış kullanıcı"):"Sorumlu atanmamış"}</span>
+                    {lead.estimatedValue!=null?<span className="mt-1 block text-[9px] text-[var(--muted)]">Tahmini satış: {Number(lead.estimatedValue).toLocaleString("tr-TR")} ₺</span>:null}
+                  </div>
+
+                  <div className="min-w-0">
+                    <span className="w-fit rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">{leadStatusLabels[lead.status]}</span>
+                    <time className="mt-2 block text-[9px] text-[var(--muted)]">Son güncelleme: {formatDate(lead.updatedAt)}</time>
+                  </div>
+
+                  <div className="flex flex-wrap gap-2 xl:justify-end">
+                    <Link href={`/crm/leads/${lead.id}`} className="inline-flex min-h-8 items-center rounded-[9px] border border-[var(--line)] px-3 text-[10px] font-semibold text-[var(--ink)] transition hover:bg-[var(--surface-2)]">Detay</Link>
+                    {canManage&&["NEW","CONTACTED"].includes(lead.status)&&!lead.opportunityId?<Button
+                      variant="secondary"
+                      className="min-h-8 px-3 py-1.5 text-[10px]"
+                      onClick={() => {
+                        if (!requireActiveBranch("Potansiyel müşteriyi satış fırsatına dönüştürmek için önce çalışma kapsamından bir şube seçin.")) return;
+                        setFormError("");
+                        setOpportunityForm({...emptyOpportunity,title:`${lead.firstName} ${lead.lastName} Satış Fırsatı`});
+                        setQualifying(lead);
+                      }}
+                    >Satış Fırsatına Dönüştür</Button>:null}
+                  </div>
+                </div>
+              </article>;
+            })}
           </div>
         ) : (
-          <EmptyState
-            title="Potansiyel Müşteri Bulunamadı"
-            description="Arama ve filtreleri değiştirin veya yeni bir potansiyel müşteri oluşturun."
-          />
+          <EmptyState title="Potansiyel müşteri bulunamadı" description="Arama ve filtreleri değiştirin veya yeni bir potansiyel müşteri oluşturun." />
         )}
       </section>
 
@@ -795,7 +786,7 @@ export default function CrmLeadsPage() {
         open={Boolean(qualifying)}
         onClose={() => setQualifying(null)}
         title="Satış Fırsatı Oluştur"
-        description="Potansiyel Müşteriyi Nitelikli Hale Getirip Satış Sürecine Ekleyin."
+        description="Müşteriyi satış fırsatına dönüştürerek satış sürecine ekleyin."
       >
         <form onSubmit={qualifyLead} className="space-y-4">
           {formError ? <Alert>{formError}</Alert> : null}
@@ -886,4 +877,13 @@ export default function CrmLeadsPage() {
       </Modal>
     </div>
   );
+}
+
+
+function LeadSummaryCard({label,value,detail,active,onClick,tone="neutral"}:{label:string;value:number;detail:string;active:boolean;onClick:()=>void;tone?:"neutral"|"warning"}){
+  return <button type="button" onClick={onClick} className={`rounded-[18px] border bg-[var(--surface)] p-4 text-left shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 ${active?"border-[var(--accent)] ring-2 ring-[var(--accent-soft)]":"border-[var(--line)] hover:border-[var(--line-strong)]"}`}>
+    <div className="flex items-center justify-between gap-2"><span className="text-[10px] font-medium text-[var(--muted)]">{label}</span><span className={`h-2 w-2 rounded-full ${tone==="warning"?"bg-[var(--warning)]":"bg-[var(--accent)]"}`}/></div>
+    <strong className="mt-3 block text-[24px] leading-none tracking-[-.04em] text-[var(--ink)]">{value}</strong>
+    <span className="mt-2 block text-[9px] leading-4 text-[var(--muted)]">{detail}</span>
+  </button>;
 }
