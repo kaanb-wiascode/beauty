@@ -5,7 +5,6 @@ import {
   FormEvent,
   useCallback,
   useEffect,
-  useMemo,
   useState,
 } from "react";
 
@@ -23,7 +22,6 @@ import {
   Button,
   EmptyState,
   Field,
-  PageHeader,
   Pagination,
   Spinner,
   TableWrap,
@@ -253,6 +251,7 @@ export default function CustomersPage() {
     "customers",
     "delete",
   );
+  const canManageCrm = hasPermission("crm", "manage");
   const { showToast } = useToast();
 
   const [customers, setCustomers] = useState<CustomerListItem[]>([]);
@@ -589,50 +588,52 @@ export default function CustomersPage() {
     }
   }
 
-
   return (
-    <div className="mx-auto w-full max-w-[1320px] space-y-6 pb-10">
-      <PageHeader
-        title="Müşteriler"
-        description="Müşteri ilişkilerinizi ve müşteri geçmişinizi yönetin."
-        action={
-          <Button
-            onClick={openCreate}
-            disabled={!canCreateCustomer}
-          >
-            + Yeni müşteri
-          </Button>
-        }
-      />
+    <div className="mx-auto w-full max-w-[1420px] space-y-5 pb-10">
+      <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[12px] font-medium text-[var(--muted)]">Müşteri yönetimi</p>
+            <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Müşteri Merkezi</h1>
+            <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">
+              Müşterileri yalnızca iletişim bilgileriyle değil; ziyaret, randevu, harcama ve takip durumlarıyla birlikte yönetin.
+            </p>
+          </div>
+          <Button onClick={openCreate} disabled={!canCreateCustomer}>Yeni Müşteri</Button>
+        </div>
+      </header>
 
-      {error ? (
-        <Alert onClose={() => setError("")}>{error}</Alert>
-      ) : null}
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid grid-cols-2 gap-3 xl:grid-cols-4">
-        <MetricCard
-          label="Toplam müşteri"
-          value={totalCustomers}
-          detail="kayıtlı müşteri"
-          tone="neutral"
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <CustomerSummaryCard
+          label="Toplam Müşteri"
+          value={summary.totalCustomers}
+          detail="Aktif çalışma kapsamındaki tüm kayıtlar"
+          active={segment === "ALL"}
+          onClick={() => handleSegment("ALL")}
         />
-        <MetricCard
-          label="Yeni müşteri"
-          value={newThisPage}
-          detail="son 7 gün · bu sayfa"
-          tone="blue"
+        <CustomerSummaryCard
+          label="Son 7 Günde Eklenen"
+          value={summary.newCustomersLast7Days}
+          detail="Yeni oluşturulan müşteri kayıtları"
+          active={segment === "RECENT"}
+          onClick={() => handleSegment("RECENT")}
         />
-        <MetricCard
-          label="Telefon bilgisi"
-          value={withPhone}
-          detail="bu sayfadaki kayıtlar"
-          tone="green"
+        <CustomerSummaryCard
+          label="Yaklaşan Randevusu Var"
+          value={summary.customersWithUpcomingAppointments}
+          detail="Planlanmış veya onaylanmış randevusu bulunanlar"
+          active={segment === "UPCOMING"}
+          onClick={() => handleSegment("UPCOMING")}
         />
-        <MetricCard
-          label="E-posta bilgisi"
-          value={withEmail}
-          detail="bu sayfadaki kayıtlar"
-          tone="peach"
+        <CustomerSummaryCard
+          label="Dikkat Gerektiren"
+          value={summary.customersNeedingAttention}
+          detail="Açık bakım, şikâyet veya takip kaydı bulunanlar"
+          active={segment === "NEEDS_ATTENTION"}
+          onClick={() => handleSegment("NEEDS_ATTENTION")}
+          alert={summary.customersNeedingAttention > 0}
         />
       </section>
 
@@ -641,124 +642,138 @@ export default function CustomersPage() {
           search={
             <SearchField
               value={search}
-              onChange={(event) =>
-                handleSearch(event.target.value)
-              }
+              onChange={(event) => handleSearch(event.target.value)}
               onKeyDown={(event) => {
                 if (event.key === "Escape") {
                   handleSearch("");
                   event.currentTarget.blur();
                 }
               }}
-              placeholder="Müşteri, telefon veya e-posta ara..."
-              aria-label="Müşteri, telefon veya e-posta ara"
+              placeholder="Ad, telefon veya e-posta ile ara…"
+              aria-label="Müşteri ara"
             />
           }
           filters={
             <>
-              <FilterChip
-                active={listFilter === "all"}
-                onClick={() => setListFilter("all")}
-                count={customers.length}
-              >
-                Tümü
-              </FilterChip>
-              <FilterChip
-                active={listFilter === "recent"}
-                onClick={() => setListFilter("recent")}
-                count={newThisPage}
-              >
-                Son eklenen
-              </FilterChip>
+              <FilterChip active={segment === "ALL"} onClick={() => handleSegment("ALL")} count={summary.totalCustomers}>Tümü</FilterChip>
+              <FilterChip active={segment === "RECENT"} onClick={() => handleSegment("RECENT")} count={summary.newCustomersLast7Days}>Son 7 Gün</FilterChip>
+              <FilterChip active={segment === "UPCOMING"} onClick={() => handleSegment("UPCOMING")} count={summary.customersWithUpcomingAppointments}>Yaklaşan Randevu</FilterChip>
+              <FilterChip active={segment === "NEEDS_ATTENTION"} onClick={() => handleSegment("NEEDS_ATTENTION")} count={summary.customersNeedingAttention}>Dikkat Gerektiren</FilterChip>
             </>
           }
         />
 
         {loading ? (
-          <Spinner label="Müşteriler yükleniyor..." />
-        ) : recentCustomers.length === 0 ? (
+          <Spinner label="Müşteriler hazırlanıyor..." />
+        ) : customers.length === 0 ? (
           <EmptyState
-            title={
-              search.trim()
-                ? "Eşleşen müşteri yok"
-                : "Henüz müşteri yok"
-            }
+            title={search.trim() ? "Eşleşen müşteri bulunamadı" : segment === "ALL" ? "Henüz müşteri bulunmuyor" : "Bu grupta müşteri bulunmuyor"}
             description={
               search.trim()
-                ? "Arama kriterinizi değiştirerek tekrar deneyin."
-                : "Yeni müşteri ekleyerek başlayın."
+                ? "Arama ifadenizi değiştirerek tekrar deneyin."
+                : segment === "RECENT"
+                  ? "Son 7 günde yeni müşteri kaydı oluşturulmamış."
+                  : segment === "UPCOMING"
+                    ? "Yaklaşan randevusu bulunan müşteri yok."
+                    : segment === "NEEDS_ATTENTION"
+                      ? "Açık bakım veya takip kaydı bulunan müşteri yok."
+                      : "Yeni müşteri ekleyerek başlayın."
             }
+            action={canCreateCustomer && segment === "ALL" ? <Button onClick={openCreate}>Yeni Müşteri Ekle</Button> : undefined}
           />
         ) : (
           <>
-            <div className="hidden md:block">
+            <div className="hidden lg:block">
               <TableWrap>
                 <colgroup>
-                  <col className="w-[31%]" />
-                  <col className="w-[27%]" />
-                  <col className="w-[16%]" />
+                  <col className="w-[26%]" />
+                  <col className="w-[20%]" />
+                  <col className="w-[13%]" />
+                  <col className="w-[13%]" />
                   <col className="w-[15%]" />
-                  <col className="w-[11%]" />
+                  <col className="w-[13%]" />
                 </colgroup>
-                <thead className="border-b border-[var(--line)] bg-[var(--surface-2)]/35">
+                <thead className="border-b border-[var(--line)] bg-[var(--surface-2)]/45">
                   <tr>
                     <Th>Müşteri</Th>
-                    <Th>İletişim</Th>
-                    <Th>Kaynak</Th>
-                    <Th>Kayıt</Th>
-                    <Th>
-                      <span className="block text-right">
-                        İşlem
-                      </span>
-                    </Th>
+                    <Th>Ziyaret & Randevu</Th>
+                    <Th>Randevu Geçmişi</Th>
+                    <Th>Müşteri Değeri</Th>
+                    <Th>Dikkat</Th>
+                    <Th><span className="block text-right">İşlemler</span></Th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {recentCustomers.map((customer) => (
-                    <tr
-                      key={customer.id}
-                      className="group transition-colors hover:bg-black/[0.018]"
-                    >
+                  {customers.map((customer) => (
+                    <tr key={customer.id} className="group transition-colors hover:bg-[var(--surface-2)]/35">
                       <Td label="Müşteri">
-                        <Link
-                          href={`/customers/${customer.id}`}
-                          className="flex min-w-0 items-center gap-3.5"
-                        >
+                        <Link href={"/customers/" + customer.id} className="flex min-w-0 items-start gap-3">
                           <CustomerAvatar customer={customer} />
                           <span className="min-w-0">
-                            <span className="block truncate text-[13px] font-semibold text-[var(--ink)]">
-                              {customer.firstName}{" "}
-                              {customer.lastName}
+                            <span className="block truncate text-[12px] font-semibold text-[var(--ink)]">
+                              {customer.firstName} {customer.lastName}
                             </span>
-                            <span className="mt-1 block truncate text-[11px] text-[var(--muted)]">
-                              Müşteri profili
+                            <span className="mt-1 block truncate text-[9px] text-[var(--muted)]">
+                              {customer.phone ?? customer.email ?? "İletişim bilgisi yok"}
+                            </span>
+                            <span className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                              <SourceBadge customer={customer} />
+                              <span className="text-[8px] text-[var(--muted-soft)]">Kayıt: {formatDate(customer.createdAt)}</span>
                             </span>
                           </span>
                         </Link>
                       </Td>
-                      <Td label="İletişim">
-                        <div className="min-w-0">
-                          <p className="truncate text-[12px] text-[var(--ink)]">
-                            {customer.phone ?? "Telefon yok"}
-                          </p>
-                          <p className="mt-1 truncate text-[11px] text-[var(--muted)]">
-                            {customer.email ?? "E-posta yok"}
-                          </p>
+
+                      <Td label="Ziyaret & Randevu">
+                        <div className="space-y-1.5">
+                          <div>
+                            <span className="block text-[8px] text-[var(--muted)]">Yaklaşan</span>
+                            <strong className={customer.summary.nextAppointmentAt ? "mt-0.5 block text-[10px] font-semibold text-[var(--accent)]" : "mt-0.5 block text-[10px] font-medium text-[var(--muted-soft)]"}>
+                              {customer.summary.nextAppointmentAt ? formatDateTime(customer.summary.nextAppointmentAt) : "Planlı randevu yok"}
+                            </strong>
+                          </div>
+                          <div>
+                            <span className="block text-[8px] text-[var(--muted)]">Son tamamlanan ziyaret</span>
+                            <span className="mt-0.5 block text-[9px] text-[var(--ink)]">
+                              {customer.summary.lastVisitAt ? formatDate(customer.summary.lastVisitAt) : "Henüz tamamlanmış ziyaret yok"}
+                            </span>
+                          </div>
                         </div>
                       </Td>
-                      <Td label="Kaynak">
-                        <SourceBadge customer={customer} />
-                      </Td>
-                      <Td label="Kayıt">
-                        <span className="text-[11px] text-[var(--muted)]">
-                          {formatDate(customer.createdAt)}
+
+                      <Td label="Randevu Geçmişi">
+                        <strong className="block text-[12px] text-[var(--ink)]">{customer.summary.completedAppointments}</strong>
+                        <span className="mt-1 block text-[8px] text-[var(--muted)]">
+                          {customer.summary.totalAppointments} toplam randevudan tamamlandı
                         </span>
                       </Td>
-                      <Td label="İşlem">
+
+                      <Td label="Müşteri Değeri">
+                        <strong className="block text-[12px] font-semibold text-[var(--ink)]">{formatMoney(customer.summary.netSpent)}</strong>
+                        <span className="mt-1 block text-[8px] text-[var(--muted)]">Net tahsilat</span>
+                      </Td>
+
+                      <Td label="Dikkat">
+                        {customer.summary.openCareEventCount ? (
+                          <div>
+                            <span className={customer.summary.criticalCareEventCount ? "inline-flex rounded-full bg-[var(--danger-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--danger)]" : "inline-flex rounded-full bg-[var(--warning-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--warning)]"}>
+                              {customer.summary.openCareEventCount} açık kayıt
+                            </span>
+                            {customer.summary.nextCareFollowUpAt ? (
+                              <span className="mt-1.5 block text-[8px] text-[var(--muted)]">Takip: {formatDateTime(customer.summary.nextCareFollowUpAt)}</span>
+                            ) : null}
+                          </div>
+                        ) : (
+                          <span className="inline-flex rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[8px] font-semibold text-[var(--accent)]">Açık kayıt yok</span>
+                        )}
+                      </Td>
+
+                      <Td label="İşlemler">
                         <CustomerRowActions
                           customer={customer}
                           canUpdate={canUpdateCustomer}
                           canDelete={canDeleteCustomer}
+                          canManageCrm={canManageCrm}
                           onEdit={openEdit}
                           onDelete={setPendingDelete}
                         />
@@ -769,39 +784,38 @@ export default function CustomersPage() {
               </TableWrap>
             </div>
 
-            <div className="divide-y divide-[var(--line)] md:hidden">
-              {recentCustomers.map((customer) => (
-                <article
-                  key={customer.id}
-                  className="px-4 py-4"
-                >
+            <div className="divide-y divide-[var(--line)] lg:hidden">
+              {customers.map((customer) => (
+                <article key={customer.id} className="p-4">
                   <div className="flex items-start gap-3">
                     <CustomerAvatar customer={customer} />
-
                     <div className="min-w-0 flex-1">
-                      <Link
-                        href={`/customers/${customer.id}`}
-                        className="block truncate text-[13px] font-semibold text-[var(--ink)]"
-                      >
+                      <Link href={"/customers/" + customer.id} className="block truncate text-[13px] font-semibold text-[var(--ink)]">
                         {customer.firstName} {customer.lastName}
                       </Link>
-                      <p className="mt-1 truncate text-[11px] text-[var(--muted)]">
-                        {customer.phone ?? customer.email ?? "İletişim bilgisi yok"}
-                      </p>
+                      <p className="mt-1 truncate text-[10px] text-[var(--muted)]">{customer.phone ?? customer.email ?? "İletişim bilgisi yok"}</p>
+                      <div className="mt-2"><SourceBadge customer={customer} /></div>
                     </div>
-
-                    <SourceBadge customer={customer} />
+                    {customer.summary.openCareEventCount ? (
+                      <span className={customer.summary.criticalCareEventCount ? "rounded-full bg-[var(--danger-soft)] px-2 py-1 text-[8px] font-semibold text-[var(--danger)]" : "rounded-full bg-[var(--warning-soft)] px-2 py-1 text-[8px] font-semibold text-[var(--warning)]"}>
+                        {customer.summary.openCareEventCount} açık
+                      </span>
+                    ) : null}
                   </div>
 
-                  <div className="mt-3 flex items-center justify-between gap-3 border-t border-[var(--line)] pt-3">
-                    <span className="text-[10px] text-[var(--muted-soft)]">
-                      {formatDate(customer.createdAt)}
-                    </span>
+                  <div className="mt-4 grid grid-cols-2 gap-2">
+                    <CustomerMiniStat label="Yaklaşan Randevu" value={customer.summary.nextAppointmentAt ? formatDateTime(customer.summary.nextAppointmentAt) : "Yok"} />
+                    <CustomerMiniStat label="Net Tahsilat" value={formatMoney(customer.summary.netSpent)} />
+                    <CustomerMiniStat label="Son Ziyaret" value={customer.summary.lastVisitAt ? formatDate(customer.summary.lastVisitAt) : "Yok"} />
+                    <CustomerMiniStat label="Tamamlanan / Toplam" value={String(customer.summary.completedAppointments) + " / " + String(customer.summary.totalAppointments)} />
+                  </div>
 
+                  <div className="mt-3 border-t border-[var(--line)] pt-3">
                     <CustomerRowActions
                       customer={customer}
                       canUpdate={canUpdateCustomer}
                       canDelete={canDeleteCustomer}
+                      canManageCrm={canManageCrm}
                       onEdit={openEdit}
                       onDelete={setPendingDelete}
                     />
@@ -813,20 +827,16 @@ export default function CustomersPage() {
         )}
 
         <DataViewMeta>
+          <span>Bu görünümde {customers.length} kayıt</span>
           <span>
-            Bu sayfada {recentCustomers.length} kayıt
-          </span>
-          <span>
-            Toplam {totalCustomers.toLocaleString("tr-TR")} müşteri
+            {search.trim() || segment !== "ALL"
+              ? "Filtre sonucu " + totalCustomers.toLocaleString("tr-TR") + " müşteri · Toplam " + summary.totalCustomers.toLocaleString("tr-TR")
+              : "Toplam " + summary.totalCustomers.toLocaleString("tr-TR") + " müşteri"}
           </span>
         </DataViewMeta>
       </DataView>
 
-      <Pagination
-        page={page}
-        totalPages={totalPages}
-        onPageChange={setPage}
-      />
+      <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
 
       <CustomerModal
         open={modalOpen}
@@ -848,13 +858,13 @@ export default function CustomersPage() {
 
       <ConfirmDialog
         open={Boolean(pendingDelete)}
-        title="Müşteri silinsin mi?"
+        title="Müşteri Kaydı Silinsin mi?"
         description={
           pendingDelete
-            ? `${pendingDelete.firstName} ${pendingDelete.lastName} kaydı kalıcı olarak silinecek.`
+            ? pendingDelete.firstName + " " + pendingDelete.lastName + " kaydı kalıcı olarak silinecek. Randevu, ödeme veya bağlantılı kayıtlar nedeniyle silme işlemi engellenebilir."
             : ""
         }
-        confirmLabel="Sil"
+        confirmLabel="Müşteriyi Sil"
         onCancel={() => setPendingDelete(null)}
         onConfirm={onDelete}
         loading={saving}
@@ -863,29 +873,62 @@ export default function CustomersPage() {
   );
 }
 
-function CustomerAvatar({
-  customer,
-}: {
-  customer: Customer;
-}) {
+function CustomerAvatar({ customer }: { customer: Customer }) {
   return (
-    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-[12px] bg-[var(--accent-soft)] text-[11px] font-semibold text-[var(--accent)]">
       {initials(customer)}
     </span>
   );
 }
 
-function SourceBadge({
-  customer,
-}: {
-  customer: Customer;
-}) {
+function SourceBadge({ customer }: { customer: Customer }) {
   const source = (customer as CustomerView).customerSource;
-
   return (
-    <span className="inline-flex rounded-full bg-[var(--surface-2)] px-2.5 py-1 text-[10px] font-medium text-[var(--muted)]">
-      {source ? sourceLabels[source] : "—"}
+    <span className="inline-flex rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[8px] font-medium text-[var(--muted)]">
+      {source ? sourceLabels[source] : "Kaynak belirtilmedi"}
     </span>
+  );
+}
+
+function CustomerSummaryCard({
+  label,
+  value,
+  detail,
+  active,
+  alert,
+  onClick,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+  active: boolean;
+  alert?: boolean;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={active
+        ? "rounded-[18px] border border-[var(--accent)] bg-[var(--accent-soft)] p-4 text-left shadow-[var(--shadow-soft)]"
+        : "rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]"}
+    >
+      <div className="flex items-start justify-between gap-3">
+        <span className="text-[9px] font-medium text-[var(--muted)]">{label}</span>
+        {alert && value > 0 ? <span className="rounded-full bg-[var(--danger-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--danger)]">Kontrol</span> : null}
+      </div>
+      <strong className="mt-3 block text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value.toLocaleString("tr-TR")}</strong>
+      <span className="mt-2 block text-[8px] leading-4 text-[var(--muted)]">{detail}</span>
+    </button>
+  );
+}
+
+function CustomerMiniStat({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[12px] bg-[var(--surface-2)] p-3">
+      <span className="block text-[7px] text-[var(--muted)]">{label}</span>
+      <strong className="mt-1 block text-[9px] font-semibold text-[var(--ink)]">{value}</strong>
+    </div>
   );
 }
 
@@ -893,74 +936,52 @@ function CustomerRowActions({
   customer,
   canUpdate,
   canDelete,
+  canManageCrm,
   onEdit,
   onDelete,
 }: {
-  customer: Customer;
+  customer: CustomerListItem;
   canUpdate: boolean;
   canDelete: boolean;
+  canManageCrm: boolean;
   onEdit: (customer: Customer) => void;
   onDelete: (customer: Customer) => void;
 }) {
+  const label = encodeURIComponent(customer.firstName + " " + customer.lastName);
   return (
-    <div className="flex justify-end gap-1.5">
-      <button
-        type="button"
-        onClick={() => onEdit(customer)}
-        disabled={!canUpdate}
-        className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-[var(--muted)] transition hover:bg-[var(--surface-2)] hover:text-[var(--ink)] disabled:opacity-40"
+    <div className="flex flex-wrap justify-end gap-1.5">
+      <Link
+        href={"/customers/" + customer.id}
+        className="inline-flex min-h-8 items-center justify-center rounded-[9px] border border-[var(--line)] px-2.5 text-[8px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
       >
-        Düzenle
-      </button>
-      <button
-        type="button"
-        onClick={() => onDelete(customer)}
-        disabled={!canDelete}
-        className="rounded-lg px-2.5 py-1.5 text-[11px] font-medium text-[var(--danger)] transition hover:bg-[var(--danger-soft)] disabled:opacity-40"
+        Profili Aç
+      </Link>
+      <Link
+        href={"/appointments?customerId=" + customer.id}
+        className="inline-flex min-h-8 items-center justify-center rounded-[9px] border border-[var(--line)] px-2.5 text-[8px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]"
       >
-        Sil
-      </button>
-    </div>
-  );
-}
-
-function MetricCard({
-  label,
-  value,
-  detail,
-  tone,
-}: {
-  label: string;
-  value: number;
-  detail: string;
-  tone: "neutral" | "blue" | "green" | "peach";
-}) {
-  const icon: Record<typeof tone, string> = {
-    neutral: "◌",
-    blue: "✦",
-    green: "✓",
-    peach: "@",
-  };
-
-  return (
-    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-      <div className="flex items-center justify-between gap-3">
-        <span className="text-[11px] font-medium text-[var(--muted)]">
-          {label}
-        </span>
-        <span className="flex shrink-0 items-center gap-2">
-          <span className="text-[13px] text-[var(--muted-soft)]">
-            {icon[tone]}
-          </span>
-          <CardInfo help={getCardHelp(label, detail)} />
-        </span>
-      </div>
-      <div className="mt-2 text-[24px] font-semibold tracking-[-.03em] text-[var(--ink)]">
-        {value}
-      </div>
-      <p className="mt-1 text-[10px] text-[var(--muted-soft)]">
-        {detail}
-      </p>
+        Randevu
+      </Link>
+      <details className="relative">
+        <summary className="flex min-h-8 cursor-pointer list-none items-center justify-center rounded-[9px] border border-[var(--line)] px-2.5 text-[10px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">•••</summary>
+        <div className="absolute right-0 z-40 mt-1 w-[190px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[0_18px_48px_rgba(23,35,28,.14)]">
+          {canManageCrm ? (
+            <Link href={"/crm/interactions?new=1&customerId=" + customer.id + "&label=" + label} className="block rounded-[8px] px-3 py-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">
+              Görüşme Kaydet
+            </Link>
+          ) : null}
+          {canUpdate ? (
+            <button type="button" onClick={() => onEdit(customer)} className="block w-full rounded-[8px] px-3 py-2 text-left text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">
+              Müşteriyi Düzenle
+            </button>
+          ) : null}
+          {canDelete ? (
+            <button type="button" onClick={() => onDelete(customer)} className="block w-full rounded-[8px] px-3 py-2 text-left text-[9px] font-medium text-[var(--danger)] hover:bg-[var(--danger-soft)]">
+              Müşteriyi Sil
+            </button>
+          ) : null}
+        </div>
+      </details>
     </div>
   );
 }
