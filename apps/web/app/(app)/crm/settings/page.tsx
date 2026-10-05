@@ -1,11 +1,16 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { CardInfo } from "@/components/card-info";
-import { Alert, Button, Field, GlassCard, PageHeader, Select, Spinner, TextInput } from "@/components/ui";
+import Link from "next/link";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Alert, Button, EmptyState, Field, GlassCard, Select, Spinner, TextInput } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
-import { getCardHelp } from "@/lib/card-help";
+import { CrmMessageProviderSettings } from "@/components/crm-message-provider-settings";
+import { CrmTwilioSmsSettings } from "@/components/crm-twilio-sms-settings";
+import { CrmResendEmailSettings } from "@/components/crm-resend-email-settings";
+import { hasActiveBranch, hasPermission } from "@/lib/auth";
+import { userErrorMessage } from "@/lib/user-language";
 
+type SettingsTab = "OVERVIEW" | "TEAM_ACCESS" | "ASSIGNMENT" | "FOLLOW_UP" | "CHANNELS" | "SURVEYORS";
 type CrmDataScope = "SELF" | "TEAM" | "BRANCH" | "COMPANY" | "ALL";
 type AccessPolicy = {
   roleId: string;
@@ -88,20 +93,47 @@ const assignmentModeLabels: Record<AssignmentMode, string> = {
 
 const slaLabels: Record<string, { title: string; description: string }> = {
   LEAD_FIRST_RESPONSE_SLA: {
-    title: "İlk Dönüş Süresi",
-    description: "Yeni potansiyel müşteriye ilk yanıt verilmezse eskalasyon oluşturur.",
+    title: "İlk Müşteri Dönüş Süresi",
+    description: "Yeni potansiyel müşteriye belirtilen süre içinde dönüş yapılmazsa sistem uyarı oluşturur.",
   },
   FOLLOW_UP_OVERDUE_ESCALATION: {
-    title: "Geciken Takip Eskalasyonu",
-    description: "Takip süresi aşıldığında ekip lideri veya sorumlu için uyarı ve yeni aksiyon oluşturur.",
+    title: "Geciken Takip Uyarısı",
+    description: "Planlanan takip geciktiğinde sorumlu kullanıcı için uyarı ve yeni aksiyon oluşturur.",
   },
   OPPORTUNITY_STALE_ESCALATION: {
-    title: "Hareketsiz Satış Fırsatı",
-    description: "Belirlenen gün boyunca güncellenmeyen açık satış fırsatlarını eskale eder.",
+    title: "Hareketsiz Satış Fırsatı Uyarısı",
+    description: "Satış fırsatı belirtilen gün boyunca güncellenmezse sistem uyarı oluşturur.",
   },
 };
 
+const taskAutomationLabels: Record<string, { title: string; description: string }> = {
+  LEAD_FIRST_TOUCH: {
+    title: "Yeni Müşteriye İlk Takibi Otomatik Planla",
+    description: "Yeni potansiyel müşteri geldiğinde sorumlu kullanıcıya otomatik takip görevi oluşturur.",
+  },
+  OPPORTUNITY_STAGE_FOLLOW_UP: {
+    title: "Satış Aşaması Değişince Takip Planla",
+    description: "Satış fırsatı yeni bir aşamaya geçtiğinde otomatik takip görevi oluşturur.",
+  },
+  STALE_OPPORTUNITY_FOLLOW_UP: {
+    title: "Uzun Süre Bekleyen Fırsata Takip Oluştur",
+    description: "Uzun süredir hareket görmeyen açık satış fırsatları için otomatik görev oluşturur.",
+  },
+};
+
+const channelLabels: Record<string, string> = {
+  CALL: "Telefon",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  IN_PERSON: "Yüz yüze",
+  OTHER: "Diğer",
+};
+
 export default function CrmSettingsPage() {
+  const activeBranch = hasActiveBranch();
+  const canManage = hasPermission("crm", "manage");
+  const [tab, setTab] = useState<SettingsTab>("OVERVIEW");
   const [assignmentRules, setAssignmentRules] = useState<AssignmentRule[]>([]);
   const [accessPolicies, setAccessPolicies] = useState<AccessPolicy[]>([]);
   const [accessPolicyDrafts, setAccessPolicyDrafts] = useState<Record<string, CrmDataScope>>({});
@@ -334,6 +366,27 @@ export default function CrmSettingsPage() {
   }
 
   const slaRules = automationRules.filter((rule) => slaLabels[rule.ruleKey]);
+  const taskAutomationRules = automationRules.filter((rule) => taskAutomationLabels[rule.ruleKey]);
+
+  const settingsSummary = useMemo(() => ({
+    activeTeams: teams.filter((team) => team.active).length,
+    teamMembers: new Set(teams.flatMap((team) => team.members.map((member) => member.userId))).size,
+    activeAssignmentRules: assignmentRules.filter((rule) => rule.active).length,
+    activeSurveyors: surveyorCandidates.filter((person) => surveyorDrafts[person.staffId]?.active ?? person.active).length,
+    activeTimeRules: slaRules.filter((rule) => rule.enabled).length,
+    activeTaskRules: taskAutomationRules.filter((rule) => rule.enabled).length,
+  }), [assignmentRules, slaRules, surveyorCandidates, surveyorDrafts, taskAutomationRules, teams]);
+
+  function automationNumber(rule: AutomationRule, key: string, fallback: number) {
+    const value = Number(rule.config[key] ?? fallback);
+    return Number.isFinite(value) ? value : fallback;
+  }
+
+  function setAutomationConfig(ruleKey: string, key: string, value: number | string) {
+    setAutomationRules((current) => current.map((rule) =>
+      rule.ruleKey === ruleKey ? { ...rule, config: { ...rule.config, [key]: value } } : rule
+    ));
+  }
 
   if (loading) return <Spinner label="CRM ayarları hazırlanıyor..." />;
 
