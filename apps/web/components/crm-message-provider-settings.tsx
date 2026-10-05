@@ -125,7 +125,7 @@ export function CrmMessageProviderSettings() {
           <p className="mt-2 text-[10px] text-[var(--muted)]">{meta?.credentialsConfigured ? "Gizli bilgiler hazır" : "Bağlantı bilgileri eksik"}</p>
           {meta ? <p className="mt-1 text-[9px] text-[var(--muted-soft)]">Telefon bağlantı kimliği: {String(meta.publicConfig.phoneNumberId ?? "—")} · v{meta.version}</p> : null}
         </GlassCard>
-        <GlassCard><p className="text-[10px] text-[var(--muted)]">Gelen Mesaj Bağlantısı</p><code className="mt-2 block break-all text-[10px]">/crm/messages/webhooks/meta-whatsapp</code><p className="mt-2 text-[9px] text-[var(--muted)]">Gelen mesaj ve teslimat bildirimlerinin sisteme ulaşması için kullanılır.</p></GlassCard>
+        <GlassCard><p className="text-[10px] text-[var(--muted)]">Gelen Mesajlar</p><strong className="mt-2 block text-[12px]">Otomatik alınır</strong><p className="mt-2 text-[9px] text-[var(--muted)]">Gelen mesaj ve teslimat bildirimleri bağlantı tamamlandığında sistem tarafından otomatik işlenir.</p></GlassCard>
         <GlassCard><p className="text-[10px] text-[var(--muted)]">Kullanılabilir Özellikler</p><strong className="mt-2 block text-[12px]">Mesaj gönderimi ve teslimat takibi</strong><p className="mt-2 text-[9px] text-[var(--muted)]">Hangi müşteriye ait olduğu belirlenemeyen gelen mesajlar otomatik olarak müşteri kaydına eklenmez.</p></GlassCard>
       </div>
     )}
