@@ -148,6 +148,7 @@ export default function CrmFollowUpsPage() {
   );
 
   const leadById = useMemo(() => new Map(leads.map((lead) => [lead.id, lead])), [leads]);
+  const opportunityById = useMemo(() => new Map(opportunities.map((row) => [row.id, row])), [opportunities]);
 
   const followUpCounts = useMemo(() => {
     const todayStart = startOfDay(now);
@@ -367,97 +368,205 @@ export default function CrmFollowUpsPage() {
 
   function subjectFor(row: CrmFollowUp) {
     const key = row.leadId ? `lead:${row.leadId}` : `opportunity:${row.opportunityId}`;
-    return subjectLabels.get(key) ?? "Müşteri İlişkileri Kaydı";
+    return subjectLabels.get(key) ?? "Bağlantılı kayıt";
   }
 
-  return (
-    <div className="space-y-6">
-      <PageHeader
-        title="Takip Merkezi"
-        description="Arama, mesaj, e-posta ve yüz yüze temas görevlerini zamanında tamamlayın."
-        action={canManage ? (
-          <Button onClick={() => {
-            if (
-              !requireActiveBranch(
-                "Yeni Takip oluşturmak için önce çalışma kapsamından bir şube seçin.",
-              )
-            ) {
-              return;
-            }
-            setError("");
-            setForm({ ...emptyForm, assignedUserId: getStoredUser()?.id ?? "" });
-            setCreateOpen(true);
-          }}>+ Yeni Takip</Button>
-        ) : undefined}
-      />
+  function subjectHref(row: CrmFollowUp) {
+    return row.leadId ? `/crm/leads/${row.leadId}` : row.opportunityId ? `/crm/opportunities/${row.opportunityId}` : "/crm";
+  }
+
+  function subjectKind(row: CrmFollowUp) {
+    return row.leadId ? "Potansiyel Müşteri" : "Satış Fırsatı";
+  }
+
+  function subjectContext(row: CrmFollowUp) {
+    if (row.leadId) {
+      const lead = leadById.get(row.leadId);
+      return lead?.interestNote || lead?.phone || lead?.email || "Potansiyel müşteri takibi";
+    }
+    if (row.opportunityId) {
+      const opportunity = opportunityById.get(row.opportunityId);
+      const person = opportunity
+        ? [opportunity.leadFirstName, opportunity.leadLastName].filter(Boolean).join(" ")
+          || [opportunity.customerFirstName, opportunity.customerLastName].filter(Boolean).join(" ")
+        : "";
+      return person || "Satış fırsatı takibi";
+    }
+    return "Takip kaydı";
+  }
+
+  function openComplete(row: CrmFollowUp) {
+    if (!requireActiveBranch("Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.")) return;
+    setError("");
+    setOutcome("");
+    setCompleting(row);
+  }
+
+  function openCancel(row: CrmFollowUp) {
+    if (!requireActiveBranch("Takibi iptal etmek için önce çalışma kapsamından bir şube seçin.")) return;
+    setError("");
+    setCancellationReason("");
+    setCancelling(row);
+  }
+
+  function renderFollowUp(row: CrmFollowUp) {
+    const overdue = row.status === "OPEN" && new Date(row.dueAt).getTime() < now;
+    const ownerName = assigneeNames.get(row.assignedUserId) ?? "Sorumlu kullanıcı";
+    const lead = row.leadId ? leadById.get(row.leadId) : undefined;
+    const detail = row.status === "COMPLETED"
+      ? row.outcome || "Sonuç kaydedilmedi"
+      : row.status === "CANCELLED"
+        ? row.cancellationReason || "İptal nedeni kaydedilmedi"
+        : row.note || "Takip notu eklenmedi";
+
+    return (
+    <div className="space-y-5">
+      <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)] xl:flex-row xl:items-end xl:justify-between">
+        <div>
+          <p className="text-[12px] font-medium text-[var(--muted)]">Müşteri iletişimi ve görev planı</p>
+          <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Takip Merkezi</h1>
+          <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Kiminle, ne zaman ve hangi kanaldan iletişim kurulacağını planlayın; geciken görevleri görün ve görüşme sonuçlarını müşteri geçmişine kaydedin.</p>
+        </div>
+        {canManage ? <Button onClick={() => {
+          if (!requireActiveBranch("Yeni takip oluşturmak için önce çalışma kapsamından bir şube seçin.")) return;
+          setError("");
+          setForm({ ...emptyForm, assignedUserId: getStoredUser()?.id ?? "" });
+          setCreateOpen(true);
+        }}>Yeni Takip Oluştur</Button> : null}
+      </header>
+
       {error && !createOpen && !completing && !rescheduling && !cancelling ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <div className="flex flex-wrap gap-2">
-          {(["OPEN", "COMPLETED", "CANCELLED", "ALL"] as Filter[]).map((item) => (
-            <button
-              key={item}
-              type="button"
-              onClick={() => setFilter(item)}
-              className={filter === item ? "rounded-full bg-[#1674BD] px-4 py-2 text-[11px] font-semibold text-white" : "rounded-full border border-[var(--line)] bg-white px-4 py-2 text-[11px] text-[var(--muted)]"}
-            >
-              {item === "OPEN" ? "Açık" : item === "COMPLETED" ? "Tamamlanan" : item === "CANCELLED" ? "İptal Edilen" : "Tümü"}
-            </button>
-          ))}
-        </div>
-        <Select value={assignedUserId} onChange={(event) => setAssignedUserId(event.target.value)} aria-label="Sorumluya göre filtrele" className="sm:max-w-[230px]">
-          <option value="">Tüm sorumlular</option>
-          {assignees.map((person) => <option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
-        </Select>
-      </div>
-      <section className="overflow-hidden rounded-[22px] border border-[var(--line)] bg-white shadow-[var(--shadow-soft)]">
-        <div className="flex items-start justify-between gap-3 border-b border-[var(--line)] px-5 py-4">
-          <div><h2 className="text-[13px] font-semibold">Takip listesi</h2><p className="mt-1 text-[10px] text-[var(--muted)]">Müşteri temaslarını, son tarihlerini ve sorumlularını izleyin.</p></div>
-          <CardInfo help={getCardHelp("Takip listesi", "Açık, tamamlanan ve iptal edilen müşteri takiplerini; sorumlu, iletişim kanalı ve son tarih bilgileriyle birlikte gösterir.")} />
-        </div>
-        {loading ? (
-          <Spinner label="Takipler yükleniyor..." />
-        ) : rows.length ? (
-          <div className="divide-y divide-[var(--line)]">
-            {rows.map((row) => {
-              const overdue = row.status === "OPEN" && new Date(row.dueAt).getTime() < now;
-              const href = row.leadId ? `/crm/leads/${row.leadId}` : "/crm/pipeline";
-              return (
-                <article key={row.id} className="grid gap-3 px-5 py-4 md:grid-cols-[120px_minmax(180px,1fr)_minmax(180px,1fr)_170px_auto] md:items-center">
-                  <span className="w-fit rounded-full bg-[#EAF5FB] px-2.5 py-1 text-[10px] font-semibold text-[#1674BD]">{followUpChannelLabels[row.channel]}</span>
-                  <Link href={href} className="truncate text-[12px] font-semibold hover:text-[#1674BD]">{subjectFor(row)}</Link>
-                  <p className="truncate text-[11px] text-[var(--muted)]">
-                    {row.status === "COMPLETED" ? row.outcome : row.status === "CANCELLED" ? row.cancellationReason : row.note || "Not eklenmedi"}
-                  </p>
-                  <time className={overdue ? "text-[10px] font-semibold text-[#a14f3b]" : "text-[10px] text-[var(--muted)]"}>
-                    {overdue ? "Gecikti · " : ""}{formatDateTime(row.dueAt)}
-                  </time>
-                  {canManage && row.status === "OPEN" ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      <Button variant="secondary" className="min-h-8 px-3 py-1 text-[11px]" onClick={() => {
-                        if (!requireActiveBranch("Takibi tamamlamak için önce çalışma kapsamından bir şube seçin.")) return;
-                        setError("");
-                        setOutcome("");
-                        setCompleting(row);
-                      }}>Tamamla</Button>
-                      <Button variant="ghost" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => openReschedule(row)}>Ertele</Button>
-                      <Button variant="danger" className="min-h-8 px-2 py-1 text-[11px]" onClick={() => {
-                        if (!requireActiveBranch("Takibi iptal etmek için önce çalışma kapsamından bir şube seçin.")) return;
-                        setError("");
-                        setCancellationReason("");
-                        setCancelling(row);
-                      }}>İptal Et</Button>
-                    </div>
-                  ) : (
-                    <span className={row.status === "CANCELLED" ? "text-[10px] font-medium text-[#9c513f]" : "text-[10px] font-medium text-[#47765b]"}>
-                      {row.status === "COMPLETED" ? "Tamamlandı" : row.status === "CANCELLED" ? "İptal Edildi" : "Açık"}
-                    </span>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        ) : <EmptyState title="Takip bulunamadı" description="Seçili filtreye ait müşteri teması bulunmuyor." />}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          { label: "Yapılacak Takip", value: followUpCounts.open, detail: "Henüz tamamlanmamış", scope: "ALL" as TimeScope },
+          { label: "Geciken", value: followUpCounts.overdue, detail: "Planlanan zamanı geçmiş", scope: "OVERDUE" as TimeScope },
+          { label: "Bugün", value: followUpCounts.today, detail: "Bugün yapılması gereken", scope: "TODAY" as TimeScope },
+          { label: "Sonraki 7 Gün", value: followUpCounts.next7, detail: "Yaklaşan takipler", scope: "NEXT_7_DAYS" as TimeScope },
+          { label: "Tamamlanan", value: followUpCounts.completed, detail: "Sonuç kaydı bulunan", scope: null },
+        ].map((card) => <button
+          key={card.label}
+          type="button"
+          onClick={() => {
+            if (card.label === "Tamamlanan") {
+              setFilter("COMPLETED");
+              setTimeScope("ALL");
+            } else {
+              setFilter("OPEN");
+              setTimeScope(card.scope ?? "ALL");
+            }
+          }}
+          className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 text-left shadow-[var(--shadow-soft)] transition hover:border-[var(--line-strong)]"
+        >
+          <span className="text-[10px] font-medium text-[var(--muted)]">{card.label}</span>
+          <strong className={card.label==="Geciken"&&Number(card.value)>0?"mt-3 block text-[24px] font-semibold tracking-[-.04em] text-[var(--danger)]":"mt-3 block text-[24px] font-semibold tracking-[-.04em] text-[var(--ink)]"}>{card.value}</strong>
+          <span className="mt-2 block text-[8px] text-[var(--muted)]">{card.detail}</span>
+        </button>)}
       </section>
+
+      <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap gap-1 rounded-[11px] bg-[var(--surface-2)] p-1">
+            {([
+              ["OPEN", "Yapılacaklar"],
+              ["COMPLETED", "Tamamlananlar"],
+              ["CANCELLED", "İptal Edilenler"],
+              ["ALL", "Tümü"],
+            ] as Array<[Filter,string]>).map(([value,label]) => <button
+              key={value}
+              type="button"
+              onClick={() => {setFilter(value); if(value!=="OPEN")setTimeScope("ALL");}}
+              className={filter===value?"rounded-[8px] bg-[var(--surface)] px-3 py-2 text-[9px] font-semibold text-[var(--ink)] shadow-sm":"rounded-[8px] px-3 py-2 text-[9px] font-semibold text-[var(--muted)]"}
+            >{label}</button>)}
+          </div>
+
+          <div className="flex flex-1 flex-col gap-2 sm:flex-row xl:max-w-[820px]">
+            <TextInput value={search} onChange={(event)=>setSearch(event.target.value)} placeholder="Müşteri, fırsat, not veya sorumlu ara…" aria-label="Takiplerde ara" />
+            <details className="relative shrink-0">
+              <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[9px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">
+                Filtreler
+                {(assignedUserId||mineOnly||timeScope!=="ALL")?<span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[8px] text-[var(--accent)]">Aktif</span>:null}
+                <span className="text-[10px] text-[var(--muted)]">⌄</span>
+              </summary>
+              <div className="absolute right-0 z-40 mt-2 w-[310px] space-y-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_18px_48px_rgba(23,35,28,.14)]">
+                <Select value={assignedUserId} onChange={(event)=>{setAssignedUserId(event.target.value);setMineOnly(false)}} aria-label="Sorumluya göre filtrele">
+                  <option value="">Tüm sorumlular</option>
+                  {assignees.map((person)=><option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+                </Select>
+                <button type="button" onClick={()=>{setMineOnly((value)=>!value);setAssignedUserId("")}} className={mineOnly?"w-full rounded-[10px] border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2 text-left text-[9px] font-semibold text-[var(--accent)]":"w-full rounded-[10px] border border-[var(--line)] px-3 py-2 text-left text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]"}>Sadece bana atananlar</button>
+                {filter==="OPEN"?<Select value={timeScope} onChange={(event)=>setTimeScope(event.target.value as TimeScope)} aria-label="Takip zamanına göre filtrele">
+                  <option value="ALL">Tüm zamanlar</option>
+                  <option value="OVERDUE">Gecikenler</option>
+                  <option value="TODAY">Bugün</option>
+                  <option value="NEXT_7_DAYS">Sonraki 7 gün</option>
+                  <option value="LATER">Daha sonrası</option>
+                </Select>:null}
+                <button type="button" onClick={()=>{setAssignedUserId("");setMineOnly(false);setTimeScope("ALL")}} className="w-full rounded-[10px] px-3 py-2 text-left text-[9px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">Filtreleri Temizle</button>
+              </div>
+            </details>
+            <Select value={sortMode} onChange={(event)=>setSortMode(event.target.value as SortMode)} aria-label="Takipleri sırala" className="sm:max-w-[180px]">
+              <option value="due">En Yakın Takip</option>
+              <option value="newest">Son Güncellenen</option>
+            </Select>
+          </div>
+        </div>
+
+        {filter==="OPEN"?<div className="flex flex-wrap gap-1.5 border-b border-[var(--line)] px-4 py-3">
+          {([
+            ["ALL","Tümü"],
+            ["OVERDUE","Geciken"],
+            ["TODAY","Bugün"],
+            ["NEXT_7_DAYS","7 Gün"],
+            ["LATER","Daha Sonra"],
+          ] as Array<[TimeScope,string]>).map(([value,label])=><button key={value} type="button" onClick={()=>setTimeScope(value)} className={timeScope===value?"rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-[8px] font-semibold text-[var(--accent)]":"rounded-full border border-[var(--line)] px-3 py-1.5 text-[8px] font-medium text-[var(--muted)] hover:bg-[var(--surface-2)]"}>{label}</button>)}
+        </div>:null}
+
+        <div className="hidden grid-cols-[minmax(260px,1.15fr)_minmax(220px,1fr)_155px_185px_260px] gap-4 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 text-[8px] font-semibold text-[var(--muted)] xl:grid">
+          <span>Müşteri / Satış Fırsatı</span>
+          <span>Takip Amacı / Sonuç</span>
+          <span>Kanal / Sorumlu</span>
+          <span>Planlanan Zaman</span>
+          <span className="text-right">İşlemler</span>
+        </div>
+
+        {loading ? <div className="p-6"><Spinner label="Takipler yükleniyor..." /></div> : visibleRows.length ? (
+          <div>{visibleRows.map((row)=>renderFollowUp(row))}</div>
+        ) : <div className="p-6"><EmptyState title="Takip bulunamadı" description={search||assignedUserId||mineOnly||timeScope!=="ALL"?"Seçili arama veya filtrelerle eşleşen takip bulunamadı.":"Bu bölümde henüz takip kaydı bulunmuyor."} action={canManage&&filter==="OPEN"?<Button onClick={()=>{if(!requireActiveBranch("Yeni takip oluşturmak için önce çalışma kapsamından bir şube seçin."))return;setError("");setForm({...emptyForm,assignedUserId:getStoredUser()?.id??""});setCreateOpen(true)}}>İlk Takibi Oluştur</Button>:undefined} /></div>}
+      </section>
+
+      {selectedFollowUp ? <div className="fixed inset-0 z-[80] flex justify-end bg-black/20" onClick={()=>setSelectedFollowUp(null)}>
+        <aside className="h-full w-full max-w-[430px] overflow-y-auto border-l border-[var(--line)] bg-[var(--surface)] p-5 shadow-[-18px_0_48px_rgba(23,35,28,.16)]" onClick={(event)=>event.stopPropagation()}>
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <span className="text-[9px] font-semibold text-[var(--accent)]">{subjectKind(selectedFollowUp)}</span>
+              <h2 className="mt-1 text-[20px] font-semibold tracking-[-.035em] text-[var(--ink)]">{subjectFor(selectedFollowUp)}</h2>
+              <p className="mt-1 text-[10px] text-[var(--muted)]">{subjectContext(selectedFollowUp)}</p>
+            </div>
+            <button type="button" onClick={()=>setSelectedFollowUp(null)} className="rounded-[9px] border border-[var(--line)] px-2.5 py-1.5 text-[12px] text-[var(--muted)] hover:bg-[var(--surface-2)]">×</button>
+          </div>
+
+          <div className="mt-6 grid grid-cols-2 gap-3">
+            <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">İletişim Kanalı</span><strong className="mt-1 block text-[11px] text-[var(--ink)]">{followUpChannelLabels[selectedFollowUp.channel]}</strong></div>
+            <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Sorumlu</span><strong className="mt-1 block truncate text-[10px] text-[var(--ink)]">{assigneeNames.get(selectedFollowUp.assignedUserId)??"Sorumlu kullanıcı"}</strong></div>
+            <div className="col-span-2 rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Planlanan Takip</span><strong className="mt-1 block text-[11px] text-[var(--ink)]">{formatDateTime(selectedFollowUp.dueAt)}</strong>{selectedFollowUp.status==="OPEN"?<span className={new Date(selectedFollowUp.dueAt).getTime()<now?"mt-1 block text-[8px] font-semibold text-[var(--danger)]":"mt-1 block text-[8px] text-[var(--muted)]"}>{dueLabel(selectedFollowUp.dueAt,now)}</span>:null}</div>
+          </div>
+
+          <div className="mt-5 rounded-[14px] border border-[var(--line)] p-4">
+            <h3 className="text-[10px] font-semibold text-[var(--ink)]">{selectedFollowUp.status==="COMPLETED"?"Görüşme Sonucu":selectedFollowUp.status==="CANCELLED"?"İptal Nedeni":"Takip Notu"}</h3>
+            <p className="mt-2 whitespace-pre-wrap text-[10px] leading-5 text-[var(--muted)]">{selectedFollowUp.status==="COMPLETED"?selectedFollowUp.outcome||"Sonuç kaydedilmedi":selectedFollowUp.status==="CANCELLED"?selectedFollowUp.cancellationReason||"İptal nedeni kaydedilmedi":selectedFollowUp.note||"Takip notu eklenmedi."}</p>
+          </div>
+
+          <div className="mt-6 space-y-2">
+            {selectedFollowUp.status==="OPEN"&&canManage?<>
+              <Button className="w-full" onClick={()=>{openComplete(selectedFollowUp);setSelectedFollowUp(null)}}>Takibi Tamamla</Button>
+              <Button variant="secondary" className="w-full" onClick={()=>{openReschedule(selectedFollowUp);setSelectedFollowUp(null)}}>Yeniden Planla</Button>
+            </>:null}
+            {selectedFollowUp.leadId&&leadById.get(selectedFollowUp.leadId)?.phone&&selectedFollowUp.status==="OPEN"?<a href={"tel:"+leadById.get(selectedFollowUp.leadId)?.phone} className="flex min-h-10 w-full items-center justify-center rounded-[10px] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Telefonla Ara</a>:null}
+            <Link href={subjectHref(selectedFollowUp)} className="flex min-h-10 w-full items-center justify-center rounded-[10px] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Bağlı Kaydı Aç</Link>
+            {selectedFollowUp.status==="OPEN"&&canManage?<button type="button" onClick={()=>{openCancel(selectedFollowUp);setSelectedFollowUp(null)}} className="min-h-10 w-full rounded-[10px] text-[9px] font-semibold text-[var(--danger)] hover:bg-[var(--danger-soft)]">Takibi İptal Et</button>:null}
+          </div>
+        </aside>
+      </div> : null}
 
       <Modal open={createOpen} onClose={() => setCreateOpen(false)} title="Yeni takip görevi" description="Takibi bir potansiyel müşteriye veya satış fırsatına bağlayın.">
         <form onSubmit={createFollowUp} className="space-y-4">
