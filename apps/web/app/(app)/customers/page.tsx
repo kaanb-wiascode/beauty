@@ -37,9 +37,9 @@ import { useToast } from "@/components/toast";
 import { ValooSelect } from "@/components/valoo-controls";
 import { api, ApiError, withQuery } from "@/lib/api";
 import { hasActiveBranch, hasPermission } from "@/lib/auth";
-import { getCardHelp } from "@/lib/card-help";
 import { optionalText } from "@/lib/format";
-import type { Customer, Paginated } from "@/lib/types";
+import type { Customer } from "@/lib/types";
+import { userErrorMessage } from "@/lib/user-language";
 
 type CustomerSource =
   | "INSTAGRAM"
@@ -51,6 +51,39 @@ type CustomerSource =
 type CustomerView = Customer & {
   birthDate?: string | null;
   customerSource?: CustomerSource | null;
+};
+
+type CustomerListSegment = "ALL" | "RECENT" | "UPCOMING" | "NEEDS_ATTENTION";
+
+type CustomerListItem = CustomerView & {
+  summary: {
+    totalAppointments: number;
+    completedAppointments: number;
+    lastVisitAt: string | null;
+    nextAppointmentAt: string | null;
+    netSpent: number;
+    openCareEventCount: number;
+    criticalCareEventCount: number;
+    nextCareFollowUpAt: string | null;
+  };
+};
+
+type CustomerListSummary = {
+  totalCustomers: number;
+  newCustomersLast7Days: number;
+  customersWithUpcomingAppointments: number;
+  customersNeedingAttention: number;
+};
+
+type CustomerListResponse = {
+  data: CustomerListItem[];
+  meta: {
+    page: number;
+    limit: number;
+    total: number;
+    totalPages: number;
+    summary: CustomerListSummary;
+  };
 };
 
 type FormState = {
@@ -135,6 +168,23 @@ function formatDate(value: string) {
   }).format(new Date(value));
 }
 
+function formatDateTime(value: string) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    day: "2-digit",
+    month: "short",
+    hour: "2-digit",
+    minute: "2-digit",
+  }).format(new Date(value));
+}
+
+function formatMoney(value: number) {
+  return new Intl.NumberFormat("tr-TR", {
+    style: "currency",
+    currency: "TRY",
+    maximumFractionDigits: 0,
+  }).format(value);
+}
+
 function toCreatePayload(
   form: FormState,
   consents: ConsentState,
@@ -205,7 +255,7 @@ export default function CustomersPage() {
   );
   const { showToast } = useToast();
 
-  const [customers, setCustomers] = useState<Customer[]>([]);
+  const [customers, setCustomers] = useState<CustomerListItem[]>([]);
   const [search, setSearch] = useState("");
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
@@ -215,9 +265,13 @@ export default function CustomersPage() {
   const [error, setError] = useState("");
   const [formError, setFormError] = useState("");
   const [duplicateCustomer, setDuplicateCustomer] = useState<Customer | null>(null);
-  const [listFilter, setListFilter] = useState<
-    "all" | "recent"
-  >("all");
+  const [segment, setSegment] = useState<CustomerListSegment>("ALL");
+  const [summary, setSummary] = useState<CustomerListSummary>({
+    totalCustomers: 0,
+    newCustomersLast7Days: 0,
+    customersWithUpcomingAppointments: 0,
+    customersNeedingAttention: 0,
+  });
   const [form, setForm] = useState<FormState>(emptyForm);
   const [consents, setConsents] =
     useState<ConsentState>(emptyConsents);
@@ -229,34 +283,35 @@ export default function CustomersPage() {
   const [modalOpen, setModalOpen] = useState(false);
   const [pendingDelete, setPendingDelete] =
     useState<Customer | null>(null);
-  const [now] = useState(() => Date.now());
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
 
     try {
-      const result = await api<Paginated<Customer>>(
+      const result = await api<CustomerListResponse>(
         withQuery("/customers", {
           page,
           limit: 20,
           search: search.trim() || undefined,
+          segment,
         }),
       );
 
       setCustomers(result.data);
       setTotalPages(result.meta.totalPages || 1);
       setTotalCustomers(result.meta.total || 0);
+      setSummary(result.meta.summary);
     } catch (err) {
       setError(
         err instanceof ApiError
-          ? err.message
+          ? userErrorMessage(err.message, "Müşteriler yüklenemedi.")
           : "Müşteriler yüklenemedi.",
       );
     } finally {
       setLoading(false);
     }
-  }, [page, search]);
+  }, [page, search, segment]);
 
   useEffect(() => {
     const timer = window.setTimeout(
@@ -302,6 +357,11 @@ export default function CustomersPage() {
 
   function handleSearch(value: string) {
     setSearch(value);
+    setPage(1);
+  }
+
+  function handleSegment(value: CustomerListSegment) {
+    setSegment(value);
     setPage(1);
   }
 
@@ -495,7 +555,7 @@ export default function CustomersPage() {
     } catch (err) {
       setFormError(
         err instanceof ApiError
-          ? err.message
+          ? userErrorMessage(err.message, "Müşteri kaydedilemedi.")
           : "Müşteri kaydedilemedi.",
       );
     } finally {
@@ -520,7 +580,7 @@ export default function CustomersPage() {
     } catch (err) {
       setError(
         err instanceof ApiError
-          ? err.message
+          ? userErrorMessage(err.message, "Müşteri silinemedi.")
           : "Müşteri silinemedi.",
       );
       setPendingDelete(null);
@@ -529,42 +589,6 @@ export default function CustomersPage() {
     }
   }
 
-  const recentCustomers = useMemo(
-    () =>
-      listFilter === "all"
-        ? customers
-        : customers.filter(
-            (customer) =>
-              now -
-                new Date(customer.createdAt).getTime() <
-              7 * 24 * 60 * 60 * 1000,
-          ),
-    [customers, listFilter, now],
-  );
-
-  const newThisPage = useMemo(
-    () =>
-      customers.filter(
-        (customer) =>
-          now - new Date(customer.createdAt).getTime() <
-          7 * 24 * 60 * 60 * 1000,
-      ).length,
-    [customers, now],
-  );
-
-  const withPhone = useMemo(
-    () =>
-      customers.filter((customer) => Boolean(customer.phone))
-        .length,
-    [customers],
-  );
-
-  const withEmail = useMemo(
-    () =>
-      customers.filter((customer) => Boolean(customer.email))
-        .length,
-    [customers],
-  );
 
   return (
     <div className="mx-auto w-full max-w-[1320px] space-y-6 pb-10">
