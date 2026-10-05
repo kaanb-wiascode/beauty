@@ -196,24 +196,236 @@ export default function CrmPipelinePage() {
   }
 
   const hasFilters = Boolean(ownerUserId || stageFilter || search.trim() || staleOnly);
-  return <div className="space-y-6">
-    <PageHeader title="Satış Süreci" description="Satış fırsatlarını aşama, sorumlu, arama ve risk sinyalleriyle yönetin." />
+  const closedCount = rows.filter((row) => closedStages.includes(row.stage)).length;
+
+  return <div className="space-y-5">
+    <header className="flex flex-col gap-5 rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)] xl:flex-row xl:items-end xl:justify-between">
+      <div>
+        <p className="text-[12px] font-medium text-[var(--muted)]">Satış fırsatı yönetimi</p>
+        <h1 className="mt-1 text-[32px] font-semibold tracking-[-.045em] text-[var(--ink)]">Satış Süreci</h1>
+        <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--muted)]">Satış fırsatlarını aşamalar arasında yönetin, kapanışa yaklaşan işleri önceliklendirin ve ekip sorumluluklarını tek ekrandan takip edin.</p>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button variant="secondary" onClick={() => void load()} disabled={loading}>{loading ? "Güncelleniyor…" : "Verileri Güncelle"}</Button>
+        <Link href="/crm/leads?new=1"><Button>Yeni Potansiyel Müşteri</Button></Link>
+      </div>
+    </header>
+
     {error && !transitioning && !saleOpportunity ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
-    <section className="grid gap-3 rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)] md:grid-cols-[1.4fr_.8fr_.8fr_auto]">
-      <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Fırsat veya müşteri ara..." aria-label="Satış sürecinde ara" />
-      <Select value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)}><option value="">Tüm sorumlular</option>{assignees.map((p) => <option key={p.id} value={p.id}>{p.firstName} {p.lastName}</option>)}</Select>
-      <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as OpportunityStage | "")}><option value="">Tüm aşamalar</option>{stages.map((s) => <option key={s} value={s}>{opportunityStageLabels[s]}</option>)}</Select>
-      <div className="flex gap-2"><Button variant={staleOnly ? "primary" : "secondary"} onClick={() => setStaleOnly((v) => !v)}>14+ gün risk</Button>{hasFilters ? <Button variant="ghost" onClick={() => { setOwnerUserId(""); setStageFilter(""); setSearch(""); setStaleOnly(false); }}>Temizle</Button> : null}</div>
+
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      {[
+        ["Açık Satış Fırsatları", totals.count, "Aktif satış sürecindeki fırsatlar"],
+        ["Toplam Satış Potansiyeli", formatMoney(totals.raw, "TRY"), "Açık fırsatların toplam değeri"],
+        ["Beklenen Satış", formatMoney(totals.weighted, "TRY"), "Gerçekleşme ihtimaline göre"],
+        ["30 Gün İçinde Sonuçlanacak", totals.closingSoon, "Yaklaşan kapanışlar"],
+        ["Geciken Fırsatlar", totals.overdue, "Kapanış tarihi geçenler"],
+      ].map(([label,value,detail],index)=><article key={String(label)} className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
+        <div className="flex items-center justify-between gap-2">
+          <span className="text-[10px] font-medium text-[var(--muted)]">{label}</span>
+          <span className={index===4&&Number(value)>0?"h-2 w-2 rounded-full bg-[var(--danger)]":"h-2 w-2 rounded-full bg-[var(--accent)]"} />
+        </div>
+        <strong className="mt-3 block truncate text-[22px] font-semibold leading-none tracking-[-.04em] text-[var(--ink)]">{value}</strong>
+        <span className="mt-2 block truncate text-[9px] text-[var(--muted)]">{detail}</span>
+      </article>)}
     </section>
-    <section className="grid gap-3 sm:grid-cols-3">{[["Açık Satış Fırsatı", totals.count], ["Toplam Satış Değeri", formatMoney(totals.raw, "TRY")], ["Ağırlıklı Değer", formatMoney(totals.weighted, "TRY")]].map(([label, value]) => <article key={String(label)} className="rounded-[20px] border border-[var(--line)] bg-white p-4 shadow-[var(--shadow-soft)]"><div className="flex items-start justify-between gap-3"><p className="text-[10px] text-[var(--muted)]">{label}</p><CardInfo help={getCardHelp(String(label))} /></div><strong className="mt-2 block text-[22px] tracking-[-.04em]">{value}</strong></article>)}</section>
-    {loading ? <Spinner label="Satış süreci hazırlanıyor..." /> : rows.length ? <div className="grid items-start gap-4 xl:grid-cols-3 2xl:grid-cols-6">{stages.map((stage) => {
-      const stageRows = rows.filter((row) => row.stage === stage); return <section key={stage} className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[#f7fbfd]"><header className="flex items-center justify-between border-b border-[var(--line)] bg-white px-4 py-3"><div className="flex min-w-0 items-center gap-2"><CardInfo help={getCardHelp(opportunityStageLabels[stage], `Bu sütun, “${opportunityStageLabels[stage]}” aşamasındaki satış fırsatlarını gösterir.`)} /><h2 className="truncate text-[11px] font-semibold">{opportunityStageLabels[stage]}</h2></div><span className="rounded-full bg-[#EAF5FB] px-2 py-0.5 text-[10px] font-bold text-[#1674BD]">{stageRows.length}</span></header><div className="space-y-3 p-3">{stageRows.map((row) => {
-        const subjectName = [row.leadFirstName, row.leadLastName].filter(Boolean).join(" ") || [row.customerFirstName, row.customerLastName].filter(Boolean).join(" ") || "Müşteri bağlantısı yok";
-        const subjectHref = row.leadId ? `/crm/leads/${row.leadId}` : row.customerId && canReadCustomers ? `/customers/${row.customerId}` : "/crm";
-        const age = daysSince(row.updatedAt); const closeLate = row.expectedCloseDate ? new Date(row.expectedCloseDate).getTime() < Date.now() && !["WON", "LOST"].includes(row.stage) : false;
-        return <article key={row.id} className="rounded-[16px] border border-[#dfeaf1] bg-white p-3 shadow-[0_3px_14px_rgba(17,70,104,.05)]"><div className="flex flex-wrap gap-1.5">{age >= 14 && !["WON", "LOST"].includes(row.stage) ? <span className="rounded-full bg-[#fff1ec] px-2 py-1 text-[9px] font-semibold text-[#9c513f]">{age} gündür hareketsiz</span> : null}{closeLate ? <span className="rounded-full bg-[#fff1ec] px-2 py-1 text-[9px] font-semibold text-[#9c513f]">Kapanış gecikti</span> : null}</div><Link href={`/crm/opportunities/${row.id}`} className="mt-2 block text-[12px] font-semibold leading-5 hover:text-[#1674BD]">{row.title}</Link><Link href={subjectHref} className="mt-1 block truncate text-[10px] text-[var(--muted)] hover:text-[#1674BD]">{subjectName}</Link><strong className="mt-4 block text-[15px]">{formatMoney(row.estimatedValue, row.currency)}</strong><div className="mt-2 flex items-center gap-2"><div className="h-1 flex-1 overflow-hidden rounded-full bg-[#e5f2f7]"><span className="block h-full rounded-full bg-[#1674BD]" style={{ width: `${row.probability}%` }} /></div><span className="text-[9px] text-[var(--muted)]">%{row.probability}</span></div><div className="mt-3 space-y-1 text-[9px] text-[var(--muted)]"><p>Son aktivite: {formatDate(row.updatedAt)}</p><p>Beklenen kapanış: {row.expectedCloseDate ? formatDate(row.expectedCloseDate) : "—"}</p></div>{canManage && nextStages[row.stage].length ? <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => openTransition(row)}>Aşamayı ilerlet</Button> : null}{canCreateSale && row.stage === "WON" ? <Button variant="ghost" className="mt-3 min-h-8 w-full px-2 py-1 text-[10px]" onClick={() => void openSale(row)}>Satış taslağını oluştur / aç</Button> : null}</article>;
-      })}{!stageRows.length ? <p className="py-7 text-center text-[10px] text-[var(--muted-soft)]">Bu aşamada satış fırsatı yok</p> : null}</div></section>;
-    })}</div> : <EmptyState title="Satış Süreci Boş" description={hasFilters ? "Seçili filtrelerle eşleşen fırsat bulunamadı." : "Potansiyel müşteri havuzundan ilk satış fırsatını oluşturun."} action={<Link href="/crm/leads"><Button>Potansiyel Müşteri Havuzuna Git</Button></Link>} />}
+
+    <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+      <div className="border-b border-[var(--line)] px-5 py-4">
+        <h2 className="text-[14px] font-semibold text-[var(--ink)]">Bugünkü Satış Öncelikleri</h2>
+        <p className="mt-1 text-[10px] text-[var(--muted)]">Önce ele alınması gereken satış fırsatları</p>
+      </div>
+      <div className="grid gap-2 p-4 md:grid-cols-3">
+        <button type="button" onClick={() => {setViewGroup("ACTIVE");setStaleOnly(false);}} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left transition hover:border-[var(--line-strong)]">
+          <b className="block text-[10px] font-semibold text-[var(--ink)]">{totals.overdue} kapanışı geciken fırsat</b>
+          <span className="mt-1.5 block text-[9px] leading-4 text-[var(--muted)]">Kapanış tarihi geçmiş fırsatları öncelikli kontrol edin.</span>
+        </button>
+        <button type="button" onClick={() => {setViewGroup("ACTIVE");setStaleOnly(true);}} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left transition hover:border-[var(--line-strong)]">
+          <b className="block text-[10px] font-semibold text-[var(--ink)]">{totals.stale} uzun süredir güncellenmeyen fırsat</b>
+          <span className="mt-1.5 block text-[9px] leading-4 text-[var(--muted)]">14 günden uzun süredir hareket görmeyen fırsatlar.</span>
+        </button>
+        <button type="button" onClick={() => {setViewGroup("ACTIVE");setStaleOnly(false);}} className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3 text-left transition hover:border-[var(--line-strong)]">
+          <b className="block text-[10px] font-semibold text-[var(--ink)]">{totals.highProbability} yüksek gerçekleşme ihtimalli fırsat</b>
+          <span className="mt-1.5 block text-[9px] leading-4 text-[var(--muted)]">%80 ve üzeri gerçekleşme ihtimali olan satışlar.</span>
+        </button>
+      </div>
+    </section>
+
+    <section className="overflow-hidden rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+      <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 lg:flex-row lg:items-center lg:justify-between">
+        <div className="flex rounded-[11px] bg-[var(--surface-2)] p-1">
+          <button type="button" onClick={() => {setViewGroup("ACTIVE");setStageFilter("");}} className={viewGroup==="ACTIVE"?"rounded-[8px] bg-[var(--surface)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] shadow-sm":"rounded-[8px] px-3 py-2 text-[10px] font-semibold text-[var(--muted)]"}>
+            Aktif Fırsatlar <span className="ml-1 text-[8px]">{totals.count}</span>
+          </button>
+          <button type="button" onClick={() => {setViewGroup("CLOSED");setStageFilter("");setStaleOnly(false);}} className={viewGroup==="CLOSED"?"rounded-[8px] bg-[var(--surface)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] shadow-sm":"rounded-[8px] px-3 py-2 text-[10px] font-semibold text-[var(--muted)]"}>
+            Sonuçlananlar <span className="ml-1 text-[8px]">{closedCount}</span>
+          </button>
+        </div>
+
+        <div className="flex flex-1 flex-col gap-2 sm:flex-row lg:max-w-[760px]">
+          <TextInput value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Fırsat veya müşteri ara…" aria-label="Satış sürecinde ara" />
+          <details className="relative shrink-0">
+            <summary className="flex min-h-10 cursor-pointer list-none items-center gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface)] px-3 text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">
+              Filtreler
+              {hasFilters?<span className="rounded-full bg-[var(--accent-soft)] px-1.5 py-0.5 text-[8px] text-[var(--accent)]">Aktif</span>:null}
+              <span className="text-[11px] text-[var(--muted)]">⌄</span>
+            </summary>
+            <div className="absolute right-0 z-40 mt-2 w-[310px] space-y-2 rounded-[16px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[0_18px_48px_rgba(23,35,28,.14)]">
+              <Select value={ownerUserId} onChange={(e) => setOwnerUserId(e.target.value)}>
+                <option value="">Tüm sorumlular</option>
+                {assignees.map((person)=><option key={person.id} value={person.id}>{person.firstName} {person.lastName}</option>)}
+              </Select>
+              <Select value={stageFilter} onChange={(e) => setStageFilter(e.target.value as OpportunityStage|"")}>
+                <option value="">Tüm aşamalar</option>
+                {visibleStages.map((stage)=><option key={stage} value={stage}>{stageLabels[stage]}</option>)}
+              </Select>
+              {viewGroup==="ACTIVE"?<button type="button" onClick={() => setStaleOnly((value)=>!value)} className={staleOnly?"w-full rounded-[10px] border border-[var(--accent)] bg-[var(--accent-soft)] px-3 py-2 text-left text-[10px] font-semibold text-[var(--accent)]":"w-full rounded-[10px] border border-[var(--line)] px-3 py-2 text-left text-[10px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]"}>Uzun süredir güncellenmeyenler</button>:null}
+              <button type="button" onClick={() => {setOwnerUserId("");setStageFilter("");setSearch("");setStaleOnly(false);}} className="w-full rounded-[10px] px-3 py-2 text-left text-[10px] font-semibold text-[var(--muted)] hover:bg-[var(--surface-2)]">Filtreleri Temizle</button>
+            </div>
+          </details>
+          <div className="flex rounded-[10px] border border-[var(--line)] bg-[var(--surface)] p-1">
+            <button type="button" onClick={() => setViewMode("BOARD")} className={viewMode==="BOARD"?"rounded-[7px] bg-[var(--accent-soft)] px-3 py-1.5 text-[9px] font-semibold text-[var(--accent)]":"rounded-[7px] px-3 py-1.5 text-[9px] font-semibold text-[var(--muted)]"}>Pano</button>
+            <button type="button" onClick={() => setViewMode("LIST")} className={viewMode==="LIST"?"rounded-[7px] bg-[var(--accent-soft)] px-3 py-1.5 text-[9px] font-semibold text-[var(--accent)]":"rounded-[7px] px-3 py-1.5 text-[9px] font-semibold text-[var(--muted)]"}>Liste</button>
+          </div>
+        </div>
+      </div>
+
+      {loading ? <div className="p-6"><Spinner label="Satış süreci hazırlanıyor..." /></div> : visibleRows.length ? (
+        viewMode==="BOARD" ? <div className={viewGroup==="ACTIVE"?"grid items-start gap-3 p-4 xl:grid-cols-4":"grid items-start gap-3 p-4 md:grid-cols-2"}>
+          {visibleStages.map((stage)=>{
+            const stageRows=visibleRows.filter((row)=>row.stage===stage);
+            const stageTotal=stageRows.reduce((sum,row)=>sum+Number(row.estimatedValue??0),0);
+            const stageExpected=stageRows.reduce((sum,row)=>sum+Number(row.estimatedValue??0)*row.probability/100,0);
+            const draggedRow=draggingId?rows.find((row)=>row.id===draggingId):null;
+            const canDrop=Boolean(viewGroup==="ACTIVE"&&draggedRow&&nextStages[draggedRow.stage].includes(stage));
+            return <section
+              key={stage}
+              onDragOver={(event)=>{if(canDrop){event.preventDefault();setDragTarget(stage)}}}
+              onDragLeave={()=>{if(dragTarget===stage)setDragTarget(null)}}
+              onDrop={(event)=>{event.preventDefault();const dragged=rows.find((row)=>row.id===draggingId);if(dragged&&canDrop)void moveOpportunity(dragged,stage)}}
+              className={dragTarget===stage&&canDrop?"min-h-[260px] overflow-hidden rounded-[18px] border border-[var(--accent)] bg-[var(--accent-soft)]/40":"min-h-[260px] overflow-hidden rounded-[18px] border border-[var(--line)] bg-[var(--surface-2)]/50"}
+            >
+              <header className="border-b border-[var(--line)] bg-[var(--surface)] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <h2 className="text-[11px] font-semibold text-[var(--ink)]">{stageLabels[stage]}</h2>
+                  <span className="rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[9px] font-bold text-[var(--accent)]">{stageRows.length}</span>
+                </div>
+                <div className="mt-2 flex items-center justify-between gap-3 text-[8px] text-[var(--muted)]">
+                  <span>{formatMoney(stageTotal,"TRY")} toplam</span>
+                  <span>{formatMoney(stageExpected,"TRY")} beklenen</span>
+                </div>
+              </header>
+
+              <div className="space-y-2.5 p-3">
+                {stageRows.map((row)=>{
+                  const subjectName=[row.leadFirstName,row.leadLastName].filter(Boolean).join(" ")||[row.customerFirstName,row.customerLastName].filter(Boolean).join(" ")||"Müşteri bağlantısı yok";
+                  const age=daysSince(row.updatedAt);
+                  const ownerName=row.ownerUserId?(assigneeNames.get(row.ownerUserId)||"Atanmış kullanıcı"):"Sorumlu atanmamış";
+                  const closeTime=row.expectedCloseDate?new Date(row.expectedCloseDate).getTime():null;
+                  const diffDays=closeTime==null?null:Math.ceil((closeTime-Date.now())/86400000);
+                  const closeLate=diffDays!=null&&diffDays<0&&!closedStages.includes(row.stage);
+                  const canDrag=canManage&&viewGroup==="ACTIVE"&&nextStages[row.stage].some((target)=>activeStages.includes(target));
+                  return <article
+                    key={row.id}
+                    draggable={canDrag}
+                    onDragStart={()=>{setDraggingId(row.id);setSelectedOpportunity(null)}}
+                    onDragEnd={()=>{setDraggingId(null);setDragTarget(null)}}
+                    onClick={()=>setSelectedOpportunity(row)}
+                    onKeyDown={(event)=>{if(event.key==="Enter")setSelectedOpportunity(row)}}
+                    role="button"
+                    tabIndex={0}
+                    className={draggingId===row.id?"cursor-grabbing rounded-[15px] border border-[var(--accent)] bg-[var(--surface)] p-3 opacity-60 shadow-[var(--shadow-soft)]":"cursor-pointer rounded-[15px] border border-[var(--line)] bg-[var(--surface)] p-3 shadow-[var(--shadow-soft)] transition hover:-translate-y-0.5 hover:border-[var(--line-strong)]"}
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-semibold text-[var(--ink)]">{row.title}</p>
+                        <p className="mt-1 truncate text-[9px] text-[var(--muted)]">{subjectName}</p>
+                      </div>
+                      <details onClick={(event)=>event.stopPropagation()} className="relative shrink-0">
+                        <summary className="cursor-pointer list-none rounded-[8px] px-2 py-1 text-[14px] leading-none text-[var(--muted)] hover:bg-[var(--surface-2)]">•••</summary>
+                        <div className="absolute right-0 z-30 mt-1 w-[170px] rounded-[12px] border border-[var(--line)] bg-[var(--surface)] p-1.5 shadow-[0_12px_32px_rgba(23,35,28,.14)]">
+                          <Link href={"/crm/opportunities/"+row.id} className="block rounded-[8px] px-2.5 py-2 text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Fırsatı Aç</Link>
+                          {canManage&&nextStages[row.stage].length?<button type="button" onClick={()=>openTransition(row)} className="block w-full rounded-[8px] px-2.5 py-2 text-left text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Aşamayı Değiştir</button>:null}
+                          {canCreateSale&&row.stage==="WON"?<button type="button" onClick={()=>void openSale(row)} className="block w-full rounded-[8px] px-2.5 py-2 text-left text-[9px] font-medium text-[var(--ink)] hover:bg-[var(--surface-2)]">Satışı Hazırla</button>:null}
+                        </div>
+                      </details>
+                    </div>
+
+                    <strong className="mt-3 block text-[15px] tracking-[-.03em] text-[var(--ink)]">{formatMoney(row.estimatedValue,row.currency)}</strong>
+                    <div className="mt-2 flex items-center gap-2">
+                      <div className="h-1 flex-1 overflow-hidden rounded-full bg-[var(--surface-2)]"><span className="block h-full rounded-full bg-[var(--accent)]" style={{width:Math.max(2,Math.min(100,row.probability))+"%"}} /></div>
+                      <span className="text-[8px] font-medium text-[var(--muted)]">%{row.probability}</span>
+                    </div>
+
+                    <div className="mt-3 flex items-center justify-between gap-3 text-[8px] text-[var(--muted)]">
+                      <span className="truncate">{ownerName}</span>
+                      <span className={age>=14?"whitespace-nowrap font-semibold text-[var(--warning)]":"whitespace-nowrap"}>{age===0?"Bugün güncellendi":age+" gündür bu aşamada"}</span>
+                    </div>
+                    <div className="mt-1.5 flex items-center justify-between gap-3 text-[8px]">
+                      <span className="text-[var(--muted)]">{row.expectedCloseDate?"Kapanış "+formatDate(row.expectedCloseDate):"Kapanış tarihi yok"}</span>
+                      {closeLate?<span className="font-semibold text-[var(--danger)]">Gecikti</span>:diffDays!=null&&diffDays>=0&&diffDays<=3?<span className="font-semibold text-[var(--warning)]">{diffDays===0?"Bugün":diffDays+" gün kaldı"}</span>:null}
+                    </div>
+                  </article>;
+                })}
+                {!stageRows.length?<div className="rounded-[14px] border border-dashed border-[var(--line)] px-3 py-8 text-center text-[9px] text-[var(--muted-soft)]">{viewGroup==="ACTIVE"?"Bu aşamaya fırsat sürükleyebilirsiniz.":"Bu aşamada sonuçlanan fırsat yok."}</div>:null}
+              </div>
+            </section>;
+          })}
+        </div> : <div className="overflow-x-auto">
+          <div className="min-w-[980px]">
+            <div className="grid grid-cols-[1.35fr_180px_150px_130px_180px_130px] gap-3 border-b border-[var(--line)] bg-[var(--surface-2)] px-4 py-2.5 text-[8px] font-semibold text-[var(--muted)]">
+              <span>Fırsat / Müşteri</span><span>Aşama</span><span>Değer</span><span>İhtimal</span><span>Sorumlu</span><span>Kapanış</span>
+            </div>
+            <div className="divide-y divide-[var(--line)]">
+              {visibleRows.map((row)=>{
+                const subjectName=[row.leadFirstName,row.leadLastName].filter(Boolean).join(" ")||[row.customerFirstName,row.customerLastName].filter(Boolean).join(" ")||"Müşteri bağlantısı yok";
+                const ownerName=row.ownerUserId?(assigneeNames.get(row.ownerUserId)||"Atanmış kullanıcı"):"Sorumlu atanmamış";
+                return <button key={row.id} type="button" onClick={()=>setSelectedOpportunity(row)} className="grid w-full grid-cols-[1.35fr_180px_150px_130px_180px_130px] items-center gap-3 px-4 py-3 text-left transition hover:bg-[var(--surface-2)]">
+                  <span className="min-w-0"><b className="block truncate text-[10px] text-[var(--ink)]">{row.title}</b><small className="mt-1 block truncate text-[8px] text-[var(--muted)]">{subjectName}</small></span>
+                  <span className="text-[9px] font-medium text-[var(--ink)]">{stageLabels[row.stage]}</span>
+                  <strong className="text-[10px] text-[var(--ink)]">{formatMoney(row.estimatedValue,row.currency)}</strong>
+                  <span className="text-[9px] text-[var(--muted)]">%{row.probability}</span>
+                  <span className="truncate text-[9px] text-[var(--muted)]">{ownerName}</span>
+                  <span className="text-[9px] text-[var(--muted)]">{row.expectedCloseDate?formatDate(row.expectedCloseDate):"—"}</span>
+                </button>;
+              })}
+            </div>
+          </div>
+        </div>
+      ) : <div className="p-6"><EmptyState title="Satış fırsatı bulunamadı" description={hasFilters?"Seçili filtrelerle eşleşen fırsat bulunamadı.":"Potansiyel müşteri havuzundan ilk satış fırsatını oluşturun."} action={<Link href="/crm/leads"><Button>Potansiyel Müşterilere Git</Button></Link>} /></div>}
+    </section>
+
+    {selectedOpportunity?<div className="fixed inset-0 z-[80] flex justify-end bg-black/20" onClick={()=>setSelectedOpportunity(null)}>
+      <aside className="h-full w-full max-w-[430px] overflow-y-auto border-l border-[var(--line)] bg-[var(--surface)] p-5 shadow-[-18px_0_48px_rgba(23,35,28,.16)]" onClick={(event)=>event.stopPropagation()}>
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <span className="text-[9px] font-semibold text-[var(--accent)]">{stageLabels[selectedOpportunity.stage]}</span>
+            <h2 className="mt-1 text-[20px] font-semibold tracking-[-.035em] text-[var(--ink)]">{selectedOpportunity.title}</h2>
+            <p className="mt-1 text-[10px] text-[var(--muted)]">{[selectedOpportunity.leadFirstName,selectedOpportunity.leadLastName].filter(Boolean).join(" ")||[selectedOpportunity.customerFirstName,selectedOpportunity.customerLastName].filter(Boolean).join(" ")||"Müşteri bağlantısı yok"}</p>
+          </div>
+          <button type="button" onClick={()=>setSelectedOpportunity(null)} className="rounded-[9px] border border-[var(--line)] px-2.5 py-1.5 text-[12px] text-[var(--muted)] hover:bg-[var(--surface-2)]">×</button>
+        </div>
+
+        <div className="mt-6 grid grid-cols-2 gap-3">
+          <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Tahmini Satış</span><strong className="mt-1 block text-[13px] text-[var(--ink)]">{formatMoney(selectedOpportunity.estimatedValue,selectedOpportunity.currency)}</strong></div>
+          <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Gerçekleşme İhtimali</span><strong className="mt-1 block text-[13px] text-[var(--ink)]">%{selectedOpportunity.probability}</strong></div>
+          <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Sorumlu</span><strong className="mt-1 block truncate text-[10px] text-[var(--ink)]">{selectedOpportunity.ownerUserId?(assigneeNames.get(selectedOpportunity.ownerUserId)||"Atanmış kullanıcı"):"Sorumlu atanmamış"}</strong></div>
+          <div className="rounded-[13px] bg-[var(--surface-2)] p-3"><span className="text-[8px] text-[var(--muted)]">Beklenen Kapanış</span><strong className="mt-1 block text-[10px] text-[var(--ink)]">{selectedOpportunity.expectedCloseDate?formatDate(selectedOpportunity.expectedCloseDate):"Belirlenmedi"}</strong></div>
+        </div>
+
+        <div className="mt-5 rounded-[14px] border border-[var(--line)] p-4">
+          <h3 className="text-[10px] font-semibold text-[var(--ink)]">Fırsat Durumu</h3>
+          <div className="mt-3 flex items-center justify-between text-[9px] text-[var(--muted)]"><span>Bu aşamada geçen süre</span><strong className={daysSince(selectedOpportunity.updatedAt)>=14?"text-[var(--warning)]":"text-[var(--ink)]"}>{daysSince(selectedOpportunity.updatedAt)} gün</strong></div>
+          <div className="mt-2 flex items-center justify-between text-[9px] text-[var(--muted)]"><span>Son güncelleme</span><strong className="text-[var(--ink)]">{formatDate(selectedOpportunity.updatedAt)}</strong></div>
+        </div>
+
+        <div className="mt-6 space-y-2">
+          {canManage&&nextStages[selectedOpportunity.stage].length?<Button className="w-full" onClick={()=>{openTransition(selectedOpportunity);setSelectedOpportunity(null)}}>Aşamayı Değiştir</Button>:null}
+          {canCreateSale&&selectedOpportunity.stage==="WON"?<Button className="w-full" onClick={()=>{void openSale(selectedOpportunity);setSelectedOpportunity(null)}}>Satışı Hazırla</Button>:null}
+          <Link href={"/crm/opportunities/"+selectedOpportunity.id} className="flex min-h-10 w-full items-center justify-center rounded-[10px] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)] hover:bg-[var(--surface-2)]">Fırsat Detayına Git</Link>
+        </div>
+      </aside>
+    </div>:null}
 
     <Modal open={Boolean(transitioning)} onClose={() => setTransitioning(null)} title="Satış fırsatı aşamasını değiştir" description={transitioning?.title}><form onSubmit={transition} className="space-y-4">{error ? <Alert>{error}</Alert> : null}<Field label="Yeni Aşama" required><Select value={targetStage} onChange={(e) => { const v = e.target.value as OpportunityStage; setTargetStage(v); if (v === "WON") setProbability("100"); else if (v === "LOST") setProbability("0"); }}>{transitioning ? nextStages[transitioning.stage].map((s) => <option key={s} value={s}>{opportunityStageLabels[s]}</option>) : null}</Select></Field><Field label="Kazanma Olasılığı (%)"><TextInput type="number" min="0" max="100" value={probability} disabled={["WON", "LOST"].includes(targetStage)} onChange={(e) => setProbability(e.target.value)} /></Field>{targetStage === "LOST" ? <Field label="Kaybetme Nedeni" required><TextArea rows={3} value={lostReason} onChange={(e) => setLostReason(e.target.value)} /></Field> : null}<div className="flex justify-end gap-3"><Button variant="secondary" onClick={() => setTransitioning(null)} disabled={saving}>Vazgeç</Button><Button type="submit" disabled={saving}>{saving ? "Güncelleniyor..." : "Aşamayı Güncelle"}</Button></div></form></Modal>
 
