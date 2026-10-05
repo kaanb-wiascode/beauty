@@ -601,19 +601,17 @@ export function AppShell({ children }: { children: ReactNode }) {
         style={sidebarStyle}
       >
         <div className={cx(
-          "flex items-center border-b border-[var(--line)]",
-          collapsed ? "justify-center px-3 py-5" : "min-h-[92px] justify-between px-5 py-5",
+          "relative flex items-center border-b border-[var(--line)]",
+          collapsed ? "justify-center px-3 py-5" : "min-h-[96px] justify-center px-5 py-5",
         )}>
-          <div className={cx("flex min-w-0 items-center", collapsed ? "justify-center" : "flex-1")}>
-            <BrandMark compact={collapsed} />
-          </div>
+          <BrandMark compact={collapsed} />
           {!collapsed ? (
             <button
               type="button"
               onClick={toggleSidebar}
               aria-label="Menüyü Daralt"
               title="Menüyü Daralt"
-              className="flex h-[42px] w-[42px] shrink-0 items-center justify-center rounded-[var(--radius-control)] text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]"
+              className="absolute right-5 top-1/2 flex h-[38px] w-[38px] -translate-y-1/2 items-center justify-center rounded-[12px] text-[var(--muted)] transition hover:bg-[var(--accent-soft)] hover:text-[var(--accent)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[var(--accent-soft)]"
             >
               ‹
             </button>
@@ -818,7 +816,7 @@ function BrandMark({ compact = false }: { compact?: boolean }) {
     <ValooLogo
       className={cx(
         "shrink-0 transition-[width] duration-200",
-        compact ? "w-10" : "w-[104px]",
+        compact ? "w-10" : "w-[112px]",
       )}
       alt="VALOO"
       priority
