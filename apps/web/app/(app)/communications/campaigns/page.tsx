@@ -54,6 +54,7 @@ export default function CampaignsPage() {
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [actingId, setActingId] = useState("");
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [search, setSearch] = useState("");
@@ -154,6 +155,41 @@ export default function CampaignsPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function changeStatus(campaign: Campaign, nextStatus: string) {
+    if (
+      ["COMPLETED", "CANCELLED"].includes(nextStatus) &&
+      !window.confirm(
+        nextStatus === "COMPLETED"
+          ? "Kampanya tamamlandı olarak işaretlensin mi?"
+          : "Kampanya iptal edilsin mi?",
+      )
+    ) {
+      return;
+    }
+
+    setActingId(campaign.id);
+    setError("");
+
+    try {
+      await api(
+        "/corporate-communications/campaigns/" + campaign.id + "/status",
+        {
+          method: "PATCH",
+          body: { status: nextStatus },
+        },
+      );
+      await load();
+    } catch (e) {
+      setError(
+        e instanceof ApiError
+          ? userErrorMessage(e.message, "Kampanya durumu güncellenemedi.")
+          : "Kampanya durumu güncellenemedi.",
+      );
+    } finally {
+      setActingId("");
     }
   }
 
@@ -359,7 +395,13 @@ export default function CampaignsPage() {
         {filtered.length ? (
           <div className="divide-y divide-[var(--line)]">
             {filtered.map((campaign) => (
-              <CampaignRow key={campaign.id} campaign={campaign} />
+              <CampaignRow
+                key={campaign.id}
+                campaign={campaign}
+                canManage={canManage}
+                acting={actingId === campaign.id}
+                onStatus={changeStatus}
+              />
             ))}
           </div>
         ) : (
@@ -377,7 +419,17 @@ export default function CampaignsPage() {
   );
 }
 
-function CampaignRow({ campaign }: { campaign: Campaign }) {
+function CampaignRow({
+  campaign,
+  canManage,
+  acting,
+  onStatus,
+}: {
+  campaign: Campaign;
+  canManage: boolean;
+  acting: boolean;
+  onStatus: (campaign: Campaign, status: string) => Promise<void>;
+}) {
   const budget = Number(campaign.plannedBudget || 0);
   const spent = Number(campaign.spentAmount || 0);
   const revenue = Number(campaign.revenue || 0);
@@ -386,7 +438,7 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
 
   return (
     <article className="p-4 transition hover:bg-[var(--surface-2)]/35 sm:p-5">
-      <div className="grid gap-4 xl:grid-cols-[minmax(230px,1.35fr)_minmax(190px,.9fr)_minmax(210px,1fr)_minmax(230px,1fr)] xl:items-center">
+      <div className="grid gap-4 xl:grid-cols-[minmax(230px,1.2fr)_minmax(180px,.8fr)_minmax(190px,.9fr)_minmax(190px,.85fr)_minmax(210px,.95fr)] xl:items-center">
         <div className="min-w-0">
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="truncate text-[12px] font-semibold text-[var(--ink)]">
@@ -439,8 +491,88 @@ function CampaignRow({ campaign }: { campaign: Campaign }) {
             }
           />
         </div>
+
+        <CampaignActions
+          campaign={campaign}
+          canManage={canManage}
+          acting={acting}
+          onStatus={onStatus}
+        />
       </div>
     </article>
+  );
+}
+
+function CampaignActions({
+  campaign,
+  canManage,
+  acting,
+  onStatus,
+}: {
+  campaign: Campaign;
+  canManage: boolean;
+  acting: boolean;
+  onStatus: (campaign: Campaign, status: string) => Promise<void>;
+}) {
+  if (!canManage) {
+    return <span className="text-[8px] text-[var(--muted)]">Görüntüleme yetkisi</span>;
+  }
+
+  const actions: Array<{ label: string; status: string; primary?: boolean }> =
+    campaign.status === "DRAFT"
+      ? [
+          { label: "Planla", status: "PLANNED" },
+          { label: "Başlat", status: "ACTIVE", primary: true },
+          { label: "İptal", status: "CANCELLED" },
+        ]
+      : campaign.status === "PLANNED"
+        ? [
+            { label: "Başlat", status: "ACTIVE", primary: true },
+            { label: "Taslağa Al", status: "DRAFT" },
+            { label: "İptal", status: "CANCELLED" },
+          ]
+        : campaign.status === "ACTIVE"
+          ? [
+              { label: "Duraklat", status: "PAUSED" },
+              { label: "Tamamla", status: "COMPLETED", primary: true },
+              { label: "İptal", status: "CANCELLED" },
+            ]
+          : campaign.status === "PAUSED"
+            ? [
+                { label: "Devam Ettir", status: "ACTIVE", primary: true },
+                { label: "Tamamla", status: "COMPLETED" },
+                { label: "İptal", status: "CANCELLED" },
+              ]
+            : [];
+
+  if (!actions.length) {
+    return (
+      <span className="text-[8px] text-[var(--muted)]">
+        Kampanya yaşam döngüsü tamamlandı
+      </span>
+    );
+  }
+
+  return (
+    <div className="flex flex-wrap gap-1.5 xl:justify-end">
+      {actions.map((action) => (
+        <button
+          key={action.status}
+          type="button"
+          disabled={acting}
+          onClick={() => void onStatus(campaign, action.status)}
+          className={
+            action.primary
+              ? "h-8 rounded-[9px] bg-[var(--accent)] px-2.5 text-[8px] font-semibold text-white disabled:opacity-50"
+              : action.status === "CANCELLED"
+                ? "h-8 rounded-[9px] border border-[var(--line)] px-2.5 text-[8px] font-semibold text-[var(--danger)] disabled:opacity-50"
+                : "h-8 rounded-[9px] border border-[var(--line)] px-2.5 text-[8px] font-semibold text-[var(--ink)] disabled:opacity-50"
+          }
+        >
+          {acting ? "İşleniyor..." : action.label}
+        </button>
+      ))}
+    </div>
   );
 }
 
