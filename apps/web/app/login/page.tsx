@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Alert, Button, Modal, TextArea, TextInput } from "@/components/ui";
 import { ValooLogo } from "@/components/valoo-logo";
 import { api, ApiError } from "@/lib/api";
-import { getAccessToken, persistSession } from "@/lib/auth";
+import { clearSession, getAccessToken, persistSession } from "@/lib/auth";
 import type { LoginResponse } from "@/lib/types";
 import { userErrorMessage } from "@/lib/user-language";
 
@@ -64,7 +64,24 @@ export default function LoginPage() {
   const [flowNotice, setFlowNotice] = useState("");
 
   useEffect(() => {
-    if (getAccessToken()) router.replace("/dashboard");
+    let active = true;
+
+    async function validateExistingSession() {
+      if (!getAccessToken()) return;
+
+      try {
+        await api<{ authenticated: boolean }>("/auth/me");
+        if (active) router.replace("/dashboard");
+      } catch {
+        clearSession();
+      }
+    }
+
+    void validateExistingSession();
+
+    return () => {
+      active = false;
+    };
   }, [router]);
 
   const finishLogin = (data: LoginResponse) => {
