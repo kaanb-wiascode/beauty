@@ -21,8 +21,8 @@ export function SiteHeader() {
 
         <nav className="desktop-nav" aria-label="Ana navigasyon">
           <a href="#platform">Platform</a>
-          <details className="nav-menu">
-            <summary>Ürünler</summary>
+          <div className="nav-menu nav-hover">
+            <a className="nav-trigger" href="#products" aria-haspopup="true">Ürünler</a>
             <div className="mega-menu">
               <p className="mega-kicker">VALOO ürünleri</p>
               <div className="mega-grid">
@@ -34,9 +34,9 @@ export function SiteHeader() {
                 ))}
               </div>
             </div>
-          </details>
-          <details className="nav-menu">
-            <summary>Çözümler</summary>
+          </div>
+          <div className="nav-menu nav-hover">
+            <a className="nav-trigger" href="#solutions" aria-haspopup="true">Çözümler</a>
             <div className="mega-menu mega-menu-small">
               <p className="mega-kicker">İşletmenize göre</p>
               <div className="mega-stack">
@@ -48,7 +48,7 @@ export function SiteHeader() {
                 ))}
               </div>
             </div>
-          </details>
+          </div>
           <a href="#industries">Sektörler</a>
           <a href="#resources">Kaynaklar</a>
         </nav>
