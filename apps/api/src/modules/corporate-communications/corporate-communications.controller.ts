@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
@@ -22,6 +22,8 @@ import {
   createRoutingRuleSchema,
   listCampaignsSchema,
   listMarketingLeadsSchema,
+  updateCampaignStatusSchema,
+  updateRoutingRuleStatusSchema,
 } from './corporate-communications.schemas';
 
 @Controller('corporate-communications')
@@ -56,6 +58,18 @@ export class CorporateCommunicationsController {
   @RequirePermission('communications', 'manage')
   async createCampaign(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const campaign = await this.service.createCampaign(createCampaignSchema.parse(body), user.sub);
+    await this.expenseSync.syncCampaign(campaign.id);
+    return campaign;
+  }
+
+  @Patch('campaigns/:id/status')
+  @RequirePermission('communications', 'manage')
+  async updateCampaignStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    const input = updateCampaignStatusSchema.parse(body);
+    const campaign = await this.service.updateCampaignStatus(id, input.status);
     await this.expenseSync.syncCampaign(campaign.id);
     return campaign;
   }
@@ -232,5 +246,15 @@ export class CorporateCommunicationsController {
   @RequirePermission('communications', 'manage')
   createRoutingRule(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     return this.service.createRoutingRule(createRoutingRuleSchema.parse(body), user.sub);
+  }
+
+  @Patch('routing-rules/:id/status')
+  @RequirePermission('communications', 'manage')
+  updateRoutingRuleStatus(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    const input = updateRoutingRuleStatusSchema.parse(body);
+    return this.service.updateRoutingRuleStatus(id, input.active);
   }
 }
