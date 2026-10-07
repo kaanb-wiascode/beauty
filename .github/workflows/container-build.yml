@@ -82,3 +82,39 @@ jobs:
           ignore-unfixed: true
           vuln-type: os,library
           severity: HIGH,CRITICAL
+
+  marketing-image:
+    name: Build Marketing image
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Marketing production image
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: apps/marketing/Dockerfile
+          push: false
+          load: true
+          tags: valoo-marketing:${{ github.sha }}
+          build-args: |
+            NEXT_PUBLIC_SITE_URL=http://localhost:3002
+            NEXT_PUBLIC_API_URL=/backend
+            RELEASE_SHA=${{ github.sha }}
+          cache-from: type=gha,scope=valoo-marketing
+          cache-to: type=gha,mode=max,scope=valoo-marketing
+
+      - name: Scan Marketing image for high and critical vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: valoo-marketing:${{ github.sha }}
+          format: table
+          exit-code: "1"
+          ignore-unfixed: true
+          vuln-type: os,library
+          severity: HIGH,CRITICAL
