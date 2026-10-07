@@ -19,6 +19,12 @@ export class MarketingVendorsController {
     return this.service.list(listMarketingVendorsSchema.parse(query));
   }
 
+  @Post('sync-finance-period')
+  @RequirePermission('communications', 'manage')
+  syncFinancePeriod() {
+    return this.service.syncCurrentFinancePeriod();
+  }
+
   @Post()
   @RequirePermission('communications', 'manage')
   create(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
