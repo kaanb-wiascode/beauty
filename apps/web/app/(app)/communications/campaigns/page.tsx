@@ -4,7 +4,6 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
-import type { InventorySupplier } from "@/lib/inventory-types";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Campaign = {
@@ -24,6 +23,13 @@ type Campaign = {
   marketingExpenseId?: string | null;
   marketingFinanceStatus?: string | null;
   supplierBillId?: string | null;
+};
+
+type FinanceSupplier = {
+  id: string;
+  name: string;
+  contactName?: string | null;
+  status: string;
 };
 
 type CampaignEditForm = {
@@ -89,7 +95,7 @@ export default function CampaignsPage() {
   const canFinanceManage = hasPermission("finance", "manage");
 
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [suppliers, setSuppliers] = useState<InventorySupplier[]>([]);
+  const [suppliers, setSuppliers] = useState<FinanceSupplier[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [actingId, setActingId] = useState("");
@@ -121,17 +127,13 @@ export default function CampaignsPage() {
         api<Campaign[]>("/corporate-communications/campaigns?limit=200"),
       ];
       if (canFinanceManage) {
-        requests.push(api<InventorySupplier[]>("/inventory/suppliers"));
+        requests.push(api<FinanceSupplier[]>("/marketing-finance/suppliers"));
       }
 
       const results = await Promise.all(requests);
       setCampaigns(results[0] as Campaign[]);
       if (canFinanceManage) {
-        setSuppliers(
-          (results[1] as InventorySupplier[]).filter(
-            (item) => item.status === "ACTIVE",
-          ),
-        );
+        setSuppliers(results[1] as FinanceSupplier[]);
       }
     } catch (e) {
       setError(
