@@ -20,6 +20,7 @@ import {
   startProviderOAuthSchema,
   selectProviderAccountSchema,
   createRoutingRuleSchema,
+  communicationsReportSchema,
   listCampaignsSchema,
   listMarketingLeadsSchema,
   updateCampaignSchema,
@@ -44,6 +45,11 @@ export class CorporateCommunicationsController {
   @Get('dashboard')
   dashboard() {
     return this.service.dashboard();
+  }
+
+  @Get('reports/summary')
+  reportsSummary(@Query() query: unknown) {
+    return this.service.reportSummary(communicationsReportSchema.parse(query));
   }
 
   @Get('campaigns')
