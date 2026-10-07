@@ -82,9 +82,7 @@ export function SiteFooter() {
 
         <div className="footer-legal">
           <p>Copyright © 2026 VALOO. Tüm hakları saklıdır.</p>
-          <p className="footer-legal-note">
-            Gizlilik, KVKK, kullanım ve çerez metinleri hukuk onayı sonrasında yayınlanacaktır.
-          </p>
+          <span aria-hidden="true" />
           <span>Türkiye</span>
         </div>
       </div>
