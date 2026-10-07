@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from "next";
 import { Geist } from "next/font/google";
+import { siteDescription, siteName, siteUrl } from "@/lib/site-config";
 import "./globals.css";
 
 const geist = Geist({
@@ -9,12 +10,29 @@ const geist = Geist({
 });
 
 export const metadata: Metadata = {
+  metadataBase: new URL(siteUrl),
+  applicationName: siteName,
   title: {
-    default: "VALOO",
+    default: siteName,
     template: "%s — VALOO",
   },
-  description:
-    "Müşteri, operasyon, finans, ekip ve yönetim süreçlerini aynı çalışma ortamında buluşturan modüler işletme yönetim platformu.",
+  description: siteDescription,
+  openGraph: {
+    type: "website",
+    locale: "tr_TR",
+    siteName,
+    title: siteName,
+    description: siteDescription,
+  },
+  twitter: {
+    card: "summary",
+    title: siteName,
+    description: siteDescription,
+  },
+  robots: {
+    index: true,
+    follow: true,
+  },
 };
 
 export const viewport: Viewport = {
