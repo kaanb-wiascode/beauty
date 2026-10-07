@@ -65,6 +65,32 @@ export const updateCampaignStatusSchema = z.object({
   status: campaignStatusSchema,
 });
 
+export const updateCampaignSchema = z
+  .object({
+    name: z.string().trim().min(2).max(180).optional(),
+    objective: campaignObjectiveSchema.optional(),
+    channel: z.string().trim().min(2).max(80).optional(),
+    branchId: z.string().uuid().nullable().optional(),
+    serviceId: z.string().uuid().nullable().optional(),
+    plannedBudget: z.coerce.number().min(0).optional(),
+    spentAmount: z.coerce.number().min(0).optional(),
+    currency: z
+      .string()
+      .trim()
+      .length(3)
+      .transform((value) => value.toUpperCase())
+      .optional(),
+    startsAt: z.coerce.date().nullable().optional(),
+    endsAt: z.coerce.date().nullable().optional(),
+    ownerUserId: z.string().uuid().nullable().optional(),
+    notes: z.string().trim().max(3000).nullable().optional(),
+  })
+  .refine(
+    (value) =>
+      !value.startsAt || !value.endsAt || value.endsAt >= value.startsAt,
+    { message: 'Kampanya bitiş tarihi başlangıç tarihinden sonra olmalıdır.' },
+  );
+
 export const createMarketingLeadSchema = z
   .object({
     provider: marketingProviderSchema.default('MANUAL'),
@@ -192,6 +218,17 @@ export const updateRoutingRuleStatusSchema = z.object({
   active: z.boolean(),
 });
 
+export const updateRoutingRuleSchema = z.object({
+  name: z.string().trim().min(2).max(180),
+  priority: z.coerce.number().int().min(1).max(10000),
+  provider: marketingProviderSchema.exclude(['MANUAL']).nullable().optional(),
+  campaignId: z.string().uuid().nullable().optional(),
+  targetBranchId: z.string().uuid().nullable().optional(),
+  targetUserId: z.string().uuid().nullable().optional(),
+  strategy: z.enum(['FIXED', 'ROUND_ROBIN', 'LEAST_LOADED']),
+  conditions: routingConditionsSchema,
+});
+
 export const contentPlatformSchema = z.enum([
   'INSTAGRAM',
   'FACEBOOK',
@@ -273,6 +310,7 @@ export const publishContentSchema = z.object({
 });
 
 export type CreateCampaignInput = z.infer<typeof createCampaignSchema>;
+export type UpdateCampaignInput = z.infer<typeof updateCampaignSchema>;
 export type CreateMarketingLeadInput = z.infer<
   typeof createMarketingLeadSchema
 >;
@@ -284,6 +322,7 @@ export type CreateProviderConnectionInput = z.infer<
   typeof createProviderConnectionSchema
 >;
 export type CreateRoutingRuleInput = z.infer<typeof createRoutingRuleSchema>;
+export type UpdateRoutingRuleInput = z.infer<typeof updateRoutingRuleSchema>;
 export type RoutingConditionsInput = z.infer<typeof routingConditionsSchema>;
 export type CreateContentItemInput = z.infer<typeof createContentItemSchema>;
 export type UpdateContentDraftInput = z.infer<typeof updateContentDraftSchema>;
