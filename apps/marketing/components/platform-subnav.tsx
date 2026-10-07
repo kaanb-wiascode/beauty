@@ -9,7 +9,7 @@ export function PlatformSubnav() {
           <a href="#solutions">Çözümler</a>
           <a href="#industries">İçgörüler</a>
         </nav>
-        <a className="platform-subnav-cta" href="#demo">Demo</a>
+        <a className="platform-subnav-cta" href="/demo">Demo</a>
       </div>
     </div>
   );
