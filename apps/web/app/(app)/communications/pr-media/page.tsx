@@ -7,6 +7,7 @@ import {
   useMemo,
   useState,
 } from "react";
+import { MarketingFinanceTransferPanel } from "@/components/marketing-finance-transfer-panel";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
@@ -29,6 +30,9 @@ type Activity = {
   estimatedMediaValue: string | number;
   attributedRevenue: string | number;
   campaignName?: string | null;
+  marketingExpenseId?: string | null;
+  marketingFinanceStatus?: string | null;
+  supplierBillId?: string | null;
 };
 
 const field =
@@ -74,12 +78,14 @@ function formatDate(value?: string | null) {
 
 export default function PrMediaPage() {
   const canManage = hasPermission("communications", "manage");
+  const canFinanceManage = hasPermission("finance", "manage");
 
   const [rows, setRows] = useState<Activity[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [financeActivity, setFinanceActivity] = useState<Activity | null>(null);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -152,6 +158,11 @@ export default function PrMediaPage() {
         (s, r) => s + Number(r.estimatedMediaValue || 0),
         0,
       ),
+      financePending: rows.filter(
+        (r) =>
+          Number(r.costAmount || 0) > 0 &&
+          r.marketingFinanceStatus !== "POSTED",
+      ).length,
     }),
     [rows],
   );
@@ -262,7 +273,7 @@ export default function PrMediaPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric
           label="Aktif Faaliyet"
           value={String(stats.active)}
@@ -282,6 +293,11 @@ export default function PrMediaPage() {
           label="Tahmini Medya Değeri"
           value={money.format(stats.value)}
           detail="Kayıtlı faaliyet toplamı"
+        />
+        <Metric
+          label="Finans Bekleyen"
+          value={String(stats.financePending)}
+          detail="Finans aktarımı tamamlanmamış maliyet"
         />
       </section>
 
@@ -421,6 +437,19 @@ export default function PrMediaPage() {
         </form>
       ) : null}
 
+      {financeActivity?.marketingExpenseId ? (
+        <MarketingFinanceTransferPanel
+          expenseId={financeActivity.marketingExpenseId}
+          title={financeActivity.title}
+          amountLabel={money.format(Number(financeActivity.costAmount || 0))}
+          onClose={() => setFinanceActivity(null)}
+          onDone={async () => {
+            setFinanceActivity(null);
+            await load();
+          }}
+        />
+      ) : null}
+
       <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
         <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 xl:flex-row xl:items-center xl:justify-between">
           <div>
@@ -473,7 +502,7 @@ export default function PrMediaPage() {
             {filtered.map((row) => (
               <article
                 key={row.id}
-                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(240px,1.3fr)_minmax(170px,.8fr)_minmax(230px,1fr)_180px] xl:items-center"
+                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(230px,1.2fr)_minmax(160px,.7fr)_minmax(210px,.9fr)_150px_minmax(190px,.85fr)] xl:items-center"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -516,7 +545,17 @@ export default function PrMediaPage() {
                   />
                 </div>
 
-                <div className="flex xl:justify-end">
+                <div>
+                  <span className="block text-[7px] text-[var(--muted)]">
+                    Finans
+                  </span>
+                  <FinanceBadge
+                    status={row.marketingFinanceStatus}
+                    cost={Number(row.costAmount || 0)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 xl:justify-end">
                   {canManage &&
                   !["COMPLETED", "CANCELLED"].includes(row.status) ? (
                     <Button
@@ -525,11 +564,29 @@ export default function PrMediaPage() {
                     >
                       Tamamlandı
                     </Button>
-                  ) : (
+                  ) : null}
+
+                  {canFinanceManage &&
+                  Number(row.costAmount || 0) > 0 &&
+                  row.marketingExpenseId &&
+                  row.marketingFinanceStatus !== "POSTED" ? (
+                    <button
+                      type="button"
+                      onClick={() => setFinanceActivity(row)}
+                      className="h-9 rounded-[10px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 text-[8px] font-semibold text-[var(--accent)]"
+                    >
+                      Finansa Aktar
+                    </button>
+                  ) : null}
+
+                  {!canManage &&
+                  !(canFinanceManage &&
+                    row.marketingExpenseId &&
+                    row.marketingFinanceStatus !== "POSTED") ? (
                     <span className="text-[8px] text-[var(--muted)]">
                       İşlem beklemiyor
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -597,6 +654,37 @@ function Mini({ label, value }: { label: string; value: string }) {
         {value}
       </strong>
     </div>
+  );
+}
+
+function FinanceBadge({
+  status,
+  cost,
+}: {
+  status?: string | null;
+  cost: number;
+}) {
+  const label =
+    cost <= 0
+      ? "Maliyet Yok"
+      : status === "POSTED"
+        ? "Finansa Aktarıldı"
+        : status === "APPROVED"
+          ? "Finansa Hazır"
+          : "Finans Bekliyor";
+
+  return (
+    <span
+      className={
+        status === "POSTED"
+          ? "mt-1 inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+          : cost > 0
+            ? "mt-1 inline-flex rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]"
+            : "mt-1 inline-flex rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[7px] font-semibold text-[var(--muted)]"
+      }
+    >
+      {label}
+    </span>
   );
 }
 
