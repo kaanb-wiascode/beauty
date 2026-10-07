@@ -74,7 +74,21 @@ export class MarketingVendorsService {
               v.service_scope AS "serviceScope",v.monthly_fee AS "monthlyFee",v.currency,
               v.payment_model AS "paymentModel",v.kpi_commitments AS "kpiCommitments",
               v.performance_notes AS "performanceNotes",v.attributed_revenue AS "attributedRevenue",
-              v.supplier_id AS "supplierId",v.metadata,v.created_at AS "createdAt",v.updated_at AS "updatedAt"
+              v.supplier_id AS "supplierId",v.metadata,
+              (SELECT e.id FROM corporate_marketing_expenses e
+                WHERE e.source_type='VENDOR' AND e.source_id=v.id
+                  AND e.period_key=to_char(CURRENT_DATE,'YYYY-MM')
+                ORDER BY e.created_at DESC LIMIT 1) AS "marketingExpenseId",
+              (SELECT e.status FROM corporate_marketing_expenses e
+                WHERE e.source_type='VENDOR' AND e.source_id=v.id
+                  AND e.period_key=to_char(CURRENT_DATE,'YYYY-MM')
+                ORDER BY e.created_at DESC LIMIT 1) AS "marketingFinanceStatus",
+              (SELECT e.supplier_bill_id FROM corporate_marketing_expenses e
+                WHERE e.source_type='VENDOR' AND e.source_id=v.id
+                  AND e.period_key=to_char(CURRENT_DATE,'YYYY-MM')
+                ORDER BY e.created_at DESC LIMIT 1) AS "supplierBillId",
+              to_char(CURRENT_DATE,'YYYY-MM') AS "financePeriod",
+              v.created_at AS "createdAt",v.updated_at AS "updatedAt"
        FROM corporate_marketing_vendors v
        WHERE v.tenant_id=$1::text AND v.company_id=$2::text
          AND ($3::text IS NULL OR v.branch_id IS NULL OR v.branch_id=$3::text)
