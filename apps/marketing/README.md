@@ -54,6 +54,7 @@ Her push'ta Monorepo quality workflow'u marketing typecheck ve production build 
 Marketing uygulaması:
 - `NEXT_PUBLIC_SITE_URL`: public site kök adresi. Sitemap ve metadata için kullanılır.
 - `NEXT_PUBLIC_API_URL`: VALOO API public base adresi. Aynı origin reverse proxy kullanılıyorsa `/backend` varsayılanı kullanılabilir.
+- `NEXT_PUBLIC_APP_URL`: oturum açılan VALOO uygulamasının public adresi. Tanımlı değilse header'da `Giriş` bağlantısı gösterilmez.
 
 API demo intake:
 - `MARKETING_DEMO_TENANT_ID`: demo taleplerinin düşeceği VALOO tenant kimliği.
