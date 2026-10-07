@@ -31,7 +31,7 @@ type ContentItem = {
 
 type Campaign = { id: string; name: string };
 
-type ViewMode = "LIST" | "FLOW";
+type ViewMode = "LIST" | "FLOW" | "CALENDAR";
 
 const fieldClass =
   "mt-2 h-11 w-full rounded-[12px] border border-[var(--line)] bg-white px-3 text-[11px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
@@ -70,6 +70,23 @@ function formatDateTime(value?: string | null) {
   }).format(new Date(value));
 }
 
+function localDateKey(value: Date | string) {
+  const date = value instanceof Date ? value : new Date(value);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function monthTitle(date: Date) {
+  return new Intl.DateTimeFormat("tr-TR", {
+    month: "long",
+    year: "numeric",
+  }).format(date);
+}
+
+const calendarWeekdays = ["Pzt", "Sal", "Çar", "Per", "Cum", "Cmt", "Paz"];
+
 export default function ContentOperationsPage() {
   const canManage = hasPermission("communications", "manage");
   const [items, setItems] = useState<ContentItem[]>([]);
@@ -80,6 +97,9 @@ export default function ContentOperationsPage() {
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [view, setView] = useState<ViewMode>("LIST");
+  const [calendarMonth, setCalendarMonth] = useState(
+    () => new Date(new Date().getFullYear(), new Date().getMonth(), 1),
+  );
   const [search, setSearch] = useState("");
   const [filterStatus, setFilterStatus] = useState("");
   const [filterPlatform, setFilterPlatform] = useState("");
@@ -550,6 +570,17 @@ export default function ContentOperationsPage() {
                 >
                   Akış
                 </button>
+                <button
+                  type="button"
+                  onClick={() => setView("CALENDAR")}
+                  className={
+                    view === "CALENDAR"
+                      ? "rounded-[8px] bg-[var(--accent-soft)] px-3 py-1.5 text-[9px] font-semibold text-[var(--accent)]"
+                      : "rounded-[8px] px-3 py-1.5 text-[9px] font-semibold text-[var(--muted)]"
+                  }
+                >
+                  Takvim
+                </button>
               </div>
             </div>
           </div>
@@ -564,7 +595,7 @@ export default function ContentOperationsPage() {
             onSchedule={setScheduleId}
             onPublish={publish}
           />
-        ) : (
+        ) : view === "FLOW" ? (
           <ContentFlow
             grouped={grouped}
             canManage={canManage}
@@ -572,6 +603,12 @@ export default function ContentOperationsPage() {
             onReview={submitReview}
             onSchedule={setScheduleId}
             onPublish={publish}
+          />
+        ) : (
+          <ContentCalendar
+            items={filtered}
+            month={calendarMonth}
+            onMonthChange={setCalendarMonth}
           />
         )}
       </section>
@@ -734,6 +771,199 @@ function ContentFlow({
           </section>
         ))}
       </div>
+    </div>
+  );
+}
+
+function ContentCalendar({
+  items,
+  month,
+  onMonthChange,
+}: {
+  items: ContentItem[];
+  month: Date;
+  onMonthChange: (date: Date) => void;
+}) {
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+  const lastDay = new Date(month.getFullYear(), month.getMonth() + 1, 0);
+  const mondayOffset = (firstDay.getDay() + 6) % 7;
+  const gridStart = new Date(
+    firstDay.getFullYear(),
+    firstDay.getMonth(),
+    1 - mondayOffset,
+  );
+  const totalCells = Math.ceil((mondayOffset + lastDay.getDate()) / 7) * 7;
+
+  const calendarItems = items.filter(
+    (item) => item.scheduledAt || item.publishedAt,
+  );
+
+  const itemsByDay = new Map<string, ContentItem[]>();
+  for (const item of calendarItems) {
+    const value = item.scheduledAt ?? item.publishedAt;
+    if (!value) continue;
+    const key = localDateKey(value);
+    const current = itemsByDay.get(key) ?? [];
+    current.push(item);
+    itemsByDay.set(key, current);
+  }
+
+  for (const dayItems of itemsByDay.values()) {
+    dayItems.sort((a, b) => {
+      const aDate = new Date(a.scheduledAt ?? a.publishedAt ?? 0).getTime();
+      const bDate = new Date(b.scheduledAt ?? b.publishedAt ?? 0).getTime();
+      return aDate - bDate;
+    });
+  }
+
+  const days = Array.from({ length: totalCells }, (_, index) => {
+    const date = new Date(gridStart);
+    date.setDate(gridStart.getDate() + index);
+    return date;
+  });
+
+  const todayKey = localDateKey(new Date());
+
+  return (
+    <div className="p-4">
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="text-[13px] font-semibold capitalize text-[var(--ink)]">
+            {monthTitle(month)}
+          </h3>
+          <p className="mt-1 text-[8px] text-[var(--muted)]">
+            Planlanmış ve yayınlanmış içeriklerin gerçek yayın takvimi.
+          </p>
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() =>
+              onMonthChange(
+                new Date(month.getFullYear(), month.getMonth() - 1, 1),
+              )
+            }
+            className="h-9 rounded-[10px] border border-[var(--line)] px-3 text-[9px] font-semibold text-[var(--ink)]"
+          >
+            Önceki
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              const now = new Date();
+              onMonthChange(new Date(now.getFullYear(), now.getMonth(), 1));
+            }}
+            className="h-9 rounded-[10px] border border-[var(--line)] px-3 text-[9px] font-semibold text-[var(--ink)]"
+          >
+            Bu Ay
+          </button>
+          <button
+            type="button"
+            onClick={() =>
+              onMonthChange(
+                new Date(month.getFullYear(), month.getMonth() + 1, 1),
+              )
+            }
+            className="h-9 rounded-[10px] border border-[var(--line)] px-3 text-[9px] font-semibold text-[var(--ink)]"
+          >
+            Sonraki
+          </button>
+        </div>
+      </div>
+
+      <div className="overflow-x-auto">
+        <div className="min-w-[920px]">
+          <div className="grid grid-cols-7 border-b border-[var(--line)]">
+            {calendarWeekdays.map((weekday) => (
+              <div
+                key={weekday}
+                className="px-2 py-2 text-[8px] font-semibold uppercase tracking-[.08em] text-[var(--muted)]"
+              >
+                {weekday}
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-7">
+            {days.map((date) => {
+              const key = localDateKey(date);
+              const dayItems = itemsByDay.get(key) ?? [];
+              const inMonth = date.getMonth() === month.getMonth();
+              const isToday = key === todayKey;
+
+              return (
+                <div
+                  key={key}
+                  className={
+                    "min-h-[132px] border-b border-r border-[var(--line)] p-2 " +
+                    (inMonth ? "bg-white" : "bg-[var(--surface-2)]/45")
+                  }
+                >
+                  <div className="mb-2 flex items-center justify-between">
+                    <span
+                      className={
+                        isToday
+                          ? "inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[var(--accent)] px-1 text-[8px] font-semibold text-white"
+                          : inMonth
+                            ? "text-[8px] font-semibold text-[var(--ink)]"
+                            : "text-[8px] font-medium text-[var(--muted-soft)]"
+                      }
+                    >
+                      {date.getDate()}
+                    </span>
+                    {dayItems.length ? (
+                      <span className="text-[7px] font-semibold text-[var(--muted)]">
+                        {dayItems.length}
+                      </span>
+                    ) : null}
+                  </div>
+
+                  <div className="space-y-1.5">
+                    {dayItems.slice(0, 3).map((item) => {
+                      const dateValue = item.scheduledAt ?? item.publishedAt;
+                      return (
+                        <div
+                          key={item.id}
+                          className="rounded-[9px] border border-[var(--line)] bg-[var(--surface)] px-2 py-1.5"
+                        >
+                          <p className="truncate text-[8px] font-semibold text-[var(--ink)]">
+                            {item.title}
+                          </p>
+                          <p className="mt-0.5 truncate text-[7px] text-[var(--muted)]">
+                            {dateValue
+                              ? new Intl.DateTimeFormat("tr-TR", {
+                                  hour: "2-digit",
+                                  minute: "2-digit",
+                                }).format(new Date(dateValue))
+                              : ""}{" "}
+                            · {userLabel(item.platform)}
+                          </p>
+                          <div className="mt-1">
+                            <Status value={item.status} />
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {dayItems.length > 3 ? (
+                      <p className="px-1 text-[7px] font-semibold text-[var(--accent)]">
+                        +{dayItems.length - 3} içerik daha
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+
+      {!calendarItems.length ? (
+        <div className="mt-4 rounded-[12px] border border-dashed border-[var(--line)] p-5 text-center text-[9px] text-[var(--muted)]">
+          Seçili filtrelerde yayın zamanı olan içerik bulunmuyor.
+        </div>
+      ) : null}
     </div>
   );
 }
