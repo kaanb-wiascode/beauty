@@ -1,6 +1,6 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { MarketingFinanceTransferPanel } from "@/components/marketing-finance-transfer-panel";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
@@ -64,6 +64,7 @@ function formatDate(value?: string | null) {
 export default function MarketingVendorsPage() {
   const canManage = hasPermission("communications", "manage");
   const canFinanceManage = hasPermission("finance", "manage");
+  const financePeriodSynced = useRef(false);
   const [rows, setRows] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -89,7 +90,26 @@ export default function MarketingVendorsPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+    let syncWarning = "";
+
     try {
+      if (canManage && !financePeriodSynced.current) {
+        financePeriodSynced.current = true;
+        try {
+          await api("/corporate-communications/vendors/sync-finance-period", {
+            method: "POST",
+          });
+        } catch (syncError) {
+          syncWarning =
+            syncError instanceof ApiError
+              ? userErrorMessage(
+                  syncError.message,
+                  "Bu ayın ajans giderleri finans kuyruğuna hazırlanamadı.",
+                )
+              : "Bu ayın ajans giderleri finans kuyruğuna hazırlanamadı.";
+        }
+      }
+
       const q = new URLSearchParams({ limit: "100" });
       if (search.trim()) q.set("search", search.trim());
       setRows(
@@ -97,6 +117,8 @@ export default function MarketingVendorsPage() {
           "/corporate-communications/vendors?" + q.toString(),
         ),
       );
+
+      if (syncWarning) setError(syncWarning);
     } catch (e) {
       setError(
         e instanceof ApiError
@@ -109,7 +131,7 @@ export default function MarketingVendorsPage() {
     } finally {
       setLoading(false);
     }
-  }, [search]);
+  }, [search, canManage]);
 
   useEffect(() => {
     void load();
