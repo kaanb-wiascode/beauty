@@ -50,7 +50,7 @@ const groups = [
 
 export function SiteFooter() {
   return (
-    <footer className="site-footer" id="resources">
+    <footer className="site-footer" id="site-footer">
       <div className="footer-inner">
         <div className="footer-brand-row">
           <div>
