@@ -109,15 +109,18 @@ export class MarketingVendorsService {
               v.performance_notes AS "performanceNotes",v.attributed_revenue AS "attributedRevenue",
               v.supplier_id AS "supplierId",v.metadata,
               (SELECT e.id FROM corporate_marketing_expenses e
-                WHERE e.source_type='VENDOR' AND e.source_id=v.id
+                WHERE e.tenant_id=v.tenant_id AND e.company_id=v.company_id
+                  AND e.source_type='VENDOR' AND e.source_id=v.id
                   AND e.period_key=to_char(CURRENT_DATE,'YYYY-MM')
                 ORDER BY e.created_at DESC LIMIT 1) AS "marketingExpenseId",
               (SELECT e.status FROM corporate_marketing_expenses e
-                WHERE e.source_type='VENDOR' AND e.source_id=v.id
+                WHERE e.tenant_id=v.tenant_id AND e.company_id=v.company_id
+                  AND e.source_type='VENDOR' AND e.source_id=v.id
                   AND e.period_key=to_char(CURRENT_DATE,'YYYY-MM')
                 ORDER BY e.created_at DESC LIMIT 1) AS "marketingFinanceStatus",
               (SELECT e.supplier_bill_id FROM corporate_marketing_expenses e
-                WHERE e.source_type='VENDOR' AND e.source_id=v.id
+                WHERE e.tenant_id=v.tenant_id AND e.company_id=v.company_id
+                  AND e.source_type='VENDOR' AND e.source_id=v.id
                   AND e.period_key=to_char(CURRENT_DATE,'YYYY-MM')
                 ORDER BY e.created_at DESC LIMIT 1) AS "supplierBillId",
               to_char(CURRENT_DATE,'YYYY-MM') AS "financePeriod",
