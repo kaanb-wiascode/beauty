@@ -1,3 +1,5 @@
+import { ValooLogo } from "@/components/valoo-logo";
+
 const groups = [
   { title: "Platform", links: ["VALOO’yu Keşfet", "Nasıl Çalışır", "Güvenlik", "Entegrasyonlar"] },
   { title: "Ürünler", links: ["CRM", "Operasyon", "Finans", "People", "Inventory", "Insights"] },
@@ -12,7 +14,7 @@ export function SiteFooter() {
       <div className="footer-inner">
         <div className="footer-brand-row">
           <div>
-            <a className="footer-brand" href="/">VALOO</a>
+            <a className="footer-brand" href="/" aria-label="VALOO ana sayfa"><ValooLogo className="footer-logo" /></a>
             <p>İşin tamamını görmenin daha iyi bir yolu.</p>
           </div>
           <span>Türkiye · Türkçe</span>
