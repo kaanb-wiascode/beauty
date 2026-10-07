@@ -19,6 +19,12 @@ const postingSchema = z.object({
 export class MarketingFinanceController {
   constructor(private readonly service: MarketingFinanceHandoffService) {}
 
+  @Get('suppliers')
+  @RequirePermission('finance', 'manage')
+  suppliers() {
+    return this.service.listSuppliers();
+  }
+
   @Get('expenses')
   @RequirePermission('finance', 'read')
   list(@Query('status') status?: string) {
