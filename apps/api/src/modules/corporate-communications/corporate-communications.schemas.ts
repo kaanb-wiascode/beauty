@@ -61,6 +61,10 @@ export const listCampaignsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 
+export const updateCampaignStatusSchema = z.object({
+  status: campaignStatusSchema,
+});
+
 export const createMarketingLeadSchema = z
   .object({
     provider: marketingProviderSchema.default('MANUAL'),
@@ -182,6 +186,10 @@ export const createRoutingRuleSchema = z.object({
     .enum(['FIXED', 'ROUND_ROBIN', 'LEAST_LOADED'])
     .default('FIXED'),
   conditions: routingConditionsSchema,
+});
+
+export const updateRoutingRuleStatusSchema = z.object({
+  active: z.boolean(),
 });
 
 export const contentPlatformSchema = z.enum([
