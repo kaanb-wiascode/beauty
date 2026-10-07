@@ -61,7 +61,7 @@ export function SiteHeader() {
             </svg>
           </button>
           <a className="login-link" href="#login">Giriş</a>
-          <a className="demo-button" href="#demo">Demo</a>
+          <a className="demo-button" href="/demo">Demo</a>
           <details className="mobile-menu">
             <summary aria-label="Menüyü aç"><span /><span /></summary>
             <nav aria-label="Mobil navigasyon">
@@ -70,7 +70,7 @@ export function SiteHeader() {
               <a href="#solutions">Çözümler</a>
               <a href="#industries">Sektörler</a>
               <a href="#resources">Kaynaklar</a>
-              <a href="#demo">Demo planlayın</a>
+              <a href="/demo">Demo planlayın</a>
             </nav>
           </details>
         </div>
