@@ -285,6 +285,37 @@ export class CorporateCommunicationsService {
     const endsAt =
       input.endsAt === undefined ? (current.endsAt as Date | string | null) : input.endsAt;
 
+    const spentAmountChanged =
+      input.spentAmount !== undefined &&
+      Number(input.spentAmount) !== Number(current.spentAmount ?? 0);
+    const currencyChanged =
+      input.currency !== undefined &&
+      input.currency !== String(current.currency ?? "TRY");
+
+    if (spentAmountChanged || currencyChanged) {
+      const [financeRecord] = await this.prisma.$queryRawUnsafe<
+        Array<{ status: string }>
+      >(
+        `SELECT status
+         FROM corporate_marketing_expenses
+         WHERE tenant_id=$1::text
+           AND company_id=$2::text
+           AND campaign_id=$3::text
+           AND source_type='CAMPAIGN'
+         ORDER BY created_at DESC
+         LIMIT 1`,
+        tenantId,
+        companyId,
+        id,
+      );
+
+      if (financeRecord?.status === 'POSTED') {
+        throw new BadRequestException(
+          'Finansa aktarılmış kampanya harcaması doğrudan değiştirilemez. Önce finans kaydında düzeltme veya ters kayıt işlemi yapılmalıdır.',
+        );
+      }
+    }
+
     if (branchId) await this.assertBranch(branchId);
     if (ownerUserId) await this.assertAssignableUser(ownerUserId, branchId);
 
