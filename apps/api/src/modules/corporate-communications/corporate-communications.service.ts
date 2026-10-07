@@ -7,6 +7,8 @@ import type {
   CreateMarketingLeadInput,
   CreateProviderConnectionInput,
   CreateRoutingRuleInput,
+  UpdateCampaignInput,
+  UpdateRoutingRuleInput,
 } from './corporate-communications.schemas';
 
 type Row = { id: string; [key: string]: unknown };
@@ -196,7 +198,16 @@ export class CorporateCommunicationsService {
               c.spent_amount AS "spentAmount",c.currency,c.starts_at AS "startsAt",c.ends_at AS "endsAt",
               c.owner_user_id AS "ownerUserId",c.notes,c.created_at AS "createdAt",c.updated_at AS "updatedAt",
               (SELECT count(*)::int FROM corporate_marketing_leads l WHERE l.campaign_id=c.id) AS "leadCount",
-              (SELECT COALESCE(sum(l.revenue_amount),0) FROM corporate_marketing_leads l WHERE l.campaign_id=c.id) AS revenue
+              (SELECT COALESCE(sum(l.revenue_amount),0) FROM corporate_marketing_leads l WHERE l.campaign_id=c.id) AS revenue,
+              (SELECT e.id FROM corporate_marketing_expenses e
+                WHERE e.campaign_id=c.id AND e.source_type='CAMPAIGN'
+                ORDER BY e.created_at DESC LIMIT 1) AS "marketingExpenseId",
+              (SELECT e.status FROM corporate_marketing_expenses e
+                WHERE e.campaign_id=c.id AND e.source_type='CAMPAIGN'
+                ORDER BY e.created_at DESC LIMIT 1) AS "marketingFinanceStatus",
+              (SELECT e.supplier_bill_id FROM corporate_marketing_expenses e
+                WHERE e.campaign_id=c.id AND e.source_type='CAMPAIGN'
+                ORDER BY e.created_at DESC LIMIT 1) AS "supplierBillId"
        FROM corporate_communication_campaigns c
        WHERE c.tenant_id=$1::text AND c.company_id=$2::text
          AND ($3::text IS NULL OR c.branch_id IS NULL OR c.branch_id=$3::text)
@@ -257,6 +268,90 @@ export class CorporateCommunicationsService {
       actorUserId,
     );
     return row;
+  }
+
+  async updateCampaign(id: string, input: UpdateCampaignInput) {
+    const current = await this.getCampaign(id);
+    const { tenantId, companyId, branchId: activeBranchId } = this.context();
+
+    const branchId =
+      input.branchId === undefined ? (current.branchId as string | null) : input.branchId;
+    const serviceId =
+      input.serviceId === undefined ? (current.serviceId as string | null) : input.serviceId;
+    const ownerUserId =
+      input.ownerUserId === undefined ? (current.ownerUserId as string | null) : input.ownerUserId;
+    const startsAt =
+      input.startsAt === undefined ? (current.startsAt as Date | string | null) : input.startsAt;
+    const endsAt =
+      input.endsAt === undefined ? (current.endsAt as Date | string | null) : input.endsAt;
+
+    if (branchId) await this.assertBranch(branchId);
+    if (ownerUserId) await this.assertAssignableUser(ownerUserId, branchId);
+
+    if (serviceId) {
+      const service = await this.prisma.service.findFirst({
+        where: {
+          id: serviceId,
+          tenantId,
+          ...(branchId ? { branchId } : {}),
+        },
+        select: { id: true },
+      });
+      if (!service) {
+        throw new BadRequestException('Seçilen hizmet kampanya kapsamında değil.');
+      }
+    }
+
+    if (startsAt && endsAt && new Date(endsAt) < new Date(startsAt)) {
+      throw new BadRequestException(
+        'Kampanya bitiş tarihi başlangıç tarihinden sonra olmalıdır.',
+      );
+    }
+
+    const [updated] = await this.prisma.$queryRawUnsafe<Row[]>(
+      `UPDATE corporate_communication_campaigns
+          SET name=$2,
+              objective=$3,
+              channel=$4,
+              branch_id=$5::text,
+              service_id=$6::text,
+              planned_budget=$7,
+              spent_amount=$8,
+              currency=$9,
+              starts_at=$10,
+              ends_at=$11,
+              owner_user_id=$12::text,
+              notes=$13,
+              updated_at=NOW()
+        WHERE id=$1::text
+          AND tenant_id=$14::text
+          AND company_id=$15::text
+          AND ($16::text IS NULL OR branch_id IS NULL OR branch_id=$16::text)
+        RETURNING id,name,objective,status,channel,branch_id AS "branchId",
+                  service_id AS "serviceId",planned_budget AS "plannedBudget",
+                  spent_amount AS "spentAmount",currency,starts_at AS "startsAt",
+                  ends_at AS "endsAt",owner_user_id AS "ownerUserId",notes,
+                  created_at AS "createdAt",updated_at AS "updatedAt"`,
+      id,
+      input.name ?? current.name,
+      input.objective ?? current.objective,
+      input.channel ?? current.channel,
+      branchId,
+      serviceId,
+      input.plannedBudget ?? current.plannedBudget,
+      input.spentAmount ?? current.spentAmount,
+      input.currency ?? current.currency,
+      startsAt,
+      endsAt,
+      ownerUserId,
+      input.notes === undefined ? current.notes : input.notes,
+      tenantId,
+      companyId,
+      activeBranchId,
+    );
+
+    if (!updated) throw new NotFoundException('Kampanya bulunamadı.');
+    return updated;
   }
 
   async listMarketingLeads(filters: {
@@ -666,6 +761,81 @@ export class CorporateCommunicationsService {
     );
     if (!row) throw new NotFoundException('Talep dağıtım kuralı bulunamadı.');
     return row;
+  }
+
+  async updateRoutingRule(id: string, input: UpdateRoutingRuleInput) {
+    const { tenantId, companyId } = this.context();
+
+    if (input.campaignId) await this.assertCampaign(input.campaignId);
+    if (input.targetBranchId) await this.assertBranch(input.targetBranchId);
+    if (input.targetUserId) {
+      await this.assertAssignableUser(input.targetUserId, input.targetBranchId);
+    }
+    if (input.strategy === 'FIXED' && !input.targetBranchId && !input.targetUserId) {
+      throw new BadRequestException(
+        'Sabit yönlendirme için hedef şube veya sorumlu seçilmelidir.',
+      );
+    }
+
+    const [row] = await this.prisma.$queryRawUnsafe<Row[]>(
+      `UPDATE corporate_lead_routing_rules
+          SET name=$4,
+              priority=$5,
+              provider=$6,
+              campaign_id=$7::text,
+              target_branch_id=$8::text,
+              target_user_id=$9::text,
+              strategy=$10,
+              conditions=$11::jsonb,
+              updated_at=NOW()
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+        RETURNING id,name,priority,active,provider,campaign_id AS "campaignId",
+                  target_branch_id AS "targetBranchId",target_user_id AS "targetUserId",
+                  strategy,conditions,created_at AS "createdAt",updated_at AS "updatedAt"`,
+      id,
+      tenantId,
+      companyId,
+      input.name,
+      input.priority,
+      input.provider ?? null,
+      input.campaignId ?? null,
+      input.targetBranchId ?? null,
+      input.targetUserId ?? null,
+      input.strategy,
+      JSON.stringify(input.conditions),
+    );
+
+    if (!row) throw new NotFoundException('Talep dağıtım kuralı bulunamadı.');
+    return row;
+  }
+
+  async deleteRoutingRule(id: string) {
+    const { tenantId, companyId } = this.context();
+    const existing = await this.prisma.$queryRawUnsafe<Array<{ active: boolean }>>(
+      `SELECT active FROM corporate_lead_routing_rules
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+       LIMIT 1`,
+      id,
+      tenantId,
+      companyId,
+    );
+    if (!existing.length) {
+      throw new NotFoundException('Talep dağıtım kuralı bulunamadı.');
+    }
+    if (existing[0].active) {
+      throw new BadRequestException(
+        'Aktif dağıtım kuralı silinemez. Önce kuralı pasifleştirin.',
+      );
+    }
+
+    await this.prisma.$executeRawUnsafe(
+      `DELETE FROM corporate_lead_routing_rules
+       WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text`,
+      id,
+      tenantId,
+      companyId,
+    );
+    return { id, deleted: true };
   }
 
   async updateCampaignStatus(
