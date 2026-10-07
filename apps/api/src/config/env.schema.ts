@@ -32,6 +32,10 @@ export const envSchema = z.object({
   MARKETING_INTEGRATION_MASTER_KEY_VERSION: z.string().trim().min(1).max(64).default('v1'),
   MARKETING_INTEGRATION_PREVIOUS_MASTER_KEYS: z.string().optional(),
 
+  MARKETING_DEMO_TENANT_ID: z.string().uuid().optional(),
+  MARKETING_DEMO_COMPANY_ID: z.string().uuid().optional(),
+  MARKETING_DEMO_BRANCH_ID: z.string().uuid().optional(),
+
   META_OAUTH_CLIENT_ID: z.string().trim().min(1).optional(),
   META_OAUTH_CLIENT_SECRET: z.string().trim().min(1).optional(),
   META_OAUTH_AUTHORIZATION_URL: z.string().url().optional(),
@@ -152,6 +156,25 @@ export const envSchema = z.object({
       code: z.ZodIssueCode.custom,
       message: 'OBJECT_STORAGE_ENDPOINT must use HTTPS in production',
       path: ['OBJECT_STORAGE_ENDPOINT'],
+    });
+  }
+
+  const demoScopeConfigured = [
+    env.MARKETING_DEMO_TENANT_ID,
+    env.MARKETING_DEMO_COMPANY_ID,
+  ].filter(Boolean).length;
+  if (demoScopeConfigured === 1) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'MARKETING_DEMO_TENANT_ID and MARKETING_DEMO_COMPANY_ID must be configured together',
+      path: ['MARKETING_DEMO_TENANT_ID'],
+    });
+  }
+  if (env.MARKETING_DEMO_BRANCH_ID && demoScopeConfigured !== 2) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'MARKETING_DEMO_BRANCH_ID requires the demo tenant and company scope',
+      path: ['MARKETING_DEMO_BRANCH_ID'],
     });
   }
 
