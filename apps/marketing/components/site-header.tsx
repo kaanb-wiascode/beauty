@@ -1,3 +1,5 @@
+import { ValooLogo } from "@/components/valoo-logo";
+
 const productLinks = [
   ["CRM", "Müşteriler ve satış fırsatları"],
   ["Operasyon", "Günün akışı ve kapasite"],
@@ -17,7 +19,7 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <div className="header-inner">
-        <a className="brand" href="/" aria-label="VALOO ana sayfa">VALOO</a>
+        <a className="brand" href="/" aria-label="VALOO ana sayfa"><ValooLogo className="brand-logo" priority /></a>
 
         <nav className="desktop-nav" aria-label="Ana navigasyon">
           <a href="/platform">Platform</a>
