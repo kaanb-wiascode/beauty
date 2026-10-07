@@ -37,6 +37,8 @@ jobs:
   validate:
     runs-on: ubuntu-latest
     timeout-minutes: 25
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/beauty_ci?schema=public
     steps:
       - name: Checkout
         uses: actions/checkout@v6
