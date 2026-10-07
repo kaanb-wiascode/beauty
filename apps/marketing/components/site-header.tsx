@@ -1,4 +1,5 @@
 import { ValooLogo } from "@/components/valoo-logo";
+import { appUrl } from "@/lib/site-config";
 
 const productLinks = [
   ["CRM", "Müşteriler ve satış fırsatları"],
@@ -56,13 +57,7 @@ export function SiteHeader() {
         </nav>
 
         <div className="header-actions">
-          <button className="icon-button" type="button" aria-label="Ara">
-            <svg viewBox="0 0 24 24" aria-hidden="true">
-              <circle cx="11" cy="11" r="6.5" />
-              <path d="m16 16 4 4" />
-            </svg>
-          </button>
-          <a className="login-link" href="#login">Giriş</a>
+          {appUrl ? <a className="login-link" href={appUrl}>Giriş</a> : null}
           <a className="demo-button" href="/demo">Demo</a>
           <details className="mobile-menu">
             <summary aria-label="Menüyü aç"><span /><span /></summary>
