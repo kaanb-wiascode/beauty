@@ -49,7 +49,7 @@ export function SiteHeader() {
               </div>
             </div>
           </div>
-          <a href="/#industries">Sektörler</a>
+          <a href="/sektorler">Sektörler</a>
           <a href="/#resources">Kaynaklar</a>
         </nav>
 
@@ -68,7 +68,7 @@ export function SiteHeader() {
               <a href="/platform">Platform</a>
               <a href="/urunler">Ürünler</a>
               <a href="/cozumler">Çözümler</a>
-              <a href="/#industries">Sektörler</a>
+              <a href="/sektorler">Sektörler</a>
               <a href="/#resources">Kaynaklar</a>
               <a href="/demo">Demo planlayın</a>
             </nav>
