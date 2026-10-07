@@ -190,6 +190,288 @@ export class CorporateCommunicationsService {
     };
   }
 
+  async reportSummary(input: { from: string; to: string }) {
+    const { tenantId, companyId, branchId } = this.context();
+    const fromDate = new Date(input.from + 'T00:00:00Z');
+    const toDate = new Date(input.to + 'T00:00:00Z');
+    const dayCount =
+      Math.floor((toDate.getTime() - fromDate.getTime()) / 86_400_000) + 1;
+
+    const previousToDate = new Date(fromDate);
+    previousToDate.setUTCDate(previousToDate.getUTCDate() - 1);
+    const previousFromDate = new Date(previousToDate);
+    previousFromDate.setUTCDate(previousFromDate.getUTCDate() - dayCount + 1);
+
+    const previousFrom = previousFromDate.toISOString().slice(0, 10);
+    const previousTo = previousToDate.toISOString().slice(0, 10);
+
+    const loadPeriod = async (from: string, to: string) => {
+      const [row] = await this.prisma.$queryRawUnsafe<
+        Array<{
+          leads: bigint;
+          crmLeads: bigint;
+          customers: bigint;
+          appointments: bigint;
+          sales: bigint;
+          revenue: unknown;
+          spend: unknown;
+          postedSpend: unknown;
+          financePending: bigint;
+          contentPublished: bigint;
+          prActivities: bigint;
+          prReach: unknown;
+          prMediaValue: unknown;
+          creatorCollaborations: bigint;
+        }>
+      >(
+        `SELECT
+           (SELECT count(*) FROM corporate_marketing_leads l
+             WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+               AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+               AND l.received_at::date BETWEEN $4::date AND $5::date) AS leads,
+           (SELECT count(*) FROM corporate_marketing_leads l
+             WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+               AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+               AND l.received_at::date BETWEEN $4::date AND $5::date
+               AND l.crm_lead_id IS NOT NULL) AS "crmLeads",
+           (SELECT count(*) FROM corporate_marketing_leads l
+             WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+               AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+               AND l.received_at::date BETWEEN $4::date AND $5::date
+               AND l.customer_id IS NOT NULL) AS customers,
+           (SELECT count(*) FROM corporate_marketing_leads l
+             WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+               AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+               AND l.received_at::date BETWEEN $4::date AND $5::date
+               AND l.appointment_id IS NOT NULL) AS appointments,
+           (SELECT count(*) FROM corporate_marketing_leads l
+             WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+               AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+               AND l.received_at::date BETWEEN $4::date AND $5::date
+               AND l.sale_id IS NOT NULL) AS sales,
+           (SELECT COALESCE(sum(l.revenue_amount),0) FROM corporate_marketing_leads l
+             WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+               AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+               AND l.received_at::date BETWEEN $4::date AND $5::date) AS revenue,
+           (SELECT COALESCE(sum(e.amount),0) FROM corporate_marketing_expenses e
+             WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+               AND ($3::text IS NULL OR e.branch_id IS NULL OR e.branch_id=$3::text)
+               AND e.incurred_on BETWEEN $4::date AND $5::date
+               AND e.status<>'CANCELLED') AS spend,
+           (SELECT COALESCE(sum(e.amount),0) FROM corporate_marketing_expenses e
+             WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+               AND ($3::text IS NULL OR e.branch_id IS NULL OR e.branch_id=$3::text)
+               AND e.incurred_on BETWEEN $4::date AND $5::date
+               AND e.status='POSTED') AS "postedSpend",
+           (SELECT count(*) FROM corporate_marketing_expenses e
+             WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+               AND ($3::text IS NULL OR e.branch_id IS NULL OR e.branch_id=$3::text)
+               AND e.incurred_on BETWEEN $4::date AND $5::date
+               AND e.status IN ('PENDING_FINANCE','APPROVED')) AS "financePending",
+           (SELECT count(*) FROM corporate_content_items ci
+             WHERE ci.tenant_id=$1::text AND ci.company_id=$2::text
+               AND ($3::text IS NULL OR ci.branch_id IS NULL OR ci.branch_id=$3::text)
+               AND ci.published_at::date BETWEEN $4::date AND $5::date) AS "contentPublished",
+           (SELECT count(*) FROM corporate_pr_activities p
+             WHERE p.tenant_id=$1::text AND p.company_id=$2::text
+               AND ($3::text IS NULL OR p.branch_id IS NULL OR p.branch_id=$3::text)
+               AND COALESCE(p.starts_at,p.created_at)::date BETWEEN $4::date AND $5::date
+               AND p.status<>'CANCELLED') AS "prActivities",
+           (SELECT COALESCE(sum(CASE WHEN p.actual_reach>0 THEN p.actual_reach ELSE p.estimated_reach END),0)
+              FROM corporate_pr_activities p
+             WHERE p.tenant_id=$1::text AND p.company_id=$2::text
+               AND ($3::text IS NULL OR p.branch_id IS NULL OR p.branch_id=$3::text)
+               AND COALESCE(p.starts_at,p.created_at)::date BETWEEN $4::date AND $5::date
+               AND p.status<>'CANCELLED') AS "prReach",
+           (SELECT COALESCE(sum(p.estimated_media_value),0)
+              FROM corporate_pr_activities p
+             WHERE p.tenant_id=$1::text AND p.company_id=$2::text
+               AND ($3::text IS NULL OR p.branch_id IS NULL OR p.branch_id=$3::text)
+               AND COALESCE(p.starts_at,p.created_at)::date BETWEEN $4::date AND $5::date
+               AND p.status<>'CANCELLED') AS "prMediaValue",
+           (SELECT count(*) FROM corporate_creator_collaborations cc
+             WHERE cc.tenant_id=$1::text AND cc.company_id=$2::text
+               AND ($3::text IS NULL OR cc.branch_id IS NULL OR cc.branch_id=$3::text)
+               AND COALESCE(cc.starts_at,cc.created_at)::date BETWEEN $4::date AND $5::date
+               AND cc.status<>'CANCELLED') AS "creatorCollaborations"`,
+        tenantId,
+        companyId,
+        branchId,
+        from,
+        to,
+      );
+
+      const leads = Number(row?.leads ?? 0);
+      const appointments = Number(row?.appointments ?? 0);
+      const sales = Number(row?.sales ?? 0);
+      const spend = Number(row?.spend ?? 0);
+      const revenue = Number(row?.revenue ?? 0);
+
+      return {
+        leads,
+        crmLeads: Number(row?.crmLeads ?? 0),
+        customers: Number(row?.customers ?? 0),
+        appointments,
+        sales,
+        revenue,
+        spend,
+        postedSpend: Number(row?.postedSpend ?? 0),
+        financePending: Number(row?.financePending ?? 0),
+        contentPublished: Number(row?.contentPublished ?? 0),
+        prActivities: Number(row?.prActivities ?? 0),
+        prReach: Number(row?.prReach ?? 0),
+        prMediaValue: Number(row?.prMediaValue ?? 0),
+        creatorCollaborations: Number(row?.creatorCollaborations ?? 0),
+        appointmentRate: leads > 0 ? appointments / leads : 0,
+        saleRate: leads > 0 ? sales / leads : 0,
+        roas: spend > 0 ? revenue / spend : null,
+        costPerLead: leads > 0 ? spend / leads : null,
+      };
+    };
+
+    const [current, previous, channels, expenseCategories, daily] =
+      await Promise.all([
+        loadPeriod(input.from, input.to),
+        loadPeriod(previousFrom, previousTo),
+        this.prisma.$queryRawUnsafe<
+          Array<{
+            provider: string;
+            leads: bigint;
+            appointments: bigint;
+            sales: bigint;
+            revenue: unknown;
+          }>
+        >(
+          `SELECT l.provider,
+                  count(*) AS leads,
+                  count(*) FILTER (WHERE l.appointment_id IS NOT NULL) AS appointments,
+                  count(*) FILTER (WHERE l.sale_id IS NOT NULL) AS sales,
+                  COALESCE(sum(l.revenue_amount),0) AS revenue
+             FROM corporate_marketing_leads l
+            WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+              AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+              AND l.received_at::date BETWEEN $4::date AND $5::date
+            GROUP BY l.provider
+            ORDER BY COALESCE(sum(l.revenue_amount),0) DESC,count(*) DESC,l.provider`,
+          tenantId,
+          companyId,
+          branchId,
+          input.from,
+          input.to,
+        ),
+        this.prisma.$queryRawUnsafe<
+          Array<{
+            category: string;
+            sourceType: string;
+            amount: unknown;
+            count: bigint;
+          }>
+        >(
+          `SELECT e.category,e.source_type AS "sourceType",
+                  COALESCE(sum(e.amount),0) AS amount,count(*) AS count
+             FROM corporate_marketing_expenses e
+            WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+              AND ($3::text IS NULL OR e.branch_id IS NULL OR e.branch_id=$3::text)
+              AND e.incurred_on BETWEEN $4::date AND $5::date
+              AND e.status<>'CANCELLED'
+            GROUP BY e.category,e.source_type
+            ORDER BY COALESCE(sum(e.amount),0) DESC,e.category,e.source_type`,
+          tenantId,
+          companyId,
+          branchId,
+          input.from,
+          input.to,
+        ),
+        this.prisma.$queryRawUnsafe<
+          Array<{
+            day: Date | string;
+            leads: bigint;
+            appointments: bigint;
+            sales: bigint;
+            revenue: unknown;
+            spend: unknown;
+            contentPublished: bigint;
+          }>
+        >(
+          `SELECT d.day,
+                  (SELECT count(*) FROM corporate_marketing_leads l
+                    WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+                      AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+                      AND l.received_at::date=d.day) AS leads,
+                  (SELECT count(*) FROM corporate_marketing_leads l
+                    WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+                      AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+                      AND l.received_at::date=d.day AND l.appointment_id IS NOT NULL) AS appointments,
+                  (SELECT count(*) FROM corporate_marketing_leads l
+                    WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+                      AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+                      AND l.received_at::date=d.day AND l.sale_id IS NOT NULL) AS sales,
+                  (SELECT COALESCE(sum(l.revenue_amount),0) FROM corporate_marketing_leads l
+                    WHERE l.tenant_id=$1::text AND l.company_id=$2::text
+                      AND ($3::text IS NULL OR l.branch_id IS NULL OR l.branch_id=$3::text)
+                      AND l.received_at::date=d.day) AS revenue,
+                  (SELECT COALESCE(sum(e.amount),0) FROM corporate_marketing_expenses e
+                    WHERE e.tenant_id=$1::text AND e.company_id=$2::text
+                      AND ($3::text IS NULL OR e.branch_id IS NULL OR e.branch_id=$3::text)
+                      AND e.incurred_on=d.day AND e.status<>'CANCELLED') AS spend,
+                  (SELECT count(*) FROM corporate_content_items ci
+                    WHERE ci.tenant_id=$1::text AND ci.company_id=$2::text
+                      AND ($3::text IS NULL OR ci.branch_id IS NULL OR ci.branch_id=$3::text)
+                      AND ci.published_at::date=d.day) AS "contentPublished"
+             FROM generate_series($4::date,$5::date,'1 day'::interval) AS d(day)
+            ORDER BY d.day`,
+          tenantId,
+          companyId,
+          branchId,
+          input.from,
+          input.to,
+        ),
+      ]);
+
+    return {
+      range: {
+        from: input.from,
+        to: input.to,
+        previousFrom,
+        previousTo,
+        days: dayCount,
+      },
+      current,
+      previous,
+      channels: channels.map((row) => {
+        const leads = Number(row.leads);
+        return {
+          provider: row.provider,
+          leads,
+          appointments: Number(row.appointments),
+          sales: Number(row.sales),
+          revenue: Number(row.revenue ?? 0),
+          appointmentRate:
+            leads > 0 ? Number(row.appointments) / leads : 0,
+          saleRate: leads > 0 ? Number(row.sales) / leads : 0,
+        };
+      }),
+      expenseCategories: expenseCategories.map((row) => ({
+        category: row.category,
+        sourceType: row.sourceType,
+        amount: Number(row.amount ?? 0),
+        count: Number(row.count),
+      })),
+      daily: daily.map((row) => ({
+        date:
+          row.day instanceof Date
+            ? row.day.toISOString().slice(0, 10)
+            : String(row.day).slice(0, 10),
+        leads: Number(row.leads),
+        appointments: Number(row.appointments),
+        sales: Number(row.sales),
+        revenue: Number(row.revenue ?? 0),
+        spend: Number(row.spend ?? 0),
+        contentPublished: Number(row.contentPublished),
+      })),
+    };
+  }
+
   async listCampaigns(filters: { status?: string; search?: string; limit: number }) {
     const { tenantId, companyId, branchId } = this.context();
     return this.prisma.$queryRawUnsafe<Row[]>(
