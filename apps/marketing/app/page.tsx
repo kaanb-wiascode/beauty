@@ -26,7 +26,7 @@ export default function Home() {
               İşletmenin birbirinden kopuk görünen parçalarını aynı akışta buluşturan yeni nesil yönetim platformu.
             </p>
             <div className="hero-actions">
-              <a className="primary-link" href="#demo">VALOO’yu keşfedin</a>
+              <a className="primary-link" href="/demo">VALOO’yu keşfedin</a>
               <a className="text-link" href="#story">Nasıl düşündüğünü görün <span>→</span></a>
             </div>
           </div>
@@ -139,7 +139,7 @@ export default function Home() {
         <section className="final-cta" id="demo" data-reveal>
           <p className="eyebrow">VALOO</p>
           <h2>İşletmeniz büyüsün.<br /><span>Karmaşası değil.</span></h2>
-          <a className="primary-link" href="mailto:hello@valoo.app">Demo planlayın</a>
+          <a className="primary-link" href="/demo">Demo planlayın</a>
         </section>
       </main>
       <SiteFooter />
