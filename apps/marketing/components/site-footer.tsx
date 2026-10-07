@@ -31,7 +31,7 @@ export function SiteFooter() {
 
         <div className="footer-demo">
           <p>Gerisini göstermemiz daha kolay.</p>
-          <a href="#demo">Demo planlayın <span aria-hidden="true">→</span></a>
+          <a href="/demo">Demo planlayın <span aria-hidden="true">→</span></a>
         </div>
 
         <div className="footer-legal">
