@@ -64,6 +64,7 @@ export default function RoutingPage() {
   });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [actingId, setActingId] = useState("");
   const [error, setError] = useState("");
   const [showForm, setShowForm] = useState(false);
   const [sourceFilter, setSourceFilter] = useState("");
@@ -181,6 +182,37 @@ export default function RoutingPage() {
       );
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function toggleRule(rule: Rule) {
+    setActingId(rule.id);
+    setError("");
+
+    try {
+      await api(
+        "/corporate-communications/routing-rules/" + rule.id + "/status",
+        {
+          method: "PATCH",
+          body: { active: !rule.active },
+        },
+      );
+      setRules((current) =>
+        current.map((item) =>
+          item.id === rule.id ? { ...item, active: !rule.active } : item,
+        ),
+      );
+    } catch (err) {
+      setError(
+        err instanceof ApiError
+          ? userErrorMessage(
+              err.message,
+              "Dağıtım kuralı durumu güncellenemedi.",
+            )
+          : "Dağıtım kuralı durumu güncellenemedi.",
+      );
+    } finally {
+      setActingId("");
     }
   }
 
@@ -443,7 +475,7 @@ export default function RoutingPage() {
             {filtered.map((rule) => (
               <article
                 key={rule.id}
-                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(240px,1.2fr)_minmax(210px,.9fr)_minmax(220px,1fr)_minmax(190px,.8fr)] xl:items-center"
+                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(240px,1.1fr)_minmax(180px,.8fr)_minmax(190px,.85fr)_minmax(190px,.8fr)_140px] xl:items-center"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -503,6 +535,31 @@ export default function RoutingPage() {
                         ] ?? "Telefon")}
                   </strong>
                 </div>
+
+                <div className="flex xl:justify-end">
+                  {canManage ? (
+                    <button
+                      type="button"
+                      disabled={actingId === rule.id}
+                      onClick={() => void toggleRule(rule)}
+                      className={
+                        rule.active
+                          ? "h-9 rounded-[10px] border border-[var(--line)] px-3 text-[8px] font-semibold text-[var(--muted)] transition hover:text-[var(--danger)] disabled:opacity-50"
+                          : "h-9 rounded-[10px] bg-[var(--accent)] px-3 text-[8px] font-semibold text-white transition disabled:opacity-50"
+                      }
+                    >
+                      {actingId === rule.id
+                        ? "İşleniyor..."
+                        : rule.active
+                          ? "Pasifleştir"
+                          : "Aktifleştir"}
+                    </button>
+                  ) : (
+                    <span className="text-[8px] text-[var(--muted)]">
+                      Görüntüleme yetkisi
+                    </span>
+                  )}
+                </div>
               </article>
             ))}
           </div>
@@ -513,11 +570,6 @@ export default function RoutingPage() {
         )}
       </section>
 
-      <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-[8px] leading-4 text-[var(--muted)]">
-        Mevcut servis yeni kural oluşturmayı destekliyor. Kural düzenleme,
-        aktif/pasif değiştirme ve silme işlemleri backend yaşam döngüsü
-        tamamlandığında bu ekrana eklenecek.
-      </div>
     </div>
   );
 }
