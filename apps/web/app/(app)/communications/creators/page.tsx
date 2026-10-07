@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { MarketingFinanceTransferPanel } from "@/components/marketing-finance-transfer-panel";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { hasPermission } from "@/lib/auth";
@@ -32,6 +33,9 @@ type Collaboration = {
     quantity: number;
   }>;
   attributedRevenue: string | number;
+  marketingExpenseId?: string | null;
+  marketingFinanceStatus?: string | null;
+  supplierBillId?: string | null;
 };
 
 const field =
@@ -47,9 +51,12 @@ const number = new Intl.NumberFormat("tr-TR");
 
 export default function CreatorsPage() {
   const canManage = hasPermission("communications", "manage");
+  const canFinanceManage = hasPermission("finance", "manage");
   const [rows, setRows] = useState<Creator[]>([]);
   const [selected, setSelected] = useState<Creator | null>(null);
   const [collabs, setCollabs] = useState<Collaboration[]>([]);
+  const [financeCollaboration, setFinanceCollaboration] =
+    useState<Collaboration | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -509,6 +516,19 @@ export default function CreatorsPage() {
         )}
       </section>
 
+      {financeCollaboration?.marketingExpenseId && selected ? (
+        <MarketingFinanceTransferPanel
+          expenseId={financeCollaboration.marketingExpenseId}
+          title={selected.displayName + " · İçerik Üreticisi İş Birliği"}
+          amountLabel={money.format(Number(financeCollaboration.feeAmount || 0))}
+          onClose={() => setFinanceCollaboration(null)}
+          onDone={async () => {
+            setFinanceCollaboration(null);
+            await openCreator(selected);
+          }}
+        />
+      ) : null}
+
       {selected ? (
         <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -576,6 +596,30 @@ export default function CreatorsPage() {
                       Number(collaboration.attributedRevenue || 0),
                     )}
                   </p>
+                  <div className="mt-3 flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
+                    <div>
+                      <span className="block text-[7px] text-[var(--muted)]">
+                        Finans
+                      </span>
+                      <FinanceBadge
+                        status={collaboration.marketingFinanceStatus}
+                        amount={Number(collaboration.feeAmount || 0)}
+                      />
+                    </div>
+
+                    {canFinanceManage &&
+                    Number(collaboration.feeAmount || 0) > 0 &&
+                    collaboration.marketingExpenseId &&
+                    collaboration.marketingFinanceStatus !== "POSTED" ? (
+                      <button
+                        type="button"
+                        onClick={() => setFinanceCollaboration(collaboration)}
+                        className="h-8 rounded-[9px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-2.5 text-[8px] font-semibold text-[var(--accent)]"
+                      >
+                        Finansa Aktar
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
               ))}
             </div>
@@ -643,6 +687,37 @@ function Mini({ label, value }: { label: string; value: string }) {
         {value}
       </strong>
     </div>
+  );
+}
+
+function FinanceBadge({
+  status,
+  amount,
+}: {
+  status?: string | null;
+  amount: number;
+}) {
+  const label =
+    amount <= 0
+      ? "Ücret Yok"
+      : status === "POSTED"
+        ? "Finansa Aktarıldı"
+        : status === "APPROVED"
+          ? "Finansa Hazır"
+          : "Finans Bekliyor";
+
+  return (
+    <span
+      className={
+        status === "POSTED"
+          ? "mt-1 inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+          : amount > 0
+            ? "mt-1 inline-flex rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]"
+            : "mt-1 inline-flex rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[7px] font-semibold text-[var(--muted)]"
+      }
+    >
+      {label}
+    </span>
   );
 }
 
