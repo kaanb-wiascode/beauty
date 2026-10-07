@@ -15,9 +15,9 @@ const highlightCards = [
 ] as const;
 
 const resourceCards = [
-  { title: "Çok şubeli işletme nasıl yönetilir?", tag: "Yönetim", read: "6 dk" },
-  { title: "CRM neden bir müşteri listesinden fazlasıdır?", tag: "CRM", read: "5 dk" },
-  { title: "Ciro güzel. Peki nakit akışı?", tag: "Finans", read: "7 dk" },
+  { title: "Çok şubeli işletme nasıl yönetilir?", tag: "Yönetim", read: "6 dk", href: "/cozumler#bolum-2" },
+  { title: "CRM neden bir müşteri listesinden fazlasıdır?", tag: "CRM", read: "5 dk", href: "/urunler#bolum-1" },
+  { title: "Ciro güzel. Peki nakit akışı?", tag: "Finans", read: "7 dk", href: "/urunler#bolum-2" },
 ] as const;
 
 export default function Home() {
@@ -50,7 +50,7 @@ export default function Home() {
 
           <div className="rich-hero-visual" data-reveal>
             <div className="photo-frame hero-photo">
-              <img src={heroImage} alt="Modern bir ofiste birlikte çalışan iş ekibi" />
+              <img src={heroImage} alt="Modern bir ofiste birlikte çalışan iş ekibi" fetchPriority="high" decoding="async" />
               <div className="photo-scrim" />
             </div>
             <div className="floating-card float-sales">
@@ -141,7 +141,7 @@ export default function Home() {
         </section>
 
         <section className="full-photo-story" data-reveal>
-          <img src={teamImage} alt="Modern ofiste dizüstü bilgisayarlarla birlikte çalışan ekip" />
+          <img src={teamImage} alt="Modern ofiste dizüstü bilgisayarlarla birlikte çalışan ekip" loading="lazy" decoding="async" />
           <div className="full-photo-overlay">
             <p className="eyebrow eyebrow-light">Hareket halindeyken</p>
             <h2>İşletme hareket eder.<span>VALOO da.</span></h2>
@@ -215,7 +215,7 @@ export default function Home() {
 
           <div className="sector-grid">
             <a className="sector-card sector-photo" href="/sektorler" data-reveal>
-              <img src={teamImage} alt="" />
+              <img src={teamImage} alt="" loading="lazy" decoding="async" />
               <div>
                 <small>Çözüm</small>
                 <h3>Hizmet işletmeleri</h3>
@@ -280,7 +280,7 @@ export default function Home() {
                 <div>
                   <span>{card.tag} · {card.read}</span>
                   <h3>{card.title}</h3>
-                  <a href="/platform">Okuyun →</a>
+                  <a href={card.href}>İnceleyin →</a>
                 </div>
               </article>
             ))}
