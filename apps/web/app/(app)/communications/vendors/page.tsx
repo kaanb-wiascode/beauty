@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { MarketingFinanceTransferPanel } from "@/components/marketing-finance-transfer-panel";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
 import { api, ApiError } from "@/lib/api";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
@@ -23,6 +24,10 @@ type Vendor = {
   kpiCommitments: Record<string, unknown>;
   performanceNotes?: string | null;
   attributedRevenue: string | number;
+  marketingExpenseId?: string | null;
+  marketingFinanceStatus?: string | null;
+  supplierBillId?: string | null;
+  financePeriod?: string | null;
 };
 
 const field =
@@ -58,6 +63,7 @@ function formatDate(value?: string | null) {
 
 export default function MarketingVendorsPage() {
   const canManage = hasPermission("communications", "manage");
+  const canFinanceManage = hasPermission("finance", "manage");
   const [rows, setRows] = useState<Vendor[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -65,6 +71,7 @@ export default function MarketingVendorsPage() {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [showForm, setShowForm] = useState(false);
+  const [financeVendor, setFinanceVendor] = useState<Vendor | null>(null);
 
   const [name, setName] = useState("");
   const [vendorType, setVendorType] = useState("SOCIAL_MEDIA_AGENCY");
@@ -134,6 +141,11 @@ export default function MarketingVendorsPage() {
         0,
       ),
       expiring: expiring.length,
+      financePending: active.filter(
+        (row) =>
+          Number(row.monthlyFee || 0) > 0 &&
+          row.marketingFinanceStatus !== "POSTED",
+      ).length,
     };
   }, [rows]);
 
@@ -252,7 +264,7 @@ export default function MarketingVendorsPage() {
 
       {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <Metric
           label="Aktif İş Ortağı"
           value={String(stats.active)}
@@ -273,6 +285,12 @@ export default function MarketingVendorsPage() {
           value={String(stats.expiring)}
           detail="30 gün içinde sona erecek"
           attention={stats.expiring > 0}
+        />
+        <Metric
+          label="Finans Bekleyen"
+          value={String(stats.financePending)}
+          detail="Bu ay finans aktarımı tamamlanmamış"
+          attention={stats.financePending > 0}
         />
       </section>
 
@@ -420,6 +438,19 @@ export default function MarketingVendorsPage() {
         </form>
       ) : null}
 
+      {financeVendor?.marketingExpenseId ? (
+        <MarketingFinanceTransferPanel
+          expenseId={financeVendor.marketingExpenseId}
+          title={financeVendor.name + " · Aylık Hizmet Bedeli"}
+          amountLabel={money.format(Number(financeVendor.monthlyFee || 0))}
+          onClose={() => setFinanceVendor(null)}
+          onDone={async () => {
+            setFinanceVendor(null);
+            await load();
+          }}
+        />
+      ) : null}
+
       <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
         <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 md:flex-row md:items-center md:justify-between">
           <div>
@@ -457,7 +488,7 @@ export default function MarketingVendorsPage() {
             {filtered.map((vendor) => (
               <article
                 key={vendor.id}
-                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(240px,1.3fr)_minmax(220px,1fr)_minmax(210px,.9fr)_170px] xl:items-center"
+                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(230px,1.15fr)_minmax(200px,.9fr)_minmax(190px,.8fr)_150px_minmax(190px,.85fr)] xl:items-center"
               >
                 <div className="min-w-0">
                   <div className="flex flex-wrap items-center gap-2">
@@ -496,7 +527,17 @@ export default function MarketingVendorsPage() {
                   />
                 </div>
 
-                <div className="flex xl:justify-end">
+                <div>
+                  <span className="block text-[7px] text-[var(--muted)]">
+                    Finans · {vendor.financePeriod ?? "Bu Ay"}
+                  </span>
+                  <FinanceBadge
+                    status={vendor.marketingFinanceStatus}
+                    amount={Number(vendor.monthlyFee || 0)}
+                  />
+                </div>
+
+                <div className="flex flex-wrap gap-2 xl:justify-end">
                   {canManage ? (
                     vendor.status === "ACTIVE" ? (
                       <Button
@@ -513,11 +554,29 @@ export default function MarketingVendorsPage() {
                         Aktifleştir
                       </Button>
                     )
-                  ) : (
+                  ) : null}
+
+                  {canFinanceManage &&
+                  Number(vendor.monthlyFee || 0) > 0 &&
+                  vendor.marketingExpenseId &&
+                  vendor.marketingFinanceStatus !== "POSTED" ? (
+                    <button
+                      type="button"
+                      onClick={() => setFinanceVendor(vendor)}
+                      className="h-9 rounded-[10px] border border-[var(--accent)]/30 bg-[var(--accent-soft)] px-3 text-[8px] font-semibold text-[var(--accent)]"
+                    >
+                      Finansa Aktar
+                    </button>
+                  ) : null}
+
+                  {!canManage &&
+                  !(canFinanceManage &&
+                    vendor.marketingExpenseId &&
+                    vendor.marketingFinanceStatus !== "POSTED") ? (
                     <span className="text-[8px] text-[var(--muted)]">
                       {userLabel(vendor.paymentModel)}
                     </span>
-                  )}
+                  ) : null}
                 </div>
               </article>
             ))}
@@ -593,6 +652,37 @@ function Mini({ label, value }: { label: string; value: string }) {
         {value}
       </strong>
     </div>
+  );
+}
+
+function FinanceBadge({
+  status,
+  amount,
+}: {
+  status?: string | null;
+  amount: number;
+}) {
+  const label =
+    amount <= 0
+      ? "Ücret Yok"
+      : status === "POSTED"
+        ? "Finansa Aktarıldı"
+        : status === "APPROVED"
+          ? "Finansa Hazır"
+          : "Finans Bekliyor";
+
+  return (
+    <span
+      className={
+        status === "POSTED"
+          ? "mt-1 inline-flex rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+          : amount > 0
+            ? "mt-1 inline-flex rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]"
+            : "mt-1 inline-flex rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[7px] font-semibold text-[var(--muted)]"
+      }
+    >
+      {label}
+    </span>
   );
 }
 
