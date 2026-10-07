@@ -20,14 +20,14 @@ export function SiteHeader() {
         <a className="brand" href="/" aria-label="VALOO ana sayfa">VALOO</a>
 
         <nav className="desktop-nav" aria-label="Ana navigasyon">
-          <a href="#platform">Platform</a>
+          <a href="/platform">Platform</a>
           <div className="nav-menu nav-hover">
-            <a className="nav-trigger" href="#products" aria-haspopup="true">Ürünler</a>
+            <a className="nav-trigger" href="/urunler" aria-haspopup="true">Ürünler</a>
             <div className="mega-menu">
               <p className="mega-kicker">VALOO ürünleri</p>
               <div className="mega-grid">
                 {productLinks.map(([title, description]) => (
-                  <a href="#products" key={title}>
+                  <a href="/urunler" key={title}>
                     <strong>{title}</strong>
                     <span>{description}</span>
                   </a>
@@ -36,12 +36,12 @@ export function SiteHeader() {
             </div>
           </div>
           <div className="nav-menu nav-hover">
-            <a className="nav-trigger" href="#solutions" aria-haspopup="true">Çözümler</a>
+            <a className="nav-trigger" href="/cozumler" aria-haspopup="true">Çözümler</a>
             <div className="mega-menu mega-menu-small">
               <p className="mega-kicker">İşletmenize göre</p>
               <div className="mega-stack">
                 {solutionLinks.map(([title, description]) => (
-                  <a href="#solutions" key={title}>
+                  <a href="/cozumler" key={title}>
                     <strong>{title}</strong>
                     <span>{description}</span>
                   </a>
@@ -49,8 +49,8 @@ export function SiteHeader() {
               </div>
             </div>
           </div>
-          <a href="#industries">Sektörler</a>
-          <a href="#resources">Kaynaklar</a>
+          <a href="/#industries">Sektörler</a>
+          <a href="/#resources">Kaynaklar</a>
         </nav>
 
         <div className="header-actions">
@@ -65,11 +65,11 @@ export function SiteHeader() {
           <details className="mobile-menu">
             <summary aria-label="Menüyü aç"><span /><span /></summary>
             <nav aria-label="Mobil navigasyon">
-              <a href="#platform">Platform</a>
-              <a href="#products">Ürünler</a>
-              <a href="#solutions">Çözümler</a>
-              <a href="#industries">Sektörler</a>
-              <a href="#resources">Kaynaklar</a>
+              <a href="/platform">Platform</a>
+              <a href="/urunler">Ürünler</a>
+              <a href="/cozumler">Çözümler</a>
+              <a href="/#industries">Sektörler</a>
+              <a href="/#resources">Kaynaklar</a>
               <a href="/demo">Demo planlayın</a>
             </nav>
           </details>
