@@ -127,7 +127,7 @@ export default function Home() {
           <p>İşletmenin ne yaptığını tahmin etmeyin. Soruyu sorun, veriye bakın, kararı verin.</p>
         </section>
 
-        <section className="integration-scene" data-reveal>
+        <section className="integration-scene" id="integrations" data-reveal>
           <p className="eyebrow">Entegrasyonlar</p>
           <h2>VALOO yalnız çalışmayı sevmez.</h2>
           <p>Kullandığınız araçları aynı iş akışının parçası haline getirin. Bağlantılar arttıkça karmaşa artmak zorunda değil.</p>
