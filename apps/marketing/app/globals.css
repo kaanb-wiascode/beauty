@@ -148,6 +148,7 @@ section[id] { scroll-margin-top:110px; }
 .footer-demo a { color:#246de8; }
 .footer-legal { padding-top:18px; display:grid; grid-template-columns:auto 1fr auto; gap:24px; align-items:center; color:#6e6e73; font-size:11px; }
 .footer-legal p { margin:0; }
+.footer-legal-note { color:#86868b; line-height:1.45; }
 .footer-legal nav { display:flex; gap:16px; }
 .footer-legal a:hover { color:#1d1d1f; }
 
