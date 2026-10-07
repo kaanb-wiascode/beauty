@@ -585,12 +585,23 @@ export default function CampaignsPage() {
                 type="number"
                 min="0"
                 step="0.01"
-                className={fieldClass}
+                disabled={editing.marketingFinanceStatus === "POSTED"}
+                className={
+                  editing.marketingFinanceStatus === "POSTED"
+                    ? fieldClass + " cursor-not-allowed bg-[var(--surface-2)] text-[var(--muted)]"
+                    : fieldClass
+                }
                 value={editForm.spentAmount}
                 onChange={(e) =>
                   setEditForm({ ...editForm, spentAmount: e.target.value })
                 }
               />
+              {editing.marketingFinanceStatus === "POSTED" ? (
+                <span className="mt-1.5 block text-[7px] font-normal leading-4 text-[var(--muted)]">
+                  Bu harcama finans sistemine aktarıldı. Tutar düzeltmesi önce
+                  Finans modülündeki kayıt üzerinden yapılmalıdır.
+                </span>
+              ) : null}
             </Field>
 
             <Field label="Başlangıç">
