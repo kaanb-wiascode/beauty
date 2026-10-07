@@ -1,10 +1,9 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useState } from "react";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Alert, Button, Spinner, Select } from "@/components/ui";
-import { CardInfo } from "@/components/card-info";
-import { getCardHelp } from "@/lib/card-help";
 import { api, ApiError } from "@/lib/api";
+import { hasPermission } from "@/lib/auth";
 import { userErrorMessage, userLabel } from "@/lib/user-language";
 
 type Rule = {
@@ -23,24 +22,52 @@ type Rule = {
     followUpChannel?: string;
   } | null;
 };
+
 type Campaign = { id: string; name: string };
+
 type RoutingOptions = {
   branches: Array<{ id: string; name: string; code: string }>;
-  users: Array<{ id: string; firstName: string; lastName: string; email: string }>;
+  users: Array<{
+    id: string;
+    firstName: string;
+    lastName: string;
+    email: string;
+  }>;
 };
-const strategyLabels: Record<string, string> = { FIXED: "Sabit Atama", ROUND_ROBIN: "Sırayla Dağıtım", LEAST_LOADED: "En Az Yoğun Personele" };
-const contactChannelLabels: Record<string, string> = { CALL: "Telefon", WHATSAPP: "WhatsApp", SMS: "SMS", EMAIL: "E-posta", IN_PERSON: "Yüz Yüze", OTHER: "Diğer" };
+
+const strategyLabels: Record<string, string> = {
+  FIXED: "Sabit Atama",
+  ROUND_ROBIN: "Sırayla Dağıtım",
+  LEAST_LOADED: "En Az Yoğun Personele",
+};
+
+const contactChannelLabels: Record<string, string> = {
+  CALL: "Telefon",
+  WHATSAPP: "WhatsApp",
+  SMS: "SMS",
+  EMAIL: "E-posta",
+  IN_PERSON: "Yüz Yüze",
+  OTHER: "Diğer",
+};
 
 const fieldClass =
-  "mt-2 h-11 w-full rounded-[13px] border border-[var(--line)] bg-white px-3 text-[12px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
+  "mt-2 h-11 w-full rounded-[12px] border border-[var(--line)] bg-white px-3 text-[11px] text-[var(--ink)] outline-none focus:border-[var(--accent)] focus:ring-2 focus:ring-[var(--accent-soft)]";
 
 export default function RoutingPage() {
+  const canManage = hasPermission("communications", "manage");
+
   const [rules, setRules] = useState<Rule[]>([]);
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
-  const [routingOptions,setRoutingOptions]=useState<RoutingOptions>({branches:[],users:[]});
+  const [routingOptions, setRoutingOptions] = useState<RoutingOptions>({
+    branches: [],
+    users: [],
+  });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [showForm, setShowForm] = useState(false);
+  const [sourceFilter, setSourceFilter] = useState("");
+
   const [name, setName] = useState("");
   const [priority, setPriority] = useState("100");
   const [provider, setProvider] = useState("");
@@ -55,6 +82,7 @@ export default function RoutingPage() {
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
+
     try {
       const [ruleRows, campaignRows, options] = await Promise.all([
         api<Rule[]>("/corporate-communications/routing-rules"),
@@ -65,7 +93,14 @@ export default function RoutingPage() {
       setCampaigns(campaignRows);
       setRoutingOptions(options);
     } catch (e) {
-      setError(e instanceof ApiError ? userErrorMessage(e.message, "Talep dağıtım kuralları yüklenemedi.") : "Talep dağıtım kuralları yüklenemedi.");
+      setError(
+        e instanceof ApiError
+          ? userErrorMessage(
+              e.message,
+              "Talep dağıtım kuralları yüklenemedi.",
+            )
+          : "Talep dağıtım kuralları yüklenemedi.",
+      );
     } finally {
       setLoading(false);
     }
@@ -75,10 +110,39 @@ export default function RoutingPage() {
     void load();
   }, [load]);
 
-  async function create(e: FormEvent) {
-    e.preventDefault();
+  const stats = useMemo(
+    () => ({
+      total: rules.length,
+      active: rules.filter((rule) => rule.active).length,
+      autoFollowUp: rules.filter(
+        (rule) => rule.active && rule.conditions?.autoFollowUp !== false,
+      ).length,
+      sources: new Set(
+        rules
+          .filter((rule) => rule.active && rule.provider)
+          .map((rule) => rule.provider),
+      ).size,
+    }),
+    [rules],
+  );
+
+  const filtered = useMemo(
+    () =>
+      rules.filter(
+        (rule) =>
+          !sourceFilter ||
+          (sourceFilter === "ALL_SOURCES"
+            ? !rule.provider
+            : rule.provider === sourceFilter),
+      ),
+    [rules, sourceFilter],
+  );
+
+  async function create(event: FormEvent) {
+    event.preventDefault();
     setSaving(true);
     setError("");
+
     try {
       await api("/corporate-communications/routing-rules", {
         method: "POST",
@@ -97,12 +161,24 @@ export default function RoutingPage() {
           },
         },
       });
+
       setName("");
       setTargetBranchId("");
       setTargetUserId("");
+      setProvider("");
+      setCampaignId("");
+      setPriority("100");
+      setShowForm(false);
       await load();
     } catch (err) {
-      setError(err instanceof ApiError ? userErrorMessage(err.message, "Talep dağıtım kuralı oluşturulamadı.") : "Talep dağıtım kuralı oluşturulamadı.");
+      setError(
+        err instanceof ApiError
+          ? userErrorMessage(
+              err.message,
+              "Talep dağıtım kuralı oluşturulamadı.",
+            )
+          : "Talep dağıtım kuralı oluşturulamadı.",
+      );
     } finally {
       setSaving(false);
     }
@@ -117,98 +193,205 @@ export default function RoutingPage() {
   }
 
   return (
-    <div className="space-y-6 pb-12">
-      <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6">
-        <p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">
-          Kurumsal İletişim
-        </p>
-        <h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">
-          Talep Dağıtımı
-        </h1>
-        <p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">
-          Reklam kaynağı ve kampanyaya göre taleplerin hangi şube veya sorumluya yönlendirileceğini ve ilk temas süresini belirleyin.
-          Müşteri ilişkilerine aktarılan talepler için ilk temas görevi otomatik oluşturulabilir.
-        </p>
+    <div className="space-y-5 pb-12">
+      <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">
+              Talep Yönetimi
+            </p>
+            <h1 className="mt-2 text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">
+              Talep Dağıtımı
+            </h1>
+            <p className="mt-2 max-w-4xl text-[12px] leading-5 text-[var(--muted)]">
+              Hangi kaynaktan gelen talebin hangi şube veya sorumluya
+              atanacağını, nasıl paylaştırılacağını ve ilk temasın kaç dakika
+              içinde yapılacağını belirleyin.
+            </p>
+          </div>
+
+          {canManage ? (
+            <Button onClick={() => setShowForm((value) => !value)}>
+              {showForm ? "Formu Kapat" : "Yeni Dağıtım Kuralı"}
+            </Button>
+          ) : null}
+        </div>
       </header>
 
-      {error ? <Alert>{error}</Alert> : null}
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
 
-      <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          label="Aktif Kural"
+          value={stats.active}
+          detail={stats.total + " toplam dağıtım kuralı"}
+        />
+        <Metric
+          label="Otomatik Takip"
+          value={stats.autoFollowUp}
+          detail="İlk temas görevi oluşturan kural"
+        />
+        <Metric
+          label="Kaynak Kapsamı"
+          value={stats.sources}
+          detail="Özel kural tanımlı kaynak"
+        />
+        <Metric
+          label="Dağıtılabilir Sorumlu"
+          value={routingOptions.users.length}
+          detail={routingOptions.branches.length + " aktif şube"}
+        />
+      </section>
+
+      {showForm && canManage ? (
         <form
-          onSubmit={(e) => void create(e)}
-          className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"
+          onSubmit={(event) => void create(event)}
+          className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]"
         >
-          <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Yeni Kural</h2><CardInfo help={getCardHelp("Yeni Kural", "Gelen taleplerin kaynak, kampanya, şube ve sorumluya göre otomatik dağıtım kuralını tanımlar.")} /></div>
-          <label className="mt-5 block text-[11px] font-semibold text-[var(--muted)]">
-            Kural Adı
-            <input required className={fieldClass} value={name} onChange={(e) => setName(e.target.value)} />
-          </label>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <label className="text-[11px] font-semibold text-[var(--muted)]">
-              Öncelik
-              <input type="number" min="1" className={fieldClass} value={priority} onChange={(e) => setPriority(e.target.value)} />
-            </label>
-            <label className="text-[11px] font-semibold text-[var(--muted)]">
-              Strateji
-              <Select className={fieldClass} value={strategy} onChange={(e) => setStrategy(e.target.value)}>
-                <option value="FIXED">Sabit Atama</option>
-                <option value="ROUND_ROBIN">Sırayla Dağıtım</option>
+          <div className="mb-5">
+            <h2 className="text-[14px] font-semibold text-[var(--ink)]">
+              Yeni Dağıtım Kuralı
+            </h2>
+            <p className="mt-1 text-[8px] leading-4 text-[var(--muted)]">
+              Kaynağı, hedefi ve ilk temas davranışını tek akışta tanımlayın.
+              Daha küçük sıra numarası daha önce değerlendirilir.
+            </p>
+          </div>
+
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            <Field label="Kural Adı" wide>
+              <input
+                required
+                className={fieldClass}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="Örn. Meta talepleri Anadolu Yakası"
+              />
+            </Field>
+
+            <Field label="Çalışma Sırası">
+              <input
+                type="number"
+                min="1"
+                className={fieldClass}
+                value={priority}
+                onChange={(e) => setPriority(e.target.value)}
+              />
+            </Field>
+
+            <Field label="Talepler Nasıl Dağıtılsın?">
+              <Select
+                className={fieldClass}
+                value={strategy}
+                onChange={(e) => setStrategy(e.target.value)}
+              >
+                <option value="FIXED">Belirli Şube / Sorumlu</option>
+                <option value="ROUND_ROBIN">Sırayla Paylaştır</option>
                 <option value="LEAST_LOADED">En Az Yoğun Personele</option>
               </Select>
-            </label>
-          </div>
-          <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Reklam Kaynağı
-            <Select className={fieldClass} value={provider} onChange={(e) => setProvider(e.target.value)}>
-              <option value="">Tümü</option>
-              <option value="META">Meta</option>
-              <option value="GOOGLE_ADS">Google Ads</option>
-              <option value="TIKTOK">TikTok</option>
-              <option value="WEBSITE">Web Sitesi</option>
-              <option value="WHATSAPP">WhatsApp</option>
-              <option value="OTHER">Diğer</option>
-            </Select>
-          </label>
-          <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Kampanya
-            <Select className={fieldClass} value={campaignId} onChange={(e) => setCampaignId(e.target.value)}>
-              <option value="">Tümü</option>
-              {campaigns.map((campaign) => (
-                <option key={campaign.id} value={campaign.id}>{campaign.name}</option>
-              ))}
-            </Select>
-          </label>
-          <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Hedef Şube
-            <Select className={fieldClass} value={targetBranchId} onChange={(e) => { setTargetBranchId(e.target.value); setTargetUserId(""); }}>
-              <option value="">Dinamik / Şube seçilmedi</option>
-              {routingOptions.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-            </Select>
-          </label>
-          <label className="mt-4 block text-[11px] font-semibold text-[var(--muted)]">
-            Hedef Sorumlu
-            <Select className={fieldClass} value={targetUserId} onChange={(e) => setTargetUserId(e.target.value)}>
-              <option value="">Dinamik / Sorumlu seçilmedi</option>
-              {routingOptions.users.map((user) => {
-                const name=[user.firstName,user.lastName].filter(Boolean).join(" ").trim();
-                return <option key={user.id} value={user.id}>{name || user.email} · {user.email}</option>;
-              })}
-            </Select>
-          </label>
+            </Field>
 
-          <div className="mt-5 rounded-[16px] border border-[var(--line)] bg-[var(--surface-soft)] p-4">
-            <label className="flex items-center gap-3 text-[11px] font-semibold text-[var(--ink)]">
-              <input type="checkbox" checked={autoFollowUp} onChange={(e) => setAutoFollowUp(e.target.checked)} />
-              Müşteri ilişkilerine aktarılınca ilk temas görevi oluştur
+            <Field label="Hangi Kaynaktan Gelenler?">
+              <Select
+                className={fieldClass}
+                value={provider}
+                onChange={(e) => setProvider(e.target.value)}
+              >
+                <option value="">Tüm Kaynaklar</option>
+                <option value="META">Meta</option>
+                <option value="GOOGLE_ADS">Google Ads</option>
+                <option value="TIKTOK">TikTok</option>
+                <option value="WEBSITE">Web Sitesi</option>
+                <option value="WHATSAPP">WhatsApp</option>
+                <option value="OTHER">Diğer</option>
+              </Select>
+            </Field>
+
+            <Field label="Hangi Kampanyadan Gelenler?">
+              <Select
+                className={fieldClass}
+                value={campaignId}
+                onChange={(e) => setCampaignId(e.target.value)}
+              >
+                <option value="">Tüm Kampanyalar</option>
+                {campaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Hangi Şubeye?">
+              <Select
+                className={fieldClass}
+                value={targetBranchId}
+                onChange={(e) => {
+                  setTargetBranchId(e.target.value);
+                  setTargetUserId("");
+                }}
+              >
+                <option value="">Sistem Dağıtsın / Şube Seçilmedi</option>
+                {routingOptions.branches.map((branch) => (
+                  <option key={branch.id} value={branch.id}>
+                    {branch.name}
+                  </option>
+                ))}
+              </Select>
+            </Field>
+
+            <Field label="Hangi Sorumluya?">
+              <Select
+                className={fieldClass}
+                value={targetUserId}
+                onChange={(e) => setTargetUserId(e.target.value)}
+              >
+                <option value="">Sistem Dağıtsın / Sorumlu Seçilmedi</option>
+                {routingOptions.users.map((user) => {
+                  const fullName = [user.firstName, user.lastName]
+                    .filter(Boolean)
+                    .join(" ")
+                    .trim();
+                  return (
+                    <option key={user.id} value={user.id}>
+                      {fullName || user.email}
+                    </option>
+                  );
+                })}
+              </Select>
+            </Field>
+          </div>
+
+          <div className="mt-5 rounded-[16px] bg-[var(--surface-2)] p-4">
+            <label className="flex items-center gap-3 text-[10px] font-semibold text-[var(--ink)]">
+              <input
+                type="checkbox"
+                checked={autoFollowUp}
+                onChange={(e) => setAutoFollowUp(e.target.checked)}
+              />
+              CRM'e aktarıldığında otomatik ilk temas görevi oluştur
             </label>
+
             <div className="mt-3 grid gap-3 sm:grid-cols-2">
-              <label className="text-[11px] font-semibold text-[var(--muted)]">
-                İlk Temas Hedefi (dakika)
-                <input type="number" min="1" max="10080" disabled={!autoFollowUp} className={fieldClass} value={followUpSlaMinutes} onChange={(e) => setFollowUpSlaMinutes(e.target.value)} />
-              </label>
-              <label className="text-[11px] font-semibold text-[var(--muted)]">
-                Kanal
-                <Select disabled={!autoFollowUp} className={fieldClass} value={followUpChannel} onChange={(e) => setFollowUpChannel(e.target.value)}>
+              <Field label="En Geç Kaç Dakikada Dönüş Yapılsın?">
+                <input
+                  type="number"
+                  min="1"
+                  max="10080"
+                  disabled={!autoFollowUp}
+                  className={fieldClass}
+                  value={followUpSlaMinutes}
+                  onChange={(e) => setFollowUpSlaMinutes(e.target.value)}
+                />
+              </Field>
+
+              <Field label="İlk Temas Kanalı">
+                <Select
+                  disabled={!autoFollowUp}
+                  className={fieldClass}
+                  value={followUpChannel}
+                  onChange={(e) => setFollowUpChannel(e.target.value)}
+                >
                   <option value="CALL">Telefon</option>
                   <option value="WHATSAPP">WhatsApp</option>
                   <option value="SMS">SMS</option>
@@ -216,46 +399,170 @@ export default function RoutingPage() {
                   <option value="IN_PERSON">Yüz Yüze</option>
                   <option value="OTHER">Diğer</option>
                 </Select>
-              </label>
+              </Field>
             </div>
           </div>
 
-          <Button className="mt-5" disabled={saving} type="submit">
-            {saving ? "Kaydediliyor..." : "Kuralı Kaydet"}
-          </Button>
+          <div className="mt-5 flex justify-end">
+            <Button disabled={saving} type="submit">
+              {saving ? "Kaydediliyor..." : "Kuralı Kaydet"}
+            </Button>
+          </div>
         </form>
+      ) : null}
 
-        <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Kurallar</h2><CardInfo help={getCardHelp("Kurallar", "Aktif talep dağıtım kurallarını öncelik ve ilk temas hedefleriyle birlikte gösterir.")} /></div>
-          {rules.length ? (
-            <div className="mt-4 space-y-3">
-              {rules.map((rule) => (
-                <div key={rule.id} className="rounded-[16px] border border-[var(--line)] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="text-[13px] font-semibold text-[var(--ink)]">{rule.name}</p>
-                      <p className="mt-1 text-[10px] text-[var(--muted)]">
-                        Öncelik {rule.priority} · {rule.provider ? userLabel(rule.provider) : "Tüm kaynaklar"} · {strategyLabels[rule.strategy] ?? "Dağıtım kuralı"}
-                      </p>
-                    </div>
-                    <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">
+      <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-3 border-b border-[var(--line)] p-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h2 className="text-[13px] font-semibold text-[var(--ink)]">
+              Dağıtım Kuralları
+            </h2>
+            <p className="mt-1 text-[8px] text-[var(--muted)]">
+              Kurallar çalışma sırasına göre uygulanır.
+            </p>
+          </div>
+
+          <Select
+            value={sourceFilter}
+            onChange={(e) => setSourceFilter(e.target.value)}
+            className="h-10 min-w-[170px] rounded-[11px] border border-[var(--line)] bg-white px-3 text-[10px]"
+          >
+            <option value="">Tüm Kurallar</option>
+            <option value="ALL_SOURCES">Tüm Kaynak Kuralı</option>
+            <option value="META">Meta</option>
+            <option value="GOOGLE_ADS">Google Ads</option>
+            <option value="TIKTOK">TikTok</option>
+            <option value="WEBSITE">Web Sitesi</option>
+            <option value="WHATSAPP">WhatsApp</option>
+            <option value="OTHER">Diğer</option>
+          </Select>
+        </div>
+
+        {filtered.length ? (
+          <div className="divide-y divide-[var(--line)]">
+            {filtered.map((rule) => (
+              <article
+                key={rule.id}
+                className="grid gap-4 p-4 transition hover:bg-[var(--surface-2)]/35 xl:grid-cols-[minmax(240px,1.2fr)_minmax(210px,.9fr)_minmax(220px,1fr)_minmax(190px,.8fr)] xl:items-center"
+              >
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="truncate text-[11px] font-semibold text-[var(--ink)]">
+                      {rule.name}
+                    </p>
+                    <span
+                      className={
+                        rule.active
+                          ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+                          : "rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[7px] font-semibold text-[var(--muted)]"
+                      }
+                    >
                       {rule.active ? "Aktif" : "Pasif"}
                     </span>
                   </div>
-                  <p className="mt-2 text-[10px] text-[var(--muted)]">
-                    Hedef: {rule.targetBranchName ?? (rule.targetUserId ? "Belirli sorumlu" : "Dinamik dağıtım")}
-                  </p>
-                  <p className="mt-1 text-[10px] text-[var(--muted)]">
-                    İlk temas: {rule.conditions?.autoFollowUp === false ? "Kapalı" : `${rule.conditions?.followUpSlaMinutes ?? 15} dk · ${contactChannelLabels[rule.conditions?.followUpChannel ?? "CALL"] ?? "Telefon"}`}
+                  <p className="mt-1 text-[8px] text-[var(--muted)]">
+                    Çalışma sırası {rule.priority} ·{" "}
+                    {rule.provider
+                      ? userLabel(rule.provider)
+                      : "Tüm kaynaklar"}
                   </p>
                 </div>
-              ))}
-            </div>
-          ) : (
-            <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz talep dağıtım kuralı yok.</p>
-          )}
-        </section>
+
+                <div>
+                  <span className="block text-[7px] text-[var(--muted)]">
+                    Dağıtım Yöntemi
+                  </span>
+                  <strong className="mt-1 block text-[9px] text-[var(--ink)]">
+                    {strategyLabels[rule.strategy] ?? "Dağıtım kuralı"}
+                  </strong>
+                </div>
+
+                <div>
+                  <span className="block text-[7px] text-[var(--muted)]">
+                    Hedef
+                  </span>
+                  <strong className="mt-1 block text-[9px] text-[var(--ink)]">
+                    {rule.targetBranchName ??
+                      (rule.targetUserId
+                        ? "Belirli sorumlu"
+                        : "Dinamik dağıtım")}
+                  </strong>
+                </div>
+
+                <div>
+                  <span className="block text-[7px] text-[var(--muted)]">
+                    İlk Temas
+                  </span>
+                  <strong className="mt-1 block text-[9px] text-[var(--ink)]">
+                    {rule.conditions?.autoFollowUp === false
+                      ? "Otomatik takip kapalı"
+                      : (rule.conditions?.followUpSlaMinutes ?? 15) +
+                        " dk · " +
+                        (contactChannelLabels[
+                          rule.conditions?.followUpChannel ?? "CALL"
+                        ] ?? "Telefon")}
+                  </strong>
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
+          <div className="p-10 text-center text-[9px] text-[var(--muted)]">
+            Seçili kapsamda dağıtım kuralı bulunamadı.
+          </div>
+        )}
+      </section>
+
+      <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] px-4 py-3 text-[8px] leading-4 text-[var(--muted)]">
+        Mevcut servis yeni kural oluşturmayı destekliyor. Kural düzenleme,
+        aktif/pasif değiştirme ve silme işlemleri backend yaşam döngüsü
+        tamamlandığında bu ekrana eklenecek.
       </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  children,
+  wide,
+}: {
+  label: string;
+  children: React.ReactNode;
+  wide?: boolean;
+}) {
+  return (
+    <label
+      className={
+        wide
+          ? "text-[10px] font-semibold text-[var(--muted)] md:col-span-2"
+          : "text-[10px] font-semibold text-[var(--muted)]"
+      }
+    >
+      {label}
+      {children}
+    </label>
+  );
+}
+
+function Metric({
+  label,
+  value,
+  detail,
+}: {
+  label: string;
+  value: number;
+  detail: string;
+}) {
+  return (
+    <div className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]">
+      <p className="text-[8px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">
+        {label}
+      </p>
+      <strong className="mt-3 block text-[22px] font-semibold tracking-[-.04em] text-[var(--ink)]">
+        {value}
+      </strong>
+      <p className="mt-2 text-[8px] text-[var(--muted)]">{detail}</p>
     </div>
   );
 }
