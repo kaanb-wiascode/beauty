@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
+import { Body, Controller, Delete, Get, Param, ParseUUIDPipe, Patch, Post, Query, UseGuards } from '@nestjs/common';
 import { CurrentUser } from '../../common/auth/current-user.decorator';
 import { JwtAuthGuard } from '../../common/auth/jwt-auth.guard';
 import type { JwtPayload } from '../../common/auth/jwt.strategy';
@@ -22,7 +22,9 @@ import {
   createRoutingRuleSchema,
   listCampaignsSchema,
   listMarketingLeadsSchema,
+  updateCampaignSchema,
   updateCampaignStatusSchema,
+  updateRoutingRuleSchema,
   updateRoutingRuleStatusSchema,
 } from './corporate-communications.schemas';
 
@@ -58,6 +60,20 @@ export class CorporateCommunicationsController {
   @RequirePermission('communications', 'manage')
   async createCampaign(@Body() body: unknown, @CurrentUser() user: JwtPayload) {
     const campaign = await this.service.createCampaign(createCampaignSchema.parse(body), user.sub);
+    await this.expenseSync.syncCampaign(campaign.id);
+    return campaign;
+  }
+
+  @Patch('campaigns/:id')
+  @RequirePermission('communications', 'manage')
+  async updateCampaign(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    const campaign = await this.service.updateCampaign(
+      id,
+      updateCampaignSchema.parse(body),
+    );
     await this.expenseSync.syncCampaign(campaign.id);
     return campaign;
   }
@@ -248,6 +264,18 @@ export class CorporateCommunicationsController {
     return this.service.createRoutingRule(createRoutingRuleSchema.parse(body), user.sub);
   }
 
+  @Patch('routing-rules/:id')
+  @RequirePermission('communications', 'manage')
+  updateRoutingRule(
+    @Param('id', new ParseUUIDPipe()) id: string,
+    @Body() body: unknown,
+  ) {
+    return this.service.updateRoutingRule(
+      id,
+      updateRoutingRuleSchema.parse(body),
+    );
+  }
+
   @Patch('routing-rules/:id/status')
   @RequirePermission('communications', 'manage')
   updateRoutingRuleStatus(
@@ -256,5 +284,11 @@ export class CorporateCommunicationsController {
   ) {
     const input = updateRoutingRuleStatusSchema.parse(body);
     return this.service.updateRoutingRuleStatus(id, input.active);
+  }
+
+  @Delete('routing-rules/:id')
+  @RequirePermission('communications', 'manage')
+  deleteRoutingRule(@Param('id', new ParseUUIDPipe()) id: string) {
+    return this.service.deleteRoutingRule(id);
   }
 }
