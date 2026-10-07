@@ -61,6 +61,22 @@ export const listCampaignsSchema = z.object({
   limit: z.coerce.number().int().min(1).max(200).default(100),
 });
 
+export const communicationsReportSchema = z
+  .object({
+    from: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+    to: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+  })
+  .refine((value) => value.to >= value.from, {
+    message: 'Rapor bitiş tarihi başlangıç tarihinden önce olamaz.',
+  })
+  .refine((value) => {
+    const from = new Date(value.from + 'T00:00:00Z');
+    const to = new Date(value.to + 'T00:00:00Z');
+    return (to.getTime() - from.getTime()) / 86_400_000 <= 366;
+  }, {
+    message: 'Tek rapor döneminde en fazla 367 gün seçilebilir.',
+  });
+
 export const updateCampaignStatusSchema = z.object({
   status: campaignStatusSchema,
 });
