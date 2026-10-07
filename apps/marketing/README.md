@@ -47,3 +47,19 @@ Her push'ta Monorepo quality workflow'u marketing typecheck ve production build 
 - `apps/marketing`: public pazarlama / marka sitesi
 - ortak marka tokenları ileride `packages/` altında paylaşılabilir
 - marketing'e özgü editorial componentler operasyon UI paketine taşınmaz
+
+
+## Deployment ortam değişkenleri
+
+Marketing uygulaması:
+- `NEXT_PUBLIC_SITE_URL`: public site kök adresi. Sitemap ve metadata için kullanılır.
+- `NEXT_PUBLIC_API_URL`: VALOO API public base adresi. Aynı origin reverse proxy kullanılıyorsa `/backend` varsayılanı kullanılabilir.
+
+API demo intake:
+- `MARKETING_DEMO_TENANT_ID`: demo taleplerinin düşeceği VALOO tenant kimliği.
+- `MARKETING_DEMO_COMPANY_ID`: demo taleplerinin düşeceği şirket kimliği.
+- `MARKETING_DEMO_BRANCH_ID`: opsiyonel varsayılan şube.
+- Marketing site origin'i API `CORS_ORIGINS` listesinde bulunmalıdır.
+- Reverse proxy arkasında gerçek istemci IP'siyle rate-limit uygulanacaksa proxy güven ayarı deployment mimarisiyle uyumlu olmalıdır.
+
+Demo formu auth gerektiren CRM endpoint'lerini doğrudan kullanmaz. Public intake endpoint'i WEBSITE marketing lead oluşturur; mevcut VALOO yönlendirme / CRM dönüşüm akışı sonrasında uygulanabilir.
