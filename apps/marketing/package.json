@@ -6,7 +6,8 @@
     "dev": "next dev",
     "build": "next build",
     "start": "node .next/standalone/apps/marketing/server.js",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "postbuild": "node scripts/prepare-standalone.mjs"
   },
   "dependencies": {
     "next": "16.3.6",
