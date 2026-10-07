@@ -14,6 +14,7 @@ const PRIMARY_LINKS = [
   { href: "/communications/pr-media", label: "PR & Medya" },
   { href: "/communications/vendors", label: "İş Birlikleri" },
   { href: "/communications/leads", label: "Talepler" },
+  { href: "/communications/reports", label: "Raporlar" },
   { href: "/communications/integrations", label: "Bağlantılar" },
 ] as const;
 
