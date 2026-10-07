@@ -60,6 +60,39 @@ export class MarketingVendorsService {
     );
   }
 
+  async syncCurrentFinancePeriod() {
+    const { tenantId, companyId, branchId } = this.context();
+    const affected = await this.prisma.$executeRawUnsafe(
+      `INSERT INTO corporate_marketing_expenses(
+         tenant_id,company_id,branch_id,source_type,source_id,period_key,vendor_id,supplier_id,
+         category,description,amount,currency,incurred_on,status,expense_account_code,expense_account_name,metadata
+       )
+       SELECT v.tenant_id,v.company_id,v.branch_id,'VENDOR',v.id,to_char(CURRENT_DATE,'YYYY-MM'),v.id,v.supplier_id,
+              'AGENCY_FEE',v.name || ' aylık ajans/hizmet bedeli',v.monthly_fee,v.currency,CURRENT_DATE,'PENDING_FINANCE',
+              '760.04','Ajans ve Pazarlama Hizmet Giderleri',
+              jsonb_build_object('autoSynced',true,'paymentModel',v.payment_model,'periodAutoPrepared',true)
+       FROM corporate_marketing_vendors v
+       WHERE v.tenant_id=$1::text
+         AND v.company_id=$2::text
+         AND ($3::text IS NULL OR v.branch_id IS NULL OR v.branch_id=$3::text)
+         AND v.status='ACTIVE'
+         AND v.monthly_fee>0
+       ON CONFLICT (tenant_id,company_id,source_type,source_id,period_key)
+       DO UPDATE SET amount=EXCLUDED.amount,currency=EXCLUDED.currency,branch_id=EXCLUDED.branch_id,
+                     supplier_id=EXCLUDED.supplier_id,description=EXCLUDED.description,metadata=EXCLUDED.metadata,updated_at=NOW()
+       WHERE corporate_marketing_expenses.status='PENDING_FINANCE'`,
+      tenantId,
+      companyId,
+      branchId,
+    );
+
+    return {
+      periodKey: new Date().toISOString().slice(0, 7),
+      synchronized: true,
+      affected,
+    };
+  }
+
   async list(filters: {
     status?: string;
     vendorType?: string;
