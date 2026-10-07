@@ -70,6 +70,20 @@ export default function Home() {
           </article>
         </section>
 
+        <section className="operations-scene">
+          <div className="operations-copy">
+            <p className="eyebrow eyebrow-light">Operasyon</p>
+            <h2>Bugün neler oluyor?<br /><span>Hepsi burada.</span></h2>
+            <p>Randevular, bekleyen işler, kapasite ve hareket eden süreçler. İşletmenin nabzını tek akışta hissedin.</p>
+          </div>
+          <div className="operations-pulse" aria-hidden="true">
+            <div><span>09:30</span><strong>Yeni randevu</strong><small>Merkez</small></div>
+            <div><span>10:05</span><strong>Hizmet başladı</strong><small>Şube 04</small></div>
+            <div><span>10:18</span><strong>Tahsilat tamamlandı</strong><small>₺18.400</small></div>
+            <div><span>10:24</span><strong>Takip oluşturuldu</strong><small>Yarın 11:00</small></div>
+          </div>
+        </section>
+
         <section className="inventory-scene">
           <div className="inventory-copy">
             <p className="eyebrow">Inventory</p>
@@ -78,6 +92,17 @@ export default function Home() {
           </div>
           <div className="inventory-flow" aria-label="Stok hareketi örneği">
             <span>Merkez Depo</span><i /><span>Şube 04</span><i /><span>Hizmet</span>
+          </div>
+        </section>
+
+        <section className="people-scene">
+          <div className="people-copy">
+            <p className="eyebrow">People</p>
+            <h2>İnsan işi.<br /><span>Ama ezber işi değil.</span></h2>
+            <p>Vardiya, izin, performans, yetkinlik ve gelişim aynı kişinin etrafında anlam kazanır.</p>
+          </div>
+          <div className="people-signals" aria-hidden="true">
+            <span>Vardiya hazır</span><span>İzin onaylandı</span><span>Yetkinlik güncel</span><span>Gelişim planı açık</span>
           </div>
         </section>
 
@@ -96,6 +121,15 @@ export default function Home() {
             <h2>Hissetmek güzel.<br /><span>Bilmek daha güzel.</span></h2>
           </div>
           <p>İşletmenin ne yaptığını tahmin etmeyin. Soruyu sorun, veriye bakın, kararı verin.</p>
+        </section>
+
+        <section className="integration-scene">
+          <p className="eyebrow">Entegrasyonlar</p>
+          <h2>VALOO yalnız çalışmayı sevmez.</h2>
+          <p>Kullandığınız araçları aynı iş akışının parçası haline getirin. Bağlantılar arttıkça karmaşa artmak zorunda değil.</p>
+          <div className="integration-orbit" aria-hidden="true">
+            <span>Google</span><span>WhatsApp</span><span>Meta</span><span>Ödeme</span><span>E-posta</span><span>Takvim</span>
+          </div>
         </section>
 
         <section className="final-cta" id="demo">
