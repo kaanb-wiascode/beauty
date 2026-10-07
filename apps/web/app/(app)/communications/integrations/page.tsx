@@ -399,295 +399,639 @@ export default function AdvertisingConnectionsPage() {
     }
   }
 
-  if (loading && !rows.length) return <div className="py-20"><Spinner label="Entegrasyonlar yükleniyor..." /></div>;
-
-  return <div className="space-y-6 pb-12">
-    <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6"><p className="mb-2 text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">Kurumsal İletişim</p><h1 className="text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">Entegrasyon Merkezi</h1><p className="mt-2 max-w-3xl text-[12px] leading-5 text-[var(--muted)]">Meta, Google Ads ve TikTok bağlantılarını, hesap durumlarını ve son veri eşitleme bilgilerini tek merkezden yönetin.</p></header>
-    {error ? <Alert>{error}</Alert> : null}
-    {configurationReadiness ? (
-      <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-[13px] font-semibold text-[var(--ink)]">Platform Hazırlık Durumu</h2>
-          <CardInfo help={getCardHelp("Platform Hazırlık Durumu", "Gerçek Meta, Google Ads ve TikTok bağlantılarının başlayabilmesi için sunucu tarafında gerekli ayarların tanımlı olup olmadığını gösterir. Güvenlik nedeniyle gizli değerler gösterilmez.")} />
-        </div>
-        <div className="mt-3 grid gap-3 md:grid-cols-3">
-          {configurationReadiness.providers.map((provider) => (
-            <div key={provider.provider} className="rounded-[14px] border border-[var(--line)] bg-white p-3">
-              <div className="flex items-center justify-between gap-2">
-                <p className="text-[11px] font-semibold text-[var(--ink)]">{provider.label}</p>
-                <span className={`rounded-full px-2 py-1 text-[9px] font-semibold ${provider.ready ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                  {provider.ready ? "Hazır" : "Eksik Ayar"}
-                </span>
-              </div>
-              <p className="mt-2 text-[10px] text-[var(--muted)]">
-                {provider.configuredCount}/{provider.requiredCount} gerekli ayar tanımlı
-              </p>
-              {!provider.ready ? (
-                <div className="mt-3 space-y-2">
-                  {provider.missing.map((key) => {
-                    const item = configurationHelp[key];
-                    return (
-                      <div key={key} className="flex items-center justify-between gap-2 rounded-[10px] border border-[var(--line)] bg-[var(--surface-2)] px-2.5 py-2">
-                        <span className="text-[9px] font-medium text-[var(--ink)]">
-                          {item?.label ?? key}
-                        </span>
-                        {item ? <CardInfo help={item.help} /> : null}
-                      </div>
-                    );
-                  })}
-                  <div className="flex items-center gap-2 pt-1">
-                    <span className="text-[9px] font-semibold text-amber-700">Kurulum rehberi</span>
-                    <CardInfo help={providerSetupHelp[provider.provider] ?? getCardHelp(provider.label, "Platform kurulumu hakkında bilgi.")} />
-                  </div>
-                </div>
-              ) : null}
-            </div>
-          ))}
-        </div>
-      </section>
-    ) : null}
-    {webhookSetup ? (
-      <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-        <div className="flex items-center gap-2">
-          <h2 className="text-[13px] font-semibold text-[var(--ink)]">Google Ads Webhook Kurulumu</h2>
-          <CardInfo help={getCardHelp("Google Ads Webhook Kurulumu", "Bu adresi ve doğrulama anahtarını Google Ads potansiyel müşteri formunun webhook teslimat ayarına girin. Güvenlik nedeniyle anahtar daha sonra tekrar gösterilmez.")} />
-        </div>
-        <p className="mt-3 break-all text-[10px] text-[var(--muted)]"><strong>Webhook adresi:</strong> {webhookSetup.webhookUrl}</p>
-        <p className="mt-2 break-all text-[10px] text-[var(--muted)]"><strong>Doğrulama anahtarı:</strong> {webhookSetup.webhookSecret}</p>
-        <p className="mt-2 text-[10px] font-semibold text-amber-700">Bu anahtarı şimdi güvenli bir yere kaydedin; tekrar görüntülenmeyecek.</p>
-      </section>
-    ) : null}
-
-    <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      <Metric title="Tanımlı Bağlantı" value={String(health?.total ?? rows.length)} detail="VALOO içinde kayıtlı reklam ve pazarlama hesapları" />
-      <Metric title="Çalışan Bağlantı" value={String(health?.connected ?? 0)} detail="Yetkilendirmesi bulunan ve sağlıklı görünen bağlantılar" />
-      <Metric title="İşlem Gerektiren" value={String((health?.attention ?? 0) + (health?.verificationRequired ?? 0) + (health?.authorizationRequired ?? 0))} detail="Yeniden yetkilendirme veya bağlantı kontrolü gereken hesaplar" />
-      <Metric title="Son Veri Eşitleme" value={health?.lastSyncAt ? new Date(health.lastSyncAt).toLocaleString("tr-TR") : "Henüz yok"} detail="Bağlı platformlardan alınan en son veri zamanı" />
-    </section>
-
-    <section className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4">
-      <div className="flex items-center gap-2">
-        <h2 className="text-[13px] font-semibold text-[var(--ink)]">Entegrasyon Nasıl Çalışır?</h2>
-        <CardInfo help={getCardHelp("Entegrasyon Nasıl Çalışır?", "Teknik uygulama kimlikleri VALOO platform yöneticisi tarafından yalnızca bir kez kurulur. Son kullanıcı bu anahtarları görmez; yalnızca platform hesabına giriş yapıp izin verir.")} />
+  if (loading && !rows.length) {
+    return (
+      <div className="py-20">
+        <Spinner label="Platform bağlantıları yükleniyor..." />
       </div>
-      <div className="mt-3 grid gap-3 md:grid-cols-2">
-        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
-          <p className="text-[10px] font-semibold text-[var(--ink)]">1. VALOO Platform Kurulumu · Tek Sefer</p>
-          <p className="mt-1 text-[9px] leading-4 text-[var(--muted)]">Meta, Google ve TikTok geliştirici uygulamaları oluşturulur; App ID/Secret ve callback adresleri güvenli sunucu ortamına tanımlanır.</p>
-        </div>
-        <div className="rounded-[14px] border border-[var(--line)] bg-[var(--surface-2)] p-3">
-          <p className="text-[10px] font-semibold text-[var(--ink)]">2. İşletme Hesabı Bağlama · Otomatik</p>
-          <p className="mt-1 text-[9px] leading-4 text-[var(--muted)]">Kullanıcı yalnızca “Bağla” der → resmi platform izin ekranında onay verir → VALOO’ya döner → reklam hesapları otomatik keşfedilir.</p>
-        </div>
-      </div>
-    </section>
+    );
+  }
 
-    <div className="grid gap-5 xl:grid-cols-[.8fr_1.2fr]">
-      {canManage ? (
-        <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5">
-          <div className="flex items-center gap-2">
-            <h2 className="text-[15px] font-semibold text-[var(--ink)]">Platform Bağla</h2>
-            <CardInfo help={getCardHelp("Platform Bağla", "Bir platform seçtiğinizde VALOO bağlantı kaydını otomatik oluşturur ve sizi platformun resmi izin ekranına yönlendirir. Reklam hesabı numarası veya teknik kimlik girmeniz gerekmez.")} />
+  const issueCount =
+    (health?.attention ?? 0) +
+    (health?.verificationRequired ?? 0) +
+    (health?.authorizationRequired ?? 0) +
+    (health?.disconnected ?? 0);
+
+  return (
+    <div className="space-y-5 pb-12">
+      <header className="rounded-[24px] border border-[var(--line)] bg-[var(--surface)] p-6 shadow-[var(--shadow-soft)]">
+        <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <p className="text-[10px] font-semibold uppercase tracking-[.16em] text-[var(--accent)]">
+              Kurumsal İletişim
+            </p>
+            <h1 className="mt-2 text-[30px] font-semibold tracking-[-.04em] text-[var(--ink)]">
+              Platform Bağlantıları
+            </h1>
+            <p className="mt-2 max-w-4xl text-[12px] leading-5 text-[var(--muted)]">
+              Meta, Google Ads ve TikTok hesaplarının bağlantı sağlığını,
+              yetkilendirmesini ve veri eşitlemesini tek merkezden yönetin.
+            </p>
           </div>
-          <p className="mt-1 text-[10px] leading-5 text-[var(--muted)]">
-            Hesabınızı seçin, platformun resmi izin ekranında erişime onay verin ve otomatik olarak VALOO’ya geri dönün.
-          </p>
-          <div className="mt-4 space-y-3">
+
+          <span
+            className={
+              issueCount
+                ? "inline-flex rounded-full bg-[var(--warning-soft)] px-3 py-1.5 text-[9px] font-semibold text-[var(--warning)]"
+                : "inline-flex rounded-full bg-[var(--accent-soft)] px-3 py-1.5 text-[9px] font-semibold text-[var(--accent)]"
+            }
+          >
+            {issueCount
+              ? issueCount + " bağlantı işlemi gerekiyor"
+              : "Bağlantılar sağlıklı"}
+          </span>
+        </div>
+      </header>
+
+      {error ? <Alert onClose={() => setError("")}>{error}</Alert> : null}
+
+      {webhookSetup ? (
+        <section className="rounded-[18px] border border-[var(--warning)]/25 bg-[var(--warning-soft)] p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <h2 className="text-[11px] font-semibold text-[var(--ink)]">
+                Google Ads Form Bağlantısı Hazır
+              </h2>
+              <p className="mt-1 text-[8px] leading-4 text-[var(--muted)]">
+                Aşağıdaki bilgileri Google Ads potansiyel müşteri formunun
+                teslimat ayarına kaydedin. Doğrulama anahtarı yalnızca bu
+                aşamada gösterilir.
+              </p>
+            </div>
+            <CardInfo
+              help={getCardHelp(
+                "Google Ads Form Bağlantısı",
+                "Bu adres ve doğrulama anahtarı Google Ads lead form webhook teslimatı için kullanılır.",
+              )}
+            />
+          </div>
+          <div className="mt-3 grid gap-2 lg:grid-cols-2">
+            <div className="rounded-[12px] bg-white p-3">
+              <span className="block text-[7px] text-[var(--muted)]">
+                Teslimat Adresi
+              </span>
+              <strong className="mt-1 block break-all text-[8px] text-[var(--ink)]">
+                {webhookSetup.webhookUrl}
+              </strong>
+            </div>
+            <div className="rounded-[12px] bg-white p-3">
+              <span className="block text-[7px] text-[var(--muted)]">
+                Doğrulama Anahtarı
+              </span>
+              <strong className="mt-1 block break-all text-[8px] text-[var(--ink)]">
+                {webhookSetup.webhookSecret}
+              </strong>
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <Metric
+          title="Tanımlı Bağlantı"
+          value={String(health?.total ?? rows.length)}
+          detail="VALOO içinde kayıtlı platform bağlantıları"
+        />
+        <Metric
+          title="Çalışan Bağlantı"
+          value={String(health?.connected ?? 0)}
+          detail="Yetkili ve sağlıklı veri akışı"
+        />
+        <Metric
+          title="İşlem Gerektiren"
+          value={String(issueCount)}
+          detail="Yetki, doğrulama veya bağlantı kontrolü"
+          attention={issueCount > 0}
+        />
+        <Metric
+          title="Son Veri Eşitleme"
+          value={
+            health?.lastSyncAt
+              ? new Date(health.lastSyncAt).toLocaleString("tr-TR")
+              : "Henüz yok"
+          }
+          detail="Platformlardan alınan son veri zamanı"
+        />
+      </section>
+
+      {canManage ? (
+        <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+          <div className="mb-4">
+            <h2 className="text-[13px] font-semibold text-[var(--ink)]">
+              Yeni Platform Bağla
+            </h2>
+            <p className="mt-1 text-[8px] leading-4 text-[var(--muted)]">
+              Platformu seçin; resmi izin ekranında onay verdikten sonra reklam
+              hesapları VALOO tarafından keşfedilir.
+            </p>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
             {([
-              ["META", "Meta", "Facebook ve Instagram reklam hesapları, Lead Ads ve performans verileri"],
-              ["GOOGLE_ADS", "Google Ads", "Google Ads hesapları, kampanyalar ve potansiyel müşteri formları"],
-              ["TIKTOK", "TikTok Ads", "TikTok reklam hesapları, kampanyalar ve Lead Generation verileri"],
+              [
+                "META",
+                "Meta",
+                "Facebook, Instagram, Lead Ads ve reklam performansı",
+              ],
+              [
+                "GOOGLE_ADS",
+                "Google Ads",
+                "Kampanyalar, reklam hesapları ve lead formları",
+              ],
+              [
+                "TIKTOK",
+                "TikTok Ads",
+                "Reklam hesapları, kampanyalar ve lead verileri",
+              ],
             ] as const).map(([providerKey, label, detail]) => {
-              const readiness = configurationReadiness?.providers.find((item) => item.provider === providerKey);
+              const readiness = configurationReadiness?.providers.find(
+                (item) => item.provider === providerKey,
+              );
+              const connected = health?.connections.some(
+                (item) =>
+                  item.provider === providerKey &&
+                  item.health === "HEALTHY",
+              );
+
               return (
-                <div key={providerKey} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
+                <div
+                  key={providerKey}
+                  className="rounded-[15px] border border-[var(--line)] bg-[var(--surface-2)] p-4"
+                >
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-[12px] font-semibold text-[var(--ink)]">{label}</p>
-                      <p className="mt-1 text-[10px] leading-4 text-[var(--muted)]">{detail}</p>
+                      <p className="text-[11px] font-semibold text-[var(--ink)]">
+                        {label}
+                      </p>
+                      <p className="mt-1 text-[8px] leading-4 text-[var(--muted)]">
+                        {detail}
+                      </p>
                     </div>
-                    <button
-                      type="button"
-                      disabled={startingProvider === providerKey || readiness?.ready === false}
-                      onClick={() => void connectProvider(providerKey)}
-                      className="rounded-[10px] bg-[var(--accent)] px-4 py-2.5 text-[10px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                    <span
+                      className={
+                        connected
+                          ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+                          : readiness?.ready === false
+                            ? "rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]"
+                            : "rounded-full bg-white px-2 py-0.5 text-[7px] font-semibold text-[var(--muted)]"
+                      }
                     >
-                      {startingProvider === providerKey
-                        ? "Platforma Yönlendiriliyor..."
+                      {connected
+                        ? "Bağlı"
                         : readiness?.ready === false
-                          ? "Kurulum Bekleniyor"
-                          : "Bağla"}
-                    </button>
+                          ? "Kurulum Eksik"
+                          : "Bağlanabilir"}
+                    </span>
                   </div>
-                  {readiness?.ready === false ? (
-                    <p className="mt-2 text-[9px] leading-4 text-amber-700">
-                      VALOO platform yapılandırması tamamlandığında bu bağlantı otomatik olarak aktif olacaktır.
-                    </p>
-                  ) : null}
+
+                  <button
+                    type="button"
+                    disabled={
+                      startingProvider === providerKey ||
+                      readiness?.ready === false
+                    }
+                    onClick={() => void connectProvider(providerKey)}
+                    className="mt-4 inline-flex h-9 items-center rounded-[10px] bg-[var(--accent)] px-3 text-[9px] font-semibold text-white transition disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {startingProvider === providerKey
+                      ? "Yönlendiriliyor..."
+                      : connected
+                        ? "Yeni Hesap Bağla"
+                        : readiness?.ready === false
+                          ? "Platform Kurulumu Gerekli"
+                          : "Platforma Bağlan"}
+                  </button>
                 </div>
               );
             })}
           </div>
         </section>
       ) : null}
-      <section className="rounded-[22px] border border-[var(--line)] bg-[var(--surface)] p-5"><div className="flex items-center gap-2"><h2 className="text-[15px] font-semibold text-[var(--ink)]">Bağlantılar</h2><CardInfo help={getCardHelp("Bağlantılar", "Tanımlı reklam ve pazarlama hesaplarının bağlantı durumunu ve son eşitleme bilgisini gösterir.")} /></div>{rows.length ? <div className="mt-4 space-y-3">{rows.map((row) => {
-        const connectionHealth = health?.connections.find((item) => item.id === row.id);
-        const providerReadiness = configurationReadiness?.providers.find((item) => item.provider === row.provider);
-        return <div key={row.id} className="rounded-[16px] border border-[var(--line)] bg-[var(--surface-2)] p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <p className="text-[13px] font-semibold text-[var(--ink)]">{row.displayName}</p>
-              <p className="mt-1 text-[10px] text-[var(--muted)]">{userLabel(row.provider)} · {row.externalAccountId ?? "Hesap numarası belirtilmedi"}</p>
-            </div>
-            <span className="rounded-full bg-[var(--accent-soft)] px-2.5 py-1 text-[9px] font-semibold text-[var(--accent)]">
-              {healthLabel[connectionHealth?.health ?? "DISCONNECTED"]}
-            </span>
-          </div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            <p className="text-[10px] text-[var(--muted)]">Yetkilendirme: {connectionHealth?.credentialsConfigured ? "Hazır" : "Gerekli"}</p>
-            <p className="text-[10px] text-[var(--muted)]">Son eşitleme: {row.lastSyncAt ? new Date(row.lastSyncAt).toLocaleString("tr-TR") : "Henüz yapılmadı"}</p>
-          </div>
-          {row.lastError ? <p className="mt-2 text-[10px] text-red-600">Bağlantı sırasında bir sorun oluştu. Hesap yetkilerini ve bağlantı ayarlarını kontrol edin.</p> : null}
-          {accountOptions[row.id]?.length ? (
-            <label className="mt-3 block text-[10px] font-semibold text-[var(--muted)]">
-              Erişilebilir Reklam Hesabı
-              <Select
-                className={fieldClass}
-                value={row.externalAccountId ?? ""}
-                disabled={selectingId === row.id}
-                onChange={(event) => void selectAccount(row.id, event.target.value)}
-              >
-                <option value="">Hesap seçin</option>
-                {accountOptions[row.id].map((account) => (
-                  <option key={account.id} value={account.id}>
-                    {account.name} · {account.id}
-                  </option>
-                ))}
-              </Select>
-            </label>
-          ) : null}
-          {row.provider === "META" && metaPagesByConnection[row.id]?.length ? (
-            <div className="mt-3 space-y-2 rounded-[12px] border border-[var(--line)] bg-white p-3">
-              <p className="text-[10px] font-semibold text-[var(--ink)]">Facebook Sayfaları</p>
-              {metaPagesByConnection[row.id].map((page) => (
-                <div key={page.id} className="flex flex-wrap items-center justify-between gap-2">
-                  <div>
-                    <p className="text-[10px] font-semibold text-[var(--ink)]">{page.name}</p>
-                    <p className="text-[9px] text-[var(--muted)]">{page.id}</p>
+
+      <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] shadow-[var(--shadow-soft)]">
+        <div className="border-b border-[var(--line)] p-4">
+          <h2 className="text-[13px] font-semibold text-[var(--ink)]">
+            Bağlı Hesaplar
+          </h2>
+          <p className="mt-1 text-[8px] text-[var(--muted)]">
+            Yetkilendirme, reklam hesabı seçimi, bağlantı testi ve eşitleme
+            işlemlerini buradan yönetin.
+          </p>
+        </div>
+
+        {rows.length ? (
+          <div className="divide-y divide-[var(--line)]">
+            {rows.map((row) => {
+              const connectionHealth = health?.connections.find(
+                (item) => item.id === row.id,
+              );
+              const providerReadiness =
+                configurationReadiness?.providers.find(
+                  (item) => item.provider === row.provider,
+                );
+              const healthKey =
+                connectionHealth?.health ?? "DISCONNECTED";
+
+              return (
+                <article key={row.id} className="p-4 sm:p-5">
+                  <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="text-[12px] font-semibold text-[var(--ink)]">
+                          {row.displayName}
+                        </h3>
+                        <HealthBadge state={healthKey} />
+                      </div>
+                      <p className="mt-1 text-[8px] text-[var(--muted)]">
+                        {userLabel(row.provider)} ·{" "}
+                        {row.externalAccountId
+                          ? "Hesap " + row.externalAccountId
+                          : "Reklam hesabı henüz seçilmedi"}
+                      </p>
+                    </div>
+
+                    <div className="grid min-w-[280px] grid-cols-2 gap-2">
+                      <ConnectionFact
+                        label="Yetkilendirme"
+                        value={
+                          connectionHealth?.credentialsConfigured
+                            ? "Hazır"
+                            : "Gerekli"
+                        }
+                      />
+                      <ConnectionFact
+                        label="Son Eşitleme"
+                        value={
+                          row.lastSyncAt
+                            ? new Date(row.lastSyncAt).toLocaleString("tr-TR")
+                            : "Henüz yok"
+                        }
+                      />
+                    </div>
                   </div>
-                  <button
-                    type="button"
-                    disabled={page.subscribed || subscribingMetaPageId === page.id}
-                    onClick={() => void subscribeMetaPage(row.id, page.id)}
-                    className="rounded-[9px] border border-[var(--line)] px-2.5 py-1.5 text-[9px] font-semibold text-[var(--ink)] disabled:opacity-50"
-                  >
-                    {page.subscribed
-                      ? "Lead Aboneliği Aktif"
-                      : subscribingMetaPageId === page.id
-                        ? "Abone Olunuyor..."
-                        : "Lead Aboneliğini Aç"}
-                  </button>
+
+                  {row.lastError ? (
+                    <div className="mt-3 rounded-[12px] bg-[var(--danger-soft)] px-3 py-2.5 text-[8px] leading-4 text-[var(--danger)]">
+                      Bağlantı sırasında sorun oluştu. Yetkilendirmeyi test edin
+                      veya platform hesabını yeniden bağlayın.
+                    </div>
+                  ) : null}
+
+                  {accountOptions[row.id]?.length ? (
+                    <label className="mt-4 block max-w-xl text-[9px] font-semibold text-[var(--muted)]">
+                      Kullanılacak Reklam Hesabı
+                      <Select
+                        className={fieldClass}
+                        value={row.externalAccountId ?? ""}
+                        disabled={selectingId === row.id}
+                        onChange={(event) =>
+                          void selectAccount(row.id, event.target.value)
+                        }
+                      >
+                        <option value="">Hesap seçin</option>
+                        {accountOptions[row.id].map((account) => (
+                          <option key={account.id} value={account.id}>
+                            {account.name} · {account.id}
+                          </option>
+                        ))}
+                      </Select>
+                    </label>
+                  ) : null}
+
+                  {row.provider === "META" &&
+                  metaPagesByConnection[row.id]?.length ? (
+                    <div className="mt-4 rounded-[14px] bg-[var(--surface-2)] p-3">
+                      <p className="text-[9px] font-semibold text-[var(--ink)]">
+                        Facebook Sayfaları
+                      </p>
+                      <div className="mt-2 space-y-2">
+                        {metaPagesByConnection[row.id].map((page) => (
+                          <div
+                            key={page.id}
+                            className="flex flex-wrap items-center justify-between gap-2 rounded-[10px] bg-white px-3 py-2"
+                          >
+                            <div>
+                              <p className="text-[9px] font-semibold text-[var(--ink)]">
+                                {page.name}
+                              </p>
+                              <p className="mt-0.5 text-[7px] text-[var(--muted)]">
+                                {page.subscribed
+                                  ? "Yeni talepler otomatik alınır"
+                                  : "Talep aktarımı henüz açık değil"}
+                              </p>
+                            </div>
+                            <button
+                              type="button"
+                              disabled={
+                                page.subscribed ||
+                                subscribingMetaPageId === page.id
+                              }
+                              onClick={() =>
+                                void subscribeMetaPage(row.id, page.id)
+                              }
+                              className="rounded-[9px] border border-[var(--line)] px-2.5 py-1.5 text-[8px] font-semibold text-[var(--ink)] disabled:opacity-50"
+                            >
+                              {page.subscribed
+                                ? "Talep Aktarımı Aktif"
+                                : subscribingMetaPageId === page.id
+                                  ? "Aktifleştiriliyor..."
+                                  : "Talep Aktarımını Aç"}
+                            </button>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+
+                  {canManage &&
+                  ["META", "GOOGLE_ADS", "TIKTOK"].includes(row.provider) ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <ActionButton
+                        primary={!connectionHealth?.credentialsConfigured}
+                        disabled={
+                          connectingId === row.id ||
+                          providerReadiness?.ready === false
+                        }
+                        onClick={() => void connect(row.id)}
+                      >
+                        {connectingId === row.id
+                          ? "Yönlendiriliyor..."
+                          : providerReadiness?.ready === false
+                            ? "Kurulum Gerekiyor"
+                            : connectionHealth?.credentialsConfigured
+                              ? "Yeniden Yetkilendir"
+                              : "Platforma Bağlan"}
+                      </ActionButton>
+
+                      {connectionHealth?.credentialsConfigured ? (
+                        <>
+                          <ActionButton
+                            disabled={verifyingId === row.id}
+                            onClick={() => void verifyConnection(row.id)}
+                          >
+                            {verifyingId === row.id
+                              ? "Test Ediliyor..."
+                              : "Bağlantıyı Test Et"}
+                          </ActionButton>
+
+                          <ActionButton
+                            disabled={discoveringId === row.id}
+                            onClick={() => void discoverAccounts(row.id)}
+                          >
+                            {discoveringId === row.id
+                              ? "Hesaplar Getiriliyor..."
+                              : "Reklam Hesaplarını Getir"}
+                          </ActionButton>
+                        </>
+                      ) : null}
+
+                      {row.provider === "META" &&
+                      connectionHealth?.credentialsConfigured ? (
+                        <ActionButton
+                          disabled={loadingMetaPagesId === row.id}
+                          onClick={() => void loadMetaPages(row.id)}
+                        >
+                          {loadingMetaPagesId === row.id
+                            ? "Sayfalar Getiriliyor..."
+                            : "Facebook Sayfalarını Getir"}
+                        </ActionButton>
+                      ) : null}
+
+                      {connectionHealth?.credentialsConfigured &&
+                      row.externalAccountId ? (
+                        <ActionButton
+                          disabled={syncingId === row.id}
+                          onClick={() => void syncConnection(row.id)}
+                        >
+                          {syncingId === row.id
+                            ? "Eşitleniyor..."
+                            : "Verileri Eşitle"}
+                        </ActionButton>
+                      ) : null}
+
+                      {row.provider === "GOOGLE_ADS" &&
+                      connectionHealth?.credentialsConfigured ? (
+                        <ActionButton
+                          disabled={webhookConfiguringId === row.id}
+                          onClick={() => void configureWebhook(row.id)}
+                        >
+                          {webhookConfiguringId === row.id
+                            ? "Hazırlanıyor..."
+                            : "Form Bağlantısını Kur"}
+                        </ActionButton>
+                      ) : null}
+
+                      {connectionHealth?.health !== "DISCONNECTED" ? (
+                        <ActionButton
+                          danger
+                          disabled={disconnectingId === row.id}
+                          onClick={() => void disconnect(row.id)}
+                        >
+                          {disconnectingId === row.id
+                            ? "Bağlantı Kesiliyor..."
+                            : "Bağlantıyı Kes"}
+                        </ActionButton>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </article>
+              );
+            })}
+          </div>
+        ) : (
+          <div className="p-10 text-center text-[9px] text-[var(--muted)]">
+            Henüz platform bağlantısı bulunmuyor.
+          </div>
+        )}
+      </section>
+
+      <details className="rounded-[18px] border border-[var(--line)] bg-[var(--surface)]">
+        <summary className="flex cursor-pointer list-none items-center justify-between gap-4 p-4">
+          <div>
+            <h2 className="text-[11px] font-semibold text-[var(--ink)]">
+              Platform Kurulum Bilgileri
+            </h2>
+            <p className="mt-1 text-[8px] text-[var(--muted)]">
+              Yalnızca VALOO platform yöneticisinin yapması gereken teknik
+              kurulumları görüntüleyin.
+            </p>
+          </div>
+          <span className="text-[10px] font-semibold text-[var(--muted)]">
+            Aç
+          </span>
+        </summary>
+
+        <div className="border-t border-[var(--line)] p-4">
+          {configurationReadiness ? (
+            <div className="grid gap-3 md:grid-cols-3">
+              {configurationReadiness.providers.map((provider) => (
+                <div
+                  key={provider.provider}
+                  className="rounded-[14px] bg-[var(--surface-2)] p-3"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-[10px] font-semibold text-[var(--ink)]">
+                      {provider.label}
+                    </p>
+                    <span
+                      className={
+                        provider.ready
+                          ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+                          : "rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]"
+                      }
+                    >
+                      {provider.ready ? "Hazır" : "Eksik"}
+                    </span>
+                  </div>
+
+                  <p className="mt-2 text-[8px] text-[var(--muted)]">
+                    {provider.configuredCount}/{provider.requiredCount} gerekli
+                    ayar tanımlı
+                  </p>
+
+                  {!provider.ready ? (
+                    <div className="mt-3 space-y-2">
+                      {provider.missing.map((key) => {
+                        const item = configurationHelp[key];
+                        return (
+                          <div
+                            key={key}
+                            className="flex items-center justify-between gap-2 rounded-[9px] bg-white px-2.5 py-2"
+                          >
+                            <span className="text-[8px] font-medium text-[var(--ink)]">
+                              {item?.label ?? key}
+                            </span>
+                            {item ? <CardInfo help={item.help} /> : null}
+                          </div>
+                        );
+                      })}
+                      <div className="flex items-center gap-2 pt-1">
+                        <span className="text-[8px] font-semibold text-[var(--warning)]">
+                          Kurulum Açıklaması
+                        </span>
+                        <CardInfo
+                          help={
+                            providerSetupHelp[provider.provider] ??
+                            getCardHelp(
+                              provider.label,
+                              "Platform kurulumu hakkında bilgi.",
+                            )
+                          }
+                        />
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               ))}
             </div>
-          ) : null}
-          {canManage && ["META", "GOOGLE_ADS", "TIKTOK"].includes(row.provider) ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                disabled={connectingId === row.id || providerReadiness?.ready === false}
-                onClick={() => void connect(row.id)}
-                className="rounded-[10px] bg-[var(--accent)] px-3 py-2 text-[10px] font-semibold text-white transition disabled:opacity-50"
-              >
-                {connectingId === row.id
-                  ? "Platforma Yönlendiriliyor..."
-                  : providerReadiness?.ready === false
-                    ? "Kurulum Gerekiyor"
-                    : connectionHealth?.credentialsConfigured
-                      ? "Yeniden Yetkilendir"
-                      : "Platforma Bağlan"}
-              </button>
-              {providerReadiness?.ready === false ? (
-                <CardInfo help={providerSetupHelp[row.provider] ?? getCardHelp(userLabel(row.provider), "Platform kurulumu tamamlanmadan hesap yetkilendirmesi başlatılamaz.")} />
-              ) : null}
-              {connectionHealth?.credentialsConfigured ? (
-                <button
-                  type="button"
-                  disabled={verifyingId === row.id}
-                  onClick={() => void verifyConnection(row.id)}
-                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
-                >
-                  {verifyingId === row.id ? "Bağlantı Test Ediliyor..." : "Bağlantıyı Test Et"}
-                </button>
-              ) : null}
-              {connectionHealth?.credentialsConfigured ? (
-                <button
-                  type="button"
-                  disabled={discoveringId === row.id}
-                  onClick={() => void discoverAccounts(row.id)}
-                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
-                >
-                  {discoveringId === row.id ? "Hesaplar Getiriliyor..." : "Hesapları Getir"}
-                </button>
-              ) : null}
-              {row.provider === "META" && connectionHealth?.credentialsConfigured ? (
-                <button
-                  type="button"
-                  disabled={loadingMetaPagesId === row.id}
-                  onClick={() => void loadMetaPages(row.id)}
-                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
-                >
-                  {loadingMetaPagesId === row.id ? "Sayfalar Getiriliyor..." : "Facebook Sayfalarını Getir"}
-                </button>
-              ) : null}
-              {connectionHealth?.credentialsConfigured && row.externalAccountId ? (
-                <button
-                  type="button"
-                  disabled={syncingId === row.id}
-                  onClick={() => void syncConnection(row.id)}
-                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
-                >
-                  {syncingId === row.id ? "Veriler Eşitleniyor..." : "Verileri Eşitle"}
-                </button>
-              ) : null}
-              {row.provider === "GOOGLE_ADS" && connectionHealth?.credentialsConfigured ? (
-                <button
-                  type="button"
-                  disabled={webhookConfiguringId === row.id}
-                  onClick={() => void configureWebhook(row.id)}
-                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50"
-                >
-                  {webhookConfiguringId === row.id ? "Webhook Hazırlanıyor..." : "Webhook Kurulumu"}
-                </button>
-              ) : null}
-              {connectionHealth?.health !== "DISCONNECTED" ? (
-                <button
-                  type="button"
-                  disabled={disconnectingId === row.id}
-                  onClick={() => void disconnect(row.id)}
-                  className="rounded-[10px] border border-[var(--line)] px-3 py-2 text-[10px] font-semibold text-[var(--muted)] transition hover:text-red-600 disabled:opacity-50"
-                >
-                  {disconnectingId === row.id ? "Bağlantı Kesiliyor..." : "Bağlantıyı Kes"}
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-        </div>;
-      })}</div> : <p className="mt-6 text-[12px] text-[var(--muted)]">Henüz reklam hesabı kaydı yok.</p>}</section>
+          ) : (
+            <p className="text-[9px] text-[var(--muted)]">
+              Platform hazırlık bilgisi alınamadı.
+            </p>
+          )}
+        </div>
+      </details>
     </div>
-  </div>;
+  );
 }
 
 
-function Metric({ title, value, detail }: { title: string; value: string; detail: string }) {
+function Metric({
+  title,
+  value,
+  detail,
+  attention,
+}: {
+  title: string;
+  value: string;
+  detail: string;
+  attention?: boolean;
+}) {
   return (
-    <div className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5">
-      <div className="flex items-start justify-between gap-3">
-        <p className="text-[10px] font-semibold uppercase tracking-[.12em] text-[var(--muted-soft)]">{title}</p>
-        <CardInfo help={getCardHelp(title, detail)} />
-      </div>
-      <p className="mt-3 text-[22px] font-semibold tracking-[-.04em] text-[var(--ink)]">{value}</p>
-      <p className="mt-2 text-[10px] leading-5 text-[var(--muted)]">{detail}</p>
+    <div
+      className={
+        attention
+          ? "rounded-[18px] border border-[var(--warning)]/25 bg-[var(--warning-soft)] p-4"
+          : "rounded-[18px] border border-[var(--line)] bg-[var(--surface)] p-4 shadow-[var(--shadow-soft)]"
+      }
+    >
+      <p className="text-[8px] font-semibold uppercase tracking-[.12em] text-[var(--muted)]">
+        {title}
+      </p>
+      <p className="mt-3 text-[20px] font-semibold tracking-[-.04em] text-[var(--ink)]">
+        {value}
+      </p>
+      <p className="mt-2 text-[8px] leading-4 text-[var(--muted)]">
+        {detail}
+      </p>
     </div>
+  );
+}
+
+function HealthBadge({
+  state,
+}: {
+  state: ConnectionHealth["connections"][number]["health"] | "DISCONNECTED";
+}) {
+  const risky = ["ATTENTION", "AUTH_REQUIRED", "VERIFY_REQUIRED"].includes(
+    state,
+  );
+  const healthy = state === "HEALTHY";
+
+  return (
+    <span
+      className={
+        healthy
+          ? "rounded-full bg-[var(--accent-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--accent)]"
+          : risky
+            ? "rounded-full bg-[var(--warning-soft)] px-2 py-0.5 text-[7px] font-semibold text-[var(--warning)]"
+            : "rounded-full bg-[var(--surface-2)] px-2 py-0.5 text-[7px] font-semibold text-[var(--muted)]"
+      }
+    >
+      {healthLabel[state] ?? "Bağlı Değil"}
+    </span>
+  );
+}
+
+function ConnectionFact({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-[11px] bg-[var(--surface-2)] p-2.5">
+      <span className="block text-[7px] text-[var(--muted)]">{label}</span>
+      <strong className="mt-1 block text-[8px] font-semibold text-[var(--ink)]">
+        {value}
+      </strong>
+    </div>
+  );
+}
+
+function ActionButton({
+  children,
+  disabled,
+  onClick,
+  primary,
+  danger,
+}: {
+  children: React.ReactNode;
+  disabled?: boolean;
+  onClick: () => void;
+  primary?: boolean;
+  danger?: boolean;
+}) {
+  const className = primary
+    ? "inline-flex h-9 items-center rounded-[10px] bg-[var(--accent)] px-3 text-[8px] font-semibold text-white transition disabled:opacity-50"
+    : danger
+      ? "inline-flex h-9 items-center rounded-[10px] border border-[var(--line)] px-3 text-[8px] font-semibold text-[var(--muted)] transition hover:border-[var(--danger)]/30 hover:text-[var(--danger)] disabled:opacity-50"
+      : "inline-flex h-9 items-center rounded-[10px] border border-[var(--line)] px-3 text-[8px] font-semibold text-[var(--ink)] transition hover:border-[var(--accent)] disabled:opacity-50";
+
+  return (
+    <button
+      type="button"
+      disabled={disabled}
+      onClick={onClick}
+      className={className}
+    >
+      {children}
+    </button>
   );
 }
