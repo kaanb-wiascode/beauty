@@ -1,0 +1,90 @@
+name: Marketing quality
+
+on:
+  push:
+    branches:
+      - feature/core-commerce-foundation
+      - "release/**"
+    paths:
+      - "apps/marketing/**"
+      - "apps/api/src/modules/corporate-communications/marketing-site.*"
+      - "apps/api/src/modules/corporate-communications/marketing-public-rate-limit.guard.ts"
+      - "apps/api/src/modules/corporate-communications/corporate-communications.module.ts"
+      - "apps/api/src/config/env.schema.ts"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/marketing-quality.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/marketing/**"
+      - "apps/api/src/modules/corporate-communications/marketing-site.*"
+      - "apps/api/src/modules/corporate-communications/marketing-public-rate-limit.guard.ts"
+      - "apps/api/src/modules/corporate-communications/corporate-communications.module.ts"
+      - "apps/api/src/config/env.schema.ts"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/marketing-quality.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: marketing-quality-${{ github.sha }}
+  cancel-in-progress: false
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 11.9.0
+          run_install: false
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22.13.1
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install workspace dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate database client
+        run: pnpm --filter @beauty-erp/database generate
+
+      - name: Build database package
+        run: pnpm --filter @beauty-erp/database build
+
+      - name: Build shared contracts
+        run: pnpm --filter @beauty-erp/types build
+
+      - name: Typecheck marketing API surface
+        run: pnpm --filter api typecheck
+
+      - name: Typecheck marketing site
+        run: pnpm --filter marketing typecheck
+
+      - name: Build marketing site
+        env:
+          NODE_ENV: production
+          NEXT_PUBLIC_SITE_URL: http://localhost:3002
+          NEXT_PUBLIC_API_URL: /backend
+        run: pnpm --filter marketing build
+
+      - name: Build marketing production image
+        run: >-
+          docker build
+          --file apps/marketing/Dockerfile
+          --build-arg NEXT_PUBLIC_SITE_URL=http://localhost:3002
+          --build-arg NEXT_PUBLIC_API_URL=/backend
+          --build-arg RELEASE_SHA=${{ github.sha }}
+          --tag valoo-marketing:${{ github.sha }}
+          .
