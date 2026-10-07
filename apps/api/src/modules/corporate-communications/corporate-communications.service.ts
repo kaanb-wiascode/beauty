@@ -650,6 +650,75 @@ export class CorporateCommunicationsService {
     return row;
   }
 
+  async updateRoutingRuleStatus(id: string, active: boolean) {
+    const { tenantId, companyId } = this.context();
+    const [row] = await this.prisma.$queryRawUnsafe<Row[]>(
+      `UPDATE corporate_lead_routing_rules
+          SET active=$4,updated_at=NOW()
+        WHERE id=$1::text AND tenant_id=$2::text AND company_id=$3::text
+        RETURNING id,name,priority,active,provider,campaign_id AS "campaignId",
+                  target_branch_id AS "targetBranchId",target_user_id AS "targetUserId",
+                  strategy,conditions,created_at AS "createdAt",updated_at AS "updatedAt"`,
+      id,
+      tenantId,
+      companyId,
+      active,
+    );
+    if (!row) throw new NotFoundException('Talep dağıtım kuralı bulunamadı.');
+    return row;
+  }
+
+  async updateCampaignStatus(
+    id: string,
+    status: 'DRAFT' | 'PLANNED' | 'ACTIVE' | 'PAUSED' | 'COMPLETED' | 'CANCELLED',
+  ) {
+    const current = await this.getCampaign(id);
+    const currentStatus = String(current.status);
+
+    if (currentStatus === status) return current;
+
+    const allowedTransitions: Record<string, string[]> = {
+      DRAFT: ['PLANNED', 'ACTIVE', 'CANCELLED'],
+      PLANNED: ['DRAFT', 'ACTIVE', 'CANCELLED'],
+      ACTIVE: ['PAUSED', 'COMPLETED', 'CANCELLED'],
+      PAUSED: ['ACTIVE', 'COMPLETED', 'CANCELLED'],
+      COMPLETED: [],
+      CANCELLED: [],
+    };
+
+    if (!(allowedTransitions[currentStatus] ?? []).includes(status)) {
+      throw new BadRequestException(
+        'Bu kampanya durumu için seçilen geçişe izin verilmiyor.',
+      );
+    }
+
+    const { tenantId, companyId, branchId } = this.context();
+    const [updated] = await this.prisma.$queryRawUnsafe<Row[]>(
+      `UPDATE corporate_communication_campaigns
+          SET status=$2,
+              starts_at=CASE WHEN $2='ACTIVE' AND starts_at IS NULL THEN NOW() ELSE starts_at END,
+              ends_at=CASE WHEN $2='COMPLETED' AND ends_at IS NULL THEN NOW() ELSE ends_at END,
+              updated_at=NOW()
+        WHERE id=$1::text
+          AND tenant_id=$3::text
+          AND company_id=$4::text
+          AND ($5::text IS NULL OR branch_id IS NULL OR branch_id=$5::text)
+        RETURNING id,name,objective,status,channel,branch_id AS "branchId",
+                  service_id AS "serviceId",planned_budget AS "plannedBudget",
+                  spent_amount AS "spentAmount",currency,starts_at AS "startsAt",
+                  ends_at AS "endsAt",owner_user_id AS "ownerUserId",notes,
+                  created_at AS "createdAt",updated_at AS "updatedAt"`,
+      id,
+      status,
+      tenantId,
+      companyId,
+      branchId,
+    );
+
+    if (!updated) throw new NotFoundException('Kampanya bulunamadı.');
+    return updated;
+  }
+
   async getCampaign(id: string) {
     const { tenantId, companyId, branchId } = this.context();
     const rows = await this.prisma.$queryRawUnsafe<Row[]>(
