@@ -65,7 +65,7 @@ export default function Home() {
             </div>
             <div className="floating-card float-branch">
               <i />
-              <span>18 lokasyon</span>
+              <span>Merkez + şubeler</span>
               <strong>Canlı</strong>
             </div>
             <div className="visual-ribbon">Müşteri → Operasyon → Satış → Finans → Karar</div>
