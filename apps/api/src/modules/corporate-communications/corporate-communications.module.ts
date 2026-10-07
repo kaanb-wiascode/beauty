@@ -22,6 +22,9 @@ import { MarketingProviderAccountsService } from './marketing-provider-accounts.
 import { MarketingProviderOAuthService } from './marketing-provider-oauth.service';
 import { MarketingProviderSyncService } from './marketing-provider-sync.service';
 import { MarketingProviderVaultService } from './marketing-provider-vault.service';
+import { MarketingSiteController } from './marketing-site.controller';
+import { MarketingSiteService } from './marketing-site.service';
+import { MarketingPublicRateLimitGuard } from './marketing-public-rate-limit.guard';
 
 @Module({
   imports: [AccountsPayableModule, CrmModule],
@@ -33,6 +36,7 @@ import { MarketingProviderVaultService } from './marketing-provider-vault.servic
     MarketingFinanceController,
     MarketingLeadConversionController,
     MarketingLeadWebhookController,
+    MarketingSiteController,
   ],
   providers: [
     CorporateCommunicationsService,
@@ -49,6 +53,8 @@ import { MarketingProviderVaultService } from './marketing-provider-vault.servic
     MarketingProviderOAuthService,
     MarketingProviderAccountsService,
     MarketingProviderSyncService,
+    MarketingSiteService,
+    MarketingPublicRateLimitGuard,
   ],
   exports: [
     CorporateCommunicationsService,
