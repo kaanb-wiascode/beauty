@@ -11,6 +11,25 @@ export class MarketingFinanceHandoffService {
     private readonly accountsPayable: AccountsPayableService,
   ) {}
 
+  async listSuppliers() {
+    const { tenantId, companyId } = this.tenantContext.getContext();
+    return this.prisma.$queryRawUnsafe<
+      Array<{
+        id: string;
+        name: string;
+        contactName: string | null;
+        status: string;
+      }>
+    >(
+      `SELECT id,name,contact_name AS "contactName",status
+       FROM inventory_suppliers
+       WHERE tenant_id=$1::text AND company_id=$2::text AND status='ACTIVE'
+       ORDER BY name,id`,
+      tenantId,
+      companyId,
+    );
+  }
+
   async list(status?: string) {
     const { tenantId, companyId, branchId } = this.tenantContext.getContext();
     return this.prisma.$queryRawUnsafe(
