@@ -658,7 +658,7 @@ export default function CampaignsPage() {
               </h2>
               <p className="mt-1 text-[8px] text-[var(--muted)]">
                 {money.format(Number(financeCampaign.spentAmount || 0))} tutarındaki
-                reklam gideri Accounts Payable kaydına dönüşecek.
+                reklam gideri Finans modülünde tedarikçi borcu kaydına dönüşecek.
               </p>
             </div>
             <button
