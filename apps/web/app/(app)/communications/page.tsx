@@ -502,6 +502,9 @@ export default function CommunicationsOverviewPage() {
             <Link href="/communications/content">
               <Button variant="secondary">İçerik Merkezi</Button>
             </Link>
+            <Link href="/communications/reports">
+              <Button variant="secondary">Raporlar</Button>
+            </Link>
             <Link href="/communications/pr-media">
               <Button>PR Faaliyeti</Button>
             </Link>
@@ -898,7 +901,7 @@ export default function CommunicationsOverviewPage() {
         </Panel>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         <QuickAccess
           href="/communications/approvals"
           title="Onay Merkezi"
@@ -916,6 +919,12 @@ export default function CommunicationsOverviewPage() {
           title="Talep Dağıtımı"
           detail="Şube ve sorumlu atama kuralları"
           value={operational.activeRoutingRules.length}
+        />
+        <QuickAccess
+          href="/communications/reports"
+          title="Yönetim Raporları"
+          detail="Dönem karşılaştırmaları, dönüşüm ve gider analizi"
+          value={data.dashboard?.activeCampaigns ?? 0}
         />
         <QuickAccess
           href="/communications/integrations"
