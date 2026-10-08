@@ -37,6 +37,32 @@ type Dashboard = {
   }>;
 };
 
+type ReportSnapshot = {
+  range: {
+    from: string;
+    to: string;
+    previousFrom: string;
+    previousTo: string;
+    days: number;
+  };
+  current: {
+    leads: number;
+    appointments: number;
+    sales: number;
+    revenue: number;
+    spend: number;
+    roas: number | null;
+  };
+  previous: {
+    leads: number;
+    appointments: number;
+    sales: number;
+    revenue: number;
+    spend: number;
+    roas: number | null;
+  };
+};
+
 type Campaign = {
   id: string;
   name: string;
@@ -141,6 +167,7 @@ type BrandGovernance = {
 
 type OperationalData = {
   dashboard: Dashboard | null;
+  report: ReportSnapshot | null;
   campaigns: Campaign[];
   leads: MarketingLead[];
   content: ContentItem[];
@@ -156,6 +183,7 @@ type OperationalData = {
 
 const emptyData: OperationalData = {
   dashboard: null,
+  report: null,
   campaigns: [],
   leads: [],
   content: [],
@@ -205,6 +233,29 @@ function formatDateTime(value?: string | null) {
   }).format(new Date(value));
 }
 
+function reportDateInput(date: Date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return year + "-" + month + "-" + day;
+}
+
+function lastThirtyDaysRange() {
+  const to = new Date();
+  const from = new Date();
+  from.setDate(from.getDate() - 29);
+  return {
+    from: reportDateInput(from),
+    to: reportDateInput(to),
+  };
+}
+
+function comparisonDelta(current: number, previous: number) {
+  if (previous === 0) return current === 0 ? "Değişmedi" : "Yeni";
+  const value = ((current - previous) / Math.abs(previous)) * 100;
+  return (value > 0 ? "+" : "") + value.toFixed(1).replace(".", ",") + "%";
+}
+
 export default function CommunicationsOverviewPage() {
   const [data, setData] = useState<OperationalData>(emptyData);
   const [loading, setLoading] = useState(true);
@@ -215,6 +266,7 @@ export default function CommunicationsOverviewPage() {
     setError("");
 
     try {
+      const reportRange = lastThirtyDaysRange();
       const results = await Promise.allSettled([
         api<Dashboard>("/corporate-communications/dashboard"),
         api<Campaign[]>("/corporate-communications/campaigns?limit=30"),
@@ -228,10 +280,17 @@ export default function CommunicationsOverviewPage() {
         api<Asset[]>("/corporate-communications/digital-assets?limit=100"),
         api<RoutingRule[]>("/corporate-communications/routing-rules"),
         api<BrandGovernance[]>("/corporate-communications/brand-governance"),
+        api<ReportSnapshot>(
+          "/corporate-communications/reports/summary?from=" +
+            reportRange.from +
+            "&to=" +
+            reportRange.to,
+        ),
       ] as const);
 
       setData({
         dashboard: settledValue(results[0], null),
+        report: settledValue(results[12], null),
         campaigns: settledValue(results[1], []),
         leads: settledValue(results[2], []),
         content: settledValue(results[3], []),
@@ -258,6 +317,7 @@ export default function CommunicationsOverviewPage() {
         "varlık kütüphanesi",
         "talep dağıtımı",
         "marka kuralları",
+        "30 günlük yönetim raporu",
       ].filter((_, index) => results[index].status === "rejected");
 
       if (failedSections.length) {
@@ -542,6 +602,73 @@ export default function CommunicationsOverviewPage() {
           attention={operational.attentionItems.length > 0}
         />
       </section>
+
+      {data.report ? (
+        <section className="rounded-[20px] border border-[var(--line)] bg-[var(--surface)] p-5 shadow-[var(--shadow-soft)]">
+          <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+            <div>
+              <p className="text-[9px] font-semibold uppercase tracking-[.12em] text-[var(--accent)]">
+                Son 30 Gün
+              </p>
+              <h2 className="mt-1 text-[14px] font-semibold text-[var(--ink)]">
+                Yönetim Performans Özeti
+              </h2>
+              <p className="mt-1 text-[8px] text-[var(--muted)]">
+                Önceki eşit 30 günlük dönemle karşılaştırmalı görünüm.
+              </p>
+            </div>
+            <Link
+              href="/communications/reports"
+              className="text-[9px] font-semibold text-[var(--accent)]"
+            >
+              Ayrıntılı Raporları Aç →
+            </Link>
+          </div>
+
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <PeriodMetric
+              label="Pazarlama Harcaması"
+              value={money.format(data.report.current.spend)}
+              comparison={comparisonDelta(
+                data.report.current.spend,
+                data.report.previous.spend,
+              )}
+            />
+            <PeriodMetric
+              label="Potansiyel Müşteri"
+              value={number.format(data.report.current.leads)}
+              comparison={comparisonDelta(
+                data.report.current.leads,
+                data.report.previous.leads,
+              )}
+            />
+            <PeriodMetric
+              label="Randevu"
+              value={number.format(data.report.current.appointments)}
+              comparison={comparisonDelta(
+                data.report.current.appointments,
+                data.report.previous.appointments,
+              )}
+            />
+            <PeriodMetric
+              label="Satış"
+              value={number.format(data.report.current.sales)}
+              comparison={comparisonDelta(
+                data.report.current.sales,
+                data.report.previous.sales,
+              )}
+            />
+            <PeriodMetric
+              label="Atfedilen Gelir"
+              value={money.format(data.report.current.revenue)}
+              comparison={comparisonDelta(
+                data.report.current.revenue,
+                data.report.previous.revenue,
+              )}
+            />
+          </div>
+        </section>
+      ) : null}
 
       <section
         id="attention"
@@ -933,6 +1060,30 @@ export default function CommunicationsOverviewPage() {
           value={data.connectionHealth?.connected ?? 0}
         />
       </section>
+    </div>
+  );
+}
+
+function PeriodMetric({
+  label,
+  value,
+  comparison,
+}: {
+  label: string;
+  value: string;
+  comparison: string;
+}) {
+  return (
+    <div className="rounded-[14px] bg-[var(--surface-2)] p-4">
+      <span className="block text-[7px] font-semibold uppercase tracking-[.1em] text-[var(--muted)]">
+        {label}
+      </span>
+      <strong className="mt-2 block text-[18px] font-semibold tracking-[-.03em] text-[var(--ink)]">
+        {value}
+      </strong>
+      <span className="mt-1.5 block text-[8px] font-semibold text-[var(--accent)]">
+        {comparison}
+      </span>
     </div>
   );
 }
